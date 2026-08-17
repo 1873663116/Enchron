@@ -65,6 +65,32 @@ def create_playback_structure_fixture(
     return ["--baseline", str(baseline)]
 
 
+def create_playback_issue_fixture(root: Path) -> list[str]:
+    owner = root / "Modules/PlaybackFeature/PlaybackRuntime.swift"
+    owner.parent.mkdir(parents=True)
+    owner.write_text(
+        """public final class PlaybackRuntime {
+    public private(set) var userVisibleIssue: PlaybackUserVisibleIssue?
+
+    public func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {
+        userVisibleIssue = issue
+    }
+}
+""",
+        encoding="utf-8",
+    )
+    illegal = root / "Modules/PlaybackPresentation/IllegalPlaybackIssueWriter.swift"
+    illegal.parent.mkdir(parents=True)
+    illegal.write_text(
+        """func overwriteIssue(runtime: PlaybackRuntime, issue: PlaybackUserVisibleIssue) {
+    runtime.userVisibleIssue = issue
+}
+""",
+        encoding="utf-8",
+    )
+    return ["--root", str(root)]
+
+
 def command_for(check: dict[str, object], root: Path) -> list[str]:
     guard = check.get("guard")
     defect = check.get("defect")
@@ -79,6 +105,8 @@ def command_for(check: dict[str, object], root: Path) -> list[str]:
         arguments = create_membership_fixture(root, defect)
     elif defect_type == "remove-playback-gap-baseline-entry":
         arguments = create_playback_structure_fixture(root, defect)
+    elif defect_type == "add-playback-issue-write":
+        arguments = create_playback_issue_fixture(root)
     else:
         raise ValueError(f"unknown defect type: {defect_type!r}")
     return [sys.executable, str(guard_path), *arguments]

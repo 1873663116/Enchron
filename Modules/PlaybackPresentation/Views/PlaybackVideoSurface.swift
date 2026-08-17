@@ -377,7 +377,10 @@ struct PlaybackVideoSurface: View {
         } catch PlaybackRuntime.RuntimeError.rendererTransferPending {
             return false
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            playbackVideoSurfaceLogger.error(
+                "renderer consumer claim failed presentation=\(presentation.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             releaseSurface(from: content)
             return false
         }
@@ -633,7 +636,7 @@ struct PlaybackVideoSurface: View {
             }
             logSurfaceFacts(reason: "attachCompleted")
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
             let failureSignature = [
                 "attachFailed",
                 error.localizedDescription,

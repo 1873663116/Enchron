@@ -78,6 +78,7 @@ $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackQueue.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackRuntimeControlling.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackSeekPolicy.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackSessionReporting.swift
+$(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/ViewingState.swift
 $(SRCROOT)/Modules/PlaybackFeature/Model/MediaProfile.swift

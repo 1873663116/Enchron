@@ -175,9 +175,7 @@ public final class AppModel {
     public private(set) var presentationTargetRendererMayBind = false
     public private(set) var presentationVisualCutoverMayBegin = false
     public private(set) var portalExitLastFrame: CGImage?
-    public var presentationConversionFailureMessage: String?
     public private(set) var lastPresentationConversionDiagnostic: String?
-    private var deferredPresentationConversionFailureMessage: String?
     private var presentationTransitionStartedAt: Date?
 
     public var showControls: Bool = false
@@ -343,24 +341,9 @@ public final class AppModel {
         spatialPlatformEffectReplacementHandler?()
     }
 
-    /// Keeps presentation-transfer failure UI out of Window scene creation.
-    /// The failure becomes visible only after the Media Library root appears.
-    public func deferPresentationConversionFailureUntilMediaLibraryIsVisible(
-        _ message: String
-    ) {
-        presentationConversionFailureMessage = nil
-        deferredPresentationConversionFailureMessage = message
-    }
-
     func recordPresentationConversionDiagnostic(_ diagnostic: String) {
         lastPresentationConversionDiagnostic = diagnostic
         Self.recordProbe("conversionFailed \(diagnostic)")
-    }
-
-    public func presentDeferredPresentationConversionFailure() {
-        guard let deferredPresentationConversionFailureMessage else { return }
-        self.deferredPresentationConversionFailureMessage = nil
-        presentationConversionFailureMessage = deferredPresentationConversionFailureMessage
     }
 
     @discardableResult

@@ -147,7 +147,7 @@ final class MediaReferenceResolver {
                 )
             }
             var sources: [ResolvedExternalSubtitleSource] = []
-            var failureMessages: [String] = []
+            var hadFailures = false
             for candidate in ExternalSubtitleAssociation.matching(
                 mediaFile: mediaFile,
                 subtitleFiles: subtitleFiles
@@ -162,7 +162,10 @@ final class MediaReferenceResolver {
                         relativePath: candidateRelativePath
                     )
                 } catch {
-                    failureMessages.append("\(candidate.name): \(error.localizedDescription)")
+                    hadFailures = true
+                    logger.error(
+                        "external subtitle resolution failed source=\(candidate.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                    )
                     continue
                 }
                 let versionedIdentity = VersionedMediaIdentity.local(resolved.url)
@@ -180,7 +183,7 @@ final class MediaReferenceResolver {
             }
             return ExternalSubtitleResolution(
                 sources: sources,
-                failureMessages: failureMessages
+                hadFailures: hadFailures
             )
         case .sourceItem(let dataSourceID, let path):
             guard let resolveExternalSubtitleSources else { return .none }
@@ -276,6 +279,7 @@ final class MediaReferenceResolver {
 @MainActor
 @Observable
 public final class MediaLibraryViewModel {
+    private let logger = Logger(subsystem: "app.enchron", category: "MediaLibrary")
     public private(set) var library: FileBrowsingDomain.MediaLibrary
     public private(set) var currentFolderID: UUID?
     public private(set) var folderPath: [UUID] = []
@@ -541,11 +545,12 @@ public final class MediaLibraryViewModel {
         do {
             externalSubtitles = try await resolver.externalSubtitleSources(for: reference)
         } catch {
+            logger.error(
+                "external subtitle discovery failed error=\(error.localizedDescription, privacy: .public)"
+            )
             externalSubtitles = ExternalSubtitleResolution(
                 sources: [],
-                failureMessages: [
-                    "Could not inspect the source directory for subtitle files: \(error.localizedDescription)"
-                ]
+                hadFailures: true
             )
         }
         let versionedIdentity: VersionedMediaIdentity? = switch reference.locator {
@@ -575,7 +580,7 @@ public final class MediaLibraryViewModel {
             accessLease: source.accessLease,
             byteStreamHandle: source.byteStreamHandle,
             externalSubtitleSources: externalSubtitles.sources,
-            externalSubtitleErrorMessage: externalSubtitles.errorMessage
+            externalSubtitleResolutionFailed: externalSubtitles.hadFailures
         )
     }
 

@@ -500,7 +500,7 @@ struct TrackSelectionPreferenceTests {
         try await unavailableRuntime.waitUntilConfigured()
         #expect(unavailableRuntime.currentAudioTrackID == Self.audioTracks[0].id)
         #expect(unavailableRuntime.currentSubtitleTrackID == Self.subtitleTracks[0].id)
-        #expect(unavailableRuntime.lastErrorMessage == nil)
+        #expect(unavailableRuntime.userVisibleIssue == nil)
 
         let returnedRuntime = TrackSelectionRuntime(
             audioTracks: Self.audioTracks,
@@ -1011,7 +1011,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var activeSessionID: String?
     var actualPlaybackSeconds: Double = 0
     var didEndNaturally = false
-    var lastErrorMessage: String?
+    var userVisibleIssue: PlaybackUserVisibleIssue?
     private(set) var observationGeneration: UInt64 = 0
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
     var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)?
@@ -1027,6 +1027,10 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var nextFormatApplicationError: TestError?
     private var suspendsNextFormatApplication = false
     private var suspendedFormatApplicationContinuation: CheckedContinuation<Void, Never>?
+
+    func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {
+        userVisibleIssue = issue
+    }
     private var suspendsNextOpen = false
     private var suspendedOpenContinuation: CheckedContinuation<Void, Never>?
 

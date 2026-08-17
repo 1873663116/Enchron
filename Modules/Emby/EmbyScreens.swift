@@ -81,7 +81,9 @@ private struct EmbyPageHeader<Trailing: View>: View {
 }
 
 public struct EmbyScreen: View {
-    public typealias PlayHandler = @MainActor (EmbyPlaybackSelection) async throws -> Void
+    public typealias PlayHandler = @MainActor (
+        Result<EmbyPlaybackSelection, EmbyError>
+    ) async -> Void
 
     @Environment(EmbySessionViewModel.self) private var session
     @Environment(EmbyHomeViewModel.self) private var home
@@ -510,7 +512,6 @@ private struct EmbyDetailScreen: View {
     @Environment(EmbySessionViewModel.self) private var session
     @State private var viewModel: EmbyDetailViewModel
     @State private var overviewIsExpanded = false
-    @State private var playbackError: String?
     @State private var scrollOffset: CGFloat = 0
     /// Set once the wearer has taken hold of this page, which is what lets it start settling to one
     /// of its two positions. Each detail page carries its own, so arriving at one always starts over.
@@ -854,11 +855,6 @@ private struct EmbyDetailScreen: View {
                     .accessibilityIdentifier("Emby-Detail-Version")
                 }
             }
-            if let playbackError {
-                Text(playbackError)
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("Emby-Playback-Error")
-            }
         }
     }
 
@@ -925,10 +921,11 @@ private struct EmbyDetailScreen: View {
         Button {
             Task {
                 do {
-                    try await onPlay(viewModel.playbackSelection(startAction: action))
-                    playbackError = nil
+                    await onPlay(.success(try viewModel.playbackSelection(startAction: action)))
+                } catch let error as EmbyError {
+                    await onPlay(.failure(error))
                 } catch {
-                    playbackError = error.localizedDescription
+                    await onPlay(.failure(.invalidResponse))
                 }
             }
         } label: {
@@ -1035,12 +1032,7 @@ private struct EmbyDetailScreen: View {
             accessibilityIdentifier: "Emby-Episode-\(metadata.id.rawValue)",
             action: {
                 Task {
-                    do {
-                        try await onPlay(viewModel.playbackSelection(for: episode))
-                        playbackError = nil
-                    } catch {
-                        playbackError = error.localizedDescription
-                    }
+                    await onPlay(.success(viewModel.playbackSelection(for: episode)))
                 }
             }
         )

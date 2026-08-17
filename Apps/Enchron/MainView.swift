@@ -1,6 +1,7 @@
 import DesignSystem
 import Emby
 import MediaSource
+import OSLog
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
@@ -186,6 +187,7 @@ enum PlaybackPresentationTransitionAppearance {
 }
 
 public struct MainView: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "MainView")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
@@ -239,10 +241,6 @@ public struct MainView: View {
                     controlsTimer?.cancel()
                 }
             }
-            Task { @MainActor in
-                await Task.yield()
-                appModel.presentDeferredPresentationConversionFailure()
-            }
         }
         .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, hasActivePlaybackRequest in
             Task { @MainActor in
@@ -251,7 +249,6 @@ public struct MainView: View {
                     scheduleControlsAutoHide()
                 } else {
                     controlsTimer?.cancel()
-                    appModel.presentDeferredPresentationConversionFailure()
                 }
             }
         }
@@ -307,18 +304,30 @@ public struct MainView: View {
 
     /// Player Controls and top chrome only after presentable video is up.
     private var showsPlaybackChrome: Bool {
-        let chrome =
-            hostsPlaybackOrnament
-            && appModel.showControls
-            && (playbackRuntime.presentationState == .videoVisible
-                || isLeavingWindowPresentation)
-            && playbackRuntime.lastErrorMessage == nil
+        let issueRequiresPlayerDeck = playbackRuntime.userVisibleIssue?
+            .canPresent(at: .playerDeck) == true
+        let chrome = hostsPlaybackOrnament
+            && (
+                issueRequiresPlayerDeck
+                    || (
+                        appModel.showControls
+                            && (playbackRuntime.presentationState == .videoVisible
+                                || isLeavingWindowPresentation)
+                            && windowPlaybackIssue?.interruptsPlayback != true
+                    )
+            )
         // #region agent log
         // Publish gate inputs into the control-plane value so XCUI can prove
         // whether chrome stayed hidden after a successful showControls toggle.
         _ = chrome
         // #endregion
         return chrome
+    }
+
+    private var windowPlaybackIssue: PlaybackUserVisibleIssue? {
+        guard let issue = playbackRuntime.userVisibleIssue,
+              issue.canPresent(at: .mainWindow) else { return nil }
+        return issue
     }
 
     @ViewBuilder
@@ -359,36 +368,7 @@ public struct MainView: View {
                 )
             }
         }
-        .alert(
-            "转换失败",
-            isPresented: Binding(
-                get: { appModel.presentationConversionFailureMessage != nil },
-                set: {
-                    if $0 == false {
-                        appModel.presentationConversionFailureMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("好", role: .cancel) {
-                appModel.presentationConversionFailureMessage = nil
-            }
-        } message: {
-            Text(
-                appModel.presentationConversionFailureMessage
-                    ?? "无法切换播放显示方式，已返回媒体资料库。"
-            )
-            .accessibilityIdentifier("PlayerUI-presentation-conversion-diagnostic")
-            .accessibilityValue(presentationConversionDiagnosticAccessibilityValue)
-        }
-    }
-
-    private var presentationConversionDiagnosticAccessibilityValue: String {
-#if DEBUG
-        appModel.lastPresentationConversionDiagnostic ?? "none"
-#else
-        "none"
-#endif
+        .playbackIssueAlert(at: .mediaLibrary)
     }
 
     @ViewBuilder
@@ -413,10 +393,24 @@ public struct MainView: View {
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
 
             Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
-                EmbyScreen { selection in
-                    let request = try await embySession.playbackRequest(for: selection)
-                    AppModel.recordProbe("openRequestForwarded")
-                    playbackLauncher.requestPlayback(request)
+                EmbyScreen { selectionResult in
+                    do {
+                        let selection = try selectionResult.get()
+                        let request = try await embySession.playbackRequest(for: selection)
+                        AppModel.recordProbe("openRequestForwarded")
+                        playbackLauncher.requestPlayback(request)
+                    } catch EmbyError.unsupportedVideoCodec(let codec) {
+                        playbackRuntime.setUserVisibleIssue(
+                            .unsupportedVideoCodec(
+                                PlaybackUnsupportedVideoCodec(codecName: codec)
+                            )
+                        )
+                    } catch {
+                        logger.error(
+                            "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
+                    }
                 }
                 .enchronScreenAppearance()
             }
@@ -554,7 +548,7 @@ public struct MainView: View {
         // owns the outer glass; this layer adds only the product spinner until
         // the surface reports presentable video (or a load failure).
         let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
-            hasPlaybackError: playbackRuntime.lastErrorMessage != nil,
+            hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
             presentationState: playbackRuntime.presentationState,
             isPresentationTransitionActive: appModel.presentationTransition != nil
         )
@@ -609,21 +603,11 @@ public struct MainView: View {
             }
 
         }
-        .alert(
-            "Failed to Load",
-            isPresented: Binding(
-                get: { playbackRuntime.lastErrorMessage != nil },
-                set: { if !$0 { playbackRuntime.lastErrorMessage = nil } }
-            )
-        ) {
-            Button("Retry", action: retryPlayback)
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("PlayerUI-loadFailure-primary")
-            Button("Close", role: .cancel, action: playbackLauncher.stopPlayback)
-                .accessibilityIdentifier("PlayerUI-loadFailure-secondary")
-        } message: {
-            Text(playbackRuntime.lastErrorMessage ?? "Playback could not be started.")
-        }
+        .playbackIssueAlert(
+            at: .mainWindow,
+            onRetry: retryPlayback,
+            onClose: playbackLauncher.stopPlayback
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
         .accessibilityValue(playbackRuntime.lifecycle.label)
@@ -685,7 +669,7 @@ public struct MainView: View {
             String(format: "%.4f", $0)
         } ?? "none"
         let loadingSpinnerVisible = WindowPlaybackLoadingVisibility.shouldShow(
-            hasPlaybackError: playbackRuntime.lastErrorMessage != nil,
+            hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
             presentationState: playbackRuntime.presentationState,
             isPresentationTransitionActive: appModel.presentationTransition != nil
         )
@@ -803,7 +787,7 @@ public struct MainView: View {
             "subtitleTracks=\(playbackRuntime.availableSubtitleTracks.count)",
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
-            "error=\((playbackRuntime.lastErrorMessage ?? "none").replacingOccurrences(of: ";", with: ","))"
+            "error=\(playbackRuntime.userVisibleIssue?.category.rawValue ?? "none")"
         ]
         fields.append(contentsOf: rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
@@ -899,7 +883,7 @@ public struct MainView: View {
     }
 
     private func retryPlayback() {
-        playbackRuntime.lastErrorMessage = nil
+        playbackRuntime.setUserVisibleIssue(nil)
         playbackLauncher.retryPlayback()
     }
 
@@ -1031,7 +1015,7 @@ private struct PlaybackAutomationStateProbe: View {
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
             "subtitleFrame=\(playbackRuntime.activeSubtitleFrame?.kind.rawValue ?? "none")",
             "controls=\(appModel.showControls ? "shown" : "hidden")",
-            "error=\((playbackRuntime.lastErrorMessage ?? "none").replacingOccurrences(of: ";", with: ","))"
+            "error=\(playbackRuntime.userVisibleIssue?.category.rawValue ?? "none")"
         ]
         fields.append(contentsOf: rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
@@ -1055,7 +1039,10 @@ struct ImmersivePlaybackControlsAttachmentView: View {
     @State private var isStoppingPlayback = false
 
     private var controlsAcceptInput: Bool {
-        ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+        let issueRequiresControls = playbackRuntime.userVisibleIssue.map {
+            $0.canPresent(at: .playerDeck) || $0.canPresent(at: .immersiveSpace)
+        } == true
+        return issueRequiresControls || ImmersivePlaybackControlsAttachmentPolicy.isVisible(
             presentation: presentation,
             controlsVisible: appModel.showControls,
             transitionIsActive: appModel.presentationTransition != nil
@@ -1076,23 +1063,11 @@ struct ImmersivePlaybackControlsAttachmentView: View {
                 "immersiveControlsAttachment visible=\(visible) scope=attachment"
             )
         }
-        .alert(
-            "Playback Error",
-            isPresented: Binding(
-                get: { playbackRuntime.lastErrorMessage != nil },
-                set: { if !$0 { playbackRuntime.lastErrorMessage = nil } }
-            )
-        ) {
-            Button("Retry", action: retryPlayback)
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("PlayerUI-spatialFailure-primary")
-            Button("Close", role: .cancel) {
-                Task { await stopSpatialPlayback() }
-            }
-            .accessibilityIdentifier("PlayerUI-spatialFailure-secondary")
-        } message: {
-            Text(playbackRuntime.lastErrorMessage ?? "Playback could not continue.")
-        }
+        .playbackIssueAlert(
+            at: .immersiveSpace,
+            onRetry: retryPlayback,
+            onClose: { Task { await stopSpatialPlayback() } }
+        )
         .overlay {
             if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
                 Text("Spatial playback state")
@@ -1275,7 +1250,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
     }
 
     private func retryPlayback() {
-        playbackRuntime.lastErrorMessage = nil
+        playbackRuntime.setUserVisibleIssue(nil)
         playbackLauncher.retryPlayback()
     }
 
@@ -1305,5 +1280,128 @@ private func environmentAccessibilityValues(
         ("none", "none")
     case .some(.active(let environment, let effect)):
         (environment.rawValue, effect?.rawValue ?? "none")
+    }
+}
+
+extension View {
+    func playbackIssueAlert(
+        at location: PlaybackIssuePresentationLocation,
+        onRetry: @escaping () -> Void = {},
+        onClose: @escaping () -> Void = {}
+    ) -> some View {
+        modifier(
+            PlaybackIssueAlertModifier(
+                location: location,
+                onRetry: onRetry,
+                onClose: onClose
+            )
+        )
+    }
+}
+
+private struct PlaybackIssueAlertModifier: ViewModifier {
+    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+
+    let location: PlaybackIssuePresentationLocation
+    let onRetry: () -> Void
+    let onClose: () -> Void
+
+    private var issue: PlaybackUserVisibleIssue? {
+        guard let issue = playbackRuntime.userVisibleIssue,
+              issue.canPresent(at: location) else { return nil }
+        return issue
+    }
+
+    func body(content: Content) -> some View {
+        content.alert(
+            issue?.title ?? "Playback Error",
+            isPresented: Binding(
+                get: { issue != nil },
+                set: { presented in
+                    if presented == false, issue != nil {
+                        playbackRuntime.setUserVisibleIssue(nil)
+                    }
+                }
+            )
+        ) {
+            if let issue {
+                ForEach(issue.allowedActions, id: \.self) { action in
+                    actionButton(action)
+                }
+            }
+        } message: {
+            if let issue {
+                if issue.category == .presentationConversionFailed {
+                    Text(issue.message)
+                        .accessibilityIdentifier(
+                            "PlayerUI-presentation-conversion-diagnostic"
+                        )
+                        .accessibilityValue(presentationConversionDiagnostic)
+                } else if issue.category == .unsupportedVideoCodec
+                    || issue.category == .mediaRequestFailed {
+                    Text(issue.message)
+                        .accessibilityIdentifier("Emby-Playback-Error")
+                } else {
+                    Text(issue.message)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actionButton(_ action: PlaybackUserVisibleIssueAction) -> some View {
+        switch action {
+        case .retry:
+            Button("Retry") {
+                playbackRuntime.setUserVisibleIssue(nil)
+                onRetry()
+            }
+            .keyboardShortcut(.defaultAction)
+            .accessibilityIdentifier(primaryActionIdentifier)
+        case .close:
+            Button("Close", role: .cancel) {
+                playbackRuntime.setUserVisibleIssue(nil)
+                onClose()
+            }
+            .accessibilityIdentifier(secondaryActionIdentifier)
+        case .confirm:
+            Button("OK", role: .cancel) {
+                playbackRuntime.setUserVisibleIssue(nil)
+            }
+            .accessibilityIdentifier(confirmActionIdentifier)
+        }
+    }
+
+    private var primaryActionIdentifier: String {
+        switch location {
+        case .mainWindow: "PlayerUI-loadFailure-primary"
+        case .immersiveSpace: "PlayerUI-spatialFailure-primary"
+        case .playerDeck, .mediaLibrary: "PlayerUI-playbackIssue-primary"
+        }
+    }
+
+    private var secondaryActionIdentifier: String {
+        switch location {
+        case .mainWindow: "PlayerUI-loadFailure-secondary"
+        case .immersiveSpace: "PlayerUI-spatialFailure-secondary"
+        case .playerDeck, .mediaLibrary: "PlayerUI-playbackIssue-secondary"
+        }
+    }
+
+    private var confirmActionIdentifier: String {
+        switch location {
+        case .playerDeck: "PlayerUI-unmetCapability-dismiss"
+        case .mediaLibrary: "PlayerUI-presentation-conversion-dismiss"
+        case .mainWindow, .immersiveSpace: "PlayerUI-playbackIssue-confirm"
+        }
+    }
+
+    private var presentationConversionDiagnostic: String {
+#if DEBUG
+        appModel.lastPresentationConversionDiagnostic ?? "none"
+#else
+        "none"
+#endif
     }
 }

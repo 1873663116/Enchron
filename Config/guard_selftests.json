@@ -28,6 +28,20 @@
           "window camera is missing"
         ]
       }
+    },
+    {
+      "id": "playback-issue-ownership-rejects-second-writer",
+      "guard": "Scripts/verification/verify_playback_issue_ownership.py",
+      "defect": {
+        "type": "add-playback-issue-write"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "IllegalPlaybackIssueWriter.swift:2",
+          "playback-issue-write-outside-owner"
+        ]
+      }
     }
   ]
 }

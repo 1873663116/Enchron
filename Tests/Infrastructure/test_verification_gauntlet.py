@@ -20,6 +20,7 @@ class VerificationGauntletTests(unittest.TestCase):
         self.assertEqual(len(full), 11)
         self.assertIn("glass-usage", quick)
         self.assertIn("media-byte-stream-conformance", quick)
+        self.assertIn("playback-issue-ownership", quick)
         self.assertIn("format-description-identity", full)
         self.assertNotIn("format-description-identity", quick)
 

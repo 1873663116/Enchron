@@ -117,7 +117,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let versionedIdentity: VersionedMediaIdentity?
     public let sourceAccess: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
-    public let externalSubtitleErrorMessage: String?
+    public let externalSubtitleResolutionFailed: Bool
     public let viewingStateAuthority: ViewingStateAuthority
     public let startPositionSeconds: Double?
     public let sessionReporter: (any PlaybackSessionReporting)?
@@ -130,7 +130,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
+        externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
@@ -144,7 +144,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.versionedIdentity = versionedIdentity
         self.sourceAccess = nil
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
         self.sessionReporter = sessionReporter
@@ -159,7 +159,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
+        externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
@@ -172,7 +172,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             sessionReporter: sessionReporter
@@ -188,7 +188,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         versionedIdentity: VersionedMediaIdentity? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
+        externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
@@ -202,7 +202,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.versionedIdentity = versionedIdentity
         self.sourceAccess = sourceAccess
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
         self.sessionReporter = sessionReporter
@@ -218,7 +218,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         versionedIdentity: VersionedMediaIdentity? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
+        externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
@@ -232,7 +232,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             sessionReporter: sessionReporter
@@ -249,7 +249,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             sessionReporter: sessionReporter
@@ -265,7 +265,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.collectionOrigin == rhs.collectionOrigin &&
             lhs.versionedIdentity == rhs.versionedIdentity &&
             lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
-            lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage &&
+            lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed &&
             lhs.viewingStateAuthority == rhs.viewingStateAuthority &&
             lhs.startPositionSeconds == rhs.startPositionSeconds
     }

@@ -188,6 +188,7 @@
 				PlaybackFeature/Domain/PlaybackRuntimeControlling.swift,
 				PlaybackFeature/Domain/PlaybackSeekPolicy.swift,
 				PlaybackFeature/Domain/PlaybackSessionReporting.swift,
+				PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift,
 				PlaybackFeature/Domain/TrackSelectionPreference.swift,
 				PlaybackFeature/Domain/ViewingState.swift,
 				PlaybackFeature/Model/MediaProfile.swift,

@@ -318,7 +318,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
                 guard generation == launchGeneration, !Task.isCancelled else { return }
                 finishMediaServerReportingSession()
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "playback launch failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                if playbackRuntime.userVisibleIssue == nil {
+                    playbackRuntime.setUserVisibleIssue(.mediaOpeningFailed)
+                }
             }
         }
     }

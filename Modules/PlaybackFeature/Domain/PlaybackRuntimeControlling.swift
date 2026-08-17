@@ -55,7 +55,7 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var currentAudioTrackID: String? { get }
     var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] { get }
     var currentSubtitleTrackID: String? { get }
-    var lastErrorMessage: String? { get set }
+    var userVisibleIssue: PlaybackUserVisibleIssue? { get }
     var observationGeneration: UInt64 { get }
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)? { get set }
     var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)? { get set }
@@ -82,6 +82,7 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func displayedArtworkImage() -> CGImage?
     func stop(releasingSourceAccess: Bool)
     func stopAndWait(releasingSourceAccess: Bool) async
+    func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?)
 }
 
 public extension PlaybackRuntimeControlling {

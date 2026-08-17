@@ -1,14 +1,15 @@
 import DesignSystem
+import OSLog
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
 
 struct WindowPlayerDeckView: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlayerDeck")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @State private var dismissedBlockingCapabilityToken: String?
     var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
 
@@ -31,31 +32,11 @@ struct WindowPlayerDeckView: View {
                 .onHover { appModel.setControlsFocused($0) }
             }
         }
-        .alert(
-            "Subtitle Error",
-            isPresented: Binding(
-                get: { playbackRuntime.subtitleErrorMessage != nil },
-                set: { if !$0 { playbackRuntime.subtitleErrorMessage = nil } }
-            )
-        ) {
-            Button("OK") { playbackRuntime.subtitleErrorMessage = nil }
-        } message: {
-            Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
-        }
-        .alert(
-            "Unable to Play",
-            isPresented: blockingCapabilityIsPresented
-        ) {
-            Button("OK") {
-                dismissedBlockingCapabilityToken = blockingCapabilityToken
-            }
-            .accessibilityIdentifier("PlayerUI-unmetCapability-dismiss")
-        } message: {
-            Text(
-                blockingCapability?.reason
-                    ?? "This file cannot play on this device."
-            )
-        }
+        .playbackIssueAlert(
+            at: .playerDeck,
+            onRetry: playbackLauncher.retryPlayback,
+            onClose: onExitPlayback ?? playbackLauncher.stopPlayback
+        )
     }
 
     private func register() {
@@ -171,30 +152,6 @@ struct WindowPlayerDeckView: View {
         )
     }
 
-    private var blockingCapability: UnmetCapability? {
-        playbackRuntime.unmetCapabilities.first(where: \.preventsPlayback)
-    }
-
-    private var blockingCapabilityToken: String? {
-        blockingCapability.map {
-            "\(playbackRuntime.observationGeneration)|\($0.id)"
-        }
-    }
-
-    private var blockingCapabilityIsPresented: Binding<Bool> {
-        Binding(
-            get: {
-                guard let token = blockingCapabilityToken else { return false }
-                return token != dismissedBlockingCapabilityToken
-            },
-            set: { presented in
-                if presented == false {
-                    dismissedBlockingCapabilityToken = blockingCapabilityToken
-                }
-            }
-        )
-    }
-
     private var resolvedPresentation: PlaybackPresentation {
         presentationOverride ?? appModel.playbackPresentation
     }
@@ -223,7 +180,10 @@ struct WindowPlayerDeckView: View {
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            logger.error(
+                "presentation request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+            playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
         }
     }
 
@@ -254,7 +214,10 @@ struct WindowPlayerDeckView: View {
                     usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "format change failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }
@@ -266,7 +229,10 @@ struct WindowPlayerDeckView: View {
             do {
                 try await playbackLauncher.resetFormat()
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "source format restoration failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }
@@ -291,7 +257,10 @@ struct WindowPlayerDeckView: View {
                     do {
                         try await self.playbackLauncher.selectSubtitleTrack(track)
                     } catch {
-                        self.playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        self.logger.error(
+                            "subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -303,7 +272,10 @@ struct WindowPlayerDeckView: View {
                     do {
                         try await self.playbackLauncher.selectSubtitleTrack(nil)
                     } catch {
-                        self.playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        self.logger.error(
+                            "subtitle disable failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -320,7 +292,10 @@ struct WindowPlayerDeckView: View {
                     do {
                         try await self.playbackLauncher.selectAudioTrack(track)
                     } catch {
-                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
+                        self.logger.error(
+                            "audio selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        self.playbackRuntime.setUserVisibleIssue(.audioTrackSelectionFailed)
                     }
                 }
             }
@@ -364,6 +339,7 @@ struct WindowPlayerDeckView: View {
 /// Production More menu shared by the window chrome. Its label uses the
 /// DesignSystem circle control while the menu contents remain feature-owned.
 struct ProductionPlaybackMoreMenu: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlaybackMoreMenu")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -388,17 +364,6 @@ struct ProductionPlaybackMoreMenu: View {
             }
         }
         .accessibilityLabel("More playback settings")
-        .alert(
-            "Subtitle Error",
-            isPresented: Binding(
-                get: { playbackRuntime.subtitleErrorMessage != nil },
-                set: { if !$0 { playbackRuntime.subtitleErrorMessage = nil } }
-            )
-        ) {
-            Button("OK") { playbackRuntime.subtitleErrorMessage = nil }
-        } message: {
-            Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
-        }
     }
 
     @ViewBuilder
@@ -444,7 +409,10 @@ struct ProductionPlaybackMoreMenu: View {
                     do {
                         try await playbackLauncher.selectSubtitleTrack(track)
                     } catch {
-                        playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        logger.error(
+                            "subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -456,7 +424,10 @@ struct ProductionPlaybackMoreMenu: View {
                     do {
                         try await playbackLauncher.selectSubtitleTrack(nil)
                     } catch {
-                        playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        logger.error(
+                            "subtitle disable failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -477,7 +448,10 @@ struct ProductionPlaybackMoreMenu: View {
                     do {
                         try await playbackLauncher.selectAudioTrack(track)
                     } catch {
-                        playbackRuntime.lastErrorMessage = error.localizedDescription
+                        logger.error(
+                            "audio selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.audioTrackSelectionFailed)
                     }
                 }
             }

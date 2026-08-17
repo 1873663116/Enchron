@@ -1140,7 +1140,10 @@ public struct ImmersiveSpaceView: View {
             return
         } catch {
             appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerFailed")
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            logger.error(
+                "renderer consumer claim failed error=\(error.localizedDescription, privacy: .public)"
+            )
             logSpatialSurfaceReadiness(reason: "rendererConsumerFailed")
             return
         }
@@ -1343,7 +1346,10 @@ public struct ImmersiveSpaceView: View {
             recordSpatialPresentationState()
         } catch {
             appModel.recordSpatialPlaybackSurfacePreparationStage("surfaceAttachFailed")
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            logger.error(
+                "spatial surface attach failed error=\(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -1735,7 +1741,7 @@ public struct ImmersiveSpaceView: View {
             world.hasFailed = true
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldLoadFailed")
             logger.error("world load failed error=\(error.localizedDescription, privacy: .public)")
-            playbackRuntime.lastErrorMessage = "Failed to load the selected environment: \(error.localizedDescription)"
+            playbackRuntime.setUserVisibleIssue(.environmentLoadingFailed)
         }
     }
 
