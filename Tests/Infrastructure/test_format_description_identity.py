@@ -30,6 +30,7 @@ class FormatDescriptionIdentityTests(unittest.TestCase):
         ):
             self.assertNotIn("path", rule.declaration)
             self.assertTrue(rule.reason)
+            self.assertTrue(rule.evidence)
 
     def test_expected_facts_preserve_declared_srgb_transfer(self) -> None:
         declaration = identity.Declaration(

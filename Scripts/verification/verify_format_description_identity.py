@@ -102,6 +102,7 @@ class Exemption:
     actual: str
     count: int
     reason: str
+    evidence: str
 
     def matches(self, declaration: Declaration, difference: Difference) -> bool:
         return (
@@ -122,6 +123,7 @@ class CapabilityBoundary:
     error_contains: str
     count: int
     reason: str
+    evidence: str
 
     def matches(self, declaration: Declaration, error: str) -> bool:
         return self.error_contains in error and all(
@@ -153,7 +155,7 @@ class Result:
 
 
 def require_rule_common(entry: object, category: str) -> tuple[
-    str, dict[str, object], int, str
+    str, dict[str, object], int, str, str
 ]:
     if not isinstance(entry, dict):
         raise ValueError(f"every {category} entry must be an object")
@@ -161,6 +163,7 @@ def require_rule_common(entry: object, category: str) -> tuple[
     declaration = entry.get("declaration")
     count = entry.get("count")
     reason = entry.get("reason")
+    evidence = entry.get("evidence")
     if not isinstance(identifier, str) or not identifier:
         raise ValueError(f"every {category} entry needs a non-empty id")
     if not isinstance(declaration, dict) or not declaration:
@@ -171,7 +174,9 @@ def require_rule_common(entry: object, category: str) -> tuple[
         raise ValueError(f"{identifier} needs a positive count")
     if not isinstance(reason, str) or not reason:
         raise ValueError(f"{identifier} needs a non-empty reason")
-    return identifier, declaration, count, reason
+    if not isinstance(evidence, str) or not evidence:
+        raise ValueError(f"{identifier} needs non-empty evidence")
+    return identifier, declaration, count, reason, evidence
 
 
 def load_baseline(path: Path) -> Baseline:
@@ -189,7 +194,7 @@ def load_baseline(path: Path) -> Baseline:
     boundaries: list[CapabilityBoundary] = []
     identifiers: set[str] = set()
     for entry in raw_exemptions:
-        identifier, declaration, count, reason = require_rule_common(
+        identifier, declaration, count, reason, evidence = require_rule_common(
             entry, "exemption"
         )
         field = entry.get("field")
@@ -200,18 +205,19 @@ def load_baseline(path: Path) -> Baseline:
         if not isinstance(expected, str) or not isinstance(actual, str):
             raise ValueError(f"{identifier} needs expected and actual strings")
         exemptions.append(Exemption(
-            identifier, declaration, field, expected, actual, count, reason
+            identifier, declaration, field, expected, actual, count, reason,
+            evidence
         ))
         identifiers.add(identifier)
     for entry in raw_boundaries:
-        identifier, declaration, count, reason = require_rule_common(
+        identifier, declaration, count, reason, evidence = require_rule_common(
             entry, "capability boundary"
         )
         error_contains = entry.get("errorContains")
         if not isinstance(error_contains, str) or not error_contains:
             raise ValueError(f"{identifier} needs a non-empty errorContains")
         boundaries.append(CapabilityBoundary(
-            identifier, declaration, error_contains, count, reason
+            identifier, declaration, error_contains, count, reason, evidence
         ))
         if identifier in identifiers:
             raise ValueError(f"baseline id {identifier!r} is duplicated")
@@ -419,7 +425,7 @@ def verify_one(
                 rule = matches[0]
                 details.append(
                     f"{difference.describe()} exemption={rule.identifier!r} "
-                    f"reason={rule.reason}"
+                    f"reason={rule.reason} evidence={rule.evidence}"
                 )
                 baseline_ids.append(rule.identifier)
             elif matches:
@@ -453,7 +459,11 @@ def verify_one(
                     label,
                     is_dolby_vision,
                     "capability-boundary",
-                    (f"reason={rule.reason}", f"error={error}"),
+                    (
+                        f"reason={rule.reason}",
+                        f"evidence={rule.evidence}",
+                        f"error={error}",
+                    ),
                     (rule.identifier,),
                 )
             if matches:
