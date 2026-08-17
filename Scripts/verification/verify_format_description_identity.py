@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+from collections import Counter
 import json
 import shlex
 import subprocess
@@ -17,6 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_MEDIA_ROOT = REPO.parent / "TestMedia"
 PLAYBACK_CORE = REPO / "Packages" / "PlaybackCore"
+DEFAULT_BASELINE = REPO / "Config" / "format_description_identity_baseline.json"
 VIDEO_SUFFIXES = {
     ".av1", ".avi", ".h265", ".hevc", ".ivf", ".m2ts", ".m3u8",
     ".m4v", ".mkv", ".mov", ".mp4", ".mxf", ".ts", ".webm", ".y4m",
@@ -81,11 +83,141 @@ class Declaration:
 
 
 @dataclass(frozen=True)
+class Difference:
+    field: str
+    expected: str
+    actual: str
+
+    def describe(self) -> str:
+        return f"{self.field}: expected={self.expected!r} actual={self.actual!r}"
+
+
+@dataclass(frozen=True)
+class Exemption:
+    identifier: str
+    declaration: dict[str, object]
+    field: str
+    expected: str
+    actual: str
+    count: int
+    reason: str
+
+    def matches(self, declaration: Declaration, difference: Difference) -> bool:
+        return (
+            difference.field == self.field
+            and difference.expected == self.expected
+            and difference.actual == self.actual
+            and all(
+                declaration.stream.get(key) == value
+                for key, value in self.declaration.items()
+            )
+        )
+
+
+@dataclass(frozen=True)
+class CapabilityBoundary:
+    identifier: str
+    declaration: dict[str, object]
+    error_contains: str
+    count: int
+    reason: str
+
+    def matches(self, declaration: Declaration, error: str) -> bool:
+        return self.error_contains in error and all(
+            declaration.stream.get(key) == value
+            for key, value in self.declaration.items()
+        )
+
+
+@dataclass(frozen=True)
+class Baseline:
+    exemptions: tuple[Exemption, ...]
+    capability_boundaries: tuple[CapabilityBoundary, ...]
+
+    @property
+    def expected_counts(self) -> dict[str, int]:
+        return {
+            rule.identifier: rule.count
+            for rule in (*self.exemptions, *self.capability_boundaries)
+        }
+
+
+@dataclass(frozen=True)
 class Result:
     label: str
     is_dolby_vision: bool
     kind: str
     details: tuple[str, ...] = ()
+    baseline_ids: tuple[str, ...] = ()
+
+
+def require_rule_common(entry: object, category: str) -> tuple[
+    str, dict[str, object], int, str
+]:
+    if not isinstance(entry, dict):
+        raise ValueError(f"every {category} entry must be an object")
+    identifier = entry.get("id")
+    declaration = entry.get("declaration")
+    count = entry.get("count")
+    reason = entry.get("reason")
+    if not isinstance(identifier, str) or not identifier:
+        raise ValueError(f"every {category} entry needs a non-empty id")
+    if not isinstance(declaration, dict) or not declaration:
+        raise ValueError(f"{identifier} needs a non-empty declaration shape")
+    if not all(isinstance(key, str) and key for key in declaration):
+        raise ValueError(f"{identifier} has an invalid declaration key")
+    if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+        raise ValueError(f"{identifier} needs a positive count")
+    if not isinstance(reason, str) or not reason:
+        raise ValueError(f"{identifier} needs a non-empty reason")
+    return identifier, declaration, count, reason
+
+
+def load_baseline(path: Path) -> Baseline:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("version") != 1:
+        raise ValueError("expected baseline version 1")
+    raw_exemptions = payload.get("knownExemptions")
+    raw_boundaries = payload.get("knownCapabilityBoundaries")
+    if not isinstance(raw_exemptions, list):
+        raise ValueError("knownExemptions must be a list")
+    if not isinstance(raw_boundaries, list):
+        raise ValueError("knownCapabilityBoundaries must be a list")
+
+    exemptions: list[Exemption] = []
+    boundaries: list[CapabilityBoundary] = []
+    identifiers: set[str] = set()
+    for entry in raw_exemptions:
+        identifier, declaration, count, reason = require_rule_common(
+            entry, "exemption"
+        )
+        field = entry.get("field")
+        expected = entry.get("expected")
+        actual = entry.get("actual")
+        if field not in FIELDS:
+            raise ValueError(f"{identifier} has an unknown field")
+        if not isinstance(expected, str) or not isinstance(actual, str):
+            raise ValueError(f"{identifier} needs expected and actual strings")
+        exemptions.append(Exemption(
+            identifier, declaration, field, expected, actual, count, reason
+        ))
+        identifiers.add(identifier)
+    for entry in raw_boundaries:
+        identifier, declaration, count, reason = require_rule_common(
+            entry, "capability boundary"
+        )
+        error_contains = entry.get("errorContains")
+        if not isinstance(error_contains, str) or not error_contains:
+            raise ValueError(f"{identifier} needs a non-empty errorContains")
+        boundaries.append(CapabilityBoundary(
+            identifier, declaration, error_contains, count, reason
+        ))
+        if identifier in identifiers:
+            raise ValueError(f"baseline id {identifier!r} is duplicated")
+        identifiers.add(identifier)
+    if len(identifiers) != len(exemptions) + len(boundaries):
+        raise ValueError("knownExemptions contains duplicate ids")
+    return Baseline(tuple(exemptions), tuple(boundaries))
 
 
 def run(command: list[str], timeout: int = 300) -> subprocess.CompletedProcess[str]:
@@ -251,28 +383,90 @@ def constructed_facts(probe: Path, path: Path, timeout: int) -> dict[str, str]:
     return values
 
 
-def verify_one(probe: Path, root: Path, path: Path, timeout: int) -> Result:
+def verify_one(
+    probe: Path,
+    root: Path,
+    path: Path,
+    timeout: int,
+    baseline: Baseline,
+) -> Result:
     declaration: Declaration | None = None
+    label = str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
     try:
         declaration = ffmpeg_declaration(path, timeout)
         if declaration is None:
-            return Result(str(path.relative_to(root)), False, "no-video")
-        label = str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
+            return Result(label, False, "no-video")
         expected = expected_facts(declaration)
         actual = constructed_facts(probe, path, timeout)
         differences = tuple(
-            f"{field}: expected={expected[field]!r} actual={actual[field]!r}"
+            Difference(field, expected[field], actual[field])
             for field in FIELDS
             if expected[field] != actual[field]
         )
-        if differences:
-            return Result(label, declaration.is_dolby_vision, "mismatch", differences)
-        return Result(label, declaration.is_dolby_vision, "pass")
+        if not differences:
+            return Result(label, declaration.is_dolby_vision, "pass")
+
+        details: list[str] = []
+        baseline_ids: list[str] = []
+        unresolved = False
+        for difference in differences:
+            matches = [
+                rule for rule in baseline.exemptions
+                if rule.matches(declaration, difference)
+            ]
+            if len(matches) == 1:
+                rule = matches[0]
+                details.append(
+                    f"{difference.describe()} exemption={rule.identifier!r} "
+                    f"reason={rule.reason}"
+                )
+                baseline_ids.append(rule.identifier)
+            elif matches:
+                unresolved = True
+                details.append(
+                    f"{difference.describe()} matches multiple exemptions: "
+                    + ", ".join(rule.identifier for rule in matches)
+                )
+            else:
+                unresolved = True
+                details.append(difference.describe())
+        return Result(
+            label,
+            declaration.is_dolby_vision,
+            "mismatch" if unresolved else "exemption",
+            tuple(details),
+            tuple(baseline_ids),
+        )
     except UnknownDolbyVisionShape as error:
-        return Result(str(path), True, "unknown-dovi", (str(error),))
+        return Result(label, True, "unknown-dovi", (str(error),))
     except Exception as error:
         is_dolby_vision = declaration.is_dolby_vision if declaration else False
-        return Result(str(path), is_dolby_vision, "probe-failed", (str(error),))
+        if declaration:
+            matches = [
+                rule for rule in baseline.capability_boundaries
+                if rule.matches(declaration, str(error))
+            ]
+            if len(matches) == 1:
+                rule = matches[0]
+                return Result(
+                    label,
+                    is_dolby_vision,
+                    "capability-boundary",
+                    (f"reason={rule.reason}", f"error={error}"),
+                    (rule.identifier,),
+                )
+            if matches:
+                return Result(
+                    label,
+                    is_dolby_vision,
+                    "probe-failed",
+                    (
+                        f"matches multiple capability boundaries: "
+                        + ", ".join(rule.identifier for rule in matches),
+                        str(error),
+                    ),
+                )
+        return Result(label, is_dolby_vision, "probe-failed", (str(error),))
 
 
 def create_profile_five_remux(media_root: Path, output: Path, timeout: int) -> None:
@@ -294,6 +488,12 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=DEFAULT_BASELINE,
+        help="known declaration-shape exemptions and capability boundaries",
+    )
+    parser.add_argument(
         "--skip-profile-five-remux",
         action="store_true",
         help="Do not add the generated MP4-to-Matroska Profile 5 invariance fixture.",
@@ -302,6 +502,11 @@ def main() -> int:
     media_root = args.media_root.resolve()
     if not media_root.is_dir():
         parser.error(f"media root does not exist: {media_root}")
+    try:
+        baseline = load_baseline(args.baseline)
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        print(f"FAIL baseline: {error}", file=sys.stderr)
+        return 1
     probe = build_probe()
     files = sorted(
         path for path in media_root.rglob("*")
@@ -320,45 +525,64 @@ def main() -> int:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
             results = list(pool.map(
-                lambda path: verify_one(probe, media_root, path, args.timeout),
+                lambda path: verify_one(
+                    probe, media_root, path, args.timeout, baseline
+                ),
                 files,
             ))
 
     counts: dict[str, int] = {}
+    baseline_counts: Counter[str] = Counter()
     for result in results:
         counts[result.kind] = counts.get(result.kind, 0) + 1
+        baseline_counts.update(result.baseline_ids)
         if result.kind == "pass":
             if result.is_dolby_vision:
                 print(f"PASS Dolby Vision: {result.label}")
             continue
         if result.kind == "no-video":
-            print(f"SKIP no video stream: {result.label}")
+            print(f"PASS no video declaration: {result.label}")
             continue
-        severity = "FAIL" if result.is_dolby_vision else "EXISTING"
-        print(f"{severity} {result.kind}: {result.label}")
+        if result.kind == "exemption":
+            print(f"EXEMPT declared shape: {result.label}")
+        elif result.kind == "capability-boundary":
+            print(f"BOUNDARY known capability: {result.label}")
+        else:
+            print(f"FAIL {result.kind}: {result.label}")
         for detail in result.details:
             print(f"  {detail}")
 
-    dovi_failures = [
+    unclassified = [
         result for result in results
-        if result.is_dolby_vision and result.kind != "pass"
+        if result.kind not in (
+            "pass", "no-video", "exemption", "capability-boundary"
+        )
     ]
+    dovi_failures = [result for result in unclassified if result.is_dolby_vision]
     dovi_passes = sum(
         result.is_dolby_vision and result.kind == "pass" for result in results
     )
-    non_dovi_issues = sum(
-        not result.is_dolby_vision
-        and result.kind not in ("pass", "no-video")
-        for result in results
-    )
+    baseline_drift: list[str] = []
+    for identifier, expected_count in baseline.expected_counts.items():
+        actual_count = baseline_counts[identifier]
+        if actual_count != expected_count:
+            baseline_drift.append(
+                f"{identifier}: expected {expected_count}, observed {actual_count}"
+            )
+    unexpected_ids = sorted(set(baseline_counts) - set(baseline.expected_counts))
+    baseline_drift.extend(f"unexpected baseline id: {item}" for item in unexpected_ids)
+    if baseline_drift:
+        print("FAIL baseline drift:")
+        for detail in baseline_drift:
+            print(f"  {detail}")
     print(
         "SUMMARY "
         f"files={len(results)} dolby_vision_pass={dovi_passes} "
         f"dolby_vision_fail={len(dovi_failures)} "
-        f"non_dolby_existing_issues={non_dovi_issues} "
+        f"unclassified={len(unclassified)} baseline_drift={len(baseline_drift)} "
         + " ".join(f"{key}={value}" for key, value in sorted(counts.items()))
     )
-    return 1 if dovi_failures else 0
+    return 1 if unclassified or baseline_drift else 0
 
 
 if __name__ == "__main__":
