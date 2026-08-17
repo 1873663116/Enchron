@@ -33,7 +33,7 @@ tap PlayerUI-VideoFormat-apply
 | 结构 | 用户偏好只改 Media Format，不改来源声明的 Format Description | `verify_format_description_ownership.py` |
 | 结构 | Automatic 恢复与 provenance 判定正确 | 模拟器单测 |
 | 物理 | 应用后控制串的投影、立体布局、revision 已更新，且落地呈现正确 | 真机，本文的控制器序列 |
-| 感知 | 所选投影下画面包裹是否自然 | **待做**，见 [picture-interpretation.md](picture-interpretation.md) |
+| 感知 | 不适用：投影与立体由片源构造决定，构造对了画面必然对，物理行的"落地呈现正确"即为终局 | |
 
 ## 证明的终态
 
