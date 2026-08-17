@@ -34,13 +34,15 @@ Subtitles 有 identifier（`PlayerUI-menu-subtitles`）；Audio Track 与全部�
 |---|---|---|
 | 结构 | 切换后 `PlaybackSessionReport` 携带新轨道 ID；本地来源写入 MediaStateStore，Emby 来源立即回报服务器 | 模拟器单测（TrackSelectionPreferenceTests） |
 | 结构 | 音轨失败后 `audioRetired=true`、`hasAudio=false`，反复跳转不抛致命错误且视频样本继续投递 | PlaybackCore 单测（`retiredAudioStaysNonfatalAcrossRepeatedSeeks`、`audioRendererFailureRetiresAudioAndVideoContinues`） |
-| 结构 | DTS、TrueHD、Vorbis 产出交错 Float32 PCM，保留采样率、标准 CoreAudio 声道布局标签和单调时间戳；AC-3/E-AC-3 仍为压缩直递 | PlaybackCore 单测（`ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout`、`generatedAudioCodecMatrixProducesEveryRegisteredAudioFormat`、`dolbyDigitalPlusAtmosKeepsItsSixChannelCompressedLayout`） |
+| 结构 | DTS、TrueHD、Vorbis 产出交错 Float32 PCM，保留采样率、标准 CoreAudio 声道布局标签和单调时间戳；TrueHD 的细碎子帧聚合后才进入 CoreMedia；AC-3/E-AC-3 仍为压缩直递 | PlaybackCore 单测（`ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout`、`trueHDSubframesAreAggregatedBeforeTheyReachCoreMedia`、`generatedAudioCodecMatrixProducesEveryRegisteredAudioFormat`、`dolbyDigitalPlusAtmosKeepsItsSixChannelCompressedLayout`） |
 | 结构 | FFmpeg 无解码器的声明编码以编码名拒绝，并由会话记录为音轨退休 | PlaybackCore 单测（`ffmpegUndecodableAudioNamesTheCodecInsteadOfGuessing`、`retiredAudioStaysNonfatalAcrossRepeatedSeeks`） |
 | 结构 | 字幕 cue 的文本与时刻正确 | PlaybackCore 单测（SubtitleProviderTests） |
 | 物理 | 诊断串 `audioTrack` 或 `subtitleTrack` 变更，同时 `lifecycle=Playing`、`session` 不变、`audioRendererStatus=rendering` | 真机 |
 | 物理 | 不支持或运行中失败的音轨显示感叹号；诊断串为 `audioRetired=true`，`lifecycle` 不进入 Failed，跳转后视频继续推进 | 待做：不支持音频真机样片 |
-| 物理 | DTS、TrueHD、Vorbis 等解码音轨保持 `audioRendererStatus=rendering`；多声道样片的头动空间化使用声明声道布局 | 待做：对应编码与多声道真机样片 |
-| 感知 | 不适用（听得到哪条轨是事实不是感受，由 audioRendererStatus 与轨道 ID 共同证明） | |
+| 物理 | Emby《Furiosa》TrueHD 8 声道输出 4,800 帧、100 ms 的交错 PCM 缓冲；`audioRendererStatus=rendering`、`muted=false`、`volume=1`、`error=none`，并达到 `hasSufficientMediaDataForReliablePlaybackStart=true` | 真机证据 `audio-silence-fix-20260817/final-auto-recovery/furiosa-truehd/` |
+| 物理 | TrueHD seek 后音视频先建立约 6 秒领先量；交付落后达到 0.5 秒时，时间线以 `deliveryLagRecovery` 自动暂停，重新预滚后恢复，视频领先量回到 5.416 秒，音频领先量回到 5.453 秒 | 真机证据 `audio-silence-fix-20260817/final-auto-recovery/furiosa-truehd/post-seek-4-after-recovery/snapshot.json` |
+| 物理 | 同片切至 AC-3 后保持同一媒体会话，轨道切为 `audio.2`，压缩缓冲时长 32 ms，renderer 继续处于 rendering | 真机证据 `audio-silence-fix-20260817/final-100ms/furiosa-ac3-control/` |
+| 感知 | TrueHD、DTS、AAC、FLAC、AC-3 与 E-AC-3 的实际可闻性、音质及多声道头动空间化 | 待佩戴者验收 |
 
 ## 证明的终态
 
