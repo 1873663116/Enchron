@@ -20,6 +20,7 @@ enum ProbeStage: String {
     case audioReader = "audio-reader"
     case playback
     case session
+    case format
     case decode
 }
 
@@ -187,6 +188,42 @@ func openSharedSession(source: String, monitor: OpaquePointer) throws -> String 
     return "streams=\(PBFFmpegMediaSourceInformationGetStreamCount(information)) "
         + "video_stream=\(PBFFmpegReaderGetVideoStreamIndex(videoReader)) "
         + "audio_stream=\(PBFFmpegAudioReaderGetStreamIndex(audioReader))"
+}
+
+/// Reads the exact compressed format PlaybackCore would hand to its renderer,
+/// without requiring the host machine to provide a decoder for that codec.
+func inspectFormat(source: String, monitor: OpaquePointer) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
+    guard let videoReader = PBFFmpegReaderAllocate() else {
+        throw ProbeFailure.operation("reader allocation failed")
+    }
+    defer { PBFFmpegReaderDestroy(videoReader) }
+    PBFFmpegReaderSetSourceReadMonitor(videoReader, monitor)
+    let opened = source.withCString {
+        PBFFmpegReaderOpen(videoReader, $0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    guard opened else {
+        throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
+    }
+    var formatOut: Unmanaged<CMVideoFormatDescription>?
+    let status = PBFFmpegVideoFormatDescriptionCreate(
+        videoReader,
+        nil,
+        nil,
+        nil,
+        &formatOut
+    )
+    guard status == noErr, let format = formatOut?.takeRetainedValue() else {
+        throw ProbeFailure.operation(
+            "compressed format description unavailable: \(errorMessage(error))"
+        )
+    }
+    let subType = CMFormatDescriptionGetMediaSubType(format)
+    let codec = String(
+        bytes: [24, 16, 8, 0].map { UInt8((subType >> $0) & 0xff) },
+        encoding: .ascii
+    ) ?? "????"
+    return "codec=\(codec) \(formatColorFacts(format))"
 }
 
 final class DecodeTally: @unchecked Sendable {
@@ -531,7 +568,7 @@ func run() throws {
           let stage = ProbeStage(rawValue: arguments[1]),
           arguments[2] == "--url" else {
         throw ProbeFailure.usage(
-            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session --url URL [--seconds N]"
+            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session|format|decode --url URL [--seconds N]"
         )
     }
     guard let monitor = PBFFmpegSourceReadMonitorCreate() else {
@@ -556,6 +593,8 @@ func run() throws {
             )
         case .session:
             try openSharedSession(source: arguments[3], monitor: monitor)
+        case .format:
+            try inspectFormat(source: arguments[3], monitor: monitor)
         case .decode:
             try decodeSamples(
                 source: arguments[3],
