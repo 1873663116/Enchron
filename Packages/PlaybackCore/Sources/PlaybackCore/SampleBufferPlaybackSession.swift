@@ -36,7 +36,7 @@ enum PlaybackBufferingPolicy {
 
     /// MPV's one-second underrun recovery reference is the starting point. The
     /// 2026-08-17 Vision Pro baseline showed that a five-second target caused
-    /// 6.9–12.7-second pauses on remote 4K HEVC with TrueHD.
+    /// 6.8–13.1-second pauses on remote 4K HEVC with TrueHD.
     static let deliveryLagRecoveryLeadSeconds = 1.0
 
     /// Vision Pro may opportunistically queue compressed samples while playback
