@@ -2885,6 +2885,8 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 }
 
 @Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {
+    let fixture = try unsupportedAC4Fixture()
+    defer { try? FileManager.default.removeItem(at: fixture) }
     let videoSamples = try [0.0, 5.0, 10.0].map {
         try makeCompressedH264Sample(
             presentationTimeSeconds: $0,
@@ -2897,7 +2899,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(
             events: videoSamples.map(VideoSampleProviderEvent.sample) + [.end]
         ),
-        audioProvider: FailingAudioOpenProvider(),
+        audioProvider: FFmpegAudioSampleProvider(),
         rendererSink: sink
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
@@ -2906,11 +2908,10 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     }
     defer { session.close() }
 
-    try await session.prepare(
-        url: URL(fileURLWithPath: "/fixtures/unsupported-audio.mkv")
-    )
+    try await session.prepare(url: fixture)
     #expect(session.hasAudio == false)
     #expect(session.debugSnapshot().lastError == nil)
+    #expect(session.debugSnapshot().lastFailure?.message.contains("ac4") == true)
 
     for target in [5.0, 10.0] {
         let sampleCountBeforeSeek = sink.enqueuedSampleCount
@@ -3839,8 +3840,19 @@ private enum MisleadingAudioOpenError: LocalizedError {
     case failed
 
     var errorDescription: String? {
-        "Decoder failed after no audio stream probe"
+        "Audio codec ac4 is unsupported because FFmpeg has no decoder"
     }
+}
+
+private func unsupportedAC4Fixture() throws -> URL {
+    let fixture = FileManager.default.temporaryDirectory
+        .appendingPathComponent("playbackcore-unsupported-\(UUID().uuidString).ac4")
+    let probeableFrame: [UInt8] = [0xAC, 0x40, 0x00, 0x04, 0, 0, 0, 0]
+    try Data((0..<32).flatMap { _ in probeableFrame }).write(
+        to: fixture,
+        options: .atomic
+    )
+    return fixture
 }
 
 func makeCompressedH264Sample(

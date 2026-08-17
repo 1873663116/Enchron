@@ -6,6 +6,7 @@
 
 - 音轨切换（含同名多轨）。
 - 音轨在打开、预热、播放、跳转或 renderer 失败时退休，视频继续播放与跳转。
+- AC-3 与 E-AC-3（含 JOC）压缩直递；其余 FFmpeg 可解音轨以保留采样率和声道布局的交错 Float32 PCM 播放。
 - 字幕轨切换与关闭。
 - 外挂字幕（本地同目录、远程来源、Emby 的 external stream）。
 - 选择在跳转与呈现切换后保持。
@@ -33,9 +34,12 @@ Subtitles 有 identifier（`PlayerUI-menu-subtitles`）；Audio Track 与全部�
 |---|---|---|
 | 结构 | 切换后 `PlaybackSessionReport` 携带新轨道 ID；本地来源写入 MediaStateStore，Emby 来源立即回报服务器 | 模拟器单测（TrackSelectionPreferenceTests） |
 | 结构 | 音轨失败后 `audioRetired=true`、`hasAudio=false`，反复跳转不抛致命错误且视频样本继续投递 | PlaybackCore 单测（`retiredAudioStaysNonfatalAcrossRepeatedSeeks`、`audioRendererFailureRetiresAudioAndVideoContinues`） |
+| 结构 | DTS、TrueHD、Vorbis 产出交错 Float32 PCM，保留采样率、标准 CoreAudio 声道布局标签和单调时间戳；AC-3/E-AC-3 仍为压缩直递 | PlaybackCore 单测（`ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout`、`generatedAudioCodecMatrixProducesEveryRegisteredAudioFormat`、`dolbyDigitalPlusAtmosKeepsItsSixChannelCompressedLayout`） |
+| 结构 | FFmpeg 无解码器的声明编码以编码名拒绝，并由会话记录为音轨退休 | PlaybackCore 单测（`ffmpegUndecodableAudioNamesTheCodecInsteadOfGuessing`、`retiredAudioStaysNonfatalAcrossRepeatedSeeks`） |
 | 结构 | 字幕 cue 的文本与时刻正确 | PlaybackCore 单测（SubtitleProviderTests） |
 | 物理 | 诊断串 `audioTrack` 或 `subtitleTrack` 变更，同时 `lifecycle=Playing`、`session` 不变、`audioRendererStatus=rendering` | 真机 |
 | 物理 | 不支持或运行中失败的音轨显示感叹号；诊断串为 `audioRetired=true`，`lifecycle` 不进入 Failed，跳转后视频继续推进 | 待做：不支持音频真机样片 |
+| 物理 | DTS、TrueHD、Vorbis 等解码音轨保持 `audioRendererStatus=rendering`；多声道样片的头动空间化使用声明声道布局 | 待做：对应编码与多声道真机样片 |
 | 感知 | 不适用（听得到哪条轨是事实不是感受，由 audioRendererStatus 与轨道 ID 共同证明） | |
 
 ## 证明的终态

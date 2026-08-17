@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="9.0.1"
-CONFIGURATION_REVISION="network-demux-metadata-v2-ffmpeg-$VERSION"
+CONFIGURATION_REVISION="decoded-audio-pcm-v1-ffmpeg-$VERSION"
 BUILD_ROOT="$ROOT_DIR/.build/ffmpeg"
 ARCHIVE="$BUILD_ROOT/ffmpeg-$VERSION.tar.xz"
 SOURCE="$BUILD_ROOT/ffmpeg-$VERSION"
@@ -57,7 +57,6 @@ build_slice() {
         --disable-encoders \
         --disable-hwaccels \
         --disable-muxers \
-        --disable-swresample \
         --disable-swscale \
         --disable-autodetect \
         --enable-securetransport
@@ -68,6 +67,7 @@ build_slice() {
   /usr/bin/libtool -static -o "$prefix/lib/libPlaybackFFmpeg.a" \
     "$prefix/lib/libavformat.a" \
     "$prefix/lib/libavcodec.a" \
+    "$prefix/lib/libswresample.a" \
     "$prefix/lib/libavutil.a"
 }
 
