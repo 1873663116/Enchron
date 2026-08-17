@@ -215,14 +215,14 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
 
         let deadline = ContinuousClock.now + .seconds(5)
-        while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
+        while runtime.userVisibleIssue == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(25))
         }
 
         guard case .failed = runtime.lifecycle else {
             return XCTFail("Expected PlaybackCore to publish a failed lifecycle, got \(runtime.lifecycle)")
         }
-        XCTAssertNotNil(runtime.lastErrorMessage)
+        XCTAssertEqual(runtime.userVisibleIssue, .mediaOpeningFailed)
         XCTAssertTrue(runtime.hasActivePlaybackRequest)
         XCTAssertEqual(runtime.currentLaunchRequest?.displayName, "Missing Video")
         launcher.stopPlayback()
@@ -244,7 +244,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
 
         let deadline = ContinuousClock.now + .seconds(5)
-        while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
+        while runtime.userVisibleIssue == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(25))
         }
 
@@ -295,7 +295,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertNil(runtime.activeSessionID)
         XCTAssertNil(runtime.renderer)
         XCTAssertTrue(runtime.availableAudioTracks.isEmpty)
-        XCTAssertEqual(runtime.lastErrorMessage, "Unable to open this file.")
+        XCTAssertEqual(runtime.userVisibleIssue, .mediaOpeningFailed)
     }
 
     @MainActor

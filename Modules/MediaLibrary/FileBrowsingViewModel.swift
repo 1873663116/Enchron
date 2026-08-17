@@ -483,7 +483,7 @@ public final class FileBrowsingViewModel {
             accessLease: sourceAccess,
             byteStreamHandle: resolvedSource.byteStreamHandle,
             externalSubtitleSources: externalSubtitles.sources,
-            externalSubtitleErrorMessage: externalSubtitles.errorMessage
+            externalSubtitleResolutionFailed: externalSubtitles.hadFailures
         )
     }
 
@@ -511,11 +511,12 @@ public final class FileBrowsingViewModel {
         do {
             listedFiles = try await provider.listSubtitleFiles(at: directoryPath)
         } catch {
+            logger.error(
+                "external subtitle discovery failed error=\(error.localizedDescription, privacy: .public)"
+            )
             return ExternalSubtitleResolution(
                 sources: [],
-                failureMessages: [
-                    "Could not inspect the source directory for subtitle files: \(error.localizedDescription)"
-                ]
+                hadFailures: true
             )
         }
         let candidates = ExternalSubtitleAssociation.matching(
@@ -523,13 +524,16 @@ public final class FileBrowsingViewModel {
             subtitleFiles: listedFiles
         )
         var sources: [ResolvedExternalSubtitleSource] = []
-        var failureMessages: [String] = []
+        var hadFailures = false
         for candidate in candidates {
             let resolved: ResolvedMediaSource
             do {
                 resolved = try await provider.resolveSubtitleSource(for: candidate)
             } catch {
-                failureMessages.append("\(candidate.name): \(error.localizedDescription)")
+                hadFailures = true
+                logger.error(
+                    "external subtitle resolution failed source=\(candidate.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
                 continue
             }
             let versionedIdentity = externalSubtitleIdentity(
@@ -555,7 +559,7 @@ public final class FileBrowsingViewModel {
         }
         return ExternalSubtitleResolution(
             sources: sources,
-            failureMessages: failureMessages
+            hadFailures: hadFailures
         )
     }
 

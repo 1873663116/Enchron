@@ -95,7 +95,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var currentSubtitleTrackID: String?
     public private(set) var activeSubtitleCues: [PlaybackSubtitleCue] = []
     public private(set) var activeSubtitleFrame: PlaybackSubtitleFrame?
-    public var subtitleErrorMessage: String?
     public private(set) var activeSessionID: String?
     public private(set) var activeTechnicalSessionID: String?
     public private(set) var actualPlaybackSeconds: Double = 0
@@ -118,7 +117,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var technicalSessionReplacementStage =
         TechnicalSessionReplacementStage.inactive
     public private(set) var seekIsInProgress = false
-    public var lastErrorMessage: String?
+    public private(set) var userVisibleIssue: PlaybackUserVisibleIssue?
     public var liveTechnicalSessionCount: Int {
         controller.liveTechnicalSessionCount
             + (departingTechnicalSessionController?.liveTechnicalSessionCount ?? 0)
@@ -160,7 +159,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
               renderer != nil,
               attachedPresentation != nil,
               presentationState == .videoVisible,
-              lastErrorMessage == nil else { return false }
+              userVisibleIssue?.interruptsPlayback != true else { return false }
         switch lifecycle {
         case .ready, .playing, .paused, .ended:
             return true
@@ -416,8 +415,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         playbackPosition = .init(seconds: 0, duration: 0)
         currentPlaybackSpeed = .default
         presentationState = .placeholder
-        lastErrorMessage = nil
-        subtitleErrorMessage = request.externalSubtitleErrorMessage
+        setUserVisibleIssue(
+            request.externalSubtitleResolutionFailed ? .externalSubtitleFailed : nil
+        )
         lastResolvedProfile = nil
         startsWhenAttached = true
         actualPlaybackSeconds = 0
@@ -585,7 +585,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 releaseSourceAccessIfUnowned(request.sourceAccess)
                 return
             }
-            fail(error)
+            let issue: PlaybackUserVisibleIssue
+            if let runtimeError = error as? RuntimeError,
+               case .sourceAccessUnavailable = runtimeError {
+                issue = .sourceAccessUnavailable
+            } else {
+                issue = .mediaOpeningFailed
+            }
+            fail(error, issue: issue)
             throw error
         }
     }
@@ -1052,7 +1059,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         mediaSessionID: String,
         openGeneration: Int
     ) async {
-        var failures: [String] = []
+        var encounteredFailure = false
         for source in sources {
             guard generation == openGeneration,
                   activeSessionID == mediaSessionID else {
@@ -1060,7 +1067,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 continue
             }
             guard source.accessLease?.ensureActive() != false else {
-                failures.append("\(source.displayName): source access is unavailable")
+                encounteredFailure = true
+                logger.error(
+                    "external subtitle source access unavailable source=\(source.displayName, privacy: .public)"
+                )
                 source.accessLease?.release()
                 continue
             }
@@ -1093,7 +1103,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 externalSubtitleSourceIDByURL[normalizedURL] = source.id
             } catch {
                 source.accessLease?.release()
-                failures.append("\(source.displayName): \(error.localizedDescription)")
+                encounteredFailure = true
+                logger.error(
+                    "external subtitle load failed source=\(source.displayName, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
             }
         }
         guard generation == openGeneration,
@@ -1102,9 +1115,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = controller.selectedSubtitleTrackID
         activeSubtitleCues = controller.activeSubtitleCues
         activeSubtitleFrame = controller.activeSubtitleFrame
-        if !failures.isEmpty {
-            subtitleErrorMessage = ([subtitleErrorMessage].compactMap { $0 } + failures)
-                .joined(separator: "\n")
+        if encounteredFailure {
+            setUserVisibleIssue(.externalSubtitleFailed)
         }
     }
 
@@ -1653,7 +1665,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func clearPresentationForTeardown() {
         presentationState = .hidden
-        lastErrorMessage = nil
     }
 
     public func clearPresentation() {
@@ -1671,7 +1682,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = nil
         activeSubtitleCues = []
         activeSubtitleFrame = nil
-        subtitleErrorMessage = nil
         playbackPosition = .init(seconds: 0, duration: 0)
         selectedProjectionType = .flat
         selectedHorizontalFieldOfViewDegrees = nil
@@ -2260,10 +2270,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 guard activeSessionID == failedSessionID else { return }
                 recordAudioSessionFact()
             }
-            lastErrorMessage = Self.userFacingPlaybackFailureMessage(
-                coreMessage: message,
-                unmetCapabilities: unmetCapabilities
-            )
+            if unmetCapabilities.contains(where: \.preventsPlayback) {
+                setUserVisibleIssue(.capabilityUnavailable(.videoDecoderUnavailable))
+            } else {
+                setUserVisibleIssue(.playbackFailed)
+            }
             logger.error("playback failed message=\(message, privacy: .public)")
         }
     }
@@ -2286,15 +2297,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    static func userFacingPlaybackFailureMessage(
-        coreMessage: String,
-        unmetCapabilities: [UnmetCapability]
-    ) -> String? {
-        unmetCapabilities.contains(where: \.preventsPlayback)
-            ? nil
-            : coreMessage
-    }
-
     private static func coreAfterSeekBehavior(
         for intent: PlaybackAfterSeekIntent
     ) -> PlaybackAfterSeekBehavior {
@@ -2314,10 +2316,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func clearFailureIfPlaybackIsUsable() {
-        guard lastErrorMessage != nil else { return }
+        guard userVisibleIssue?.category == .playbackFailed else { return }
         switch lifecycle {
         case .ready, .playing, .paused:
-            lastErrorMessage = nil
+            setUserVisibleIssue(nil)
         case .idle, .loading, .ended, .failed:
             break
         }
@@ -2635,7 +2637,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    func fail(_ error: Error) {
+    func fail(
+        _ error: Error,
+        issue: PlaybackUserVisibleIssue = .playbackControlFailed
+    ) {
         if case PlaybackControlError.timelineNotReady = error {
             switch lifecycle {
             case .ready, .playing, .paused:
@@ -2647,8 +2652,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 break
             }
         }
-        lastErrorMessage = error.localizedDescription
+        setUserVisibleIssue(issue)
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
+    }
+
+    public func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {
+        userVisibleIssue = issue
     }
 
     private func releaseSourceAccessIfUnowned(_ sourceAccess: MediaAccessLease?) {

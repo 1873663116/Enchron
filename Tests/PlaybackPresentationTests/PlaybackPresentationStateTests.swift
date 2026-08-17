@@ -2732,23 +2732,6 @@ struct PlaybackPresentationStateTests {
         #expect(model.transition == nil)
     }
 
-    @Test("conversion failure appears only after the Media Library root is visible")
-    @MainActor
-    func conversionFailureWaitsForMediaLibraryVisibility() {
-        let appModel = AppModel()
-
-        appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
-            "无法切换播放显示方式，已返回媒体资料库。"
-        )
-        #expect(appModel.presentationConversionFailureMessage == nil)
-
-        appModel.presentDeferredPresentationConversionFailure()
-        #expect(
-            appModel.presentationConversionFailureMessage
-                == "无法切换播放显示方式，已返回媒体资料库。"
-        )
-    }
-
     @Test("stopping Docked playback closes a temporary Default Environment")
     @MainActor
     func playbackStopClosesTemporaryDefaultEnvironment() throws {

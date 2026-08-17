@@ -4,6 +4,7 @@ import Emby
 import MediaLibrary
 import MediaSource
 import Observation
+import OSLog
 import PlaybackFeature
 import PlaybackPresentation
 import PlaybackCore
@@ -38,6 +39,7 @@ enum EffectiveMediaFormatPresentationResolver {
 @MainActor
 @Observable
 final class EnchronApplication {
+    private static let logger = Logger(subsystem: "app.enchron", category: "Application")
     let appModel: AppModel
     let playbackRuntime: PlaybackRuntime
     let playbackVideoEntityStore: PlaybackVideoEntityStore
@@ -213,11 +215,9 @@ final class EnchronApplication {
                                     + " lifecycle=\(playbackRuntime.productLifecycle)"
                                     + " error=\(error)"
                             )
-                            appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
-                                "转换失败，已返回媒体资料库。"
-                            )
                             await playbackRuntime.stopAndWait()
                             appModel.requestStoppedPlaybackCleanup()
+                            playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
                         }
                     }
                 case .switchToPortal:
@@ -236,7 +236,10 @@ final class EnchronApplication {
             } catch {
                 // The core format already succeeded. Report only the distinct
                 // presentation failure and keep that effective interpretation.
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                Self.logger.error(
+                    "format presentation resolution failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
             }
         }
         playbackVideoEntityStore.onRealityKitContentTypeChanged = nil
@@ -412,7 +415,7 @@ private extension MediaPlaybackItem {
             versionedIdentity: versionedIdentity,
             sourceAccess: accessLease,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed
         )
     }
 }

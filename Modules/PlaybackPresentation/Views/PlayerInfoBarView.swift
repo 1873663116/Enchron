@@ -1,4 +1,5 @@
 import DesignSystem
+import OSLog
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
@@ -6,6 +7,7 @@ import SwiftUI
 /// Window playback chrome. Navigation and presentation actions stay over the
 /// video while media information belongs to the bottom Player Controls ornament.
 struct PlayerInfoBarView: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlayerInfoBar")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
@@ -74,7 +76,10 @@ struct PlayerInfoBarView: View {
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            logger.error(
+                "presentation request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+            playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
         }
     }
 
@@ -94,7 +99,10 @@ struct PlayerInfoBarView: View {
                     usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "format change failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }
@@ -105,7 +113,10 @@ struct PlayerInfoBarView: View {
             do {
                 try await launcher.resetFormat()
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "source format restoration failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }

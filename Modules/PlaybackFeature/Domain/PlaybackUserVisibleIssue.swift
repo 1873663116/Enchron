@@ -2,6 +2,7 @@ import Foundation
 
 public enum PlaybackUserVisibleIssueCategory: String, CaseIterable, Sendable, Equatable {
     case mediaOpeningFailed
+    case mediaRequestFailed
     case unsupportedVideoCodec
     case sourceAccessUnavailable
     case playbackFailed
@@ -9,7 +10,7 @@ public enum PlaybackUserVisibleIssueCategory: String, CaseIterable, Sendable, Eq
     case mediaFormatChangeFailed
     case audioTrackSelectionFailed
     case subtitleTrackSelectionFailed
-    case externalSubtitleDiscoveryFailed
+    case externalSubtitleFailed
     case presentationTransitionFailed
     case presentationConversionFailed
     case surfaceAttachmentFailed
@@ -37,13 +38,8 @@ public enum PlaybackUserVisibleIssueAction: String, CaseIterable, Sendable, Equa
     }
 }
 
-public enum PlaybackUserVisibleIssuePresentationLocation:
-    String,
-    CaseIterable,
-    Sendable,
-    Equatable,
-    Hashable
-{
+public enum PlaybackIssuePresentationLocation:
+    String, CaseIterable, Sendable, Equatable, Hashable {
     case mainWindow
     case playerDeck
     case immersiveSpace
@@ -54,14 +50,14 @@ public struct PlaybackUserVisibleIssuePolicy: Sendable, Equatable {
     public let title: String
     public let messageStrategy: PlaybackUserVisibleIssueMessageStrategy
     public let allowedActions: [PlaybackUserVisibleIssueAction]
-    public let presentationLocations: [PlaybackUserVisibleIssuePresentationLocation]
+    public let presentationLocations: [PlaybackIssuePresentationLocation]
     public let interruptsPlayback: Bool
 
     public init(
         title: String,
         messageStrategy: PlaybackUserVisibleIssueMessageStrategy,
         allowedActions: [PlaybackUserVisibleIssueAction],
-        presentationLocations: [PlaybackUserVisibleIssuePresentationLocation],
+        presentationLocations: [PlaybackIssuePresentationLocation],
         interruptsPlayback: Bool
     ) {
         self.title = title
@@ -104,6 +100,7 @@ public enum PlaybackBlockingCapability: String, CaseIterable, Sendable, Equatabl
 /// cannot enter this type, so presentation code never needs to decide whether text is safe.
 public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     case mediaOpeningFailed
+    case mediaRequestFailed
     case unsupportedVideoCodec(PlaybackUnsupportedVideoCodec)
     case sourceAccessUnavailable
     case playbackFailed
@@ -111,7 +108,7 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     case mediaFormatChangeFailed
     case audioTrackSelectionFailed
     case subtitleTrackSelectionFailed
-    case externalSubtitleDiscoveryFailed
+    case externalSubtitleFailed
     case presentationTransitionFailed
     case presentationConversionFailed
     case surfaceAttachmentFailed
@@ -121,6 +118,7 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     public var category: PlaybackUserVisibleIssueCategory {
         switch self {
         case .mediaOpeningFailed: .mediaOpeningFailed
+        case .mediaRequestFailed: .mediaRequestFailed
         case .unsupportedVideoCodec: .unsupportedVideoCodec
         case .sourceAccessUnavailable: .sourceAccessUnavailable
         case .playbackFailed: .playbackFailed
@@ -128,7 +126,7 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
         case .mediaFormatChangeFailed: .mediaFormatChangeFailed
         case .audioTrackSelectionFailed: .audioTrackSelectionFailed
         case .subtitleTrackSelectionFailed: .subtitleTrackSelectionFailed
-        case .externalSubtitleDiscoveryFailed: .externalSubtitleDiscoveryFailed
+        case .externalSubtitleFailed: .externalSubtitleFailed
         case .presentationTransitionFailed: .presentationTransitionFailed
         case .presentationConversionFailed: .presentationConversionFailed
         case .surfaceAttachmentFailed: .surfaceAttachmentFailed
@@ -143,6 +141,8 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
         switch self {
         case .mediaOpeningFailed:
             "Unable to open this file."
+        case .mediaRequestFailed:
+            "This item could not be prepared for playback."
         case .unsupportedVideoCodec(let codec):
             if let productName = codec.productName {
                 "This video uses \(productName), which Enchron does not support."
@@ -161,8 +161,8 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
             "The audio track could not be changed."
         case .subtitleTrackSelectionFailed:
             "The subtitle track could not be changed."
-        case .externalSubtitleDiscoveryFailed:
-            "External subtitle files could not be inspected for this video."
+        case .externalSubtitleFailed:
+            "Some external subtitle files could not be loaded."
         case .presentationTransitionFailed:
             "The playback display could not be changed."
         case .presentationConversionFailed:
@@ -184,13 +184,13 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
         category.policy.allowedActions
     }
 
-    public var presentationLocations: [PlaybackUserVisibleIssuePresentationLocation] {
+    public var presentationLocations: [PlaybackIssuePresentationLocation] {
         category.policy.presentationLocations
     }
 
     public var interruptsPlayback: Bool { category.policy.interruptsPlayback }
 
-    public func canPresent(at location: PlaybackUserVisibleIssuePresentationLocation) -> Bool {
+    public func canPresent(at location: PlaybackIssuePresentationLocation) -> Bool {
         presentationLocations.contains(location)
     }
 }
@@ -204,6 +204,14 @@ public extension PlaybackUserVisibleIssueCategory {
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.mainWindow, .immersiveSpace],
+                interruptsPlayback: true
+            )
+        case .mediaRequestFailed:
+            .init(
+                title: "Unable to Play",
+                messageStrategy: .fixedProductCopy,
+                allowedActions: [.confirm],
+                presentationLocations: [.mediaLibrary],
                 interruptsPlayback: true
             )
         case .unsupportedVideoCodec:
@@ -262,7 +270,7 @@ public extension PlaybackUserVisibleIssueCategory {
                 presentationLocations: [.playerDeck],
                 interruptsPlayback: false
             )
-        case .externalSubtitleDiscoveryFailed:
+        case .externalSubtitleFailed:
             .init(
                 title: "Subtitle Error",
                 messageStrategy: .fixedProductCopy,

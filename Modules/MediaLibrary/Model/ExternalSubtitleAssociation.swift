@@ -3,13 +3,9 @@ import MediaSource
 
 struct ExternalSubtitleResolution {
     let sources: [ResolvedExternalSubtitleSource]
-    let failureMessages: [String]
+    let hadFailures: Bool
 
-    static let none = ExternalSubtitleResolution(sources: [], failureMessages: [])
-
-    var errorMessage: String? {
-        failureMessages.isEmpty ? nil : failureMessages.joined(separator: "\n")
-    }
+    static let none = ExternalSubtitleResolution(sources: [], hadFailures: false)
 }
 
 enum ExternalSubtitleAssociation {

@@ -49,7 +49,10 @@ func preventingCapabilitySuppressesRendererDiagnosticText() {
     controller.onStatusChange?(.failed("Cannot Decode"))
 
     #expect(runtime.unmetCapabilities.first?.reason.contains("ProRes decoder") == true)
-    #expect(runtime.lastErrorMessage == nil)
+    #expect(
+        runtime.userVisibleIssue
+            == .capabilityUnavailable(.videoDecoderUnavailable)
+    )
     #expect(runtime.diagnostics.rendererError == "Cannot Decode")
 }
 
