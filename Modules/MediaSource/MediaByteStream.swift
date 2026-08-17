@@ -259,6 +259,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let filename: String
         let lock = NSLock()
         var indexSession: ContainerIndexSession?
+        var authoritativeContentLength: Int64?
 
         init(source: any MediaByteRangeSource, filename: String) {
             self.source = source
@@ -467,8 +468,11 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         on connection: NWConnection
     ) async {
         let attributes = registration.source.byteStreamAttributes
+        let knownLength = registration.lock.withLock {
+            registration.authoritativeContentLength
+        } ?? attributes.contentLength
         if method == "HEAD" {
-            let length = attributes.contentLength
+            let length = knownLength
             var response = "HTTP/1.1 200 OK\r\n"
             response += "Accept-Ranges: \(attributes.supportsSeeking && length != nil ? "bytes" : "none")\r\n"
             response += "Content-Type: application/octet-stream\r\n"
@@ -487,7 +491,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             await sendChunked(registration: registration, on: connection)
             return
         }
-        let hintedLength = attributes.contentLength
+        let hintedLength = knownLength
         let initialRange = if let hintedLength {
             Self.byteRange(from: rangeHeader, contentLength: hintedLength)
         } else {
@@ -566,11 +570,17 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             return MediaByteRangeRead(
                 data: cached.data,
                 contentLength: cached.contentLength
+                    ?? registration.lock.withLock { registration.authoritativeContentLength }
                     ?? registration.source.byteStreamAttributes.contentLength,
                 supportsSeeking: true
             )
         }
         let result = try await registration.source.read(in: range)
+        if let contentLength = result.contentLength {
+            registration.lock.withLock {
+                registration.authoritativeContentLength = contentLength
+            }
+        }
         session?.record(
             result.data,
             at: range.lowerBound,

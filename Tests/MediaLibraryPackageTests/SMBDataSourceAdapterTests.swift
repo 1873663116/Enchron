@@ -92,7 +92,16 @@ struct SMBDataSourceAdapterTests {
         #expect(httpResponse.statusCode == 206)
         #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 3-6/10")
         #expect(data == Data("3456".utf8))
-        #expect(source.requestedRanges == [3..<7])
+
+        var suffixRequest = URLRequest(url: handle.url)
+        suffixRequest.setValue("bytes=-2", forHTTPHeaderField: "Range")
+        let (suffixData, suffixResponse) = try await URLSession.shared.data(for: suffixRequest)
+        let suffixHTTPResponse = try #require(suffixResponse as? HTTPURLResponse)
+
+        #expect(suffixHTTPResponse.statusCode == 206)
+        #expect(suffixHTTPResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 8-9/10")
+        #expect(suffixData == Data("89".utf8))
+        #expect(source.requestedRanges == [3..<7, 8..<10])
     }
 
     @Test("SMB playback bridge applies backpressure-sized source reads")
