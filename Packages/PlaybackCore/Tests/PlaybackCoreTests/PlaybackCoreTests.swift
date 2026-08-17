@@ -1131,6 +1131,69 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
 }
 
+@Test func seekPrerollRequiresTargetVideoAndPointTwoSecondsOfAudio() {
+    let target = CMTime(seconds: 12, preferredTimescale: 60_000)
+
+    let requirement = PlaybackBufferingPolicy.seekRequirement(
+        target: target,
+        durationSeconds: 120
+    )
+
+    #expect(requirement.videoEnd.seconds == 12)
+    #expect(requirement.audioEnd.seconds == 12.2)
+
+    let endClampedRequirement = PlaybackBufferingPolicy.seekRequirement(
+        target: target,
+        durationSeconds: 12.1
+    )
+    #expect(endClampedRequirement.audioEnd.seconds == 12.1)
+}
+
+@Test func rendererLeadLimitRemainsAnOpportunisticPlatformCeiling() {
+    #if os(visionOS)
+        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 6)
+    #else
+        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 1)
+    #endif
+}
+
+@Test func deliveryLagRecoveryRefillsOneSecondWithoutChangingTheLeadCeiling() {
+    let timelineTime = CMTime(seconds: 30, preferredTimescale: 60_000)
+
+    let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+        timelineTime: timelineTime,
+        durationSeconds: 120
+    )
+
+    #expect(requirement.videoEnd.seconds == 31)
+    #expect(requirement.audioEnd.seconds == 31)
+
+    let endClampedRequirement =
+        PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+            timelineTime: timelineTime,
+            durationSeconds: 30.5
+        )
+    #expect(endClampedRequirement.videoEnd.seconds == 30.5)
+    #expect(endClampedRequirement.audioEnd.seconds == 30.5)
+}
+
+@Test func endOfStreamAudioMayUseTheAvailablePartialStartupBuffer() {
+    let session = SampleBufferPlaybackSession(traceID: "partial-end-audio-preroll")
+    defer { session.close() }
+    session.endStateLock.withLock {
+        session.endState.audioPresentationEnd = CMTime(
+            seconds: 12.1,
+            preferredTimescale: 48_000
+        )
+        session.endState.audioProviderEnded = true
+    }
+
+    #expect(session.audioHasPrerolled(
+        through: CMTime(seconds: 12.2, preferredTimescale: 48_000),
+        after: CMTime(seconds: 12, preferredTimescale: 48_000)
+    ))
+}
+
 @Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0.021)
     let session = SampleBufferPlaybackSession(

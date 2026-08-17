@@ -2,12 +2,6 @@
 import Foundation
 import OSLog
 
-#if os(visionOS)
-    private let playbackRendererMaximumLeadSeconds = 6.0
-#else
-    private let playbackRendererMaximumLeadSeconds = 1.0
-#endif
-
 extension SampleBufferPlaybackSession {
     func close() {
         close(completion: {})
@@ -556,15 +550,14 @@ extension SampleBufferPlaybackSession {
                 target: decoderBootstrapTarget,
                 usedImmediateEnqueue: requiresImmediateDecoderBootstrap
             )
-            let requiredSeekPrerollEnd = seekPrerollLock.withLock {
-                self.requiredSeekPrerollEnd
+            let requiredPreroll = prerollRequirementLock.withLock {
+                prerollRequirement
             }
-            let seekPrerollEnd = requiredSeekPrerollEnd.isNumeric
-                ? requiredSeekPrerollEnd
-                : requestedTimelineStart
-            let targetReached = seekPrerollEnd.isNumeric == false
-                || presentationTime >= seekPrerollEnd
-                || presentationEnd >= seekPrerollEnd
+            let requiredVideoEnd = requiredPreroll?.videoEnd
+                ?? requestedTimelineStart
+            let targetReached = requiredVideoEnd.isNumeric == false
+                || presentationTime >= requiredVideoEnd
+                || presentationEnd >= requiredVideoEnd
             // Skip host-time activation while the start rate is still 0.
             // Rebuild entry opens startsPaused; scheduling setRate(0, atHostTime:)
             // here can fire after a later play() and stop the running timeline.
@@ -581,6 +574,7 @@ extension SampleBufferPlaybackSession {
                             capturedVideoDeliveryGeneration: generation
                         )
                         isPrerolling = false
+                        clearPrerollRequirement()
                         recordTimelineControlState()
                         publishTargetTimelineState(at: activationTime)
                         publishDiagnostics(at: activationTime, force: true)
@@ -589,6 +583,7 @@ extension SampleBufferPlaybackSession {
                     // play() already started the timebase. Re-stopping it here
                     // plants a rate-0 mapping that can win about a second later.
                     isPrerolling = false
+                    clearPrerollRequirement()
                     recordTimelineControlState()
                     publishTargetTimelineState(
                         at: targetTimelineTime(fallback: presentationTime)
@@ -607,10 +602,15 @@ extension SampleBufferPlaybackSession {
                     firstDisplayablePresentationTime: presentationTime
                 )
                 do {
-                    let audioPrerollEnd = requiredSeekPrerollEnd.isNumeric
-                        ? requiredSeekPrerollEnd
-                        : activationTime
-                    try await waitForAudioPreroll(through: audioPrerollEnd)
+                    let audioRequirement = requiredPreroll
+                        ?? PlaybackBufferingPolicy.seekRequirement(
+                            target: activationTime,
+                            durationSeconds: diagnostics.durationSeconds
+                        )
+                    try await waitForAudioPreroll(
+                        through: audioRequirement.audioEnd,
+                        after: audioRequirement.timelineStart
+                    )
                 } catch {
                     guard isCurrentVideoDelivery(generation), !isClosed else { return }
                     guard !(error is CancellationError), !Task.isCancelled else { return }
@@ -652,9 +652,7 @@ extension SampleBufferPlaybackSession {
                     reason: "decoderBootstrap"
                 )
                 isPrerolling = false
-                seekPrerollLock.withLock {
-                    self.requiredSeekPrerollEnd = .invalid
-                }
+                clearPrerollRequirement()
                 recordTimelineControlState()
                 publishTargetTimelineState(at: activationTime)
                 publishDiagnostics(at: activationTime, force: true)
@@ -769,24 +767,18 @@ extension SampleBufferPlaybackSession {
         let timelineTime = timelineClockReading().mediaTime
         guard timelineTime.isNumeric,
               timelineTime.seconds - presentationEnd.seconds >=
-                Self.deliveryLagRecoveryThresholdSeconds else {
+                PlaybackBufferingPolicy.deliveryLagRecoveryTriggerSeconds else {
             return
         }
 
-        let unboundedPrerollEnd = timelineTime.seconds + Self.seekPrerollSeconds
-        let prerollEnd = if diagnostics.durationSeconds.isFinite,
-            diagnostics.durationSeconds > 0 {
-            min(unboundedPrerollEnd, diagnostics.durationSeconds)
-        } else {
-            unboundedPrerollEnd
-        }
+        let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+            timelineTime: timelineTime,
+            durationSeconds: diagnostics.durationSeconds
+        )
         requestedTimelineStart = timelineTime
         isPrerolling = true
-        seekPrerollLock.withLock {
-            requiredSeekPrerollEnd = CMTime(
-                seconds: prerollEnd,
-                preferredTimescale: 60_000
-            )
+        prerollRequirementLock.withLock {
+            prerollRequirement = requirement
         }
         setTimelineStopped(
             at: timelineTime,
@@ -801,7 +793,11 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "lagSeconds": String(timelineTime.seconds - presentationEnd.seconds),
-                "prerollEndSeconds": String(prerollEnd),
+                "recoveryLeadSeconds": String(
+                    PlaybackBufferingPolicy.deliveryLagRecoveryLeadSeconds
+                ),
+                "requiredAudioEndSeconds": String(requirement.audioEnd.seconds),
+                "requiredVideoEndSeconds": String(requirement.videoEnd.seconds),
                 "timelineSeconds": String(timelineTime.seconds),
             ]
         )
@@ -1171,7 +1167,8 @@ extension SampleBufferPlaybackSession {
                 target.isNumeric ? target.seconds : 0
             )
             let isBlocked = presentationTime.seconds
-                > referenceSeconds + playbackRendererMaximumLeadSeconds
+                > referenceSeconds
+                    + PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds
                 || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
             let decision = timelineProgressRecoveryLock.withLock {
                 if !isBlocked {
@@ -1464,14 +1461,17 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func waitForAudioPreroll(through activationTime: CMTime) async throws {
-        guard hasAudio, activationTime.isNumeric else { return }
-        let deadline = ContinuousClock.now + .seconds(5)
+    func waitForAudioPreroll(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) async throws {
+        guard hasAudio, requiredEnd.isNumeric, timelineStart.isNumeric else { return }
+        let deadline = ContinuousClock.now + PlaybackBufferingPolicy.audioPrerollTimeout
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
             guard hasAudio else { return }
-            if audioHasPrerolled(through: activationTime) {
+            if audioHasPrerolled(through: requiredEnd, after: timelineStart) {
                 let accumulatedPresentationEnd = endStateLock.withLock {
                     endState.audioPresentationEnd
                 }
@@ -1484,7 +1484,8 @@ extension SampleBufferPlaybackSession {
                     kind: "audioRenderer.prerollCompleted",
                     outcome: .succeeded,
                     details: [
-                        "activationTimeSeconds": String(activationTime.seconds),
+                        "requiredEndSeconds": String(requiredEnd.seconds),
+                        "timelineStartSeconds": String(timelineStart.seconds),
                         "accumulatedPresentationEndSeconds": accumulatedPresentationEndSeconds,
                         "streamEpoch": String(audioStreamEpoch),
                         "rendererStatus": audioRendererStatusLabel,
@@ -1496,11 +1497,11 @@ extension SampleBufferPlaybackSession {
                 return
             }
             if debugStore.snapshot().lifecycle == .failed {
-                throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+                throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
             }
-            try await Task.sleep(for: .milliseconds(5))
+            try await Task.sleep(for: PlaybackBufferingPolicy.audioPrerollPollInterval)
         }
-        throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+        throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
     }
 
     func retireAudio(
@@ -1605,17 +1606,22 @@ extension SampleBufferPlaybackSession {
         onStatusChange?(.failed(error.localizedDescription))
     }
 
-    func audioHasPrerolled(through activationTime: CMTime) -> Bool {
-        let minimumEnd = CMTimeAdd(
-            activationTime,
-            CMTime(seconds: 0.25, preferredTimescale: 48_000)
-        )
+    func audioHasPrerolled(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) -> Bool {
         return endStateLock.withLock {
             guard let audioEnd = endState.audioPresentationEnd,
                   audioEnd.isNumeric else { return false }
-            if CMTimeCompare(audioEnd, minimumEnd) >= 0 { return true }
+            if CMTimeCompare(audioEnd, requiredEnd) >= 0 { return true }
             return endState.audioProviderEnded
-                && CMTimeCompare(audioEnd, activationTime) > 0
+                && CMTimeCompare(audioEnd, timelineStart) > 0
+        }
+    }
+
+    func clearPrerollRequirement() {
+        prerollRequirementLock.withLock {
+            prerollRequirement = nil
         }
     }
 

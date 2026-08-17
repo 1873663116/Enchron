@@ -167,30 +167,21 @@ extension SampleBufferPlaybackSession {
             didRecordFormat = false
             isResetting = false
         }
-        let unboundedSeekPrerollEnd = target + Self.seekPrerollSeconds
-        let seekPrerollEnd = if diagnostics.durationSeconds.isFinite,
-            diagnostics.durationSeconds > 0 {
-            min(unboundedSeekPrerollEnd, diagnostics.durationSeconds)
-        } else {
-            unboundedSeekPrerollEnd
-        }
-        #if os(visionOS)
-            let requiresDeviceSeekPreroll = preservedRate > 0
-                && rendererSink.enqueueStrategy == .boundedImmediateLead
-        #else
-            let requiresDeviceSeekPreroll = false
-        #endif
-        seekPrerollLock.withLock {
-            requiredSeekPrerollEnd = requiresDeviceSeekPreroll
-                ? CMTime(seconds: seekPrerollEnd, preferredTimescale: 60_000)
-                : .invalid
+        prerollRequirementLock.withLock {
+            prerollRequirement = preservedRate > 0
+                ? PlaybackBufferingPolicy.seekRequirement(
+                    target: requestedTimelineStart,
+                    durationSeconds: diagnostics.durationSeconds
+                )
+                : nil
         }
         recordTimelineControlState()
         startVideoDelivery()
 
         let expectedEpoch = streamEpoch
         let expectedAudioEpoch = audioStreamEpoch
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now
+            + PlaybackBufferingPolicy.seekTargetCoordinationTimeout
         var videoReachedTarget = false
         do {
             while ContinuousClock.now < deadline {
