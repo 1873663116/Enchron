@@ -969,8 +969,10 @@ private enum FileSelectionKind {
         case .folder:
             return [.folder]
         case .files:
-            let extensions = ["mkv", "webm", "avi", "m2ts", "ts"]
-            return [.movie] + extensions.compactMap { UTType(filenameExtension: $0) }
+            return FileBrowsingDomain.MediaDiscoveryAdmissionPolicy.mediaFiles
+                .allowedExtensions
+                .sorted()
+                .compactMap { UTType(filenameExtension: $0) }
         }
     }
 }
