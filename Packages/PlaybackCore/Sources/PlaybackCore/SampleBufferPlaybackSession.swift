@@ -33,9 +33,10 @@ enum PlaybackBufferingPolicy {
     /// seconds late. Keep the 0.5-second trigger that arrested unbounded lag.
     static let deliveryLagRecoveryTriggerSeconds = 0.5
 
-    /// Preserve the device-validated recovery reserve until recovery tuning is
-    /// changed independently from the seek startup contract.
-    static let deliveryLagRecoveryLeadSeconds = 5.0
+    /// MPV's one-second underrun recovery reference is the starting point. The
+    /// 2026-08-17 Vision Pro baseline showed that a five-second target caused
+    /// 6.9–12.7-second pauses on remote 4K HEVC with TrueHD.
+    static let deliveryLagRecoveryLeadSeconds = 1.0
 
     /// Vision Pro may opportunistically queue compressed samples while playback
     /// keeps pace. This is a ceiling, not a startup or recovery requirement.

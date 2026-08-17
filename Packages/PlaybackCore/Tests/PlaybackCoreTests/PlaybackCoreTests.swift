@@ -1157,6 +1157,26 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #endif
 }
 
+@Test func deliveryLagRecoveryRefillsOneSecondWithoutChangingTheLeadCeiling() {
+    let timelineTime = CMTime(seconds: 30, preferredTimescale: 60_000)
+
+    let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+        timelineTime: timelineTime,
+        durationSeconds: 120
+    )
+
+    #expect(requirement.videoEnd.seconds == 31)
+    #expect(requirement.audioEnd.seconds == 31)
+
+    let endClampedRequirement =
+        PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+            timelineTime: timelineTime,
+            durationSeconds: 30.5
+        )
+    #expect(endClampedRequirement.videoEnd.seconds == 30.5)
+    #expect(endClampedRequirement.audioEnd.seconds == 30.5)
+}
+
 @Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0.021)
     let session = SampleBufferPlaybackSession(
