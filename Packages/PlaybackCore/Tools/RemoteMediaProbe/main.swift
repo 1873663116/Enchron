@@ -247,6 +247,7 @@ func decodeSamples(
         bytes: [24, 16, 8, 0].map { UInt8((subType >> $0) & 0xff) },
         encoding: .ascii
     ) ?? "????"
+    let colorFacts = formatColorFacts(format)
 
     var session: VTDecompressionSession?
     let sessionStatus = VTDecompressionSessionCreate(
@@ -259,7 +260,7 @@ func decodeSamples(
     )
     guard sessionStatus == noErr, let session else {
         return "codec=\(codec) session_status=\(sessionStatus) decoded_frames=0 "
-            + "sample_bytes=0 decode=session_rejected"
+            + "sample_bytes=0 \(colorFacts) decode=session_rejected"
     }
     defer { VTDecompressionSessionInvalidate(session) }
 
@@ -316,7 +317,33 @@ func decodeSamples(
         + "sample_bytes=\(sampleBytes) decoded_frames=\(decodedFrames) "
         + "submit_failures=\(failedFrames) callback_failures=\(callbackFailures) "
         + "first_decode_status=\(firstDecodeStatus == noErr ? firstCallbackStatus : firstDecodeStatus) "
-        + "decode=\(verdict)"
+        + "\(colorFacts) decode=\(verdict)"
+}
+
+// The color interpretation the renderer will receive, read back from the one
+// format description PlaybackCore constructs. `none` means the extension is
+// absent, which the decoder resolves by guessing.
+func formatColorFacts(_ format: CMVideoFormatDescription) -> String {
+    let extensions = (CMFormatDescriptionGetExtensions(format) as? [String: Any]) ?? [:]
+    func value(_ key: CFString) -> String {
+        guard let raw = extensions[key as String] else { return "none" }
+        return String(describing: raw).replacingOccurrences(of: " ", with: "_")
+    }
+    let atoms = extensions[
+        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+    ] as? [String: Any]
+    let atomKeys = atoms?.keys.sorted().joined(separator: "+") ?? "none"
+    let mastering = extensions[
+        kCMFormatDescriptionExtension_MasteringDisplayColorVolume as String
+    ] != nil
+    let lightLevel = extensions[
+        kCMFormatDescriptionExtension_ContentLightLevelInfo as String
+    ] != nil
+    return "color_primaries=\(value(kCMFormatDescriptionExtension_ColorPrimaries)) "
+        + "transfer=\(value(kCMFormatDescriptionExtension_TransferFunction)) "
+        + "matrix=\(value(kCMFormatDescriptionExtension_YCbCrMatrix)) "
+        + "full_range=\(value(kCMFormatDescriptionExtension_FullRangeVideo)) "
+        + "atoms=\(atomKeys) mastering=\(mastering ? 1 : 0) light_level=\(lightLevel ? 1 : 0)"
 }
 
 func demuxSourceHasAudio(_ demuxSource: OpaquePointer) throws -> Bool {
