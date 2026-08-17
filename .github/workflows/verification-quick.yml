@@ -1,0 +1,25 @@
+name: verification-quick
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: verification
+  cancel-in-progress: false
+
+jobs:
+  quick:
+    runs-on: self-hosted
+    steps:
+      - name: Run the quick gauntlet at the pushed revision
+        run: |
+          set -euo pipefail
+          REPO=/Volumes/Cortisol/DevSpace/EnchronWorkspace/wt-ci
+          git -C "$REPO" fetch origin
+          git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
+          if [ ! -d "$REPO/Packages/PlaybackCore/Vendor/FFmpeg" ]; then
+            echo "vendored FFmpeg missing in the CI worktree" >&2
+            exit 1
+          fi
+          python3 "$REPO/Scripts/verification/run_verification_gauntlet.py" --quick

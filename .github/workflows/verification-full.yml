@@ -1,0 +1,26 @@
+name: verification-full
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: verification
+  cancel-in-progress: false
+
+jobs:
+  full:
+    runs-on: self-hosted
+    steps:
+      - name: Run the full gauntlet at the latest main revision
+        run: |
+          set -euo pipefail
+          REPO=/Volumes/Cortisol/DevSpace/EnchronWorkspace/wt-ci
+          git -C "$REPO" fetch origin
+          git -C "$REPO" checkout --force --detach origin/main
+          if [ ! -d "$REPO/Packages/PlaybackCore/Vendor/FFmpeg" ]; then
+            echo "vendored FFmpeg missing in the CI worktree" >&2
+            exit 1
+          fi
+          python3 "$REPO/Scripts/verification/run_verification_gauntlet.py"
