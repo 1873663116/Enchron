@@ -21,6 +21,9 @@ protocol RendererFailureMonitoring: AnyObject {
 
 /// Exposes one media session's renderer, read-only facts, and consumer binding evidence.
 public final class SampleBufferPlaybackSession: @unchecked Sendable {
+    static let seekPrerollSeconds = 5.0
+    static let deliveryLagRecoveryThresholdSeconds = 0.5
+
     struct EndState {
         var requiresAudio = false
         var videoProviderEnded = false
@@ -162,6 +165,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var decoderBootstrapTargetSeconds: Double?
     var decoderBootstrapLastDecodeTimeSeconds: Double?
     var decoderBootstrapImmediateEnqueueCount: UInt64 = 0
+    let seekPrerollLock = NSLock()
+    var requiredSeekPrerollEnd = CMTime.invalid
     let endStateLock = NSLock()
     var endState = EndState()
     var hasStartedTimeline = false
