@@ -1,0 +1,2976 @@
+{
+  "identifierFamilies": [
+    "AcousticCalibration",
+    "DesignPreview",
+    "DesignSystem",
+    "Emby",
+    "EnvironmentCard",
+    "FileBrowsing",
+    "MediaLibrary",
+    "Navigation",
+    "PlayerPanel",
+    "PlayerUI",
+    "SampleBufferAcousticCalibration",
+    "SenseZone",
+    "Settings",
+    "WindowPlayback"
+  ],
+  "identifiers": [
+    {
+      "action": null,
+      "family": "AcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 254,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-engine-snapshot"
+    },
+    {
+      "action": null,
+      "family": "AcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 266,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-mixer-tap-envelope"
+    },
+    {
+      "action": null,
+      "family": "AcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 269,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-mixer-tap-envelope-sha256"
+    },
+    {
+      "action": "adjust",
+      "family": "AcousticCalibration",
+      "role": "operation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 263,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-runtime-timeline"
+    },
+    {
+      "action": "activate",
+      "family": "AcousticCalibration",
+      "role": "operation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 260,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-source-evidence"
+    },
+    {
+      "action": null,
+      "family": "AcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 275,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-start"
+    },
+    {
+      "action": null,
+      "family": "AcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 250,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-status"
+    },
+    {
+      "action": null,
+      "family": "AcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 257,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "AcousticCalibration-tone-manifest"
+    },
+    {
+      "action": "adjust",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 278,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        },
+        {
+          "line": 322,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-CenterSlider"
+    },
+    {
+      "action": "adjust",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 605,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        },
+        {
+          "line": 672,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-DetentedRangeSlider"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 80,
+          "path": "Modules/MediaLibrary/Views/LibraryListComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-FileListGroup"
+    },
+    {
+      "action": "adjust",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 79,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift"
+        }
+      ],
+      "template": "DesignPreview-PrecisionTimeline-timecode"
+    },
+    {
+      "action": "adjust",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 119,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift"
+        }
+      ],
+      "template": "DesignPreview-PrecisionTimeline-zoom"
+    },
+    {
+      "action": "adjust",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 483,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        },
+        {
+          "line": 513,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-RangeSlider"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 813,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        },
+        {
+          "line": 830,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-SettingListGroup"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 8,
+          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-breadcrumb-current"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 66,
+          "path": "Modules/DesignSystem/Components/AppearanceModeButton.swift"
+        }
+      ],
+      "template": "DesignPreview-button-appearanceMode"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 205,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-button-expand-collapse"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 297,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-button-{systemName}"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 136,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-button-{title}"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 10,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        }
+      ],
+      "template": "DesignPreview-control-navBackForward"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 67,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        }
+      ],
+      "template": "DesignPreview-control-viewMode"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 597,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-destructiveConfirmation-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 595,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-destructiveConfirmation-confirm"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 614,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-errorDialog"
+    },
+    {
+      "action": "typeText",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 15,
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        },
+        {
+          "line": 52,
+          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-input-search"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 182,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-label-{systemName}"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 19,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-menu-sort"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 570,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-menu-{systemName}"
+    },
+    {
+      "action": null,
+      "family": "DesignSystem",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 71,
+          "path": "Modules/DesignSystem/Components/AnimatedDirectionalIconButton.swift"
+        }
+      ],
+      "template": "DesignSystem-animated-directional-icon"
+    },
+    {
+      "action": "typeText",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 367,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Connection-Address"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 392,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Connection-Connect"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 378,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Connection-Error"
+    },
+    {
+      "action": "typeText",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 373,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Connection-Password"
+    },
+    {
+      "action": "typeText",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 370,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Connection-Username"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1227,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-About"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 901,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-Overview-Expand"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 884,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-TechnicalLine"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 955,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-Version"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 731,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-list"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1035,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 654,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Detail-{viewModel.itemID.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1132,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Episode-{metadata.id.rawValue}"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 455,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Home"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 506,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Library-Sort"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 510,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Library-{viewModel.library.id.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 417,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "Emby-Navigation-Tab"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1350,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "Emby-Playback-Error"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1284,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-PosterCard-{metadata.id.rawValue}"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 181,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Root"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 551,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Search"
+    },
+    {
+      "action": "typeText",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 535,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Search-Field"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1099,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Season-Picker"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1080,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Season-{season.metadata.id.rawValue}"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 268,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Sidebar"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 106,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Sidebar-Toggle"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 297,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-Sidebar-{destination.id}"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 262,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-SignOut"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1304,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-StillCard-{metadata.id.rawValue}"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 591,
+          "path": "Modules/Emby/EmbyScreens.swift"
+        }
+      ],
+      "template": "Emby-{reachabilityPage}-list"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentCard",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 164,
+          "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift"
+        }
+      ],
+      "template": "EnvironmentCard-button-environment-{environment.environment.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentCard",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 108,
+          "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift"
+        }
+      ],
+      "template": "EnvironmentCard-card"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentCard",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 339,
+          "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift"
+        }
+      ],
+      "template": "EnvironmentCard-carousel"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentCard",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 153,
+          "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift"
+        }
+      ],
+      "template": "EnvironmentCard-effect-{environment.environment.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 43,
+          "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift"
+        }
+      ],
+      "template": "FileBrowsing-Breadcrumb-button-{segment.index}"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 560,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-Breadcrumb-current"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 112,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 475,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-emptyState"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 657,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-itemCount"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 749,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-list"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 459,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-loadingState"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 508,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-navBackForward"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 530,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-search"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 485,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-sidebarToggle"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 522,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-sort"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 517,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-viewMode"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 155,
+          "path": "Modules/MediaLibrary/Views/FolderListView.swift"
+        }
+      ],
+      "template": "FileBrowsing-FolderList-button-file-{file.id}"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 102,
+          "path": "Modules/MediaLibrary/Views/FolderListView.swift"
+        }
+      ],
+      "template": "FileBrowsing-FolderList-button-folder-{folder.id}"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 256,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-MainWindow-sidebar"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 611,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-Manage-button"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 31,
+          "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-Sidebar-row-local"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 38,
+          "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-Sidebar-row-{ds.id}"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 130,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 257,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 229,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-error"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 678,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-grid-folder-{folder.name}"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 689,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-grid-video-{file.name}"
+    },
+    {
+      "action": null,
+      "family": "MediaLibrary",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 549,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-Breadcrumb-current"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 572,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-Manage-addFiles"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 578,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-Manage-addFolder"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 584,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-Manage-addPhotos"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 591,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-Manage-newFolder"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 600,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-Manage-selectMultiple"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 189,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-MultiSelect-confirmDelete"
+    },
+    {
+      "action": null,
+      "family": "MediaLibrary",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 619,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-MultiSelect-count"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 642,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-MultiSelect-delete"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 647,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-MultiSelect-done"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 634,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-MultiSelect-move"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 144,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-NewFolder-create"
+    },
+    {
+      "action": "typeText",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 138,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-NewFolder-name"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 162,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-RenameFolder-confirm"
+    },
+    {
+      "action": "typeText",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 154,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-RenameFolder-name"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 241,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-error-dismiss"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 710,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-grid-folder-{folder.name}"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 722,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "MediaLibrary-grid-video-{reference.name}"
+    },
+    {
+      "action": "activate",
+      "family": "Navigation",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 432,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "Navigation-Ornament-tab-environment"
+    },
+    {
+      "action": "activate",
+      "family": "Navigation",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 393,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "Navigation-Ornament-tab-files"
+    },
+    {
+      "action": "activate",
+      "family": "Navigation",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 423,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "Navigation-Ornament-tab-settings"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 551,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-DockedPlacement"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 530,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-DockedPlacement-reset"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 564,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 570,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 895,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-enter-panorama"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 888,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 901,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-exit-spatial"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1003,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 1017,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-forward"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 947,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 1079,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-play"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1002,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 1016,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-rewind"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 665,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-settings"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 371,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-controls"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 754,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-media-information"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 819,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-media-information-close"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 825,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-media-information-expanded"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 785,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-media-information-overview"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 800,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-media-information-unmet-{capability.id}"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1130,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-audio"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1141,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-episodes"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1048,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-more"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1136,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-speed"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1124,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-subtitles"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1155,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-{category}-{item.id}"
+    },
+    {
+      "action": "adjust",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 58,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift"
+        }
+      ],
+      "template": "PlayerPanel-precision-timeline"
+    },
+    {
+      "action": "adjust",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1334,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-progress"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1424,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-progress-time-bubble"
+    },
+    {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1438,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-thumb"
+    },
+    {
+      "action": "adjust",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1714,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-{identifier}-slider"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 581,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-DockMenu"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 655,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-DockMenu-skybox"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 654,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-DockMenu-{$0.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 25,
+          "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+        }
+      ],
+      "template": "PlayerUI-InfoBar-button-back"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 519,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-TopAction-dock"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 374,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-TopAction-more"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 512,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-TopAction-resumePanorama"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 529,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-TopAction-videoFormat"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 719,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 733,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 201,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift"
+        }
+      ],
+      "template": "PlayerUI-active-subtitles"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 269,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-application-state"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "debug-diagnostic",
+      "sources": [
+        {
+          "line": 597,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-debug-evidence"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1384,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-loadFailure-primary"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1392,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-loadFailure-secondary"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 606,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-loading-spinner"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 380,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-menu-subtitles"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 925,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-playback-state"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1402,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-playbackIssue-confirm"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1386,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-playbackIssue-primary"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1394,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-playbackIssue-secondary"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1344,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-presentation-conversion-diagnostic"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1401,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-presentation-conversion-dismiss"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 571,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-resumeDecision-panel"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 554,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-resumeDecision-primary"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 561,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-resumeDecision-secondary"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1084,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-spatial-state"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1385,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-spatialFailure-primary"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1393,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-spatialFailure-secondary"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1400,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-unmetCapability-dismiss"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 533,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-window-control-plane"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 389,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift"
+        }
+      ],
+      "template": "PlayerUI-window-playback-surface"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 530,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-window-top-overlay"
+    },
+    {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 618,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "PlayerUI-{hostedPlaybackPresentation.rawValue}-playback"
+    },
+    {
+      "action": null,
+      "family": "SampleBufferAcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 1016,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "SampleBufferAcousticCalibration-renderer-snapshot"
+    },
+    {
+      "action": null,
+      "family": "SampleBufferAcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 1023,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "SampleBufferAcousticCalibration-start"
+    },
+    {
+      "action": null,
+      "family": "SampleBufferAcousticCalibration",
+      "role": "observation",
+      "scope": "debug-calibration",
+      "sources": [
+        {
+          "line": 1011,
+          "path": "Apps/Enchron/EnchronApp.swift"
+        }
+      ],
+      "template": "SampleBufferAcousticCalibration-status"
+    },
+    {
+      "action": null,
+      "family": "SenseZone",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 24,
+          "path": "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift"
+        }
+      ],
+      "template": "SenseZone-VolumeRoot"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 107,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-About-group"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 56,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-MainWindow-sidebar"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 103,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-Playback-group"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 64,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-SettingsScreen"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 96,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-SettingsScreen-detail"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 105,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-StoragePrivacy-group"
+    },
+    {
+      "action": null,
+      "family": "WindowPlayback",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 347,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift"
+        }
+      ],
+      "template": "WindowPlayback-root"
+    }
+  ],
+  "operations": [
+    {
+      "id": "accessibility:Emby-Connection-Address",
+      "identifierTemplate": "Emby-Connection-Address",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Connection-Connect",
+      "identifierTemplate": "Emby-Connection-Connect",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Connection-Password",
+      "identifierTemplate": "Emby-Connection-Password",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Connection-Username",
+      "identifierTemplate": "Emby-Connection-Username",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Detail-Overview-Expand",
+      "identifierTemplate": "Emby-Detail-Overview-Expand",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+      "identifierTemplate": "Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Episode-{metadata.id.rawValue}",
+      "identifierTemplate": "Emby-Episode-{metadata.id.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Library-Sort",
+      "identifierTemplate": "Emby-Library-Sort",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Navigation-Tab",
+      "identifierTemplate": "Emby-Navigation-Tab",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
+      "identifierTemplate": "Emby-PosterCard-{metadata.id.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Search-Field",
+      "identifierTemplate": "Emby-Search-Field",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Season-Picker",
+      "identifierTemplate": "Emby-Season-Picker",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
+      "identifierTemplate": "Emby-Season-{season.metadata.id.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-SignOut",
+      "identifierTemplate": "Emby-SignOut",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
+      "identifierTemplate": "Emby-StillCard-{metadata.id.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "identifierTemplate": "EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentCard-card",
+      "identifierTemplate": "EnvironmentCard-card",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentCard-carousel",
+      "identifierTemplate": "EnvironmentCard-carousel",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "identifierTemplate": "EnvironmentCard-effect-{environment.environment.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
+      "identifierTemplate": "FileBrowsing-Breadcrumb-button-{segment.index}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-search",
+      "identifierTemplate": "FileBrowsing-FilesScreen-search",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
+      "identifierTemplate": "FileBrowsing-FilesScreen-sidebarToggle",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-sort",
+      "identifierTemplate": "FileBrowsing-FilesScreen-sort",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-viewMode",
+      "identifierTemplate": "FileBrowsing-FilesScreen-viewMode",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
+      "identifierTemplate": "FileBrowsing-FolderList-button-file-{file.id}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
+      "identifierTemplate": "FileBrowsing-FolderList-button-folder-{folder.id}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-Manage-button",
+      "identifierTemplate": "FileBrowsing-Manage-button",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-Sidebar-row-local",
+      "identifierTemplate": "FileBrowsing-Sidebar-row-local",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
+      "identifierTemplate": "FileBrowsing-Sidebar-row-{ds.id}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-grid-folder-{folder.name}",
+      "identifierTemplate": "FileBrowsing-grid-folder-{folder.name}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-grid-video-{file.name}",
+      "identifierTemplate": "FileBrowsing-grid-video-{file.name}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-Manage-addFiles",
+      "identifierTemplate": "MediaLibrary-Manage-addFiles",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-Manage-addFolder",
+      "identifierTemplate": "MediaLibrary-Manage-addFolder",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-Manage-addPhotos",
+      "identifierTemplate": "MediaLibrary-Manage-addPhotos",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-Manage-newFolder",
+      "identifierTemplate": "MediaLibrary-Manage-newFolder",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-Manage-selectMultiple",
+      "identifierTemplate": "MediaLibrary-Manage-selectMultiple",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
+      "identifierTemplate": "MediaLibrary-MultiSelect-confirmDelete",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-MultiSelect-delete",
+      "identifierTemplate": "MediaLibrary-MultiSelect-delete",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-MultiSelect-done",
+      "identifierTemplate": "MediaLibrary-MultiSelect-done",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-MultiSelect-move",
+      "identifierTemplate": "MediaLibrary-MultiSelect-move",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-NewFolder-create",
+      "identifierTemplate": "MediaLibrary-NewFolder-create",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-NewFolder-name",
+      "identifierTemplate": "MediaLibrary-NewFolder-name",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-RenameFolder-confirm",
+      "identifierTemplate": "MediaLibrary-RenameFolder-confirm",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-RenameFolder-name",
+      "identifierTemplate": "MediaLibrary-RenameFolder-name",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-error-dismiss",
+      "identifierTemplate": "MediaLibrary-error-dismiss",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-grid-folder-{folder.name}",
+      "identifierTemplate": "MediaLibrary-grid-folder-{folder.name}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:MediaLibrary-grid-video-{reference.name}",
+      "identifierTemplate": "MediaLibrary-grid-video-{reference.name}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Navigation-Ornament-tab-environment",
+      "identifierTemplate": "Navigation-Ornament-tab-environment",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Navigation-Ornament-tab-files",
+      "identifierTemplate": "Navigation-Ornament-tab-files",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Navigation-Ornament-tab-settings",
+      "identifierTemplate": "Navigation-Ornament-tab-settings",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-DockedPlacement-reset",
+      "identifierTemplate": "PlayerPanel-DockedPlacement-reset",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-button-enter-panorama",
+      "identifierTemplate": "PlayerPanel-button-enter-panorama",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-button-exit-spatial",
+      "identifierTemplate": "PlayerPanel-button-exit-spatial",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-button-forward",
+      "identifierTemplate": "PlayerPanel-button-forward",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-button-play",
+      "identifierTemplate": "PlayerPanel-button-play",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-button-rewind",
+      "identifierTemplate": "PlayerPanel-button-rewind",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-button-settings",
+      "identifierTemplate": "PlayerPanel-button-settings",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-media-information-close",
+      "identifierTemplate": "PlayerPanel-media-information-close",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-audio",
+      "identifierTemplate": "PlayerPanel-menu-audio",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-episodes",
+      "identifierTemplate": "PlayerPanel-menu-episodes",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-more",
+      "identifierTemplate": "PlayerPanel-menu-more",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-speed",
+      "identifierTemplate": "PlayerPanel-menu-speed",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-subtitles",
+      "identifierTemplate": "PlayerPanel-menu-subtitles",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "identifierTemplate": "PlayerPanel-menu-{category}-{item.id}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-precision-timeline",
+      "identifierTemplate": "PlayerPanel-precision-timeline",
+      "kind": "adjust",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-progress",
+      "identifierTemplate": "PlayerPanel-progress",
+      "kind": "adjust",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-{identifier}-slider",
+      "identifierTemplate": "PlayerPanel-{identifier}-slider",
+      "kind": "adjust",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-DockMenu-skybox",
+      "identifierTemplate": "PlayerUI-DockMenu-skybox",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
+      "identifierTemplate": "PlayerUI-DockMenu-{$0.rawValue}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-InfoBar-button-back",
+      "identifierTemplate": "PlayerUI-InfoBar-button-back",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-TopAction-dock",
+      "identifierTemplate": "PlayerUI-TopAction-dock",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-TopAction-more",
+      "identifierTemplate": "PlayerUI-TopAction-more",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-TopAction-resumePanorama",
+      "identifierTemplate": "PlayerUI-TopAction-resumePanorama",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-TopAction-videoFormat",
+      "identifierTemplate": "PlayerUI-TopAction-videoFormat",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-loadFailure-primary",
+      "identifierTemplate": "PlayerUI-loadFailure-primary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-loadFailure-secondary",
+      "identifierTemplate": "PlayerUI-loadFailure-secondary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-menu-subtitles",
+      "identifierTemplate": "PlayerUI-menu-subtitles",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-playbackIssue-confirm",
+      "identifierTemplate": "PlayerUI-playbackIssue-confirm",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-playbackIssue-primary",
+      "identifierTemplate": "PlayerUI-playbackIssue-primary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-playbackIssue-secondary",
+      "identifierTemplate": "PlayerUI-playbackIssue-secondary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-presentation-conversion-dismiss",
+      "identifierTemplate": "PlayerUI-presentation-conversion-dismiss",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-resumeDecision-primary",
+      "identifierTemplate": "PlayerUI-resumeDecision-primary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-resumeDecision-secondary",
+      "identifierTemplate": "PlayerUI-resumeDecision-secondary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-spatialFailure-primary",
+      "identifierTemplate": "PlayerUI-spatialFailure-primary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-spatialFailure-secondary",
+      "identifierTemplate": "PlayerUI-spatialFailure-secondary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "identifierTemplate": "PlayerUI-unmetCapability-dismiss",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "command:seekNormalized",
+      "kind": "command",
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
+      "source": "Apps/Enchron/TestCommandChannel.swift"
+    },
+    {
+      "id": "command:setDockedPlacement",
+      "kind": "command",
+      "presentations": [
+        "docked"
+      ],
+      "source": "Apps/Enchron/TestCommandChannel.swift"
+    },
+    {
+      "id": "command:setWindowSize",
+      "kind": "command",
+      "presentations": [
+        "portal"
+      ],
+      "source": "Apps/Enchron/TestCommandChannel.swift"
+    },
+    {
+      "id": "command:toggleControls",
+      "kind": "command",
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
+      "source": "Apps/Enchron/TestCommandChannel.swift"
+    },
+    {
+      "id": "environmentVolume:open-interact-close",
+      "kind": "compound",
+      "presentations": [
+        "window",
+        "docked"
+      ],
+      "source": "Apps/Enchron/MainView.swift"
+    },
+    {
+      "id": "negative:immersive-resident-window",
+      "kind": "negative",
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
+      "source": "Apps/Enchron/EnchronApp.swift"
+    },
+    {
+      "id": "scroll:emby",
+      "kind": "scroll",
+      "presentations": [
+        "window"
+      ],
+      "source": "Modules/Emby/EmbyScreens.swift"
+    },
+    {
+      "id": "scroll:file-list",
+      "kind": "scroll",
+      "presentations": [
+        "window"
+      ],
+      "source": "Apps/Enchron/Screens/FilesScreen.swift"
+    }
+  ],
+  "sourceRoots": [
+    "Apps/Enchron",
+    "Modules/DesignSystem",
+    "Modules/Emby",
+    "Modules/MediaLibrary",
+    "Modules/PlaybackPresentation"
+  ],
+  "version": 1
+}
