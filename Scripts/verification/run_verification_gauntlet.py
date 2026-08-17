@@ -30,6 +30,7 @@ STRUCTURE_CHECKS = (
     ("playback-surface-structure", "verify_playback_surface_structure.py"),
     ("format-description-ownership", "verify_format_description_ownership.py"),
     ("media-byte-stream", "verify_media_byte_stream.py"),
+    ("media-discovery-admission", "verify_media_discovery_admission.py"),
     ("hover-region-clipping", "check_hover_region_clipping.py"),
     ("visionpro-core-regression-plan", "verify_visionpro_core_regression_plan.py"),
 )
