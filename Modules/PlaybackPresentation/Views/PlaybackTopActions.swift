@@ -524,14 +524,28 @@ struct PlaybackTopActions: View {
             if topActionsComposition.showsPanoramaEntry {
                 GlassCircleIconButton.expandVertically(
                     accessibilityLabel: "Enter Panorama",
-                    action: { onEnterImmersive?(nil, nil) },
+                    action: {
+#if DEBUG
+                        AppModel.recordProbe(
+                            "reachability topActions delivered action=enterPanorama"
+                        )
+#endif
+                        onEnterImmersive?(nil, nil)
+                    },
                     accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
                 )
             } else if topActionsComposition.showsDock {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "mountain.2.fill",
                     accessibilityLabel: "Dock",
-                    action: { toggle(.dock) },
+                    action: {
+#if DEBUG
+                        AppModel.recordProbe(
+                            "reachability topActions delivered action=dock.open"
+                        )
+#endif
+                        toggle(.dock)
+                    },
                     accessibilityIdentifier: "PlayerUI-TopAction-dock",
                     iconTier: .compact
                 )
@@ -541,7 +555,14 @@ struct PlaybackTopActions: View {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "gear",
                     accessibilityLabel: "Video Format",
-                    action: { toggle(.videoFormat) },
+                    action: {
+#if DEBUG
+                        AppModel.recordProbe(
+                            "reachability topActions delivered action=videoFormat.open"
+                        )
+#endif
+                        toggle(.videoFormat)
+                    },
                     accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
                 )
                 .disabled(!canApplyFormat)
@@ -616,6 +637,13 @@ struct PlaybackTopActions: View {
         )
 
         return Button {
+#if DEBUG
+            AppModel.recordProbe(
+                "reachability topActions delivered action=dock.select"
+                    + " environment=\(environment.rawValue)"
+                    + " effect=\(effect?.rawValue ?? "none")"
+            )
+#endif
             let requested = state.selectDockTarget(
                 environment: environment,
                 effect: effect
@@ -690,6 +718,11 @@ struct PlaybackTopActions: View {
 
     private func applyVideoFormat() {
         guard let selection = state.finishVideoFormatEditing(.apply) else { return }
+#if DEBUG
+        AppModel.recordProbe(
+            "reachability topActions delivered action=videoFormat.apply"
+        )
+#endif
         // The runtime remains authoritative until the async core operation
         // succeeds. This also restores the visible committed value if it fails.
         state.synchronizeCommittedVideoFormat(committedVideoFormatSelection)

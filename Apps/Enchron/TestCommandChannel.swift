@@ -172,6 +172,8 @@ final class TestCommandChannel {
             )
         case "scrollEmby":
             return try scrollEmby(request)
+        case "showPlaybackIssue":
+            return try showPlaybackIssue(request)
         case "seekNormalized":
             return try seekNormalized(request)
         case "setDockedPlacement":
@@ -336,6 +338,39 @@ final class TestCommandChannel {
             ok: true,
             detail: nil,
             payload: [axis, String(applied)]
+        )
+    }
+
+    private func showPlaybackIssue(_ request: Request) throws -> Response {
+        guard let category = request.args["category"] else {
+            throw CommandError(
+                message: "showPlaybackIssue requires a category argument."
+            )
+        }
+        let issue: PlaybackUserVisibleIssue = switch category {
+        case "mediaOpeningFailed": .mediaOpeningFailed
+        case "playbackFailed": .playbackFailed
+        case "playbackControlFailed": .playbackControlFailed
+        case "mediaFormatChangeFailed": .mediaFormatChangeFailed
+        case "presentationConversionFailed": .presentationConversionFailed
+        case "surfaceAttachmentFailed": .surfaceAttachmentFailed
+        case "environmentLoadingFailed": .environmentLoadingFailed
+        case "capabilityUnavailable":
+            .capabilityUnavailable(.videoDecoderUnavailable)
+        default:
+            throw CommandError(
+                message: "showPlaybackIssue does not support category \(category)."
+            )
+        }
+        playbackRuntime.setUserVisibleIssue(issue)
+        AppModel.recordProbe(
+            "testcmd showPlaybackIssue delivered category=\(category)"
+        )
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [category]
         )
     }
 

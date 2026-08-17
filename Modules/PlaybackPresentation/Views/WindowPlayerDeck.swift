@@ -133,8 +133,22 @@ struct WindowPlayerDeckView: View {
                     self.playbackRuntime.frameStepForward()
                 }
             },
-            onEnterImmersive: { self.enterImmersive() },
-            onExitSpatial: { self.exitImmersive() },
+            onEnterImmersive: {
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability playerPanel delivered action=enterSpatial"
+                )
+#endif
+                self.enterImmersive()
+            },
+            onExitSpatial: {
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability playerPanel delivered action=exitSpatial"
+                )
+#endif
+                self.exitImmersive()
+            },
             onExitPlayback: {
                 if let onExitPlayback = self.onExitPlayback {
                     onExitPlayback()
