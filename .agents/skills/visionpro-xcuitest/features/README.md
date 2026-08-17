@@ -2,6 +2,20 @@
 
 本目录是仓库维护的验证真相源：每个用户可见特性一个文件，回答它是什么、用户怎么到达、harness 怎么驱动、什么可观察终态算证明。只验证了便捷入口而地图列有其它入口的证明是不完整的。
 
+## 自动化可达性承诺
+
+Enchron 应用内的每项产品操作都必须由自动化到达，并由应用诊断串或探针证明事件已经送达产品处理逻辑。Accessibility 层级中的存在性、`isHittable` 与 XCTest 动作返回值分别只证明目标被公开、框架报告可命中和框架完成调用；它们不能替代应用送达证据。
+
+承诺边界是下列封闭清单：
+
+- 系统域：权限对话框、Files 选择器的系统界面、Home、控制中心、系统窗口装饰把手；
+- 物理输入：Digital Crown 的旋转与按压；
+- 感知判断：舒适度、眩晕、音质以及其它必须由人类感官裁决的主观结论。
+
+清单之外的产品操作不可达即为缺陷。缺陷归属只有两类：产品没有公开足够的 Accessibility 事实，或测试通道缺少能够进入同一产品状态与处理管线的动词。空间手势无法由 XCUIAutomation 合成时，DEBUG 动词必须进入同一产品状态或处理管线，并以应用证据完成送达判定。任何常驻透明机制窗口都不得向 Accessibility 层级暴露节点，也不得成为可命中目标。
+
+全量操作集由 `Scripts/verification/generate_reachability_inventory.py` 从产品源码生成到 `Config/reachability_operation_inventory.json`。物理设备的第零层回归由 `Scripts/verification/reachability_matrix.py` 执行，覆盖 Window、Portal、Panorama 与 Docked；已证明可达的格回退为不可达时，runner 失败。首次发现的不可达格保留为已知缺陷，继续占据矩阵，直至修复和真机复测转绿。
+
 ## 特性
 
 **取得媒体**
