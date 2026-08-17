@@ -19,11 +19,84 @@ protocol RendererFailureMonitoring: AnyObject {
     func stop()
 }
 
+struct PlaybackPrerollRequirement: Equatable {
+    let videoEnd: CMTime
+    let audioEnd: CMTime
+}
+
+enum PlaybackBufferingPolicy {
+    /// MPV's 0.2-second audio output buffer is the starting point for seek startup.
+    /// TrueHD on Vision Pro arrives in 0.1-second buffers, so this admits two buffers.
+    static let seekAudioLeadSeconds = 0.2
+
+    /// The 2026-08-17 Vision Pro baseline recovered bounded delivery at 0.527–0.873
+    /// seconds late. Keep the 0.5-second trigger that arrested unbounded lag.
+    static let deliveryLagRecoveryTriggerSeconds = 0.5
+
+    /// Preserve the device-validated recovery reserve until recovery tuning is
+    /// changed independently from the seek startup contract.
+    static let deliveryLagRecoveryLeadSeconds = 5.0
+
+    /// Vision Pro may opportunistically queue compressed samples while playback
+    /// keeps pace. This is a ceiling, not a startup or recovery requirement.
+    #if os(visionOS)
+        static let opportunisticRendererMaximumLeadSeconds = 6.0
+    #else
+        static let opportunisticRendererMaximumLeadSeconds = 1.0
+    #endif
+
+    /// Five seconds bounds provider or renderer failure; it is not buffered-media
+    /// policy. The 5-millisecond poll keeps activation responsive within that bound.
+    static let audioPrerollTimeout: Duration = .seconds(5)
+    static let audioPrerollPollInterval: Duration = .milliseconds(5)
+
+    /// Seek coordination already used a five-second failure bound. Name it so it
+    /// cannot be confused with the removed five-second media reserve.
+    static let seekTargetCoordinationTimeout: Duration = .seconds(5)
+
+    static func seekRequirement(
+        target: CMTime,
+        durationSeconds: Double
+    ) -> PlaybackPrerollRequirement {
+        PlaybackPrerollRequirement(
+            videoEnd: target,
+            audioEnd: clampedEnd(
+                from: target,
+                leadSeconds: seekAudioLeadSeconds,
+                durationSeconds: durationSeconds
+            )
+        )
+    }
+
+    static func deliveryLagRecoveryRequirement(
+        timelineTime: CMTime,
+        durationSeconds: Double
+    ) -> PlaybackPrerollRequirement {
+        let end = clampedEnd(
+            from: timelineTime,
+            leadSeconds: deliveryLagRecoveryLeadSeconds,
+            durationSeconds: durationSeconds
+        )
+        return PlaybackPrerollRequirement(videoEnd: end, audioEnd: end)
+    }
+
+    private static func clampedEnd(
+        from start: CMTime,
+        leadSeconds: Double,
+        durationSeconds: Double
+    ) -> CMTime {
+        let unboundedEnd = start.seconds + leadSeconds
+        let endSeconds = if durationSeconds.isFinite, durationSeconds > 0 {
+            min(unboundedEnd, durationSeconds)
+        } else {
+            unboundedEnd
+        }
+        return CMTime(seconds: endSeconds, preferredTimescale: 60_000)
+    }
+}
+
 /// Exposes one media session's renderer, read-only facts, and consumer binding evidence.
 public final class SampleBufferPlaybackSession: @unchecked Sendable {
-    static let seekPrerollSeconds = 5.0
-    static let deliveryLagRecoveryThresholdSeconds = 0.5
-
     struct EndState {
         var requiresAudio = false
         var videoProviderEnded = false
@@ -165,8 +238,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var decoderBootstrapTargetSeconds: Double?
     var decoderBootstrapLastDecodeTimeSeconds: Double?
     var decoderBootstrapImmediateEnqueueCount: UInt64 = 0
-    let seekPrerollLock = NSLock()
-    var requiredSeekPrerollEnd = CMTime.invalid
+    let prerollRequirementLock = NSLock()
+    var prerollRequirement: PlaybackPrerollRequirement?
     let endStateLock = NSLock()
     var endState = EndState()
     var hasStartedTimeline = false

@@ -1131,6 +1131,32 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
 }
 
+@Test func seekPrerollRequiresTargetVideoAndPointTwoSecondsOfAudio() {
+    let target = CMTime(seconds: 12, preferredTimescale: 60_000)
+
+    let requirement = PlaybackBufferingPolicy.seekRequirement(
+        target: target,
+        durationSeconds: 120
+    )
+
+    #expect(requirement.videoEnd.seconds == 12)
+    #expect(requirement.audioEnd.seconds == 12.2)
+
+    let endClampedRequirement = PlaybackBufferingPolicy.seekRequirement(
+        target: target,
+        durationSeconds: 12.1
+    )
+    #expect(endClampedRequirement.audioEnd.seconds == 12.1)
+}
+
+@Test func rendererLeadLimitRemainsAnOpportunisticPlatformCeiling() {
+    #if os(visionOS)
+        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 6)
+    #else
+        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 1)
+    #endif
+}
+
 @Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0.021)
     let session = SampleBufferPlaybackSession(
