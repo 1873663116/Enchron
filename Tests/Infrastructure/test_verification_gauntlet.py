@@ -9,6 +9,19 @@ import run_verification_gauntlet as gauntlet
 
 
 class VerificationGauntletTests(unittest.TestCase):
+    def test_structure_check_modes_keep_corpus_identity_full_only(self) -> None:
+        full = {check.identifier for check in gauntlet.STRUCTURE_CHECKS}
+        quick = {
+            check.identifier
+            for check in gauntlet.STRUCTURE_CHECKS
+            if check.runs_in_quick_mode
+        }
+
+        self.assertEqual(len(full), 9)
+        self.assertIn("glass-usage", quick)
+        self.assertIn("format-description-identity", full)
+        self.assertNotIn("format-description-identity", quick)
+
     def test_failure_names_deduplicate_issue_and_terminal_lines(self) -> None:
         output = """
 Test expectedFailure() recorded an issue at Test.swift:1: failure
