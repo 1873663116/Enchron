@@ -164,7 +164,7 @@ struct PlaybackControlsPreview: View {
                 screenDistance = PlaybackDockedPlacement.defaultDistance
                 screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
             },
-            onApplyFormat: { selectedProjection, horizontalFieldOfView, stereo in
+            onApplyFormat: { selectedProjection, horizontalFieldOfView, stereo, _ in
                 projection = selectedProjection
                 if let horizontalFieldOfView {
                     horizontalFieldOfViewDegrees = horizontalFieldOfView

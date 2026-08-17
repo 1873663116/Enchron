@@ -21,6 +21,8 @@ struct FusedPlayerPanelLive {
     var projection: PlaybackModel.ProjectionType
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
+    var usesDolbyVisionFallback: Bool = false
+    var showsDolbyVisionFallback: Bool = false
     var mediaFormatSummary: String? = nil
     /// Present when the source describes the title beyond its filename. A local file
     /// has none and an Emby item does, which is what makes the information well
@@ -54,7 +56,8 @@ struct FusedPlayerPanelLive {
     var onApplyFormat: (
         PlaybackModel.ProjectionType,
         Int?,
-        PlaybackModel.StereoLayout
+        PlaybackModel.StereoLayout,
+        Bool
     ) -> Void
     var onRestoreAutomaticFormat: () -> Void
     var subtitleItems: [DeckMenuItem]
@@ -210,6 +213,7 @@ struct FusedPlayerPanel: View {
                 horizontalFieldOfViewDegrees: live?.horizontalFieldOfViewDegrees
                     ?? PanoramaHorizontalCoverage.defaultCustomAngle,
                 stereoLayout: live?.stereoLayout ?? .mono,
+                usesDolbyVisionFallback: live?.usesDolbyVisionFallback ?? false,
                 beginsEditing: initialExpansion == .settings
                     && resolvedSurface == .playerControlDock
                     && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
@@ -243,6 +247,7 @@ struct FusedPlayerPanel: View {
                 projection: live.projection,
                 horizontalFieldOfViewDegrees: live.horizontalFieldOfViewDegrees,
                 stereoLayout: live.stereoLayout,
+                usesDolbyVisionFallback: live.usesDolbyVisionFallback,
                 beginsEditing: initialExpansion == .settings
                     && surface == .playerControlDock
                     && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
@@ -540,9 +545,11 @@ struct FusedPlayerPanel: View {
             projection: $videoFormatEditing.projection,
             horizontalFieldOfViewDegrees: $videoFormatEditing.horizontalFieldOfViewDegrees,
             stereoLayout: $videoFormatEditing.stereoLayout,
+            usesDolbyVisionFallback: $videoFormatEditing.usesDolbyVisionFallback,
             canApplyFormat: live.canApplyFormat,
             mediaFormatProvenance: live.mediaFormatProvenance,
             sourceMediaFormatSummary: live.sourceMediaFormatSummary,
+            showsDolbyVisionFallback: live.showsDolbyVisionFallback,
             identifierPrefix: "PlayerPanel-VideoFormat",
             onCancel: cancelVideoFormatEditing,
             onApply: applyVideoFormatEditing,
@@ -559,7 +566,8 @@ struct FusedPlayerPanel: View {
             horizontalFieldOfViewDegrees: live.projection == .customAngle
                 ? live.horizontalFieldOfViewDegrees
                 : nil,
-            stereoLayout: live.stereoLayout
+            stereoLayout: live.stereoLayout,
+            usesDolbyVisionFallback: live.usesDolbyVisionFallback
         )
     }
 
@@ -582,7 +590,8 @@ struct FusedPlayerPanel: View {
         live.onApplyFormat(
             selection.projection,
             selection.horizontalFieldOfViewDegrees,
-            selection.stereoLayout
+            selection.stereoLayout,
+            selection.usesDolbyVisionFallback
         )
     }
 

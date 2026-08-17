@@ -319,6 +319,7 @@ struct WindowPlaybackPageGeometryTests {
         state.projection = .customAngle
         state.horizontalFieldOfViewDegrees = 240
         state.stereoLayout = .topBottom
+        state.usesDolbyVisionFallback = true
 
         let committed = state.commit()
 
@@ -326,7 +327,8 @@ struct WindowPlaybackPageGeometryTests {
             committed == PlaybackVideoFormatSelection(
                 projection: .customAngle,
                 horizontalFieldOfViewDegrees: 240,
-                stereoLayout: .topBottom
+                stereoLayout: .topBottom,
+                usesDolbyVisionFallback: true
             )
         )
 
@@ -338,6 +340,7 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.projection == .customAngle)
         #expect(state.horizontalFieldOfViewDegrees == 240)
         #expect(state.stereoLayout == .topBottom)
+        #expect(state.usesDolbyVisionFallback)
     }
 
     @Test("committed Video Format synchronization waits for editing to finish")

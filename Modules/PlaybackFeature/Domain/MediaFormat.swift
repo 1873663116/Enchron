@@ -59,11 +59,13 @@ public struct MediaFormat: Codable, Equatable, Sendable {
     public var projection: MediaProjection
     public var horizontalFieldOfViewDegrees: Int?
     public var stereoLayout: MediaStereoLayout
+    public var usesDolbyVisionFallback: Bool
 
     public init(
         projection: MediaProjection,
         horizontalFieldOfViewDegrees: Int? = nil,
-        stereoLayout: MediaStereoLayout
+        stereoLayout: MediaStereoLayout,
+        usesDolbyVisionFallback: Bool = false
     ) {
         self.projection = projection
         self.horizontalFieldOfViewDegrees = switch projection {
@@ -80,6 +82,30 @@ public struct MediaFormat: Codable, Equatable, Sendable {
             )
         }
         self.stereoLayout = stereoLayout
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case projection
+        case horizontalFieldOfViewDegrees
+        case stereoLayout
+        case usesDolbyVisionFallback
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            projection: try values.decode(MediaProjection.self, forKey: .projection),
+            horizontalFieldOfViewDegrees: try values.decodeIfPresent(
+                Int.self,
+                forKey: .horizontalFieldOfViewDegrees
+            ),
+            stereoLayout: try values.decode(MediaStereoLayout.self, forKey: .stereoLayout),
+            usesDolbyVisionFallback: try values.decodeIfPresent(
+                Bool.self,
+                forKey: .usesDolbyVisionFallback
+            ) ?? false
+        )
     }
 
     public static let standard = Self(projection: .flat, stereoLayout: .mono)
@@ -116,6 +142,7 @@ public struct EffectiveMediaFormatInterpretation: Equatable, Sendable {
     public let projection: PlaybackModel.ProjectionType
     public let horizontalFieldOfViewDegrees: Int?
     public let stereoLayout: PlaybackModel.StereoLayout
+    public let usesDolbyVisionFallback: Bool
 
     public var isPanoramic: Bool {
         provenance == .source ? source.contentKind.isPanoramic : projection.isPanoramic
@@ -130,13 +157,15 @@ public struct EffectiveMediaFormatInterpretation: Equatable, Sendable {
         provenance: MediaFormatProvenance,
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereoLayout: PlaybackModel.StereoLayout
+        stereoLayout: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false
     ) {
         self.source = source
         self.provenance = provenance
         self.projection = projection
         self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.stereoLayout = stereoLayout
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
     }
 }
 
@@ -153,7 +182,8 @@ public enum MediaFormatInterpretationResolver {
                 provenance: .source,
                 projection: source.projection,
                 horizontalFieldOfViewDegrees: source.horizontalFieldOfViewDegrees,
-                stereoLayout: source.stereoLayout
+                stereoLayout: source.stereoLayout,
+                usesDolbyVisionFallback: false
             )
         }
 
@@ -162,7 +192,8 @@ public enum MediaFormatInterpretationResolver {
             provenance: .userOverride,
             projection: projection(from: formatOverride.projection),
             horizontalFieldOfViewDegrees: formatOverride.horizontalFieldOfViewDegrees,
-            stereoLayout: stereoLayout(from: formatOverride.stereoLayout)
+            stereoLayout: stereoLayout(from: formatOverride.stereoLayout),
+            usesDolbyVisionFallback: formatOverride.usesDolbyVisionFallback
         )
     }
 
@@ -209,7 +240,8 @@ public enum MediaFormatPolicy {
         MediaFormat(
             projection: format.projection,
             horizontalFieldOfViewDegrees: format.horizontalFieldOfViewDegrees,
-            stereoLayout: format.stereoLayout
+            stereoLayout: format.stereoLayout,
+            usesDolbyVisionFallback: format.usesDolbyVisionFallback
         )
     }
 }

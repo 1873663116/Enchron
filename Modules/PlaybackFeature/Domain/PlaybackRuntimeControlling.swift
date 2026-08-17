@@ -40,6 +40,8 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var displayMediaProfile: PlaybackModel.MediaProfile? { get }
     var displayFileSizeInBytes: Int64? { get }
     var activeMediaFormatProvenance: MediaFormatProvenance { get }
+    var dolbyVisionFallbackIsAvailable: Bool { get }
+    var dolbyVisionFallbackIsEnabled: Bool { get }
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation { get }
     var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind { get }
     var sourceMediaFormatSummary: String { get }
@@ -69,7 +71,8 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool
     ) async throws
     func useSourceFormat() async throws
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
@@ -86,12 +89,26 @@ public extension PlaybackRuntimeControlling {
 
     func setFormat(
         projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int?,
+        stereo: PlaybackModel.StereoLayout
+    ) async throws {
+        try await setFormat(
+            projection: projection,
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+            stereo: stereo,
+            usesDolbyVisionFallback: false
+        )
+    }
+
+    func setFormat(
+        projection: PlaybackModel.ProjectionType,
         stereo: PlaybackModel.StereoLayout
     ) async throws {
         try await setFormat(
             projection: projection,
             horizontalFieldOfViewDegrees: nil,
-            stereo: stereo
+            stereo: stereo,
+            usesDolbyVisionFallback: false
         )
     }
 }

@@ -75,6 +75,13 @@ nonisolated extension PlaybackModel {
             self.fallbackTo = fallbackTo
         }
 
+        /// A single-layer source with a compatible base layer can be presented
+        /// without its Dolby Vision configuration. A source whose base layer has
+        /// already been selected is already in its fallback presentation.
+        public var offersUserSelectableFallback: Bool {
+            crossCompatibilityID != 0 && fallbackTo == nil
+        }
+
         /// Reads the way the rest of the dynamic range labels do, so a title that fell
         /// back sits in the same sentence as one that did not. A profile compatible
         /// with nothing else is named without a second digit, so Profile 5 is written

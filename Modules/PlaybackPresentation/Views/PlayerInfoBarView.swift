@@ -38,6 +38,8 @@ struct PlayerInfoBarView: View {
                 horizontalFieldOfViewDegrees:
                     playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
                 stereoLayout: playbackRuntime.effectiveStereoLayout,
+                usesDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsEnabled,
+                showsDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsAvailable,
                 defaultScenicEnvironment: appModel.defaultScenicEnvironment,
                 onEnterImmersive: enterImmersive,
                 onApplyFormat: applyFormat,
@@ -79,7 +81,8 @@ struct PlayerInfoBarView: View {
     private func applyFormat(
         _ projection: PlaybackModel.ProjectionType,
         _ horizontalFieldOfViewDegrees: Int?,
-        _ stereo: PlaybackModel.StereoLayout
+        _ stereo: PlaybackModel.StereoLayout,
+        _ usesDolbyVisionFallback: Bool
     ) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         Task {
@@ -87,7 +90,8 @@ struct PlayerInfoBarView: View {
                 try await launcher.applyFormat(
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                    stereo: stereo
+                    stereo: stereo,
+                    usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
             } catch {
                 playbackRuntime.lastErrorMessage = error.localizedDescription
