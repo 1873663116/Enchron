@@ -31,6 +31,22 @@ class FormatDescriptionIdentityTests(unittest.TestCase):
             self.assertNotIn("path", rule.declaration)
             self.assertTrue(rule.reason)
 
+    def test_expected_facts_preserve_declared_srgb_transfer(self) -> None:
+        declaration = identity.Declaration(
+            Path("arbitrary.mov"),
+            {
+                "codec_name": "h264",
+                "codec_tag_string": "avc1",
+                "color_transfer": "iec61966-2-1",
+            },
+            None,
+        )
+
+        self.assertEqual(
+            identity.expected_facts(declaration)["transfer"],
+            "IEC_sRGB",
+        )
+
     def test_prores_limited_range_exemption_matches_only_its_shape(self) -> None:
         rule = next(
             rule for rule in self.baseline.exemptions

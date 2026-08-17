@@ -1519,6 +1519,7 @@ static int configure_dolby_vision_base_layer_split(
 static CFStringRef transfer_function(enum AVColorTransferCharacteristic value) {
     switch (value) {
         case AVCOL_TRC_BT709: return kCMFormatDescriptionTransferFunction_ITU_R_709_2;
+        case AVCOL_TRC_IEC61966_2_1: return kCMFormatDescriptionTransferFunction_sRGB;
         case AVCOL_TRC_SMPTE2084: return kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ;
         case AVCOL_TRC_ARIB_STD_B67: return kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG;
         default: return NULL;

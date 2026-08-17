@@ -35,6 +35,7 @@ PRIMARIES = {
 }
 TRANSFERS = {
     "bt709": "ITU_R_709_2",
+    "iec61966-2-1": "IEC_sRGB",
     "smpte2084": "SMPTE_ST_2084_PQ",
     "arib-std-b67": "ITU_R_2100_HLG",
 }
