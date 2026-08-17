@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -8,10 +9,12 @@ import subprocess
 import sys
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-PROJECT_FILE = REPOSITORY_ROOT / "Enchron.xcodeproj" / "project.pbxproj"
+DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DESIGN_SOURCE_ARCHITECTURE_CHECKER = (
-    REPOSITORY_ROOT / "Scripts" / "verification" / "verify_design_source_architecture.py"
+    DEFAULT_REPOSITORY_ROOT
+    / "Scripts"
+    / "verification"
+    / "verify_design_source_architecture.py"
 )
 APP_EXCEPTION_ID = "E10000162FA1000100E1C001"
 PRODUCT_TARGETS = {
@@ -53,13 +56,13 @@ IMPORT_PARSER_SELF_CHECKS = (
 )
 
 
-def package_description() -> dict:
+def package_description(repository_root: Path) -> dict:
     environment = os.environ.copy()
     environment["CLANG_MODULE_CACHE_PATH"] = "/tmp/ench-clang-module-cache"
     environment["SWIFTPM_MODULECACHE_OVERRIDE"] = "/tmp/ench-swiftpm-module-cache"
     result = subprocess.run(
         ["swift", "package", "describe", "--type", "json"],
-        cwd=REPOSITORY_ROOT,
+        cwd=repository_root,
         env=environment,
         check=True,
         capture_output=True,
@@ -68,21 +71,21 @@ def package_description() -> dict:
     return json.loads(result.stdout)
 
 
-def package_module_sources(description: dict) -> set[str]:
+def package_module_sources(description: dict, repository_root: Path) -> set[str]:
     sources: set[str] = set()
     for target in description["targets"]:
         if target["name"] not in PRODUCT_TARGETS:
             continue
         target_path = Path(target["path"])
-        modules_root = REPOSITORY_ROOT / "Modules" if target_path.is_absolute() else Path("Modules")
+        modules_root = repository_root / "Modules" if target_path.is_absolute() else Path("Modules")
         relative_target_path = target_path.relative_to(modules_root)
         for source in target["sources"]:
             sources.add((relative_target_path / source).as_posix())
     return sources
 
 
-def app_membership_exceptions() -> set[str]:
-    project = PROJECT_FILE.read_text()
+def app_membership_exceptions(repository_root: Path) -> set[str]:
+    project = (repository_root / "Enchron.xcodeproj" / "project.pbxproj").read_text()
     block_match = re.search(
         rf"{APP_EXCEPTION_ID}.*?membershipExceptions = \((.*?)\);\s*target =",
         project,
@@ -98,12 +101,16 @@ def app_membership_exceptions() -> set[str]:
     return entries
 
 
-def target_sources(description: dict, target_name: str) -> list[Path]:
+def target_sources(
+    description: dict,
+    target_name: str,
+    repository_root: Path,
+) -> list[Path]:
     for target in description["targets"]:
         if target["name"] != target_name:
             continue
         target_path = Path(target["path"])
-        target_root = target_path if target_path.is_absolute() else REPOSITORY_ROOT / target_path
+        target_root = target_path if target_path.is_absolute() else repository_root / target_path
         return [target_root / source for source in target["sources"]]
     raise RuntimeError(f"Swift package target is missing: {target_name}")
 
@@ -129,30 +136,53 @@ def verify_import_parser() -> None:
         raise RuntimeError(f"Swift import parser matched non-import text: {ignored!r}")
 
 
-def playback_presentation_import_violations(description: dict) -> list[tuple[Path, str]]:
+def playback_presentation_import_violations(
+    description: dict,
+    repository_root: Path,
+) -> list[tuple[Path, str]]:
     violations: list[tuple[Path, str]] = []
-    for source in target_sources(description, "PlaybackPresentation"):
+    for source in target_sources(description, "PlaybackPresentation", repository_root):
         for module in swift_import_modules(source.read_text()):
             if module not in PLAYBACK_PRESENTATION_ALLOWED_IMPORTS:
-                violations.append((source.relative_to(REPOSITORY_ROOT), module))
+                violations.append((source.relative_to(repository_root), module))
     return violations
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Verify Swift Package and Enchron Xcode target source ownership."
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=DEFAULT_REPOSITORY_ROOT,
+        help="repository root to inspect",
+    )
+    arguments = parser.parse_args()
+    repository_root = arguments.root.resolve()
+
     design_check = subprocess.run(
-        [sys.executable, str(DESIGN_SOURCE_ARCHITECTURE_CHECKER)],
-        cwd=REPOSITORY_ROOT,
+        [
+            sys.executable,
+            str(DESIGN_SOURCE_ARCHITECTURE_CHECKER),
+            "--root",
+            str(repository_root),
+        ],
+        cwd=repository_root,
     )
     if design_check.returncode != 0:
         return design_check.returncode
 
     verify_import_parser()
-    description = package_description()
-    package_sources = package_module_sources(description)
-    exceptions = app_membership_exceptions()
+    description = package_description(repository_root)
+    package_sources = package_module_sources(description, repository_root)
+    exceptions = app_membership_exceptions(repository_root)
     missing = sorted(package_sources - exceptions)
     stale = sorted(exceptions - package_sources)
-    import_violations = playback_presentation_import_violations(description)
+    import_violations = playback_presentation_import_violations(
+        description,
+        repository_root,
+    )
     if missing or stale or import_violations:
         if missing:
             print("Package sources still compiled directly by Enchron:", file=sys.stderr)
