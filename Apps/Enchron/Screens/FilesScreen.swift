@@ -731,6 +731,16 @@ struct FilesScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+#if DEBUG
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { previous, current in
+            guard abs(current - previous) >= 1 else { return }
+            AppModel.recordProbe(
+                "reachability fileScroll kind=grid offset=\(current)"
+            )
+        }
+#endif
     }
 
     private var list: some View {
@@ -743,6 +753,16 @@ struct FilesScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .scrollIndicators(.hidden)
+#if DEBUG
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { previous, current in
+            guard abs(current - previous) >= 1 else { return }
+            AppModel.recordProbe(
+                "reachability fileScroll kind=list offset=\(current)"
+            )
+        }
+#endif
         .transition(.opacity)
     }
 

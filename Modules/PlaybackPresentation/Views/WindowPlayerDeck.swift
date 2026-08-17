@@ -84,9 +84,33 @@ struct WindowPlayerDeckView: View {
             durationLabel: PlaybackTimeFormatter.clock(duration),
             duration: duration,
             framesPerSecond: playbackRuntime.displayMediaProfile?.frameRate ?? 0,
-            onPlayPause: { self.register(); self.togglePlayPause() },
-            onSkipBackward: { self.register(); self.playbackRuntime.skip(by: -15) },
-            onSkipForward: { self.register(); self.playbackRuntime.skip(by: 15) },
+            onPlayPause: {
+                self.register()
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "playback control delivered action=playPause"
+                )
+#endif
+                self.togglePlayPause()
+            },
+            onSkipBackward: {
+                self.register()
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "playback control delivered action=rewind"
+                )
+#endif
+                self.playbackRuntime.skip(by: -15)
+            },
+            onSkipForward: {
+                self.register()
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "playback control delivered action=forward"
+                )
+#endif
+                self.playbackRuntime.skip(by: 15)
+            },
             onSeek: { p in
                 self.register()
                 self.playbackRuntime.seek(

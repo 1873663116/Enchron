@@ -183,6 +183,7 @@ public final class AppModel {
     /// Discriminator for the immersive controls blackout: an empty window
     /// scene carrying none of the controls content, toggled on the same path.
     public var showBlackoutProbeWindow: Bool = false
+    public var environmentCardDismissalRequestRevision: UInt64 = 0
 #endif
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false

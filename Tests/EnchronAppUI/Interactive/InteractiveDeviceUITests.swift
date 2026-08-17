@@ -23,6 +23,7 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         }
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
+        app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
         app.launch()
         let channel = try InteractiveDeviceUIChannel(app: app)
         try channel.publishReadyState()

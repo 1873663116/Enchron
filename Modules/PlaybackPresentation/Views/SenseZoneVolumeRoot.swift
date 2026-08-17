@@ -84,6 +84,12 @@ struct SenseZoneVolumeRoot: View {
         _ featured: FeaturedEnvironment,
         effect: SpatialSceneDomain.EnvironmentEffect
     ) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentCard effect delivered environment=\(featured.environment.rawValue)"
+                + " effect=\(effect.rawValue)"
+        )
+#endif
         guard appModel.environmentContext.environment == featured.environment else {
             return
         }
@@ -95,6 +101,12 @@ struct SenseZoneVolumeRoot: View {
         effect: SpatialSceneDomain.EnvironmentEffect
     ) {
         do {
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "environmentCard toggle delivered environment=\(featured.environment.rawValue)"
+                    + " effect=\(effect.rawValue)"
+            )
+#endif
             if appModel.environmentContext.environment == featured.environment {
                 try appModel.requestEnvironmentPreviewDismissal()
             } else {

@@ -458,12 +458,18 @@ public struct MainView: View {
 
     private func selectBrowserTab(_ tab: AppModel.NavigationTab) {
         guard tab.isContentDestination else {
+#if DEBUG
+            AppModel.recordProbe("navigation tab delivered tab=\(tab.rawValue)")
+#endif
             try? appModel.requestEnvironmentCard(
                 mediaSessionID: playbackRuntime.activeSessionID,
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
             return
         }
+#if DEBUG
+        AppModel.recordProbe("navigation tab delivered tab=\(tab.rawValue)")
+#endif
         appModel.selectedTab = tab
     }
 

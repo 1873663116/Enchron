@@ -2,6 +2,44 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
+#if DEBUG
+@MainActor
+public final class EmbyReachabilityScrollRequest {
+    public enum Direction: String {
+        case forward
+        case backward
+    }
+
+    public let page: String
+    public let direction: Direction
+    public private(set) var handledPage: String?
+    private let recordDelivery: @MainActor (String) -> Void
+
+    public init(
+        page: String,
+        direction: Direction,
+        recordDelivery: @escaping @MainActor (String) -> Void
+    ) {
+        self.page = page
+        self.direction = direction
+        self.recordDelivery = recordDelivery
+    }
+
+    public func handle(on page: String, scroll: () -> Void) {
+        guard self.page == page, handledPage == nil else { return }
+        scroll()
+        handledPage = page
+        recordDelivery(page)
+    }
+}
+
+public extension Notification.Name {
+    static let embyReachabilityScroll = Notification.Name(
+        "app.enchron.debug.emby-reachability-scroll"
+    )
+}
+#endif
+
 /// Height of a page's header row. The toggle, the page title and the page's own control all sit on
 /// this one line, and the page's content scrolls underneath it, so nothing is cut by a row above.
 private let embyHeaderHeight = DesignTokens.Interactive.large + DesignTokens.Spacing.xl + DesignTokens.Spacing.lg
@@ -366,6 +404,7 @@ private struct EmbyHomeScreen: View {
     @Environment(EmbySessionViewModel.self) private var session
     let sidebarIsVisible: Binding<Bool>?
     let onSelect: (EmbyLibraryItem) -> Void
+    @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
 
     var body: some View {
         ScrollView(.vertical) {
@@ -391,6 +430,22 @@ private struct EmbyHomeScreen: View {
             }
             .padding(.bottom, DesignTokens.Spacing.xxl)
         }
+        .scrollPosition($reachabilityScrollPosition)
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .embyReachabilityScroll)
+        ) { notification in
+            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+                return
+            }
+            request.handle(on: "home") {
+                switch request.direction {
+                case .forward: reachabilityScrollPosition.scrollTo(edge: .bottom)
+                case .backward: reachabilityScrollPosition.scrollTo(edge: .top)
+                }
+            }
+        }
+#endif
         .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
         .embyPageBounds()
         .overlay(alignment: .top) {
@@ -419,7 +474,12 @@ private struct EmbyLibraryScreen: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        EmbyPosterGrid(items: viewModel.items, session: session, onSelect: onSelect)
+        EmbyPosterGrid(
+            items: viewModel.items,
+            session: session,
+            reachabilityPage: "library",
+            onSelect: onSelect
+        )
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
@@ -459,7 +519,12 @@ private struct EmbySearchScreen: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        EmbyPosterGrid(items: viewModel.results, session: session, onSelect: onSelect)
+        EmbyPosterGrid(
+            items: viewModel.results,
+            session: session,
+            reachabilityPage: "search",
+            onSelect: onSelect
+        )
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
@@ -490,7 +555,9 @@ private struct EmbySearchScreen: View {
 private struct EmbyPosterGrid: View {
     let items: [EmbyLibraryItem]
     let session: EmbySessionViewModel
+    let reachabilityPage: String
     let onSelect: (EmbyLibraryItem) -> Void
+    @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
 
     var body: some View {
         ScrollView {
@@ -505,6 +572,23 @@ private struct EmbyPosterGrid: View {
             }
             .padding(DesignTokens.Spacing.xxl)
         }
+        .scrollPosition($reachabilityScrollPosition)
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .embyReachabilityScroll)
+        ) { notification in
+            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+                return
+            }
+            request.handle(on: reachabilityPage) {
+                switch request.direction {
+                case .forward: reachabilityScrollPosition.scrollTo(edge: .bottom)
+                case .backward: reachabilityScrollPosition.scrollTo(edge: .top)
+                }
+            }
+        }
+#endif
+        .accessibilityIdentifier("Emby-\(reachabilityPage)-list")
     }
 }
 
@@ -629,6 +713,22 @@ private struct EmbyDetailScreen: View {
         .onScrollPhaseChange { _, phase in
             if phase == .interacting { hasBeenScrolled = true }
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .embyReachabilityScroll)
+        ) { notification in
+            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+                return
+            }
+            request.handle(on: "detail") {
+                switch request.direction {
+                case .forward: scrollPosition.scrollTo(edge: .bottom)
+                case .backward: scrollPosition.scrollTo(edge: .top)
+                }
+            }
+        }
+#endif
+        .accessibilityIdentifier("Emby-Detail-list")
 #if DEBUG
         // Drives the page from the same offset the product does, so what a screenshot shows is a
         // position the page can actually come to rest in.

@@ -1,5 +1,7 @@
 import Foundation
+import Emby
 import MediaLibrary
+import PlaybackFeature
 import PlaybackPresentation
 #if os(visionOS)
 import UIKit
@@ -28,6 +30,7 @@ final class TestCommandChannel {
 
     private let mediaLibrary: MediaLibraryViewModel
     private let appModel: AppModel
+    private let playbackRuntime: PlaybackRuntime
     private let fileManager: FileManager
     private let defaults: UserDefaults
     private let commandURL: URL
@@ -38,11 +41,13 @@ final class TestCommandChannel {
     init(
         mediaLibrary: MediaLibraryViewModel,
         appModel: AppModel,
+        playbackRuntime: PlaybackRuntime,
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
         self.mediaLibrary = mediaLibrary
         self.appModel = appModel
+        self.playbackRuntime = playbackRuntime
         self.fileManager = fileManager
         self.defaults = defaults
 
@@ -136,6 +141,31 @@ final class TestCommandChannel {
 #if DEBUG
         case "setWindowSize":
             return try setWindowSize(request)
+        case "openEnvironmentCard":
+            let requested = try appModel.requestEnvironmentCard(
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+            return Response(
+                id: request.id,
+                ok: requested,
+                detail: requested ? nil : "The environment card request was already pending.",
+                payload: [String(describing: appModel.environmentCardResidency)]
+            )
+        case "dismissEnvironmentCard":
+            appModel.environmentCardDismissalRequestRevision &+= 1
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [String(appModel.environmentCardDismissalRequestRevision)]
+            )
+        case "scrollEmby":
+            return try scrollEmby(request)
+        case "seekNormalized":
+            return try seekNormalized(request)
+        case "setDockedPlacement":
+            return try setDockedPlacement(request)
         case "toggleBlackoutProbeWindow":
             appModel.showBlackoutProbeWindow.toggle()
             return Response(
@@ -225,6 +255,121 @@ final class TestCommandChannel {
     }
 
 #if DEBUG && os(visionOS)
+    private func seekNormalized(_ request: Request) throws -> Response {
+        guard let positionText = request.args["position"],
+              let position = Double(positionText),
+              position.isFinite,
+              (0...1).contains(position) else {
+            throw CommandError(
+                message: "seekNormalized requires position between 0 and 1."
+            )
+        }
+        let duration = playbackRuntime.playbackPosition.duration
+        guard duration > 0 else {
+            throw CommandError(message: "seekNormalized requires active playback.")
+        }
+        let seconds = position * duration
+        playbackRuntime.seek(to: seconds, event: .progressBar)
+        AppModel.recordProbe(
+            "testcmd seekNormalized delivered position=\(position) seconds=\(seconds)"
+        )
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [String(position), String(seconds)]
+        )
+    }
+
+    private func setDockedPlacement(_ request: Request) throws -> Response {
+        guard appModel.playbackPresentation == .docked else {
+            throw CommandError(message: "setDockedPlacement requires Docked playback.")
+        }
+        guard let axis = request.args["axis"],
+              let valueText = request.args["value"],
+              let value = Double(valueText),
+              value.isFinite else {
+            throw CommandError(
+                message: "setDockedPlacement requires axis and finite value arguments."
+            )
+        }
+        let applied: Double
+        switch axis {
+        case "screenSize":
+            guard PlaybackScreenSize.scaleRange.contains(value) else {
+                throw CommandError(message: "screenSize is outside its product range.")
+            }
+            appModel.setScreenScale(value)
+            applied = appModel.screenScale
+        case "distance":
+            guard PlaybackDockedPlacement.distanceRange.contains(value) else {
+                throw CommandError(message: "distance is outside its product range.")
+            }
+            appModel.setScreenDistance(value)
+            applied = appModel.screenDepthOffset
+        case "elevation":
+            guard PlaybackDockedPlacement.elevationRange.contains(value) else {
+                throw CommandError(message: "elevation is outside its product range.")
+            }
+            appModel.setScreenElevation(value)
+            applied = appModel.screenViewAngle
+        default:
+            throw CommandError(
+                message: "setDockedPlacement axis must be screenSize|distance|elevation."
+            )
+        }
+        AppModel.recordProbe(
+            "testcmd setDockedPlacement delivered axis=\(axis) value=\(applied)"
+        )
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [axis, String(applied)]
+        )
+    }
+
+    private func scrollEmby(_ request: Request) throws -> Response {
+        guard let page = request.args["page"],
+              ["home", "library", "search", "detail"].contains(page) else {
+            throw CommandError(
+                message: "scrollEmby requires page=home|library|search|detail."
+            )
+        }
+        guard let directionText = request.args["direction"],
+              let direction = EmbyReachabilityScrollRequest.Direction(
+                  rawValue: directionText
+              ) else {
+            throw CommandError(
+                message: "scrollEmby requires direction=forward|backward."
+            )
+        }
+        let scrollRequest = EmbyReachabilityScrollRequest(
+            page: page,
+            direction: direction
+        ) { deliveredPage in
+            AppModel.recordProbe(
+                "testcmd scrollEmby delivered page=\(deliveredPage)"
+                    + " direction=\(direction.rawValue)"
+            )
+        }
+        NotificationCenter.default.post(
+            name: .embyReachabilityScroll,
+            object: scrollRequest
+        )
+        guard let handledPage = scrollRequest.handledPage else {
+            throw CommandError(
+                message: "No visible Emby page accepted scrollEmby page=\(page)."
+            )
+        }
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [handledPage, direction.rawValue]
+        )
+    }
+
     private func setWindowSize(_ request: Request) throws -> Response {
         guard appModel.playbackPresentation == .portal else {
             throw CommandError(message: "setWindowSize requires Portal playback.")
@@ -318,7 +463,8 @@ private enum TestCommandChannelBootstrap {
         do {
             let channel = try TestCommandChannel(
                 mediaLibrary: application.mediaLibraryViewModel,
-                appModel: application.appModel
+                appModel: application.appModel,
+                playbackRuntime: application.playbackRuntime
             )
             activeChannel = channel
             channel.start()
