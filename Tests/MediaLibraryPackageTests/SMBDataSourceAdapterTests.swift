@@ -189,6 +189,24 @@ struct SMBDataSourceAdapterTests {
         #expect(source.requestedRanges == [0..<4, 4..<8, 8..<12, 10..<14])
     }
 
+    @Test("a seekable source can discover its length from the first range read")
+    func seekableSourceDiscoversLength() async throws {
+        let source = UnknownLengthSeekableByteRangeSource(data: Data("0123456789".utf8))
+        let server = MediaByteStreamServer(readChunkSize: 4)
+        let handle = try await server.register(source: source, filename: "feature.mkv")
+        defer { handle.release() }
+
+        var request = URLRequest(url: handle.url)
+        request.setValue("bytes=3-6", forHTTPHeaderField: "Range")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = try #require(response as? HTTPURLResponse)
+
+        #expect(httpResponse.statusCode == 206)
+        #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 3-6/10")
+        #expect(data == Data("3456".utf8))
+        #expect(source.requestedRanges == [3..<7])
+    }
+
     @Test("a zero-based range can fall back to a non-seekable source")
     func zeroBasedRangeFallsBackToSequentialTransfer() async throws {
         let source = UnknownLengthByteRangeSource(data: Data("0123456789".utf8))
@@ -318,6 +336,37 @@ private final class UnknownLengthByteRangeSource: MediaByteRangeSource, @uncheck
             data: data[lower..<upper],
             contentLength: nil,
             supportsSeeking: false
+        )
+    }
+}
+
+private final class UnknownLengthSeekableByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes = MediaByteStreamAttributes(
+        contentLength: nil,
+        supportsSeeking: true,
+        isLive: false,
+        preferredBufferDepth: .automatic
+    )
+    private let data: Data
+    private let lock = NSLock()
+    private var ranges: [Range<Int64>] = []
+
+    var requestedRanges: [Range<Int64>] {
+        lock.withLock { ranges }
+    }
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        lock.withLock { ranges.append(range) }
+        let lower = min(Int(range.lowerBound), data.count)
+        let upper = min(Int(range.upperBound), data.count)
+        return MediaByteRangeRead(
+            data: data[lower..<upper],
+            contentLength: Int64(data.count),
+            supportsSeeking: true
         )
     }
 }

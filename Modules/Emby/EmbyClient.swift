@@ -502,7 +502,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 )
             },
             entityTag: item.etag,
-            sizeInBytes: item.size,
+            sizeInBytes: Self.positiveByteCount(item.size),
             productionYear: item.productionYear,
             officialRating: item.officialRating,
             communityRating: item.communityRating,
@@ -569,7 +569,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 ?? source.container?.uppercased()
                 ?? "Version",
             container: source.container,
-            sizeInBytes: source.size,
+            sizeInBytes: Self.positiveByteCount(source.size),
             bitrate: source.bitrate,
             mediaStreams: streams
         )
@@ -606,7 +606,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 ?? source.path?.lastPathComponentFromServerPath
                 ?? container.uppercased(),
             container: container,
-            sizeInBytes: source.size,
+            sizeInBytes: Self.positiveByteCount(source.size),
             mediaStreams: streams,
             defaultStreamIndexes: EmbyDefaultStreamIndexes(
                 video: videoIndex,
@@ -619,7 +619,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 itemID: itemID.rawValue,
                 mediaSourceID: id,
                 itemEntityTag: item.metadata.entityTag,
-                sizeInBytes: source.size,
+                sizeInBytes: Self.positiveByteCount(source.size),
                 runTimeTicks: item.metadata.runTimeTicks
             )
         )
@@ -656,6 +656,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 deliveryURL: stream.deliveryUrl
             )
         }
+    }
+
+    private static func positiveByteCount(_ count: Int64?) -> Int64? {
+        count.flatMap { $0 > 0 ? $0 : nil }
     }
 
     private func imageTags(from item: ItemDTO) -> EmbyImageTags {

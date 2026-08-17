@@ -479,7 +479,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             return
         }
 
-        guard attributes.supportsSeeking, let hintedLength = attributes.contentLength else {
+        guard attributes.supportsSeeking else {
             guard Self.canServeSequentially(rangeHeader) else {
                 sendRangeNotSatisfiable(length: nil, on: connection)
                 return
@@ -487,14 +487,27 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             await sendChunked(registration: registration, on: connection)
             return
         }
-        guard var requestedRange = Self.byteRange(from: rangeHeader, contentLength: hintedLength) else {
+        let hintedLength = attributes.contentLength
+        let initialRange = if let hintedLength {
+            Self.byteRange(from: rangeHeader, contentLength: hintedLength)
+        } else {
+            Self.initialByteRange(from: rangeHeader, chunkSize: readChunkSize)
+        }
+        guard var requestedRange = initialRange else {
             sendRangeNotSatisfiable(length: hintedLength, on: connection)
             return
         }
         do {
             let firstEnd = min(requestedRange.lowerBound + readChunkSize, requestedRange.upperBound)
             let first = try await read(requestedRange.lowerBound..<firstEnd, registration: registration)
-            let actualLength = first.contentLength ?? hintedLength
+            guard let actualLength = first.contentLength ?? hintedLength else {
+                guard Self.canServeSequentially(rangeHeader), requestedRange.lowerBound == 0 else {
+                    sendRangeNotSatisfiable(length: nil, on: connection)
+                    return
+                }
+                await sendChunked(registration: registration, initial: first, on: connection)
+                return
+            }
             guard first.supportsSeeking else {
                 guard Self.canServeSequentially(rangeHeader) else {
                     sendRangeNotSatisfiable(length: actualLength, on: connection)
@@ -667,6 +680,26 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             end = min(parsed, contentLength - 1)
         }
         return start..<(end + 1)
+    }
+
+    private static func initialByteRange(
+        from header: String?,
+        chunkSize: Int64
+    ) -> Range<Int64>? {
+        guard let header else { return 0..<chunkSize }
+        guard header.hasPrefix("bytes="), header.contains(",") == false else { return nil }
+        let bounds = header.dropFirst("bytes=".count)
+            .split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        guard bounds.count == 2,
+              let start = Int64(bounds[0]),
+              start >= 0 else { return nil }
+        let chunkEnd = start.addingReportingOverflow(chunkSize)
+        guard chunkEnd.overflow == false else { return nil }
+        if bounds[1].isEmpty { return start..<chunkEnd.partialValue }
+        guard let requestedEnd = Int64(bounds[1]), requestedEnd >= start else { return nil }
+        let exclusiveEnd = requestedEnd.addingReportingOverflow(1)
+        guard exclusiveEnd.overflow == false else { return nil }
+        return start..<min(exclusiveEnd.partialValue, chunkEnd.partialValue)
     }
 
     private static func canServeSequentially(_ rangeHeader: String?) -> Bool {
