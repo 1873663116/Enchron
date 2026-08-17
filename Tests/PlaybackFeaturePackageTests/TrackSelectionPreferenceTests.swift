@@ -6,6 +6,20 @@ import Testing
 
 @MainActor
 struct TrackSelectionPreferenceTests {
+    @Test("older Media Format preferences decode with Dolby Vision enabled off")
+    func olderMediaFormatDefaultsDolbyVisionFallbackToOff() throws {
+        let data = Data(
+            """
+            {"projection":"flat","stereoLayout":"mono"}
+            """.utf8
+        )
+
+        let format = try JSONDecoder().decode(MediaFormat.self, from: data)
+
+        #expect(format == .standard)
+        #expect(format.usesDolbyVisionFallback == false)
+    }
+
     @Test("playback mode persists independently from Media Format")
     func playbackModePersistsIndependentlyFromMediaFormat() async throws {
         let suiteName = "app.enchron.tests.playback-mode.\(UUID().uuidString)"
@@ -977,6 +991,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var displayMediaProfile: PlaybackModel.MediaProfile?
     var displayFileSizeInBytes: Int64?
     var activeMediaFormatProvenance: MediaFormatProvenance = .source
+    var dolbyVisionFallbackIsAvailable = false
+    var dolbyVisionFallbackIsEnabled = false
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation {
         MediaFormatInterpretationResolver.resolve(
             source: SourceMediaFormatFact(
@@ -1066,7 +1082,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool
     ) async throws {
         formatApplicationCount += 1
         if suspendsNextFormatApplication {
@@ -1082,8 +1099,10 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         lastAppliedFormat = MediaFormat(
             projection: Self.mediaProjection(from: projection),
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereoLayout: Self.mediaStereoLayout(from: stereo)
+            stereoLayout: Self.mediaStereoLayout(from: stereo),
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
+        dolbyVisionFallbackIsEnabled = usesDolbyVisionFallback
         activeMediaFormatProvenance = .userOverride
     }
 

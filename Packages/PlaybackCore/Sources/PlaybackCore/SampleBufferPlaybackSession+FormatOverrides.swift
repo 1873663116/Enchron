@@ -6,16 +6,22 @@ extension SampleBufferPlaybackSession {
     @discardableResult
     func setFormatOverrides(
         stereoLayout: VideoStereoLayout?,
-        projection: VideoProjectionOverride?
+        projection: VideoProjectionOverride?,
+        dynamicRange: VideoDynamicRangeOverride? = nil
     ) async throws -> UInt64 {
         guard !isClosed else { throw PlaybackControlError.mediaSessionClosed }
-        let current = deliveryQueue.sync { (stereoLayoutOverride, projectionOverride) }
-        if current.0 == stereoLayout, current.1 == projection {
+        let current = deliveryQueue.sync {
+            (stereoLayoutOverride, projectionOverride, dynamicRangeOverride)
+        }
+        if current.0 == stereoLayout,
+           current.1 == projection,
+           current.2 == dynamicRange {
             let state = deliveryQueue.sync { (hasRequestedVideoData, formatRevision) }
             if !state.0 { return state.1 }
             return try await waitForFormatOverrides(
                 stereoLayout: stereoLayout,
                 projection: projection,
+                dynamicRange: dynamicRange,
                 minimumRevision: state.1
             )
         }
@@ -28,6 +34,7 @@ extension SampleBufferPlaybackSession {
         let change = applyFormatOverrides(
             stereoLayout: stereoLayout,
             projection: projection,
+            dynamicRange: dynamicRange,
             resumesExistingDelivery: false
         )
         debugStore.emit(
@@ -38,6 +45,7 @@ extension SampleBufferPlaybackSession {
             details: [
                 "stereoLayout": stereoLayout?.rawValue ?? "source",
                 "projection": projection?.diagnosticLabel ?? "source",
+                "dynamicRange": dynamicRange?.rawValue ?? "source",
                 "formatRevision": String(change.revision),
             ]
         )
@@ -50,6 +58,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "stereoLayout": stereoLayout?.rawValue ?? "source",
                     "projection": projection?.diagnosticLabel ?? "source",
+                    "dynamicRange": dynamicRange?.rawValue ?? "source",
                     "formatRevision": String(change.revision),
                     "boundary": "beforeFirstSample",
                 ]
@@ -67,6 +76,7 @@ extension SampleBufferPlaybackSession {
             effectiveRevision = try await waitForFormatOverrides(
                 stereoLayout: stereoLayout,
                 projection: projection,
+                dynamicRange: dynamicRange,
                 minimumRevision: change.revision
             )
         } catch {
@@ -79,6 +89,7 @@ extension SampleBufferPlaybackSession {
                     details: [
                         "stereoLayout": stereoLayout?.rawValue ?? "source",
                         "projection": projection?.diagnosticLabel ?? "source",
+                        "dynamicRange": dynamicRange?.rawValue ?? "source",
                     ]
                 )
                 throw error
@@ -86,6 +97,7 @@ extension SampleBufferPlaybackSession {
             let rollback = applyFormatOverrides(
                 stereoLayout: change.previousStereoLayout,
                 projection: change.previousProjection,
+                dynamicRange: change.previousDynamicRange,
                 resumesExistingDelivery: false
             )
             var rollbackState = "restoredBeforeFirstSample"
@@ -99,6 +111,7 @@ extension SampleBufferPlaybackSession {
                     _ = try await waitForFormatOverrides(
                         stereoLayout: change.previousStereoLayout,
                         projection: change.previousProjection,
+                        dynamicRange: change.previousDynamicRange,
                         minimumRevision: rollback.revision
                     )
                     rollbackState = "restored"
@@ -114,6 +127,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "stereoLayout": stereoLayout?.rawValue ?? "source",
                     "projection": projection?.diagnosticLabel ?? "source",
+                    "dynamicRange": dynamicRange?.rawValue ?? "source",
                     "rollback": rollbackState,
                     "error": error.localizedDescription,
                 ]
@@ -129,6 +143,7 @@ extension SampleBufferPlaybackSession {
             details: [
                 "stereoLayout": stereoLayout?.rawValue ?? "source",
                 "projection": projection?.diagnosticLabel ?? "source",
+                "dynamicRange": dynamicRange?.rawValue ?? "source",
                 "formatRevision": String(effectiveRevision),
             ]
         )
@@ -138,6 +153,7 @@ extension SampleBufferPlaybackSession {
     private struct FormatOverridesChange {
         let previousStereoLayout: VideoStereoLayout?
         let previousProjection: VideoProjectionOverride?
+        let previousDynamicRange: VideoDynamicRangeOverride?
         let revision: UInt64
         let awaitsSample: Bool
         let shouldResumeDelivery: Bool
@@ -146,6 +162,7 @@ extension SampleBufferPlaybackSession {
     private func applyFormatOverrides(
         stereoLayout: VideoStereoLayout?,
         projection: VideoProjectionOverride?,
+        dynamicRange: VideoDynamicRangeOverride?,
         resumesExistingDelivery: Bool = true
     ) -> FormatOverridesChange {
         stopVideoDelivery()
@@ -153,8 +170,10 @@ extension SampleBufferPlaybackSession {
             let providerResetIsInFlight = isResetting
             let previousStereoLayout = stereoLayoutOverride
             let previousProjection = projectionOverride
+            let previousDynamicRange = dynamicRangeOverride
             stereoLayoutOverride = stereoLayout
             projectionOverride = projection
+            dynamicRangeOverride = dynamicRange
             if diagnostics.enqueuedSampleCount > 0 {
                 formatRevision += 1
             }
@@ -166,6 +185,7 @@ extension SampleBufferPlaybackSession {
             return FormatOverridesChange(
                 previousStereoLayout: previousStereoLayout,
                 previousProjection: previousProjection,
+                previousDynamicRange: previousDynamicRange,
                 revision: formatRevision,
                 awaitsSample: awaitsSample,
                 shouldResumeDelivery: awaitsSample && !providerResetIsInFlight
@@ -218,6 +238,7 @@ extension SampleBufferPlaybackSession {
     private func waitForFormatOverrides(
         stereoLayout: VideoStereoLayout?,
         projection: VideoProjectionOverride?,
+        dynamicRange: VideoDynamicRangeOverride?,
         minimumRevision: UInt64
     ) async throws -> UInt64 {
         let deadline = ContinuousClock.now + .seconds(5)
@@ -239,6 +260,11 @@ extension SampleBufferPlaybackSession {
                    projection,
                    matches: rendererSignaling.projectionKind.value,
                    source: snapshot.providerOpen?.formatSignaling.projectionKind.value
+               ),
+               dynamicRangeOverride(
+                   dynamicRange,
+                   matches: rendererSignaling,
+                   source: snapshot.providerOpen?.formatSignaling
                ) {
                 return sample.formatRevision
             }
@@ -247,6 +273,21 @@ extension SampleBufferPlaybackSession {
             try await Task.sleep(for: .milliseconds(10))
         }
         throw CorePlaybackError.formatOverridesTimedOut(stereoLayout, projection)
+    }
+
+    private func dynamicRangeOverride(
+        _ override: VideoDynamicRangeOverride?,
+        matches signaling: VideoFormatSignalingSummary,
+        source: VideoFormatSignalingSummary?
+    ) -> Bool {
+        switch override {
+        case .dolbyVisionFallback:
+            return signaling.dvcC.availability == .none
+                && signaling.dvvC.availability == .none
+        case nil:
+            return signaling.dvcC.value == source?.dvcC.value
+                && signaling.dvvC.value == source?.dvvC.value
+        }
     }
 
     public var effectiveStereoLayout: VideoStereoLayout {

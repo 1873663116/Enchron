@@ -184,7 +184,7 @@ private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
         "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
         true,
         false,
-        nil
+        kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String
     ),
     (
         "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
@@ -288,6 +288,19 @@ func profile5BridgeMatchesAVFoundationDolbyVisionDecoderConfiguration(
     #expect(atoms["hvcC"] == sourceAtoms["hvcC"])
     #expect(atoms["dvcC"] == sourceAtoms["dvcC"])
     #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_ColorPrimaries as String] as? String
+            == kCMFormatDescriptionColorPrimaries_ITU_R_2020 as String
+    )
+    #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_TransferFunction as String] as? String
+            == kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String
+    )
+    #expect(bridgeExtensions[kCMFormatDescriptionExtension_YCbCrMatrix as String] == nil)
+    #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_FullRangeVideo as String] as? Bool
+            == true
+    )
+    #expect(
         sourceExtensions[kCMFormatDescriptionExtension_VerbatimISOSampleEntry as String]
             != nil
     )
@@ -300,6 +313,113 @@ func profile5BridgeMatchesAVFoundationDolbyVisionDecoderConfiguration(
             == nil
     )
     #expect(CMSampleBufferDataIsReady(sample))
+}
+
+@Test(arguments: [
+    (
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+        kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String
+    ),
+    (
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+        kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String
+    ),
+])
+func compatibleDolbyVisionFallbackRemovesOnlyDolbyVisionInterpretation(
+    relativePath: String,
+    expectedTransfer: String
+) throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(relativePath)
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString {
+        PBFFmpegReaderCreate($0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let sourceSample = try #require(sampleReference?.takeRetainedValue())
+    let sourceFormat = try #require(CMSampleBufferGetFormatDescription(sourceSample))
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    let rewritten = try VideoSampleFormatOverride().rewrite(
+        sourceSample,
+        stereoLayout: nil,
+        projection: nil,
+        dynamicRange: .dolbyVisionFallback
+    )
+    let rewrittenFormat = try #require(CMSampleBufferGetFormatDescription(rewritten))
+    let rewrittenExtensions = try #require(
+        CMFormatDescriptionGetExtensions(rewrittenFormat) as? [String: Any]
+    )
+    let rewrittenAtoms = try sampleDescriptionAtoms(in: rewrittenFormat)
+
+    #expect(sourceAtoms["dvvC"]?.isEmpty == false)
+    #expect(try sampleDescriptionAtoms(in: sourceFormat)["dvvC"] == sourceAtoms["dvvC"])
+    #expect(rewrittenAtoms["dvcC"] == nil)
+    #expect(rewrittenAtoms["dvvC"] == nil)
+    #expect(rewrittenAtoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(CMFormatDescriptionGetMediaSubType(rewrittenFormat) == kCMVideoCodecType_HEVC)
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_ColorPrimaries as String] as? String
+            == kCMFormatDescriptionColorPrimaries_ITU_R_2020 as String
+    )
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_TransferFunction as String] as? String
+            == expectedTransfer
+    )
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_YCbCrMatrix as String] as? String
+            == kCMFormatDescriptionYCbCrMatrix_ITU_R_2020 as String
+    )
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_FullRangeVideo as String] as? Bool
+            == false
+    )
+}
+
+@Test func profileFiveRejectsAUserSelectableHDRFallback() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString {
+        PBFFmpegReaderCreate($0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let sample = try #require(sampleReference?.takeRetainedValue())
+
+    #expect(
+        throws: VideoSampleFormatOverrideError
+            .dolbyVisionFallbackUnavailable(compatibilityID: 0)
+    ) {
+        try VideoSampleFormatOverride().rewrite(
+            sample,
+            stereoLayout: nil,
+            projection: nil,
+            dynamicRange: .dolbyVisionFallback
+        )
+    }
 }
 
 @Test func profile10Dav1FixtureCreatesCompressedAV1SamplesWithDolbyVisionConfiguration() throws {

@@ -85,6 +85,8 @@ struct WindowPlayerDeckView: View {
             projection: playbackRuntime.effectiveProjectionType,
             horizontalFieldOfViewDegrees: playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
             stereoLayout: playbackRuntime.effectiveStereoLayout,
+            usesDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsEnabled,
+            showsDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsAvailable,
             mediaFormatSummary: playbackRuntime.activeMediaFormatProvenance == .source
                 ? playbackRuntime.sourceMediaFormatSummary
                 : nil,
@@ -151,11 +153,12 @@ struct WindowPlayerDeckView: View {
                 self.register()
                 self.appModel.resetDockedPlacement()
             },
-            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo in
+            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo, fallback in
                 self.applyFormat(
                     projection,
                     horizontalFieldOfViewDegrees,
-                    stereo
+                    stereo,
+                    fallback
                 )
             },
             onRestoreAutomaticFormat: {
@@ -237,7 +240,8 @@ struct WindowPlayerDeckView: View {
     private func applyFormat(
         _ projection: PlaybackModel.ProjectionType,
         _ horizontalFieldOfViewDegrees: Int?,
-        _ stereo: PlaybackModel.StereoLayout
+        _ stereo: PlaybackModel.StereoLayout,
+        _ usesDolbyVisionFallback: Bool
     ) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         register()
@@ -246,7 +250,8 @@ struct WindowPlayerDeckView: View {
                 try await playbackLauncher.applyFormat(
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                    stereo: stereo
+                    stereo: stereo,
+                    usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
             } catch {
                 playbackRuntime.lastErrorMessage = error.localizedDescription

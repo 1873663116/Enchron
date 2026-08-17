@@ -1135,7 +1135,16 @@ static OSType prores_codec_type(uint32_t codecTag) {
     }
 }
 
-static const AVDOVIDecoderConfigurationRecord *dovi_configuration(
+typedef enum {
+    PBDOVIDeclarationAbsent,
+    PBDOVIDeclarationHEVCNative,
+    PBDOVIDeclarationHEVCBackwardCompatible,
+    PBDOVIDeclarationHEVCDualLayer,
+    PBDOVIDeclarationAV1,
+    PBDOVIDeclarationUnknown,
+} PBDOVIDeclarationShape;
+
+static PBDOVIDeclarationShape dovi_declaration_shape(
     const AVCodecParameters *parameters
 ) {
     const AVPacketSideData *sideData = av_packet_side_data_get(
@@ -1143,38 +1152,91 @@ static const AVDOVIDecoderConfigurationRecord *dovi_configuration(
         parameters->nb_coded_side_data,
         AV_PKT_DATA_DOVI_CONF
     );
-    if (!sideData || sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
-        return NULL;
+    if (!sideData) return PBDOVIDeclarationAbsent;
+    if (sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
+        return PBDOVIDeclarationUnknown;
     }
-    return (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    const AVDOVIDecoderConfigurationRecord *record =
+        (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    if (record->rpu_present_flag == 0 || record->bl_present_flag == 0) {
+        return PBDOVIDeclarationUnknown;
+    }
+    if (parameters->codec_id == AV_CODEC_ID_HEVC) {
+        if (record->el_present_flag != 0) {
+            return record->dv_profile == 7 &&
+                    record->dv_bl_signal_compatibility_id != 0
+                ? PBDOVIDeclarationHEVCDualLayer
+                : PBDOVIDeclarationUnknown;
+        }
+        return record->dv_bl_signal_compatibility_id == 0
+            ? PBDOVIDeclarationHEVCNative
+            : PBDOVIDeclarationHEVCBackwardCompatible;
+    }
+    if (parameters->codec_id == AV_CODEC_ID_AV1 &&
+        record->dv_profile == 10 &&
+        record->el_present_flag == 0) {
+        return PBDOVIDeclarationAV1;
+    }
+    return PBDOVIDeclarationUnknown;
+}
+
+static void describe_dovi_declaration(
+    const AVCodecParameters *parameters,
+    char *buffer,
+    size_t bufferSize
+) {
+    const AVPacketSideData *sideData = av_packet_side_data_get(
+        parameters->coded_side_data,
+        parameters->nb_coded_side_data,
+        AV_PKT_DATA_DOVI_CONF
+    );
+    if (!sideData) {
+        snprintf(buffer, bufferSize, "dovi=absent");
+        return;
+    }
+    if (sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
+        snprintf(buffer, bufferSize, "dovi_size=%zu", sideData->size);
+        return;
+    }
+    const AVDOVIDecoderConfigurationRecord *record =
+        (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    snprintf(
+        buffer,
+        bufferSize,
+        "dovi_version=%u.%u profile=%u level=%u rpu=%u el=%u bl=%u compatibility_id=%u md_compression=%u",
+        record->dv_version_major,
+        record->dv_version_minor,
+        record->dv_profile,
+        record->dv_level,
+        record->rpu_present_flag,
+        record->el_present_flag,
+        record->bl_present_flag,
+        record->dv_bl_signal_compatibility_id,
+        record->dv_md_compression
+    );
 }
 
 /// A dual-layer source is not declared as Dolby Vision. A format description carrying
 /// its Profile 7 dvcC can be created, but VideoToolbox rejects the format before a
 /// decompression session exists. The split path below sends only its HDR10 base layer.
 static bool has_usable_dovi_configuration(const AVCodecParameters *parameters) {
-    const AVDOVIDecoderConfigurationRecord *record = dovi_configuration(parameters);
-    if (!record) return false;
-    return record->el_present_flag == 0;
+    PBDOVIDeclarationShape shape = dovi_declaration_shape(parameters);
+    return shape == PBDOVIDeclarationHEVCNative ||
+        shape == PBDOVIDeclarationHEVCBackwardCompatible ||
+        shape == PBDOVIDeclarationAV1;
 }
 
 static bool requires_dolby_vision_base_layer_split(
     const AVCodecParameters *parameters
 ) {
-    const AVDOVIDecoderConfigurationRecord *record = dovi_configuration(parameters);
-    return record &&
-        record->dv_profile == 7 &&
-        record->bl_present_flag != 0 &&
-        record->el_present_flag != 0;
+    return dovi_declaration_shape(parameters) == PBDOVIDeclarationHEVCDualLayer;
 }
 
 static OSType codec_type(const AVCodecParameters *parameters) {
     switch (parameters->codec_id) {
         case AV_CODEC_ID_H264: return kCMVideoCodecType_H264;
         case AV_CODEC_ID_HEVC:
-            if ((parameters->codec_tag == MKTAG('d', 'v', 'h', '1') ||
-                 parameters->codec_tag == MKTAG('d', 'v', 'h', 'e')) &&
-                has_usable_dovi_configuration(parameters)) {
+            if (dovi_declaration_shape(parameters) == PBDOVIDeclarationHEVCNative) {
                 return kCMVideoCodecType_DolbyVisionHEVC;
             }
             return kCMVideoCodecType_HEVC;
@@ -1216,10 +1278,12 @@ static bool add_dovi_configuration_atom(
     );
     CFDataRef data = CFDataCreate(kCFAllocatorDefault, bytes, sizeof(bytes));
     if (!data) return false;
-    bool dolbyVisionSampleEntry =
-        parameters->codec_tag == MKTAG('d', 'v', 'h', '1') ||
-        parameters->codec_tag == MKTAG('d', 'v', 'h', 'e');
-    CFDictionarySetValue(atoms, dolbyVisionSampleEntry ? CFSTR("dvcC") : CFSTR("dvvC"), data);
+    PBDOVIDeclarationShape shape = dovi_declaration_shape(parameters);
+    CFDictionarySetValue(
+        atoms,
+        shape == PBDOVIDeclarationHEVCNative ? CFSTR("dvcC") : CFSTR("dvvC"),
+        data
+    );
     CFRelease(data);
     return true;
 }
@@ -1467,7 +1531,98 @@ static CFStringRef ycbcr_matrix(enum AVColorSpace value) {
         case AVCOL_SPC_BT2020_NCL:
         case AVCOL_SPC_BT2020_CL:
             return kCMFormatDescriptionYCbCrMatrix_ITU_R_2020;
+        case AVCOL_SPC_IPT_C2:
+            // CoreMedia publishes this value in Dolby Vision format descriptions,
+            // but does not expose a named SDK constant for it.
+            return CFSTR("IPT_C2");
         default: return NULL;
+    }
+}
+
+static void add_color_extensions(
+    const AVCodecParameters *parameters,
+    CFMutableDictionaryRef extensions
+) {
+    const AVDOVIDecoderConfigurationRecord *dovi =
+        has_usable_dovi_configuration(parameters)
+            ? (const AVDOVIDecoderConfigurationRecord *)codec_side_data(
+                parameters,
+                AV_PKT_DATA_DOVI_CONF
+            )->data
+            : NULL;
+    bool usesProfileFiveColorConstants = dovi && dovi->dv_profile == 5;
+    CFStringRef primaries = usesProfileFiveColorConstants
+        ? kCMFormatDescriptionColorPrimaries_ITU_R_2020
+        : color_primaries(parameters->color_primaries);
+    CFStringRef transfer = usesProfileFiveColorConstants
+        ? kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+        : transfer_function(parameters->color_trc);
+    CFStringRef matrix = usesProfileFiveColorConstants
+        ? NULL
+        : ycbcr_matrix(parameters->color_space);
+    if (dovi && !usesProfileFiveColorConstants) {
+        if (!primaries && dovi->dv_bl_signal_compatibility_id == 0) {
+            primaries = kCMFormatDescriptionColorPrimaries_ITU_R_2020;
+        }
+        if (!transfer && dovi->dv_bl_signal_compatibility_id == 0) {
+            transfer = kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ;
+        }
+        if (!primaries &&
+            (dovi->dv_bl_signal_compatibility_id == 1 ||
+             dovi->dv_bl_signal_compatibility_id == 4)) {
+            primaries = kCMFormatDescriptionColorPrimaries_ITU_R_2020;
+        }
+        if (!transfer && dovi->dv_bl_signal_compatibility_id == 1) {
+            transfer = kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ;
+        } else if (!transfer && dovi->dv_bl_signal_compatibility_id == 4) {
+            transfer = kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG;
+        }
+        if (!matrix &&
+            (dovi->dv_bl_signal_compatibility_id == 1 ||
+             dovi->dv_bl_signal_compatibility_id == 4)) {
+            matrix = kCMFormatDescriptionYCbCrMatrix_ITU_R_2020;
+        }
+    }
+    if (primaries) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_ColorPrimaries,
+            primaries
+        );
+    }
+    if (transfer) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_TransferFunction,
+            transfer
+        );
+    }
+    if (matrix) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_YCbCrMatrix,
+            matrix
+        );
+    }
+    if (usesProfileFiveColorConstants ||
+        parameters->color_range == AVCOL_RANGE_JPEG ||
+        (dovi &&
+         parameters->color_range == AVCOL_RANGE_UNSPECIFIED &&
+         dovi->dv_bl_signal_compatibility_id == 0)) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_FullRangeVideo,
+            kCFBooleanTrue
+        );
+    } else if (parameters->color_range == AVCOL_RANGE_MPEG ||
+               (dovi &&
+                (dovi->dv_bl_signal_compatibility_id == 1 ||
+                 dovi->dv_bl_signal_compatibility_id == 4))) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_FullRangeVideo,
+            kCFBooleanFalse
+        );
     }
 }
 
@@ -1738,18 +1893,20 @@ static void add_pixel_aspect_ratio_extension(
     if (horizontal) CFRelease(horizontal);
 }
 
-static OSStatus create_format_by_adding_pixel_aspect_ratio(
+static void merge_format_extension(
+    const void *key,
+    const void *value,
+    void *context
+) {
+    CFDictionarySetValue((CFMutableDictionaryRef)context, key, value);
+}
+
+static OSStatus create_format_by_adding_extensions(
     CMVideoFormatDescriptionRef source,
     CFDictionaryRef additions,
     CMVideoFormatDescriptionRef *formatOut
 ) {
-    CFTypeRef pixelAspectRatio = additions
-        ? CFDictionaryGetValue(
-            additions,
-            kCMFormatDescriptionExtension_PixelAspectRatio
-        )
-        : NULL;
-    if (!pixelAspectRatio) {
+    if (!additions || CFDictionaryGetCount(additions) == 0) {
         CFRetain(source);
         *formatOut = source;
         return noErr;
@@ -1764,10 +1921,10 @@ static OSStatus create_format_by_adding_pixel_aspect_ratio(
             &kCFTypeDictionaryValueCallBacks
         );
     if (!merged) return kCMFormatDescriptionError_AllocationFailed;
-    CFDictionarySetValue(
-        merged,
-        kCMFormatDescriptionExtension_PixelAspectRatio,
-        pixelAspectRatio
+    CFDictionaryApplyFunction(
+        additions,
+        merge_format_extension,
+        merged
     );
     CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(source);
     OSStatus status = CMVideoFormatDescriptionCreate(
@@ -2494,7 +2651,7 @@ static OSStatus create_annexb_format(
         kCFAllocatorDefault, required, sets, sizes, 4, &baseFormat
     );
     if (status != noErr || !baseFormat) return status;
-    status = create_format_by_adding_pixel_aspect_ratio(
+    status = create_format_by_adding_extensions(
         baseFormat,
         extensions,
         formatOut
@@ -2585,17 +2742,7 @@ static OSStatus create_compressed_format(
         return kCMFormatDescriptionError_AllocationFailed;
     }
 
-    CFStringRef primaries = color_primaries(parameters->color_primaries);
-    CFStringRef transfer = transfer_function(parameters->color_trc);
-    CFStringRef matrix = ycbcr_matrix(parameters->color_space);
-    if (primaries) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_ColorPrimaries, primaries);
-    if (transfer) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_TransferFunction, transfer);
-    if (matrix) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_YCbCrMatrix, matrix);
-    if (parameters->color_range == AVCOL_RANGE_JPEG) {
-        CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanTrue);
-    } else if (parameters->color_range == AVCOL_RANGE_MPEG) {
-        CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanFalse);
-    }
+    add_color_extensions(parameters, extensions);
     add_static_hdr_extensions(parameters, extensions);
     add_projected_media_extensions(parameters, extensions);
     add_pixel_aspect_ratio_extension(sampleAspectRatio, extensions);
@@ -2639,7 +2786,7 @@ static OSStatus create_compressed_format(
             CMVideoFormatDescriptionRef baseFormat = NULL;
             status = create_dolby_vision_format(parameters, atoms, &baseFormat);
             if (status == noErr && baseFormat) {
-                status = create_format_by_adding_pixel_aspect_ratio(
+                status = create_format_by_adding_extensions(
                     baseFormat,
                     extensions,
                     formatOut
@@ -3434,6 +3581,29 @@ static bool configure_video_reader(
     );
 
     if (mode == PBFFmpegModeCompressed) {
+        if (dovi_declaration_shape(stream->codecpar) == PBDOVIDeclarationUnknown) {
+            char declaration[256];
+            char message[512];
+            describe_dovi_declaration(
+                stream->codecpar,
+                declaration,
+                sizeof(declaration)
+            );
+            snprintf(
+                message,
+                sizeof(message),
+                "Unknown Dolby Vision declaration shape; codec=%s tag=%s color_primaries=%s transfer=%s matrix=%s range=%s %s",
+                avcodec_get_name(stream->codecpar->codec_id),
+                reader->codecTag[0] ? reader->codecTag : "unknown",
+                reader->colorPrimaries,
+                reader->transferFunction,
+                reader->yCbCrMatrix,
+                reader->colorRange,
+                declaration
+            );
+            set_error(errorBuffer, errorBufferSize, message);
+            return false;
+        }
         OSType compressedType = codec_type(stream->codecpar);
         if (!compressed_codec_is_renderable(compressedType)) {
             char message[256];
@@ -3469,20 +3639,27 @@ static bool configure_video_reader(
             &reader->compressedFormat
         );
         if (status != noErr) {
-            const AVPacketSideData *doviConfiguration = codec_side_data(
-                stream->codecpar, AV_PKT_DATA_DOVI_CONF
+            char declaration[256];
+            describe_dovi_declaration(
+                stream->codecpar,
+                declaration,
+                sizeof(declaration)
             );
-            char message[256];
+            char message[512];
             snprintf(
                 message,
                 sizeof(message),
-                "Create compressed CMVideoFormatDescription failed (%d); codec=%s tag=%s extradata=%d dovi=%s bootstrapPackets=%zu",
+                "Create compressed CMVideoFormatDescription failed (%d); codec=%s tag=%s extradata=%d bootstrapPackets=%zu color_primaries=%s transfer=%s matrix=%s range=%s %s",
                 (int)status,
                 avcodec_get_name(stream->codecpar->codec_id),
                 reader->codecTag[0] ? reader->codecTag : "unknown",
                 stream->codecpar->extradata_size,
-                doviConfiguration ? "yes" : "no",
-                reader->bootstrapPacketCount
+                reader->bootstrapPacketCount,
+                reader->colorPrimaries,
+                reader->transferFunction,
+                reader->yCbCrMatrix,
+                reader->colorRange,
+                declaration
             );
             set_error(errorBuffer, errorBufferSize, message);
             return false;

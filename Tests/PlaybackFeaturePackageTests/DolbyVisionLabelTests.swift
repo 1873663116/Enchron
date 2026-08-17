@@ -53,6 +53,29 @@ func aProfileCompatibleWithNothingHasNoSecondDigit() {
     #expect(profileFive.label == "Dolby Vision Profile 5")
 }
 
+@Test("only a compatible single-layer declaration offers a user fallback")
+func fallbackAvailabilityFollowsTheDeclarationShape() {
+    #expect(
+        PlaybackModel.DolbyVision(
+            profile: 8,
+            crossCompatibilityID: 1
+        ).offersUserSelectableFallback
+    )
+    #expect(
+        !PlaybackModel.DolbyVision(
+            profile: 5,
+            crossCompatibilityID: 0
+        ).offersUserSelectableFallback
+    )
+    #expect(
+        !PlaybackModel.DolbyVision(
+            profile: 7,
+            crossCompatibilityID: 6,
+            fallbackTo: .hdr10
+        ).offersUserSelectableFallback
+    )
+}
+
 @Test("a fallback still reads after a profile with no second digit")
 func aFallbackReadsAfterAProfileWithNoSecondDigit() {
     let profileFive = PlaybackModel.DolbyVision(

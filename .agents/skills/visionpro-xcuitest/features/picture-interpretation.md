@@ -8,6 +8,7 @@
 
 - HDR10 与 HLG 片源的色彩与亮度。
 - Dolby Vision profile 5、7 双层、8 单层、10（AV1）、20 的处理。
+- 向后兼容的 Dolby Vision 单层片源可在播放中切换到声明对应的 HDR10 或 HLG 解释；Profile 5 不提供该偏好。
 - 立体片源的左右眼分离与深度。
 - 180° 与 360° 全景按所选覆盖角包裹。
 - Apple Immersive 投影。
@@ -18,7 +19,7 @@
 
 ## Driving it
 
-结构侧不需要设备：`Scripts/verification/verify_source_parity_matrix.py` 扫语料并逐字段比对本地与远程两种取源方式；`Scripts/verification/check_dolby_vision_premises.py` 与 `inventory_dynamic_range_corpus.py` 分别验前提与清点语料。
+结构侧不需要设备：`Scripts/verification/verify_format_description_identity.py` 逐文件比较 FFmpeg 归一化声明与 PlaybackCore 构造结果；`verify_source_parity_matrix.py` 逐字段比对本地与远程两种取源方式；`check_dolby_vision_premises.py` 与 `inventory_dynamic_range_corpus.py` 分别验前提与清点语料。
 
 物理侧用 `playback_mode_matrix.py` 按呈现格取像素。**判读任何截图前先看尺寸**：正常 1920×1080，1×1 表示捕获失败而不是画面全黑。
 
@@ -27,7 +28,9 @@
 | 种类 | 判据 | 谁守 |
 |---|---|---|
 | 结构 | `CMVideoFormatDescription` 构造入口唯一；重建的解码器配置只补空位不覆盖容器原文 | `verify_format_description_ownership.py`（构建阶段强制） |
+| 结构 | 语料中每个视频的 codec、色彩、range、配置 atoms 与静态 HDR 元数据等于 FFmpeg 归一化声明；Dolby Vision 未知声明形状显式失败 | `verify_format_description_identity.py` |
 | 结构 | Dolby Vision profile、cross-compatibility、增强层标志、立体增强层进入 `MediaSourceInformation` | PlaybackCore 单测 |
+| 结构 | HDR 回退只移除渲染输入的 Dolby Vision 配置，并按 cross-compatibility 解释为 HDR10 或 HLG；来源 Format Description 保持不变 | PlaybackCore 单测 |
 | 结构 | 本地与远程两种取源方式逐字段一致 | `verify_source_parity_matrix.py --mode parity` |
 | 物理 | 出画且非纯色、非冻结 | `playback_mode_matrix.py` 的双帧亮度与 SSIM 闸 |
 | 物理 | 动态范围片源的采集帧与验收参照物的差异在阈值内 | `verify_reference_frames.py`，参照物由验收场铸造，缺参照时以退出码 2 大声失败 |
@@ -35,7 +38,7 @@
 
 ## 证明的终态
 
-结构侧：三个脚本零失效，且 parity 矩阵改动前后逐字段无差异。物理侧：立体与投影 `visual.verdict = content` 即为终态；动态范围还需与参照物比对在阈值内。感知侧：佩戴者对每个动态范围家族一次性确认，确认当时采集的帧成为参照物，此后由机器比对。
+结构侧：构造入口唯一性通过；构造恒等检查中的 Dolby Vision 语料零失效，其他家族的既有差异逐项报告；来源 parity 矩阵逐字段无传输差异。物理侧：立体与投影 `visual.verdict = content` 即为终态；动态范围还需与参照物比对在阈值内。感知侧：佩戴者对每个动态范围家族一次性确认，确认当时采集的帧成为参照物，此后由机器比对。
 
 参照物由 `verify_reference_frames.py` 铸造与比对，本体存放在 `TestMedia/References/`，验收片单在其 `acceptance-clips.md`。Profile 5 全程偏色时全套自动化通过，正是因为结构证据没人验、物理证据没有参照、感知验收没做过，三条同时为空。
 

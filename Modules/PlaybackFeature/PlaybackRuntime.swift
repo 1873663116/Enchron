@@ -188,6 +188,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var activeMediaFormatProvenance: MediaFormatProvenance {
         usesSourceFormat ? .source : .userOverride
     }
+    public var dolbyVisionFallbackIsEnabled: Bool {
+        usesDolbyVisionFallback
+    }
+    public var dolbyVisionFallbackIsAvailable: Bool {
+        guard let dolbyVision = displayMediaProfile?.dolbyVision else { return false }
+        return dolbyVision.offersUserSelectableFallback
+    }
     /// The projection description accepted by the current renderer input.
     /// User overrides must prove this boundary before RealityKit mode changes
     /// can be treated as adoption of the override.
@@ -210,7 +217,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             : MediaFormat(
                 projection: Self.mediaProjection(from: selectedProjectionType),
                 horizontalFieldOfViewDegrees: selectedHorizontalFieldOfViewDegrees,
-                stereoLayout: Self.mediaStereoLayout(from: selectedStereoLayout)
+                stereoLayout: Self.mediaStereoLayout(from: selectedStereoLayout),
+                usesDolbyVisionFallback: usesDolbyVisionFallback
             )
         return MediaFormatInterpretationResolver.resolve(
             source: source,
@@ -247,6 +255,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var selectedProjectionType: PlaybackModel.ProjectionType = .flat
     private var selectedHorizontalFieldOfViewDegrees: Int?
     private var selectedStereoLayout: PlaybackModel.StereoLayout = .mono
+    private var usesDolbyVisionFallback = false
     private var sourceStereoLayout: PlaybackModel.StereoLayout = .mono
     private var sourceMediaFormatIsCaptured = false
     private var usesSourceFormat = true
@@ -417,6 +426,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedProjectionType = .flat
         selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = .mono
+        usesDolbyVisionFallback = false
         sourceVideoContentKind = .rectilinear
         sourceStereoLayout = .mono
         sourceMediaFormatIsCaptured = false
@@ -464,7 +474,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             publishFormat(
                 projection: Self.playbackProjection(from: initialFormat.projection),
                 horizontalFieldOfViewDegrees: initialFormat.horizontalFieldOfViewDegrees,
-                stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout)
+                stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout),
+                usesDolbyVisionFallback: initialFormat.usesDolbyVisionFallback
             )
         }
         logger.info("open requested source=\(request.displayName, privacy: .public)")
@@ -496,6 +507,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                             horizontalFieldOfViewDegrees: $0.horizontalFieldOfViewDegrees
                         )
                     },
+                    initialDynamicRangeOverride: initialFormat?.usesDolbyVisionFallback == true
+                        ? .dolbyVisionFallback
+                        : nil,
                     provenance: "Enchron",
                     accessRequirement: request.source.isRemote ? "networkSource" : "securityScopedFile"
                 )
@@ -1141,7 +1155,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int? = nil,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false
     ) async throws {
         let resolvedHorizontalFieldOfViewDegrees = projection == .customAngle
             ? PanoramaHorizontalCoverage.normalized(
@@ -1152,7 +1167,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         publishFormat(
             projection: projection,
             horizontalFieldOfViewDegrees: resolvedHorizontalFieldOfViewDegrees,
-            stereo: stereo
+            stereo: stereo,
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
         technicalSessionFormatReplacementIsPending =
             technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
@@ -1208,6 +1224,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 for: selectedProjectionType,
                 horizontalFieldOfViewDegrees: selectedHorizontalFieldOfViewDegrees
             )
+        let initialDynamicRangeOverride = usesDolbyVisionFallback
+            ? VideoDynamicRangeOverride.dolbyVisionFallback
+            : nil
 
         let replacementController = PlaybackCoreController()
         openingTechnicalSessionReplacementController = replacementController
@@ -1228,6 +1247,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 sourceIsRemote: request.source.isRemote,
                 initialStereoLayout: initialStereoLayout,
                 initialProjectionOverride: initialProjectionOverride,
+                initialDynamicRangeOverride: initialDynamicRangeOverride,
                 provenance: "presentationConversionPrepared",
                 accessRequirement: request.url.isFileURL
                     ? "securityScopedFile"
@@ -1507,11 +1527,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func publishFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool
     ) {
         selectedProjectionType = projection
         selectedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         selectedStereoLayout = stereo
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
         usesSourceFormat = false
         mediaFormatIsKnown = true
     }
@@ -1528,7 +1550,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         publishFormat(
             projection: Self.playbackProjection(from: initialFormat.projection),
             horizontalFieldOfViewDegrees: initialFormat.horizontalFieldOfViewDegrees,
-            stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout)
+            stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout),
+            usesDolbyVisionFallback: initialFormat.usesDolbyVisionFallback
         )
     }
 
@@ -1536,6 +1559,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedProjectionType = Self.projectionType(for: sourceVideoContentKind)
         selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = sourceStereoLayout
+        usesDolbyVisionFallback = false
         usesSourceFormat = true
         mediaFormatIsKnown = sourceMediaFormatIsCaptured
     }
@@ -1652,6 +1676,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedProjectionType = .flat
         selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = .mono
+        usesDolbyVisionFallback = false
         sourceVideoContentKind = .rectilinear
         sourceStereoLayout = .mono
         sourceMediaFormatIsCaptured = false

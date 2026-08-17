@@ -198,6 +198,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var lastDisplayedFrameIdentity: UInt64?
     var stereoLayoutOverride: VideoStereoLayout?
     var projectionOverride: VideoProjectionOverride?
+    var dynamicRangeOverride: VideoDynamicRangeOverride?
     var hasRequestedVideoData = false
     var hasAudio = false
     var audioSampleBufferCount: UInt64 = 0

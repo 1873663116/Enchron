@@ -326,21 +326,24 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public func applyFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int? = nil,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false
     ) async throws {
         let target = beginMediaFormatRequest()
         try await performMediaFormatCoreOperation { [playbackRuntime] in
             try await playbackRuntime.setFormat(
                 projection: projection,
                 horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                stereo: stereo
+                stereo: stereo,
+                usesDolbyVisionFallback: usesDolbyVisionFallback
             )
         }
         guard mediaFormatRequestIsCurrent(target) else { return }
         let format = MediaFormat(
             projection: Self.projection(from: projection),
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereoLayout: Self.stereo(from: stereo)
+            stereoLayout: Self.stereo(from: stereo),
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
         guard await persistMediaFormatMutationIfCurrent(target, mutation: { store, identity in
             await store.saveFormat(format, for: identity)

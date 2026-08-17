@@ -313,11 +313,13 @@ extension SampleBufferPlaybackSession {
 
             let formatSignaledSample: CMSampleBuffer
             do {
-                if stereoLayoutOverride != nil || projectionOverride != nil {
+                if stereoLayoutOverride != nil || projectionOverride != nil
+                    || dynamicRangeOverride != nil {
                     formatSignaledSample = try videoSampleFormatOverride.rewrite(
                         sourceSample,
                         stereoLayout: stereoLayoutOverride,
-                        projection: projectionOverride
+                        projection: projectionOverride,
+                        dynamicRange: dynamicRangeOverride
                     )
                 } else {
                     formatSignaledSample = sourceSample
