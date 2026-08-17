@@ -589,13 +589,12 @@ extension SampleBufferPlaybackSession {
                     try await waitForAudioPreroll(through: activationTime)
                 } catch {
                     guard isCurrentVideoDelivery(generation), !isClosed else { return }
-                    recordFailure(
-                        error,
+                    guard !(error is CancellationError), !Task.isCancelled else { return }
+                    retireAudio(
+                        after: error,
                         node: .rendererInputCoordination,
-                        kind: "audioRenderer.prerollFailed"
+                        kind: "audioRenderer.prerollFailed.videoContinues"
                     )
-                    onStatusChange?(.failed(error.localizedDescription))
-                    return
                 }
                 let activationSequence = activationObservation.beginActivation(
                     requestedRate: timelineStartRate,
@@ -1420,15 +1419,27 @@ extension SampleBufferPlaybackSession {
         throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
     }
 
-    func retireAudio(after error: Error, node: PlaybackNode, kind: String) {
+    func retireAudio(
+        after error: Error,
+        node: PlaybackNode,
+        kind: String,
+        rendererFailure: RendererFailureFact? = nil
+    ) {
         hasAudio = false
         resetAudioEndState(requiresAudio: false)
+        stopAudioDelivery()
+        audioRendererSink.stopRenderingEventObservation()
         audioProvider.cancel()
         audioRendererSink.flush()
         setAudioRendererError(error.localizedDescription)
         diagnostics.audioRetired = true
         diagnostics.audioRetirementReason = error.localizedDescription
-        recordAudioRetirement(error, node: node, kind: kind)
+        recordAudioRetirement(
+            error,
+            node: node,
+            kind: kind,
+            rendererFailure: rendererFailure
+        )
         recordAudioRendererState()
         onDiagnosticsChange?(diagnostics)
     }

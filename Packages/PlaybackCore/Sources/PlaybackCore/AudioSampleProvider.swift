@@ -110,7 +110,7 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
         }
         return AudioSampleProviderInfo(
             providerKind: PBFFmpegAudioReaderOutputsPCM(reader.pointer)
-                ? "FFmpegSourcePCM"
+                ? "FFmpegDecodedPCM"
                 : "FFmpegCompressedAudio",
             streamIndex: Int(PBFFmpegAudioReaderGetStreamIndex(reader.pointer)),
             codecName: String(cString: PBFFmpegAudioReaderGetCodecName(reader.pointer)),

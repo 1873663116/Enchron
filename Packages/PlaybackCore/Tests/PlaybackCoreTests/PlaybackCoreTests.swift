@@ -2884,6 +2884,53 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
 }
 
+@Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {
+    let fixture = try unsupportedAC4Fixture()
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    let videoSamples = try [0.0, 5.0, 10.0].map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0,
+            durationSeconds: 1
+        )
+    }
+    let sink = FakeRendererInputSink()
+    let session = SampleBufferPlaybackSession(
+        traceID: "retired-audio-repeated-seek-session",
+        provider: FakeVideoSampleProvider(
+            events: videoSamples.map(VideoSampleProviderEvent.sample) + [.end]
+        ),
+        audioProvider: FFmpegAudioSampleProvider(),
+        rendererSink: sink
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: fixture)
+    #expect(session.hasAudio == false)
+    #expect(session.debugSnapshot().lastError == nil)
+    #expect(session.debugSnapshot().lastFailure?.message.contains("ac4") == true)
+
+    for target in [5.0, 10.0] {
+        let sampleCountBeforeSeek = sink.enqueuedSampleCount
+        try await session.seek(
+            to: CMTime(seconds: target, preferredTimescale: 600),
+            startsPaused: true
+        )
+        #expect(session.hasAudio == false)
+        #expect(session.debugSnapshot().lifecycle != .failed)
+        #expect(sink.enqueuedSampleCount > sampleCountBeforeSeek)
+    }
+
+    #expect(statuses.withLock { values in
+        values.contains { status in
+            if case .failed = status { true } else { false }
+        }
+    } == false)
+}
+
 @Test func audioReadFailureRetiresAudioButVideoStillDelivers() async throws {
     let videoSample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
@@ -3072,7 +3119,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.audioTrack?.rawStreamIndex == 1)
 }
 
-@Test(arguments: [RendererFailureKind.video, .audio])
+@Test(arguments: [RendererFailureKind.video])
 func terminalRendererFailurePublishesFailedOnce(
     _ rendererKind: RendererFailureKind
 ) async throws {
@@ -3129,6 +3176,65 @@ func terminalRendererFailurePublishesFailedOnce(
             if case .failed = $0 { true } else { false }
         }.count
     } == 1)
+}
+
+@Test func audioRendererFailureRetiresAudioAndVideoContinues() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
+    let audioSample = try makeAudioSample(durationSeconds: 5)
+    let sink = FakeRendererInputSink()
+    let monitor = FakeRendererFailureMonitor()
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-renderer-retirement-session",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(videoSample), count: 3) + [.end],
+            eventDelay: .milliseconds(25)
+        ),
+        audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
+        rendererSink: sink,
+        rendererFailureMonitor: monitor
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/audio-renderer-failure.mp4")
+    )
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try await waitForAudioSampleCount(1, in: session)
+    let samplesBeforeFailure = sink.enqueuedSampleCount
+    let fact = RendererFailureFact(
+        rendererKind: .audio,
+        errorType: "InjectedAudioRendererError",
+        message: "Injected audio renderer failure",
+        requiresFlushToResumeDecoding: nil
+    )
+
+    monitor.send(fact)
+
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline, session.hasAudio {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    try await waitForSampleCount(UInt64(samplesBeforeFailure + 1), in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(session.hasAudio == false)
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure?.stage == "audioRenderer.failed.videoContinues")
+    #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
+    #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.audio.rawValue)
+    #expect(snapshot.lastFailure?.errorType == fact.errorType)
+    #expect(snapshot.audioRendererState?.error == fact.message)
+    #expect(snapshot.lastError == nil)
+    #expect(statuses.withLock { values in
+        values.contains { status in
+            if case .failed = status { true } else { false }
+        }
+    } == false)
 }
 
 @Test func receiverDecodeWarningsAcceptTheVideoSample() async throws {
@@ -3734,8 +3840,19 @@ private enum MisleadingAudioOpenError: LocalizedError {
     case failed
 
     var errorDescription: String? {
-        "Decoder failed after no audio stream probe"
+        "Audio codec ac4 is unsupported because FFmpeg has no decoder"
     }
+}
+
+private func unsupportedAC4Fixture() throws -> URL {
+    let fixture = FileManager.default.temporaryDirectory
+        .appendingPathComponent("playbackcore-unsupported-\(UUID().uuidString).ac4")
+    let probeableFrame: [UInt8] = [0xAC, 0x40, 0x00, 0x04, 0, 0, 0, 0]
+    try Data((0..<32).flatMap { _ in probeableFrame }).write(
+        to: fixture,
+        options: .atomic
+    )
+    return fixture
 }
 
 func makeCompressedH264Sample(
