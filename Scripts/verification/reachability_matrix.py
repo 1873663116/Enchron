@@ -568,6 +568,25 @@ class ReachabilityRun:
                 )
             self.probe_offset = len(probe)
 
+            if tab == "settings":
+                before = self.copy_probe("settings-category-before")
+                offset = len(before)
+                category = self.tap(
+                    presentation, "Settings-category-storagePrivacy"
+                )
+                probe = self.copy_probe("settings-category-selected")
+                if category.get("success") is True and any(
+                    "reachability settings delivered action=category.storagePrivacy"
+                    in line for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:Settings-category-{item.id}",
+                        self.events[-1]["evidence"],
+                        "The Settings category row changed the product selection and appended its category probe.",
+                    )
+                self.probe_offset = len(probe)
+
         self.observe(presentation, "Emby home")
         emby = self.app_command("scrollEmby", page="home", direction="forward")
         if emby.get("success") is True:
@@ -691,8 +710,277 @@ class ReachabilityRun:
                 has_accessibility_target=False,
             )
 
+    def open_source_connection(
+        self, source: str
+    ) -> tuple[dict[str, Any], list[str]]:
+        presentation = "window"
+        before = self.copy_probe(f"source-connection-{source}-open-before")
+        offset = len(before)
+        opened = self.controller(
+            "tapSequence",
+            "--identifiers",
+            "FileBrowsing-SourcesSidebar-sourceMore",
+            "plus",
+            f"FileBrowsing-SourcesSidebar-add{source}",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+        probe = self.copy_probe(f"source-connection-{source}-opened")
+        recent = probe[offset:]
+        if opened.get("success") is True and any(
+            "reachability files delivered action=sourceSidebar.sourceMore" in line
+            for line in recent
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+                self.events[-1]["evidence"],
+                "Opening the source menu constructed its product-owned actions and appended a probe.",
+            )
+        source_value = "smb" if source == "SMB" else "webDAV"
+        if opened.get("success") is True and any(
+            f"reachability files delivered action=sidebar.add.{source_value}" in line
+            for line in recent
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourcesSidebar-add{source}",
+                self.events[-1]["evidence"],
+                "The source-type action reached FilesScreen and presented its connection form.",
+            )
+        return opened, probe
+
+    def type_source_connection_field(
+        self, source: str, field: str, value: str, probe: list[str]
+    ) -> list[str]:
+        presentation = "window"
+        offset = len(probe)
+        typed = self.controller(
+            "typeText",
+            "--identifier",
+            f"FileBrowsing-SourceConnection-{source}-{field}",
+            "--text",
+            value,
+            "--no-screenshot",
+            timeout=90,
+        )
+        updated = self.wait_for_probe(
+            f"source-connection-{source}-{field}",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.{field}",
+        )
+        if typed.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.{field}"
+            in line for line in updated[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
+                self.events[-1]["evidence"],
+                "Typing changed the source-specific form binding and appended its field probe.",
+            )
+        return updated
+
+    def source_connection_scenario(self, source: str) -> None:
+        presentation = "window"
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        opened, probe = self.open_source_connection(
+            "SMB" if source == "smb" else "WebDAV"
+        )
+        if opened.get("success") is not True:
+            return
+        if not isinstance(
+            self.wait_for_identifier(
+                f"FileBrowsing-SourceConnection-{source}-address", timeout=10
+            ).get("matchedElement"),
+            dict,
+        ):
+            return
+
+        for field, value in (
+            ("name", f"Reachability {source}"),
+            ("address", "127.0.0.1"),
+            ("username", "reachability"),
+            ("password", "not-a-secret"),
+        ):
+            probe = self.type_source_connection_field(
+                source, field, value, probe
+            )
+
+        if source == "smb":
+            offset = len(probe)
+            guest = self.tap(
+                presentation, "FileBrowsing-SourceConnection-smb-guest"
+            )
+            probe = self.wait_for_probe(
+                "source-connection-smb-guest",
+                offset,
+                "reachability files delivered action=sourceConnection.smb.guest",
+            )
+            if guest.get("success") is True and any(
+                "reachability files delivered action=sourceConnection.smb.guest"
+                in line for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-SourceConnection-smb-guest",
+                    self.events[-1]["evidence"],
+                    "The guest toggle changed the SMB form binding and appended its probe.",
+                )
+
+        offset = len(probe)
+        connected = self.tap(
+            presentation,
+            f"FileBrowsing-SourceConnection-{source}-connect",
+        )
+        probe = self.wait_for_probe(
+            f"source-connection-{source}-connect",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.connect",
+        )
+        if connected.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.connect"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-connect",
+                self.events[-1]["evidence"],
+                "Connect delivered the source-specific request to FilesScreen before network resolution.",
+            )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        opened, probe = self.open_source_connection(
+            "SMB" if source == "smb" else "WebDAV"
+        )
+        if opened.get("success") is not True:
+            return
+        offset = len(probe)
+        cancelled = self.tap(
+            presentation,
+            f"FileBrowsing-SourceConnection-{source}-cancel",
+        )
+        probe = self.wait_for_probe(
+            f"source-connection-{source}-cancel",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.cancel",
+        )
+        if cancelled.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.cancel"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-cancel",
+                self.events[-1]["evidence"],
+                "Cancel ran the source-specific dismissal closure and appended its probe.",
+            )
+
+    def source_sidebar_scenario(self) -> None:
+        presentation = "window"
+        for identifier, expected_action, nested in (
+            ("addFiles", "sidebar.add.local", True),
+            ("addFolder", "sidebar.addFolder", True),
+            ("addPhotos", "sidebar.add.photoLibrary", True),
+            ("refresh", "sidebar.refresh", False),
+        ):
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+            before = self.copy_probe(f"source-sidebar-{identifier}-before")
+            offset = len(before)
+            sequence = ["FileBrowsing-SourcesSidebar-sourceMore"]
+            if nested:
+                sequence.append("plus")
+            sequence.append(f"FileBrowsing-SourcesSidebar-{identifier}")
+            response = self.controller(
+                "tapSequence",
+                "--identifiers",
+                *sequence,
+                "--no-screenshot",
+                "--timeout-seconds",
+                "90",
+                timeout=120,
+            )
+            probe = self.copy_probe(f"source-sidebar-{identifier}")
+            if response.get("success") is True and any(
+                f"reachability files delivered action={expected_action}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:FileBrowsing-SourcesSidebar-{identifier}",
+                    self.events[-1]["evidence"],
+                    "The source-sidebar action reached its FilesScreen handler and appended an action probe.",
+                )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("source-sidebar-row-before")
+        offset = len(before)
+        selected = self.tap(
+            presentation,
+            "FileBrowsing-SourcesSidebar-source-media-library",
+            operation_id=(
+                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
+            ),
+        )
+        probe = self.copy_probe("source-sidebar-row-selected")
+        if selected.get("success") is True and any(
+            "reachability files delivered action=sidebar.select.media-library" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+                self.events[-1]["evidence"],
+                "The source row ran the product source-selection handler and appended its item probe.",
+            )
+
+    def file_browser_error_scenario(self) -> None:
+        presentation = "window"
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+
+        for action in ("primary", "secondary"):
+            before = self.copy_probe(f"file-browser-error-{action}-before")
+            offset = len(before)
+            shown = self.app_command(
+                "showFileBrowserError",
+                message=f"Reachability verification error: {action}",
+            )
+            if shown.get("success") is not True:
+                return
+            identifier = f"FileBrowsing-error-{action}"
+            visible = self.wait_for_identifier(identifier, timeout=10)
+            if not isinstance(visible.get("matchedElement"), dict):
+                return
+            tapped = self.tap(presentation, identifier)
+            probe = self.wait_for_probe(
+                f"file-browser-error-{action}",
+                offset,
+                f"reachability files delivered action=fileBrowserError.{action}",
+            )
+            if tapped.get("success") is True and any(
+                f"reachability files delivered action=fileBrowserError.{action}"
+                in line for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier}",
+                    self.events[-1]["evidence"],
+                    "The error-dialog action reached its FilesScreen handler and appended an action probe.",
+                )
+
     def browser_condition_scenario(self) -> None:
         presentation = "window"
+        self.source_connection_scenario("smb")
+        self.source_connection_scenario("webDAV")
+        self.source_sidebar_scenario()
+        self.file_browser_error_scenario()
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         reference = self.wait_for_identifier(
@@ -851,6 +1139,26 @@ class ReachabilityRun:
                     "Opening the created folder ran the Media Library navigation handler.",
                 )
 
+            for direction in ("back", "forward"):
+                before = probe
+                offset = len(before)
+                navigation = self.tap(
+                    presentation,
+                    f"FileBrowsing-FilesScreen-navBackForward-{direction}",
+                )
+                probe = self.copy_probe(f"browser-navigation-{direction}")
+                if navigation.get("success") is True and any(
+                    f"reachability files delivered action=files.nav.{direction}"
+                    in line for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:FileBrowsing-FilesScreen-"
+                        f"navBackForward-{direction}",
+                        self.events[-1]["evidence"],
+                        "The navigation button reached the corresponding browser history handler.",
+                    )
+
             # Return through the product breadcrumb before exercising root-only
             # multi-selection controls.
             self.tap(presentation, "MediaLibrary-Breadcrumb-current")
@@ -939,6 +1247,184 @@ class ReachabilityRun:
         time.sleep(2)
         return result
 
+    def video_format_editor_scenario(
+        self,
+        presentation: str,
+        identifier_prefix: str,
+        probe_prefix: str,
+    ) -> None:
+        open_identifier = (
+            "PlayerUI-TopAction-videoFormat"
+            if identifier_prefix == "PlayerUI-VideoFormat"
+            else "PlayerPanel-button-settings"
+        )
+
+        def open_editor() -> bool:
+            self.show_controls()
+            opened = self.tap(presentation, open_identifier)
+            visible = self.wait_for_identifier(
+                f"{identifier_prefix}-cancel", timeout=10
+            )
+            return opened.get("success") is True and isinstance(
+                visible.get("matchedElement"), dict
+            )
+
+        if open_editor():
+            before = self.copy_probe(
+                f"{identifier_prefix}-option-before"
+            )
+            offset = len(before)
+            option = self.tap(
+                presentation,
+                f"{identifier_prefix}-Stereo Layout-Side-by-Side",
+                operation_id=(
+                    f"accessibility:{identifier_prefix}-"
+                    "{title}-{label(option)}"
+                ),
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-option",
+                offset,
+                f"{probe_prefix}videoFormat.option.Stereo Layout.Side-by-Side",
+            )
+            if option.get("success") is True and any(
+                f"{probe_prefix}videoFormat.option.Stereo Layout.Side-by-Side"
+                in line for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-"
+                    "{title}-{label(option)}",
+                    self.events[-1]["evidence"],
+                    "The format option changed the editor selection and appended its option probe.",
+                )
+
+            offset = len(probe)
+            cancelled = self.tap(
+                presentation, f"{identifier_prefix}-cancel"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-cancel",
+                offset,
+                f"{probe_prefix}videoFormat.cancel",
+            )
+            if cancelled.get("success") is True and any(
+                f"{probe_prefix}videoFormat.cancel" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-cancel",
+                    self.events[-1]["evidence"],
+                    "Cancel ran the format editor's discard handler and appended its probe.",
+                )
+
+        if open_editor():
+            before = self.copy_probe(
+                f"{identifier_prefix}-custom-angle-before"
+            )
+            offset = len(before)
+            picker = self.tap(
+                presentation, f"{identifier_prefix}-CustomAngle"
+            )
+            selected = (
+                self.controller(
+                    "tap", "--label", "180°", "--no-screenshot", timeout=90
+                )
+                if picker.get("success") is True
+                else {"success": False}
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-custom-angle",
+                offset,
+                f"{probe_prefix}videoFormat.customAngle",
+            )
+            if selected.get("success") is True and any(
+                f"{probe_prefix}videoFormat.customAngle" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-CustomAngle",
+                    self.events[-1]["evidence"],
+                    "The custom-angle Picker changed its editor binding and appended a probe.",
+                )
+            self.tap(presentation, f"{identifier_prefix}-cancel")
+
+        if open_editor():
+            fallback = self.wait_for_identifier(
+                f"{identifier_prefix}-HDRFallback", timeout=3
+            )
+            if isinstance(fallback.get("matchedElement"), dict):
+                before = self.copy_probe(
+                    f"{identifier_prefix}-hdr-fallback-before"
+                )
+                offset = len(before)
+                toggled = self.tap(
+                    presentation, f"{identifier_prefix}-HDRFallback"
+                )
+                probe = self.wait_for_probe(
+                    f"{identifier_prefix}-hdr-fallback",
+                    offset,
+                    f"{probe_prefix}videoFormat.hdrFallback",
+                )
+                if toggled.get("success") is True and any(
+                    f"{probe_prefix}videoFormat.hdrFallback" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        f"accessibility:{identifier_prefix}-HDRFallback",
+                        self.events[-1]["evidence"],
+                        "The HDR fallback toggle changed its editor binding and appended a probe.",
+                    )
+            self.tap(presentation, f"{identifier_prefix}-cancel")
+
+        if open_editor():
+            self.tap(presentation, f"{identifier_prefix}-Projection-Flat")
+            before = self.copy_probe(f"{identifier_prefix}-apply-before")
+            offset = len(before)
+            applied = self.tap(
+                presentation, f"{identifier_prefix}-apply"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-apply",
+                offset,
+                f"{probe_prefix}videoFormat.apply",
+            )
+            if applied.get("success") is True and any(
+                f"{probe_prefix}videoFormat.apply" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-apply",
+                    self.events[-1]["evidence"],
+                    "Apply ran the format editor's commit handler and appended its probe.",
+                )
+
+        if open_editor():
+            before = self.copy_probe(f"{identifier_prefix}-automatic-before")
+            offset = len(before)
+            automatic = self.tap(
+                presentation, f"{identifier_prefix}-automatic"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-automatic",
+                offset,
+                f"{probe_prefix}videoFormat.automatic",
+            )
+            if automatic.get("success") is True and any(
+                f"{probe_prefix}videoFormat.automatic" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-automatic",
+                    self.events[-1]["evidence"],
+                    "Automatic ran the format restoration handler and appended its probe.",
+                )
+
     def ensure_window_projection(self, projection: str) -> bool:
         control_plane = self.wait_for_identifier("PlayerUI-window-control-plane")
         value = str((control_plane.get("matchedElement") or {}).get("value", ""))
@@ -998,6 +1484,16 @@ class ReachabilityRun:
                 "The command changed product control visibility and the controls entered the hierarchy.",
                 has_accessibility_target=False,
             )
+        self.video_format_editor_scenario(
+            presentation,
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+        self.video_format_editor_scenario(
+            presentation,
+            "PlayerPanel-VideoFormat",
+            "reachability playerPanel delivered action=",
+        )
         self.observe(presentation, "Window playback controls")
         self.transport_scenario(presentation)
         self.seek_scenario(presentation, "0.35")

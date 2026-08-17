@@ -234,6 +234,19 @@
       "scope": "component-default",
       "sources": [
         {
+          "line": 238,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "DesignPreview-SourcesSidebar-addDebug"
+    },
+    {
+      "action": null,
+      "family": "DesignPreview",
+      "role": "observation",
+      "scope": "component-default",
+      "sources": [
+        {
           "line": 8,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
@@ -312,6 +325,40 @@
       "scope": "component-default",
       "sources": [
         {
+          "line": 10,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        },
+        {
+          "line": 36,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        }
+      ],
+      "template": "DesignPreview-control-navBackForward-back"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 10,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        },
+        {
+          "line": 55,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        }
+      ],
+      "template": "DesignPreview-control-navBackForward-forward"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
           "line": 67,
           "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
         }
@@ -356,6 +403,48 @@
         }
       ],
       "template": "DesignPreview-errorDialog"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 608,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        },
+        {
+          "line": 609,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        },
+        {
+          "line": 620,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-errorDialog-primary"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 608,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        },
+        {
+          "line": 609,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        },
+        {
+          "line": 622,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-errorDialog-secondary"
     },
     {
       "action": "typeText",
@@ -888,7 +977,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 614,
+          "line": 691,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -901,7 +990,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 112,
+          "line": 136,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -914,7 +1003,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 505,
+          "line": 580,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -927,7 +1016,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 723,
+          "line": 800,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -940,7 +1029,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 824,
+          "line": 901,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -953,7 +1042,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 489,
+          "line": 564,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -966,11 +1055,45 @@
       "scope": "product",
       "sources": [
         {
-          "line": 544,
+          "line": 621,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
       "template": "FileBrowsing-FilesScreen-navBackForward"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 598,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 36,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-navBackForward-back"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 598,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 55,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-navBackForward-forward"
     },
     {
       "action": "typeText",
@@ -979,7 +1102,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 584,
+          "line": 661,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -992,7 +1115,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 521,
+          "line": 596,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1005,7 +1128,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 564,
+          "line": 641,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1018,7 +1141,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 559,
+          "line": 636,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1057,7 +1180,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 280,
+          "line": 343,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1070,7 +1193,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 673,
+          "line": 750,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1109,11 +1232,62 @@
       "scope": "product",
       "sources": [
         {
-          "line": 130,
+          "line": 165,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
-      "template": "FileBrowsing-SourceConnection"
+      "template": "FileBrowsing-SourceConnection-smb"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 170,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-address"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 297,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 304,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-connect"
     },
     {
       "action": null,
@@ -1122,20 +1296,428 @@
       "scope": "product",
       "sources": [
         {
-          "line": 281,
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 251,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        },
+        {
+          "line": 258,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-error"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 167,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-guest"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 164,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-name"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 193,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-password"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 265,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-success"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 158,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 183,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-smb-username"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 166,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 170,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-address"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 297,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 304,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-connect"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 251,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        },
+        {
+          "line": 258,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-error"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 164,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-name"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 193,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-password"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 265,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-success"
+    },
+    {
+      "action": "typeText",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 159,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 183,
+          "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourceConnection-webDAV-username"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 344,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
       "template": "FileBrowsing-SourcesSidebar"
     },
     {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 207,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-addFiles"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 212,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-addFolder"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 219,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-addPhotos"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 231,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-addSMB"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 225,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-addWebDAV"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 248,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-refresh"
+    },
+    {
       "action": null,
       "family": "FileBrowsing",
       "role": "observation",
       "scope": "product",
       "sources": [
         {
-          "line": 250,
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 291,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-sidebarSelectionActions"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 138,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-source-{item.id}"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 340,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 197,
+          "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
+        }
+      ],
+      "template": "FileBrowsing-SourcesSidebar-sourceMore"
+    },
+    {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 307,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1148,7 +1730,41 @@
       "scope": "product",
       "sources": [
         {
-          "line": 744,
+          "line": 298,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 620,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "FileBrowsing-error-primary"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 298,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 622,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "FileBrowsing-error-secondary"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 821,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1161,7 +1777,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 758,
+          "line": 835,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1174,7 +1790,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 603,
+          "line": 680,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1187,7 +1803,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 628,
+          "line": 705,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1200,7 +1816,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 635,
+          "line": 712,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1213,7 +1829,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 642,
+          "line": 719,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1226,7 +1842,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 650,
+          "line": 727,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1239,7 +1855,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 660,
+          "line": 737,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1252,7 +1868,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 210,
+          "line": 267,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1265,7 +1881,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 681,
+          "line": 758,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1278,7 +1894,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 707,
+          "line": 784,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1291,7 +1907,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 713,
+          "line": 790,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1304,7 +1920,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 698,
+          "line": 775,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1317,7 +1933,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 154,
+          "line": 211,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1330,7 +1946,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 147,
+          "line": 204,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1343,7 +1959,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 182,
+          "line": 239,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1356,7 +1972,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 173,
+          "line": 230,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1369,7 +1985,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 265,
+          "line": 328,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1382,7 +1998,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 782,
+          "line": 859,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1395,7 +2011,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 797,
+          "line": 874,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1477,7 +2093,7 @@
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 575,
+          "line": 578,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1490,7 +2106,109 @@
       "scope": "product",
       "sources": [
         {
-          "line": 902,
+          "line": 560,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 296,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat-CustomAngle"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 560,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 317,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat-HDRFallback"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 560,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 332,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat-apply"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 560,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 269,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat-automatic"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 560,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 326,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 560,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 390,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerPanel-VideoFormat-{title}-{label(option)}"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 905,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1503,11 +2221,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 895,
+          "line": 898,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 908,
+          "line": 911,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1520,11 +2238,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1010,
+          "line": 1013,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 1024,
+          "line": 1027,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1537,11 +2255,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 954,
+          "line": 957,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 1086,
+          "line": 1089,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1554,11 +2272,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1009,
+          "line": 1012,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 1023,
+          "line": 1026,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1571,7 +2289,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 670,
+          "line": 673,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1597,7 +2315,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 759,
+          "line": 762,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1610,7 +2328,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 824,
+          "line": 827,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1623,7 +2341,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 830,
+          "line": 833,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1636,7 +2354,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 790,
+          "line": 793,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1649,7 +2367,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 805,
+          "line": 808,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1662,7 +2380,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1138,
+          "line": 1141,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1675,7 +2393,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1148,
+          "line": 1151,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1688,7 +2406,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1055,
+          "line": 1058,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1701,7 +2419,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1143,
+          "line": 1146,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1714,7 +2432,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1132,
+          "line": 1135,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1727,7 +2445,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1172,
+          "line": 1175,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1753,7 +2471,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1344,
+          "line": 1347,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1766,7 +2484,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1434,
+          "line": 1437,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1779,7 +2497,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1448,
+          "line": 1451,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1792,7 +2510,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1728,
+          "line": 1731,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -1805,7 +2523,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 618,
+          "line": 643,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
@@ -1818,7 +2536,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 699,
+          "line": 724,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
@@ -1831,7 +2549,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 698,
+          "line": 723,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
@@ -1857,7 +2575,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 549,
+          "line": 574,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
@@ -1883,7 +2601,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 535,
+          "line": 560,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
@@ -1896,7 +2614,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 566,
+          "line": 591,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
@@ -1909,15 +2627,117 @@
       "scope": "product",
       "sources": [
         {
-          "line": 768,
+          "line": 793,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         },
         {
-          "line": 782,
+          "line": 810,
           "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
         }
       ],
       "template": "PlayerUI-VideoFormat"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 296,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 784,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat-CustomAngle"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 317,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 784,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat-HDRFallback"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 332,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 784,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat-apply"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 269,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 784,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat-automatic"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 326,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 784,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 390,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        },
+        {
+          "line": 784,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
+        }
+      ],
+      "template": "PlayerUI-VideoFormat-{title}-{label(option)}"
     },
     {
       "action": null,
@@ -2290,7 +3110,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 107,
+          "line": 114,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -2316,7 +3136,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 103,
+          "line": 110,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -2342,7 +3162,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 96,
+          "line": 103,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -2355,11 +3175,28 @@
       "scope": "product",
       "sources": [
         {
-          "line": 105,
+          "line": 112,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
       "template": "Settings-StoragePrivacy-group"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 52,
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "line": 121,
+          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
+        }
+      ],
+      "template": "Settings-category-{item.id}"
     },
     {
       "action": null,
@@ -2497,6 +3334,18 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "identifierTemplate": "FileBrowsing-FilesScreen-navBackForward-back",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "identifierTemplate": "FileBrowsing-FilesScreen-navBackForward-forward",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:FileBrowsing-FilesScreen-search",
       "identifierTemplate": "FileBrowsing-FilesScreen-search",
       "kind": "typeText",
@@ -2547,6 +3396,144 @@
     {
       "id": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
       "identifierTemplate": "FileBrowsing-Sidebar-row-{ds.id}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-address",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-cancel",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-connect",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-guest",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-name",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-password",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "identifierTemplate": "FileBrowsing-SourceConnection-smb-username",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-address",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-cancel",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-connect",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-name",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-password",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-username",
+      "kind": "typeText",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-addFiles",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-addFolder",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-addPhotos",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-addSMB",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-addWebDAV",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-refresh",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-source-{item.id}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "identifierTemplate": "FileBrowsing-SourcesSidebar-sourceMore",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-error-primary",
+      "identifierTemplate": "FileBrowsing-error-primary",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-error-secondary",
+      "identifierTemplate": "FileBrowsing-error-secondary",
       "kind": "activate",
       "source": "accessibilityIdentifier"
     },
@@ -2679,6 +3666,42 @@
     {
       "id": "accessibility:PlayerPanel-DockedPlacement-reset",
       "identifierTemplate": "PlayerPanel-DockedPlacement-reset",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
+      "identifierTemplate": "PlayerPanel-VideoFormat-CustomAngle",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
+      "identifierTemplate": "PlayerPanel-VideoFormat-HDRFallback",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-VideoFormat-apply",
+      "identifierTemplate": "PlayerPanel-VideoFormat-apply",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-VideoFormat-automatic",
+      "identifierTemplate": "PlayerPanel-VideoFormat-automatic",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-VideoFormat-cancel",
+      "identifierTemplate": "PlayerPanel-VideoFormat-cancel",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
+      "identifierTemplate": "PlayerPanel-VideoFormat-{title}-{label(option)}",
       "kind": "activate",
       "source": "accessibilityIdentifier"
     },
@@ -2821,6 +3844,42 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "identifierTemplate": "PlayerUI-VideoFormat-CustomAngle",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "identifierTemplate": "PlayerUI-VideoFormat-HDRFallback",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-VideoFormat-apply",
+      "identifierTemplate": "PlayerUI-VideoFormat-apply",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-VideoFormat-automatic",
+      "identifierTemplate": "PlayerUI-VideoFormat-automatic",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-VideoFormat-cancel",
+      "identifierTemplate": "PlayerUI-VideoFormat-cancel",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "identifierTemplate": "PlayerUI-VideoFormat-{title}-{label(option)}",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:PlayerUI-loadFailure-primary",
       "identifierTemplate": "PlayerUI-loadFailure-primary",
       "kind": "activate",
@@ -2889,6 +3948,12 @@
     {
       "id": "accessibility:PlayerUI-unmetCapability-dismiss",
       "identifierTemplate": "PlayerUI-unmetCapability-dismiss",
+      "kind": "activate",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-category-{item.id}",
+      "identifierTemplate": "Settings-category-{item.id}",
       "kind": "activate",
       "source": "accessibilityIdentifier"
     },

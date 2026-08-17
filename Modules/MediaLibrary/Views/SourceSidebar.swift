@@ -43,6 +43,7 @@ struct SourceSidebar: View {
     var onImportFolder: (() -> Void)?
     var onRefresh: (() -> Void)?
     var onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)?
+    var onReachabilityAction: ((String) -> Void)?
     var showsStorageMeter = false
 
     @State private var isSelectingSidebarItems = false
@@ -196,60 +197,63 @@ struct SourceSidebar: View {
             accessibilityIdentifier: "\(identifierPrefix)-sourceMore",
             iconColor: .secondary
         ) {
-            Menu {
-                Button {
-                    onAddSource?(.local)
-                } label: {
-                    Label("Files", systemImage: "folder")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addFiles")
-                if let onImportFolder {
-                    Button(action: onImportFolder) {
-                        Label("Folder", systemImage: "folder.badge.plus")
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix)-addFolder")
-                }
-                Button {
-                    onAddSource?(.photoLibrary)
-                } label: {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addPhotos")
-                Button {
-                    onAddSource?(.webDAV)
-                } label: {
-                    Label("WebDAV", systemImage: "cloud.fill")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
-                Button {
-                    onAddSource?(.smb)
-                } label: {
-                    Label("SMB", systemImage: "server.rack")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addSMB")
-                if onAddSource == nil {
+            Group {
+                Menu {
                     Button {
-                        addDebugSource()
+                        onAddSource?(.local)
                     } label: {
-                        Label("Add One", systemImage: "plus.circle")
+                        Label("Files", systemImage: "folder")
                     }
-                    .accessibilityIdentifier("\(identifierPrefix)-addDebug")
+                    .accessibilityIdentifier("\(identifierPrefix)-addFiles")
+                    if let onImportFolder {
+                        Button(action: onImportFolder) {
+                            Label("Folder", systemImage: "folder.badge.plus")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix)-addFolder")
+                    }
+                    Button {
+                        onAddSource?(.photoLibrary)
+                    } label: {
+                        Label("Photos", systemImage: "photo.on.rectangle")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addPhotos")
+                    Button {
+                        onAddSource?(.webDAV)
+                    } label: {
+                        Label("WebDAV", systemImage: "cloud.fill")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
+                    Button {
+                        onAddSource?(.smb)
+                    } label: {
+                        Label("SMB", systemImage: "server.rack")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addSMB")
+                    if onAddSource == nil {
+                        Button {
+                            addDebugSource()
+                        } label: {
+                            Label("Add One", systemImage: "plus.circle")
+                        }
+                        .accessibilityIdentifier("DesignPreview-SourcesSidebar-addDebug")
+                    }
+                } label: {
+                    Label("Add", systemImage: "plus")
                 }
-            } label: {
-                Label("Add", systemImage: "plus")
+                Button {
+                    onRefresh?()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-refresh")
+                Button {
+                    enterSidebarDeleteSelectionMode()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(!hasDeletableSources)
             }
-            Button {
-                onRefresh?()
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .accessibilityIdentifier("\(identifierPrefix)-refresh")
-            Button {
-                enterSidebarDeleteSelectionMode()
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            .disabled(!hasDeletableSources)
+            .onAppear { onReachabilityAction?("sourceMore") }
         }
     }
 

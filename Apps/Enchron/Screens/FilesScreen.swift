@@ -6,6 +6,30 @@ import PhotosUI
 @preconcurrency import Photos
 import UniformTypeIdentifiers
 
+#if DEBUG
+@MainActor
+final class FileBrowserReachabilityErrorRequest {
+    let message: String
+    private(set) var wasHandled = false
+
+    init(message: String) {
+        self.message = message
+    }
+
+    func handle(show: (String) -> Void) {
+        guard wasHandled == false else { return }
+        show(message)
+        wasHandled = true
+    }
+}
+
+extension Notification.Name {
+    static let fileBrowserReachabilityError = Notification.Name(
+        "app.enchron.debug.file-browser-reachability-error"
+    )
+}
+#endif
+
 struct FilesScreen: View {
     private enum SourceSelection: Equatable {
         case mediaLibrary
@@ -119,6 +143,16 @@ struct FilesScreen: View {
         .onChange(of: mediaLibrary.currentFolderID) { _, _ in
             endMediaReferenceSelection()
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .fileBrowserReachabilityError)
+        ) { notification in
+            guard let request = notification.object as? FileBrowserReachabilityErrorRequest else {
+                return
+            }
+            request.handle { viewModel.lastErrorMessage = $0 }
+        }
+#endif
         .sheet(item: $presentedSourceConnection) { kind in
             ConnectionFormPanel(
                 kind: kind,
@@ -127,11 +161,34 @@ struct FilesScreen: View {
                 username: $sourceConnectionUsername,
                 password: $sourceConnectionPassword,
                 connectsAsGuest: $sourceConnectionConnectsAsGuest,
-                accessibilityIdentifierPrefix: "FileBrowsing-SourceConnection",
+                accessibilityIdentifierPrefix: kind == .smb
+                    ? "FileBrowsing-SourceConnection-smb"
+                    : "FileBrowsing-SourceConnection-webDAV",
+                guestAccessibilityIdentifier: "FileBrowsing-SourceConnection-smb-guest",
                 onConnect: connect,
-                onCancel: dismissSourceConnection,
+                onCancel: {
+                    recordReachability(
+                        "sourceConnection.\(kind.rawValue).cancel"
+                    )
+                    dismissSourceConnection()
+                },
                 onConnected: dismissSourceConnection
             )
+            .onChange(of: sourceConnectionName) { _, _ in
+                recordReachability("sourceConnection.\(kind.rawValue).name")
+            }
+            .onChange(of: sourceConnectionAddress) { _, _ in
+                recordReachability("sourceConnection.\(kind.rawValue).address")
+            }
+            .onChange(of: sourceConnectionUsername) { _, _ in
+                recordReachability("sourceConnection.\(kind.rawValue).username")
+            }
+            .onChange(of: sourceConnectionPassword) { _, _ in
+                recordReachability("sourceConnection.\(kind.rawValue).password")
+            }
+            .onChange(of: sourceConnectionConnectsAsGuest) { _, _ in
+                recordReachability("sourceConnection.\(kind.rawValue).guest")
+            }
         }
         .alert("New Library Folder", isPresented: $isCreatingFolder) {
             TextField(
@@ -248,8 +305,14 @@ struct FilesScreen: View {
                 set: { if !$0 { viewModel.lastErrorMessage = nil } }
             ),
             identifierPrefix: "FileBrowsing-error",
-            onPrimary: { Task { await viewModel.loadFiles() } },
-            onSecondary: { viewModel.dismissCurrentError() }
+            onPrimary: {
+                recordReachability("fileBrowserError.primary")
+                Task { await viewModel.loadFiles() }
+            },
+            onSecondary: {
+                recordReachability("fileBrowserError.secondary")
+                viewModel.dismissCurrentError()
+            }
         )
         .alert(
             "Media Library Error",
@@ -287,9 +350,18 @@ struct FilesScreen: View {
                 recordReachability("sidebar.add.\(type.rawValue)")
                 presentConnection(for: type)
             },
-            onImportFolder: presentFolderImporter,
-            onRefresh: { Task { await viewModel.loadFiles() } },
-            onDeleteSources: deleteSources
+            onImportFolder: {
+                recordReachability("sidebar.addFolder")
+                presentFolderImporter()
+            },
+            onRefresh: {
+                recordReachability("sidebar.refresh")
+                Task { await viewModel.loadFiles() }
+            },
+            onDeleteSources: deleteSources,
+            onReachabilityAction: { action in
+                recordReachability("sourceSidebar.\(action)")
+            }
         )
     }
 
@@ -363,6 +435,9 @@ struct FilesScreen: View {
     private func connect(
         _ request: SourceConnectionRequest
     ) async -> SourceConnectionOutcome {
+        recordReachability(
+            "sourceConnection.\(request.kind.rawValue).connect"
+        )
         do {
             let connection = try FileBrowsingDomain.ConnectionInfo.remote(
                 sourceType: request.kind,
@@ -528,6 +603,7 @@ struct FilesScreen: View {
                     ? viewModel.canNavigateForward
                     : mediaLibrary.canNavigateForward,
                 onBack: {
+                    recordReachability("files.nav.back")
                     if isBrowsingSource {
                         Task { await viewModel.navigateUp() }
                     } else {
@@ -535,6 +611,7 @@ struct FilesScreen: View {
                     }
                 },
                 onForward: {
+                    recordReachability("files.nav.forward")
                     if isBrowsingSource {
                         Task { await viewModel.navigateForward() }
                     } else {

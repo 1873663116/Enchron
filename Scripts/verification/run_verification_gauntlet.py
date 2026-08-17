@@ -83,6 +83,10 @@ STRUCTURE_CHECKS = (
         "generate_reachability_inventory.py",
     ),
     StructureCheck(
+        "reachability-inventory-tests",
+        "test_generate_reachability_inventory.py",
+    ),
+    StructureCheck(
         "visionpro-core-regression-plan",
         "verify_visionpro_core_regression_plan.py",
     ),
