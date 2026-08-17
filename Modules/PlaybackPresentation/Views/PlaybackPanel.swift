@@ -72,6 +72,16 @@ enum PlaybackSeekPresentation {
         min(max(progress, 0), 1)
     }
 
+    static func target(
+        at locationX: CGFloat,
+        travelWidth: CGFloat,
+        thumbDiameter: CGFloat
+    ) -> CGFloat {
+        guard travelWidth > 0 else { return 0 }
+        let leadingThumbCenter = thumbDiameter / 2
+        return clampedTarget((locationX - leadingThumbCenter) / travelWidth)
+    }
+
     static func elapsedSeconds(
         for displayProgress: CGFloat,
         duration: Double
@@ -296,11 +306,12 @@ struct FusedPlayerPanel: View {
     @State private var placementTrackWidth: CGFloat = 280
     @Namespace private var hoverNamespace
 
-    private enum ScrubberActivation {
+    private enum ScrubberActivation: Equatable {
         case idle
         case activating
         case unlocked
         case seeking
+        case trackSeeking(target: CGFloat)
         case cancelled
     }
 
@@ -1234,7 +1245,7 @@ struct FusedPlayerPanel: View {
 
     private var trackScale: CGFloat {
         switch scrubberActivation {
-        case .activating, .unlocked, .seeking:
+        case .activating, .unlocked, .seeking, .trackSeeking:
             return 1
         case .idle, .cancelled:
             return DesignTokens.ProgressBar.inactiveScale
@@ -1299,7 +1310,10 @@ struct FusedPlayerPanel: View {
                 )
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverActivation(in: hoverActivationGroup)
         .contentShape(.interaction, Capsule())
+        .onHover { isProgressHovered = $0 }
         .gesture(dragGesture(width: width, thumbX: thumbX))
     }
 
@@ -1307,7 +1321,6 @@ struct FusedPlayerPanel: View {
         Color.clear
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
             .contentShape(.interaction, Capsule())
-            .onHover { isProgressHovered = $0 }
             .accessibilityElement(children: .ignore)
             .accessibilityIdentifier("PlayerPanel-progress")
             .accessibilityLabel("Playback position")
@@ -1420,9 +1433,7 @@ struct FusedPlayerPanel: View {
             .frame(width: DesignTokens.ProgressBar.hitHeight,
                    height: DesignTokens.ProgressBar.hitHeight)
             .enchronHoverContentShape(Circle())
-            .enchronHoverActivation(in: hoverActivationGroup)
             .contentShape(Circle())
-            .onHover { isProgressHovered = $0 }
     }
 
     private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
@@ -1432,7 +1443,13 @@ struct FusedPlayerPanel: View {
                 case .idle:
                     guard isThumbHit(value.startLocation, thumbX: thumbX) else {
                         lastScrubberPress = nil
-                        scrubberActivation = .cancelled
+                        scrubberActivation = .trackSeeking(
+                            target: PlaybackSeekPresentation.target(
+                                at: value.startLocation.x,
+                                travelWidth: width,
+                                thumbDiameter: DesignTokens.ProgressBar.thumbDiameter
+                            )
+                        )
                         return
                     }
                     beginScrubberActivation(at: value.location)
@@ -1451,12 +1468,15 @@ struct FusedPlayerPanel: View {
                         forTranslation: value.location.x - seekOrigin.x,
                         width: width
                     )
+                case .trackSeeking:
+                    return
                 case .cancelled:
                     return
                 }
             }
             .onEnded { value in
-                if scrubberActivation == .seeking {
+                switch scrubberActivation {
+                case .seeking:
                     lastScrubberPress = nil
                     let target = PlaybackSeekPresentation.clampedTarget(progress)
                     // 先锁存目标,再释放 dragging;否则 SwiftUI 可能先镜像
@@ -1465,10 +1485,16 @@ struct FusedPlayerPanel: View {
                     scrubReleaseTrigger += 1
                     endScrubbing()
                     live?.onSeek(target)
-                } else if scrubberActivation == .activating {
+                case .activating:
                     completeShortScrubberPress(at: value.location, time: value.time)
                     resetScrubberActivation()
-                } else {
+                case .trackSeeking(let target):
+                    progress = target
+                    armPendingSeek(for: target)
+                    live?.onSeek(target)
+                    onInteraction()
+                    resetScrubberActivation()
+                case .idle, .unlocked, .cancelled:
                     resetScrubberActivation()
                 }
             }

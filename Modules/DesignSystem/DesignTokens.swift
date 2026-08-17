@@ -627,7 +627,7 @@ public enum DesignTokens {
         /// Spacing between control buttons (≥16pt per Apple HIG)
         public static let buttonSpacing: CGFloat = Spacing.xl
         /// Horizontal padding inside player control capsule.
-        public static let paddingH: CGFloat = Spacing.xl
+        public static let paddingH: CGFloat = Spacing.xxl
         /// Vertical padding inside player control capsule.
         public static let paddingV: CGFloat = Spacing.sm
         /// Rendered width of the complete ornament capsule.

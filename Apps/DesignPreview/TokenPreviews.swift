@@ -883,13 +883,13 @@ struct ComponentStandardsPreview: View {
             .spec("contentWidth", "680pt", "matches Layout.playerControlsContentWidth") {
                 tokenBarSwatch(DesignTokens.ControlBar.contentWidth, max: 680)
             },
-            .spec("outerWidth", "728pt", "rendered ornament width including horizontal padding") {
-                tokenBarSwatch(DesignTokens.ControlBar.outerWidth, max: 728)
+            .spec("outerWidth", "744pt", "rendered ornament width including horizontal padding") {
+                tokenBarSwatch(DesignTokens.ControlBar.outerWidth, max: 744)
             },
             .spec("buttonSpacing", "24pt", "spacing between playback controls") {
                 tokenBarSwatch(DesignTokens.ControlBar.buttonSpacing, max: 48)
             },
-            .spec("paddingH", "24pt", "horizontal padding inside control capsule") {
+            .spec("paddingH", "32pt", "horizontal padding inside control capsule") {
                 tokenBarSwatch(DesignTokens.ControlBar.paddingH, max: 48)
             },
             .spec("paddingV", "12pt", "vertical padding inside control capsule") {
