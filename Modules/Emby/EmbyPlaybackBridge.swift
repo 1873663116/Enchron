@@ -258,6 +258,9 @@ public actor EmbyPlaybackBridge {
             }
             source = firstSource
         }
+        if let codec = Self.unsupportedVideoCodec(in: source) {
+            throw EmbyError.unsupportedVideoCodec(codec)
+        }
         var subtitles: [ResolvedExternalSubtitleSource] = []
         for stream in source.mediaStreams where stream.kind == .subtitle && stream.isExternal {
             let sourceID = Self.externalSubtitleSourceID(for: stream.index)
@@ -330,6 +333,22 @@ public actor EmbyPlaybackBridge {
 
     private static func externalSubtitleSourceID(for streamIndex: Int) -> String {
         "emby.subtitle.\(streamIndex)"
+    }
+
+    private static func unsupportedVideoCodec(in source: EmbyMediaSource) -> String? {
+        let videoStream = source.defaultStreamIndexes.video.flatMap { index in
+            source.mediaStreams.first { $0.kind == .video && $0.index == index }
+        } ?? source.mediaStreams.first { $0.kind == .video }
+        guard let declaredCodec = videoStream?.codec else { return nil }
+        let codec = declaredCodec.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard codec.isEmpty == false else { return nil }
+        let supportedCodecs: Set<String> = [
+            "h264", "avc", "avc1",
+            "hevc", "h265", "hvc1", "hev1",
+            "av1", "av01",
+            "prores"
+        ]
+        return supportedCodecs.contains(codec.lowercased()) ? nil : codec
     }
 }
 
