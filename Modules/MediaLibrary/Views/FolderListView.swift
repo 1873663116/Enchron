@@ -62,7 +62,7 @@ public struct FolderListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
-            .enchronGlassBackground(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .enchronListGroupSurface(in: DesignTokens.ShapeToken.card)
         } else {
             List {
                 if folders.isEmpty == false {

@@ -797,7 +797,7 @@ struct LoadingSpinner: View {
                 }
             }
             .clipShape(Circle())
-            .enchronGlassBackground(in: Circle())
+            .background(DesignTokens.Surface.elevated, in: Circle())
 
             if let sourceReadBytesPerSecond {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in

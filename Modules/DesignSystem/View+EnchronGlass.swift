@@ -1,45 +1,41 @@
 import SwiftUI
 
-// MARK: - Glass Variants
+// MARK: - Surface Variants
 
-/// Named glass effect variants for the Enchron design system.
+/// Named surface variants for the Enchron design system.
 ///
-/// Each modifier binds **four shape layers** at its current bounds:
+/// Each modifier binds the relevant shape layers at its current bounds:
 ///   1. `clipShape` — visual boundary
-///   2. `glassBackgroundEffect(in:)` — material boundary
+///   2. DesignTokens or system material — visual hierarchy
 ///   3. `contentShape(.hoverEffect, ...)` — hover highlight region
 ///   4. `contentShape(.interaction, ...)` — hit-test region
 ///
 /// Later wrappers that enlarge interaction bounds must use
 /// `enchronHoverContentShape(_:insets:)` to keep hover at the visual bounds.
 ///
-/// **Rule:** Apply glass effects to the *container* view, not to child views
-/// inside a ZStack — otherwise the rendering is incorrect on visionOS.
-///
-/// **Philosophy:** Glass everywhere. Every surface that can carry glass, should.
-/// CTA / emphasis buttons use `.borderless` with custom backgrounds instead.
+/// visionOS window roots already supply glass. Reusable controls use these
+/// non-glass tiers so callers cannot create a second material boundary inside
+/// a window. Window roots, ornaments, and spatial attachments opt into platform
+/// glass directly through `enchronGlassBackground(in:)` at their host site.
 public extension View {
 
     // ── Container-level glass ──
 
-    /// Large panel — full glass with panel corner radius.
-    /// Note: visionOS window chrome is system-managed; use this for large
-    /// sub-panels inside a window, not for the window itself.
-    /// Prefer `enchronGlassPanel()` for content panels with regularMaterial.
+    /// Large panel with the regular material hierarchy used inside a window.
     func enchronGlassWindow() -> some View {
         let shape = DesignTokens.ShapeToken.panel
         return self
             .clipShape(shape)
-            .enchronGlassBackground(in: shape)
+            .background(.regularMaterial, in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
-    /// Control bar / ornament — pill-shaped glass capsule.
+    /// Pill-shaped control surface for content already hosted by glass.
     func enchronGlassControl() -> some View {
         self
             .clipShape(Capsule())
-            .enchronGlassBackground(in: Capsule())
+            .background(DesignTokens.Surface.elevated, in: Capsule())
             .enchronHoverContentShape(Capsule())
             .enchronHoverEffect(.automatic)
             .contentShape(Capsule())
@@ -57,12 +53,12 @@ public extension View {
 
     // ── Interactive element glass (shape + hover bound together) ──
 
-    /// Video/folder cards — glass with card corner radius + `.lift` hover.
+    /// Video/folder cards with card corner radius and `.lift` hover.
     func enchronGlassCard() -> some View {
         let shape = DesignTokens.ShapeToken.card
         return self
             .clipShape(shape)
-            .enchronGlassBackground(in: shape)
+            .background(DesignTokens.Surface.card, in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
             .enchronHoverEffect(.lift)
@@ -79,25 +75,25 @@ public extension View {
             .enchronHoverEffect(.highlight)
     }
 
-    /// Menu popover container — glass with card corner radius (no hover).
+    /// Menu popover container with card corner radius and no hover.
     /// MenuItems inside use `element` radius, creating concentric nesting
     /// with `Menu.glassPadding` (8pt) between them: card(32) − 8 = element(24).
     func enchronGlassMenu() -> some View {
         let shape = DesignTokens.ShapeToken.card
         return self
             .clipShape(shape)
-            .enchronGlassBackground(in: shape)
+            .background(.regularMaterial, in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
-    /// Toolbar / timeline / ruler strips — compact glass with element radius (no hover).
+    /// Toolbar / timeline / ruler strips with element radius and no hover.
     /// Use for narrow tool strips embedded within panels.
     func enchronGlassToolbar() -> some View {
         let shape = DesignTokens.ShapeToken.element
         return self
             .clipShape(shape)
-            .enchronGlassBackground(in: shape)
+            .background(DesignTokens.Surface.elevated, in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
     }

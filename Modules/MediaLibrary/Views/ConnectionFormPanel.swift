@@ -96,8 +96,7 @@ public struct ConnectionFormPanel: View {
         }
         .padding(DesignTokens.Spacing.xl)
         .frame(width: DesignTokens.SourceConnection.panelWidth, alignment: .leading)
-        .clipShape(DesignTokens.ShapeToken.card)
-        .enchronGlassBackground(in: DesignTokens.ShapeToken.card)
+        .enchronListGroupSurface(in: DesignTokens.ShapeToken.card)
         .animation(DesignTokens.AnimationToken.selection, value: showsCredentials)
         .animation(DesignTokens.AnimationToken.selection, value: phase)
         .interactiveDismissDisabled(isBusy)

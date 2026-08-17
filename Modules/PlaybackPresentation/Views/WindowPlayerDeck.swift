@@ -562,7 +562,7 @@ struct ResumeDecisionCard: View {
             }
             .padding(DesignTokens.Spacing.xxxl)
             .frame(maxWidth: DesignTokens.ProgressBar.previewWidth)
-            .glassBackgroundEffect(in: DesignTokens.ShapeToken.panel)
+            .enchronListGroupSurface(in: DesignTokens.ShapeToken.panel)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-resumeDecision-panel")
