@@ -69,6 +69,10 @@ STRUCTURE_CHECKS = (
     StructureCheck("media-byte-stream", "verify_media_byte_stream.py"),
     StructureCheck("media-discovery-admission", "verify_media_discovery_admission.py"),
     StructureCheck("glass-usage", "verify_glass_usage.py"),
+    StructureCheck(
+        "playback-issue-ownership",
+        "verify_playback_issue_ownership.py",
+    ),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
     StructureCheck(
         "visionpro-core-regression-plan",

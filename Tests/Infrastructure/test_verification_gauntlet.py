@@ -17,8 +17,9 @@ class VerificationGauntletTests(unittest.TestCase):
             if check.runs_in_quick_mode
         }
 
-        self.assertEqual(len(full), 9)
+        self.assertEqual(len(full), 11)
         self.assertIn("glass-usage", quick)
+        self.assertIn("playback-issue-ownership", quick)
         self.assertIn("format-description-identity", full)
         self.assertNotIn("format-description-identity", quick)
 

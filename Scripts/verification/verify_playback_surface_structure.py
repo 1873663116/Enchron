@@ -821,7 +821,7 @@ def main() -> int:
     )
     require_action_guard(
         "private func detachPlaybackSurface(",
-        "private func setRuntimeError(",
+        "private func setRuntimeIssue(",
         "playbackRuntime.detach()",
     )
     require_action_guard(
