@@ -3,8 +3,8 @@
 
 Emby reports a coarse VideoRange and leaves its Dv* fields empty, so the profile
 that decides which PlaybackCore path a title exercises comes from ffprobe on the
-file itself. Emby's own paths belong to the server host; this maps them onto the
-local WebDAV mount that publishes the same library.
+file itself. The library sits on this host's rclone NFS mount at Emby's own
+library root, so the paths Emby reports are directly readable.
 
 Credentials come from EMBY_USER and EMBY_PASSWORD, so `set -a; . .env; set +a`
 covers it and nothing lands in argv.
@@ -21,16 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from probe_emby_direct_play import authenticate, request
 
 EMBY_ADDRESS = "http://192.168.5.2:8096"
-SERVER_LIBRARY_ROOT = "/Users/xiongzhipeng/Library/CloudStorage/EmbyMedia"
-LOCAL_LIBRARY_ROOT = "/Volumes/影音库"
-
-
-def local_path(server_path):
-    if not server_path:
-        return None
-    if not server_path.startswith(SERVER_LIBRARY_ROOT):
-        return None
-    return LOCAL_LIBRARY_ROOT + server_path[len(SERVER_LIBRARY_ROOT):]
 
 
 def library_video_streams(address, token, user_id):
@@ -135,7 +125,7 @@ def main():
         if args.include_sdr or entry["range"] != "SDR"
     ]
     for entry in entries:
-        entry["localPath"] = local_path(entry["serverPath"])
+        entry["localPath"] = entry["serverPath"]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         probes = pool.map(

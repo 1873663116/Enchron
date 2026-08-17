@@ -30,14 +30,14 @@
 | 结构 | Dolby Vision profile、cross-compatibility、增强层标志、立体增强层进入 `MediaSourceInformation` | PlaybackCore 单测 |
 | 结构 | 本地与远程两种取源方式逐字段一致 | `verify_source_parity_matrix.py --mode parity` |
 | 物理 | 出画且非纯色、非冻结 | `playback_mode_matrix.py` 的双帧亮度与 SSIM 闸 |
-| 物理 | 动态范围片源的采集帧与验收参照物的差异在阈值内 | **待建**，参照物机制尚不存在 |
+| 物理 | 动态范围片源的采集帧与验收参照物的差异在阈值内 | `verify_reference_frames.py`，参照物由验收场铸造，缺参照时以退出码 2 大声失败 |
 | 感知 | 佩戴者确认动态范围各家族（HDR10、HLG、Dolby Vision 各 profile）色彩与亮度正常 | **待做**，每家族一次，确认帧即成参照物 |
 
 ## 证明的终态
 
 结构侧：三个脚本零失效，且 parity 矩阵改动前后逐字段无差异。物理侧：立体与投影 `visual.verdict = content` 即为终态；动态范围还需与参照物比对在阈值内。感知侧：佩戴者对每个动态范围家族一次性确认，确认当时采集的帧成为参照物，此后由机器比对。
 
-**参照物机制是这份地图最重要的缺口。**Profile 5 全程偏色时全套自动化通过，正是因为结构证据没人验、物理证据没有参照、感知验收没做过，三条同时为空。
+参照物由 `verify_reference_frames.py` 铸造与比对，本体存放在 `TestMedia/References/`，验收片单在其 `acceptance-clips.md`。Profile 5 全程偏色时全套自动化通过，正是因为结构证据没人验、物理证据没有参照、感知验收没做过，三条同时为空。
 
 ## Gotchas
 
