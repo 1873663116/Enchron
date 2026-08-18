@@ -2292,7 +2292,7 @@
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 1100,
+          "line": 1102,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2413,7 +2413,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1152,
+          "line": 1154,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2426,7 +2426,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1162,
+          "line": 1164,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2452,7 +2452,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1157,
+          "line": 1159,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2465,7 +2465,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1146,
+          "line": 1148,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2478,7 +2478,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1186,
+          "line": 1188,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2504,7 +2504,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1400,
+          "line": 1402,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2517,7 +2517,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1490,
+          "line": 1492,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2530,7 +2530,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1504,
+          "line": 1506,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2543,7 +2543,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1784,
+          "line": 1786,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -4345,6 +4345,86 @@
         "docked"
       ],
       "source": "Apps/Enchron/MainView.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "controls-auto-hide"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:controls-auto-hide",
+      "kind": "menu-selection",
+      "presentations": [
+        "window"
+      ],
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "default-scenic-environment"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:default-scenic-environment",
+      "kind": "menu-selection",
+      "presentations": [
+        "window"
+      ],
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "default-speed"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:default-speed",
+      "kind": "menu-selection",
+      "presentations": [
+        "window"
+      ],
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "end-behavior"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:end-behavior",
+      "kind": "menu-selection",
+      "presentations": [
+        "window"
+      ],
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "resume-strategy"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:resume-strategy",
+      "kind": "menu-selection",
+      "presentations": [
+        "window"
+      ],
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
     },
     {
       "id": "negative:immersive-resident-window",

@@ -15,6 +15,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json"
 MATRIX_BASELINE = REPOSITORY_ROOT / "Config/reachability_matrix_baseline.json"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
+SETTINGS_MENU_FAMILIES = (
+    "resume-strategy",
+    "end-behavior",
+    "default-scenic-environment",
+    "default-speed",
+    "controls-auto-hide",
+)
 SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Apps/Enchron",
     REPOSITORY_ROOT / "Modules/DesignSystem",
@@ -758,6 +765,21 @@ def build_inventory() -> dict[str, object]:
             operations.append(operation)
 
     semantic_operations = [
+        *[
+            {
+                "id": f"menu:settings:{family}",
+                "kind": "menu-selection",
+                "presentations": ["window"],
+                "source": "Apps/Enchron/Screens/SettingsScreen.swift",
+                "debugEquivalent": {
+                    "listVerb": "listMenuItems",
+                    "selectVerb": "selectMenuItem",
+                    "host": "settings",
+                    "families": [family],
+                },
+            }
+            for family in SETTINGS_MENU_FAMILIES
+        ],
         {
             "id": "command:toggleControls",
             "kind": "command",
@@ -869,14 +891,23 @@ def extend_matrix_baseline(
         expected - existing,
         key=lambda key: (presentation_order[key[0]], key[1]),
     )
-    copied_cells.extend(
-        {
-            "operation": operation,
-            "presentation": presentation,
-            "verdict": "known-defect",
-        }
-        for presentation, operation in missing
-    )
+    operations_by_id = {
+        str(operation["id"]): operation
+        for operation in inventory["operations"]  # type: ignore[index]
+    }
+    for presentation, operation_id in missing:
+        explicit_presentations = operations_by_id[operation_id].get("presentations")
+        applicable = (
+            not isinstance(explicit_presentations, list)
+            or presentation in explicit_presentations
+        )
+        copied_cells.append(
+            {
+                "operation": operation_id,
+                "presentation": presentation,
+                "verdict": "known-defect" if applicable else "not-applicable",
+            }
+        )
     return {**baseline, "cells": copied_cells}
 
 

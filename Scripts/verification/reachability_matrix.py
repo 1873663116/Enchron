@@ -1967,12 +1967,14 @@ class ReachabilityRun:
             "default-speed",
             "controls-auto-hide",
         ):
+            operation_id = f"menu:settings:{family}"
             before = self.copy_probe(f"settings-{family}-before")
             offset = len(before)
             target, _, selected = self.select_debug_menu_item(
                 presentation=presentation,
                 host="settings",
                 family=family,
+                driven_operations=(operation_id,),
             )
             probe = self.copy_probe(f"settings-{family}-selected")
             if selected.get("success") is True and target is not None and any(
@@ -1981,7 +1983,7 @@ class ReachabilityRun:
             ):
                 self.delivered(
                     presentation,
-                    "command:selectMenuItem",
+                    operation_id,
                     self.events[-1]["evidence"],
                     "The visible Settings host invoked its shared menu binding and appended the family probe.",
                     has_accessibility_target=False,

@@ -221,6 +221,30 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
                 self.assertEqual(route["selectVerb"], "selectMenuItem")
                 self.assertIn("parentOperation", route)
 
+    def test_settings_menu_families_are_independent_operations(self) -> None:
+        expected_families = (
+            "resume-strategy",
+            "end-behavior",
+            "default-scenic-environment",
+            "default-speed",
+            "controls-auto-hide",
+        )
+
+        for family in expected_families:
+            operation_id = f"menu:settings:{family}"
+            with self.subTest(operation_id=operation_id):
+                operation = self.operations[operation_id]
+                self.assertEqual(operation["presentations"], ["window"])
+                self.assertEqual(
+                    operation["source"],
+                    "Apps/Enchron/Screens/SettingsScreen.swift",
+                )
+                route = operation["debugEquivalent"]
+                self.assertEqual(route["listVerb"], "listMenuItems")
+                self.assertEqual(route["selectVerb"], "selectMenuItem")
+                self.assertEqual(route["host"], "settings")
+                self.assertEqual(route["families"], [family])
+
 
 class MatrixBaselineExtensionTests(unittest.TestCase):
     def test_adds_only_missing_cells_as_known_defects(self) -> None:
@@ -258,6 +282,30 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
                 "presentation": "window",
                 "verdict": "known-defect",
             },
+        )
+
+    def test_marks_new_cells_outside_explicit_presentations_not_applicable(self) -> None:
+        baseline = {
+            "schemaVersion": 1,
+            "cells": [],
+        }
+        generated_inventory = {
+            "operations": [
+                {
+                    "id": "menu:settings:resume-strategy",
+                    "presentations": ["window"],
+                }
+            ]
+        }
+
+        extended = inventory.extend_matrix_baseline(
+            baseline,
+            generated_inventory,
+        )
+
+        self.assertEqual(
+            [cell["verdict"] for cell in extended["cells"]],
+            ["known-defect", "not-applicable", "not-applicable", "not-applicable"],
         )
 
 
