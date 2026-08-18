@@ -162,6 +162,7 @@ struct SettingsScreen: View {
                     options: PlaybackModel.PlaybackSpeed.allCases.map { speed in
                         SettingListGroup.MenuOption(speedTitle(speed.value)) {
                             viewModel.update { $0.defaultPlaybackSpeed = speed.value }
+                            recordMenuReachability("default-speed")
                         }
                     }
                 )
@@ -268,11 +269,20 @@ struct SettingsScreen: View {
 
     // MARK: - Value mappings
 
-    private func setResume(_ value: ResumePolicy) { viewModel.update { $0.resumePolicy = value } }
-    private func setEnd(_ value: PlaybackEndBehavior) { viewModel.update { $0.playbackEndBehavior = value } }
+    private func setResume(_ value: ResumePolicy) {
+        viewModel.update { $0.resumePolicy = value }
+        recordMenuReachability("resume-strategy")
+    }
+
+    private func setEnd(_ value: PlaybackEndBehavior) {
+        viewModel.update { $0.playbackEndBehavior = value }
+        recordMenuReachability("end-behavior")
+    }
+
     private func setAutoHide(_ seconds: Int) {
         viewModel.update { $0.controlsAutoHideSeconds = seconds }
         appModel.controlsAutoHideSeconds = seconds
+        recordMenuReachability("controls-auto-hide")
     }
 
     private func setDefaultScenicEnvironment(
@@ -281,6 +291,15 @@ struct SettingsScreen: View {
         guard environment.isScenic else { return }
         viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
         appModel.configureDefaultEnvironment(environment)
+        recordMenuReachability("default-scenic-environment")
+    }
+
+    private func recordMenuReachability(_ family: String) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability settings delivered action=menu.\(family)"
+        )
+#endif
     }
 
     private var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
