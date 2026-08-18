@@ -418,12 +418,14 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 {
                     "id": "window-a",
                     "presentation": "window",
+                    "expectedMaximumSteps": 100,
                     "scenarios": ["sources-smb"],
                     "operations": ["accessibility:candidate"],
                 },
                 {
                     "id": "window-a",
                     "presentation": "wrong",
+                    "expectedMaximumSteps": 100,
                     "scenarios": ["missing"],
                     "operations": ["accessibility:missing"],
                 },
@@ -444,6 +446,31 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 "segment window-a has unknown scenario missing",
                 "segment window-a has unknown operation accessibility:missing",
             ],
+        )
+
+    def test_segment_plan_rejects_a_step_budget_over_one_hundred(self) -> None:
+        plan = {
+            "schemaVersion": 1,
+            "segments": [
+                {
+                    "id": "docked-too-large",
+                    "presentation": "docked",
+                    "expectedMaximumSteps": 101,
+                    "scenarios": ["docked-placement"],
+                    "operations": ["accessibility:candidate"],
+                }
+            ],
+        }
+
+        errors = matrix.validate_segment_plan(
+            plan,
+            operation_ids={"accessibility:candidate"},
+            scenario_names={"docked-placement"},
+        )
+
+        self.assertEqual(
+            errors,
+            ["segment docked-too-large expectedMaximumSteps must be between 1 and 100"],
         )
 
 

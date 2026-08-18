@@ -40,11 +40,24 @@ SEGMENT_SCENARIO_NAMES = {
     "browser-core",
     "breadcrumbs",
     "docked",
+    "docked-environment",
+    "docked-exit",
+    "docked-main-window-issues",
+    "docked-menus",
+    "docked-placement",
+    "docked-resident-window",
+    "docked-spatial-secondary-issue",
+    "docked-transport-issues",
+    "emby-version-season",
     "file-browser-errors",
     "library-conditions",
     "library-reference-move",
     "manage-add",
     "panorama",
+    "panorama-immersive-issues",
+    "panorama-panel-exit",
+    "panorama-resident-window",
+    "panorama-spatial-secondary-issue",
     "playback-failures",
     "player-ui-candidates",
     "player-panel-portal-menus",
@@ -301,6 +314,15 @@ def validate_segment_plan(
         if presentation not in PRESENTATIONS:
             errors.append(
                 f"segment {name or '<missing>'} has unknown presentation {presentation}"
+            )
+        expected_maximum_steps = segment.get("expectedMaximumSteps")
+        if (
+            not isinstance(expected_maximum_steps, int)
+            or isinstance(expected_maximum_steps, bool)
+            or not 1 <= expected_maximum_steps <= 100
+        ):
+            errors.append(
+                f"segment {name or '<missing>'} expectedMaximumSteps must be between 1 and 100"
             )
         scenarios = segment.get("scenarios")
         if not isinstance(scenarios, list) or not scenarios:
@@ -2022,11 +2044,28 @@ class ReachabilityRun:
         presentation = "window"
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
+        folder_before = self.copy_probe("media-library-folder-before")
+        folder_offset = len(folder_before)
         folder = self.tap(
             presentation,
             f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
             operation_id="accessibility:MediaLibrary-grid-folder-{folder.name}",
         )
+        folder_probe = self.wait_for_probe(
+            "media-library-folder-open",
+            folder_offset,
+            "reachability files delivered action=library.folder",
+        )
+        if folder.get("success") is True and any(
+            "reachability files delivered action=library.folder" in line
+            for line in folder_probe[folder_offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:MediaLibrary-grid-folder-{folder.name}",
+                self.events[-1]["evidence"],
+                "The Media Library folder card reached its navigation handler before the breadcrumb was exercised.",
+            )
         if folder.get("success") is True:
             before = self.copy_probe("media-library-breadcrumb-before")
             offset = len(before)
@@ -2125,6 +2164,78 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
             )
+
+    def emby_version_season_scenario(self) -> None:
+        presentation = "window"
+        found_families: set[str] = set()
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        home = self.controller("snapshot", "--no-screenshot")
+        candidate_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(home)
+            if identifier.startswith(
+                ("Emby-PosterCard-", "Emby-StillCard-")
+            )
+        )
+        for card_identifier in candidate_identifiers:
+            if found_families == {"version", "season"}:
+                break
+            self.relaunch()
+            self.tap(presentation, "Emby-Navigation-Tab")
+            opened = self.tap(presentation, card_identifier)
+            if opened.get("success") is not True:
+                continue
+            detail = self.controller("snapshot", "--no-screenshot")
+            detail_identifiers = self.hierarchy_identifiers(detail)
+            for family, parent_identifier, operation_ids in (
+                (
+                    "version",
+                    "Emby-Detail-Version",
+                    ("accessibility:Emby-Detail-Version",),
+                ),
+                (
+                    "season",
+                    "Emby-Season-Picker",
+                    (
+                        "accessibility:Emby-Season-Picker",
+                        "accessibility:Emby-Season-{season.metadata.id.rawValue}",
+                    ),
+                ),
+            ):
+                if family in found_families or parent_identifier not in detail_identifiers:
+                    continue
+                before = self.copy_probe(f"emby-{family}-before")
+                offset = len(before)
+                parent = self.tap(presentation, parent_identifier)
+                for operation_id in operation_ids:
+                    self.mark_driven(presentation, operation_id)
+                target, _, selected = self.select_debug_menu_item(
+                    presentation=presentation,
+                    host="emby",
+                    family=family,
+                    driven_operations=operation_ids,
+                )
+                probe = self.copy_probe(f"emby-{family}-selected")
+                command_completed = any(
+                    "testcmd selectMenuItem ok" in line
+                    for line in probe[offset:]
+                )
+                if (
+                    parent.get("success") is True
+                    and selected.get("success") is True
+                    and target is not None
+                    and command_completed
+                ):
+                    for operation_id in operation_ids:
+                        self.delivered_by_debug_menu_selection(
+                            presentation,
+                            operation_id,
+                            operation_ids[0],
+                            self.events[-1]["evidence"],
+                            f"The visible Emby {family} host invoked its product selection binding and the completed command probe followed it.",
+                        )
+                    found_families.add(family)
 
     def player_panel_portal_menu_scenario(self) -> None:
         opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
@@ -2902,7 +3013,7 @@ class ReachabilityRun:
             )
 
 
-    def panorama_scenario(self) -> bool:
+    def enter_panorama_playback(self) -> bool:
         presentation = "panorama"
         opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
         if opened.get("success") is not True:
@@ -2910,6 +3021,8 @@ class ReachabilityRun:
         if not self.ensure_window_projection("180°"):
             return False
         self.show_controls()
+        before = self.copy_probe("panorama-transition-before")
+        offset = len(before)
         entered = self.controller(
             "tapSequence",
             "--identifiers",
@@ -2924,7 +3037,27 @@ class ReachabilityRun:
         spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
         if not isinstance(spatial.get("matchedElement"), dict):
             return False
+        probe = self.copy_probe("panorama-transition-settled")
+        if any(
+            "reachability topActions delivered action=enterPanorama" in line
+            for line in probe[offset:]
+        ):
+            self.mark_observation(
+                presentation,
+                "accessibility:PlayerUI-TopAction-resumePanorama",
+                exists=True,
+                hittable=True,
+                received=True,
+                evidence=self.events[-1]["evidence"],
+                reason="The visible Panorama entry action appended its product probe and the immersive state became addressable.",
+            )
         self.observe(presentation, "Panorama playback")
+        return True
+
+    def panorama_scenario(self) -> bool:
+        presentation = "panorama"
+        if not self.enter_panorama_playback():
+            return False
         controls = self.show_controls()
         visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
@@ -3190,8 +3323,7 @@ class ReachabilityRun:
                 has_accessibility_target=False,
             )
 
-    def docked_media_information_scenario(self) -> None:
-        presentation = "docked"
+    def player_panel_media_information_scenario(self, presentation: str) -> None:
         self.show_controls()
         before = self.copy_probe("docked-media-information-before")
         offset = len(before)
@@ -3217,6 +3349,9 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "The expanded media information close button reached its product handler and appended a probe.",
             )
+
+    def docked_media_information_scenario(self) -> None:
+        self.player_panel_media_information_scenario("docked")
 
     def exercise_playback_issue(
         self,
@@ -3264,8 +3399,7 @@ class ReachabilityRun:
             )
         return delivered
 
-    def docked_issue_scenario(self) -> None:
-        presentation = "docked"
+    def immersive_issue_scenario(self, presentation: str) -> None:
         for category, identifier, action in (
             ("environmentLoadingFailed", "PlayerUI-spatialFailure-primary", "retry"),
             ("playbackControlFailed", "PlayerUI-playbackIssue-confirm", "confirm"),
@@ -3277,6 +3411,9 @@ class ReachabilityRun:
                 identifier=identifier,
                 action=action,
             )
+
+    def docked_issue_scenario(self) -> None:
+        self.immersive_issue_scenario("docked")
 
     def docked_main_window_issue_scenario(self) -> None:
         presentation = "docked"
@@ -3324,24 +3461,191 @@ class ReachabilityRun:
         self.show_controls()
         before = probe
         offset = len(before)
-        stopped = self.tap(presentation, "PlayerUI-InfoBar-button-back")
+        stopped = self.tap("window", "PlayerUI-InfoBar-button-back")
         probe = self.copy_probe("docked-route-back")
         if stopped.get("success") is True and any(
             "reachability top actions delivered action=back" in line
             for line in probe[offset:]
         ):
             self.delivered(
-                presentation,
+                "window",
                 "accessibility:PlayerUI-InfoBar-button-back",
                 self.events[-1]["evidence"],
                 "The post-Docked Window route stopped playback through the product coordinator and appended its probe.",
             )
 
         self.exercise_playback_issue(
-            presentation,
+            "window",
             category="presentationConversionFailed",
             identifier="PlayerUI-presentation-conversion-dismiss",
             action="confirm",
+        )
+
+    def docked_placement_segment_scenario(self) -> None:
+        presentation = "docked"
+        if not self.enter_docked_playback():
+            return
+        for axis, value in (
+            ("screenSize", "1.4"),
+            ("distance", "3.0"),
+            ("elevation", "5.0"),
+        ):
+            result = self.app_command(
+                "setDockedPlacement", axis=axis, value=value
+            )
+            if result.get("success") is True:
+                evidence = self.events[-1]["evidence"]
+                self.delivered(
+                    presentation,
+                    "command:setDockedPlacement",
+                    evidence,
+                    "The requested Docked placement value reached the shared product setter immediately after the settled transition.",
+                    has_accessibility_target=False,
+                )
+                self.delivered(
+                    presentation,
+                    "accessibility:PlayerPanel-{identifier}-slider",
+                    evidence,
+                    "The DEBUG verb reached the same setter used by the placement slider.",
+                )
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(
+            visible.get("matchedElement"), dict
+        ):
+            self.delivered(
+                presentation,
+                "command:toggleControls",
+                self.events[-1]["evidence"],
+                "The Docked attachment controls entered the hierarchy.",
+                has_accessibility_target=False,
+            )
+        self.docked_settings_scenario()
+        self.docked_media_information_scenario()
+        self.observe(presentation, "Docked placement and panel")
+
+    def docked_environment_segment_scenario(self) -> None:
+        if self.enter_docked_playback(dock_choice="dark"):
+            self.docked_environment_card_scenario()
+
+    def docked_menu_segment_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.player_panel_menu_scenario("docked")
+
+    def docked_transport_issue_segment_scenario(self) -> None:
+        if not self.enter_docked_playback():
+            return
+        self.transport_scenario("docked")
+        self.seek_scenario("docked", "0.3")
+        self.docked_issue_scenario()
+
+    def immersive_resident_window_scenario(self, presentation: str) -> None:
+        before = self.observe(presentation, "before resident-window negative")
+        toggle = self.app_command("toggleBlackoutProbeWindow")
+        after = self.controller("snapshot", "--no-screenshot")
+        before_hierarchy = str(before.get("hierarchy", ""))
+        after_hierarchy = str(after.get("hierarchy", ""))
+        before_identifiers = self.hierarchy_identifiers(before)
+        after_identifiers = self.hierarchy_identifiers(after)
+        no_named_node = "Blackout Probe" not in after_hierarchy
+        no_new_identifier = after_identifiers <= before_identifiers
+        hierarchy_evidence = self.events[-1]["evidence"]
+        cleanup = self.app_command("toggleBlackoutProbeWindow")
+        cleanup_evidence = self.events[-1]["evidence"]
+        if immersive_resident_window_is_hidden(
+            toggle=toggle,
+            cleanup=cleanup,
+            no_named_node=no_named_node,
+            no_new_identifier=no_new_identifier,
+        ):
+            self.delivered(
+                presentation,
+                "negative:immersive-resident-window",
+                hierarchy_evidence,
+                "Opening the mechanism added no named or identifier-addressable Accessibility target.",
+                has_accessibility_target=False,
+            )
+            if toggle.get("success") is not True:
+                self.cells[
+                    (presentation, "negative:immersive-resident-window")
+                ]["evidence"].append(cleanup_evidence)
+            return
+        cell = self.cells[(presentation, "negative:immersive-resident-window")]
+        cell["evidence"].extend((hierarchy_evidence, cleanup_evidence))
+        if no_named_node and no_new_identifier:
+            cell["reason"] = (
+                "The Accessibility hierarchy remained hidden, but neither command "
+                "response proved that the mechanism window was open."
+            )
+        else:
+            cell["reason"] = (
+                "The mechanism exposed a named or identifier-addressable Accessibility target "
+                f"(newIdentifiers={sorted(after_identifiers - before_identifiers)}, "
+                f"named={not no_named_node})."
+            )
+
+    def docked_resident_window_segment_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.immersive_resident_window_scenario("docked")
+
+    def docked_exit_segment_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.docked_exit_scenario()
+
+    def docked_spatial_secondary_issue_segment_scenario(self) -> None:
+        if not self.enter_docked_playback():
+            return
+        self.exercise_playback_issue(
+            "docked",
+            category="environmentLoadingFailed",
+            identifier="PlayerUI-spatialFailure-secondary",
+            action="close",
+        )
+
+    def panorama_panel_exit_segment_scenario(self) -> None:
+        presentation = "panorama"
+        if not self.enter_panorama_playback():
+            return
+        self.player_panel_media_information_scenario(presentation)
+        self.show_controls()
+        before = self.copy_probe("panorama-exit-before")
+        offset = len(before)
+        exited = self.tap(presentation, "PlayerPanel-button-exit-spatial")
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        probe = self.copy_probe("panorama-exit-settled")
+        if (
+            exited.get("success") is True
+            and "presentation=portal" in value
+            and "transition=none" in value
+            and any(
+                "reachability playerPanel delivered action=exitSpatial" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-button-exit-spatial",
+                self.events[-1]["evidence"],
+                "The Panorama exit button appended its product probe and the control plane settled in Portal.",
+            )
+
+    def panorama_immersive_issue_segment_scenario(self) -> None:
+        if self.enter_panorama_playback():
+            self.immersive_issue_scenario("panorama")
+
+    def panorama_resident_window_segment_scenario(self) -> None:
+        if self.enter_panorama_playback():
+            self.immersive_resident_window_scenario("panorama")
+
+    def panorama_spatial_secondary_issue_segment_scenario(self) -> None:
+        if not self.enter_panorama_playback():
+            return
+        self.exercise_playback_issue(
+            "panorama",
+            category="environmentLoadingFailed",
+            identifier="PlayerUI-spatialFailure-secondary",
+            action="close",
         )
 
     def docked_scenario(self) -> None:
@@ -3467,6 +3771,17 @@ class ReachabilityRun:
             "browser-core": self.browser_scenario,
             "breadcrumbs": self.breadcrumb_scenario,
             "docked": self.docked_scenario,
+            "docked-environment": self.docked_environment_segment_scenario,
+            "docked-exit": self.docked_exit_segment_scenario,
+            "docked-main-window-issues": self.docked_main_window_issue_scenario,
+            "docked-menus": self.docked_menu_segment_scenario,
+            "docked-placement": self.docked_placement_segment_scenario,
+            "docked-resident-window": self.docked_resident_window_segment_scenario,
+            "docked-spatial-secondary-issue": (
+                self.docked_spatial_secondary_issue_segment_scenario
+            ),
+            "docked-transport-issues": self.docked_transport_issue_segment_scenario,
+            "emby-version-season": self.emby_version_season_scenario,
             "file-browser-errors": self.file_browser_error_scenario,
             "library-conditions": lambda: self.browser_condition_scenario(
                 include_source_scenarios=False
@@ -3474,6 +3789,16 @@ class ReachabilityRun:
             "library-reference-move": self.library_reference_move_scenario,
             "manage-add": self.manage_add_scenario,
             "panorama": self.panorama_scenario,
+            "panorama-immersive-issues": (
+                self.panorama_immersive_issue_segment_scenario
+            ),
+            "panorama-panel-exit": self.panorama_panel_exit_segment_scenario,
+            "panorama-resident-window": (
+                self.panorama_resident_window_segment_scenario
+            ),
+            "panorama-spatial-secondary-issue": (
+                self.panorama_spatial_secondary_issue_segment_scenario
+            ),
             "playback-failures": self.playback_failure_scenario,
             "player-ui-candidates": self.player_ui_candidate_scenario,
             "player-panel-portal-menus": self.player_panel_portal_menu_scenario,
