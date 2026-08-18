@@ -1,8 +1,35 @@
+diff --git a/Apps/Enchron/EnchronApplication.swift b/Apps/Enchron/EnchronApplication.swift
+index 6030f95d..cbfa2326 100644
+--- a/Apps/Enchron/EnchronApplication.swift
++++ b/Apps/Enchron/EnchronApplication.swift
+@@ -380,13 +380,12 @@ private extension MediaPlaybackItem {
+         case .sourceDirectory: .sourceDirectory
+         }
+         return PlaybackLaunchRequest(
+-            url: url,
++            source: source,
+             displayName: displayName,
+             fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
+             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
+             collectionOrigin: playbackOrigin,
+             versionedIdentity: versionedIdentity,
+-            sourceAccess: accessLease,
+             externalSubtitleSources: externalSubtitleSources,
+             externalSubtitleErrorMessage: externalSubtitleErrorMessage
+         )
 diff --git a/Config/design_source_architecture_inputs.xcfilelist b/Config/design_source_architecture_inputs.xcfilelist
-index 093f0815..c777990a 100644
+index 093f0815..2433398b 100644
 --- a/Config/design_source_architecture_inputs.xcfilelist
 +++ b/Config/design_source_architecture_inputs.xcfilelist
-@@ -41,7 +41,6 @@ $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrary.swift
+@@ -25,6 +25,7 @@ $(SRCROOT)/Modules/Emby/EmbyClient.swift
+ $(SRCROOT)/Modules/Emby/EmbyClientProtocol.swift
+ $(SRCROOT)/Modules/Emby/EmbyItemPresentation.swift
+ $(SRCROOT)/Modules/Emby/EmbyLaunchRoute.swift
++$(SRCROOT)/Modules/Emby/EmbyMediaByteSource.swift
+ $(SRCROOT)/Modules/Emby/EmbyModels.swift
+ $(SRCROOT)/Modules/Emby/EmbyPlaybackBridge.swift
+ $(SRCROOT)/Modules/Emby/EmbyScreenViewModels.swift
+@@ -41,7 +42,6 @@ $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrary.swift
  $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrarySearch.swift
  $(SRCROOT)/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
  $(SRCROOT)/Modules/MediaLibrary/Model/MediaSource.swift
@@ -10,19 +37,32 @@ index 093f0815..c777990a 100644
  $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailCache.swift
  $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailService.swift
  $(SRCROOT)/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
-@@ -64,6 +63,7 @@ $(SRCROOT)/Modules/MediaLibrary/Views/LibraryViewControls.swift
+@@ -64,10 +64,11 @@ $(SRCROOT)/Modules/MediaLibrary/Views/LibraryViewControls.swift
  $(SRCROOT)/Modules/MediaLibrary/Views/SourceSidebar.swift
  $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
  $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 +$(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
++$(SRCROOT)/Modules/MediaSource/MediaByteStreamHandle.swift
  $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
  $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
  $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
+-$(SRCROOT)/Modules/MediaSource/ResolvedMediaSource.swift
+ $(SRCROOT)/Modules/MediaSource/VersionedMediaIdentity.swift
+ $(SRCROOT)/Modules/PlaybackFeature/Domain/MediaFormat.swift
+ $(SRCROOT)/Modules/PlaybackFeature/Domain/MediaStateStore.swift
 diff --git a/Enchron.xcodeproj/project.pbxproj b/Enchron.xcodeproj/project.pbxproj
-index 107517ca..c12f52d5 100644
+index 107517ca..c158c64c 100644
 --- a/Enchron.xcodeproj/project.pbxproj
 +++ b/Enchron.xcodeproj/project.pbxproj
-@@ -152,7 +152,6 @@
+@@ -136,6 +136,7 @@
+ 				Emby/EmbyClientProtocol.swift,
+ 				Emby/EmbyItemPresentation.swift,
+ 				Emby/EmbyLaunchRoute.swift,
++				Emby/EmbyMediaByteSource.swift,
+ 				Emby/EmbyModels.swift,
+ 				Emby/EmbyPlaybackBridge.swift,
+ 				Emby/EmbyScreens.swift,
+@@ -152,7 +153,6 @@
  				MediaLibrary/Model/MediaLibrarySearch.swift,
  				MediaLibrary/Model/MediaPlaybackItem.swift,
  				MediaLibrary/Model/MediaSource.swift,
@@ -30,14 +70,493 @@ index 107517ca..c12f52d5 100644
  				MediaLibrary/Services/ThumbnailCache.swift,
  				MediaLibrary/Services/ThumbnailService.swift,
  				MediaLibrary/Sources/Fake/FakeFileDataSource.swift,
-@@ -167,6 +166,7 @@
+@@ -167,10 +167,11 @@
  				MediaLibrary/Views/ConnectionFormPanel.swift,
  				MediaSource/KeychainStore.swift,
  				MediaSource/MediaAccessLease.swift,
 +				MediaSource/MediaByteStream.swift,
++				MediaSource/MediaByteStreamHandle.swift,
  				MediaSource/NaturalMediaNameOrder.swift,
  				MediaSource/NetworkMonitor.swift,
  				MediaSource/ResolvedExternalSubtitleSource.swift,
+-				MediaSource/ResolvedMediaSource.swift,
+ 				MediaSource/VersionedMediaIdentity.swift,
+ 				PlaybackFeature/Domain/MediaFormat.swift,
+ 				PlaybackFeature/Domain/MediaStateStore.swift,
+diff --git a/Modules/Emby/EmbyMediaByteSource.swift b/Modules/Emby/EmbyMediaByteSource.swift
+new file mode 100644
+index 00000000..e918ced5
+--- /dev/null
++++ b/Modules/Emby/EmbyMediaByteSource.swift
+@@ -0,0 +1,186 @@
++import Foundation
++import MediaSource
++
++enum EmbyMediaByteSourceError: LocalizedError, Equatable {
++    case invalidRange
++    case invalidResponse
++    case httpStatus(Int)
++    case unsatisfiableRange(totalLength: Int64?)
++    case mismatchedRange
++    case shortRead(expected: Int, actual: Int)
++
++    var errorDescription: String? {
++        switch self {
++        case .invalidRange:
++            "The requested Emby byte range is invalid."
++        case .invalidResponse:
++            "The Emby server returned an invalid byte response."
++        case .httpStatus(let status):
++            "The Emby server returned HTTP status \(status) while reading video data."
++        case .unsatisfiableRange:
++            "The Emby server could not satisfy the requested byte range."
++        case .mismatchedRange:
++            "The Emby server returned a different byte range than requested."
++        case .shortRead(let expected, let actual):
++            "The Emby server returned \(actual) bytes when \(expected) were requested."
++        }
++    }
++}
++
++nonisolated final class EmbyMediaByteSource: MediaByteSource, @unchecked Sendable {
++    private struct ContentRange {
++        let start: Int64
++        let end: Int64
++        let totalLength: Int64
++    }
++
++    let seekability = MediaByteSourceSeekability.randomAccess
++    let liveness = MediaByteSourceLiveness.finite
++    let suggestedBufferDepth = MediaByteBufferDepth.bytes(1_024 * 1_024)
++
++    private let streamURL: URL
++    private let accessToken: String
++    private let session: URLSession
++    private let lock = NSLock()
++    private var serverLength: Int64?
++
++    var totalLength: Int64? {
++        lock.withLock { serverLength }
++    }
++
++    init(
++        streamURL: URL,
++        accessToken: String,
++        contentLength: Int64?,
++        session: URLSession
++    ) {
++        self.streamURL = Self.authenticatedURL(streamURL, accessToken: accessToken)
++        self.accessToken = accessToken
++        self.session = session
++        serverLength = contentLength
++    }
++
++    func read(in range: Range<Int64>) async throws -> Data {
++        guard range.lowerBound >= 0,
++              range.upperBound > range.lowerBound,
++              let expectedCount = Int(exactly: range.upperBound - range.lowerBound) else {
++            throw EmbyMediaByteSourceError.invalidRange
++        }
++
++        var request = URLRequest(url: streamURL)
++        request.setValue(
++            "bytes=\(range.lowerBound)-\(range.upperBound - 1)",
++            forHTTPHeaderField: "Range"
++        )
++        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
++        request.setValue(accessToken, forHTTPHeaderField: "X-Emby-Token")
++
++        let (data, response) = try await session.data(for: request)
++        guard let response = response as? HTTPURLResponse else {
++            throw EmbyMediaByteSourceError.invalidResponse
++        }
++        if response.statusCode == 416 {
++            let length = Self.unsatisfiedLength(
++                response.value(forHTTPHeaderField: "Content-Range")
++            )
++            if let length { updateServerLength(length) }
++            throw EmbyMediaByteSourceError.unsatisfiableRange(totalLength: length)
++        }
++        guard response.statusCode == 206 else {
++            throw EmbyMediaByteSourceError.httpStatus(response.statusCode)
++        }
++        guard let contentRange = Self.contentRange(
++            response.value(forHTTPHeaderField: "Content-Range")
++        ) else {
++            throw EmbyMediaByteSourceError.invalidResponse
++        }
++
++        updateServerLength(contentRange.totalLength)
++        guard contentRange.start == range.lowerBound,
++              contentRange.end == range.upperBound - 1,
++              contentRange.end < contentRange.totalLength else {
++            throw EmbyMediaByteSourceError.mismatchedRange
++        }
++        guard data.count == expectedCount else {
++            throw EmbyMediaByteSourceError.shortRead(
++                expected: expectedCount,
++                actual: data.count
++            )
++        }
++        return data
++    }
++
++    private func updateServerLength(_ length: Int64) {
++        lock.withLock { serverLength = length }
++    }
++
++    private static func authenticatedURL(_ url: URL, accessToken: String) -> URL {
++        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
++            return url
++        }
++        var queryItems = components.queryItems ?? []
++        queryItems.removeAll { $0.name.caseInsensitiveCompare("api_key") == .orderedSame }
++        queryItems.append(URLQueryItem(name: "api_key", value: accessToken))
++        components.queryItems = queryItems
++        return components.url ?? url
++    }
++
++    private static func contentRange(
++        _ value: String?
++    ) -> ContentRange? {
++        guard let value else { return nil }
++        let fields = value.split(whereSeparator: \Character.isWhitespace)
++        guard fields.count == 2,
++              fields[0].caseInsensitiveCompare("bytes") == .orderedSame else {
++            return nil
++        }
++        let rangeAndLength = fields[1].split(
++            separator: "/",
++            maxSplits: 1,
++            omittingEmptySubsequences: false
++        )
++        guard rangeAndLength.count == 2,
++              let totalLength = Int64(rangeAndLength[1]),
++              totalLength >= 0 else {
++            return nil
++        }
++        let bounds = rangeAndLength[0].split(
++            separator: "-",
++            maxSplits: 1,
++            omittingEmptySubsequences: false
++        )
++        guard bounds.count == 2,
++              let start = Int64(bounds[0]),
++              let end = Int64(bounds[1]),
++              start >= 0,
++              end >= start else {
++            return nil
++        }
++        return ContentRange(
++            start: start,
++            end: end,
++            totalLength: totalLength
++        )
++    }
++
++    private static func unsatisfiedLength(_ value: String?) -> Int64? {
++        guard let value else { return nil }
++        let fields = value.split(whereSeparator: \Character.isWhitespace)
++        guard fields.count == 2,
++              fields[0].caseInsensitiveCompare("bytes") == .orderedSame else {
++            return nil
++        }
++        let rangeAndLength = fields[1].split(
++            separator: "/",
++            maxSplits: 1,
++            omittingEmptySubsequences: false
++        )
++        guard rangeAndLength.count == 2,
++              rangeAndLength[0] == "*",
++              let totalLength = Int64(rangeAndLength[1]),
++              totalLength >= 0 else {
++            return nil
++        }
++        return totalLength
++    }
++}
+diff --git a/Modules/Emby/EmbyPlaybackBridge.swift b/Modules/Emby/EmbyPlaybackBridge.swift
+index dd2115c9..007add96 100644
+--- a/Modules/Emby/EmbyPlaybackBridge.swift
++++ b/Modules/Emby/EmbyPlaybackBridge.swift
+@@ -148,6 +148,7 @@ public actor EmbyPlaybackBridge {
+     }
+ 
+     private let client: any EmbyClientProtocol
++    private let mediaByteSession: URLSession
+     private var server: EmbyAuthenticatedServer?
+     private var onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
+     private var queue: [QueuedEpisode] = []
+@@ -156,15 +157,18 @@ public actor EmbyPlaybackBridge {
+     public init(
+         client: any EmbyClientProtocol,
+         server: EmbyAuthenticatedServer?,
+-        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil
++        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
++        mediaByteSession: URLSession = .shared
+     ) {
+         self.client = client
++        self.mediaByteSession = mediaByteSession
+         self.server = server
+         self.onUnauthorized = onUnauthorized
+     }
+ 
+     public init(client: any EmbyClientProtocol) {
+         self.client = client
++        mediaByteSession = .shared
+         server = nil
+         onUnauthorized = nil
+     }
+@@ -288,8 +292,18 @@ public actor EmbyPlaybackBridge {
+         case .fromBeginning:
+             0
+         }
++        let byteSource = EmbyMediaByteSource(
++            streamURL: source.directPlayURL,
++            accessToken: server.accessToken,
++            contentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,
++            session: mediaByteSession
++        )
++        let streamHandle = try await MediaByteStreamEndpoint.shared.resolve(
++            byteSource,
++            filename: source.directPlayURL.lastPathComponent
++        )
+         return PlaybackLaunchRequest(
+-            url: source.directPlayURL,
++            source: streamHandle,
+             displayName: freshItem.metadata.name,
+             initialMetadata: PlaybackMediaMetadata(
+                 fileSizeInBytes: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,
+diff --git a/Modules/MediaLibrary/FileBrowsingViewModel.swift b/Modules/MediaLibrary/FileBrowsingViewModel.swift
+index 6c7d90d7..671c1e86 100644
+--- a/Modules/MediaLibrary/FileBrowsingViewModel.swift
++++ b/Modules/MediaLibrary/FileBrowsingViewModel.swift
+@@ -441,7 +441,7 @@ public final class FileBrowsingViewModel {
+     public func playbackItem(
+         for file: FileBrowsingDomain.MediaFile
+     ) async throws -> MediaPlaybackItem {
+-        let resolvedSource: ResolvedMediaSource
++        let resolvedSource: MediaByteStreamHandle
+         if let activeRemoteAdapter {
+             resolvedSource = try await activeRemoteAdapter.resolvePlayableSource(for: file)
+         } else {
+@@ -455,9 +455,16 @@ public final class FileBrowsingViewModel {
+             provider: activeRemoteAdapter ?? localDataSource,
+             dataSource: activeDataSource
+         )
+-        let sourceAccess = resolvedSource.accessLease ?? (playableURL.isFileURL
+-            ? MediaAccessLease.securityScoped(securityScopedRootURL ?? playableURL)
+-            : nil)
++        let source = if resolvedSource.accessLease == nil, playableURL.isFileURL {
++            MediaByteStreamHandle.localFile(
++                url: playableURL,
++                accessLease: MediaAccessLease.securityScoped(
++                    securityScopedRootURL ?? playableURL
++                )
++            )
++        } else {
++            resolvedSource
++        }
+         let versionedIdentity: VersionedMediaIdentity?
+         if let dataSource = activeDataSource {
+             versionedIdentity = VersionedMediaIdentity.remote(
+@@ -474,13 +481,12 @@ public final class FileBrowsingViewModel {
+         }
+         return MediaPlaybackItem(
+             id: file.id,
+-            url: playableURL,
++            source: source,
+             displayName: file.name,
+             stableIdentifier: stableIdentifier,
+             sizeInBytes: file.sizeInBytes,
+             collectionOrigin: .sourceDirectory,
+             versionedIdentity: versionedIdentity,
+-            accessLease: sourceAccess,
+             externalSubtitleSources: externalSubtitles.sources,
+             externalSubtitleErrorMessage: externalSubtitles.errorMessage
+         )
+@@ -510,7 +516,7 @@ public final class FileBrowsingViewModel {
+         var sources: [ResolvedExternalSubtitleSource] = []
+         var failureMessages: [String] = []
+         for candidate in candidates {
+-            let resolved: ResolvedMediaSource
++            let resolved: MediaByteStreamHandle
+             do {
+                 resolved = try await provider.resolveSubtitleSource(for: candidate)
+             } catch {
+@@ -622,10 +628,10 @@ public final class FileBrowsingViewModel {
+         dataSourceID: UUID,
+         path: String,
+         reference: FileBrowsingDomain.MediaReference
+-    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
+         if dataSourceID == localDataSourceID {
+             guard let url = URL(string: path) else { throw LocalDataSourceError.itemNotReachable }
+-            return ResolvedMediaSource(url: url)
++            return MediaByteStreamHandle.localFile(url: url)
+         }
+         guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
+             throw MediaReferenceResolver.ResolutionError.unavailableSource
+diff --git a/Modules/MediaLibrary/MediaLibraryViewModel.swift b/Modules/MediaLibrary/MediaLibraryViewModel.swift
+index 15e79d86..d927a21c 100644
+--- a/Modules/MediaLibrary/MediaLibraryViewModel.swift
++++ b/Modules/MediaLibrary/MediaLibraryViewModel.swift
+@@ -68,7 +68,7 @@ final class MediaReferenceResolver {
+         UUID,
+         String,
+         FileBrowsingDomain.MediaReference
+-    ) async throws -> ResolvedMediaSource)?
++    ) async throws -> MediaByteStreamHandle)?
+     var resolveExternalSubtitleSources: (@MainActor (
+         UUID,
+         String,
+@@ -84,11 +84,13 @@ final class MediaReferenceResolver {
+         try? fileManager.removeItem(at: Self.photoStagingRoot(fileManager: fileManager))
+     }
+ 
+-    fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedMediaSource {
++    fileprivate func resolve(
++        _ reference: FileBrowsingDomain.MediaReference
++    ) async throws -> MediaByteStreamHandle {
+         switch reference.locator {
+         case .file(let bookmark, let relativePath):
+             let resolved = try fileResolver.resolve(bookmark: bookmark, relativePath: relativePath)
+-            return ResolvedMediaSource(
++            return MediaByteStreamHandle.localFile(
+                 url: resolved.url,
+                 accessLease: resolved.access
+             )
+@@ -190,7 +192,9 @@ final class MediaReferenceResolver {
+         }
+     }
+ 
+-    private func resolvePhoto(localIdentifier: String) async throws -> ResolvedMediaSource {
++    private func resolvePhoto(
++        localIdentifier: String
++    ) async throws -> MediaByteStreamHandle {
+         let result = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
+         guard let asset = result.firstObject else { throw ResolutionError.unavailablePhoto }
+         let requestedAsset = await Self.requestOriginalAsset(SendablePHAsset(value: asset))
+@@ -199,14 +203,19 @@ final class MediaReferenceResolver {
+             let sourceAccess = MediaAccessLease.retaining(avAsset, securityScoped: urlAsset.url)
+             if (try? urlAsset.url.checkResourceIsReachable()) == true {
+                 logger.info("Photos source resolved as a directly readable file URL")
+-                return ResolvedMediaSource(url: urlAsset.url, accessLease: sourceAccess)
++                return MediaByteStreamHandle.localFile(
++                    url: urlAsset.url,
++                    accessLease: sourceAccess
++                )
+             }
+             sourceAccess.release()
+         }
+         return try await stageOriginalPhoto(asset)
+     }
+ 
+-    private func stageOriginalPhoto(_ asset: PHAsset) async throws -> ResolvedMediaSource {
++    private func stageOriginalPhoto(
++        _ asset: PHAsset
++    ) async throws -> MediaByteStreamHandle {
+         let resources = PHAssetResource.assetResources(for: asset)
+         guard let resource = resources.first(where: { $0.type == .fullSizeVideo })
+             ?? resources.first(where: { $0.type == .video })
+@@ -244,7 +253,7 @@ final class MediaReferenceResolver {
+         }
+ 
+         logger.info("Photos source staged for FFmpeg playback file=\(destination.lastPathComponent, privacy: .public)")
+-        return ResolvedMediaSource(
++        return MediaByteStreamHandle.localFile(
+             url: destination,
+             accessLease: MediaAccessLease.temporaryFile(destination)
+         )
+@@ -566,13 +575,12 @@ public final class MediaLibraryViewModel {
+         let stableIdentifier = "media-library/\(reference.id.uuidString)|\(reference.sizeInBytes)|local"
+         return MediaPlaybackItem(
+             id: reference.id,
+-            url: source.url,
++            source: source,
+             displayName: reference.name,
+             stableIdentifier: stableIdentifier,
+             sizeInBytes: reference.sizeInBytes,
+             collectionOrigin: .mediaLibrary,
+             versionedIdentity: versionedIdentity,
+-            accessLease: source.accessLease,
+             externalSubtitleSources: externalSubtitles.sources,
+             externalSubtitleErrorMessage: externalSubtitles.errorMessage
+         )
+diff --git a/Modules/MediaLibrary/Model/MediaBrowsing.swift b/Modules/MediaLibrary/Model/MediaBrowsing.swift
+index c555b03e..3acf4f4a 100644
+--- a/Modules/MediaLibrary/Model/MediaBrowsing.swift
++++ b/Modules/MediaLibrary/Model/MediaBrowsing.swift
+@@ -136,19 +136,19 @@ public nonisolated protocol FileProviding: Sendable {
+ 
+     func resolvePlayableSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource
++    ) async throws -> MediaByteStreamHandle
+ 
+     func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile]
+ 
+     func resolveSubtitleSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource
++    ) async throws -> MediaByteStreamHandle
+ }
+ 
+ public nonisolated extension FileProviding {
+     func resolveSubtitleSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
+         try await resolvePlayableSource(for: file)
+     }
+ }
+diff --git a/Modules/MediaLibrary/Model/MediaPlaybackItem.swift b/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
+index 38f90864..0548f738 100644
+--- a/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
++++ b/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
+@@ -9,36 +9,36 @@ public enum MediaCollectionOrigin: String, Sendable, Equatable {
+ 
+ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
+     public let id: UUID
+-    public let url: URL
++    public let source: MediaByteStreamHandle
+     public let displayName: String
+     public let stableIdentifier: String?
+     public let sizeInBytes: Int64?
+     public let collectionOrigin: MediaCollectionOrigin
+     public let versionedIdentity: VersionedMediaIdentity?
+-    public let accessLease: MediaAccessLease?
+     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
+     public let externalSubtitleErrorMessage: String?
+ 
++    public var url: URL { source.url }
++    public var accessLease: MediaAccessLease? { source.accessLease }
++
+     public init(
+         id: UUID,
+-        url: URL,
++        source: MediaByteStreamHandle,
+         displayName: String,
+         stableIdentifier: String? = nil,
+         sizeInBytes: Int64? = nil,
+         collectionOrigin: MediaCollectionOrigin,
+         versionedIdentity: VersionedMediaIdentity? = nil,
+-        accessLease: MediaAccessLease? = nil,
+         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+         externalSubtitleErrorMessage: String? = nil
+     ) {
+         self.id = id
+-        self.url = url
++        self.source = source
+         self.displayName = displayName
+         self.stableIdentifier = stableIdentifier
+         self.sizeInBytes = sizeInBytes
+         self.collectionOrigin = collectionOrigin
+         self.versionedIdentity = versionedIdentity
+-        self.accessLease = accessLease
+         self.externalSubtitleSources = externalSubtitleSources
+         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+     }
 diff --git a/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift b/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
 deleted file mode 100644
 index 12fd23d7..00000000
@@ -434,10 +953,63 @@ index 12fd23d7..00000000
 -        }
 -    }
 -}
+diff --git a/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift b/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
+index f2ce4cbe..2aed8141 100644
+--- a/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
++++ b/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
+@@ -90,8 +90,8 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
+ 
+     public func resolvePlayableSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource {
+-        ResolvedMediaSource(url: file.url)
++    ) async throws -> MediaByteStreamHandle {
++        MediaByteStreamHandle.localFile(url: file.url)
+     }
+ 
+     // MARK: - Helpers
+diff --git a/Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift b/Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift
+index 3e0119bc..e3af18ea 100644
+--- a/Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift
++++ b/Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift
+@@ -127,20 +127,20 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
+ 
+     public func resolvePlayableSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
+         guard filter.matches(fileURL: file.url) else {
+             throw LocalDataSourceError.fileNotPlayable
+         }
+-        return ResolvedMediaSource(url: try await resolveURL(for: file))
++        return MediaByteStreamHandle.localFile(url: try await resolveURL(for: file))
+     }
+ 
+     public func resolveSubtitleSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
+         guard FileBrowsingDomain.FileFilter.externalSubtitles.matches(fileURL: file.url) else {
+             throw LocalDataSourceError.fileNotPlayable
+         }
+-        return ResolvedMediaSource(url: try await resolveURL(for: file))
++        return MediaByteStreamHandle.localFile(url: try await resolveURL(for: file))
+     }
+ 
+     private func connectedBaseURL() throws -> URL {
 diff --git a/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift b/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
-index 0f8743f3..0588b372 100644
+index 0f8743f3..fef8faaf 100644
 --- a/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
 +++ b/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
+@@ -209,7 +209,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
+ 
+     public func resolvePlayableSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
+         guard smbManager != nil, let info = connectionInfo else {
+             throw SMBError.notConnected
+         }
 @@ -227,12 +227,12 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
                  path: remotePath,
                  contentLength: file.sizeInBytes
@@ -513,9 +1085,18 @@ index 0f8743f3..0588b372 100644
 -    }
 -}
 diff --git a/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift b/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift
-index 7cf510aa..e00b4038 100644
+index 7cf510aa..0c89c22e 100644
 --- a/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift
 +++ b/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift
+@@ -165,7 +165,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
+ 
+     public func resolvePlayableSource(
+         for file: FileBrowsingDomain.MediaFile
+-    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
+         guard connectionInfo != nil else {
+             throw WebDAVError.notConnected
+         }
 @@ -179,15 +179,12 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
              authorizationHeader: authHeader,
              session: session
@@ -560,10 +1141,10 @@ index 7cf510aa..e00b4038 100644
      }
 diff --git a/Modules/MediaSource/MediaByteStream.swift b/Modules/MediaSource/MediaByteStream.swift
 new file mode 100644
-index 00000000..6d68f28a
+index 00000000..0167d8f7
 --- /dev/null
 +++ b/Modules/MediaSource/MediaByteStream.swift
-@@ -0,0 +1,508 @@
+@@ -0,0 +1,509 @@
 +import Foundation
 +import Network
 +
@@ -677,7 +1258,7 @@ index 00000000..6d68f28a
 +        _ source: any MediaByteSource,
 +        filename: String,
 +        onTermination: @escaping @Sendable () async -> Void = {}
-+    ) async throws -> ResolvedMediaSource {
++    ) async throws -> MediaByteStreamHandle {
 +        guard let totalLength = source.totalLength, totalLength > 0 else {
 +            throw EndpointError.lengthUnavailable
 +        }
@@ -698,11 +1279,12 @@ index 00000000..6d68f28a
 +
 +        let registration = Registration(source: source, totalLength: totalLength)
 +        lock.withLock { registrations[token] = registration }
-+        return ResolvedMediaSource(
++        return MediaByteStreamHandle(
 +            url: url,
 +            accessLease: MediaAccessLease { [weak self] in
 +                self?.unregister(token: token, onTermination: onTermination)
-+            }
++            },
++            issuance: .loopbackRoute
 +        )
 +    }
 +
@@ -1072,55 +1654,245 @@ index 00000000..6d68f28a
 +        return start..<(inclusiveEnd + 1)
 +    }
 +}
+diff --git a/Modules/MediaSource/MediaByteStreamHandle.swift b/Modules/MediaSource/MediaByteStreamHandle.swift
+new file mode 100644
+index 00000000..d8377bd1
+--- /dev/null
++++ b/Modules/MediaSource/MediaByteStreamHandle.swift
+@@ -0,0 +1,24 @@
++import Foundation
++
++public struct MediaByteStreamHandle: @unchecked Sendable {
++    public enum Issuance: Sendable, Equatable {
++        case localFile
++        case loopbackRoute
++    }
++
++    public let url: URL
++    public let accessLease: MediaAccessLease?
++    public let issuance: Issuance
++
++    public static func localFile(
++        url: URL,
++        accessLease: MediaAccessLease? = nil
++    ) -> MediaByteStreamHandle {
++        precondition(url.isFileURL, "Local media byte-stream handles require a file URL.")
++        return MediaByteStreamHandle(
++            url: url,
++            accessLease: accessLease,
++            issuance: .localFile
++        )
++    }
++}
+diff --git a/Modules/MediaSource/ResolvedMediaSource.swift b/Modules/MediaSource/ResolvedMediaSource.swift
+deleted file mode 100644
+index 4c24adc1..00000000
+--- a/Modules/MediaSource/ResolvedMediaSource.swift
++++ /dev/null
+@@ -1,11 +0,0 @@
+-import Foundation
+-
+-public struct ResolvedMediaSource: @unchecked Sendable {
+-    public let url: URL
+-    public let accessLease: MediaAccessLease?
+-
+-    public init(url: URL, accessLease: MediaAccessLease? = nil) {
+-        self.url = url
+-        self.accessLease = accessLease
+-    }
+-}
+diff --git a/Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift b/Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift
+index 9b834ec8..262f323e 100644
+--- a/Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift
++++ b/Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift
+@@ -5,7 +5,6 @@ import OSLog
+ 
+ @MainActor
+ public protocol PlaybackLaunching: AnyObject {
+-    func beginPlayback(for url: URL)
+     func beginPlayback(_ request: PlaybackLaunchRequest)
+     func stopPlayback()
+ }
+@@ -109,10 +108,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
+         await mediaStateStore.viewingProjection(for: identity)
+     }
+ 
+-    public func beginPlayback(for url: URL) {
+-        requestPlayback(.init(url: url, displayName: url.lastPathComponent))
+-    }
+-
+     public func requestPlayback(_ request: PlaybackLaunchRequest) {
+         generation += 1
+         let requestGeneration = generation
+diff --git a/Modules/PlaybackFeature/PlaybackLaunchRequest.swift b/Modules/PlaybackFeature/PlaybackLaunchRequest.swift
+index 7a0d9d4f..9f768081 100644
+--- a/Modules/PlaybackFeature/PlaybackLaunchRequest.swift
++++ b/Modules/PlaybackFeature/PlaybackLaunchRequest.swift
+@@ -66,69 +66,41 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
+ 
+ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable, Identifiable {
+     public let id: URL
+-    public let url: URL
++    public let source: MediaByteStreamHandle
+     public let displayName: String
+     public let fileIdentifier: PlaybackFileIdentifier?
+     public let initialMetadata: PlaybackMediaMetadata?
+     public let collectionOrigin: PlaybackCollectionOrigin
+     public let versionedIdentity: VersionedMediaIdentity?
+-    public let sourceAccess: MediaAccessLease?
+     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
+     public let externalSubtitleErrorMessage: String?
+     public let viewingStateAuthority: ViewingStateAuthority
+     public let startPositionSeconds: Double?
+     public let sessionReporter: (any PlaybackSessionReporting)?
+ 
+-    public init(
+-        url: URL,
+-        displayName: String,
+-        fileIdentifier: PlaybackFileIdentifier? = nil,
+-        initialMetadata: PlaybackMediaMetadata? = nil,
+-        collectionOrigin: PlaybackCollectionOrigin = .standalone,
+-        versionedIdentity: VersionedMediaIdentity? = nil,
+-        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+-        externalSubtitleErrorMessage: String? = nil,
+-        viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
+-        startPositionSeconds: Double? = nil,
+-        sessionReporter: (any PlaybackSessionReporting)? = nil
+-    ) {
+-        self.id = url
+-        self.url = url
+-        self.displayName = displayName
+-        self.fileIdentifier = fileIdentifier
+-        self.initialMetadata = initialMetadata
+-        self.collectionOrigin = collectionOrigin
+-        self.versionedIdentity = versionedIdentity
+-        self.sourceAccess = nil
+-        self.externalSubtitleSources = externalSubtitleSources
+-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+-        self.viewingStateAuthority = viewingStateAuthority
+-        self.startPositionSeconds = startPositionSeconds
+-        self.sessionReporter = sessionReporter
+-    }
++    public var url: URL { source.url }
++    public var sourceAccess: MediaAccessLease? { source.accessLease }
+ 
+     public init(
+-        url: URL,
++        source: MediaByteStreamHandle,
+         displayName: String,
+         fileIdentifier: PlaybackFileIdentifier? = nil,
+         initialMetadata: PlaybackMediaMetadata? = nil,
+         collectionOrigin: PlaybackCollectionOrigin = .standalone,
+         versionedIdentity: VersionedMediaIdentity? = nil,
+-        sourceAccess: MediaAccessLease?,
+         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+         externalSubtitleErrorMessage: String? = nil,
+         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
+         startPositionSeconds: Double? = nil,
+         sessionReporter: (any PlaybackSessionReporting)? = nil
+     ) {
+-        self.id = url
+-        self.url = url
++        self.id = source.url
++        self.source = source
+         self.displayName = displayName
+         self.fileIdentifier = fileIdentifier
+         self.initialMetadata = initialMetadata
+         self.collectionOrigin = collectionOrigin
+         self.versionedIdentity = versionedIdentity
+-        self.sourceAccess = sourceAccess
+         self.externalSubtitleSources = externalSubtitleSources
+         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+         self.viewingStateAuthority = viewingStateAuthority
+@@ -138,13 +110,12 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
+ 
+     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
+         PlaybackLaunchRequest(
+-            url: url,
++            source: source,
+             displayName: displayName,
+             fileIdentifier: fileIdentifier,
+             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
+             collectionOrigin: collectionOrigin,
+             versionedIdentity: versionedIdentity,
+-            sourceAccess: sourceAccess,
+             externalSubtitleSources: externalSubtitleSources,
+             externalSubtitleErrorMessage: externalSubtitleErrorMessage,
+             viewingStateAuthority: viewingStateAuthority,
 diff --git a/REPORT.md b/REPORT.md
 new file mode 100644
-index 00000000..549801a5
+index 00000000..a9e85ce7
 --- /dev/null
 +++ b/REPORT.md
-@@ -0,0 +1,124 @@
-+# Media Byte Stream foundation report
+@@ -0,0 +1,162 @@
++# Media Byte Stream Unit 2 report
 +
 +## Result
 +
-+This unit moves the loopback HTTP byte endpoint from `MediaLibrary` to `MediaSource` and makes it a single app-wide instance. SMB and WebDAV now implement the new byte-source protocol and register routes on that endpoint. Local file playback and Emby playback keep their previous URL paths, and PlaybackCore still receives only an openable `URL`.
++Unit 2 completes M6 and M8 of the Media Byte Stream refactor.
 +
-+The authority and implementation are recorded in these commits before the delivery artifacts:
++Emby video bytes now enter through a `MediaByteSource` backed by `URLSession`. The source sends the current Emby token in both the `api_key` query item and the `X-Emby-Token` header, follows the system session's normal redirect handling, and performs exact ranged reads against the Emby stream URL. `EmbyPlaybackBridge` registers this source on `MediaByteStreamEndpoint.shared` and gives PlaybackFeature the resulting loopback handle. It no longer gives FFmpeg the remote `directPlayURL`.
 +
-+- `5ea02e9f docs: record media byte stream refactor authority`
-+- `beeedd20 refactor: centralize remote byte streaming in MediaSource`
++PlaybackFeature now accepts only `MediaByteStreamHandle`. MediaSource issues loopback handles for remote sources and file handles for local passthrough. The old bare-URL launch initializers, the bare-URL `beginPlayback` method, and `ResolvedMediaSource` were removed in the same change. PlaybackCore remains independent of MediaSource and still receives the handle's plain openable URL.
++
++The implementation and tests are committed as:
++
++```text
++d6026ad refactor: route Emby through media byte streams
++```
 +
 +The comparison base is `a1298902df818d7e192bf3fbaedda542607c55bf`.
 +
-+## Implementation
++## Source routing
 +
-+`Modules/MediaSource/MediaByteStream.swift` now owns both the source contract and the HTTP endpoint.
-+
-+| Contract member | Type | Meaning in this unit |
++| Source | MediaSource handoff | URL opened by PlaybackCore |
 +|---|---|---|
-+| `totalLength` | `Int64?` | A finite byte count or `nil` when the source cannot report one. The endpoint rejects `nil` until M3 adds unknown-length transfer. |
-+| `seekability` | `MediaByteSourceSeekability` | Distinguishes sequential and random-access sources. This endpoint currently accepts random access only. |
-+| `liveness` | `MediaByteSourceLiveness` | Distinguishes finite and live sources without making callers infer that fact from a URL. |
-+| `suggestedBufferDepth` | `MediaByteBufferDepth` | Carries no-buffer, automatic, or byte-count guidance. SMB and WebDAV preserve the former 1 MiB bounded read size. |
-+| `read(in:)` | `Range<Int64> -> Data` | Reads the requested half-open byte range. |
++| Local file and staged Photos file | `MediaByteStreamHandle.localFile` | Original file URL |
++| SMB | Handle issued by `MediaByteStreamEndpoint.shared` | Loopback route |
++| WebDAV | Handle issued by `MediaByteStreamEndpoint.shared` | Loopback route |
++| Emby video | `EmbyMediaByteSource` registered on `MediaByteStreamEndpoint.shared` | Loopback route |
 +
-+`MediaByteStreamEndpoint.shared` has a private initializer, starts one loopback `NWListener`, and gives each registered source a UUID route on the listener's port. A `MediaAccessLease` owns each route. Releasing the lease unregisters only that route, cancels its active connections and reads, waits for those reads to finish, and then runs source-specific cleanup. This preserves SMB's requirement to disconnect its playback connection after server work has stopped.
++The handle has no public initializer. Its public local-file factory rejects non-file URLs, while the shared endpoint creates loopback handles inside MediaSource. The `Issuance` value records whether a handle represents local passthrough or a loopback route. This value supports runtime assertions, while the required `MediaByteStreamHandle` parameter provides the compile-time gate.
 +
-+The endpoint retains the existing GET, HEAD, bounded-read, open-ended range, suffix range, 416 response, and `Connection: close` behavior. M3 and M9 remain separate work, so this unit does not add chunked unknown-length responses or connection reuse.
++`MediaPlaybackItem` and `PlaybackLaunchRequest` retain the complete handle instead of splitting its URL from its access lease. Their `url` and access properties are derived views used by the existing playback implementation. Releasing a remote handle's lease still unregisters only its endpoint route.
 +
-+The old `Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift` was deleted. Xcode project membership and `Config/design_source_architecture_inputs.xcfilelist` now point to the MediaSource file. `Scripts/verification/verify_media_byte_stream_foundation.py` checks that ownership and routing remain in place and that MediaLibrary and PlaybackCore do not acquire the wrong dependencies.
++## Emby byte source
 +
-+## Source routing after this unit
++`Modules/Emby/EmbyMediaByteSource.swift` uses an injected `URLSession`, with `.shared` as the production default. This keeps Emby byte traffic on the system networking stack and preserves the dependency direction established by ADR 0018: Emby depends on MediaSource, PlaybackFeature depends on MediaSource, and PlaybackCore does not.
 +
-+| Source | Playback URL after this unit | Lifecycle |
-+|---|---|---|
-+| Local file | Original file URL | Unchanged and does not enter the loopback endpoint. |
-+| SMB | Route on `MediaByteStreamEndpoint.shared` | Still opens a separate playback `SMB2Manager`; its route lease disconnects that manager after active reads stop. M11 was not implemented. |
-+| WebDAV | Route on `MediaByteStreamEndpoint.shared` | The existing `URLSession`, authorization header, exact 206 validation, and ranged reads remain unchanged. |
-+| Emby | Existing `source.directPlayURL` | Unchanged. FFmpeg still opens the remote HTTP URL directly in this unit. |
++For every upstream read, the source:
 +
-+`ResolvedMediaSource` remains the handoff boundary. MediaLibrary passes its URL and access lease through the existing playback launch path. PlaybackCore does not import MediaSource and does not see `MediaByteSource`.
++1. Replaces any stale `api_key` query item with the authenticated server's current token.
++2. Sends the same token as `X-Emby-Token`.
++3. Sends an exact inclusive HTTP `Range` header derived from the requested half-open Swift range.
++4. Requests identity transfer encoding so the response byte positions remain meaningful.
++5. Requires HTTP 206 and a valid, matching `Content-Range`.
++6. Treats the response's total length as authoritative for that read and updates `totalLength`.
++7. Requires the response body to contain exactly the requested number of bytes.
++
++HTTP 416 updates the known length from `Content-Range: bytes */length` when present and throws `unsatisfiableRange`. A mismatched range, a short response, a non-206 success response, or malformed range metadata also throws. The source never pads a missing tail with zero bytes.
++
++The system session follows redirects. This unit does not add custom certificate handling. Moving Emby video reads to `URLSession` establishes the network-library side of the later shared certificate policy, but S1 through S3 and their user interface remain separate work.
++
++External Emby subtitle sidecars are unchanged. `DeliveryUrl` values continue through the existing external subtitle path and do not use `EmbyMediaByteSource` in this unit.
++
++## PlaybackFeature gate
++
++`PlaybackLaunchRequest` has one public initializer and its first parameter is `MediaByteStreamHandle`. There is no public request initializer that accepts `URL`, and `PlaybackLaunching` no longer exposes `beginPlayback(for: URL)`.
++
++The migration covers the MediaLibrary launch path, Source Directory playback, local and Photos resolution, SMB and WebDAV routes, Emby launch and queue paths, App composition, and existing test fixtures. Local sources continue to give PlaybackCore a file URL. Remote sources give it the loopback URL carried by the issued handle.
++
++`Scripts/verification/verify_media_byte_stream_foundation.py` now checks the handle owner, the absence of the bare-URL PlaybackFeature entry, Emby's shared-endpoint routing, and Xcode and architecture input membership.
 +
 +## Verification
++
++### Toolchain
++
++```text
++Xcode 27.0
++Build version 27A5237l
++/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer
++```
 +
 +### Required visionOS build
 +
@@ -1132,13 +1904,26 @@ index 00000000..549801a5
 +
 +The output contained the repository's existing SwiftLint and visionOS 27 deprecation warnings. It contained no build errors.
 +
-+### MediaSource, SMB, and WebDAV tests
++### Emby, handle gate, SMB and WebDAV tests
 +
-+The focused Simulator run used the Enchron scheme with parallel testing disabled and selected `SMBDataSourceAdapterTests` and `WebDAVDataSourceAdapterTests`. Its result bundle reported:
++The focused visionOS Simulator run selected the new Emby and gate suites together with the required SMB and WebDAV suites:
 +
 +```text
-+totalTestCount: 14
-+passedTests: 14
++xcodebuild test -project Enchron.xcodeproj -scheme Enchron \
++  -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
++  -parallel-testing-enabled NO \
++  -only-testing:EnchronAppTests/SMBDataSourceAdapterTests \
++  -only-testing:EnchronAppTests/WebDAVDataSourceAdapterTests \
++  -only-testing:EnchronAppTests/EmbyMediaByteSourceTests \
++  -only-testing:EnchronAppTests/PlaybackLaunchHandleGateTests \
++  -quiet
++```
++
++The result bundle reports:
++
++```text
++totalTestCount: 17
++passedTests: 17
 +failedTests: 0
 +skippedTests: 0
 +result: Passed
@@ -1147,16 +1932,16 @@ index 00000000..549801a5
 +The result is recorded at:
 +
 +```text
-+/Volumes/Cortisol/DevSpace/Xcode/DerivedData/Enchron-ehciyasfslulybcnvatkhsefkkbl/Logs/Test/Test-Enchron-2026.08.18_11-40-11-+0900.xcresult
++/Volumes/Cortisol/DevSpace/Xcode/DerivedData/Enchron-ehciyasfslulybcnvatkhsefkkbl/Logs/Test/Test-Enchron-2026.08.18_12-20-37-+0900.xcresult
 +```
 +
-+The ten SMB/byte-stream tests include the protocol fake served through the migrated endpoint. They verify requested offset and length, response `Content-Length`, bounded reads, open-ended ranges, suffix ranges, HEAD without a source read, route-release cancellation, and the shared instance and shared listener port. The four WebDAV tests verify authenticated browsing, the ranged request made through the resolved loopback URL, lease survival after browsing disconnect, and authentication rejection.
++The Emby test uses the real shared loopback endpoint with a `URLProtocol`-backed fake upstream. It verifies offset, suffix and open-ended tail reads, exact translated upstream ranges, replacement of a stale query token, propagation of the token header, response-authoritative length updates, and an error for an unsatisfiable range. The gate test issues one local-file handle and one endpoint route, constructs playback requests from both, and verifies their distinct issuance and openable URLs. The type of `PlaybackLaunchRequest.init(source:...)` is the compile-time proof that a bare URL cannot enter PlaybackFeature.
 +
-+A later repeat reached Xcode's test action but failed to materialize an `xctest` worker on the already booted Simulator. No test process started. The completed 14-test result above is the execution evidence; the repeated worker-start failure was not counted as a test result.
++The same run kept all ten SMB tests and all four WebDAV tests green.
 +
-+### PlaybackCore range tests
++### PlaybackCore focused HTTP tests
 +
-+The PlaybackCore HTTP tests completed separately with three passes and no failures:
++From `Packages/PlaybackCore`, the three required filters passed:
 +
 +```text
 +openedHTTPContextBoundsRangesAfterTheInitialRequest
@@ -1164,11 +1949,13 @@ index 00000000..549801a5
 +httpPlaybackReadsTheWholeSourceWithoutStalling
 +```
 +
-+### PlaybackCore baseline comparison
++They completed with three passes and no failures.
 +
-+PlaybackCore test fixtures derive `TestMedia` from `#filePath`. This nested worktree adds one path component, so each of the five fixture roots received one temporary `deletingLastPathComponent()` during the runs. Those changes were removed afterward, and no PlaybackCore test or production file is present in the branch diff.
++### PlaybackCore full baseline
 +
-+The baseline at `a1298902` ran 201 tests and produced 13 issues in these eight failing tests:
++PlaybackCore fixtures derive `TestMedia` from `#filePath`. This worktree is nested one directory deeper than the fixture assumption. As in Unit 1, one temporary `deletingLastPathComponent()` was added to each of the five fixture roots for the test run and removed afterward. No PlaybackCore source or test file remains changed.
++
++The full run executed 201 tests and reproduced the established 13 issues in exactly these eight failing tests:
 +
 +1. `appleMVHEVCFixtureIsDistinguishedFromOrdinaryHEVC`
 +2. `appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat`
@@ -1179,7 +1966,7 @@ index 00000000..549801a5
 +7. `controllerSeekKeepsSessionAndAdvancesStreamEpoch`
 +8. `rapidRelativeSeeksAccumulateInsideTheCore`
 +
-+The post-change full run reproduced all eight names. Under the concurrent machine load it also timed out once in `acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim`, for 14 issues. That test passed immediately when run by itself. Base commit `a1298902` is titled `Record the ProRes timeout as a flake under load` and records the same ninth failure followed by clean eight-failure reruns. The branch does not change any file under `Packages/PlaybackCore/Sources` or its package manifest. The focused HTTP tests all passed, so the migration adds no persistent PlaybackCore failure.
++No new PlaybackCore failure was added.
 +
 +### Structural checks
 +
@@ -1187,27 +1974,25 @@ index 00000000..549801a5
 +
 +```text
 +Scripts/verification/verify_media_byte_stream_foundation.py
-+swiftlint lint --strict Modules/MediaSource/MediaByteStream.swift
++swiftlint lint --strict Modules/Emby/EmbyMediaByteSource.swift Modules/MediaSource/MediaByteStreamHandle.swift Tests/EnchronApp/EmbyMediaByteSourceTests.swift Tests/EnchronApp/PlaybackLaunchHandleGateTests.swift
 +git diff --check
 +```
 +
-+The new Swift file has zero strict SwiftLint violations. The repository's design-source architecture check also passed after the Xcode input list was migrated.
++The four new files have zero strict SwiftLint violations. The architecture verification reports that MediaSource owns the handle and endpoint, Emby routes through the shared endpoint, PlaybackFeature has no bare-URL entry, and PlaybackCore has not acquired a MediaSource dependency.
 +
-+The broader existing `verify_package_membership.py` proceeds through that architecture check and then reports two unrelated existing exception-list entries as missing: `PlaybackFeature/Model/UnmetCapability.swift` and `PlaybackPresentation/Model/PlaybackPanelExpansion.swift`. This unit does not modify either file. The required Enchron build passes with the current project membership.
++## Limits of this unit
 +
-+## Deferred work
++A real Emby server and its credentials are not available in this environment, so an Emby end-to-end playback run could not be performed. The local integration test exercises the complete byte path from a loopback playback URL through `MediaByteStreamEndpoint.shared` and `EmbyMediaByteSource` to a controlled HTTP response, but it cannot prove a particular server's redirect, authentication, certificate or media-container behavior.
 +
-+Unit 2 still needs to implement the Emby `MediaByteSource`, preserve its token and redirect behavior through the system network client, and replace `source.directPlayURL` with a route from `MediaByteStreamEndpoint.shared`. PlaybackCore must continue to receive only the resulting openable URL.
++This unit does not implement certificate trust work S1 through S3, unknown-length transfer M3, connection reuse M9, bridge cleanup M10, SMB pooling M11, or the repository-wide display-size separation in M12. Within the Emby source, server `Content-Range` values are authoritative at read time and unsatisfied or incomplete reads fail without zero filling.
 +
-+This unit intentionally leaves M3 unknown-length chunked transfer, M8's typed PlaybackFeature gate, M9 connection reuse, M10 bridge cleanup, M11 SMB connection pooling, and M12 authoritative read-time length handling for their planned units.
-+
-+`final-code.diff` contains the full repository diff from `a1298902`, excluding the diff file itself to avoid recursive content.
++`final-code.diff` contains the full repository diff from `a1298902`, excluding `final-code.diff` itself to prevent recursive content.
 diff --git a/Scripts/verification/verify_media_byte_stream_foundation.py b/Scripts/verification/verify_media_byte_stream_foundation.py
 new file mode 100755
-index 00000000..d2622cb1
+index 00000000..da4a466a
 --- /dev/null
 +++ b/Scripts/verification/verify_media_byte_stream_foundation.py
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,135 @@
 +#!/usr/bin/env python3
 +
 +from pathlib import Path
@@ -1236,6 +2021,7 @@ index 00000000..d2622cb1
 +            violations.append(message)
 +
 +    endpoint_path = REPOSITORY_ROOT / "Modules/MediaSource/MediaByteStream.swift"
++    handle_path = REPOSITORY_ROOT / "Modules/MediaSource/MediaByteStreamHandle.swift"
 +    old_endpoint_path = (
 +        REPOSITORY_ROOT
 +        / "Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift"
@@ -1248,11 +2034,13 @@ index 00000000..d2622cb1
 +        "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift"
 +    )
 +    local = read("Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift")
-+    emby = read("Modules/Emby/EmbyPlaybackBridge.swift")
++    emby = swift_sources("Modules/Emby")
++    playback_feature = swift_sources("Modules/PlaybackFeature")
 +    project = read("Enchron.xcodeproj/project.pbxproj")
 +    architecture_inputs = read("Config/design_source_architecture_inputs.xcfilelist")
 +
 +    require(endpoint_path.exists(), "MediaSource does not own MediaByteStream.swift")
++    require(handle_path.exists(), "MediaSource does not own MediaByteStreamHandle.swift")
 +    require(not old_endpoint_path.exists(), "MediaLibrary still owns the old endpoint")
 +    require("public nonisolated protocol MediaByteSource" in endpoint, "byte-source protocol is missing")
 +    for property_name in (
@@ -1285,11 +2073,29 @@ index 00000000..d2622cb1
 +
 +    require("MediaByteStreamEndpoint" not in local, "local files enter the loopback endpoint")
 +    require(
-+        "ResolvedMediaSource(url: try await resolveURL(for: file))" in local,
++        "MediaByteStreamHandle.localFile(url: try await resolveURL(for: file))" in local,
 +        "local playback no longer returns its file URL directly",
 +    )
-+    require("url: source.directPlayURL" in emby, "Emby no longer uses its direct-play URL")
++    require("final class EmbyMediaByteSource: MediaByteSource" in emby, "Emby lacks a byte source")
++    require(
++        "MediaByteStreamEndpoint.shared.resolve(" in emby,
++        "Emby playback does not use the shared endpoint",
++    )
++    require(
++        "source: streamHandle" in emby and "url: source.directPlayURL" not in emby,
++        "Emby still hands its direct-play URL to PlaybackFeature",
++    )
++    require(
++        "source: MediaByteStreamHandle" in playback_feature,
++        "PlaybackFeature does not require a media byte-stream handle",
++    )
++    require(
++        "func beginPlayback(for url: URL)" not in playback_feature,
++        "PlaybackFeature still exposes bare-URL launch",
++    )
 +    require("MediaSource/MediaByteStream.swift" in project, "Xcode omits the MediaSource endpoint")
++    require("MediaSource/MediaByteStreamHandle.swift" in project, "Xcode omits the handle")
++    require("Emby/EmbyMediaByteSource.swift" in project, "Xcode omits the Emby byte source")
 +    require(
 +        "MediaLibrary/Services/HTTPRangeStreamingServer.swift" not in project,
 +        "Xcode still references the MediaLibrary endpoint",
@@ -1297,6 +2103,14 @@ index 00000000..d2622cb1
 +    require(
 +        "Modules/MediaSource/MediaByteStream.swift" in architecture_inputs,
 +        "architecture checks omit the MediaSource endpoint",
++    )
++    require(
++        "Modules/MediaSource/MediaByteStreamHandle.swift" in architecture_inputs,
++        "architecture checks omit the byte-stream handle",
++    )
++    require(
++        "Modules/Emby/EmbyMediaByteSource.swift" in architecture_inputs,
++        "architecture checks omit the Emby byte source",
 +    )
 +    require(
 +        "Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift"
@@ -1314,6 +2128,422 @@ index 00000000..d2622cb1
 +
 +if __name__ == "__main__":
 +    raise SystemExit(main())
+diff --git a/Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift b/Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift
+index 17e9403f..56ac80bf 100644
+--- a/Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift
++++ b/Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift
+@@ -37,11 +37,17 @@ struct EmbyPlaybackBridgeTests {
+             mediaSourceID: selectedSource.id,
+             startAction: .fromBeginning
+         ))
++        defer {
++            resumed.sourceAccess?.release()
++            restarted.sourceAccess?.release()
++        }
+ 
+         #expect(resumed.viewingStateAuthority == .mediaServer)
+         #expect(resumed.startPositionSeconds == 5)
+         #expect(restarted.startPositionSeconds == 0)
+-        #expect(resumed.url == selectedSource.directPlayURL)
++        #expect(resumed.source.issuance == .loopbackRoute)
++        #expect(resumed.url.host == "127.0.0.1")
++        #expect(resumed.url != selectedSource.directPlayURL)
+         #expect(resumed.versionedIdentity == selectedSource.versionedIdentity)
+         #expect(resumed.collectionOrigin == .standalone)
+         #expect(resumed.externalSubtitleSources.map(\.id) == ["emby.subtitle.4"])
+@@ -119,6 +125,11 @@ struct EmbyPlaybackBridgeTests {
+         let end = await bridge.nextRequest()
+         let selected = await bridge.request(for: initialSnapshot.entries[0].id)
+         let selectedSnapshot = await bridge.queueSnapshot
++        defer {
++            initial.sourceAccess?.release()
++            next?.sourceAccess?.release()
++            selected?.sourceAccess?.release()
++        }
+ 
+         #expect(initial.collectionOrigin == .mediaServer)
+         #expect(initialSnapshot.entries.count == 3)
+diff --git a/Tests/EnchronApp/EmbyMediaByteSourceTests.swift b/Tests/EnchronApp/EmbyMediaByteSourceTests.swift
+new file mode 100644
+index 00000000..1a8040c0
+--- /dev/null
++++ b/Tests/EnchronApp/EmbyMediaByteSourceTests.swift
+@@ -0,0 +1,200 @@
++import Foundation
++import MediaSource
++import Testing
++@testable import Emby
++
++@Suite(.serialized)
++struct EmbyMediaByteSourceTests {
++    @Test("Emby playback routes offset, suffix, and tail reads with its token")
++    func routedRangesCarryToken() async throws {
++        let recorder = EmbyByteRequestRecorder()
++        EmbyByteURLProtocol.setHandler { request in
++            recorder.record(request)
++            return try Self.byteResponse(for: request)
++        }
++        defer { EmbyByteURLProtocol.setHandler(nil) }
++
++        let streamURL = try #require(URL(
++            string: "https://emby.example.test/Videos/movie/stream.mkv?Static=true&api_key=stale"
++        ))
++        let source = EmbyMediaByteSource(
++            streamURL: streamURL,
++            accessToken: "fresh-token",
++            contentLength: 10,
++            session: Self.makeSession()
++        )
++        let handle = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "stream.mkv"
++        )
++        let lease = try #require(handle.accessLease)
++        defer { lease.release() }
++
++        let offset = try await Self.read(handle.url, range: "bytes=2-5")
++        let suffix = try await Self.read(handle.url, range: "bytes=-3")
++        let tail = try await Self.read(handle.url, range: "bytes=6-")
++
++        #expect(offset == Data("2345".utf8))
++        #expect(suffix == Data("789".utf8))
++        #expect(tail == Data("6789".utf8))
++        #expect(recorder.requests.map { $0.value(forHTTPHeaderField: "Range") } == [
++            "bytes=2-5",
++            "bytes=7-9",
++            "bytes=6-9"
++        ])
++        #expect(recorder.requests.allSatisfy {
++            $0.value(forHTTPHeaderField: "X-Emby-Token") == "fresh-token"
++        })
++        #expect(recorder.requests.allSatisfy { request in
++            guard let url = request.url else { return false }
++            return URLComponents(url: url, resolvingAgainstBaseURL: false)?
++                .queryItems?
++                .first { $0.name == "api_key" }?
++                .value == "fresh-token"
++        })
++        #expect(source.totalLength == 10)
++    }
++
++    @Test("Emby byte reads reject an unsatisfiable server range")
++    func unsatisfiableRangeThrows() async throws {
++        EmbyByteURLProtocol.setHandler(Self.byteResponse)
++        defer { EmbyByteURLProtocol.setHandler(nil) }
++
++        let streamURL = try #require(URL(
++            string: "https://emby.example.test/Videos/movie/stream.mkv"
++        ))
++        let source = EmbyMediaByteSource(
++            streamURL: streamURL,
++            accessToken: "token",
++            contentLength: 12,
++            session: Self.makeSession()
++        )
++
++        await #expect(
++            throws: EmbyMediaByteSourceError.unsatisfiableRange(totalLength: 10)
++        ) {
++            try await source.read(in: 10..<11)
++        }
++        #expect(source.totalLength == 10)
++    }
++
++    private static func read(_ url: URL, range: String) async throws -> Data {
++        var request = URLRequest(url: url)
++        request.setValue(range, forHTTPHeaderField: "Range")
++        let (data, response) = try await URLSession.shared.data(for: request)
++        let httpResponse = try #require(response as? HTTPURLResponse)
++        #expect(httpResponse.statusCode == 206)
++        return data
++    }
++
++    private static func makeSession() -> URLSession {
++        let configuration = URLSessionConfiguration.ephemeral
++        configuration.protocolClasses = [EmbyByteURLProtocol.self]
++        return URLSession(configuration: configuration)
++    }
++
++    nonisolated private static func byteResponse(
++        for request: URLRequest
++    ) throws -> (HTTPURLResponse, Data) {
++        let bytes = Data("0123456789".utf8)
++        let url = try #require(request.url)
++        let rangeHeader = try #require(request.value(forHTTPHeaderField: "Range"))
++        let bounds = try #require(Self.bounds(from: rangeHeader))
++        guard bounds.lowerBound < Int64(bytes.count) else {
++            let response = try #require(HTTPURLResponse(
++                url: url,
++                statusCode: 416,
++                httpVersion: "HTTP/1.1",
++                headerFields: ["Content-Range": "bytes */\(bytes.count)"]
++            ))
++            return (response, Data())
++        }
++
++        let end = min(bounds.upperBound - 1, Int64(bytes.count - 1))
++        let body = bytes[Int(bounds.lowerBound)...Int(end)]
++        let response = try #require(HTTPURLResponse(
++            url: url,
++            statusCode: 206,
++            httpVersion: "HTTP/1.1",
++            headerFields: [
++                "Content-Range": "bytes \(bounds.lowerBound)-\(end)/\(bytes.count)",
++                "Content-Length": "\(body.count)"
++            ]
++        ))
++        return (response, Data(body))
++    }
++
++    nonisolated private static func bounds(from rangeHeader: String) -> Range<Int64>? {
++        guard rangeHeader.hasPrefix("bytes=") else { return nil }
++        let bounds = rangeHeader.dropFirst("bytes=".count).split(
++            separator: "-",
++            maxSplits: 1,
++            omittingEmptySubsequences: false
++        )
++        guard bounds.count == 2,
++              let start = Int64(bounds[0]),
++              let inclusiveEnd = Int64(bounds[1]),
++              inclusiveEnd >= start else {
++            return nil
++        }
++        return start..<(inclusiveEnd + 1)
++    }
++}
++
++nonisolated private final class EmbyByteRequestRecorder: @unchecked Sendable {
++    private let lock = NSLock()
++    private var storage: [URLRequest] = []
++
++    var requests: [URLRequest] {
++        lock.withLock { storage }
++    }
++
++    func record(_ request: URLRequest) {
++        lock.withLock { storage.append(request) }
++    }
++}
++
++nonisolated private final class EmbyByteURLProtocolHandlerStore: @unchecked Sendable {
++    typealias Handler = @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
++
++    private let lock = NSLock()
++    private var handler: Handler?
++
++    func set(_ handler: Handler?) {
++        lock.withLock { self.handler = handler }
++    }
++
++    func get() -> Handler? {
++        lock.withLock { handler }
++    }
++}
++
++nonisolated private class EmbyByteURLProtocol: URLProtocol {
++    typealias Handler = EmbyByteURLProtocolHandlerStore.Handler
++    private static let handlerStore = EmbyByteURLProtocolHandlerStore()
++
++    static func setHandler(_ handler: Handler?) {
++        handlerStore.set(handler)
++    }
++
++    override class func canInit(with request: URLRequest) -> Bool { true }
++
++    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++
++    override func startLoading() {
++        guard let handler = Self.handlerStore.get() else {
++            client?.urlProtocol(self, didFailWithError: EmbyMediaByteSourceError.invalidResponse)
++            return
++        }
++        do {
++            let (response, data) = try handler(request)
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: data)
++            client?.urlProtocolDidFinishLoading(self)
++        } catch {
++            client?.urlProtocol(self, didFailWithError: error)
++        }
++    }
++
++    override func stopLoading() {}
++}
+diff --git a/Tests/EnchronApp/PlaybackLaunchHandleGateTests.swift b/Tests/EnchronApp/PlaybackLaunchHandleGateTests.swift
+new file mode 100644
+index 00000000..559c416b
+--- /dev/null
++++ b/Tests/EnchronApp/PlaybackLaunchHandleGateTests.swift
+@@ -0,0 +1,46 @@
++import Foundation
++import MediaSource
++import PlaybackFeature
++import Testing
++
++struct PlaybackLaunchHandleGateTests {
++    @Test("playback launch accepts local and routed handles issued by MediaSource")
++    func issuedHandleKinds() async throws {
++        let localURL = URL(fileURLWithPath: "/tmp/local-feature.mkv")
++        let localHandle = MediaByteStreamHandle.localFile(url: localURL)
++        let localRequest = PlaybackLaunchRequest(
++            source: localHandle,
++            displayName: "local-feature.mkv"
++        )
++
++        let remoteHandle = try await MediaByteStreamEndpoint.shared.resolve(
++            HandleGateByteSource(),
++            filename: "remote-feature.mkv"
++        )
++        let lease = try #require(remoteHandle.accessLease)
++        defer { lease.release() }
++        let remoteRequest = PlaybackLaunchRequest(
++            source: remoteHandle,
++            displayName: "remote-feature.mkv"
++        )
++
++        #expect(localRequest.source.issuance == .localFile)
++        #expect(localRequest.url == localURL)
++        #expect(remoteRequest.source.issuance == .loopbackRoute)
++        #expect(remoteRequest.url.scheme == "http")
++        #expect(remoteRequest.url.host == "127.0.0.1")
++    }
++}
++
++private final class HandleGateByteSource: MediaByteSource, Sendable {
++    let totalLength: Int64? = 4
++    let seekability = MediaByteSourceSeekability.randomAccess
++    let liveness = MediaByteSourceLiveness.finite
++    let suggestedBufferDepth = MediaByteBufferDepth.none
++
++    func read(in range: Range<Int64>) async throws -> Data {
++        Data("test".utf8).subdata(
++            in: Int(range.lowerBound)..<Int(range.upperBound)
++        )
++    }
++}
+diff --git a/Tests/EnchronApp/PlaybackSourceAccessTests.swift b/Tests/EnchronApp/PlaybackSourceAccessTests.swift
+index 6d8f264b..180649f0 100644
+--- a/Tests/EnchronApp/PlaybackSourceAccessTests.swift
++++ b/Tests/EnchronApp/PlaybackSourceAccessTests.swift
+@@ -61,8 +61,8 @@ struct PlaybackSourceAccessTests {
+         var lease: MediaAccessLease? = MediaAccessLease {
+             counter.increment()
+         }
+-        var source: ResolvedMediaSource? = ResolvedMediaSource(
+-            url: URL(string: "http://127.0.0.1/media")!,
++        var source: MediaByteStreamHandle? = .localFile(
++            url: URL(fileURLWithPath: "/media"),
+             accessLease: lease
+         )
+ 
+@@ -74,11 +74,11 @@ struct PlaybackSourceAccessTests {
+         #expect(counter.value == 1)
+     }
+ 
+-    @Test("resolved media source owns and releases its access lease")
++    @Test("media byte-stream handle owns and releases its access lease")
+     func resolvedSourceOwnsAccessLease() throws {
+         let counter = ReleaseCounter()
+-        var source: ResolvedMediaSource? = ResolvedMediaSource(
+-            url: URL(string: "http://127.0.0.1/media")!,
++        var source: MediaByteStreamHandle? = .localFile(
++            url: URL(fileURLWithPath: "/media"),
+             accessLease: MediaAccessLease {
+                 counter.increment()
+             }
+@@ -93,8 +93,8 @@ struct PlaybackSourceAccessTests {
+ 
+     @Test("released file lease cannot report itself active again")
+     func transferredFileLeaseIsOneShot() throws {
+-        let source = ResolvedMediaSource(
+-            url: URL(string: "http://127.0.0.1/media")!,
++        let source = MediaByteStreamHandle.localFile(
++            url: URL(fileURLWithPath: "/media"),
+             accessLease: MediaAccessLease {}
+         )
+         let access = try #require(source.accessLease)
+diff --git a/Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift b/Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift
+index aad2d470..34f2d0b2 100644
+--- a/Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift
++++ b/Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift
+@@ -212,7 +212,10 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         let missingURL = FileManager.default.temporaryDirectory
+             .appending(path: "missing-\(UUID().uuidString).mkv")
+ 
+-        launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
++        launcher.beginPlayback(.init(
++            source: .localFile(url: missingURL),
++            displayName: "Missing Video"
++        ))
+ 
+         let deadline = ContinuousClock.now + .seconds(5)
+         while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
+@@ -241,7 +244,10 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         let missingURL = FileManager.default.temporaryDirectory
+             .appending(path: "missing-\(UUID().uuidString).mkv")
+ 
+-        launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
++        launcher.beginPlayback(.init(
++            source: .localFile(url: missingURL),
++            displayName: "Missing Video"
++        ))
+ 
+         let deadline = ContinuousClock.now + .seconds(5)
+         while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
+@@ -281,7 +287,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         }
+         let runtime = PlaybackRuntime()
+         let request = PlaybackLaunchRequest(
+-            url: fixture,
++            source: .localFile(url: fixture),
+             displayName: fixture.lastPathComponent
+         )
+ 
+@@ -383,7 +389,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+             audioSessionLifecycle: PlaybackAudioSessionLifecycle()
+         )
+         let request = PlaybackLaunchRequest(
+-            url: URL(fileURLWithPath: "/tmp/format-revision.mp4"),
++            source: .localFile(url: URL(fileURLWithPath: "/tmp/format-revision.mp4")),
+             displayName: "format-revision.mp4"
+         )
+         runtime.prepareForPlayback(request)
+@@ -422,7 +428,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         }
+         try await runtime.open(
+             PlaybackLaunchRequest(
+-                url: fixture,
++                source: .localFile(url: fixture),
+                 displayName: fixture.lastPathComponent
+             )
+         )
+@@ -645,7 +651,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         }
+         try await runtime.open(
+             PlaybackLaunchRequest(
+-                url: fixture,
++                source: .localFile(url: fixture),
+                 displayName: fixture.lastPathComponent
+             )
+         )
+@@ -789,7 +795,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         }
+         try await runtime.open(
+             PlaybackLaunchRequest(
+-                url: fixture,
++                source: .localFile(url: fixture),
+                 displayName: fixture.lastPathComponent
+             )
+         )
+@@ -932,7 +938,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+         runtime.stop()
+         runtime.prepareForPlayback(
+             PlaybackLaunchRequest(
+-                url: URL(fileURLWithPath: "/dev/null"),
++                source: .localFile(url: URL(fileURLWithPath: "/dev/null")),
+                 displayName: "second.mp4"
+             )
+         )
 diff --git a/Tests/EnchronApp/SMBDataSourceAdapterTests.swift b/Tests/EnchronApp/SMBDataSourceAdapterTests.swift
 index 7926416e..2fdc4e94 100644
 --- a/Tests/EnchronApp/SMBDataSourceAdapterTests.swift
@@ -1549,6 +2779,75 @@ index 7926416e..2fdc4e94 100644
      private let lock = NSLock()
      private var readStarted = false
      private var cancellationObserved = false
+diff --git a/Tests/EnchronApp/UnmetCapabilityRuntimeTests.swift b/Tests/EnchronApp/UnmetCapabilityRuntimeTests.swift
+index 999f07f2..73585af8 100644
+--- a/Tests/EnchronApp/UnmetCapabilityRuntimeTests.swift
++++ b/Tests/EnchronApp/UnmetCapabilityRuntimeTests.swift
+@@ -1,4 +1,5 @@
+ import Foundation
++import MediaSource
+ import PlaybackCore
+ import PlaybackFeature
+ import Testing
+@@ -57,9 +58,8 @@ func preventingCapabilitySuppressesRendererDiagnosticText() {
+ @Test("overview remains source-neutral metadata and resets for a local request")
+ func overviewFlowsThroughRuntimeMetadataWithoutSourceBranching() throws {
+     let runtime = PlaybackRuntime()
+-    let serverURL = try #require(URL(string: "https://example.invalid/video.mp4"))
+     let serverRequest = PlaybackLaunchRequest(
+-        url: serverURL,
++        source: .localFile(url: URL(fileURLWithPath: "/video.mp4")),
+         displayName: "Episode",
+         initialMetadata: PlaybackMediaMetadata(overview: "Episode overview")
+     )
+@@ -67,7 +67,9 @@ func overviewFlowsThroughRuntimeMetadataWithoutSourceBranching() throws {
+     #expect(runtime.overview == "Episode overview")
+ 
+     let localRequest = PlaybackLaunchRequest(
+-        url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/local.mp4"),
++        source: .localFile(
++            url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/local.mp4")
++        ),
+         displayName: "local.mp4"
+     )
+     runtime.prepareForPlayback(localRequest)
+@@ -87,7 +89,9 @@ func preparingPlaybackClearsPreviousCapabilityFacts() {
+ 
+     runtime.prepareForPlayback(
+         PlaybackLaunchRequest(
+-            url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/next.mp4"),
++            source: .localFile(
++                url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/next.mp4")
++            ),
+             displayName: "next.mp4"
+         )
+     )
+diff --git a/Tests/PlaybackFeaturePackageTests/TrackSelectionPreferenceTests.swift b/Tests/PlaybackFeaturePackageTests/TrackSelectionPreferenceTests.swift
+index 04a445bf..23f97a32 100644
+--- a/Tests/PlaybackFeaturePackageTests/TrackSelectionPreferenceTests.swift
++++ b/Tests/PlaybackFeaturePackageTests/TrackSelectionPreferenceTests.swift
+@@ -879,7 +879,7 @@ struct TrackSelectionPreferenceTests {
+             contentRevision: .remote(entityTag: revision, sizeInBytes: 1_024)
+         )
+         return PlaybackLaunchRequest(
+-            url: URL(string: "https://example.invalid/Movie.mkv")!,
++            source: .localFile(url: URL(fileURLWithPath: "/Movie.mkv")),
+             displayName: "Movie.mkv",
+             versionedIdentity: identity,
+             viewingStateAuthority: authority,
+diff --git a/docs/CONTEXT.md b/docs/CONTEXT.md
+index c93efaab..e2341202 100644
+--- a/docs/CONTEXT.md
++++ b/docs/CONTEXT.md
+@@ -13,7 +13,7 @@
+ **Source Directory**：本地文件系统或远程服务实际拥有的目录。它不属于 Enchron 的虚拟媒体分类。
+ 
+ **File Source**：直接提供目录结构与文件字节流的媒体来源，如本地、SMB、WebDAV。它不提供媒体实体、元数据或服务器端用户状态。
+-**Emby Source**：提供媒体实体、元数据与服务器端用户状态的媒体服务器来源。它不是 File Source；其媒体流仍以 HTTP 直连交给播放核心。
++**Emby Source**：提供媒体实体、元数据与服务器端用户状态的媒体服务器来源。它不是 File Source；其媒体流由系统网络库读取，再经 Media Byte Stream 交给播放核心。
+ 
+ **Media Reference**：从 Media Library 指向来源媒体的持久引用。它是访问入口，不是底层媒体的身份。
+ **Media Identity**：Enchron 用于判断不同入口是否指向同一底层媒体的稳定身份。它独立于 Media Reference。
 diff --git a/docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md b/docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md
 new file mode 100644
 index 00000000..2a49a6b8
