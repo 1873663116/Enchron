@@ -908,24 +908,34 @@ def presentation_derivation(
         if template.startswith("PlayerUI-DockMenu-") or template == (
             "PlayerUI-TopAction-dock"
         ):
-            source = required_source_location(
+            host_source = required_source_location(
                 documents,
                 "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
                 "PlaybackTopActions(",
             )
-            return ["window", "docked"], {
-                "host": "flatPlaybackEntryTopActions",
-                "sources": [asdict(source)],
+            condition_source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+                "showsDock = immersiveEntryTarget == .docked",
+            )
+            return ["window"], {
+                "host": "windowPlaybackDockEntryTopActions",
+                "sources": [asdict(host_source), asdict(condition_source)],
             }
         if template == "PlayerUI-TopAction-resumePanorama":
-            source = required_source_location(
+            host_source = required_source_location(
                 documents,
                 "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
                 "PlaybackTopActions(",
             )
-            return ["portal", "panorama"], {
-                "host": "panoramicPlaybackEntryTopActions",
-                "sources": [asdict(source)],
+            condition_source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+                "showsPanoramaEntry = immersiveEntryTarget == .panorama",
+            )
+            return ["portal"], {
+                "host": "portalPlaybackPanoramaEntryTopActions",
+                "sources": [asdict(host_source), asdict(condition_source)],
             }
         if template in {"PlayerUI-TopAction-more", "PlayerUI-menu-subtitles"}:
             source = required_source_location(
@@ -1295,6 +1305,8 @@ def migrate_matrix_baseline(
     cells = old_baseline.get("cells")
     if not isinstance(cells, list):
         raise ValueError("reachability matrix baseline cells must be a list")
+    if any(isinstance(cell, dict) and "context" in cell for cell in cells):
+        return reconcile_proof_context_baseline(old_baseline, inventory)
 
     old_by_key: dict[tuple[str, str], dict[str, object]] = {}
     for cell in cells:
@@ -1419,6 +1431,78 @@ def migrate_matrix_baseline(
         ),
     }
     return migrated_baseline, report
+
+
+def reconcile_proof_context_baseline(
+    baseline: dict[str, object],
+    inventory: dict[str, object],
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Reconcile a proof-context baseline after a render-host derivation change."""
+    cells = baseline.get("cells")
+    if not isinstance(cells, list):
+        raise ValueError("reachability matrix baseline cells must be a list")
+    existing: dict[tuple[str, str], dict[str, object]] = {}
+    for cell in cells:
+        if not isinstance(cell, dict):
+            raise ValueError("reachability matrix baseline cells must be objects")
+        key = (str(cell.get("context")), str(cell.get("operation")))
+        if key in existing:
+            raise ValueError(f"duplicate reachability decision: {key}")
+        existing[key] = cell
+
+    expected = {
+        (str(context), str(operation["id"]))
+        for operation in inventory["operations"]  # type: ignore[index]
+        for context in operation["proofContexts"]  # type: ignore[index]
+    }
+    context_order = {context: index for index, context in enumerate(PROOF_CONTEXTS)}
+    reconciled_cells = [
+        {
+            "context": context,
+            "operation": operation,
+            "verdict": str(existing.get((context, operation), {}).get(
+                "verdict", "known-defect"
+            )),
+        }
+        for context, operation in sorted(
+            expected,
+            key=lambda key: (context_order[key[0]], key[1]),
+        )
+    ]
+    retired_reachable = [
+        {
+            "context": context,
+            "operation": operation,
+            "reason": "source-derived-proof-context-does-not-exist",
+        }
+        for (context, operation), cell in sorted(existing.items())
+        if (context, operation) not in expected
+        and cell.get("verdict") == "reachable"
+    ]
+    mapped_reachable_count = sum(
+        cell.get("verdict") == "reachable" and key in expected
+        for key, cell in existing.items()
+    )
+    reconciled = {
+        **baseline,
+        "schemaVersion": 2,
+        "coordinateSystem": "proof-context-v1",
+        "cells": reconciled_cells,
+    }
+    report: dict[str, object] = {
+        "oldCellCount": len(cells),
+        "newDecisionCount": len(reconciled_cells),
+        "oldReachableCount": sum(
+            cell.get("verdict") == "reachable" for cell in existing.values()
+        ),
+        "mappedReachableCount": mapped_reachable_count,
+        "retiredReachableCount": len(retired_reachable),
+        "retiredReachableCells": retired_reachable,
+        "reachableRegressionCount": 0,
+        "reachableRegressions": [],
+        "removedNotApplicableCount": 0,
+    }
+    return reconciled, report
 
 
 def main() -> int:

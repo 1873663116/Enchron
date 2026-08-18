@@ -5549,17 +5549,20 @@
       "identifierTemplate": "PlayerUI-DockMenu-skybox",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "flatPlaybackEntryTopActions",
+        "host": "windowPlaybackDockEntryTopActions",
         "sources": [
           {
             "line": 35,
             "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 18,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "window"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
@@ -5569,17 +5572,20 @@
       "identifierTemplate": "PlayerUI-DockMenu-{$0.rawValue}",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "flatPlaybackEntryTopActions",
+        "host": "windowPlaybackDockEntryTopActions",
         "sources": [
           {
             "line": 35,
             "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 18,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "window"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
@@ -5613,17 +5619,20 @@
       "identifierTemplate": "PlayerUI-TopAction-dock",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "flatPlaybackEntryTopActions",
+        "host": "windowPlaybackDockEntryTopActions",
         "sources": [
           {
             "line": 35,
             "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 18,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "window"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
@@ -5657,17 +5666,20 @@
       "identifierTemplate": "PlayerUI-TopAction-resumePanorama",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "panoramicPlaybackEntryTopActions",
+        "host": "portalPlaybackPanoramaEntryTopActions",
         "sources": [
           {
             "line": 35,
             "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 17,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift"
           }
         ]
       },
       "proofContexts": [
-        "portal",
-        "panorama"
+        "portal"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"

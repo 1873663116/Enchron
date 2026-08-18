@@ -799,11 +799,6 @@
     },
     {
       "context": "panorama",
-      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "panorama",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
       "verdict": "known-defect"
     },
@@ -945,21 +940,6 @@
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-{identifier}-slider",
-      "verdict": "reachable"
-    },
-    {
-      "context": "docked",
-      "operation": "accessibility:PlayerUI-DockMenu-skybox",
-      "verdict": "reachable"
-    },
-    {
-      "context": "docked",
-      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "verdict": "reachable"
-    },
-    {
-      "context": "docked",
-      "operation": "accessibility:PlayerUI-TopAction-dock",
       "verdict": "reachable"
     },
     {

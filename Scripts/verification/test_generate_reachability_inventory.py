@@ -370,6 +370,24 @@ class ProofContextInventoryTests(unittest.TestCase):
             "playerControlDockControls",
         )
 
+    def test_presentation_entry_controls_belong_to_the_host_that_renders_them(self) -> None:
+        for operation_id in (
+            "accessibility:PlayerUI-TopAction-dock",
+            "accessibility:PlayerUI-DockMenu-skybox",
+            "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
+        ):
+            with self.subTest(operation_id=operation_id):
+                self.assertEqual(
+                    self.operations[operation_id]["proofContexts"],
+                    ["window"],
+                )
+        self.assertEqual(
+            self.operations["accessibility:PlayerUI-TopAction-resumePanorama"][
+                "proofContexts"
+            ],
+            ["portal"],
+        )
+
     def test_shared_menu_commands_cover_browser_and_playback_contexts(self) -> None:
         for operation_id in ("command:listMenuItems", "command:selectMenuItem"):
             with self.subTest(operation_id=operation_id):
