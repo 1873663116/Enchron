@@ -2641,6 +2641,126 @@
       "operation": "accessibility:Settings-category-{item.id}",
       "presentation": "docked",
       "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Emby-Detail-Version",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:listMenuItems",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:selectMenuItem",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Emby-Detail-Version",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:listMenuItems",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:selectMenuItem",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Emby-Detail-Version",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:listMenuItems",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:selectMenuItem",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Emby-Detail-Version",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:listMenuItems",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "command:selectMenuItem",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
+      "presentation": "docked",
+      "verdict": "known-defect"
     }
   ],
   "schemaVersion": 1

@@ -178,6 +178,50 @@ class ConnectionFormInventoryTests(unittest.TestCase):
         )
 
 
+class DebugMenuEquivalentInventoryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.operations = {
+            operation["id"]: operation
+            for operation in inventory.build_inventory()["operations"]
+        }
+
+    def test_declares_both_menu_command_verbs(self) -> None:
+        self.assertIn("command:listMenuItems", self.operations)
+        self.assertIn("command:selectMenuItem", self.operations)
+
+    def test_player_item_route_names_parent_and_runtime_families(self) -> None:
+        route = self.operations[
+            "accessibility:PlayerPanel-menu-{category}-{item.id}"
+        ]["debugEquivalent"]
+
+        self.assertEqual(route["listVerb"], "listMenuItems")
+        self.assertEqual(route["selectVerb"], "selectMenuItem")
+        self.assertEqual(route["host"], "playerPanel")
+        self.assertEqual(
+            route["families"],
+            ["subtitles", "audio", "speed", "episodes"],
+        )
+        self.assertEqual(
+            route["parentOperation"],
+            "accessibility:PlayerPanel-menu-more",
+        )
+
+    def test_nonplayer_system_pickers_use_the_same_route_shape(self) -> None:
+        for operation_id in (
+            "accessibility:FileBrowsing-FilesScreen-sort",
+            "accessibility:Emby-Detail-Version",
+            "accessibility:Emby-Season-Picker",
+            "accessibility:MediaLibrary-Breadcrumb-current",
+            "accessibility:FileBrowsing-SourcesSidebar-delete",
+        ):
+            with self.subTest(operation_id=operation_id):
+                route = self.operations[operation_id]["debugEquivalent"]
+                self.assertEqual(route["listVerb"], "listMenuItems")
+                self.assertEqual(route["selectVerb"], "selectMenuItem")
+                self.assertIn("parentOperation", route)
+
+
 class MatrixBaselineExtensionTests(unittest.TestCase):
     def test_adds_only_missing_cells_as_known_defects(self) -> None:
         original_cell = {

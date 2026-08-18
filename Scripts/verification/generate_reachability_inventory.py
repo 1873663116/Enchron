@@ -39,6 +39,109 @@ IDENTIFIER_FAMILIES = (
     "WindowPlayback-",
 )
 
+DEBUG_MENU_EQUIVALENTS: dict[str, dict[str, object]] = {
+    "accessibility:FileBrowsing-FilesScreen-sort": {
+        "host": "files",
+        "families": ["sortKey", "sortOrder"],
+        "parentOperation": "accessibility:FileBrowsing-FilesScreen-sort",
+    },
+    "accessibility:FileBrowsing-Breadcrumb-current": {
+        "host": "files",
+        "families": ["breadcrumb"],
+        "parentOperation": "accessibility:FileBrowsing-Breadcrumb-current",
+    },
+    "accessibility:MediaLibrary-Breadcrumb-current": {
+        "host": "mediaLibrary",
+        "families": ["breadcrumb"],
+        "parentOperation": "accessibility:MediaLibrary-Breadcrumb-current",
+    },
+    "accessibility:MediaLibrary-MultiSelect-move": {
+        "host": "mediaLibrary",
+        "families": ["moveDestination"],
+        "parentOperation": "accessibility:MediaLibrary-MultiSelect-move",
+    },
+    "accessibility:Emby-Detail-Version": {
+        "host": "emby",
+        "families": ["version"],
+        "parentOperation": "accessibility:Emby-Detail-Version",
+    },
+    "accessibility:Emby-Season-Picker": {
+        "host": "emby",
+        "families": ["season"],
+        "parentOperation": "accessibility:Emby-Season-Picker",
+    },
+    "accessibility:Emby-Season-{season.metadata.id.rawValue}": {
+        "host": "emby",
+        "families": ["season"],
+        "parentOperation": "accessibility:Emby-Season-Picker",
+    },
+    "accessibility:PlayerUI-menu-subtitles": {
+        "host": "playerUI",
+        "families": ["subtitles"],
+        "parentOperation": "accessibility:PlayerUI-TopAction-more",
+    },
+    "accessibility:PlayerUI-VideoFormat-CustomAngle": {
+        "host": "playerUI",
+        "families": ["customAngle"],
+        "parentOperation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+    },
+    "accessibility:PlayerPanel-VideoFormat-CustomAngle": {
+        "host": "playerPanel",
+        "families": ["customAngle"],
+        "parentOperation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
+    },
+    "accessibility:PlayerPanel-menu-speed": {
+        "host": "playerPanel",
+        "families": ["speed"],
+        "parentOperation": "accessibility:PlayerPanel-menu-more",
+    },
+    "accessibility:PlayerPanel-menu-subtitles": {
+        "host": "playerPanel",
+        "families": ["subtitles"],
+        "parentOperation": "accessibility:PlayerPanel-menu-more",
+    },
+    "accessibility:PlayerPanel-menu-audio": {
+        "host": "playerPanel",
+        "families": ["audio"],
+        "parentOperation": "accessibility:PlayerPanel-menu-more",
+    },
+    "accessibility:PlayerPanel-menu-episodes": {
+        "host": "playerPanel",
+        "families": ["episodes"],
+        "parentOperation": "accessibility:PlayerPanel-menu-more",
+    },
+    "accessibility:PlayerPanel-menu-{category}-{item.id}": {
+        "host": "playerPanel",
+        "families": ["subtitles", "audio", "speed", "episodes"],
+        "parentOperation": "accessibility:PlayerPanel-menu-more",
+    },
+}
+
+for identifier, family, target in (
+    ("MediaLibrary-Manage-addFiles", "manage", "addFiles"),
+    ("MediaLibrary-Manage-addFolder", "manage", "addFolder"),
+    ("MediaLibrary-Manage-addPhotos", "manage", "addPhotos"),
+    ("MediaLibrary-Manage-newFolder", "manage", "newFolder"),
+    ("MediaLibrary-Manage-selectMultiple", "manage", "selectMultiple"),
+    ("FileBrowsing-SourcesSidebar-addFiles", "sourceAdd", "local"),
+    ("FileBrowsing-SourcesSidebar-addFolder", "sourceAdd", "folder"),
+    ("FileBrowsing-SourcesSidebar-addPhotos", "sourceAdd", "photoLibrary"),
+    ("FileBrowsing-SourcesSidebar-addWebDAV", "sourceAdd", "webDAV"),
+    ("FileBrowsing-SourcesSidebar-addSMB", "sourceAdd", "smb"),
+    ("FileBrowsing-SourcesSidebar-refresh", "sourceAction", "refresh"),
+    ("FileBrowsing-SourcesSidebar-delete", "sourceAction", "delete"),
+):
+    DEBUG_MENU_EQUIVALENTS[f"accessibility:{identifier}"] = {
+        "host": "files",
+        "families": [family],
+        "target": target,
+        "parentOperation": (
+            "accessibility:FileBrowsing-Manage-button"
+            if family == "manage"
+            else "accessibility:FileBrowsing-SourcesSidebar-sourceMore"
+        ),
+    }
+
 
 @dataclass(frozen=True, order=True)
 class SourceLocation:
@@ -499,12 +602,16 @@ def identifier_role(template: str) -> tuple[str, str | None]:
         "playerui-dockmenu",
         "playerui-videoformat",
     } or lowered.endswith((
+        "-breadcrumb-current",
         "-error",
         "-panel",
         "-state",
         "-time-bubble",
         "-thumb",
+        "-version",
     )):
+        if lowered.endswith(("-breadcrumb-current", "-version")):
+            return "operation", "activate"
         return "observation", None
     if any(
         marker in lowered
@@ -635,14 +742,20 @@ def build_inventory() -> dict[str, object]:
         }
         records.append(record)
         if role == "operation" and record["scope"] == "product":
-            operations.append(
-                {
-                    "id": "accessibility:" + template,
-                    "kind": action,
-                    "identifierTemplate": template,
-                    "source": "accessibilityIdentifier",
+            operation: dict[str, object] = {
+                "id": "accessibility:" + template,
+                "kind": action,
+                "identifierTemplate": template,
+                "source": "accessibilityIdentifier",
+            }
+            equivalent = DEBUG_MENU_EQUIVALENTS.get(str(operation["id"]))
+            if equivalent is not None:
+                operation["debugEquivalent"] = {
+                    "listVerb": "listMenuItems",
+                    "selectVerb": "selectMenuItem",
+                    **equivalent,
                 }
-            )
+            operations.append(operation)
 
     semantic_operations = [
         {
@@ -667,6 +780,18 @@ def build_inventory() -> dict[str, object]:
             "id": "command:setDockedPlacement",
             "kind": "command",
             "presentations": ["docked"],
+            "source": "Apps/Enchron/TestCommandChannel.swift",
+        },
+        {
+            "id": "command:listMenuItems",
+            "kind": "command",
+            "presentations": ["window", "portal", "panorama", "docked"],
+            "source": "Apps/Enchron/TestCommandChannel.swift",
+        },
+        {
+            "id": "command:selectMenuItem",
+            "kind": "command",
+            "presentations": ["window", "portal", "panorama", "docked"],
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
