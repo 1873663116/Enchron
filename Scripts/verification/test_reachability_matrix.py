@@ -104,6 +104,41 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
 
 class ReachabilityScenarioSequencingTests(unittest.TestCase):
+    def test_tap_without_delivery_evaluation_is_not_a_driven_defect(self) -> None:
+        operation = "accessibility:Emby-Navigation-Tab"
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.operations = {operation: {}}
+        run.driven_cells = set()
+        run.tapped_cells = set()
+        run.cells = {
+            ("main-window-browser", operation): {
+                "context": "main-window-browser",
+                "operation": operation,
+                "identifierTemplate": "Emby-Navigation-Tab",
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+        run.events = [{"evidence": "raw/001-tap.json"}]
+        run.controller = Mock(return_value={
+            "success": True,
+            "matchedElement": {
+                "identifier": "Emby-Navigation-Tab",
+                "isHittable": True,
+            },
+        })
+
+        run.tap("main-window-browser", "Emby-Navigation-Tab")
+
+        self.assertEqual(run.driven_cells, set())
+        cell = run.cells[("main-window-browser", operation)]
+        self.assertTrue(cell["existsInHierarchy"])
+        self.assertTrue(cell["reportsHittable"])
+        self.assertFalse(cell["applicationReceived"])
+
     def test_probe_precedes_control_reveal_and_immediate_tap(self) -> None:
         actions: list[str] = []
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
@@ -875,6 +910,54 @@ class SegmentedDeliveryTests(unittest.TestCase):
         )
         self.assertEqual(
             delivery["candidateCells"][0]["verdict"], "known-defect"
+        )
+
+    def test_legacy_tap_without_delivery_assessment_does_not_trigger_regression(self) -> None:
+        legacy = self.segment(
+            name="legacy",
+            operation="accessibility:candidate",
+            verdict="reachable",
+        )
+        legacy["schemaVersion"] = 3
+        legacy["drivenCells"].append({
+            "context": "main-window-browser",
+            "operation": "accessibility:old-reachable",
+        })
+        legacy["cells"].append({
+            "context": "main-window-browser",
+            "operation": "accessibility:old-reachable",
+            "applicationReceived": False,
+            "verdict": "known-defect",
+        })
+        legacy["cells"][0]["applicationReceived"] = True
+        legacy["deferredEvidence"] = {
+            "deliveries": [{
+                "context": "main-window-browser",
+                "operation": "accessibility:candidate",
+                "probeRequirements": [],
+                "commandIDs": [],
+            }]
+        }
+
+        delivery = matrix.merge_segment_delivery(self.baseline, [legacy])
+
+        self.assertTrue(delivery["accepted"])
+        self.assertEqual(delivery["failures"], [])
+        self.assertEqual(
+            delivery["unassessedLegacyDrivenCells"],
+            [{
+                "segment": "legacy",
+                "context": "main-window-browser",
+                "operation": "accessibility:old-reachable",
+            }],
+        )
+        verdicts = {
+            (cell["context"], cell["operation"]): cell["verdict"]
+            for cell in delivery["candidateCells"]
+        }
+        self.assertEqual(
+            verdicts[("main-window-browser", "accessibility:old-reachable")],
+            "reachable",
         )
 
     def test_segment_with_an_interior_transport_break_is_rejected(self) -> None:

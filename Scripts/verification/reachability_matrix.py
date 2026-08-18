@@ -448,6 +448,7 @@ def merge_segment_delivery(
     rejected_segments: list[str] = []
     driven_keys: set[tuple[str, str]] = set()
     observed_verdicts: dict[tuple[str, str], set[str]] = {}
+    unassessed_legacy_driven_cells: list[dict[str, str]] = []
 
     for segment in segment_results:
         name = str(segment.get("segment", "unnamed"))
@@ -478,13 +479,46 @@ def merge_segment_delivery(
             for cell in segment.get("cells", [])
             if isinstance(cell, dict)
         }
-        for driven in segment.get("drivenCells", []):
+        raw_driven = [
+            driven for driven in segment.get("drivenCells", [])
+            if isinstance(driven, dict)
+        ]
+        assessed_keys: set[tuple[str, str]] | None = None
+        if (
+            segment.get("deliveryAssessmentModel") != "explicit-v1"
+            and int(segment.get("schemaVersion", 0) or 0) >= 3
+            and isinstance(segment.get("deferredEvidence"), dict)
+        ):
+            assessed_keys = {
+                (str(delivery.get("context")), str(delivery.get("operation")))
+                for delivery in segment["deferredEvidence"].get("deliveries", [])
+                if isinstance(delivery, dict)
+            }
+            assessed_keys.update(
+                key for key, cell in cells.items()
+                if cell.get("applicationReceived") is True
+            )
+            for driven in raw_driven:
+                key = (
+                    str(driven.get("context")),
+                    str(driven.get("operation")),
+                )
+                if key not in assessed_keys:
+                    unassessed_legacy_driven_cells.append({
+                        "segment": name,
+                        "context": key[0],
+                        "operation": key[1],
+                    })
+
+        for driven in raw_driven:
             if not isinstance(driven, dict):
                 continue
             key = (
                 str(driven.get("context")),
                 str(driven.get("operation")),
             )
+            if assessed_keys is not None and key not in assessed_keys:
+                continue
             if key not in candidate_by_key:
                 continue
             driven_keys.add(key)
@@ -526,6 +560,7 @@ def merge_segment_delivery(
             for context, operation in sorted(driven_keys)
         ],
         "failures": failures,
+        "unassessedLegacyDrivenCells": unassessed_legacy_driven_cells,
         "candidateCells": [
             candidate_by_key[(str(cell["context"]), str(cell["operation"]))]
             for cell in baseline_cells
@@ -640,6 +675,7 @@ class ReachabilityRun:
         self.cells: dict[tuple[str, str], dict[str, Any]] = {}
         self.events: list[dict[str, Any]] = []
         self.driven_cells: set[tuple[str, str]] = set()
+        self.tapped_cells: set[tuple[str, str]] = set()
         self.session_id: str | None = None
         self.channel_health: dict[str, dict[str, Any]] = {}
         self.channel_failures: list[dict[str, Any]] = []
@@ -1524,7 +1560,8 @@ class ReachabilityRun:
         operation_id: str | None = None,
     ) -> dict[str, Any]:
         operation_id = operation_id or f"accessibility:{identifier}"
-        self.mark_driven(presentation, operation_id)
+        if operation_id in self.operations:
+            self.tapped_cells.add((presentation, operation_id))
         document = self.controller(
             "tap", "--identifier", identifier,
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
@@ -1548,8 +1585,8 @@ class ReachabilityRun:
         *,
         operation_id: str | None = None,
     ) -> dict[str, Any]:
-        if operation_id is not None:
-            self.mark_driven(presentation, operation_id)
+        if operation_id in self.operations:
+            self.tapped_cells.add((presentation, operation_id))
         document = self.controller(
             "tap", "--label", label,
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
@@ -5503,6 +5540,10 @@ class ReachabilityRun:
             {"context": context, "operation": operation}
             for context, operation in sorted(self.driven_cells)
         ]
+        tapped = [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(self.tapped_cells)
+        ]
         controller_devicectl_calls = sum(
             int(event.get("devicectlCallCount", 0) or 0)
             for event in self.events
@@ -5516,6 +5557,7 @@ class ReachabilityRun:
         current_evidence_retrieval_calls = self.evidence_retrieval_devicectl_calls
         result = {
             "schemaVersion": 3,
+            "deliveryAssessmentModel": "explicit-v1",
             "generatedAt": utc_now(),
             "status": status,
             "segment": str(self.segment["id"]),
@@ -5558,6 +5600,11 @@ class ReachabilityRun:
                 for context, operation in sorted(planned)
             ],
             "drivenCells": driven,
+            "tappedCells": tapped,
+            "unassessedTappedCells": [
+                cell for cell in tapped
+                if (cell["context"], cell["operation"]) not in self.driven_cells
+            ],
             "unplannedDrivenCells": [
                 cell
                 for cell in driven
