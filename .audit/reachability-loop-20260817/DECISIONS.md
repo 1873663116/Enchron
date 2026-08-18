@@ -121,3 +121,15 @@ verification-quick 在 aa314ac6 上 success（运行 32080600518），CI 钥匙�
 第十一轮编成（task_id `86a1e8c4-b0cc-4876-bec3-99baada63472`，wt-reach11，基线 24095112）：先对剩余 78 点按障碍性质分类，再据此新编分段计划——①状态诱发类（playbackIssue/unmetCapability/spatialFailure/loadFailure 浮层跨语境，PlayerPanel 的 audio/episodes/media-information-close/exit-spatial），不能由普通操作或既有动词诱发的按 setUserVisibleIssue 单写纪律补动词；②内容依赖类（VideoFormat 一族需真实格式选择与 HDR 回退片源，Emby Season/Version/Episode/StillCard 需剧集条目，只用设备既有源）；③界面状态类（多选删除、新建与重命名文件夹、网格与列表条目、侧边栏行、前进后退、Settings 分类、scroll、EnvironmentCard 一族与 environmentVolume）；④疑似产品缺陷（FileBrowsing 面包屑两点连续多轮不在层级内，同名 MediaLibrary-Breadcrumb-current 已可达可作对照，允许修正可访问性事实但不得改 UI 语义）。要求对清不掉的点给出定性结论：内容条件不满足／产品可访问性缺陷／通道未覆盖／语义不适用。
 
 2026-08-18T夜：合并态全量 gauntlet PASS（20260818T134905Z-52629），已推送 4d08c564..9db47165 与 work/reachability-round10。分支推送首次被 pre-push 的 quick gauntlet 拦下，报新失败名 `audioRendererFailureRetiresAudioAndVideoContinues`（PlaybackCoreTests.swift:3290-3294，lastFailure 与 audioRendererState 快照尚未落定）；隔离复跑三次全通过，判定为与 ProRes 同类的负载下偶发——当时第十一轮委托正在并发构建。按既有隔离复跑规则放行，不写入既定失败名单；若再次出现应改为在测试内等待快照落定而不是延长超时。
+
+## 2026-08-19 — 第十一轮验收与 runner 判定缺陷裁决
+
+第十一轮验收通过并合并（main ea2c49b5，因决策记录提交在前，分支先 rebase 再快进）。独立复核：199 点坐标集不变，121→124 可达、78→75 缺陷，零回退，新增三点（SMB Connect、Window 的 playbackIssue-confirm 与 unmetCapability-dismiss）与报告一致；identifier 模板 228→225（移除三个覆盖子控件的 Emby 父容器 identifier），操作仍 134。
+
+产出只有 +3，原因不在设备通道，而在一个 runner 判定缺陷，我已独立定位并核实：`tap()` 无条件为目标记录 exists/hittable 观察却不评估送达，于是任何"作为导航步骤"的点击都把一个矩阵操作判成 known-defect，进而触发无回退门禁使整段不能交付。第十一轮 browser-01/-02/-05/-06 四段的 deferred replay 全部 passed、计划目标三级证据完整，全部因此白丢。反证：browser-05-emby-content-attempt4 把 `Emby-Navigation-Tab` 点了六次判为缺陷，而同段 segment-after-surface-probe.log 里有六条 `navigation tab delivered tab=emby`——产品送达了，runner 从未拿探针评估它。
+
+裁决：驱动而未评估送达的结果是"未评估"，不是"缺陷"。修法方向是让操作携带送达探针期望，使每次 tap 自动用延迟探针评估送达，导航性点击顺带免费重证旧点，正是无回退门禁想要的。四段可用磁盘上既有证据离线重算，不需要真机时间。browser-03-settings-category 属另一性质（17 条 delivery 仅 2 条通过验证，证据确实不全），不予挽救——第十一轮末尾新增的"replay 全部 delivery 必须验证通过"门禁本身是对的。
+
+同轮另两项裁决：①`BreadcrumbView`、`FolderListView`、`FileBrowserSidebar` 经核实在 Apps 与 Modules 内无任何生产调用点，其六个点应由生成器按第九轮规则归档为 uninstantiated 并退出操作清单、收缩矩阵分母，而不是在报告散文里标"语义不适用"。②Emby 会话约束更新：登出后重连设备上已配置的同一服务器不属于"新建外部连接"，原约束意图是不引入新外部依赖而非冻结会话，故 Emby-Connection 四点与 SignOut 可证，前提是先确认 Keychain 凭据可恢复并在同段内证完登出与重连。
+
+第十二轮已派出：task_id `347e6a72-5aa2-4f58-8910-6ee251501502`（wt-reach12，基线 ea2c49b5）。范围：runner 判定缺陷修复与回归测试先行→四段离线重算→uninstantiated 归档→Emby 会话与 fixture 内容条件复核→两个系统 alert 输入框 identifier 缺陷（只做不改 UI 语义的修法）→未运行的 14 段真机证明与 Window HDRFallback 段。
