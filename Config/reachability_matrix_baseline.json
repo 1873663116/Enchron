@@ -395,12 +395,12 @@
     {
       "operation": "accessibility:PlayerUI-playbackIssue-primary",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-playbackIssue-secondary",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
@@ -420,12 +420,12 @@
     {
       "operation": "accessibility:PlayerUI-spatialFailure-primary",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-spatialFailure-secondary",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
@@ -865,17 +865,17 @@
     {
       "operation": "accessibility:PlayerUI-playbackIssue-primary",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-playbackIssue-secondary",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-resumeDecision-primary",
@@ -890,12 +890,12 @@
     {
       "operation": "accessibility:PlayerUI-spatialFailure-primary",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-spatialFailure-secondary",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
@@ -1315,12 +1315,12 @@
     {
       "operation": "accessibility:PlayerUI-loadFailure-primary",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-loadFailure-secondary",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-menu-subtitles",
@@ -1335,17 +1335,17 @@
     {
       "operation": "accessibility:PlayerUI-playbackIssue-primary",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-playbackIssue-secondary",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-resumeDecision-primary",
@@ -1790,7 +1790,7 @@
     {
       "operation": "accessibility:PlayerUI-loadFailure-secondary",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-menu-subtitles",
@@ -1805,17 +1805,17 @@
     {
       "operation": "accessibility:PlayerUI-playbackIssue-primary",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-playbackIssue-secondary",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "not-applicable"
     },
     {
       "operation": "accessibility:PlayerUI-resumeDecision-primary",

@@ -29,6 +29,9 @@ SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Modules/MediaLibrary",
     REPOSITORY_ROOT / "Modules/PlaybackPresentation",
 )
+DERIVATION_SOURCE_PATHS = (
+    "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift",
+)
 IDENTIFIER_FAMILIES = (
     "AcousticCalibration-",
     "DesignPreview-",
@@ -954,6 +957,54 @@ def presentation_derivation(
                 "host": "browserWindowResumeDecision",
                 "sources": [asdict(source)],
             }
+        if template.startswith("PlayerUI-loadFailure-"):
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                'case .mainWindow: "PlayerUI-loadFailure-primary"',
+            )
+            return main_window_presentations, {
+                "host": "mainWindowPlaybackIssueActions",
+                "sources": [asdict(source), asdict(main_window_source)],
+            }
+        if template.startswith("PlayerUI-spatialFailure-"):
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                'case .immersiveSpace: "PlayerUI-spatialFailure-primary"',
+            )
+            return immersive_presentations, {
+                "host": "immersivePlaybackIssueActions",
+                "sources": [asdict(source), asdict(immersive_source)],
+            }
+        if template in {
+            "PlayerUI-playbackIssue-primary",
+            "PlayerUI-playbackIssue-secondary",
+        }:
+            identifier_source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                'case .playerDeck, .mediaLibrary: "PlayerUI-playbackIssue-primary"',
+            )
+            policy_source = required_source_location(
+                documents,
+                "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift",
+                "presentationLocations: [.playerDeck]",
+            )
+            return [], {
+                "host": "uninstantiatedPlayerDeckRetryCloseActions",
+                "sources": [asdict(identifier_source), asdict(policy_source)],
+            }
+        if template == "PlayerUI-presentation-conversion-dismiss":
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                'case .mediaLibrary: "PlayerUI-presentation-conversion-dismiss"',
+            )
+            return ["window"], {
+                "host": "browserWindowPlaybackIssue",
+                "sources": [asdict(source)],
+            }
         if any(
             marker in template
             for marker in (
@@ -1011,6 +1062,9 @@ def build_inventory() -> dict[str, object]:
                 identifiers.setdefault(template, []).append(
                     SourceLocation(relative, line)
                 )
+    for relative in DERIVATION_SOURCE_PATHS:
+        path = REPOSITORY_ROOT / relative
+        documents[relative] = path.read_text(encoding="utf-8")
 
     runtime_identifiers = runtime_identifier_templates(documents)
     for template, locations in runtime_identifiers.items():

@@ -318,6 +318,32 @@ class PresentationApplicabilityInventoryTests(unittest.TestCase):
         ):
             inventory.presentation_derivation("UnknownFamily-action", documents)
 
+    def test_playback_issue_action_identifiers_follow_their_actual_alert_locations(self) -> None:
+        self.assertEqual(
+            self.operations["accessibility:PlayerUI-loadFailure-secondary"][
+                "presentations"
+            ],
+            ["window", "portal"],
+        )
+        self.assertEqual(
+            self.operations["accessibility:PlayerUI-spatialFailure-secondary"][
+                "presentations"
+            ],
+            ["panorama", "docked"],
+        )
+        self.assertEqual(
+            self.operations["accessibility:PlayerUI-playbackIssue-primary"][
+                "presentations"
+            ],
+            [],
+        )
+        self.assertEqual(
+            self.operations[
+                "accessibility:PlayerUI-presentation-conversion-dismiss"
+            ]["presentations"],
+            ["window"],
+        )
+
 
 class MatrixApplicabilityReclassificationTests(unittest.TestCase):
     def test_reclassifies_only_unproven_cells_from_derived_presentations(self) -> None:

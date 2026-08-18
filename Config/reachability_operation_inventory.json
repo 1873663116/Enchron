@@ -5739,27 +5739,21 @@
       "identifierTemplate": "PlayerUI-loadFailure-primary",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
-            "line": 1313,
+            "line": 1415,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
             "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
-          },
-          {
-            "line": 25,
             "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
           }
         ]
       },
       "presentations": [
         "window",
-        "portal",
-        "panorama",
-        "docked"
+        "portal"
       ],
       "source": "accessibilityIdentifier"
     },
@@ -5768,27 +5762,21 @@
       "identifierTemplate": "PlayerUI-loadFailure-secondary",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
-            "line": 1313,
+            "line": 1415,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
             "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
-          },
-          {
-            "line": 25,
             "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
           }
         ]
       },
       "presentations": [
         "window",
-        "portal",
-        "panorama",
-        "docked"
+        "portal"
       ],
       "source": "accessibilityIdentifier"
     },
@@ -5858,28 +5846,19 @@
       "identifierTemplate": "PlayerUI-playbackIssue-primary",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
-            "line": 1313,
+            "line": 1417,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
-            "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
-          },
-          {
-            "line": 25,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+            "line": 254,
+            "path": "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift"
           }
         ]
       },
-      "presentations": [
-        "window",
-        "portal",
-        "panorama",
-        "docked"
-      ],
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
@@ -5887,28 +5866,19 @@
       "identifierTemplate": "PlayerUI-playbackIssue-secondary",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
-            "line": 1313,
+            "line": 1417,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
-            "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
-          },
-          {
-            "line": 25,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+            "line": 254,
+            "path": "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift"
           }
         ]
       },
-      "presentations": [
-        "window",
-        "portal",
-        "panorama",
-        "docked"
-      ],
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
@@ -5916,27 +5886,16 @@
       "identifierTemplate": "PlayerUI-presentation-conversion-dismiss",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "browserWindowPlaybackIssue",
         "sources": [
           {
-            "line": 1313,
+            "line": 1432,
             "path": "Apps/Enchron/MainView.swift"
-          },
-          {
-            "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
-          },
-          {
-            "line": 25,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
           }
         ]
       },
       "presentations": [
-        "window",
-        "portal",
-        "panorama",
-        "docked"
+        "window"
       ],
       "source": "accessibilityIdentifier"
     },
@@ -5981,15 +5940,11 @@
       "identifierTemplate": "PlayerUI-spatialFailure-primary",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "immersivePlaybackIssueActions",
         "sources": [
           {
-            "line": 1313,
+            "line": 1416,
             "path": "Apps/Enchron/MainView.swift"
-          },
-          {
-            "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
           },
           {
             "line": 25,
@@ -5998,8 +5953,6 @@
         ]
       },
       "presentations": [
-        "window",
-        "portal",
         "panorama",
         "docked"
       ],
@@ -6010,15 +5963,11 @@
       "identifierTemplate": "PlayerUI-spatialFailure-secondary",
       "kind": "activate",
       "presentationDerivation": {
-        "host": "playbackIssuePresentationSites",
+        "host": "immersivePlaybackIssueActions",
         "sources": [
           {
-            "line": 1313,
+            "line": 1416,
             "path": "Apps/Enchron/MainView.swift"
-          },
-          {
-            "line": 24,
-            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
           },
           {
             "line": 25,
@@ -6027,8 +5976,6 @@
         ]
       },
       "presentations": [
-        "window",
-        "portal",
         "panorama",
         "docked"
       ],
