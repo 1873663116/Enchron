@@ -8,7 +8,10 @@ private final class RecordingRangeServer: @unchecked Sendable {
     private let lock = NSLock()
     private var observedRanges: [String] = []
     private var listening = true
+    private var stallsNextResponse = false
     private let reusesConnections: Bool
+    private let stalledResponse = DispatchSemaphore(value: 0)
+    private let releaseStalledResponse = DispatchSemaphore(value: 0)
 
     let port: UInt16
 
@@ -63,8 +66,17 @@ private final class RecordingRangeServer: @unchecked Sendable {
 
     func stop() {
         lock.withLock { listening = false }
+        releaseStalledResponse.signal()
         shutdown(socket, SHUT_RDWR)
         close(socket)
+    }
+
+    func stallNextRangeResponse() {
+        lock.withLock { stallsNextResponse = true }
+    }
+
+    func waitForStalledResponse(timeout: DispatchTime) -> Bool {
+        stalledResponse.wait(timeout: timeout) == .success
     }
 
     private func serve() {
@@ -112,6 +124,23 @@ private final class RecordingRangeServer: @unchecked Sendable {
         let end = min(namedEnd ?? payload.count - 1, payload.count - 1)
         guard start <= end else {
             send(status: "500 Internal Server Error", body: Data(), declaring: 0, on: connection)
+            return false
+        }
+        let shouldStall = lock.withLock {
+            guard stallsNextResponse else { return false }
+            stallsNextResponse = false
+            return true
+        }
+        if shouldStall {
+            send(
+                status: "206 Partial Content",
+                body: Data(),
+                declaring: end - start + 1,
+                contentRange: "bytes \(start)-\(end)/\(payload.count)",
+                on: connection
+            )
+            stalledResponse.signal()
+            releaseStalledResponse.wait()
             return false
         }
 
@@ -310,6 +339,81 @@ private func reportedError(_ buffer: [CChar]) -> String {
         Comment(rawValue: "read \(outcome.bytes) bytes from \(outcome.samples) "
             + "samples, too few to cross a request window")
     )
+}
+
+@Test func interruptingDemuxSourceAbortsBlockedHTTPRead() throws {
+    setFFmpegLogLevel(-8)
+    let fixture = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent(
+            "TestMedia/Samples/Spatial/MVHEVC-Apple-Official/" +
+                "spatial_lighthouse_flowers_waves_short.mov"
+        )
+    let payload = try Data(contentsOf: fixture)
+    let server = try RecordingRangeServer(serving: payload)
+    defer { server.stop() }
+    var error = [CChar](repeating: 0, count: 512)
+    let source = server.url.absoluteString.withCString { path in
+        PBFFmpegDemuxSourceCreate(path, nil, &error, error.count)
+    }
+    let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
+    defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+    try #require(PBFFmpegDemuxSourceSeek(
+        openedSource,
+        0,
+        &error,
+        error.count
+    ))
+    let reader = try #require(PBFFmpegReaderAllocate())
+    defer { PBFFmpegReaderDestroy(reader) }
+    try #require(
+        PBFFmpegReaderOpenWithDemuxSource(
+            reader,
+            openedSource,
+            PBFFmpegModeCompressed,
+            &error,
+            error.count
+        ),
+        Comment(rawValue: reportedError(error))
+    )
+    server.stallNextRangeResponse()
+    let readResult = LockedReadResult()
+    let finished = DispatchSemaphore(value: 0)
+    let readerAddress = Int(bitPattern: reader)
+    DispatchQueue.global().async {
+        var sample: Unmanaged<CMSampleBuffer>?
+        var readError = [CChar](repeating: 0, count: 512)
+        readResult.value = PBFFmpegReaderCopyNextSample(
+            OpaquePointer(bitPattern: readerAddress),
+            &sample,
+            &readError,
+            readError.count
+        )
+        _ = sample?.takeRetainedValue()
+        finished.signal()
+    }
+    try #require(server.waitForStalledResponse(timeout: .now() + 5))
+
+    PBFFmpegDemuxSourceInterrupt(openedSource)
+
+    #expect(finished.wait(timeout: .now() + 5) == .success)
+    #expect(readResult.value == PBFFmpegReadResultCancelled)
+}
+
+private final class LockedReadResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue = PBFFmpegReadResultError
+
+    var value: PBFFmpegReadResult {
+        get { lock.withLock { storedValue } }
+        set { lock.withLock { storedValue = newValue } }
+    }
 }
 
 private final class DrainOutcome: @unchecked Sendable {

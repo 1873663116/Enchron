@@ -1,11 +1,30 @@
 import Foundation
 import MediaSource
-import PlaybackFeature
+@testable import PlaybackFeature
 import Synchronization
 import Testing
 
 @MainActor
 struct TrackSelectionPreferenceTests {
+    @Test("network retry stops when its launch generation becomes stale")
+    func staleGenerationStopsNetworkRetry() {
+        #expect(PlaybackLaunchCoordinator.retryAttemptIsCurrent(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            isCancelled: false
+        ))
+        #expect(!PlaybackLaunchCoordinator.retryAttemptIsCurrent(
+            expectedGeneration: 7,
+            currentGeneration: 8,
+            isCancelled: false
+        ))
+        #expect(!PlaybackLaunchCoordinator.retryAttemptIsCurrent(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            isCancelled: true
+        ))
+    }
+
     @Test("playback mode persists independently from Media Format")
     func playbackModePersistsIndependentlyFromMediaFormat() async throws {
         let suiteName = "app.enchron.tests.playback-mode.\(UUID().uuidString)"

@@ -590,6 +590,28 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
 }
 
 @MainActor
+@Test func controllerHushStopsTheTimelineWithoutClosingTheSession() async throws {
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(events: [.end]),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/hush.mov")
+    )
+    session.synchronizer.rate = 1
+    #expect(session.synchronizer.rate == 1)
+
+    controller.hush()
+
+    #expect(session.synchronizer.rate == 0)
+    #expect(controller.activeSession === session)
+    await controller.closeAndWait()
+}
+
+@MainActor
 @Test func openWaitsForPendingSynchronousCloseCleanup() async throws {
     let sink = FakeRendererInputSink(completesFlushImmediately: false)
     let sessionCreationCount = LockedBox(0)

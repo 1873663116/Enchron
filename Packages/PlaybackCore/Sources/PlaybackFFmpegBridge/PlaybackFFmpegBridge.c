@@ -48,6 +48,7 @@ typedef struct {
 
 struct PBFFmpegDemuxSource {
     atomic_bool interrupted;
+    atomic_bool permanentlyInterrupted;
     pthread_mutex_t lock;
     pthread_cond_t changed;
     pthread_t readThread;
@@ -362,7 +363,13 @@ static void stop_demux_source_read_thread(PBFFmpegDemuxSource *source) {
     if (join) pthread_join(source->readThread, NULL);
     pthread_mutex_lock(&source->lock);
     source->readThreadStarted = false;
-    atomic_store_explicit(&source->interrupted, false, memory_order_relaxed);
+    atomic_store_explicit(&source->interrupted, false, memory_order_seq_cst);
+    if (atomic_load_explicit(
+            &source->permanentlyInterrupted,
+            memory_order_seq_cst
+        )) {
+        atomic_store_explicit(&source->interrupted, true, memory_order_seq_cst);
+    }
     pthread_mutex_unlock(&source->lock);
 }
 
@@ -2772,6 +2779,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         return NULL;
     }
     atomic_init(&source->interrupted, false);
+    atomic_init(&source->permanentlyInterrupted, false);
     if (pthread_mutex_init(&source->lock, NULL) != 0) {
         set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
         free(source);
@@ -2870,6 +2878,17 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     );
     source->prebuffersAudio = true;
     return source;
+}
+
+void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source) {
+    if (!source) return;
+    atomic_store_explicit(
+        &source->permanentlyInterrupted,
+        true,
+        memory_order_seq_cst
+    );
+    atomic_store_explicit(&source->interrupted, true, memory_order_seq_cst);
+    pthread_cond_broadcast(&source->changed);
 }
 
 void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {

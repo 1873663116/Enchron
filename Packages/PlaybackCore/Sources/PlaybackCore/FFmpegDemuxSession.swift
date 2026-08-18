@@ -2,7 +2,8 @@ import Foundation
 import PlaybackFFmpegBridge
 
 final class FFmpegDemuxSession: @unchecked Sendable {
-    private let lock = NSLock()
+    private let operationLock = NSLock()
+    private let sourceLock = NSLock()
     private let sourceReadMeter: PlaybackSourceReadMeter
     private var source: OpaquePointer?
     private var sourceArgument: String?
@@ -12,10 +13,9 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     }
 
     deinit {
-        let source = lock.withLock {
+        let source = sourceLock.withLock {
             defer {
                 self.source = nil
-                sourceArgument = nil
             }
             return self.source
         }
@@ -26,8 +26,8 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         argument: String,
         _ body: (OpaquePointer) throws -> T
     ) throws -> T {
-        try lock.withLock {
-            if let source {
+        try operationLock.withLock {
+            if let source = sourceLock.withLock({ source }) {
                 guard sourceArgument == argument else {
                     throw FFmpegDemuxSessionError.sourceChanged
                 }
@@ -45,15 +45,17 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             guard let opened else {
                 throw FFmpegDemuxSessionError.open(ffmpegErrorMessage(error))
             }
-            source = opened
+            sourceLock.withLock { source = opened }
             sourceArgument = argument
             return try body(opened)
         }
     }
 
     func seek(to seconds: Double) throws {
-        try lock.withLock {
-            guard let source else { throw FFmpegDemuxSessionError.notOpen }
+        try operationLock.withLock {
+            guard let source = sourceLock.withLock({ source }) else {
+                throw FFmpegDemuxSessionError.notOpen
+            }
             var error = [CChar](repeating: 0, count: 512)
             guard PBFFmpegDemuxSourceSeek(
                 source,
@@ -66,8 +68,15 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         }
     }
 
+    func interrupt() {
+        guard let source = sourceLock.withLock({ source }) else { return }
+        PBFFmpegDemuxSourceInterrupt(source)
+    }
+
     func isOpen(for argument: String) -> Bool {
-        lock.withLock { source != nil && sourceArgument == argument }
+        operationLock.withLock {
+            sourceLock.withLock { source != nil } && sourceArgument == argument
+        }
     }
 }
 
