@@ -1,0 +1,1715 @@
+diff --git a/Config/design_source_architecture_inputs.xcfilelist b/Config/design_source_architecture_inputs.xcfilelist
+index 093f0815..c777990a 100644
+--- a/Config/design_source_architecture_inputs.xcfilelist
++++ b/Config/design_source_architecture_inputs.xcfilelist
+@@ -41,7 +41,6 @@ $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrary.swift
+ $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrarySearch.swift
+ $(SRCROOT)/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
+ $(SRCROOT)/Modules/MediaLibrary/Model/MediaSource.swift
+-$(SRCROOT)/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
+ $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailCache.swift
+ $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailService.swift
+ $(SRCROOT)/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
+@@ -64,6 +63,7 @@ $(SRCROOT)/Modules/MediaLibrary/Views/LibraryViewControls.swift
+ $(SRCROOT)/Modules/MediaLibrary/Views/SourceSidebar.swift
+ $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
+ $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
++$(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
+ $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
+ $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
+ $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
+diff --git a/Enchron.xcodeproj/project.pbxproj b/Enchron.xcodeproj/project.pbxproj
+index 107517ca..c12f52d5 100644
+--- a/Enchron.xcodeproj/project.pbxproj
++++ b/Enchron.xcodeproj/project.pbxproj
+@@ -152,7 +152,6 @@
+ 				MediaLibrary/Model/MediaLibrarySearch.swift,
+ 				MediaLibrary/Model/MediaPlaybackItem.swift,
+ 				MediaLibrary/Model/MediaSource.swift,
+-				MediaLibrary/Services/HTTPRangeStreamingServer.swift,
+ 				MediaLibrary/Services/ThumbnailCache.swift,
+ 				MediaLibrary/Services/ThumbnailService.swift,
+ 				MediaLibrary/Sources/Fake/FakeFileDataSource.swift,
+@@ -167,6 +166,7 @@
+ 				MediaLibrary/Views/ConnectionFormPanel.swift,
+ 				MediaSource/KeychainStore.swift,
+ 				MediaSource/MediaAccessLease.swift,
++				MediaSource/MediaByteStream.swift,
+ 				MediaSource/NaturalMediaNameOrder.swift,
+ 				MediaSource/NetworkMonitor.swift,
+ 				MediaSource/ResolvedExternalSubtitleSource.swift,
+diff --git a/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift b/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
+deleted file mode 100644
+index 12fd23d7..00000000
+--- a/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
++++ /dev/null
+@@ -1,390 +0,0 @@
+-import Foundation
+-import Network
+-
+-nonisolated protocol ByteRangeStreamingSource: AnyObject, Sendable {
+-    var contentLength: Int64 { get }
+-    func read(in range: Range<Int64>) async throws -> Data
+-}
+-
+-nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
+-    enum ServerError: LocalizedError {
+-        case invalidContentLength
+-        case listenerFailed(String)
+-        case listenerStopped
+-
+-        var errorDescription: String? {
+-            switch self {
+-            case .invalidContentLength:
+-                "The remote media size is unavailable."
+-            case .listenerFailed(let message):
+-                "Unable to start the private playback stream: \(message)"
+-            case .listenerStopped:
+-                "The private playback stream stopped before it became ready."
+-            }
+-        }
+-    }
+-
+-    struct Statistics: Sendable, Equatable {
+-        var requestCount = 0
+-        var bytesRead: Int64 = 0
+-        var largestRequest: Int64 = 0
+-    }
+-
+-    private let source: ByteRangeStreamingSource
+-    private let filename: String
+-    private let token = UUID().uuidString
+-    private let readChunkSize: Int64
+-    private let queue = DispatchQueue(label: "app.enchron.range-stream")
+-    private let lock = NSLock()
+-    private var listener: NWListener?
+-    private var connections: [ObjectIdentifier: NWConnection] = [:]
+-    private var transferTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+-    private var isStopping = false
+-    private var statistics = Statistics()
+-
+-    init(
+-        source: ByteRangeStreamingSource,
+-        filename: String,
+-        readChunkSize: Int64 = 1024 * 1024
+-    ) {
+-        self.source = source
+-        self.filename = filename
+-        self.readChunkSize = max(1, readChunkSize)
+-    }
+-
+-    deinit {
+-        stop()
+-    }
+-
+-    func start() async throws -> URL {
+-        guard source.contentLength >= 0 else { throw ServerError.invalidContentLength }
+-        lock.withLock { isStopping = false }
+-
+-        let parameters = NWParameters.tcp
+-        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+-        let listener = try NWListener(using: parameters, on: .any)
+-        self.listener = listener
+-
+-        return try await withCheckedThrowingContinuation { continuation in
+-            let resumed = LockedFlag()
+-            listener.stateUpdateHandler = { [weak self, weak listener] state in
+-                guard let self, let listener else { return }
+-                switch state {
+-                case .ready:
+-                    guard resumed.claim(), let port = listener.port else { return }
+-                    let escapedName = filename.addingPercentEncoding(
+-                        withAllowedCharacters: .urlPathAllowed
+-                    ) ?? "media"
+-                    guard let url = URL(
+-                        string: "http://127.0.0.1:\(port.rawValue)/\(token)/\(escapedName)"
+-                    ) else {
+-                        continuation.resume(throwing: ServerError.listenerFailed("Invalid loopback URL."))
+-                        return
+-                    }
+-                    continuation.resume(returning: url)
+-                case .failed(let error):
+-                    guard resumed.claim() else { return }
+-                    continuation.resume(throwing: ServerError.listenerFailed(error.localizedDescription))
+-                case .cancelled:
+-                    guard resumed.claim() else { return }
+-                    continuation.resume(throwing: ServerError.listenerStopped)
+-                default:
+-                    break
+-                }
+-            }
+-            listener.newConnectionHandler = { [weak self] connection in
+-                self?.accept(connection)
+-            }
+-            listener.start(queue: queue)
+-        }
+-    }
+-
+-    func stop() {
+-        let work = cancelActiveWork()
+-        work.listener?.cancel()
+-        work.tasks.forEach { $0.cancel() }
+-        work.connections.forEach { $0.cancel() }
+-    }
+-
+-    func stopAndWait() async {
+-        let work = cancelActiveWork()
+-        work.listener?.cancel()
+-        work.tasks.forEach { $0.cancel() }
+-        work.connections.forEach { $0.cancel() }
+-        for task in work.tasks {
+-            await task.value
+-        }
+-    }
+-
+-    func snapshot() -> Statistics {
+-        lock.withLock { statistics }
+-    }
+-
+-    private func accept(_ connection: NWConnection) {
+-        let connectionID = ObjectIdentifier(connection)
+-        let accepted = lock.withLock {
+-            guard isStopping == false else { return false }
+-            connections[connectionID] = connection
+-            return true
+-        }
+-        guard accepted else {
+-            connection.cancel()
+-            return
+-        }
+-        connection.stateUpdateHandler = { [weak self, weak connection] state in
+-            guard let self else { return }
+-            switch state {
+-            case .failed, .cancelled:
+-                self.connectionDidEnd(connectionID: connectionID)
+-                connection?.cancel()
+-            default:
+-                break
+-            }
+-        }
+-        connection.start(queue: queue)
+-        receiveRequest(on: connection, accumulated: Data())
+-    }
+-
+-    private func receiveRequest(on connection: NWConnection, accumulated: Data) {
+-        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
+-            [weak self] data, _, isComplete, error in
+-            guard let self else {
+-                connection.cancel()
+-                return
+-            }
+-            var requestData = accumulated
+-            if let data { requestData.append(data) }
+-            if requestData.range(of: Data("\r\n\r\n".utf8)) != nil {
+-                handle(requestData, on: connection)
+-            } else if error != nil || isComplete || requestData.count >= 64 * 1024 {
+-                sendError(400, message: "Bad Request", on: connection)
+-            } else {
+-                receiveRequest(on: connection, accumulated: requestData)
+-            }
+-        }
+-    }
+-
+-    private func handle(_ data: Data, on connection: NWConnection) {
+-        guard let request = String(data: data, encoding: .utf8),
+-              let firstLine = request.components(separatedBy: "\r\n").first else {
+-            sendError(400, message: "Bad Request", on: connection)
+-            return
+-        }
+-        let components = firstLine.split(separator: " ")
+-        guard components.count >= 2 else {
+-            sendError(400, message: "Bad Request", on: connection)
+-            return
+-        }
+-        let method = String(components[0])
+-        let path = String(components[1]).removingPercentEncoding ?? String(components[1])
+-        guard method == "GET" || method == "HEAD",
+-              path.hasPrefix("/\(token)/") else {
+-            sendError(404, message: "Not Found", on: connection)
+-            return
+-        }
+-
+-        let headers = Self.headers(from: request)
+-        guard let requestedRange = Self.byteRange(
+-            from: headers["range"],
+-            contentLength: source.contentLength
+-        ) else {
+-            sendRangeNotSatisfiable(on: connection)
+-            return
+-        }
+-        let isPartial = headers["range"] != nil
+-        let responseLength = Int64(requestedRange.count)
+-        lock.withLock {
+-            statistics.requestCount += 1
+-            statistics.largestRequest = max(statistics.largestRequest, responseLength)
+-        }
+-
+-        var response = "HTTP/1.1 \(isPartial ? "206 Partial Content" : "200 OK")\r\n"
+-        response += "Accept-Ranges: bytes\r\n"
+-        response += "Content-Type: application/octet-stream\r\n"
+-        response += "Content-Length: \(responseLength)\r\n"
+-        if isPartial {
+-            response += "Content-Range: bytes \(requestedRange.lowerBound)-\(requestedRange.upperBound - 1)/\(source.contentLength)\r\n"
+-        }
+-        response += "Connection: close\r\n\r\n"
+-
+-        connection.send(
+-            content: Data(response.utf8),
+-            contentContext: .defaultStream,
+-            isComplete: method == "HEAD",
+-            completion: .contentProcessed { [connection] error in
+-                if error != nil { connection.cancel() }
+-            }
+-        )
+-        guard method == "GET" else { return }
+-
+-        let connectionID = ObjectIdentifier(connection)
+-        let task = Task { [weak self, connection] in
+-            guard let self else { return }
+-            defer { self.finishTransfer(connectionID: connectionID) }
+-            await self.send(range: requestedRange, on: connection)
+-        }
+-        let accepted = lock.withLock {
+-            guard isStopping == false else { return false }
+-            transferTasks[connectionID] = task
+-            return true
+-        }
+-        if accepted == false {
+-            task.cancel()
+-            connection.cancel()
+-        }
+-    }
+-
+-    private func send(range: Range<Int64>, on connection: NWConnection) async {
+-        do {
+-            var offset = range.lowerBound
+-            while offset < range.upperBound {
+-                try Task.checkCancellation()
+-                let readEnd = min(offset + readChunkSize, range.upperBound)
+-                let chunk = try await source.read(in: offset..<readEnd)
+-                try Task.checkCancellation()
+-                guard !chunk.isEmpty else {
+-                    connection.cancel()
+-                    return
+-                }
+-                let remaining = range.upperBound - offset
+-                let payload = chunk.prefix(Int(min(Int64(chunk.count), remaining)))
+-                try await send(
+-                    Data(payload),
+-                    isComplete: readEnd == range.upperBound,
+-                    on: connection
+-                )
+-                let sent = Int64(payload.count)
+-                offset += sent
+-                lock.withLock { statistics.bytesRead += sent }
+-            }
+-        } catch {
+-            connection.cancel()
+-        }
+-    }
+-
+-    private func cancelActiveWork() -> (
+-        listener: NWListener?,
+-        connections: [NWConnection],
+-        tasks: [Task<Void, Never>]
+-    ) {
+-        lock.withLock {
+-            isStopping = true
+-            let work = (
+-                listener,
+-                Array(connections.values),
+-                Array(transferTasks.values)
+-            )
+-            listener = nil
+-            connections.removeAll()
+-            transferTasks.removeAll()
+-            return work
+-        }
+-    }
+-
+-    private func connectionDidEnd(connectionID: ObjectIdentifier) {
+-        let task = lock.withLock {
+-            connections.removeValue(forKey: connectionID)
+-            return transferTasks[connectionID]
+-        }
+-        task?.cancel()
+-    }
+-
+-    private func finishTransfer(connectionID: ObjectIdentifier) {
+-        _ = lock.withLock {
+-            transferTasks.removeValue(forKey: connectionID)
+-        }
+-    }
+-
+-    private func send(
+-        _ data: Data,
+-        isComplete: Bool,
+-        on connection: NWConnection
+-    ) async throws {
+-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+-            connection.send(
+-                content: data,
+-                contentContext: .defaultStream,
+-                isComplete: isComplete,
+-                completion: .contentProcessed { error in
+-                    if let error {
+-                        continuation.resume(throwing: error)
+-                    } else {
+-                        continuation.resume()
+-                    }
+-                }
+-            )
+-        }
+-    }
+-
+-    private func sendRangeNotSatisfiable(on connection: NWConnection) {
+-        let response = "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */\(source.contentLength)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+-        connection.send(
+-            content: Data(response.utf8),
+-            contentContext: .defaultStream,
+-            isComplete: true,
+-            completion: .contentProcessed { _ in }
+-        )
+-    }
+-
+-    private func sendError(_ status: Int, message: String, on connection: NWConnection) {
+-        let response = "HTTP/1.1 \(status) \(message)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+-        connection.send(
+-            content: Data(response.utf8),
+-            contentContext: .defaultStream,
+-            isComplete: true,
+-            completion: .contentProcessed { _ in }
+-        )
+-    }
+-
+-    private static func headers(from request: String) -> [String: String] {
+-        request.components(separatedBy: "\r\n")
+-            .dropFirst()
+-            .reduce(into: [:]) { headers, line in
+-                guard let separator = line.firstIndex(of: ":") else { return }
+-                let name = line[..<separator].trimmingCharacters(in: .whitespaces).lowercased()
+-                let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
+-                headers[name] = value
+-            }
+-    }
+-
+-    private static func byteRange(
+-        from header: String?,
+-        contentLength: Int64
+-    ) -> Range<Int64>? {
+-        guard contentLength >= 0 else { return nil }
+-        guard let header else { return 0..<contentLength }
+-        guard header.hasPrefix("bytes="), !header.contains(",") else { return nil }
+-        let value = header.dropFirst("bytes=".count)
+-        let bounds = value.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+-        guard bounds.count == 2 else { return nil }
+-
+-        if bounds[0].isEmpty {
+-            guard let suffixLength = Int64(bounds[1]), suffixLength > 0 else { return nil }
+-            let start = max(0, contentLength - suffixLength)
+-            return start..<contentLength
+-        }
+-
+-        guard let start = Int64(bounds[0]), start >= 0, start < contentLength else { return nil }
+-        let inclusiveEnd: Int64
+-        if bounds[1].isEmpty {
+-            inclusiveEnd = contentLength - 1
+-        } else {
+-            guard let parsedEnd = Int64(bounds[1]), parsedEnd >= start else { return nil }
+-            inclusiveEnd = min(parsedEnd, contentLength - 1)
+-        }
+-        return start..<(inclusiveEnd + 1)
+-    }
+-}
+-
+-private nonisolated final class LockedFlag: @unchecked Sendable {
+-    private let lock = NSLock()
+-    private var claimed = false
+-
+-    func claim() -> Bool {
+-        lock.withLock {
+-            guard !claimed else { return false }
+-            claimed = true
+-            return true
+-        }
+-    }
+-}
+diff --git a/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift b/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
+index 0f8743f3..0588b372 100644
+--- a/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
++++ b/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
+@@ -227,12 +227,12 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
+                 path: remotePath,
+                 contentLength: file.sizeInBytes
+             )
+-            let server = HTTPRangeStreamingServer(source: source, filename: file.name)
+-            let url = try await server.start()
+-            let resources = SMBPlaybackResources(manager: playbackManager, server: server)
+-            return ResolvedMediaSource(
+-                url: url,
+-                accessLease: MediaAccessLease { resources.stop() }
++            return try await MediaByteStreamEndpoint.shared.resolve(
++                source,
++                filename: file.name,
++                onTermination: {
++                    try? await playbackManager.disconnectShare()
++                }
+             )
+         } catch {
+             Task { try? await playbackManager.disconnectShare() }
+@@ -361,15 +361,18 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
+ 
+ }
+ 
+-private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+-    let contentLength: Int64
++private nonisolated final class SMBByteRangeSource: MediaByteSource, @unchecked Sendable {
++    let totalLength: Int64?
++    let seekability = MediaByteSourceSeekability.randomAccess
++    let liveness = MediaByteSourceLiveness.finite
++    let suggestedBufferDepth = MediaByteBufferDepth.bytes(1_024 * 1_024)
+     private let manager: SMB2Manager
+     private let path: String
+ 
+     init(manager: SMB2Manager, path: String, contentLength: Int64) {
+         self.manager = manager
+         self.path = path
+-        self.contentLength = contentLength
++        totalLength = contentLength
+     }
+ 
+     func read(in range: Range<Int64>) async throws -> Data {
+@@ -379,32 +382,3 @@ private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @u
+         )
+     }
+ }
+-
+-private nonisolated final class SMBPlaybackResources: @unchecked Sendable {
+-    private let lock = NSLock()
+-    private let manager: SMB2Manager
+-    private let server: HTTPRangeStreamingServer
+-    private var isStopped = false
+-
+-    init(manager: SMB2Manager, server: HTTPRangeStreamingServer) {
+-        self.manager = manager
+-        self.server = server
+-    }
+-
+-    func stop() {
+-        let shouldStop = lock.withLock {
+-            guard isStopped == false else { return false }
+-            isStopped = true
+-            return true
+-        }
+-        guard shouldStop else { return }
+-        Task { [self] in
+-            await server.stopAndWait()
+-            try? await manager.disconnectShare()
+-        }
+-    }
+-
+-    deinit {
+-        stop()
+-    }
+-}
+diff --git a/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift b/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift
+index 7cf510aa..e00b4038 100644
+--- a/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift
++++ b/Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift
+@@ -179,15 +179,12 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
+             authorizationHeader: authHeader,
+             session: session
+         )
+-        let server = HTTPRangeStreamingServer(source: source, filename: file.name)
+         do {
+-            let url = try await server.start()
+-            return ResolvedMediaSource(
+-                url: url,
+-                accessLease: MediaAccessLease { server.stop() }
++            return try await MediaByteStreamEndpoint.shared.resolve(
++                source,
++                filename: file.name
+             )
+         } catch {
+-            server.stop()
+             throw WebDAVError.streamingFailed(error.localizedDescription)
+         }
+     }
+@@ -441,8 +438,11 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
+     }()
+ }
+ 
+-private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+-    let contentLength: Int64
++private nonisolated final class WebDAVByteRangeSource: MediaByteSource, @unchecked Sendable {
++    let totalLength: Int64?
++    let seekability = MediaByteSourceSeekability.randomAccess
++    let liveness = MediaByteSourceLiveness.finite
++    let suggestedBufferDepth = MediaByteBufferDepth.bytes(1_024 * 1_024)
+     private let url: URL
+     private let authorizationHeader: String?
+     private let session: URLSession
+@@ -454,7 +454,7 @@ private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource,
+         session: URLSession
+     ) {
+         self.url = url
+-        self.contentLength = contentLength
++        totalLength = contentLength
+         self.authorizationHeader = authorizationHeader
+         self.session = session
+     }
+diff --git a/Modules/MediaSource/MediaByteStream.swift b/Modules/MediaSource/MediaByteStream.swift
+new file mode 100644
+index 00000000..6d68f28a
+--- /dev/null
++++ b/Modules/MediaSource/MediaByteStream.swift
+@@ -0,0 +1,508 @@
++import Foundation
++import Network
++
++public enum MediaByteSourceSeekability: Sendable, Equatable {
++    case sequential
++    case randomAccess
++}
++
++public enum MediaByteSourceLiveness: Sendable, Equatable {
++    case finite
++    case live
++}
++
++public enum MediaByteBufferDepth: Sendable, Equatable {
++    case none
++    case automatic
++    case bytes(UInt64)
++}
++
++public nonisolated protocol MediaByteSource: AnyObject, Sendable {
++    var totalLength: Int64? { get }
++    var seekability: MediaByteSourceSeekability { get }
++    var liveness: MediaByteSourceLiveness { get }
++    var suggestedBufferDepth: MediaByteBufferDepth { get }
++
++    func read(in range: Range<Int64>) async throws -> Data
++}
++
++public nonisolated final class MediaByteStreamEndpoint: @unchecked Sendable {
++    public enum EndpointError: LocalizedError {
++        case lengthUnavailable
++        case sourceIsNotSeekable
++        case listenerFailed(String)
++        case listenerStopped
++
++        public var errorDescription: String? {
++            switch self {
++            case .lengthUnavailable:
++                "The remote media size is unavailable."
++            case .sourceIsNotSeekable:
++                "The remote media source is not seekable."
++            case .listenerFailed(let message):
++                "Unable to start the private playback stream: \(message)"
++            case .listenerStopped:
++                "The private playback stream stopped before it became ready."
++            }
++        }
++    }
++
++    struct Statistics: Sendable, Equatable {
++        var acceptedConnectionCount = 0
++        var requestCount = 0
++        var bytesRead: Int64 = 0
++        var largestRequest: Int64 = 0
++    }
++
++    private nonisolated final class Registration: @unchecked Sendable {
++        let source: any MediaByteSource
++        let totalLength: Int64
++        let readChunkSize: Int64
++
++        init(source: any MediaByteSource, totalLength: Int64) {
++            self.source = source
++            self.totalLength = totalLength
++            readChunkSize = switch source.suggestedBufferDepth {
++            case .bytes(let byteCount):
++                max(1, Int64(clamping: byteCount))
++            case .none, .automatic:
++                1_024 * 1_024
++            }
++        }
++    }
++
++    private struct Transfer {
++        let token: String
++        let task: Task<Void, Never>
++    }
++
++    public static let shared = MediaByteStreamEndpoint()
++
++    private let queue = DispatchQueue(label: "app.enchron.media-byte-stream")
++    private let lock = NSLock()
++    private var listener: NWListener?
++    private var port: NWEndpoint.Port?
++    private var startupWaiters: [CheckedContinuation<NWEndpoint.Port, any Error>] = []
++    private var registrations: [String: Registration] = [:]
++    private var connections: [ObjectIdentifier: NWConnection] = [:]
++    private var connectionTokens: [ObjectIdentifier: String] = [:]
++    private var transfers: [ObjectIdentifier: Transfer] = [:]
++    private var statistics = Statistics()
++
++    private init() {}
++
++    deinit {
++        let work = lock.withLock {
++            let work = (listener, Array(connections.values), transfers.values.map(\.task))
++            listener = nil
++            port = nil
++            registrations.removeAll()
++            connections.removeAll()
++            connectionTokens.removeAll()
++            transfers.removeAll()
++            return work
++        }
++        work.0?.cancel()
++        work.1.forEach { $0.cancel() }
++        work.2.forEach { $0.cancel() }
++    }
++
++    public func resolve(
++        _ source: any MediaByteSource,
++        filename: String,
++        onTermination: @escaping @Sendable () async -> Void = {}
++    ) async throws -> ResolvedMediaSource {
++        guard let totalLength = source.totalLength, totalLength > 0 else {
++            throw EndpointError.lengthUnavailable
++        }
++        guard source.seekability == .randomAccess else {
++            throw EndpointError.sourceIsNotSeekable
++        }
++
++        let port = try await ensureStarted()
++        let token = UUID().uuidString
++        let escapedName = filename.addingPercentEncoding(
++            withAllowedCharacters: .urlPathAllowed
++        ) ?? "media"
++        guard let url = URL(
++            string: "http://127.0.0.1:\(port.rawValue)/\(token)/\(escapedName)"
++        ) else {
++            throw EndpointError.listenerFailed("Invalid loopback URL.")
++        }
++
++        let registration = Registration(source: source, totalLength: totalLength)
++        lock.withLock { registrations[token] = registration }
++        return ResolvedMediaSource(
++            url: url,
++            accessLease: MediaAccessLease { [weak self] in
++                self?.unregister(token: token, onTermination: onTermination)
++            }
++        )
++    }
++
++    func snapshot() -> Statistics {
++        lock.withLock { statistics }
++    }
++
++    private func ensureStarted() async throws -> NWEndpoint.Port {
++        if let port = lock.withLock({ port }) { return port }
++
++        return try await withCheckedThrowingContinuation { continuation in
++            let startsListener = lock.withLock {
++                if let port {
++                    continuation.resume(returning: port)
++                    return false
++                }
++                startupWaiters.append(continuation)
++                guard listener == nil else { return false }
++                do {
++                    let parameters = NWParameters.tcp
++                    parameters.requiredLocalEndpoint = .hostPort(
++                        host: "127.0.0.1",
++                        port: .any
++                    )
++                    listener = try NWListener(using: parameters, on: .any)
++                    return true
++                } catch {
++                    let waiters = startupWaiters
++                    startupWaiters.removeAll()
++                    waiters.forEach { $0.resume(throwing: error) }
++                    return false
++                }
++            }
++            guard startsListener, let listener = lock.withLock({ self.listener }) else {
++                return
++            }
++            listener.stateUpdateHandler = { [weak self, weak listener] state in
++                guard let self, let listener else { return }
++                switch state {
++                case .ready:
++                    guard let readyPort = listener.port else { return }
++                    let waiters = self.lock.withLock {
++                        self.port = readyPort
++                        let waiters = self.startupWaiters
++                        self.startupWaiters.removeAll()
++                        return waiters
++                    }
++                    waiters.forEach { $0.resume(returning: readyPort) }
++                case .failed(let error):
++                    self.failStartup(
++                        EndpointError.listenerFailed(error.localizedDescription)
++                    )
++                case .cancelled:
++                    self.failStartup(EndpointError.listenerStopped)
++                default:
++                    break
++                }
++            }
++            listener.newConnectionHandler = { [weak self] connection in
++                self?.accept(connection)
++            }
++            listener.start(queue: queue)
++        }
++    }
++
++    private func failStartup(_ error: any Error) {
++        let waiters = lock.withLock {
++            let waiters = startupWaiters
++            startupWaiters.removeAll()
++            listener = nil
++            port = nil
++            return waiters
++        }
++        waiters.forEach { $0.resume(throwing: error) }
++    }
++
++    private func accept(_ connection: NWConnection) {
++        let connectionID = ObjectIdentifier(connection)
++        lock.withLock {
++            connections[connectionID] = connection
++            statistics.acceptedConnectionCount += 1
++        }
++        connection.stateUpdateHandler = { [weak self, weak connection] state in
++            guard let self else { return }
++            switch state {
++            case .failed, .cancelled:
++                self.connectionDidEnd(connectionID: connectionID)
++                connection?.cancel()
++            default:
++                break
++            }
++        }
++        connection.start(queue: queue)
++        receiveRequest(on: connection, accumulated: Data())
++    }
++
++    private func receiveRequest(on connection: NWConnection, accumulated: Data) {
++        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1_024) { [weak self] data, _, isComplete, error in
++            guard let self else {
++                connection.cancel()
++                return
++            }
++            var requestData = accumulated
++            if let data { requestData.append(data) }
++            if requestData.range(of: Data("\r\n\r\n".utf8)) != nil {
++                handle(requestData, on: connection)
++            } else if error != nil || isComplete || requestData.count >= 64 * 1_024 {
++                sendError(400, message: "Bad Request", on: connection)
++            } else {
++                receiveRequest(on: connection, accumulated: requestData)
++            }
++        }
++    }
++
++    private func handle(_ data: Data, on connection: NWConnection) {
++        guard let request = String(data: data, encoding: .utf8),
++              let firstLine = request.components(separatedBy: "\r\n").first else {
++            sendError(400, message: "Bad Request", on: connection)
++            return
++        }
++        let components = firstLine.split(separator: " ")
++        guard components.count >= 2 else {
++            sendError(400, message: "Bad Request", on: connection)
++            return
++        }
++        let method = String(components[0])
++        let path = String(components[1]).removingPercentEncoding ?? String(components[1])
++        let token = path.split(separator: "/", omittingEmptySubsequences: true)
++            .first
++            .map(String.init)
++        let connectionID = ObjectIdentifier(connection)
++        guard method == "GET" || method == "HEAD",
++              let token,
++              let registration = lock.withLock({ () -> Registration? in
++                  guard connections[connectionID] != nil,
++                        let registration = registrations[token] else {
++                      return nil
++                  }
++                  connectionTokens[connectionID] = token
++                  return registration
++              }) else {
++            sendError(404, message: "Not Found", on: connection)
++            return
++        }
++
++        let headers = Self.headers(from: request)
++        guard let requestedRange = Self.byteRange(
++            from: headers["range"],
++            contentLength: registration.totalLength
++        ) else {
++            sendRangeNotSatisfiable(
++                contentLength: registration.totalLength,
++                on: connection
++            )
++            return
++        }
++        let isPartial = headers["range"] != nil
++        let responseLength = Int64(requestedRange.count)
++        lock.withLock {
++            statistics.requestCount += 1
++            statistics.largestRequest = max(statistics.largestRequest, responseLength)
++        }
++
++        var response = "HTTP/1.1 \(isPartial ? "206 Partial Content" : "200 OK")\r\n"
++        response += "Accept-Ranges: bytes\r\n"
++        response += "Content-Type: application/octet-stream\r\n"
++        response += "Content-Length: \(responseLength)\r\n"
++        if isPartial {
++            response += "Content-Range: bytes \(requestedRange.lowerBound)-\(requestedRange.upperBound - 1)/\(registration.totalLength)\r\n"
++        }
++        response += "Connection: close\r\n\r\n"
++
++        connection.send(
++            content: Data(response.utf8),
++            contentContext: .defaultStream,
++            isComplete: method == "HEAD",
++            completion: .contentProcessed { [connection] error in
++                if error != nil { connection.cancel() }
++            }
++        )
++        guard method == "GET" else { return }
++
++        let accepted = lock.withLock {
++            guard registrations[token] === registration,
++                  connections[connectionID] != nil else {
++                return false
++            }
++            let task = Task { [weak self, connection, registration] in
++                guard let self else { return }
++                defer { self.finishTransfer(connectionID: connectionID) }
++                await self.send(
++                    range: requestedRange,
++                    registration: registration,
++                    on: connection
++                )
++            }
++            transfers[connectionID] = Transfer(token: token, task: task)
++            return true
++        }
++        if accepted == false { connection.cancel() }
++    }
++
++    private func send(
++        range: Range<Int64>,
++        registration: Registration,
++        on connection: NWConnection
++    ) async {
++        do {
++            var offset = range.lowerBound
++            while offset < range.upperBound {
++                try Task.checkCancellation()
++                let readEnd = min(offset + registration.readChunkSize, range.upperBound)
++                let chunk = try await registration.source.read(in: offset..<readEnd)
++                try Task.checkCancellation()
++                guard chunk.isEmpty == false else {
++                    connection.cancel()
++                    return
++                }
++                let remaining = range.upperBound - offset
++                let payload = chunk.prefix(Int(min(Int64(chunk.count), remaining)))
++                try await send(
++                    Data(payload),
++                    isComplete: readEnd == range.upperBound,
++                    on: connection
++                )
++                let sent = Int64(payload.count)
++                offset += sent
++                lock.withLock { statistics.bytesRead += sent }
++            }
++        } catch {
++            connection.cancel()
++        }
++    }
++
++    private func unregister(
++        token: String,
++        onTermination: @escaping @Sendable () async -> Void
++    ) {
++        let work = lock.withLock { () -> ([NWConnection], [Task<Void, Never>])? in
++            guard registrations.removeValue(forKey: token) != nil else { return nil }
++
++            let connectionIDs = connectionTokens.compactMap { connectionID, registeredToken in
++                registeredToken == token ? connectionID : nil
++            }
++            let routeConnections = connectionIDs.compactMap { connectionID in
++                connectionTokens.removeValue(forKey: connectionID)
++                return connections.removeValue(forKey: connectionID)
++            }
++            let transferIDs = transfers.compactMap { connectionID, transfer in
++                transfer.token == token ? connectionID : nil
++            }
++            let routeTasks = transferIDs.compactMap { connectionID in
++                transfers.removeValue(forKey: connectionID)?.task
++            }
++            return (routeConnections, routeTasks)
++        }
++        guard let work else { return }
++
++        work.1.forEach { $0.cancel() }
++        work.0.forEach { $0.cancel() }
++        Task {
++            for task in work.1 { await task.value }
++            await onTermination()
++        }
++    }
++
++    private func connectionDidEnd(connectionID: ObjectIdentifier) {
++        let task = lock.withLock {
++            connections.removeValue(forKey: connectionID)
++            connectionTokens.removeValue(forKey: connectionID)
++            return transfers[connectionID]?.task
++        }
++        task?.cancel()
++    }
++
++    private func finishTransfer(connectionID: ObjectIdentifier) {
++        _ = lock.withLock { transfers.removeValue(forKey: connectionID) }
++    }
++
++    private func send(
++        _ data: Data,
++        isComplete: Bool,
++        on connection: NWConnection
++    ) async throws {
++        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
++            connection.send(
++                content: data,
++                contentContext: .defaultStream,
++                isComplete: isComplete,
++                completion: .contentProcessed { error in
++                    if let error {
++                        continuation.resume(throwing: error)
++                    } else {
++                        continuation.resume()
++                    }
++                }
++            )
++        }
++    }
++
++    private func sendRangeNotSatisfiable(
++        contentLength: Int64,
++        on connection: NWConnection
++    ) {
++        let response = "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */\(contentLength)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
++        connection.send(
++            content: Data(response.utf8),
++            contentContext: .defaultStream,
++            isComplete: true,
++            completion: .contentProcessed { _ in }
++        )
++    }
++
++    private func sendError(_ status: Int, message: String, on connection: NWConnection) {
++        let response = "HTTP/1.1 \(status) \(message)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
++        connection.send(
++            content: Data(response.utf8),
++            contentContext: .defaultStream,
++            isComplete: true,
++            completion: .contentProcessed { _ in }
++        )
++    }
++
++    private static func headers(from request: String) -> [String: String] {
++        request.components(separatedBy: "\r\n")
++            .dropFirst()
++            .reduce(into: [:]) { headers, line in
++                guard let separator = line.firstIndex(of: ":") else { return }
++                let name = line[..<separator].trimmingCharacters(in: .whitespaces).lowercased()
++                let value = line[line.index(after: separator)...]
++                    .trimmingCharacters(in: .whitespaces)
++                headers[name] = value
++            }
++    }
++
++    private static func byteRange(
++        from header: String?,
++        contentLength: Int64
++    ) -> Range<Int64>? {
++        guard contentLength >= 0 else { return nil }
++        guard let header else { return 0..<contentLength }
++        guard header.hasPrefix("bytes="), header.contains(",") == false else { return nil }
++        let value = header.dropFirst("bytes=".count)
++        let bounds = value.split(
++            separator: "-",
++            maxSplits: 1,
++            omittingEmptySubsequences: false
++        )
++        guard bounds.count == 2 else { return nil }
++
++        if bounds[0].isEmpty {
++            guard let suffixLength = Int64(bounds[1]), suffixLength > 0 else { return nil }
++            let start = max(0, contentLength - suffixLength)
++            return start..<contentLength
++        }
++
++        guard let start = Int64(bounds[0]), start >= 0, start < contentLength else {
++            return nil
++        }
++        let inclusiveEnd: Int64
++        if bounds[1].isEmpty {
++            inclusiveEnd = contentLength - 1
++        } else {
++            guard let parsedEnd = Int64(bounds[1]), parsedEnd >= start else { return nil }
++            inclusiveEnd = min(parsedEnd, contentLength - 1)
++        }
++        return start..<(inclusiveEnd + 1)
++    }
++}
+diff --git a/REPORT.md b/REPORT.md
+new file mode 100644
+index 00000000..549801a5
+--- /dev/null
++++ b/REPORT.md
+@@ -0,0 +1,124 @@
++# Media Byte Stream foundation report
++
++## Result
++
++This unit moves the loopback HTTP byte endpoint from `MediaLibrary` to `MediaSource` and makes it a single app-wide instance. SMB and WebDAV now implement the new byte-source protocol and register routes on that endpoint. Local file playback and Emby playback keep their previous URL paths, and PlaybackCore still receives only an openable `URL`.
++
++The authority and implementation are recorded in these commits before the delivery artifacts:
++
++- `5ea02e9f docs: record media byte stream refactor authority`
++- `beeedd20 refactor: centralize remote byte streaming in MediaSource`
++
++The comparison base is `a1298902df818d7e192bf3fbaedda542607c55bf`.
++
++## Implementation
++
++`Modules/MediaSource/MediaByteStream.swift` now owns both the source contract and the HTTP endpoint.
++
++| Contract member | Type | Meaning in this unit |
++|---|---|---|
++| `totalLength` | `Int64?` | A finite byte count or `nil` when the source cannot report one. The endpoint rejects `nil` until M3 adds unknown-length transfer. |
++| `seekability` | `MediaByteSourceSeekability` | Distinguishes sequential and random-access sources. This endpoint currently accepts random access only. |
++| `liveness` | `MediaByteSourceLiveness` | Distinguishes finite and live sources without making callers infer that fact from a URL. |
++| `suggestedBufferDepth` | `MediaByteBufferDepth` | Carries no-buffer, automatic, or byte-count guidance. SMB and WebDAV preserve the former 1 MiB bounded read size. |
++| `read(in:)` | `Range<Int64> -> Data` | Reads the requested half-open byte range. |
++
++`MediaByteStreamEndpoint.shared` has a private initializer, starts one loopback `NWListener`, and gives each registered source a UUID route on the listener's port. A `MediaAccessLease` owns each route. Releasing the lease unregisters only that route, cancels its active connections and reads, waits for those reads to finish, and then runs source-specific cleanup. This preserves SMB's requirement to disconnect its playback connection after server work has stopped.
++
++The endpoint retains the existing GET, HEAD, bounded-read, open-ended range, suffix range, 416 response, and `Connection: close` behavior. M3 and M9 remain separate work, so this unit does not add chunked unknown-length responses or connection reuse.
++
++The old `Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift` was deleted. Xcode project membership and `Config/design_source_architecture_inputs.xcfilelist` now point to the MediaSource file. `Scripts/verification/verify_media_byte_stream_foundation.py` checks that ownership and routing remain in place and that MediaLibrary and PlaybackCore do not acquire the wrong dependencies.
++
++## Source routing after this unit
++
++| Source | Playback URL after this unit | Lifecycle |
++|---|---|---|
++| Local file | Original file URL | Unchanged and does not enter the loopback endpoint. |
++| SMB | Route on `MediaByteStreamEndpoint.shared` | Still opens a separate playback `SMB2Manager`; its route lease disconnects that manager after active reads stop. M11 was not implemented. |
++| WebDAV | Route on `MediaByteStreamEndpoint.shared` | The existing `URLSession`, authorization header, exact 206 validation, and ranged reads remain unchanged. |
++| Emby | Existing `source.directPlayURL` | Unchanged. FFmpeg still opens the remote HTTP URL directly in this unit. |
++
++`ResolvedMediaSource` remains the handoff boundary. MediaLibrary passes its URL and access lease through the existing playback launch path. PlaybackCore does not import MediaSource and does not see `MediaByteSource`.
++
++## Verification
++
++### Required visionOS build
++
++The required command completed with exit status 0:
++
++```text
++xcodebuild build -project Enchron.xcodeproj -scheme Enchron -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -quiet
++```
++
++The output contained the repository's existing SwiftLint and visionOS 27 deprecation warnings. It contained no build errors.
++
++### MediaSource, SMB, and WebDAV tests
++
++The focused Simulator run used the Enchron scheme with parallel testing disabled and selected `SMBDataSourceAdapterTests` and `WebDAVDataSourceAdapterTests`. Its result bundle reported:
++
++```text
++totalTestCount: 14
++passedTests: 14
++failedTests: 0
++skippedTests: 0
++result: Passed
++```
++
++The result is recorded at:
++
++```text
++/Volumes/Cortisol/DevSpace/Xcode/DerivedData/Enchron-ehciyasfslulybcnvatkhsefkkbl/Logs/Test/Test-Enchron-2026.08.18_11-40-11-+0900.xcresult
++```
++
++The ten SMB/byte-stream tests include the protocol fake served through the migrated endpoint. They verify requested offset and length, response `Content-Length`, bounded reads, open-ended ranges, suffix ranges, HEAD without a source read, route-release cancellation, and the shared instance and shared listener port. The four WebDAV tests verify authenticated browsing, the ranged request made through the resolved loopback URL, lease survival after browsing disconnect, and authentication rejection.
++
++A later repeat reached Xcode's test action but failed to materialize an `xctest` worker on the already booted Simulator. No test process started. The completed 14-test result above is the execution evidence; the repeated worker-start failure was not counted as a test result.
++
++### PlaybackCore range tests
++
++The PlaybackCore HTTP tests completed separately with three passes and no failures:
++
++```text
++openedHTTPContextBoundsRangesAfterTheInitialRequest
++sharedDemuxSourceOpensHTTPContainerOnceForAllReaders
++httpPlaybackReadsTheWholeSourceWithoutStalling
++```
++
++### PlaybackCore baseline comparison
++
++PlaybackCore test fixtures derive `TestMedia` from `#filePath`. This nested worktree adds one path component, so each of the five fixture roots received one temporary `deletingLastPathComponent()` during the runs. Those changes were removed afterward, and no PlaybackCore test or production file is present in the branch diff.
++
++The baseline at `a1298902` ran 201 tests and produced 13 issues in these eight failing tests:
++
++1. `appleMVHEVCFixtureIsDistinguishedFromOrdinaryHEVC`
++2. `appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat`
++3. `controllerRejectsSecondOpenAndRecordsTheRejection`
++4. `rapidSeeksOnlyPublishCuesAtTheNewestCommittedPosition`
++5. `threeRapidSeeksOnlyAllowNewestWaiterToEnterSession`
++6. `newerSeekSupersedesOlderSeekAndOwnsFinalTarget`
++7. `controllerSeekKeepsSessionAndAdvancesStreamEpoch`
++8. `rapidRelativeSeeksAccumulateInsideTheCore`
++
++The post-change full run reproduced all eight names. Under the concurrent machine load it also timed out once in `acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim`, for 14 issues. That test passed immediately when run by itself. Base commit `a1298902` is titled `Record the ProRes timeout as a flake under load` and records the same ninth failure followed by clean eight-failure reruns. The branch does not change any file under `Packages/PlaybackCore/Sources` or its package manifest. The focused HTTP tests all passed, so the migration adds no persistent PlaybackCore failure.
++
++### Structural checks
++
++These checks passed:
++
++```text
++Scripts/verification/verify_media_byte_stream_foundation.py
++swiftlint lint --strict Modules/MediaSource/MediaByteStream.swift
++git diff --check
++```
++
++The new Swift file has zero strict SwiftLint violations. The repository's design-source architecture check also passed after the Xcode input list was migrated.
++
++The broader existing `verify_package_membership.py` proceeds through that architecture check and then reports two unrelated existing exception-list entries as missing: `PlaybackFeature/Model/UnmetCapability.swift` and `PlaybackPresentation/Model/PlaybackPanelExpansion.swift`. This unit does not modify either file. The required Enchron build passes with the current project membership.
++
++## Deferred work
++
++Unit 2 still needs to implement the Emby `MediaByteSource`, preserve its token and redirect behavior through the system network client, and replace `source.directPlayURL` with a route from `MediaByteStreamEndpoint.shared`. PlaybackCore must continue to receive only the resulting openable URL.
++
++This unit intentionally leaves M3 unknown-length chunked transfer, M8's typed PlaybackFeature gate, M9 connection reuse, M10 bridge cleanup, M11 SMB connection pooling, and M12 authoritative read-time length handling for their planned units.
++
++`final-code.diff` contains the full repository diff from `a1298902`, excluding the diff file itself to avoid recursive content.
+diff --git a/Scripts/verification/verify_media_byte_stream_foundation.py b/Scripts/verification/verify_media_byte_stream_foundation.py
+new file mode 100755
+index 00000000..d2622cb1
+--- /dev/null
++++ b/Scripts/verification/verify_media_byte_stream_foundation.py
+@@ -0,0 +1,106 @@
++#!/usr/bin/env python3
++
++from pathlib import Path
++import sys
++
++
++REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
++
++
++def read(path: str) -> str:
++    return (REPOSITORY_ROOT / path).read_text()
++
++
++def swift_sources(path: str) -> str:
++    return "\n".join(
++        source.read_text()
++        for source in sorted((REPOSITORY_ROOT / path).rglob("*.swift"))
++    )
++
++
++def main() -> int:
++    violations: list[str] = []
++
++    def require(condition: bool, message: str) -> None:
++        if not condition:
++            violations.append(message)
++
++    endpoint_path = REPOSITORY_ROOT / "Modules/MediaSource/MediaByteStream.swift"
++    old_endpoint_path = (
++        REPOSITORY_ROOT
++        / "Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift"
++    )
++    endpoint = endpoint_path.read_text() if endpoint_path.exists() else ""
++    media_library = swift_sources("Modules/MediaLibrary")
++    playback_core = swift_sources("Packages/PlaybackCore/Sources")
++    smb = read("Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift")
++    webdav = read(
++        "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift"
++    )
++    local = read("Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift")
++    emby = read("Modules/Emby/EmbyPlaybackBridge.swift")
++    project = read("Enchron.xcodeproj/project.pbxproj")
++    architecture_inputs = read("Config/design_source_architecture_inputs.xcfilelist")
++
++    require(endpoint_path.exists(), "MediaSource does not own MediaByteStream.swift")
++    require(not old_endpoint_path.exists(), "MediaLibrary still owns the old endpoint")
++    require("public nonisolated protocol MediaByteSource" in endpoint, "byte-source protocol is missing")
++    for property_name in (
++        "totalLength",
++        "seekability",
++        "liveness",
++        "suggestedBufferDepth",
++    ):
++        require(property_name in endpoint, f"MediaByteSource lacks {property_name}")
++    require("func read(in range: Range<Int64>)" in endpoint, "ranged read is missing")
++    require("public static let shared = MediaByteStreamEndpoint()" in endpoint, "endpoint is not shared")
++    require("private init()" in endpoint, "callers can construct extra endpoints")
++
++    for forbidden in (
++        "HTTPRangeStreamingServer",
++        "ByteRangeStreamingSource",
++        "import Network",
++        "NWListener",
++        "NWConnection",
++    ):
++        require(forbidden not in media_library, f"MediaLibrary still contains {forbidden}")
++    require("MediaByteSource" not in playback_core, "PlaybackCore depends on MediaSource byte types")
++
++    for name, adapter in (("SMB", smb), ("WebDAV", webdav)):
++        require(": MediaByteSource" in adapter, f"{name} has no byte-source adapter")
++        require(
++            "MediaByteStreamEndpoint.shared.resolve(" in adapter,
++            f"{name} does not use the shared endpoint",
++        )
++
++    require("MediaByteStreamEndpoint" not in local, "local files enter the loopback endpoint")
++    require(
++        "ResolvedMediaSource(url: try await resolveURL(for: file))" in local,
++        "local playback no longer returns its file URL directly",
++    )
++    require("url: source.directPlayURL" in emby, "Emby no longer uses its direct-play URL")
++    require("MediaSource/MediaByteStream.swift" in project, "Xcode omits the MediaSource endpoint")
++    require(
++        "MediaLibrary/Services/HTTPRangeStreamingServer.swift" not in project,
++        "Xcode still references the MediaLibrary endpoint",
++    )
++    require(
++        "Modules/MediaSource/MediaByteStream.swift" in architecture_inputs,
++        "architecture checks omit the MediaSource endpoint",
++    )
++    require(
++        "Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift"
++        not in architecture_inputs,
++        "architecture checks still reference the MediaLibrary endpoint",
++    )
++
++    if violations:
++        for violation in violations:
++            print(violation, file=sys.stderr)
++        return 1
++    print("Media byte stream ownership and source routing checks passed")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/Tests/EnchronApp/SMBDataSourceAdapterTests.swift b/Tests/EnchronApp/SMBDataSourceAdapterTests.swift
+index 7926416e..2fdc4e94 100644
+--- a/Tests/EnchronApp/SMBDataSourceAdapterTests.swift
++++ b/Tests/EnchronApp/SMBDataSourceAdapterTests.swift
+@@ -1,4 +1,5 @@
+ import Foundation
++import MediaSource
+ import Testing
+ @testable import MediaLibrary
+ @testable import Enchron
+@@ -76,36 +77,42 @@ struct SMBDataSourceAdapterTests {
+         )
+     }
+ 
+-    @Test("SMB playback bridge serves only the requested byte range")
++    @Test("Media byte stream serves only the requested byte range")
+     func requestedByteRange() async throws {
+         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
+-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
+-        let url = try await server.start()
+-        defer { server.stop() }
++        let resolvedSource = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "feature.mp4"
++        )
++        let lease = try #require(resolvedSource.accessLease)
++        defer { lease.release() }
+ 
+-        var request = URLRequest(url: url)
++        var request = URLRequest(url: resolvedSource.url)
+         request.setValue("bytes=3-6", forHTTPHeaderField: "Range")
+         let (data, response) = try await URLSession.shared.data(for: request)
+         let httpResponse = try #require(response as? HTTPURLResponse)
+ 
+         #expect(httpResponse.statusCode == 206)
+         #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 3-6/10")
++        #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == "4")
+         #expect(data == Data("3456".utf8))
+         #expect(source.requestedRanges == [3..<7])
+     }
+ 
+-    @Test("SMB playback bridge applies backpressure-sized source reads")
++    @Test("Media byte stream applies the source's suggested buffer depth")
+     func boundedReads() async throws {
+-        let source = RecordingByteRangeSource(data: Data(repeating: 0x2a, count: 11))
+-        let server = HTTPRangeStreamingServer(
+-            source: source,
+-            filename: "feature.mkv",
+-            readChunkSize: 4
++        let source = RecordingByteRangeSource(
++            data: Data(repeating: 0x2a, count: 11),
++            suggestedBufferDepth: .bytes(4)
++        )
++        let resolvedSource = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "feature.mkv"
+         )
+-        let url = try await server.start()
+-        defer { server.stop() }
++        let lease = try #require(resolvedSource.accessLease)
++        defer { lease.release() }
+ 
+-        let (data, response) = try await URLSession.shared.data(from: url)
++        let (data, response) = try await URLSession.shared.data(from: resolvedSource.url)
+         let httpResponse = try #require(response as? HTTPURLResponse)
+ 
+         #expect(httpResponse.statusCode == 200)
+@@ -113,14 +120,17 @@ struct SMBDataSourceAdapterTests {
+         #expect(source.requestedRanges == [0..<4, 4..<8, 8..<11])
+     }
+ 
+-    @Test("playback bridge supports open-ended seek ranges")
++    @Test("Media byte stream supports open-ended seek ranges")
+     func openEndedRange() async throws {
+         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
+-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
+-        let url = try await server.start()
+-        defer { server.stop() }
++        let resolvedSource = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "feature.mp4"
++        )
++        let lease = try #require(resolvedSource.accessLease)
++        defer { lease.release() }
+ 
+-        var request = URLRequest(url: url)
++        var request = URLRequest(url: resolvedSource.url)
+         request.setValue("bytes=7-", forHTTPHeaderField: "Range")
+         let (data, response) = try await URLSession.shared.data(for: request)
+         let httpResponse = try #require(response as? HTTPURLResponse)
+@@ -131,14 +141,39 @@ struct SMBDataSourceAdapterTests {
+         #expect(source.requestedRanges == [7..<10])
+     }
+ 
+-    @Test("HEAD reports range capability without reading SMB bytes")
++    @Test("Media byte stream supports suffix ranges")
++    func suffixRange() async throws {
++        let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
++        let resolvedSource = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "feature.mp4"
++        )
++        let lease = try #require(resolvedSource.accessLease)
++        defer { lease.release() }
++
++        var request = URLRequest(url: resolvedSource.url)
++        request.setValue("bytes=-3", forHTTPHeaderField: "Range")
++        let (data, response) = try await URLSession.shared.data(for: request)
++        let httpResponse = try #require(response as? HTTPURLResponse)
++
++        #expect(httpResponse.statusCode == 206)
++        #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 7-9/10")
++        #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == "3")
++        #expect(data == Data("789".utf8))
++        #expect(source.requestedRanges == [7..<10])
++    }
++
++    @Test("HEAD reports range capability without reading source bytes")
+     func headDoesNotReadSource() async throws {
+         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
+-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
+-        let url = try await server.start()
+-        defer { server.stop() }
++        let resolvedSource = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "feature.mp4"
++        )
++        let lease = try #require(resolvedSource.accessLease)
++        defer { lease.release() }
+ 
+-        var request = URLRequest(url: url)
++        var request = URLRequest(url: resolvedSource.url)
+         request.httpMethod = "HEAD"
+         let (_, response) = try await URLSession.shared.data(for: request)
+         let httpResponse = try #require(response as? HTTPURLResponse)
+@@ -149,13 +184,16 @@ struct SMBDataSourceAdapterTests {
+         #expect(source.requestedRanges.isEmpty)
+     }
+ 
+-    @Test("stopping the playback bridge cancels accepted connections and in-flight reads")
++    @Test("Releasing a byte stream route cancels its in-flight reads")
+     func stopCancelsInFlightRead() async throws {
+         let source = CancellationAwareByteRangeSource()
+-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mkv")
+-        let url = try await server.start()
++        let resolvedSource = try await MediaByteStreamEndpoint.shared.resolve(
++            source,
++            filename: "feature.mkv"
++        )
++        let lease = try #require(resolvedSource.accessLease)
+         let request = Task {
+-            try await URLSession.shared.data(from: url)
++            try await URLSession.shared.data(from: resolvedSource.url)
+         }
+ 
+         let deadline = ContinuousClock.now + .seconds(2)
+@@ -163,15 +201,45 @@ struct SMBDataSourceAdapterTests {
+             try await Task.sleep(for: .milliseconds(10))
+         }
+         #expect(source.hasStarted)
+-        await server.stopAndWait()
++        lease.release()
++
++        while source.wasCancelled == false, ContinuousClock.now < deadline {
++            try await Task.sleep(for: .milliseconds(10))
++        }
+         _ = try? await request.value
+ 
+         #expect(source.wasCancelled)
+     }
++
++    @Test("Media byte stream endpoint is shared across sources")
++    func sharedEndpoint() async throws {
++        #expect(MediaByteStreamEndpoint.shared === MediaByteStreamEndpoint.shared)
++
++        let first = try await MediaByteStreamEndpoint.shared.resolve(
++            RecordingByteRangeSource(data: Data("first".utf8)),
++            filename: "first.mp4"
++        )
++        let second = try await MediaByteStreamEndpoint.shared.resolve(
++            RecordingByteRangeSource(data: Data("second".utf8)),
++            filename: "second.mkv"
++        )
++        let firstLease = try #require(first.accessLease)
++        let secondLease = try #require(second.accessLease)
++        defer {
++            firstLease.release()
++            secondLease.release()
++        }
++
++        #expect(first.url.port != nil)
++        #expect(first.url.port == second.url.port)
++    }
+ }
+ 
+-private final class RecordingByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+-    let contentLength: Int64
++private final class RecordingByteRangeSource: MediaByteSource, @unchecked Sendable {
++    let totalLength: Int64?
++    let seekability = MediaByteSourceSeekability.randomAccess
++    let liveness = MediaByteSourceLiveness.finite
++    let suggestedBufferDepth: MediaByteBufferDepth
+     private let data: Data
+     private let lock = NSLock()
+     private var ranges: [Range<Int64>] = []
+@@ -180,9 +248,13 @@ private final class RecordingByteRangeSource: ByteRangeStreamingSource, @uncheck
+         lock.withLock { ranges }
+     }
+ 
+-    init(data: Data) {
++    init(
++        data: Data,
++        suggestedBufferDepth: MediaByteBufferDepth = .bytes(1_024 * 1_024)
++    ) {
+         self.data = data
+-        contentLength = Int64(data.count)
++        totalLength = Int64(data.count)
++        self.suggestedBufferDepth = suggestedBufferDepth
+     }
+ 
+     func read(in range: Range<Int64>) async throws -> Data {
+@@ -191,8 +263,11 @@ private final class RecordingByteRangeSource: ByteRangeStreamingSource, @uncheck
+     }
+ }
+ 
+-private final class CancellationAwareByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+-    let contentLength: Int64 = 1_024
++private final class CancellationAwareByteRangeSource: MediaByteSource, @unchecked Sendable {
++    let totalLength: Int64? = 1_024
++    let seekability = MediaByteSourceSeekability.randomAccess
++    let liveness = MediaByteSourceLiveness.finite
++    let suggestedBufferDepth = MediaByteBufferDepth.bytes(1_024 * 1_024)
+     private let lock = NSLock()
+     private var readStarted = false
+     private var cancellationObserved = false
+diff --git a/docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md b/docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md
+new file mode 100644
+index 00000000..2a49a6b8
+--- /dev/null
++++ b/docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md
+@@ -0,0 +1,32 @@
++# ADR 0020：Media Byte Stream 是远程来源唯一的字节入口
++
++状态：Accepted
++
++日期：2026-08-16
++
++## 决策
++
++所有远程来源的字节经由 MediaSource 拥有的 Media Byte Stream 进入播放，通道是一个本机回环 HTTP 端点。本地文件不经过它，播放核心直接以文件路径打开。
++
++播放核心继续只接收一个可打开的地址，不认识来源类型。类型上的约束设在 PlaybackFeature：播放入口只接受由 Media Byte Stream 发出的句柄，裸地址传不进来。
++
++字节来源协议由 MediaSource 定义，成员为长度（可为未知）、能否跳转、是否实时、建议缓冲深度、按区间读取。MediaLibrary 与 Emby 各自提供实现。
++
++## 为什么是回环 HTTP 端点
++
++播放路径上有两个独立的字节消费者。FFmpeg 负责解封装。AVFoundation 另开一次容器读取，取它自己解析出的 Format Description，用来补 FFmpeg 重建不出的信号（MV-HEVC 的层配置、Apple Immersive 投影标记）。
++
++AVFoundation 只接受两种字节来源：真实的 URL，或自定义 scheme 加资源加载委托。回环 HTTP 端点是唯一无需额外适配层即可同时服务两个消费者的形态，因此 Container Index Cache 与预读挂在这一层时对两者同时生效。
++
++## 考虑过的替代方案
++
++**自定义 AVIOContext。**把字节源接进 FFmpeg 的自定义 I/O 回调，删掉回环服务器。它无法统一入口，因为 Emby 直连仍需 FFmpeg 原生 HTTP 处理重定向与认证，否则要在 URLSession 上重写一遍 HTTP 客户端语义。它还会让 AVFoundation 那一路失去可读的源，必须新增资源加载委托。其回调在解封装线程上同步执行，桥接到异步的 URLSession 与 SMB 客户端会引入死锁面。收益仅为省去一次本机内存拷贝，而实测表明打开耗时由请求数与每请求 330 至 520 毫秒的往返主导，与该拷贝无关。
++
++**FFmpeg 原生 SMB 与 NFS 协议。**当前 vendored 的 FFmpeg 只编入 file、http、https、crypto、data 五种协议，走这条路要重建整个 xcframework，并引入第三方库的许可与审核论证。同样使 AVFoundation 那一路失去可读的源。
++
++## 后果
++
++- 回环端点需支持长度未知的来源，此时改用分块传输并声明不可跳转。因此桥接层中为绕开不合规服务端而设的 HTTP 特殊处理（强制声明可跳转、连接复用、前置长度探测、end_offset）随之删除，回环端点由本仓库自身保证合规。
++- 游戏串流一类的实时交互源可以作为不可跳转、零缓冲的字节来源接入，但其输入回传通道不属于本管线。
++- SMB 是唯一需要显式连接管理的来源，一台服务器一条连接，浏览与播放共用。WebDAV 与 Emby 的连接由系统网络库按主机自动池化。
++- 证书信任成为单一策略，所有网络请求共用。Emby 字节改走系统网络库后，播放与浏览不再各自判断证书。
+diff --git a/docs/plans/03-media-byte-stream/overview.md b/docs/plans/03-media-byte-stream/overview.md
+new file mode 100644
+index 00000000..abf765ae
+--- /dev/null
++++ b/docs/plans/03-media-byte-stream/overview.md
+@@ -0,0 +1,120 @@
++# Media Byte Stream 与 Format Description
++
++## Context
++
++两条互不相交的重构。字节侧把三种远程来源收敛到一个入口，见 [ADR 0020](../../adr/0020-media-byte-stream-is-the-single-byte-entry.md)。格式侧把 `CMVideoFormatDescription` 的构造收敛到一个所有者。两者不共用代码，可并行。
++
++字节侧的动因是每一项与"读"有关的能力都要写三遍：本地走 `file:`，SMB 与 WebDAV 各起一个回环服务器，Emby 由 FFmpeg 直连。格式侧的动因是同一个决定散在十余处，其中一处以文件后缀字符串推断容器类型。
++
++## Scope
++
++包含：字节来源协议与其四个实现；回环端点的所有权迁移与生命周期；SMB 连接池；统一证书信任策略；Container Index Cache；Artwork 存储迁移与产生方式变更；解封装读线程的预读与断线恢复；等待与失败的产品行为；Format Description 的构造收敛与事实来源。
++
++排除：新增来源类型（NFS、直播、串流）的实现；离线下载；Emby 目录内容的本地持久化。
++
++## 术语
++
++以 [`docs/CONTEXT.md`](../../CONTEXT.md) 为准。本文使用 Media Byte Stream、Format Description、Media Format、Media Identity、Content Revision、Viewing State Authority。
++
++## Constraints
++
++- 模块依赖单向，见 [ADR 0018](../../adr/0018-one-way-target-dependencies-and-media-source-ownership.md)。PlaybackCore 是独立包，看不到 MediaSource 的类型，因此它继续只接收地址；类型上的闸设在 PlaybackFeature。
++- 本地文件不经回环端点。
++- Emby 的目录内容与观看进度不落盘；服务器是权威。Emby 图片按其 image tag 作键落盘。
++- 回归判据是 PlaybackCore 单测基线 8 失败 13 issue，逐条比对失败名。
++
++## 总表
++
++### 字节侧
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| M1 | 在 MediaSource 定义字节来源协议：长度（可未知）、能否跳转、是否实时、建议缓冲深度、按区间读取 | 四种来源都实现它 |
++| M2 | 回环 HTTP 端点从 MediaLibrary 迁入 MediaSource，改为整个 App 一个实例 | MediaLibrary 不再持有网络端点 |
++| M3 | 端点支持长度未知：改用分块传输并声明不可跳转 | 服务器不报大小的文件可顺序播放 |
++| M4 | SMB 适配器实现协议，播放复用浏览已建立的连接 | 播放不再新建第二条 SMB 连接 |
++| M5 | WebDAV 适配器实现协议 | 适配器内无 HTTP 服务代码 |
++| M6 | Emby 字节源，经系统网络库并携带令牌 | Emby 播放经回环端点 |
++| M7 | 本地文件直通，返回文件地址 | 本地播放参数仍是文件路径 |
++| M8 | PlaybackFeature 的播放入口只接受端点发出的句柄 | 传裸地址编译不过 |
++| M9 | 去掉端点响应中的 `Connection: close` | 单次打开的连接数下降 |
++| M10 | 删除 `open_media_source` 的 HTTP 特殊分支 | 桥接层不再区分本地与 HTTP |
++| M11 | SMB 连接池：一台服务器一条，懒建立，不主动断，用前确认 | 换文件不重新认证 |
++| M12 | 浏览所报大小仅用于显示与排序，取字节时以服务端当场回答为准 | 尾部不被静默截断 |
++
++### 证书
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| S1 | 统一证书信任策略，所有网络请求共用一处 | WebDAV 与 Emby 走同一判断 |
++| S2 | 无法验证时在连接阶段询问，展示地址、证书名、指纹、有效期 | 播放阶段永不询问 |
++| S3 | 按服务器记住指纹，证书变更时重新询问 | 换证书被拦下 |
++
++### 缓存与 Artwork
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| C1 | Container Index Cache：只存容器索引，落硬盘，键含 Content Revision | 第二次打开同一文件不从网络取索引 |
++| C2 | 设置页增加一行，沿用缩略图那套语义（无上限、显示用量、手动清除） | 与现有那一行形态一致 |
++| C3 | 仅对远程来源生效 | 本地播放不写缓存 |
++| A1 | 删除主动抽帧生成 Artwork 的代码路径 | 浏览不产生网络读取 |
++| A2 | 退出播放时保存当前显示画面为 Artwork，覆盖旧的 | 额外读取为零 |
++| A3 | Artwork 存储从 MediaLibrary 迁入 MediaSource | 三个模块经同一处存取 |
++| A4 | 内存中的 Artwork 必为硬盘中已有；写盘不可丢弃 | 内存淘汰不丢失工作 |
++| A5 | Emby 封面继续走服务器图片接口，按 image tag 作键 | 不经回环端点 |
++
++### 预读与断线
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| P1 | 解封装读线程从"有消费者阻塞才读"改为"填至水位线" | 无人等待时仍继续填包 |
++| P2 | 读线程区分可恢复的读失败与真正的流结束，失败后可恢复 | 一次读失败不再被当作播完 |
++| P3 | 断线后有限次退避重连，不主动断连 | 抖动可自愈 |
++| P4 | 加载指示由播放饥饿触发，不由网络事件触发 | 缓冲充足时重连全程无提示 |
++| P5 | 重连判据改为来源类型，不看地址前缀 | 回环地址不再被误判为网络源 |
++| P6 | 水位线与 SMB 并发取值由测量给出 | 有实测依据，不预设常量 |
++
++### 等待与失败
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| E1 | 加载指示显示当前阶段，不显示读取速率 | 用户能看出卡在哪一步 |
++| E2 | 连接来源失败分四类：凭据、证书、找不到服务器、地址格式 | 每类给出明确的下一步 |
++| E3 | 播放中失败分四类：连接中断、文件不存在、拒绝访问、数据损坏 | 同上，且保住播放位置 |
++| E4 | 播放中证书变更单列，停止播放且不在此刻接受 | 身份变更不会被顺手确认 |
++
++### 格式侧
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| F1 | 编码标识归一化收敛为一处调用 | 调用点计数为 1 |
++| F2 | `CMVideoFormatDescription` 的五种构造收敛到一个所有者，特例为其分支 | 构造入口计数为 1 |
++| F3 | `MediaSourceInformation` 补齐 Dolby Vision 档次与立体增强层标志 | 事实集中在一个结构 |
++| F4 | 是否咨询 AVFoundation 的判断改用上述事实 | 判断输入不含文件后缀匹配 |
++| F5 | 冲突规则落到一处执行：以 AVFoundation 解析为底，桥接层的解码器配置合并其上 | 重建的配置不覆盖容器原文 |
++
++### 防御
++
++| | 事项 | 完成判据 |
++|---|---|---|
++| G1 | 结构检查：`CMVideoFormatDescription` 构造入口恰好一处，归一化调用恰好一处，格式判断不含后缀匹配 | 违反时构建失败 |
++| G2 | 结构检查在无法运行时大声失败，不静默通过 | 通道失效可被发现 |
++| G3 | 新增一种来源需触及的位置降至三处以内 | 以"假设新增 NFS"清点文件数验证 |
++
++## Verification
++
++| | 事项 |
++|---|---|
++| V1 | 格式侧合并前后 `Scripts/verification/verify_source_parity_matrix.py` 逐字段一致 |
++| V2 | 真机四种来源各播一次，出画出声，跳转与切轨正常 |
++| V3 | PlaybackCore 单测基线不退（8 失败 13 issue，逐条比对失败名） |
++| V4 | 断线自愈：缓冲充足时断开连接，播放不中断且无提示 |
++| V5 | 索引缓存：同一远程文件第二次打开，网络读取量不含索引 |
++
++## Phases
++
++1. 格式侧收敛（F1 至 F5、G1、G2），落在 PlaybackCore 与其桥接层，行为不变，由 V1 证明。
++2. 字节侧基础（M1 至 M12、S1 至 S3、C1 至 C3、A1 至 A5），落在 MediaSource、MediaLibrary、Emby、PlaybackFeature。
++3. 预读与断线（P1 至 P6、E1 至 E4），落在桥接层读线程与播放状态，依赖阶段二就位后才能测得水位线。
++
++阶段一与阶段二文件不相交，可并行。阶段三与阶段一同处 `PlaybackFFmpegBridge.c`，在阶段一合入后进行。
