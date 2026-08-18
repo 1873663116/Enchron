@@ -3254,30 +3254,90 @@
       "id": "accessibility:Emby-Connection-Address",
       "identifierTemplate": "Emby-Connection-Address",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Connection-Connect",
       "identifierTemplate": "Emby-Connection-Connect",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Connection-Password",
       "identifierTemplate": "Emby-Connection-Password",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Connection-Username",
       "identifierTemplate": "Emby-Connection-Username",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Detail-Overview-Expand",
       "identifierTemplate": "Emby-Detail-Overview-Expand",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3293,42 +3353,126 @@
       "id": "accessibility:Emby-Detail-Version",
       "identifierTemplate": "Emby-Detail-Version",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
       "identifierTemplate": "Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Episode-{metadata.id.rawValue}",
       "identifierTemplate": "Emby-Episode-{metadata.id.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Library-Sort",
       "identifierTemplate": "Emby-Library-Sort",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Navigation-Tab",
       "identifierTemplate": "Emby-Navigation-Tab",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
       "identifierTemplate": "Emby-PosterCard-{metadata.id.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Search-Field",
       "identifierTemplate": "Emby-Search-Field",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3344,6 +3488,18 @@
       "id": "accessibility:Emby-Season-Picker",
       "identifierTemplate": "Emby-Season-Picker",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3359,48 +3515,148 @@
       "id": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
       "identifierTemplate": "Emby-Season-{season.metadata.id.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-SignOut",
       "identifierTemplate": "Emby-SignOut",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
       "identifierTemplate": "Emby-StillCard-{metadata.id.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 410,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
       "identifierTemplate": "EnvironmentCard-button-environment-{environment.environment.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "environmentVolume",
+        "sources": [
+          {
+            "line": 15,
+            "path": "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-card",
       "identifierTemplate": "EnvironmentCard-card",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "environmentVolume",
+        "sources": [
+          {
+            "line": 15,
+            "path": "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-carousel",
       "identifierTemplate": "EnvironmentCard-carousel",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "environmentVolume",
+        "sources": [
+          {
+            "line": 15,
+            "path": "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
       "identifierTemplate": "EnvironmentCard-effect-{environment.environment.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "environmentVolume",
+        "sources": [
+          {
+            "line": 15,
+            "path": "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
       "identifierTemplate": "FileBrowsing-Breadcrumb-button-{segment.index}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3416,30 +3672,90 @@
       "id": "accessibility:FileBrowsing-Breadcrumb-current",
       "identifierTemplate": "FileBrowsing-Breadcrumb-current",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
       "identifierTemplate": "FileBrowsing-FilesScreen-navBackForward-back",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
       "identifierTemplate": "FileBrowsing-FilesScreen-navBackForward-forward",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-search",
       "identifierTemplate": "FileBrowsing-FilesScreen-search",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
       "identifierTemplate": "FileBrowsing-FilesScreen-sidebarToggle",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3456,120 +3772,360 @@
       "id": "accessibility:FileBrowsing-FilesScreen-sort",
       "identifierTemplate": "FileBrowsing-FilesScreen-sort",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-viewMode",
       "identifierTemplate": "FileBrowsing-FilesScreen-viewMode",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
       "identifierTemplate": "FileBrowsing-FolderList-button-file-{file.id}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
       "identifierTemplate": "FileBrowsing-FolderList-button-folder-{folder.id}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Manage-button",
       "identifierTemplate": "FileBrowsing-Manage-button",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Sidebar-row-local",
       "identifierTemplate": "FileBrowsing-Sidebar-row-local",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
       "identifierTemplate": "FileBrowsing-Sidebar-row-{ds.id}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-address",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-address",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-cancel",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-connect",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-connect",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-guest",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-guest",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-name",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-name",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-password",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-password",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-username",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-username",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-address",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-cancel",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-connect",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-name",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-password",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-username",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3586,6 +4142,18 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addFiles",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3602,6 +4170,18 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addFolder",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3618,6 +4198,18 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addPhotos",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3634,6 +4226,18 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addSMB",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3650,6 +4254,18 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addWebDAV",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3666,6 +4282,18 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-delete",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-delete",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3682,42 +4310,126 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-refresh",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-refresh",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-source-{item.id}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-sourceMore",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-error-primary",
       "identifierTemplate": "FileBrowsing-error-primary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-error-secondary",
       "identifierTemplate": "FileBrowsing-error-secondary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-grid-folder-{folder.name}",
       "identifierTemplate": "FileBrowsing-grid-folder-{folder.name}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-grid-video-{file.name}",
       "identifierTemplate": "FileBrowsing-grid-video-{file.name}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3733,6 +4445,18 @@
       "id": "accessibility:MediaLibrary-Breadcrumb-current",
       "identifierTemplate": "MediaLibrary-Breadcrumb-current",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3749,6 +4473,18 @@
       "id": "accessibility:MediaLibrary-Manage-addFiles",
       "identifierTemplate": "MediaLibrary-Manage-addFiles",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3765,6 +4501,18 @@
       "id": "accessibility:MediaLibrary-Manage-addFolder",
       "identifierTemplate": "MediaLibrary-Manage-addFolder",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3781,6 +4529,18 @@
       "id": "accessibility:MediaLibrary-Manage-addPhotos",
       "identifierTemplate": "MediaLibrary-Manage-addPhotos",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3797,6 +4557,18 @@
       "id": "accessibility:MediaLibrary-Manage-newFolder",
       "identifierTemplate": "MediaLibrary-Manage-newFolder",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3813,24 +4585,72 @@
       "id": "accessibility:MediaLibrary-Manage-selectMultiple",
       "identifierTemplate": "MediaLibrary-Manage-selectMultiple",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
       "identifierTemplate": "MediaLibrary-MultiSelect-confirmDelete",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-MultiSelect-delete",
       "identifierTemplate": "MediaLibrary-MultiSelect-delete",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-MultiSelect-done",
       "identifierTemplate": "MediaLibrary-MultiSelect-done",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3846,72 +4666,216 @@
       "id": "accessibility:MediaLibrary-MultiSelect-move",
       "identifierTemplate": "MediaLibrary-MultiSelect-move",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-NewFolder-create",
       "identifierTemplate": "MediaLibrary-NewFolder-create",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-NewFolder-name",
       "identifierTemplate": "MediaLibrary-NewFolder-name",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-RenameFolder-confirm",
       "identifierTemplate": "MediaLibrary-RenameFolder-confirm",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-RenameFolder-name",
       "identifierTemplate": "MediaLibrary-RenameFolder-name",
       "kind": "typeText",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-error-dismiss",
       "identifierTemplate": "MediaLibrary-error-dismiss",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-grid-folder-{folder.name}",
       "identifierTemplate": "MediaLibrary-grid-folder-{folder.name}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-grid-video-{reference.name}",
       "identifierTemplate": "MediaLibrary-grid-video-{reference.name}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 404,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Navigation-Ornament-tab-environment",
       "identifierTemplate": "Navigation-Ornament-tab-environment",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 401,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Navigation-Ornament-tab-files",
       "identifierTemplate": "Navigation-Ornament-tab-files",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 401,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Navigation-Ornament-tab-settings",
       "identifierTemplate": "Navigation-Ornament-tab-settings",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 401,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-DockedPlacement-reset",
       "identifierTemplate": "PlayerPanel-DockedPlacement-reset",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "dockedPlacementControls",
+        "sources": [
+          {
+            "line": 463,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -3927,78 +4891,285 @@
       "id": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
       "identifierTemplate": "PlayerPanel-VideoFormat-CustomAngle",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
       "identifierTemplate": "PlayerPanel-VideoFormat-HDRFallback",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-apply",
       "identifierTemplate": "PlayerPanel-VideoFormat-apply",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-automatic",
       "identifierTemplate": "PlayerPanel-VideoFormat-automatic",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-cancel",
       "identifierTemplate": "PlayerPanel-VideoFormat-cancel",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
       "identifierTemplate": "PlayerPanel-VideoFormat-{title}-{label(option)}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-enter-panorama",
       "identifierTemplate": "PlayerPanel-button-enter-panorama",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "uninstantiatedPortalPlayerControlDockBranch",
+        "sources": [
+          {
+            "line": 912,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-exit-spatial",
       "identifierTemplate": "PlayerPanel-button-exit-spatial",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "immersiveReturnControls",
+        "sources": [
+          {
+            "line": 905,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-forward",
       "identifierTemplate": "PlayerPanel-button-forward",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 171,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 188,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-play",
       "identifierTemplate": "PlayerPanel-button-play",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 171,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 188,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-rewind",
       "identifierTemplate": "PlayerPanel-button-rewind",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 171,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 188,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-settings",
       "identifierTemplate": "PlayerPanel-button-settings",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "dockedPlayerControlSettings",
+        "sources": [
+          {
+            "line": 278,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-media-information-close",
       "identifierTemplate": "PlayerPanel-media-information-close",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 171,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 188,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4014,6 +5185,23 @@
       "id": "accessibility:PlayerPanel-menu-audio",
       "identifierTemplate": "PlayerPanel-menu-audio",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "line": 457,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4029,12 +5217,46 @@
       "id": "accessibility:PlayerPanel-menu-episodes",
       "identifierTemplate": "PlayerPanel-menu-episodes",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "line": 457,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-menu-more",
       "identifierTemplate": "PlayerPanel-menu-more",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "line": 457,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4050,6 +5272,23 @@
       "id": "accessibility:PlayerPanel-menu-speed",
       "identifierTemplate": "PlayerPanel-menu-speed",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "line": 457,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4065,6 +5304,23 @@
       "id": "accessibility:PlayerPanel-menu-subtitles",
       "identifierTemplate": "PlayerPanel-menu-subtitles",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "line": 457,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4083,66 +5339,252 @@
       "id": "accessibility:PlayerPanel-menu-{category}-{item.id}",
       "identifierTemplate": "PlayerPanel-menu-{category}-{item.id}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "line": 457,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-precision-timeline",
       "identifierTemplate": "PlayerPanel-precision-timeline",
       "kind": "adjust",
+      "presentationDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 171,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 188,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-progress",
       "identifierTemplate": "PlayerPanel-progress",
       "kind": "adjust",
+      "presentationDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 171,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 188,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-{identifier}-slider",
       "identifierTemplate": "PlayerPanel-{identifier}-slider",
       "kind": "adjust",
+      "presentationDerivation": {
+        "host": "dockedPlacementControls",
+        "sources": [
+          {
+            "line": 463,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-DockMenu-skybox",
       "identifierTemplate": "PlayerUI-DockMenu-skybox",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "flatPlaybackEntryTopActions",
+        "sources": [
+          {
+            "line": 35,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
       "identifierTemplate": "PlayerUI-DockMenu-{$0.rawValue}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "flatPlaybackEntryTopActions",
+        "sources": [
+          {
+            "line": 35,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-InfoBar-button-back",
       "identifierTemplate": "PlayerUI-InfoBar-button-back",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-dock",
       "identifierTemplate": "PlayerUI-TopAction-dock",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "flatPlaybackEntryTopActions",
+        "sources": [
+          {
+            "line": 35,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-more",
       "identifierTemplate": "PlayerUI-TopAction-more",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChromeMoreControl",
+        "sources": [
+          {
+            "line": 58,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-resumePanorama",
       "identifierTemplate": "PlayerUI-TopAction-resumePanorama",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "panoramicPlaybackEntryTopActions",
+        "sources": [
+          {
+            "line": 35,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "portal",
+        "panorama"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-videoFormat",
       "identifierTemplate": "PlayerUI-TopAction-videoFormat",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4158,48 +5600,196 @@
       "id": "accessibility:PlayerUI-VideoFormat-CustomAngle",
       "identifierTemplate": "PlayerUI-VideoFormat-CustomAngle",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-HDRFallback",
       "identifierTemplate": "PlayerUI-VideoFormat-HDRFallback",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-apply",
       "identifierTemplate": "PlayerUI-VideoFormat-apply",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-automatic",
       "identifierTemplate": "PlayerUI-VideoFormat-automatic",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-cancel",
       "identifierTemplate": "PlayerUI-VideoFormat-cancel",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
       "identifierTemplate": "PlayerUI-VideoFormat-{title}-{label(option)}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChrome",
+        "sources": [
+          {
+            "line": 536,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-loadFailure-primary",
       "identifierTemplate": "PlayerUI-loadFailure-primary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-loadFailure-secondary",
       "identifierTemplate": "PlayerUI-loadFailure-secondary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
@@ -4215,71 +5805,294 @@
       "id": "accessibility:PlayerUI-menu-subtitles",
       "identifierTemplate": "PlayerUI-menu-subtitles",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "windowPlaybackTopChromeMoreControl",
+        "sources": [
+          {
+            "line": 58,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-playbackIssue-confirm",
       "identifierTemplate": "PlayerUI-playbackIssue-confirm",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-playbackIssue-primary",
       "identifierTemplate": "PlayerUI-playbackIssue-primary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-playbackIssue-secondary",
       "identifierTemplate": "PlayerUI-playbackIssue-secondary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-presentation-conversion-dismiss",
       "identifierTemplate": "PlayerUI-presentation-conversion-dismiss",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-resumeDecision-primary",
       "identifierTemplate": "PlayerUI-resumeDecision-primary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowResumeDecision",
+        "sources": [
+          {
+            "line": 364,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-resumeDecision-secondary",
       "identifierTemplate": "PlayerUI-resumeDecision-secondary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowResumeDecision",
+        "sources": [
+          {
+            "line": 364,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-spatialFailure-primary",
       "identifierTemplate": "PlayerUI-spatialFailure-primary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-spatialFailure-secondary",
       "identifierTemplate": "PlayerUI-spatialFailure-secondary",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-unmetCapability-dismiss",
       "identifierTemplate": "PlayerUI-unmetCapability-dismiss",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "playbackIssuePresentationSites",
+        "sources": [
+          {
+            "line": 1313,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Settings-category-{item.id}",
       "identifierTemplate": "Settings-category-{item.id}",
       "kind": "activate",
+      "presentationDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 434,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "presentations": [
+        "window"
+      ],
       "source": "accessibilityIdentifier"
     },
     {
       "id": "command:listMenuItems",
       "kind": "command",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/TestCommandChannel.swift"
+          }
+        ]
+      },
       "presentations": [
         "window",
         "portal",
@@ -4291,6 +6104,15 @@
     {
       "id": "command:seekNormalized",
       "kind": "command",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/TestCommandChannel.swift"
+          }
+        ]
+      },
       "presentations": [
         "window",
         "portal",
@@ -4302,6 +6124,15 @@
     {
       "id": "command:selectMenuItem",
       "kind": "command",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/TestCommandChannel.swift"
+          }
+        ]
+      },
       "presentations": [
         "window",
         "portal",
@@ -4313,6 +6144,15 @@
     {
       "id": "command:setDockedPlacement",
       "kind": "command",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/TestCommandChannel.swift"
+          }
+        ]
+      },
       "presentations": [
         "docked"
       ],
@@ -4321,6 +6161,15 @@
     {
       "id": "command:setWindowSize",
       "kind": "command",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/TestCommandChannel.swift"
+          }
+        ]
+      },
       "presentations": [
         "portal"
       ],
@@ -4329,6 +6178,15 @@
     {
       "id": "command:toggleControls",
       "kind": "command",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/TestCommandChannel.swift"
+          }
+        ]
+      },
       "presentations": [
         "window",
         "portal",
@@ -4340,6 +6198,15 @@
     {
       "id": "environmentVolume:open-interact-close",
       "kind": "compound",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
       "presentations": [
         "window",
         "docked"
@@ -4357,6 +6224,15 @@
       },
       "id": "menu:settings:controls-auto-hide",
       "kind": "menu-selection",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4373,6 +6249,15 @@
       },
       "id": "menu:settings:default-scenic-environment",
       "kind": "menu-selection",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4389,6 +6274,15 @@
       },
       "id": "menu:settings:default-speed",
       "kind": "menu-selection",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4405,6 +6299,15 @@
       },
       "id": "menu:settings:end-behavior",
       "kind": "menu-selection",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4421,6 +6324,15 @@
       },
       "id": "menu:settings:resume-strategy",
       "kind": "menu-selection",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4429,6 +6341,15 @@
     {
       "id": "negative:immersive-resident-window",
       "kind": "negative",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/EnchronApp.swift"
+          }
+        ]
+      },
       "presentations": [
         "panorama",
         "docked"
@@ -4438,6 +6359,15 @@
     {
       "id": "scroll:emby",
       "kind": "scroll",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Modules/Emby/EmbyScreens.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4446,6 +6376,15 @@
     {
       "id": "scroll:file-list",
       "kind": "scroll",
+      "presentationDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "line": 1,
+            "path": "Apps/Enchron/Screens/FilesScreen.swift"
+          }
+        ]
+      },
       "presentations": [
         "window"
       ],
@@ -4459,5 +6398,5 @@
     "Modules/MediaLibrary",
     "Modules/PlaybackPresentation"
   ],
-  "version": 1
+  "version": 2
 }

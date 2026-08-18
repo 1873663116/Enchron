@@ -246,6 +246,121 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
                 self.assertEqual(route["families"], [family])
 
 
+class PresentationApplicabilityInventoryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.operations = {
+            operation["id"]: operation
+            for operation in inventory.build_inventory()["operations"]
+        }
+
+    def test_player_panel_menu_family_is_hosted_only_by_immersive_dock_controls(self) -> None:
+        for operation_id in (
+            "accessibility:PlayerPanel-menu-more",
+            "accessibility:PlayerPanel-menu-subtitles",
+            "accessibility:PlayerPanel-menu-audio",
+            "accessibility:PlayerPanel-menu-speed",
+            "accessibility:PlayerPanel-menu-episodes",
+            "accessibility:PlayerPanel-menu-{category}-{item.id}",
+        ):
+            with self.subTest(operation_id=operation_id):
+                operation = self.operations[operation_id]
+                self.assertEqual(operation["presentations"], ["panorama", "docked"])
+                derivation = operation["presentationDerivation"]
+                self.assertEqual(derivation["host"], "playerControlDockControls")
+                self.assertTrue(
+                    any(
+                        source["path"]
+                        == "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+                        for source in derivation["sources"]
+                    )
+                )
+
+    def test_browser_content_operations_are_hosted_only_by_browser_window(self) -> None:
+        for operation_id, operation in self.operations.items():
+            if operation_id.startswith(
+                (
+                    "accessibility:Emby-",
+                    "accessibility:FileBrowsing-",
+                    "accessibility:MediaLibrary-",
+                    "accessibility:Navigation-",
+                    "accessibility:Settings-",
+                )
+            ):
+                with self.subTest(operation_id=operation_id):
+                    self.assertEqual(operation["presentations"], ["window"])
+                    self.assertEqual(
+                        operation["presentationDerivation"]["host"],
+                        "browserWindowSurface",
+                    )
+
+    def test_every_operation_has_a_source_derived_presentation_host(self) -> None:
+        for operation_id, operation in self.operations.items():
+            with self.subTest(operation_id=operation_id):
+                self.assertIn("presentations", operation)
+                derivation = operation["presentationDerivation"]
+                self.assertTrue(derivation["host"])
+                self.assertTrue(derivation["sources"])
+
+    def test_unknown_product_family_fails_instead_of_defaulting_to_all_presentations(self) -> None:
+        documents = {
+            "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift": """
+                enum PlaybackPresentation {
+                    var usesMainWindow: Bool { self == .window || self == .portal }
+                    var usesImmersiveSpace: Bool { self == .docked || self == .panorama }
+                }
+            """,
+        }
+
+        with self.assertRaisesRegex(
+            inventory.PresentationDerivationError,
+            "cannot derive a production presentation host",
+        ):
+            inventory.presentation_derivation("UnknownFamily-action", documents)
+
+
+class MatrixApplicabilityReclassificationTests(unittest.TestCase):
+    def test_reclassifies_only_unproven_cells_from_derived_presentations(self) -> None:
+        baseline = {
+            "schemaVersion": 1,
+            "cells": [
+                {
+                    "operation": "accessibility:PlayerPanel-menu-more",
+                    "presentation": "window",
+                    "verdict": "known-defect",
+                },
+                {
+                    "operation": "accessibility:PlayerPanel-menu-more",
+                    "presentation": "portal",
+                    "verdict": "reachable",
+                },
+                {
+                    "operation": "accessibility:PlayerPanel-menu-more",
+                    "presentation": "panorama",
+                    "verdict": "not-applicable",
+                },
+            ],
+        }
+        generated_inventory = {
+            "operations": [
+                {
+                    "id": "accessibility:PlayerPanel-menu-more",
+                    "presentations": ["panorama", "docked"],
+                }
+            ]
+        }
+
+        reclassified = inventory.reclassify_matrix_applicability(
+            baseline,
+            generated_inventory,
+        )
+
+        self.assertEqual(
+            [cell["verdict"] for cell in reclassified["cells"]],
+            ["not-applicable", "reachable", "known-defect"],
+        )
+
+
 class MatrixBaselineExtensionTests(unittest.TestCase):
     def test_adds_only_missing_cells_as_known_defects(self) -> None:
         original_cell = {

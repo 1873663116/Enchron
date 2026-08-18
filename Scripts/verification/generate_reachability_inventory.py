@@ -160,6 +160,10 @@ class RuntimeIdentifierResolutionError(ValueError):
     """A component-built accessibility identifier cannot be enumerated."""
 
 
+class PresentationDerivationError(ValueError):
+    """A product operation cannot be assigned to a production render host."""
+
+
 @dataclass(frozen=True)
 class SwiftStruct:
     name: str
@@ -712,6 +716,287 @@ def source_scope(template: str) -> str:
     return "product"
 
 
+def required_source_location(
+    documents: dict[str, str],
+    path: str,
+    token: str,
+) -> SourceLocation:
+    text = documents.get(path)
+    if text is None:
+        raise PresentationDerivationError(f"missing production render source {path}")
+    offset = text.find(token)
+    if offset < 0:
+        raise PresentationDerivationError(
+            f"production render source {path} no longer contains {token!r}"
+        )
+    return SourceLocation(path, text.count("\n", 0, offset) + 1)
+
+
+def playback_presentation_property_cases(
+    documents: dict[str, str],
+    property_name: str,
+) -> tuple[list[str], SourceLocation]:
+    path = "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+    text = documents.get(path)
+    if text is None:
+        raise PresentationDerivationError(f"missing production render source {path}")
+    declaration = re.search(
+        rf"\bvar\s+{re.escape(property_name)}\s*:\s*Bool\s*\{{([^}}]+)\}}",
+        text,
+    )
+    if declaration is None:
+        raise PresentationDerivationError(
+            f"cannot derive PlaybackPresentation.{property_name} cases"
+        )
+    cases = {
+        match.group(1)
+        for match in re.finditer(r"\.([A-Za-z_][A-Za-z0-9_]*)", declaration.group(1))
+    }
+    unknown = cases - set(PRESENTATIONS)
+    if not cases or unknown:
+        raise PresentationDerivationError(
+            f"PlaybackPresentation.{property_name} has unsupported cases {sorted(unknown)}"
+        )
+    ordered = [presentation for presentation in PRESENTATIONS if presentation in cases]
+    return ordered, SourceLocation(
+        path,
+        text.count("\n", 0, declaration.start()) + 1,
+    )
+
+
+def presentation_derivation(
+    template: str,
+    documents: dict[str, str],
+) -> tuple[list[str], dict[str, object]]:
+    """Resolve one accessibility operation through its production render host.
+
+    Rules name content hosts rather than individual operations. Their source
+    anchors make a render-tree change fail inventory generation instead of
+    silently retaining a stale applicability verdict.
+    """
+
+    main_window_presentations, main_window_source = (
+        playback_presentation_property_cases(documents, "usesMainWindow")
+    )
+    immersive_presentations, immersive_source = (
+        playback_presentation_property_cases(documents, "usesImmersiveSpace")
+    )
+    all_playback_presentations = [
+        presentation
+        for presentation in PRESENTATIONS
+        if presentation in main_window_presentations
+        or presentation in immersive_presentations
+    ]
+
+    browser_hosts = {
+        "Emby": ("EmbyScreen {", "Apps/Enchron/MainView.swift"),
+        "FileBrowsing": ("FilesScreen()", "Apps/Enchron/MainView.swift"),
+        "MediaLibrary": ("FilesScreen()", "Apps/Enchron/MainView.swift"),
+        "Navigation": ("private var browser: some View", "Apps/Enchron/MainView.swift"),
+        "Settings": ("SettingsScreen()", "Apps/Enchron/MainView.swift"),
+    }
+    operation_family = family(template)
+    if operation_family in browser_hosts:
+        token, path = browser_hosts[operation_family]
+        source = required_source_location(documents, path, token)
+        return ["window"], {
+            "host": "browserWindowSurface",
+            "sources": [asdict(source)],
+        }
+
+    if operation_family == "EnvironmentCard":
+        source = required_source_location(
+            documents,
+            "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift",
+            "EnvironmentCardCarousel(",
+        )
+        return ["window", "docked"], {
+            "host": "environmentVolume",
+            "sources": [asdict(source)],
+        }
+
+    if operation_family == "PlayerPanel":
+        path = "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        if template.startswith("PlayerPanel-menu-"):
+            source = required_source_location(
+                documents,
+                path,
+                "            playerControlDockControls",
+            )
+            return immersive_presentations, {
+                "host": "playerControlDockControls",
+                "sources": [asdict(source), asdict(immersive_source)],
+            }
+        if template.startswith("PlayerPanel-DockedPlacement") or template == (
+            "PlayerPanel-{identifier}-slider"
+        ):
+            source = required_source_location(
+                documents,
+                path,
+                "                    dockedPlacementControls(live)",
+            )
+            return ["docked"], {
+                "host": "dockedPlacementControls",
+                "sources": [asdict(source)],
+            }
+        if template.startswith("PlayerPanel-VideoFormat-"):
+            source = required_source_location(
+                documents,
+                path,
+                "                    videoFormatEditor(live)",
+            )
+            return [], {
+                "host": "uninstantiatedPlayerControlDockVideoFormat",
+                "sources": [asdict(source)],
+            }
+        if template == "PlayerPanel-button-settings":
+            source = required_source_location(
+                documents,
+                path,
+                "PlaybackPanelSettingsPolicy.settingsAreAvailable(",
+            )
+            return ["docked"], {
+                "host": "dockedPlayerControlSettings",
+                "sources": [asdict(source)],
+            }
+        if template == "PlayerPanel-button-enter-panorama":
+            source = required_source_location(
+                documents,
+                path,
+                "        } else if live.presentation == .portal {",
+            )
+            return [], {
+                "host": "uninstantiatedPortalPlayerControlDockBranch",
+                "sources": [asdict(source)],
+            }
+        if template == "PlayerPanel-button-exit-spatial":
+            source = required_source_location(
+                documents,
+                path,
+                "        if live.presentation == .panorama {",
+            )
+            return immersive_presentations, {
+                "host": "immersiveReturnControls",
+                "sources": [asdict(source), asdict(immersive_source)],
+            }
+        window_source = required_source_location(
+            documents,
+            path,
+            "            surface: .windowOrnament,",
+        )
+        dock_source = required_source_location(
+            documents,
+            path,
+            "            surface: .playerControlDock,",
+        )
+        return all_playback_presentations, {
+            "host": "fusedPlayerPanelSharedContent",
+            "sources": [
+                asdict(window_source),
+                asdict(dock_source),
+                asdict(main_window_source),
+                asdict(immersive_source),
+            ],
+        }
+
+    if operation_family == "PlayerUI":
+        if template.startswith("PlayerUI-DockMenu-") or template == (
+            "PlayerUI-TopAction-dock"
+        ):
+            source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+                "PlaybackTopActions(",
+            )
+            return ["window", "docked"], {
+                "host": "flatPlaybackEntryTopActions",
+                "sources": [asdict(source)],
+            }
+        if template == "PlayerUI-TopAction-resumePanorama":
+            source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+                "PlaybackTopActions(",
+            )
+            return ["portal", "panorama"], {
+                "host": "panoramicPlaybackEntryTopActions",
+                "sources": [asdict(source)],
+            }
+        if template in {"PlayerUI-TopAction-more", "PlayerUI-menu-subtitles"}:
+            source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+                "ProductionPlaybackMoreMenu()",
+            )
+            return main_window_presentations, {
+                "host": "windowPlaybackTopChromeMoreControl",
+                "sources": [asdict(source), asdict(main_window_source)],
+            }
+        if template == "PlayerUI-InfoBar-button-back" or template.startswith(
+            ("PlayerUI-TopAction-videoFormat", "PlayerUI-VideoFormat-")
+        ):
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                "PlayerInfoBarView(",
+            )
+            return main_window_presentations, {
+                "host": "windowPlaybackTopChrome",
+                "sources": [asdict(source), asdict(main_window_source)],
+            }
+        if template.startswith("PlayerUI-resumeDecision-"):
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                "ResumeDecisionCard(",
+            )
+            return ["window"], {
+                "host": "browserWindowResumeDecision",
+                "sources": [asdict(source)],
+            }
+        if any(
+            marker in template
+            for marker in (
+                "Failure-",
+                "playbackIssue-",
+                "presentation-conversion-",
+                "unmetCapability-",
+            )
+        ):
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                "func playbackIssueAlert(",
+            )
+            return all_playback_presentations, {
+                "host": "playbackIssuePresentationSites",
+                "sources": [
+                    asdict(source),
+                    asdict(main_window_source),
+                    asdict(immersive_source),
+                ],
+            }
+
+    raise PresentationDerivationError(
+        f"cannot derive a production presentation host for accessibility:{template}"
+    )
+
+
+def explicit_presentation_derivation(
+    operation: dict[str, object],
+    documents: dict[str, str],
+) -> dict[str, object]:
+    source_path = str(operation["source"])
+    if source_path not in documents:
+        raise PresentationDerivationError(
+            f"explicit operation {operation['id']} names missing source {source_path}"
+        )
+    return {
+        "host": "explicitOperationContract",
+        "sources": [asdict(SourceLocation(source_path, 1))],
+    }
+
+
 def build_inventory() -> dict[str, object]:
     identifiers: dict[str, list[SourceLocation]] = {}
     documents: dict[str, str] = {}
@@ -749,10 +1034,16 @@ def build_inventory() -> dict[str, object]:
         }
         records.append(record)
         if role == "operation" and record["scope"] == "product":
+            presentations, derivation = presentation_derivation(
+                template,
+                documents,
+            )
             operation: dict[str, object] = {
                 "id": "accessibility:" + template,
                 "kind": action,
                 "identifierTemplate": template,
+                "presentations": presentations,
+                "presentationDerivation": derivation,
                 "source": "accessibilityIdentifier",
             }
             equivalent = DEBUG_MENU_EQUIVALENTS.get(str(operation["id"]))
@@ -841,8 +1132,14 @@ def build_inventory() -> dict[str, object]:
             "source": "Apps/Enchron/EnchronApp.swift",
         },
     ]
+    for operation in semantic_operations:
+        operation["presentationDerivation"] = explicit_presentation_derivation(
+            operation,
+            documents,
+        )
+
     return {
-        "version": 1,
+        "version": 2,
         "sourceRoots": [
             root.relative_to(REPOSITORY_ROOT).as_posix() for root in SOURCE_ROOTS
         ],
@@ -908,7 +1205,43 @@ def extend_matrix_baseline(
                 "verdict": "known-defect" if applicable else "not-applicable",
             }
         )
-    return {**baseline, "cells": copied_cells}
+    return reclassify_matrix_applicability(
+        {**baseline, "cells": copied_cells},
+        inventory,
+    )
+
+
+def reclassify_matrix_applicability(
+    baseline: dict[str, object],
+    inventory: dict[str, object],
+) -> dict[str, object]:
+    """Apply render-host applicability without weakening device proof."""
+    operations_by_id = {
+        str(operation["id"]): operation
+        for operation in inventory["operations"]  # type: ignore[index]
+    }
+    cells = baseline.get("cells")
+    if not isinstance(cells, list):
+        raise ValueError("reachability matrix baseline cells must be a list")
+
+    reclassified: list[dict[str, object]] = []
+    for cell in cells:
+        if not isinstance(cell, dict):
+            raise ValueError("reachability matrix baseline cells must be objects")
+        operation_id = str(cell.get("operation"))
+        operation = operations_by_id.get(operation_id)
+        if operation is None:
+            raise ValueError(f"unknown reachability operation {operation_id}")
+        copied = dict(cell)
+        if copied.get("verdict") != "reachable":
+            explicit = operation.get("presentations")
+            applicable = (
+                not isinstance(explicit, list)
+                or str(copied.get("presentation")) in explicit
+            )
+            copied["verdict"] = "known-defect" if applicable else "not-applicable"
+        reclassified.append(copied)
+    return {**baseline, "cells": reclassified}
 
 
 def main() -> int:
@@ -924,6 +1257,14 @@ def main() -> int:
         help=(
             "Append missing matrix cells as known defects without changing existing "
             "device verdicts."
+        ),
+    )
+    parser.add_argument(
+        "--reclassify-baseline-applicability",
+        action="store_true",
+        help=(
+            "Reconcile non-reachable baseline cells with source-derived "
+            "presentation hosts while preserving device-proven reachable cells."
         ),
     )
     arguments = parser.parse_args()
@@ -949,6 +1290,27 @@ def main() -> int:
         print(
             f"extended {MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)} "
             f"with {added} known-defect cells"
+        )
+    if arguments.reclassify_baseline_applicability:
+        if not MATRIX_BASELINE.is_file():
+            print(
+                f"missing {MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)}",
+                file=sys.stderr,
+            )
+            return 1
+        baseline = json.loads(MATRIX_BASELINE.read_text(encoding="utf-8"))
+        reclassified = reclassify_matrix_applicability(baseline, inventory)
+        changed = sum(
+            old != new
+            for old, new in zip(baseline["cells"], reclassified["cells"])
+        )
+        MATRIX_BASELINE.write_text(
+            json.dumps(reclassified, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(
+            f"reclassified {changed} cells in "
+            f"{MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)}"
         )
     if not OUTPUT.is_file():
         print(f"missing {OUTPUT.relative_to(REPOSITORY_ROOT)}; rerun with --write", file=sys.stderr)
@@ -977,6 +1339,15 @@ def main() -> int:
             print(
                 "reachability matrix baseline does not cover the current inventory; "
                 "run the physical matrix with --accept-baseline",
+                file=sys.stderr,
+            )
+            return 1
+        reclassified = reclassify_matrix_applicability(baseline, inventory)
+        if reclassified != baseline:
+            print(
+                "reachability matrix applicability drifted; run "
+                "Scripts/verification/generate_reachability_inventory.py "
+                "--reclassify-baseline-applicability",
                 file=sys.stderr,
             )
             return 1
