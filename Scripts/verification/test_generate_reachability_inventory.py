@@ -501,7 +501,7 @@ class MatrixProofContextMigrationTests(unittest.TestCase):
         self.assertEqual(report["mappedReachableCount"], 2)
         self.assertEqual(report["reachableRegressionCount"], 0)
 
-    def test_reports_a_reachable_old_cell_whose_derived_context_disappeared(self) -> None:
+    def test_rehomes_a_reachable_old_cell_from_its_wrong_target_context(self) -> None:
         old = {
             "schemaVersion": 1,
             "cells": [{
@@ -518,15 +518,33 @@ class MatrixProofContextMigrationTests(unittest.TestCase):
             }],
         }
 
-        _, report = inventory.migrate_matrix_baseline(old, generated)
+        migrated, report = inventory.migrate_matrix_baseline(old, generated)
 
-        self.assertEqual(report["retiredReachableCount"], 1)
         self.assertEqual(
-            report["retiredReachableCells"],
+            migrated["cells"],
+            [
+                {
+                    "context": "window",
+                    "operation": "accessibility:PlayerUI-TopAction-more",
+                    "verdict": "reachable",
+                },
+                {
+                    "context": "portal",
+                    "operation": "accessibility:PlayerUI-TopAction-more",
+                    "verdict": "known-defect",
+                },
+            ],
+        )
+        self.assertEqual(report["mappedReachableCount"], 1)
+        self.assertEqual(report["mappedReachableDecisionCount"], 1)
+        self.assertEqual(report["retiredReachableCount"], 0)
+        self.assertEqual(
+            report["remappedReachableCells"],
             [{
                 "operation": "accessibility:PlayerUI-TopAction-more",
                 "presentation": "docked",
-                "reason": "source-derived-proof-context-does-not-exist",
+                "context": "window",
+                "reason": "legacy-cell-used-target-presentation-instead-of-render-host",
             }],
         )
 

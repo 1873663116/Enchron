@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-18T10:13:13.273859+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round9-20260818/merged-v2-final/delivery.json",
+  "acceptedAt": "2026-08-18T10:29:36.877346+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round9-20260818/merged-v2-final-remapped/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -500,7 +500,7 @@
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",

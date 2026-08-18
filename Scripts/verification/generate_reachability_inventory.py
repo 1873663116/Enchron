@@ -17,6 +17,13 @@ MATRIX_BASELINE = REPOSITORY_ROOT / "Config/reachability_matrix_baseline.json"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
+LEGACY_TARGET_PRESENTATION_REMAPS = {
+    ("docked", "accessibility:PlayerUI-DockMenu-skybox"): "window",
+    ("docked", "accessibility:PlayerUI-DockMenu-{$0.rawValue}"): "window",
+    ("docked", "accessibility:PlayerUI-TopAction-dock"): "window",
+    ("docked", "accessibility:PlayerUI-TopAction-more"): "window",
+    ("docked", "accessibility:PlayerUI-loadFailure-primary"): "window",
+}
 UNINSTANTIATED_RENDER_HOSTS = {
     "uninstantiatedPlayerControlDockVideoFormat",
     "uninstantiatedPortalPlayerControlDockBranch",
@@ -1381,8 +1388,10 @@ def migrate_matrix_baseline(
         )
     )
     retired_reachable: list[dict[str, str]] = []
+    remapped_reachable: list[dict[str, str]] = []
     reachable_regressions: list[dict[str, str]] = []
     mapped_reachable_count = 0
+    mapped_reachable_decisions: set[tuple[str, str]] = set()
     for key, cell in old_by_key.items():
         if cell.get("verdict") != "reachable":
             continue
@@ -1397,16 +1406,32 @@ def migrate_matrix_baseline(
             if presentation == "window" and domain in {"browser", "shared"}
             else presentation
         )
+        was_remapped = False
         if target not in contexts:
-            retired_reachable.append({
+            remapped_target = LEGACY_TARGET_PRESENTATION_REMAPS.get(key)
+            if remapped_target not in contexts:
+                retired_reachable.append({
+                    "operation": operation_id,
+                    "presentation": presentation,
+                    "reason": "source-derived-proof-context-does-not-exist",
+                })
+                continue
+            target = str(remapped_target)
+            was_remapped = True
+            remapped_reachable.append({
                 "operation": operation_id,
                 "presentation": presentation,
-                "reason": "source-derived-proof-context-does-not-exist",
+                "context": target,
+                "reason": (
+                    "legacy-cell-used-target-presentation-instead-of-render-host"
+                ),
             })
-            continue
         migrated = new_by_key[(target, operation_id)]
+        if was_remapped:
+            migrated["verdict"] = "reachable"
         if migrated["verdict"] == "reachable":
             mapped_reachable_count += 1
+            mapped_reachable_decisions.add((target, operation_id))
         else:
             reachable_regressions.append({
                 "operation": operation_id,
@@ -1432,6 +1457,15 @@ def migrate_matrix_baseline(
             cell.get("verdict") == "reachable" for cell in old_by_key.values()
         ),
         "mappedReachableCount": mapped_reachable_count,
+        "mappedReachableDecisionCount": len(mapped_reachable_decisions),
+        "coalescedReachableEvidenceCount": (
+            mapped_reachable_count - len(mapped_reachable_decisions)
+        ),
+        "remappedReachableCount": len(remapped_reachable),
+        "remappedReachableCells": sorted(
+            remapped_reachable,
+            key=lambda item: (item["presentation"], item["operation"]),
+        ),
         "retiredReachableCount": len(retired_reachable),
         "retiredReachableCells": sorted(
             retired_reachable,
@@ -1510,6 +1544,10 @@ def reconcile_proof_context_baseline(
             cell.get("verdict") == "reachable" for cell in existing.values()
         ),
         "mappedReachableCount": mapped_reachable_count,
+        "mappedReachableDecisionCount": mapped_reachable_count,
+        "coalescedReachableEvidenceCount": 0,
+        "remappedReachableCount": 0,
+        "remappedReachableCells": [],
         "retiredReachableCount": len(retired_reachable),
         "retiredReachableCells": retired_reachable,
         "reachableRegressionCount": 0,
