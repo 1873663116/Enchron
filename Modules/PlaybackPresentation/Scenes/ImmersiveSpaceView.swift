@@ -271,6 +271,12 @@ struct PortalToPanoramaTargetRevealState: Equatable {
 }
 
 @MainActor
+private enum SpatialPresentationChange: Equatable {
+    case videoSize
+    case state
+}
+
+@MainActor
 private final class SpatialPresentationObservation {
     private var entityID: ObjectIdentifier?
     private var contentTypeSessionID: String?
@@ -283,7 +289,7 @@ private final class SpatialPresentationObservation {
         _ entity: Entity,
         in content: RealityViewContent,
         contentTypeSessionID: String?,
-        onChange: @escaping @MainActor () -> Void,
+        onChange: @escaping @MainActor (SpatialPresentationChange) -> Void,
         onContentTypeDidChange: @escaping @MainActor (
             String,
             String
@@ -298,26 +304,31 @@ private final class SpatialPresentationObservation {
         entityID = nextEntityID
         self.contentTypeSessionID = contentTypeSessionID
         subscriptions = [
+            content.subscribe(to: VideoPlayerEvents.VideoSizeDidChange.self, on: entity) { _ in
+                Task { @MainActor in
+                    onChange(.videoSize)
+                }
+            },
             content.subscribe(to: VideoPlayerEvents.ViewingModeDidChange.self, on: entity) { _ in
                 Task { @MainActor in
-                    onChange()
+                    onChange(.state)
                 }
             },
             content.subscribe(to: VideoPlayerEvents.ImmersiveViewingModeDidChange.self, on: entity) { _ in
                 Task { @MainActor in
-                    onChange()
+                    onChange(.state)
                 }
             },
             content.subscribe(to: VideoPlayerEvents.ImmersiveViewingModeDidTransition.self, on: entity) { _ in
                 Task { @MainActor in
-                    onChange()
+                    onChange(.state)
                 }
             },
             content.subscribe(to: VideoPlayerEvents.SpatialVideoModeDidChange.self, on: entity) { _ in
-                Task { @MainActor in onChange() }
+                Task { @MainActor in onChange(.state) }
             },
             content.subscribe(to: VideoPlayerEvents.RenderingStatusDidChange.self, on: entity) { _ in
-                Task { @MainActor in onChange() }
+                Task { @MainActor in onChange(.state) }
             }
         ]
         if let contentTypeSessionID {
@@ -329,7 +340,7 @@ private final class SpatialPresentationObservation {
                     let contentType = String(describing: event.contentType)
                     Task { @MainActor in
                         onContentTypeDidChange(contentType, contentTypeSessionID)
-                        onChange()
+                        onChange(.state)
                     }
                 }
             )
@@ -677,6 +688,10 @@ public struct ImmersiveSpaceView: View {
         playbackVideoEntityStore.panoramaInteractionSurface
     }
 
+    private var dockedInteractionSurface: Entity {
+        playbackVideoEntityStore.dockedInteractionSurface
+    }
+
     /// Diagnostic collider locked to the wearer's head, two meters straight
     /// ahead. It is reachable from any gaze direction and any room position,
     /// so a miss here rules geometry out of the spatial input question.
@@ -905,6 +920,13 @@ public struct ImmersiveSpaceView: View {
                 guard controlsAttachmentController.contains(value.entity) == false else {
                     appModel.recordSurfaceInputProbe(
                         "spatialTap entity=\(value.entity.name) accepted=false controls=true"
+                    )
+                    return
+                }
+                guard requestedPresentation != .docked
+                        || PlaybackDockedInteractionSurface.contains(value.entity) else {
+                    appModel.recordSurfaceInputProbe(
+                        "spatialTap entity=\(value.entity.name) accepted=false controls=false"
                     )
                     return
                 }
@@ -1162,7 +1184,10 @@ public struct ImmersiveSpaceView: View {
             entity,
             in: content,
             contentTypeSessionID: realityKitContentTypeScope?.technicalSessionID,
-            onChange: {
+            onChange: { change in
+                if change == .videoSize {
+                    updateDockedInteractionSurface(on: entity)
+                }
                 recordSpatialPresentationState()
             },
             onContentTypeDidChange: { contentType, eventSessionID in
@@ -1230,6 +1255,11 @@ public struct ImmersiveSpaceView: View {
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
         )
+        if presentation == .docked {
+            updateDockedInteractionSurface(on: entity)
+        } else {
+            dockedInteractionSurface.removeFromParent()
+        }
         recordDisplayLinkProbe(
             event: "componentConfigured",
             entityIsInRealityView: content.entities.contains { $0 === entity }
@@ -2060,6 +2090,19 @@ public struct ImmersiveSpaceView: View {
             entity,
             to: anchor,
             transform: transform
+        )
+    }
+
+    private func updateDockedInteractionSurface(on entity: Entity) {
+        guard requestedPresentation == .docked,
+              videoEntity === entity,
+              let component = entity.components[VideoPlayerComponent.self] else {
+            return
+        }
+        PlaybackDockedInteractionSurface.install(
+            dockedInteractionSurface,
+            on: entity,
+            screenSize: component.playerScreenSize
         )
     }
 }

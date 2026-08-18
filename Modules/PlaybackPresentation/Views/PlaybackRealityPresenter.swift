@@ -41,6 +41,7 @@ struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
 final class PlaybackVideoEntityStore {
     private(set) var entity = Entity()
     private(set) var departingEntity: Entity?
+    let dockedInteractionSurface = PlaybackDockedInteractionSurface.makeEntity()
     let panoramaInteractionSurface = PlaybackPanoramaInteractionSurface.makeEntity()
     private(set) var realityKitContentType = "unobserved"
     private(set) var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope?
@@ -83,6 +84,9 @@ final class PlaybackVideoEntityStore {
         presentation: PlaybackPresentation = .window,
         videoComponentRevision: UInt64? = nil
     ) -> Entity {
+        if presentation != .docked {
+            dockedInteractionSurface.removeFromParent()
+        }
         let rendererChanged = self.renderer !== renderer
         if self.renderer != nil, rendererChanged {
             let retiredEntityID = entityID
@@ -151,6 +155,7 @@ final class PlaybackVideoEntityStore {
     }
 
     func releasePlaybackComponent() {
+        dockedInteractionSurface.removeFromParent()
         entity.removeFromParent()
         entity.components.remove(VideoPlayerComponent.self)
         releaseDepartingEntity()
@@ -165,11 +170,15 @@ final class PlaybackVideoEntityStore {
     /// identity and media-format scope for the target RealityView. The target
     /// will rebuild the Entity after the source Scene has disappeared.
     func releasePlaybackComponentForRealityViewTransfer() {
+        dockedInteractionSurface.removeFromParent()
         entity.removeFromParent()
         entity.components.remove(VideoPlayerComponent.self)
     }
 
     func releaseDepartingEntity() {
+        if dockedInteractionSurface.parent === departingEntity {
+            dockedInteractionSurface.removeFromParent()
+        }
         departingEntity?.removeFromParent()
         departingEntity?.components.remove(VideoPlayerComponent.self)
         departingEntity = nil
@@ -269,7 +278,7 @@ enum PlaybackSurfaceInputAction {
 @MainActor
 enum PlaybackSurfaceInputOwner: Equatable {
     case windowSwiftUIRoot
-    case spatialVideoEntity
+    case dockedInteractionSurface
     case panoramaInteractionSurface
 }
 
@@ -282,7 +291,7 @@ enum PlaybackSurfaceInputOwnership {
         case .window, .portal:
             .windowSwiftUIRoot
         case .docked:
-            .spatialVideoEntity
+            .dockedInteractionSurface
         case .panorama:
             .panoramaInteractionSurface
         }
@@ -298,11 +307,59 @@ enum PlaybackSurfaceInputOwnership {
         for presentation: PlaybackPresentation
     ) -> Bool {
         switch owner(for: presentation) {
-        case .spatialVideoEntity, .panoramaInteractionSurface:
+        case .dockedInteractionSurface, .panoramaInteractionSurface:
             true
         case .windowSwiftUIRoot:
             false
         }
+    }
+}
+
+@MainActor
+enum PlaybackDockedInteractionSurface {
+    static let entityName = "EnchronDockedInput.surface"
+    static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
+    static let thickness: Float = 0.01
+    static let frontOffset: Float = 0.01
+
+    static func makeEntity() -> Entity {
+        let entity = Entity()
+        configure(entity, screenSize: fallbackScreenSize)
+        return entity
+    }
+
+    static func install(
+        _ interactionSurface: Entity,
+        on videoEntity: Entity,
+        screenSize: SIMD2<Float>
+    ) {
+        configure(interactionSurface, screenSize: screenSize)
+        if interactionSurface.parent !== videoEntity {
+            videoEntity.addChild(interactionSurface)
+        }
+    }
+
+    static func configure(
+        _ entity: Entity,
+        screenSize: SIMD2<Float>
+    ) {
+        let size = screenSize.x > 0 && screenSize.y > 0
+            ? screenSize
+            : fallbackScreenSize
+        entity.name = entityName
+        entity.position = [0, 0, frontOffset]
+        entity.orientation = .init()
+        entity.scale = .one
+        entity.components.set(InputTargetComponent())
+        entity.components.set(
+            CollisionComponent(
+                shapes: [.generateBox(size: [size.x, size.y, thickness])]
+            )
+        )
+    }
+
+    static func contains(_ entity: Entity) -> Bool {
+        entity.name == entityName
     }
 }
 
@@ -825,25 +882,8 @@ enum PlaybackRealityPresenter {
         } else {
             entity.components.remove(ModelSortGroupComponent.self)
         }
-        // Window surface taps belong to the SwiftUI root overlay so chrome and
-        // secondary menus can receive gaze + pinch without competing with a
-        // RealityKit hit target. Docked and Panorama have no such overlay on
-        // the video, so the entity owns spatial input there. Presentation
-        // transitions disable the enclosing RealityView instead of stripping
-        // these components from a settled spatial surface.
-        switch presentation {
-        case .window, .portal:
-            entity.components.remove(InputTargetComponent.self)
-            entity.components.remove(CollisionComponent.self)
-        case .docked:
-            entity.components.set(InputTargetComponent())
-            entity.components.set(
-                CollisionComponent(shapes: [.generateBox(size: [1.8, 1, 0.01])])
-            )
-        case .panorama:
-            entity.components.remove(InputTargetComponent.self)
-            entity.components.remove(CollisionComponent.self)
-        }
+        entity.components.remove(InputTargetComponent.self)
+        entity.components.remove(CollisionComponent.self)
         var accessibility = AccessibilityComponent()
         accessibility.isAccessibilityElement = true
         accessibility.label = playbackSurfaceAccessibilityLabel
