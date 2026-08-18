@@ -1,5 +1,5 @@
 {
-  "acceptedAt": "2026-08-18T16:02:43.639759+00:00",
+  "acceptedAt": "2026-08-18T16:17:14.722855+00:00",
   "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round11-20260818/delivery/delivery.json",
   "cells": [
     {
@@ -25,7 +25,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -35,17 +35,17 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Library-Sort",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -55,22 +55,22 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Search-Field",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Season-Picker",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -80,7 +80,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -90,7 +90,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -250,7 +250,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -310,12 +310,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -340,7 +340,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -395,7 +395,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-category-{item.id}",
-      "verdict": "reachable"
+      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
