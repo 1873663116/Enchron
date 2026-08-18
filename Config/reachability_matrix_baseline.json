@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-18T10:29:36.877346+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round9-20260818/merged-v2-final-remapped/delivery.json",
+  "acceptedAt": "2026-08-18T13:25:02.990899+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round10-20260818/delivery/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -255,7 +255,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -280,12 +280,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Breadcrumb-current",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-addFiles",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -295,7 +295,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -380,7 +380,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -910,22 +910,22 @@
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-more",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-speed",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
@@ -965,7 +965,7 @@
     {
       "context": "docked",
       "operation": "command:listMenuItems",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
@@ -975,7 +975,7 @@
     {
       "context": "docked",
       "operation": "command:selectMenuItem",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
