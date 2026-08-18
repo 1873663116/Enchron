@@ -73,15 +73,218 @@ SEGMENT_SCENARIO_NAMES = {
 }
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
+APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
+PROBE_COPY_LIMIT_BYTES = 600_000
+PROBE_MIDPOINT_ARCHIVE_BYTES = 450_000
+PROBE_MIDPOINT_MARKER = 25
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
     "reachability-round2-20260818/recovery/TestMediaInbox"
 )
+DEFERRED_MENU_TARGETS = {
+    ("settings", "resume-strategy"): "Ask Every Time",
+    ("settings", "end-behavior"): "Stop",
+    ("settings", "default-scenic-environment"): "Scenic Environment 1",
+    ("settings", "default-speed"): "0.5×",
+    ("settings", "controls-auto-hide"): "8 Seconds",
+}
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def parse_probe_line(line: str) -> tuple[datetime, str] | None:
+    timestamp, separator, detail = line.partition(" ")
+    if not separator:
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed, detail
+
+
+def load_batched_app_responses(
+    directory: Path, *, expected_ids: set[str]
+) -> dict[str, dict[str, Any]]:
+    responses: dict[str, dict[str, Any]] = {}
+    if not directory.is_dir():
+        return responses
+    for path in sorted(directory.rglob("*.json")):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(document, dict):
+            continue
+        response_id = document.get("id")
+        if not isinstance(response_id, str) or response_id not in expected_ids:
+            continue
+        if response_id in responses:
+            raise ValueError(f"duplicate app-command response {response_id}")
+        responses[response_id] = document
+    return responses
+
+
+def device_file_size(document: Any, remote_path: str) -> int | None:
+    basename = Path(remote_path).name
+
+    def visit(value: Any) -> int | None:
+        if isinstance(value, list):
+            for item in value:
+                found = visit(item)
+                if found is not None:
+                    return found
+            return None
+        if not isinstance(value, dict):
+            return None
+
+        path_values = {
+            str(value.get(key))
+            for key in ("path", "relativePath", "name", "fileName")
+            if value.get(key) is not None
+        }
+        matches = remote_path in path_values or basename in path_values
+        if matches:
+            metadata = value.get("metadata")
+            containers = [value]
+            if isinstance(metadata, dict):
+                containers.append(metadata)
+            for container in containers:
+                for key in ("size", "fileSize", "byteCount"):
+                    size = container.get(key)
+                    if isinstance(size, int) and not isinstance(size, bool):
+                        return size
+                    if isinstance(size, str) and size.isdecimal():
+                        return int(size)
+        for child in value.values():
+            found = visit(child)
+            if found is not None:
+                return found
+        return None
+
+    return visit(document)
+
+
+def replay_deferred_evidence(
+    *,
+    cells: dict[tuple[str, str], dict[str, Any]],
+    deliveries: list[dict[str, Any]],
+    probe_lines: list[str],
+    responses: dict[str, dict[str, Any]],
+    session_id: str,
+    started_at: str,
+    ended_at: str,
+    evidence: str,
+) -> dict[str, Any]:
+    start = datetime.fromisoformat(
+        started_at.replace("Z", "+00:00")
+    ).replace(microsecond=0)
+    end = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+    records = [
+        record for line in probe_lines
+        if (record := parse_probe_line(line)) is not None
+        and start <= record[0] <= end
+    ]
+    session_marker = f"reachability evidence session={session_id}"
+    session_aligned = any(session_marker in detail for _, detail in records)
+    failures: list[dict[str, Any]] = []
+
+    for delivery in deliveries:
+        context = str(delivery["context"])
+        operation = str(delivery["operation"])
+        key = (context, operation)
+        command_ids = [str(value) for value in delivery.get("commandIDs", [])]
+        command_responses_pass = all(
+            isinstance(responses.get(command_id), dict)
+            and responses[command_id].get("id") == command_id
+            and responses[command_id].get("ok") is True
+            for command_id in command_ids
+        )
+
+        requirement_results: list[bool] = []
+        for requirement in delivery.get("probeRequirements", []):
+            after_text = str(requirement.get("after", started_at))
+            after = datetime.fromisoformat(
+                after_text.replace("Z", "+00:00")
+            ).replace(microsecond=0)
+            needles = [str(value) for value in requirement.get("needles", [])]
+            requirement_results.append(any(
+                timestamp >= after and all(needle in detail for needle in needles)
+                for timestamp, detail in records
+            ))
+        probe_passes = all(requirement_results)
+        passed = session_aligned and command_responses_pass and probe_passes
+        if not passed:
+            failures.append({
+                "context": context,
+                "operation": operation,
+                "sessionAligned": session_aligned,
+                "commandResponsesPassed": command_responses_pass,
+                "probeRequirementsPassed": probe_passes,
+            })
+            continue
+
+        cell = cells[key]
+        cell["applicationReceived"] = True
+        if evidence not in cell["evidence"]:
+            cell["evidence"].append(evidence)
+        if reachability_evidence_is_complete(cell):
+            cell["verdict"] = "reachable"
+
+    return {
+        "passed": session_aligned and not failures,
+        "sessionAligned": session_aligned,
+        "deliveryCount": len(deliveries),
+        "verifiedDeliveryCount": len(deliveries) - len(failures),
+        "failures": failures,
+    }
+
+
+class DeferredProbeLine:
+    def __init__(self, requirement: dict[str, Any]) -> None:
+        self.requirement = requirement
+
+    def __contains__(self, needle: object) -> bool:
+        text = str(needle)
+        if text not in self.requirement["needles"]:
+            self.requirement["needles"].append(text)
+        return True
+
+
+class DeferredProbeSlice:
+    def __init__(self, run: "ReachabilityRun", after_marker: int) -> None:
+        self.run = run
+        self.after_marker = after_marker
+
+    def __iter__(self):
+        requirement = {
+            "after": self.run.probe_markers.get(
+                self.after_marker, self.run.probe_markers[0]
+            ),
+            "needles": [],
+        }
+        self.run.deferred_probe_requirements.append(requirement)
+        yield DeferredProbeLine(requirement)
+
+
+class DeferredProbeView:
+    def __init__(self, run: "ReachabilityRun", marker: int) -> None:
+        self.run = run
+        self.marker = marker
+
+    def __len__(self) -> int:
+        return self.marker
+
+    def __iter__(self):
+        return iter(DeferredProbeSlice(self.run, 0))
+
+    def __getitem__(self, index: slice | int):
+        if isinstance(index, slice):
+            return DeferredProbeSlice(self.run, int(index.start or 0))
+        raise IndexError(index)
 
 
 def template_pattern(template: str) -> re.Pattern[str]:
@@ -399,6 +602,18 @@ class ReachabilityRun:
         self.segment: dict[str, Any] | None = getattr(arguments, "segment_spec", None)
         self.sequence = 0
         self.probe_offset = 0
+        self.deferred_deliveries: list[dict[str, Any]] = []
+        self.deferred_command_ids: set[str] = set()
+        self.last_deferred_command_id: str | None = None
+        self.deferred_probe_requirements: list[dict[str, Any]] = []
+        self.probe_markers: dict[int, str] = {0: utc_now()}
+        self.next_probe_marker = 1
+        self.last_controller_document: dict[str, Any] = {}
+        self.direct_devicectl_calls = 0
+        self.segment_evidence_started = False
+        self.evidence_retrieval_devicectl_calls = 0
+        self.midpoint_probe_checked = False
+        self.probe_chunks: list[str] = []
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
             (self.output / "segment-plan.json").write_text(
@@ -442,6 +657,7 @@ class ReachabilityRun:
                 "evidence": f"raw/{name}",
                 "elapsedSeconds": 0.0,
             })
+            self.last_controller_document = document
             return document
         command = [
             sys.executable,
@@ -497,6 +713,7 @@ class ReachabilityRun:
                 "success": document.get("success"),
                 "evidence": f"raw/{name}",
                 "elapsedSeconds": round(time.monotonic() - started, 3),
+                "devicectlCallCount": document.get("devicectlCallCount", 0),
             }
         )
         error = str(document.get("error", ""))
@@ -513,6 +730,7 @@ class ReachabilityRun:
                 "error": error,
                 "evidence": f"raw/{name}",
             })
+        self.last_controller_document = document
         return document
 
     def app_command(self, verb: str, **arguments: str) -> dict[str, Any]:
@@ -521,9 +739,19 @@ class ReachabilityRun:
         if operation_id in self.operations and context is not None:
             self.mark_driven(context, operation_id)
         extra = ["--verb", verb, "--no-screenshot"]
+        if getattr(self, "segment", None) is not None:
+            extra.append("--defer-response")
+            if self.session_id is not None:
+                extra.extend(("--arg", f"evidenceSession={self.session_id}"))
         for key, value in arguments.items():
             extra.extend(("--arg", f"{key}={value}"))
-        return self.controller("app-command", *extra)
+        response = self.controller("app-command", *extra)
+        if self.segment is not None:
+            command_id = response.get("id")
+            if isinstance(command_id, str):
+                self.deferred_command_ids.add(command_id)
+                self.last_deferred_command_id = command_id
+        return response
 
     @property
     def active_context(self) -> str | None:
@@ -571,6 +799,7 @@ class ReachabilityRun:
         transfers: list[dict[str, Any]] = []
         for direction, *copy_arguments in commands:
             started = time.monotonic()
+            self.direct_devicectl_calls += 1
             try:
                 completed = subprocess.run(
                     [
@@ -637,7 +866,37 @@ class ReachabilityRun:
         self.channel_health[phase] = result
         return result
 
-    def copy_probe(self, label: str, *, timeout: float = 120) -> list[str]:
+    def copy_probe(
+        self, label: str, *, timeout: float = 120
+    ) -> list[str] | DeferredProbeView:
+        if self.segment is not None:
+            self.deferred_probe_requirements.clear()
+            marker = self.next_probe_marker
+            self.next_probe_marker += 1
+            self.probe_markers[marker] = utc_now()
+            self.events.append({
+                "at": self.probe_markers[marker],
+                "action": "deferProbeRead",
+                "label": label,
+                "success": True,
+                "marker": marker,
+                "evidence": "raw/deferred-evidence-replay.json",
+            })
+            if (
+                marker >= PROBE_MIDPOINT_MARKER
+                and not self.midpoint_probe_checked
+            ):
+                self.midpoint_probe_checked = True
+                size = self.query_probe_size("segment-midpoint")
+                if (
+                    size is not None
+                    and size >= PROBE_MIDPOINT_ARCHIVE_BYTES
+                    and size < PROBE_COPY_LIMIT_BYTES
+                ):
+                    self.probe_chunks.extend(self.archive_probe_chunk(
+                        "segment-midpoint", clear_after=True
+                    ))
+            return DeferredProbeView(self, marker)
         if (
             self.segment is not None
             and self.channel_failures
@@ -693,6 +952,272 @@ class ReachabilityRun:
         })
         return lines
 
+    def query_probe_size(
+        self, label: str, *, timeout: float = 120
+    ) -> int | None:
+        listing_path = self.raw / f"{label}-size-files.json"
+        self.direct_devicectl_calls += 1
+        if getattr(self, "segment_evidence_started", False):
+            self.evidence_retrieval_devicectl_calls += 1
+        try:
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "info", "files",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--subdirectory", "Documents",
+                    "--filter", "Name = 'surface-tap-probe.log'",
+                    "--no-recurse",
+                    "--json-output", str(listing_path),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            completed = None
+        if completed is None or completed.returncode != 0:
+            detail = (
+                f"Probe size query exceeded {timeout:.1f} seconds."
+                if completed is None
+                else (completed.stderr or completed.stdout)[-1000:]
+            )
+            self.channel_failures.append({
+                "at": utc_now(), "action": "probeSize", "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(), "action": "probeSize", "success": False,
+                "detail": detail,
+            })
+            return None
+        try:
+            listing = json.loads(listing_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            listing = {}
+        size = device_file_size(listing, PROBE_REMOTE_PATH)
+        self.events.append({
+            "at": utc_now(),
+            "action": "probeSize",
+            "success": size is not None,
+            "byteCount": size,
+            "evidence": f"raw/{listing_path.name}",
+        })
+        if size is None:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "probeSize",
+                "error": "The probe listing did not contain a byte size.",
+            })
+        return size
+
+    def archive_probe_chunk(
+        self,
+        label: str,
+        *,
+        clear_after: bool = False,
+        timeout: float = 120,
+    ) -> list[str]:
+        listing_path = self.raw / f"{label}-files.json"
+        destination = self.raw / f"{label}-probe.log"
+        started = time.monotonic()
+        try:
+            self.direct_devicectl_calls += 1
+            if getattr(self, "segment_evidence_started", False):
+                self.evidence_retrieval_devicectl_calls += 1
+            listed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "info", "files",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--subdirectory", "Documents",
+                    "--filter", "Name = 'surface-tap-probe.log'",
+                    "--no-recurse",
+                    "--json-output", str(listing_path),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "error": f"Device probe copy exceeded {timeout:.1f} seconds.",
+            })
+            self.events.append({
+                "at": utc_now(),
+                "action": "archiveProbe",
+                "success": False,
+                "detail": f"Device probe listing exceeded {timeout:.1f} seconds.",
+            })
+            return []
+
+        try:
+            listing = json.loads(listing_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            listing = {}
+        size = device_file_size(listing, PROBE_REMOTE_PATH)
+        if listed.returncode != 0 or size is None:
+            detail = (listed.stderr or listed.stdout)[-1000:]
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "error": detail or "The device probe size could not be read.",
+            })
+            self.events.append({
+                "at": utc_now(),
+                "action": "archiveProbe",
+                "success": False,
+                "detail": detail,
+            })
+            return []
+        if size >= PROBE_COPY_LIMIT_BYTES:
+            detail = (
+                f"Device probe size {size} bytes reached the "
+                f"{PROBE_COPY_LIMIT_BYTES}-byte safe copy limit."
+            )
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(),
+                "action": "archiveProbe",
+                "success": False,
+                "byteCount": size,
+                "detail": detail,
+            })
+            return []
+
+        remaining = max(1.0, timeout - (time.monotonic() - started))
+        try:
+            self.direct_devicectl_calls += 1
+            if getattr(self, "segment_evidence_started", False):
+                self.evidence_retrieval_devicectl_calls += 1
+            copied = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", PROBE_REMOTE_PATH,
+                    "--destination", str(destination),
+                    "--timeout", str(int(remaining)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=remaining,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            copied = None
+        if copied is None or copied.returncode != 0 or not destination.is_file():
+            detail = (
+                f"Device probe copy exceeded {timeout:.1f} seconds."
+                if copied is None
+                else (copied.stderr or copied.stdout)[-1000:]
+            )
+            self.channel_failures.append({
+                "at": utc_now(), "action": "copyProbe", "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(), "action": "archiveProbe", "success": False,
+                "detail": detail,
+            })
+            return []
+
+        lines = destination.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        cleared = self.clear_probe_after_archive() if clear_after else None
+        self.events.append({
+            "at": utc_now(),
+            "action": "archiveProbe",
+            "success": cleared is not False,
+            "evidence": f"raw/{destination.name}",
+            "byteCount": size,
+            "lineCount": len(lines),
+            "cleared": cleared,
+        })
+        return lines
+
+    def copy_batched_app_responses(
+        self, *, timeout: float = 120
+    ) -> dict[str, dict[str, Any]]:
+        destination = self.raw / "test-responses-batch"
+        try:
+            self.direct_devicectl_calls += 1
+            if getattr(self, "segment_evidence_started", False):
+                self.evidence_retrieval_devicectl_calls += 1
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", APP_RESPONSE_REMOTE_PATH,
+                    "--destination", str(destination),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            completed = None
+        if completed is None or completed.returncode != 0:
+            detail = (
+                f"App response directory copy exceeded {timeout:.1f} seconds."
+                if completed is None
+                else (completed.stderr or completed.stdout)[-1000:]
+            )
+            self.channel_failures.append({
+                "at": utc_now(), "action": "copyAppResponses", "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(), "action": "copyAppResponses", "success": False,
+                "detail": detail,
+            })
+            return {}
+
+        responses = load_batched_app_responses(
+            destination, expected_ids=self.deferred_command_ids
+        )
+        missing = sorted(self.deferred_command_ids - set(responses))
+        if missing:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyAppResponses",
+                "error": f"The batch is missing {len(missing)} command responses.",
+                "missingResponseIDs": missing,
+            })
+        self.events.append({
+            "at": utc_now(),
+            "action": "copyAppResponses",
+            "success": not missing,
+            "evidence": f"raw/{destination.name}",
+            "expectedCount": len(self.deferred_command_ids),
+            "responseCount": len(responses),
+            "missingResponseIDs": missing,
+        })
+        return responses
+
     def wait_for_probe(
         self,
         label: str,
@@ -719,22 +1244,40 @@ class ReachabilityRun:
     def clear_probe_after_archive(self) -> bool:
         empty = self.raw / "probe-empty.log"
         empty.write_text("", encoding="utf-8")
-        completed = subprocess.run(
-            [
-                "xcrun", "devicectl", "device", "copy", "to",
-                "--device", CORE_DEVICE,
-                "--domain-type", "appDataContainer",
-                "--domain-identifier", APP_BUNDLE,
-                "--source", str(empty),
-                "--destination", PROBE_REMOTE_PATH,
-            ],
-            cwd=ROOT,
-            env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-            capture_output=True,
-            text=True,
-            timeout=150,
-            check=False,
-        )
+        timeout = 120 if self.segment is not None else 150
+        try:
+            self.direct_devicectl_calls += 1
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "to",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", str(empty),
+                    "--destination", PROBE_REMOTE_PATH,
+                    "--timeout", str(timeout),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            self.events.append({
+                "at": utc_now(),
+                "action": "clearProbeAfterArchive",
+                "success": False,
+                "detail": f"Probe clear exceeded {timeout} seconds.",
+            })
+            if self.segment is not None:
+                self.channel_failures.append({
+                    "at": utc_now(),
+                    "action": "clearProbeAfterArchive",
+                    "error": f"Probe clear exceeded {timeout} seconds.",
+                })
+            return False
         self.events.append({
             "at": utc_now(),
             "action": "clearProbeAfterArchive",
@@ -782,6 +1325,7 @@ class ReachabilityRun:
             })
             return False
         try:
+            self.direct_devicectl_calls += 1
             completed = subprocess.run(
                 [
                     "xcrun", "devicectl", "device", "copy", "to",
@@ -838,7 +1382,31 @@ class ReachabilityRun:
         if hittable is not None:
             cell["reportsHittable"] = bool(cell["reportsHittable"] or hittable)
         if received is not None:
-            cell["applicationReceived"] = bool(cell["applicationReceived"] or received)
+            should_defer = (
+                self.segment is not None
+                and received is True
+                and (
+                    bool(self.deferred_probe_requirements)
+                    or self.last_deferred_command_id is not None
+                )
+            )
+            if should_defer:
+                self.deferred_deliveries.append({
+                    "context": presentation,
+                    "operation": operation_id,
+                    "probeRequirements": list(self.deferred_probe_requirements),
+                    "commandIDs": (
+                        [self.last_deferred_command_id]
+                        if self.last_deferred_command_id is not None
+                        else []
+                    ),
+                })
+                self.deferred_probe_requirements.clear()
+                self.last_deferred_command_id = None
+            else:
+                cell["applicationReceived"] = bool(
+                    cell["applicationReceived"] or received
+                )
         cell["evidence"].append(evidence)
         cell["reason"] = reason
         if reachability_evidence_is_complete(cell):
@@ -854,7 +1422,12 @@ class ReachabilityRun:
         return set(re.findall(r"identifier: '([^']+)'", hierarchy))
 
     def observe(self, presentation: str, label: str) -> dict[str, Any]:
-        document = self.controller("snapshot", "--no-screenshot")
+        latest = getattr(self, "last_controller_document", {})
+        document = (
+            latest
+            if self.segment is not None and isinstance(latest.get("hierarchy"), str)
+            else self.controller("snapshot", "--no-screenshot")
+        )
         hierarchy_identifiers = sorted(
             identifier for identifier in self.hierarchy_identifiers(document)
             if identifier.partition("-")[0] in self.inventory["identifierFamilies"]
@@ -985,8 +1558,6 @@ class ReachabilityRun:
         preferred: tuple[str, ...] = (),
         driven_operations: tuple[str, ...] = (),
     ) -> tuple[str | None, dict[str, Any], dict[str, Any]]:
-        for operation_id in driven_operations:
-            self.mark_driven(presentation, operation_id)
         listing = self.app_command(
             "listMenuItems",
             host=host,
@@ -1011,8 +1582,16 @@ class ReachabilityRun:
             has_accessibility_target=False,
         )
         target = menu_selection_target(listing, preferred=preferred)
+        if target is None and self.segment is not None:
+            target = (
+                preferred[0]
+                if preferred
+                else DEFERRED_MENU_TARGETS.get((host, family))
+            )
         if target is None:
             return None, listing, {"success": False}
+        for operation_id in driven_operations:
+            self.mark_driven(presentation, operation_id)
         selected = self.app_command(
             "selectMenuItem",
             host=host,
@@ -2286,21 +2865,28 @@ class ReachabilityRun:
                 result = self.app_command(verb, **arguments)
             return result
 
-        listing = command_with_file_node_retry("listLibrary")
-        library_names = listing.get("payload")
-        if not isinstance(library_names, list) or file_name not in library_names:
+        if getattr(self, "segment", None) is not None:
             imported = command_with_file_node_retry("importMedia", file=file_name)
             if imported.get("success") is not True:
                 return imported
+        else:
             listing = command_with_file_node_retry("listLibrary")
             library_names = listing.get("payload")
             if not isinstance(library_names, list) or file_name not in library_names:
-                return {
-                    "success": False,
-                    "error": f"listLibrary did not report imported media {file_name}",
-                }
-            self.relaunch()
-            self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
+                imported = command_with_file_node_retry(
+                    "importMedia", file=file_name
+                )
+                if imported.get("success") is not True:
+                    return imported
+                listing = command_with_file_node_retry("listLibrary")
+                library_names = listing.get("payload")
+                if not isinstance(library_names, list) or file_name not in library_names:
+                    return {
+                        "success": False,
+                        "error": f"listLibrary did not report imported media {file_name}",
+                    }
+                self.relaunch()
+                self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
 
         self.controller("activate", "--no-screenshot")
         card = self.wait_for_identifier(identifier, timeout=20)
@@ -3184,7 +3770,7 @@ class ReachabilityRun:
                 for action in ("videoFormat.open", "videoFormat.apply")
             ):
                 self.delivered(
-                    presentation,
+                    "window",
                     "accessibility:PlayerUI-TopAction-videoFormat",
                     self.events[-1]["evidence"],
                     "The Docked route opened and applied the product Video Format editor, with both DEBUG probes present.",
@@ -3241,7 +3827,7 @@ class ReachabilityRun:
             route_operations.append("accessibility:PlayerUI-DockMenu-{$0.rawValue}")
         for operation_id in route_operations:
             self.mark_observation(
-                presentation,
+                "window",
                 operation_id,
                 exists=True,
                 hittable=True,
@@ -3249,13 +3835,13 @@ class ReachabilityRun:
                 reason="XCTest completed the Docked menu route.",
             )
             self.mark_observation(
-                presentation,
+                "window",
                 operation_id,
                 evidence=self.events[-2]["evidence"],
                 reason="The spatial diagnostic reached settled Docked playback with displayed pixels.",
             )
             self.mark_observation(
-                presentation,
+                "window",
                 operation_id,
                 received=True,
                 evidence=self.events[-1]["evidence"],
@@ -3885,9 +4471,11 @@ class ReachabilityRun:
             self.controller("halt", "--no-screenshot", timeout=240)
             return self.finish_segment("session-failed")
 
-        initial_probe = self.copy_probe("segment-before-surface")
+        initial_probe = self.archive_probe_chunk(
+            "segment-before-surface", clear_after=True
+        )
         initial_copied = self.events[-1].get("success") is True
-        initial_cleared = self.clear_probe_after_archive() if initial_copied else False
+        initial_cleared = self.events[-1].get("cleared") is True
         before_health = self.record_segment_health_context(
             "before",
             surface_probe_copied=initial_copied,
@@ -3897,6 +4485,10 @@ class ReachabilityRun:
             self.controller("halt", "--no-screenshot", timeout=240)
             return self.finish_segment("channel-health-failed")
         self.probe_offset = 0
+        segment_started_at = utc_now()
+        self.probe_markers = {0: segment_started_at}
+        self.next_probe_marker = 1
+        self.segment_evidence_started = True
 
         fixture_scenarios = {
             "breadcrumbs",
@@ -3932,9 +4524,44 @@ class ReachabilityRun:
             if self.channel_failures:
                 break
 
-        self.copy_probe("segment-after-surface")
+        final_probe = self.archive_probe_chunk(
+            "segment-after-surface", clear_after=True
+        )
         final_copied = self.events[-1].get("success") is True
-        final_cleared = self.clear_probe_after_archive() if final_copied else False
+        final_cleared = self.events[-1].get("cleared") is True
+        responses = self.copy_batched_app_responses()
+        self.segment_evidence_started = False
+        segment_ended_at = utc_now()
+        replay = replay_deferred_evidence(
+            cells=self.cells,
+            deliveries=self.deferred_deliveries,
+            probe_lines=[*self.probe_chunks, *final_probe],
+            responses=responses,
+            session_id=str(self.session_id),
+            started_at=segment_started_at,
+            ended_at=segment_ended_at,
+            evidence="raw/segment-after-surface-probe.log",
+        )
+        replay_path = self.raw / "deferred-evidence-replay.json"
+        replay_path.write_text(
+            json.dumps(replay, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "replayDeferredEvidence",
+            "success": replay["sessionAligned"],
+            "evidence": f"raw/{replay_path.name}",
+            "deliveryCount": replay["deliveryCount"],
+            "verifiedDeliveryCount": replay["verifiedDeliveryCount"],
+        })
+        if replay["sessionAligned"] is not True:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "replayDeferredEvidence",
+                "error": "The segment probe has no matching session marker.",
+                "evidence": f"raw/{replay_path.name}",
+            })
         after_health = self.record_segment_health_context(
             "after",
             surface_probe_copied=final_copied,
@@ -3968,6 +4595,17 @@ class ReachabilityRun:
             {"context": context, "operation": operation}
             for context, operation in sorted(self.driven_cells)
         ]
+        controller_devicectl_calls = sum(
+            int(event.get("devicectlCallCount", 0) or 0)
+            for event in self.events
+        )
+        deferred_probe_reads = sum(
+            event.get("action") == "deferProbeRead" for event in self.events
+        )
+        prior_evidence_retrieval_lower_bound = (
+            deferred_probe_reads + len(self.deferred_command_ids)
+        )
+        current_evidence_retrieval_calls = self.evidence_retrieval_devicectl_calls
         result = {
             "schemaVersion": 3,
             "generatedAt": utc_now(),
@@ -3979,6 +4617,30 @@ class ReachabilityRun:
             "channelContinuity": {
                 "passed": not self.channel_failures,
                 "failures": self.channel_failures,
+            },
+            "deferredEvidence": {
+                "commandIDs": sorted(self.deferred_command_ids),
+                "deliveries": self.deferred_deliveries,
+            },
+            "channelExposure": {
+                "controllerDevicectlCalls": controller_devicectl_calls,
+                "directDevicectlCalls": self.direct_devicectl_calls,
+                "totalDevicectlCalls": (
+                    controller_devicectl_calls + self.direct_devicectl_calls
+                ),
+                "deferredProbeReads": deferred_probe_reads,
+                "deferredCommandResponses": len(self.deferred_command_ids),
+                "priorPerActionEvidenceRetrievalLowerBound": (
+                    prior_evidence_retrieval_lower_bound
+                ),
+                "currentEndOfSegmentEvidenceRetrievalCalls": (
+                    current_evidence_retrieval_calls
+                ),
+                "evidenceRetrievalReductionFactorLowerBound": round(
+                    prior_evidence_retrieval_lower_bound
+                    / max(1, current_evidence_retrieval_calls),
+                    2,
+                ),
             },
             "device": DEVICE,
             "coreDevice": CORE_DEVICE,

@@ -23,6 +23,7 @@ APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
 DEVICE_PROCESS_MARKER = "Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
+DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
 APP_RESPONSE_ROOT = "Documents/test-responses"
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +48,7 @@ TERMINATION_DEADLINE_SECONDS = 5.0
 RESULT_BUNDLE_WRITE_DEADLINE_SECONDS = 180.0
 TIMINGS_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.json"
 TIMING_SAMPLE_LIMIT = 20
+DEVICECTL_CALL_COUNT = 0
 
 
 def record_timing(action: str, seconds: float) -> None:
@@ -76,6 +78,8 @@ def record_timing(action: str, seconds: float) -> None:
 
 
 def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.CompletedProcess[str]:
+    global DEVICECTL_CALL_COUNT
+    DEVICECTL_CALL_COUNT += 1
     command = ["xcrun", "devicectl", *arguments]
     try:
         return subprocess.run(
@@ -607,8 +611,24 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
             device=arguments.device,
             runner_bundle_id=APP_BUNDLE_ID,
             local_path=command_path,
-            remote_path=APP_COMMAND_PATH,
+            remote_path=(
+                f"{DEFERRED_APP_COMMAND_ROOT}/{command_id}.json"
+                if arguments.defer_response
+                else APP_COMMAND_PATH
+            ),
         )
+        if arguments.defer_response:
+            # The app polls this single request slot every 500 ms. Give it one
+            # full poll interval before a later command may replace the file;
+            # the segment retrieves and validates every UUID-named response in
+            # one directory copy after all actions finish.
+            time.sleep(0.75)
+            return {
+                "success": True,
+                "deferred": True,
+                "id": command_id,
+                "verb": arguments.verb,
+            }
 
         deadline = time.monotonic() + arguments.timeout_seconds
         while not copy_from_device(
@@ -913,6 +933,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--no-screenshot", action="store_true")
     parser.add_argument("--verb")
     parser.add_argument("--arg", dest="app_arguments", action="append", default=[])
+    parser.add_argument("--defer-response", action="store_true")
     parser.add_argument(
         "--timeout-seconds",
         dest="timeout_seconds",
@@ -992,6 +1013,7 @@ def main() -> int:
         return 1
     if response.get("success"):
         record_timing(arguments.action, time.monotonic() - started_at)
+    response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if response.get("success") else 2
 

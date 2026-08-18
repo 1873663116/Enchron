@@ -42,7 +42,9 @@ final class TestCommandChannel {
     private let fileManager: FileManager
     private let defaults: UserDefaults
     private let commandURL: URL
+    private let commandsURL: URL
     private let responsesURL: URL
+    private let responseSessionURL: URL
     private let inboxURL: URL
     private var pollingTask: Task<Void, Never>?
 
@@ -66,9 +68,16 @@ final class TestCommandChannel {
             create: true
         )
         commandURL = documentsURL.appending(path: "test-command.json")
+        commandsURL = documentsURL.appending(
+            path: "test-commands",
+            directoryHint: .isDirectory
+        )
         responsesURL = documentsURL.appending(
             path: "test-responses",
             directoryHint: .isDirectory
+        )
+        responseSessionURL = documentsURL.appending(
+            path: "test-response-session.txt"
         )
         inboxURL = documentsURL.appending(
             path: "TestMediaInbox",
@@ -80,6 +89,16 @@ final class TestCommandChannel {
             isDirectory: &inboxIsDirectory
         ), inboxIsDirectory.boolValue == false {
             try fileManager.removeItem(at: inboxURL)
+        }
+        try fileManager.createDirectory(
+            at: commandsURL,
+            withIntermediateDirectories: true
+        )
+        for queuedCommandURL in try fileManager.contentsOfDirectory(
+            at: commandsURL,
+            includingPropertiesForKeys: nil
+        ) where queuedCommandURL.pathExtension == "json" {
+            try fileManager.removeItem(at: queuedCommandURL)
         }
         try fileManager.createDirectory(
             at: responsesURL,
@@ -102,19 +121,32 @@ final class TestCommandChannel {
     }
 
     private func processRequestIfPresent() {
-        guard fileManager.fileExists(atPath: commandURL.path) else { return }
-
         do {
+            guard let requestURL = try nextRequestURL() else { return }
             let request = try JSONDecoder().decode(
                 Request.self,
-                from: Data(contentsOf: commandURL)
+                from: Data(contentsOf: requestURL)
             )
+#if DEBUG
+            try prepareEvidenceSession(for: request, requestURL: requestURL)
+#endif
             let responseURL = responsesURL.appending(path: "\(request.id).json")
             if fileManager.fileExists(atPath: responseURL.path) {
-                try fileManager.removeItem(at: commandURL)
+                if requestURL == commandURL {
+                    try fileManager.removeItem(at: requestURL)
+                }
                 return
             }
 
+#if DEBUG
+            if let evidenceSession = request.args["evidenceSession"],
+               evidenceSession.isEmpty == false {
+                AppModel.recordProbe(
+                    "reachability evidence session=\(evidenceSession)"
+                        + " command=\(request.id) verb=\(request.verb)"
+                )
+            }
+#endif
             AppModel.recordProbe("testcmd \(request.verb) begin")
             let response: Response
             do {
@@ -133,13 +165,74 @@ final class TestCommandChannel {
             AppModel.recordProbe(
                 "testcmd \(request.verb) \(response.ok ? "ok" : "failed")"
             )
-            try fileManager.removeItem(at: commandURL)
+            if requestURL == commandURL {
+                try fileManager.removeItem(at: requestURL)
+            }
         } catch {
             AppModel.recordProbe(
                 "testcmd channel failed error=\(error.localizedDescription)"
             )
         }
     }
+
+    private func nextRequestURL() throws -> URL? {
+        if fileManager.fileExists(atPath: commandURL.path) {
+            return commandURL
+        }
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+        return try fileManager.contentsOfDirectory(
+            at: commandsURL,
+            includingPropertiesForKeys: Array(keys)
+        )
+        .filter { requestURL in
+            guard requestURL.pathExtension == "json" else { return false }
+            let responseURL = responsesURL.appending(
+                path: "\(requestURL.deletingPathExtension().lastPathComponent).json"
+            )
+            return fileManager.fileExists(atPath: responseURL.path) == false
+        }
+        .sorted { lhs, rhs in
+            let lhsDate = try? lhs.resourceValues(forKeys: keys)
+                .contentModificationDate
+            let rhsDate = try? rhs.resourceValues(forKeys: keys)
+                .contentModificationDate
+            return (lhsDate ?? .distantPast) < (rhsDate ?? .distantPast)
+        }
+        .first
+    }
+
+#if DEBUG
+    private func prepareEvidenceSession(
+        for request: Request,
+        requestURL: URL
+    ) throws {
+        guard let evidenceSession = request.args["evidenceSession"],
+              evidenceSession.isEmpty == false else { return }
+        let currentSession = try? String(
+            contentsOf: responseSessionURL,
+            encoding: .utf8
+        )
+        guard currentSession != evidenceSession else { return }
+        for responseURL in try fileManager.contentsOfDirectory(
+            at: responsesURL,
+            includingPropertiesForKeys: nil
+        ) where responseURL.pathExtension == "json" {
+            try fileManager.removeItem(at: responseURL)
+        }
+        for queuedCommandURL in try fileManager.contentsOfDirectory(
+            at: commandsURL,
+            includingPropertiesForKeys: nil
+        ) where queuedCommandURL.pathExtension == "json"
+            && queuedCommandURL != requestURL {
+            try fileManager.removeItem(at: queuedCommandURL)
+        }
+        try evidenceSession.write(
+            to: responseSessionURL,
+            atomically: true,
+            encoding: .utf8
+        )
+    }
+#endif
 
     private func execute(_ request: Request) throws -> Response {
         switch request.verb {

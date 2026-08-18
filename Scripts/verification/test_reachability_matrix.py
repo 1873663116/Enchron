@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import json
 from pathlib import Path
 from subprocess import TimeoutExpired
 from tempfile import TemporaryDirectory
@@ -147,7 +148,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             libraryFolder=matrix.REACHABILITY_LIBRARY_FOLDER,
         )
 
-    def test_segment_probe_copy_enforces_the_120_second_continuity_deadline(self) -> None:
+    def test_segment_probe_archive_enforces_the_120_second_continuity_deadline(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
             run.segment = {"id": "panorama"}
@@ -155,13 +156,16 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             run.events = []
             run.raw = Path(directory)
             run.sequence = 0
+            run.direct_devicectl_calls = 0
 
             with patch.object(
                 matrix.subprocess,
                 "run",
                 side_effect=TimeoutExpired("devicectl", 120),
             ) as subprocess_run:
-                self.assertEqual(run.copy_probe("segment-after-surface"), [])
+                self.assertEqual(
+                    run.archive_probe_chunk("segment-after-surface"), []
+                )
 
             self.assertEqual(subprocess_run.call_args.kwargs["timeout"], 120)
             self.assertEqual(run.channel_failures[0]["action"], "copyProbe")
@@ -293,6 +297,345 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         )
         self.assertLess(actions.index("activate"), actions.index("wait-card"))
         self.assertLess(actions.index("wait-card"), actions.index("tap-label"))
+
+    def test_segment_open_media_queues_import_without_needing_its_payload(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "docked-01-panel", "context": "docked"}
+        run.events = [{"evidence": "raw/deferred-evidence-replay.json"}]
+        run.relaunch = Mock()
+        run.tap = Mock(return_value={"success": True})
+        run.copy_probe = Mock(return_value=[])
+        run.app_command = Mock(return_value={"success": True, "deferred": True})
+        run.controller = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(return_value={
+            "matchedElement": {
+                "identifier": "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            }
+        })
+        run.tap_label = Mock(return_value={"success": True})
+        run.wait_for_probe = Mock(return_value=[
+            "reachability files delivered action=library.video"
+        ])
+        run.delivered = Mock()
+
+        with patch.object(matrix.time, "sleep"):
+            result = run.open_media(
+                "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            )
+
+        self.assertTrue(result["success"])
+        run.app_command.assert_called_once_with(
+            "importMedia", file="furyroad-stripped.mkv"
+        )
+        self.assertEqual(run.relaunch.call_count, 1)
+
+    def test_docked_route_records_window_owned_top_actions_in_window_context(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [
+            {"evidence": "raw/route-action.json"},
+            {"evidence": "raw/spatial-state.json"},
+            {"evidence": "raw/deferred-evidence-replay.json"},
+        ]
+        run.open_media = Mock(return_value={"success": True})
+        run.ensure_window_projection = Mock(return_value=True)
+        run.show_controls = Mock()
+        run.copy_probe = Mock(side_effect=[
+            [],
+            [
+                "reachability topActions delivered action=dock.open",
+                "reachability topActions delivered action=dock.select effect=none",
+                "worldLoad event=completed anchor=PlaybackSurfaceAnchor",
+            ],
+        ])
+        run.controller = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(return_value={
+            "matchedElement": {"value": ";".join((
+                "presentation=docked",
+                "transition=none",
+                "surfacePreparation=surfaceAttached",
+                "lifecycle=Playing",
+                "attached=docked",
+                "rendererConsumer=docked",
+                "displayedPixel=true",
+                "surfaceRenderingReady=true",
+                "surfaceSettled=true",
+            ))}
+        })
+        run.mark_observation = Mock()
+        run.delivered = Mock()
+
+        self.assertTrue(run.enter_docked_playback())
+        self.assertTrue(run.mark_observation.call_args_list)
+        self.assertTrue(all(
+            call.args[0] == "window"
+            for call in run.mark_observation.call_args_list
+        ))
+
+
+class DeferredSegmentEvidenceTests(unittest.TestCase):
+    def test_segment_probe_reads_are_deferred_without_devicectl(self) -> None:
+        operation = "accessibility:PlayerPanel-button-forward"
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "docked-transport", "context": "docked"}
+        run.sequence = 4
+        run.events = []
+        run.channel_failures = []
+        run.deferred_deliveries = []
+        run.deferred_probe_requirements = []
+        run.probe_markers = {0: "2026-08-18T01:00:00Z"}
+        run.next_probe_marker = 1
+        run.last_deferred_command_id = None
+        run.cells = {
+            ("docked", operation): {
+                "context": "docked",
+                "operation": operation,
+                "identifierTemplate": "PlayerPanel-button-forward",
+                "existsInHierarchy": True,
+                "reportsHittable": True,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+        run.operations = {operation: {}}
+        run.driven_cells = set()
+
+        with patch.object(matrix.subprocess, "run") as subprocess_run, patch.object(
+            matrix, "utc_now", return_value="2026-08-18T01:00:02Z"
+        ):
+            probe = run.copy_probe("after-forward")
+            delivered = any(
+                "playback control delivered action=forward" in line
+                for line in probe[0:]
+            )
+            if delivered:
+                run.delivered(
+                    "docked",
+                    operation,
+                    "raw/deferred.json",
+                    "Deferred product delivery.",
+                )
+
+        subprocess_run.assert_not_called()
+        self.assertEqual(
+            run.events[-1]["evidence"],
+            "raw/deferred-evidence-replay.json",
+        )
+        self.assertFalse(run.cells[("docked", operation)]["applicationReceived"])
+        self.assertEqual(
+            run.deferred_deliveries[0]["probeRequirements"][0]["needles"],
+            ["playback control delivered action=forward"],
+        )
+
+    def test_segment_app_command_defers_its_response_and_tags_the_session(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "panorama", "context": "panorama"}
+        run.session_id = "session-10"
+        run.operations = {"command:toggleControls": {}}
+        run.cells = {("panorama", "command:toggleControls"): {}}
+        run.driven_cells = set()
+        run.deferred_command_ids = set()
+        run.last_deferred_command_id = None
+        run.controller = Mock(return_value={
+            "success": True,
+            "deferred": True,
+            "id": "toggle-command",
+        })
+
+        result = run.app_command("toggleControls", visible="true")
+
+        self.assertTrue(result["success"])
+        self.assertEqual(run.deferred_command_ids, {"toggle-command"})
+        run.controller.assert_called_once_with(
+            "app-command",
+            "--verb",
+            "toggleControls",
+            "--no-screenshot",
+            "--defer-response",
+            "--arg",
+            "evidenceSession=session-10",
+            "--arg",
+            "visible=true",
+        )
+
+    def test_segment_observation_reuses_the_latest_hierarchy(self) -> None:
+        operation = "accessibility:Navigation-Ornament-tab-files"
+        hierarchy = "identifier: 'Navigation-Ornament-tab-files'"
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "browser", "context": "main-window-browser"}
+        run.last_controller_document = {"success": True, "hierarchy": hierarchy}
+        run.events = [{"evidence": "raw/004-tap.json"}]
+        run.controller = Mock()
+        run.inventory = {"identifierFamilies": ["Navigation"]}
+        run.operations = {
+            operation: {"identifierTemplate": "Navigation-Ornament-tab-files"}
+        }
+        run.cells = {
+            ("main-window-browser", operation): {
+                "context": "main-window-browser",
+                "operation": operation,
+                "identifierTemplate": "Navigation-Ornament-tab-files",
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+
+        document = run.observe("main-window-browser", "after tab tap")
+
+        self.assertEqual(document["hierarchy"], hierarchy)
+        run.controller.assert_not_called()
+        self.assertTrue(
+            run.cells[("main-window-browser", operation)]["existsInHierarchy"]
+        )
+
+    def test_offline_replay_matches_the_online_three_level_verdict(self) -> None:
+        operation = "accessibility:PlayerPanel-button-forward"
+        online = {
+            ("docked", operation): {
+                "context": "docked",
+                "operation": operation,
+                "identifierTemplate": "PlayerPanel-button-forward",
+                "existsInHierarchy": True,
+                "reportsHittable": True,
+                "applicationReceived": True,
+                "verdict": "reachable",
+                "evidence": ["raw/online.json"],
+            }
+        }
+        deferred = {
+            ("docked", operation): {
+                **online[("docked", operation)],
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": ["raw/action.json"],
+            }
+        }
+
+        replay = matrix.replay_deferred_evidence(
+            cells=deferred,
+            deliveries=[{
+                "context": "docked",
+                "operation": operation,
+                "probeRequirements": [{
+                    "after": "2026-08-18T01:00:01Z",
+                    "needles": ["playback control delivered action=forward"],
+                }],
+                "commandIDs": ["command-forward"],
+            }],
+            probe_lines=[
+                "2026-08-18T01:00:00Z reachability evidence session=session-10",
+                "2026-08-18T01:00:02Z playback control delivered action=forward",
+            ],
+            responses={
+                "command-forward": {"id": "command-forward", "ok": True}
+            },
+            session_id="session-10",
+            started_at="2026-08-18T01:00:00Z",
+            ended_at="2026-08-18T01:01:00Z",
+            evidence="raw/segment-probe.log",
+        )
+
+        self.assertTrue(replay["passed"])
+        self.assertEqual(
+            deferred[("docked", operation)]["verdict"],
+            online[("docked", operation)]["verdict"],
+        )
+        self.assertTrue(
+            deferred[("docked", operation)]["applicationReceived"]
+        )
+
+    def test_offline_replay_rejects_a_response_from_no_matching_session(self) -> None:
+        operation = "command:toggleControls"
+        cells = {
+            ("panorama", operation): {
+                "context": "panorama",
+                "operation": operation,
+                "identifierTemplate": None,
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+
+        replay = matrix.replay_deferred_evidence(
+            cells=cells,
+            deliveries=[{
+                "context": "panorama",
+                "operation": operation,
+                "probeRequirements": [],
+                "commandIDs": ["toggle"],
+            }],
+            probe_lines=[
+                "2026-08-18T01:00:00Z reachability evidence session=older-session"
+            ],
+            responses={"toggle": {"id": "toggle", "ok": True}},
+            session_id="session-10",
+            started_at="2026-08-18T01:00:00Z",
+            ended_at="2026-08-18T01:01:00Z",
+            evidence="raw/segment-probe.log",
+        )
+
+        self.assertFalse(replay["passed"])
+        self.assertFalse(cells[("panorama", operation)]["applicationReceived"])
+
+    def test_batched_response_loader_accepts_flat_or_source_named_copy(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "test-responses"
+            nested.mkdir()
+            (nested / "wanted.json").write_text(
+                json.dumps({"id": "wanted", "ok": True}), encoding="utf-8"
+            )
+            (root / "stale.json").write_text(
+                json.dumps({"id": "stale", "ok": True}), encoding="utf-8"
+            )
+
+            responses = matrix.load_batched_app_responses(
+                root, expected_ids={"wanted"}
+            )
+
+        self.assertEqual(responses, {"wanted": {"id": "wanted", "ok": True}})
+
+    def test_probe_size_is_read_from_device_file_listing_json(self) -> None:
+        listing = {
+            "result": {
+                "files": [{
+                    "name": "surface-tap-probe.log",
+                    "path": "Documents/surface-tap-probe.log",
+                    "size": 599_999,
+                }]
+            }
+        }
+
+        self.assertEqual(
+            matrix.device_file_size(
+                listing, "Documents/surface-tap-probe.log"
+            ),
+            599_999,
+        )
+
+    def test_probe_size_matches_the_xcode_27_beta_5_listing_shape(self) -> None:
+        listing = {
+            "result": {
+                "files": [{
+                    "name": "surface-tap-probe.log",
+                    "relativePath": "surface-tap-probe.log",
+                    "metadata": {"size": 123_456},
+                }]
+            }
+        }
+
+        self.assertEqual(
+            matrix.device_file_size(
+                listing, "Documents/surface-tap-probe.log"
+            ),
+            123_456,
+        )
 
 
 class PartialBaselineAcceptanceTests(unittest.TestCase):
