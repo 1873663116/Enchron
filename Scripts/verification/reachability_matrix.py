@@ -2256,24 +2256,47 @@ class ReachabilityRun:
         self.tap("window", "Navigation-Ornament-tab-files")
         before = self.copy_probe("open-media-before")
         offset = len(before)
-        self.controller("activate", "--no-screenshot")
         file_name = identifier.removeprefix("MediaLibrary-grid-video-")
         media_label = f"{Path(file_name).stem}, video"
         operation_id = "accessibility:MediaLibrary-grid-video-{reference.name}"
+
+        def command_with_file_node_retry(
+            verb: str, **arguments: str
+        ) -> dict[str, Any]:
+            result = self.app_command(verb, **arguments)
+            if result.get("success") is not True and "file node" in str(
+                result.get("error", "")
+            ):
+                time.sleep(0.5)
+                result = self.app_command(verb, **arguments)
+            return result
+
+        listing = command_with_file_node_retry("listLibrary")
+        library_names = listing.get("payload")
+        if not isinstance(library_names, list) or file_name not in library_names:
+            imported = command_with_file_node_retry("importMedia", file=file_name)
+            if imported.get("success") is not True:
+                return imported
+            listing = command_with_file_node_retry("listLibrary")
+            library_names = listing.get("payload")
+            if not isinstance(library_names, list) or file_name not in library_names:
+                return {
+                    "success": False,
+                    "error": f"listLibrary did not report imported media {file_name}",
+                }
+            self.relaunch()
+            self.tap("window", "Navigation-Ornament-tab-files")
+
+        self.controller("activate", "--no-screenshot")
+        card = self.wait_for_identifier(identifier, timeout=20)
+        if not isinstance(card.get("matchedElement"), dict):
+            return {
+                "success": False,
+                "error": f"Media card did not appear after product import: {identifier}",
+            }
         result = self.tap_label(
             "window", media_label, operation_id=operation_id
         )
-        if result.get("success") is not True and identifier.startswith(
-            "MediaLibrary-grid-video-"
-        ):
-            imported = self.app_command("importMedia", file=file_name)
-            if imported.get("success") is True:
-                self.relaunch()
-                self.tap("window", "Navigation-Ornament-tab-files")
-                self.controller("activate", "--no-screenshot")
-                result = self.tap_label(
-                    "window", media_label, operation_id=operation_id
-                )
         probe = self.wait_for_probe(
             "open-media-selected",
             offset,

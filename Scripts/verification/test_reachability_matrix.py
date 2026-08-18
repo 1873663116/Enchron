@@ -227,6 +227,59 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         self.assertTrue(selected["success"])
         self.assertEqual(run.app_command.call_count, 3)
 
+    def test_open_media_retries_import_and_waits_for_the_card_before_label_tap(self) -> None:
+        actions: list[str] = []
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/open-media.json"}]
+        run.relaunch = Mock(side_effect=lambda: actions.append("relaunch"))
+        run.tap = Mock(side_effect=lambda *_: actions.append("files") or {"success": True})
+        run.copy_probe = Mock(return_value=[])
+        run.app_command = Mock(
+            side_effect=[
+                {"success": True, "payload": []},
+                {
+                    "success": False,
+                    "error": "Failed to retrieve the file node for Documents/test-command.json",
+                },
+                {"success": True, "payload": ["furyroad-stripped.mkv"]},
+                {"success": True, "payload": ["furyroad-stripped.mkv"]},
+            ]
+        )
+        run.controller = Mock(
+            side_effect=lambda action, *_args, **_kwargs: actions.append(action)
+            or {"success": True}
+        )
+        run.wait_for_identifier = Mock(
+            side_effect=lambda *_args, **_kwargs: actions.append("wait-card")
+            or {"matchedElement": {"identifier": "MediaLibrary-grid-video-furyroad-stripped.mkv"}}
+        )
+        run.tap_label = Mock(
+            side_effect=lambda *_args, **_kwargs: actions.append("tap-label")
+            or {"success": True}
+        )
+        run.wait_for_probe = Mock(
+            return_value=["reachability files delivered action=library.video"]
+        )
+        run.delivered = Mock()
+
+        with patch.object(matrix.time, "sleep"):
+            result = run.open_media(
+                "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(
+            run.app_command.call_args_list,
+            [
+                unittest.mock.call("listLibrary"),
+                unittest.mock.call("importMedia", file="furyroad-stripped.mkv"),
+                unittest.mock.call("importMedia", file="furyroad-stripped.mkv"),
+                unittest.mock.call("listLibrary"),
+            ],
+        )
+        self.assertLess(actions.index("activate"), actions.index("wait-card"))
+        self.assertLess(actions.index("wait-card"), actions.index("tap-label"))
+
 
 class PartialBaselineAcceptanceTests(unittest.TestCase):
     def test_unselected_presentations_keep_their_accepted_verdicts(self) -> None:
