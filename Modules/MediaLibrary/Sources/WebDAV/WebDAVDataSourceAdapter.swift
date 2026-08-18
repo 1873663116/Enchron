@@ -179,15 +179,12 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             authorizationHeader: authHeader,
             session: session
         )
-        let server = HTTPRangeStreamingServer(source: source, filename: file.name)
         do {
-            let url = try await server.start()
-            return ResolvedMediaSource(
-                url: url,
-                accessLease: MediaAccessLease { server.stop() }
+            return try await MediaByteStreamEndpoint.shared.resolve(
+                source,
+                filename: file.name
             )
         } catch {
-            server.stop()
             throw WebDAVError.streamingFailed(error.localizedDescription)
         }
     }
@@ -441,8 +438,11 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
     }()
 }
 
-private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
-    let contentLength: Int64
+private nonisolated final class WebDAVByteRangeSource: MediaByteSource, @unchecked Sendable {
+    let totalLength: Int64?
+    let seekability = MediaByteSourceSeekability.randomAccess
+    let liveness = MediaByteSourceLiveness.finite
+    let suggestedBufferDepth = MediaByteBufferDepth.bytes(1_024 * 1_024)
     private let url: URL
     private let authorizationHeader: String?
     private let session: URLSession
@@ -454,7 +454,7 @@ private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource,
         session: URLSession
     ) {
         self.url = url
-        self.contentLength = contentLength
+        totalLength = contentLength
         self.authorizationHeader = authorizationHeader
         self.session = session
     }

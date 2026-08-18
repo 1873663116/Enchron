@@ -227,12 +227,12 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
                 path: remotePath,
                 contentLength: file.sizeInBytes
             )
-            let server = HTTPRangeStreamingServer(source: source, filename: file.name)
-            let url = try await server.start()
-            let resources = SMBPlaybackResources(manager: playbackManager, server: server)
-            return ResolvedMediaSource(
-                url: url,
-                accessLease: MediaAccessLease { resources.stop() }
+            return try await MediaByteStreamEndpoint.shared.resolve(
+                source,
+                filename: file.name,
+                onTermination: {
+                    try? await playbackManager.disconnectShare()
+                }
             )
         } catch {
             Task { try? await playbackManager.disconnectShare() }
@@ -361,15 +361,18 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
 
 }
 
-private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
-    let contentLength: Int64
+private nonisolated final class SMBByteRangeSource: MediaByteSource, @unchecked Sendable {
+    let totalLength: Int64?
+    let seekability = MediaByteSourceSeekability.randomAccess
+    let liveness = MediaByteSourceLiveness.finite
+    let suggestedBufferDepth = MediaByteBufferDepth.bytes(1_024 * 1_024)
     private let manager: SMB2Manager
     private let path: String
 
     init(manager: SMB2Manager, path: String, contentLength: Int64) {
         self.manager = manager
         self.path = path
-        self.contentLength = contentLength
+        totalLength = contentLength
     }
 
     func read(in range: Range<Int64>) async throws -> Data {
@@ -377,34 +380,5 @@ private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @u
             atPath: path,
             range: UInt64(range.lowerBound)..<UInt64(range.upperBound)
         )
-    }
-}
-
-private nonisolated final class SMBPlaybackResources: @unchecked Sendable {
-    private let lock = NSLock()
-    private let manager: SMB2Manager
-    private let server: HTTPRangeStreamingServer
-    private var isStopped = false
-
-    init(manager: SMB2Manager, server: HTTPRangeStreamingServer) {
-        self.manager = manager
-        self.server = server
-    }
-
-    func stop() {
-        let shouldStop = lock.withLock {
-            guard isStopped == false else { return false }
-            isStopped = true
-            return true
-        }
-        guard shouldStop else { return }
-        Task { [self] in
-            await server.stopAndWait()
-            try? await manager.disconnectShare()
-        }
-    }
-
-    deinit {
-        stop()
     }
 }

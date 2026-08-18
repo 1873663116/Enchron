@@ -41,7 +41,6 @@ $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrary.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrarySearch.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaSource.swift
-$(SRCROOT)/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
 $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailCache.swift
 $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailService.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
@@ -64,6 +63,7 @@ $(SRCROOT)/Modules/MediaLibrary/Views/LibraryViewControls.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/SourceSidebar.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
+$(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
 $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
 $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
