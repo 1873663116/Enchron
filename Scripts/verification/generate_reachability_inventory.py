@@ -15,6 +15,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json"
 MATRIX_BASELINE = REPOSITORY_ROOT / "Config/reachability_matrix_baseline.json"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
+MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
+PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 SETTINGS_MENU_FAMILIES = (
     "resume-strategy",
     "end-behavior",
@@ -1048,6 +1050,22 @@ def explicit_presentation_derivation(
     }
 
 
+def proof_context_contract(
+    presentations: list[str],
+    derivation: dict[str, object],
+) -> tuple[str, list[str], dict[str, object]]:
+    host = str(derivation.get("host", ""))
+    if not host:
+        raise PresentationDerivationError("proof context derivation has no host")
+    domain = "browser" if host.startswith("browserWindow") else "playback"
+    contexts = (
+        [MAIN_WINDOW_BROWSER_CONTEXT]
+        if domain == "browser"
+        else list(presentations)
+    )
+    return domain, contexts, derivation
+
+
 def build_inventory() -> dict[str, object]:
     identifiers: dict[str, list[SourceLocation]] = {}
     documents: dict[str, str] = {}
@@ -1092,12 +1110,17 @@ def build_inventory() -> dict[str, object]:
                 template,
                 documents,
             )
+            domain, contexts, context_derivation = proof_context_contract(
+                presentations,
+                derivation,
+            )
             operation: dict[str, object] = {
                 "id": "accessibility:" + template,
                 "kind": action,
                 "identifierTemplate": template,
-                "presentations": presentations,
-                "presentationDerivation": derivation,
+                "proofDomain": domain,
+                "proofContexts": contexts,
+                "proofContextDerivation": context_derivation,
                 "source": "accessibilityIdentifier",
             }
             equivalent = DEBUG_MENU_EQUIVALENTS.get(str(operation["id"]))
@@ -1114,7 +1137,8 @@ def build_inventory() -> dict[str, object]:
             {
                 "id": f"menu:settings:{family}",
                 "kind": "menu-selection",
-                "presentations": ["window"],
+                "proofDomain": "browser",
+                "proofContexts": [MAIN_WINDOW_BROWSER_CONTEXT],
                 "source": "Apps/Enchron/Screens/SettingsScreen.swift",
                 "debugEquivalent": {
                     "listVerb": "listMenuItems",
@@ -1128,72 +1152,82 @@ def build_inventory() -> dict[str, object]:
         {
             "id": "command:toggleControls",
             "kind": "command",
-            "presentations": ["window", "portal", "panorama", "docked"],
+            "proofDomain": "playback",
+            "proofContexts": list(PRESENTATIONS),
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
             "id": "command:setWindowSize",
             "kind": "command",
-            "presentations": ["portal"],
+            "proofDomain": "playback",
+            "proofContexts": ["portal"],
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
             "id": "command:seekNormalized",
             "kind": "command",
-            "presentations": ["window", "portal", "panorama", "docked"],
+            "proofDomain": "playback",
+            "proofContexts": list(PRESENTATIONS),
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
             "id": "command:setDockedPlacement",
             "kind": "command",
-            "presentations": ["docked"],
+            "proofDomain": "playback",
+            "proofContexts": ["docked"],
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
             "id": "command:listMenuItems",
             "kind": "command",
-            "presentations": ["window", "portal", "panorama", "docked"],
+            "proofDomain": "shared",
+            "proofContexts": list(PROOF_CONTEXTS),
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
             "id": "command:selectMenuItem",
             "kind": "command",
-            "presentations": ["window", "portal", "panorama", "docked"],
+            "proofDomain": "shared",
+            "proofContexts": list(PROOF_CONTEXTS),
             "source": "Apps/Enchron/TestCommandChannel.swift",
         },
         {
             "id": "environmentVolume:open-interact-close",
             "kind": "compound",
-            "presentations": ["window", "docked"],
+            "proofDomain": "playback",
+            "proofContexts": ["window", "docked"],
             "source": "Apps/Enchron/MainView.swift",
         },
         {
             "id": "scroll:file-list",
             "kind": "scroll",
-            "presentations": ["window"],
+            "proofDomain": "browser",
+            "proofContexts": [MAIN_WINDOW_BROWSER_CONTEXT],
             "source": "Apps/Enchron/Screens/FilesScreen.swift",
         },
         {
             "id": "scroll:emby",
             "kind": "scroll",
-            "presentations": ["window"],
+            "proofDomain": "browser",
+            "proofContexts": [MAIN_WINDOW_BROWSER_CONTEXT],
             "source": "Modules/Emby/EmbyScreens.swift",
         },
         {
             "id": "negative:immersive-resident-window",
             "kind": "negative",
-            "presentations": ["panorama", "docked"],
+            "proofDomain": "playback",
+            "proofContexts": ["panorama", "docked"],
             "source": "Apps/Enchron/EnchronApp.swift",
         },
     ]
     for operation in semantic_operations:
-        operation["presentationDerivation"] = explicit_presentation_derivation(
+        operation["proofContextDerivation"] = explicit_presentation_derivation(
             operation,
             documents,
         )
 
     return {
-        "version": 2,
+        "version": 3,
         "sourceRoots": [
             root.relative_to(REPOSITORY_ROOT).as_posix() for root in SOURCE_ROOTS
         ],
@@ -1210,13 +1244,11 @@ def encoded_inventory() -> str:
 def extend_matrix_baseline(
     baseline: dict[str, object],
     inventory: dict[str, object],
-    *,
-    presentations: tuple[str, ...] = PRESENTATIONS,
 ) -> dict[str, object]:
     expected = {
-        (presentation, str(operation["id"]))
-        for presentation in presentations
+        (str(context), str(operation["id"]))
         for operation in inventory["operations"]  # type: ignore[index]
+        for context in operation["proofContexts"]  # type: ignore[index]
     }
     cells = baseline.get("cells", [])
     if not isinstance(cells, list):
@@ -1227,75 +1259,166 @@ def extend_matrix_baseline(
     for cell in cells:
         if not isinstance(cell, dict):
             raise ValueError("reachability matrix baseline cells must be objects")
-        key = (str(cell.get("presentation")), str(cell.get("operation")))
+        key = (str(cell.get("context")), str(cell.get("operation")))
         if key in existing:
-            raise ValueError(f"duplicate reachability matrix cell: {key}")
+            raise ValueError(f"duplicate reachability decision: {key}")
         if key not in expected:
-            raise ValueError(f"stale reachability matrix cell: {key}")
+            raise ValueError(f"stale reachability decision: {key}")
         existing.add(key)
         copied_cells.append(dict(cell))
 
-    presentation_order = {
-        presentation: index for index, presentation in enumerate(presentations)
-    }
+    context_order = {context: index for index, context in enumerate(PROOF_CONTEXTS)}
     missing = sorted(
         expected - existing,
-        key=lambda key: (presentation_order[key[0]], key[1]),
+        key=lambda key: (context_order[key[0]], key[1]),
     )
-    operations_by_id = {
-        str(operation["id"]): operation
-        for operation in inventory["operations"]  # type: ignore[index]
-    }
-    for presentation, operation_id in missing:
-        explicit_presentations = operations_by_id[operation_id].get("presentations")
-        applicable = (
-            not isinstance(explicit_presentations, list)
-            or presentation in explicit_presentations
-        )
+    for context, operation_id in missing:
         copied_cells.append(
             {
                 "operation": operation_id,
-                "presentation": presentation,
-                "verdict": "known-defect" if applicable else "not-applicable",
+                "context": context,
+                "verdict": "known-defect",
             }
         )
-    return reclassify_matrix_applicability(
-        {**baseline, "cells": copied_cells},
-        inventory,
-    )
+    return {**baseline, "schemaVersion": 2, "cells": copied_cells}
 
 
-def reclassify_matrix_applicability(
-    baseline: dict[str, object],
+def migrate_matrix_baseline(
+    old_baseline: dict[str, object],
     inventory: dict[str, object],
-) -> dict[str, object]:
-    """Apply render-host applicability without weakening device proof."""
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Map the four-presentation baseline onto source-derived proof contexts."""
     operations_by_id = {
         str(operation["id"]): operation
         for operation in inventory["operations"]  # type: ignore[index]
     }
-    cells = baseline.get("cells")
+    cells = old_baseline.get("cells")
     if not isinstance(cells, list):
         raise ValueError("reachability matrix baseline cells must be a list")
 
-    reclassified: list[dict[str, object]] = []
+    old_by_key: dict[tuple[str, str], dict[str, object]] = {}
     for cell in cells:
         if not isinstance(cell, dict):
             raise ValueError("reachability matrix baseline cells must be objects")
-        operation_id = str(cell.get("operation"))
+        key = (str(cell.get("presentation")), str(cell.get("operation")))
+        if key in old_by_key:
+            raise ValueError(f"duplicate old reachability matrix cell: {key}")
+        old_by_key[key] = cell
+
+    context_order = {context: index for index, context in enumerate(PROOF_CONTEXTS)}
+    new_cells: list[dict[str, object]] = []
+    used_old_keys: set[tuple[str, str]] = set()
+    new_by_key: dict[tuple[str, str], dict[str, object]] = {}
+    for operation_id, operation in operations_by_id.items():
+        contexts = operation.get("proofContexts")
+        domain = str(operation.get("proofDomain", ""))
+        if not isinstance(contexts, list) or domain not in {
+            "browser", "playback", "shared"
+        }:
+            raise ValueError(
+                f"operation {operation_id} has no derived proof context contract"
+            )
+        for context_value in contexts:
+            context = str(context_value)
+            source_presentation: str | None
+            if context == MAIN_WINDOW_BROWSER_CONTEXT:
+                source_presentation = "window"
+            elif domain == "shared" and context == "window":
+                source_presentation = None
+            else:
+                source_presentation = context
+            source_key = (
+                (source_presentation, operation_id)
+                if source_presentation is not None
+                else None
+            )
+            source_cell = old_by_key.get(source_key) if source_key else None
+            if source_key is not None and source_cell is not None:
+                used_old_keys.add(source_key)
+            new_cell = {
+                "context": context,
+                "operation": operation_id,
+                "verdict": (
+                    "reachable"
+                    if source_cell is not None
+                    and source_cell.get("verdict") == "reachable"
+                    else "known-defect"
+                ),
+            }
+            new_cells.append(new_cell)
+            new_by_key[(context, operation_id)] = new_cell
+
+    new_cells.sort(
+        key=lambda cell: (
+            context_order[str(cell["context"])],
+            str(cell["operation"]),
+        )
+    )
+    retired_reachable: list[dict[str, str]] = []
+    reachable_regressions: list[dict[str, str]] = []
+    mapped_reachable_count = 0
+    for key, cell in old_by_key.items():
+        if cell.get("verdict") != "reachable":
+            continue
+        presentation, operation_id = key
         operation = operations_by_id.get(operation_id)
         if operation is None:
             raise ValueError(f"unknown reachability operation {operation_id}")
-        copied = dict(cell)
-        if copied.get("verdict") != "reachable":
-            explicit = operation.get("presentations")
-            applicable = (
-                not isinstance(explicit, list)
-                or str(copied.get("presentation")) in explicit
-            )
-            copied["verdict"] = "known-defect" if applicable else "not-applicable"
-        reclassified.append(copied)
-    return {**baseline, "cells": reclassified}
+        domain = str(operation["proofDomain"])
+        contexts = [str(value) for value in operation["proofContexts"]]
+        target = (
+            MAIN_WINDOW_BROWSER_CONTEXT
+            if presentation == "window" and domain in {"browser", "shared"}
+            else presentation
+        )
+        if target not in contexts:
+            retired_reachable.append({
+                "operation": operation_id,
+                "presentation": presentation,
+                "reason": "source-derived-proof-context-does-not-exist",
+            })
+            continue
+        migrated = new_by_key[(target, operation_id)]
+        if migrated["verdict"] == "reachable":
+            mapped_reachable_count += 1
+        else:
+            reachable_regressions.append({
+                "operation": operation_id,
+                "presentation": presentation,
+                "context": target,
+                "reason": "reachable-old-cell-became-non-reachable",
+            })
+
+    migrated_baseline = {
+        key: value
+        for key, value in old_baseline.items()
+        if key not in {"schemaVersion", "cells"}
+    }
+    migrated_baseline.update({
+        "schemaVersion": 2,
+        "coordinateSystem": "proof-context-v1",
+        "cells": new_cells,
+    })
+    report: dict[str, object] = {
+        "oldCellCount": len(cells),
+        "newDecisionCount": len(new_cells),
+        "oldReachableCount": sum(
+            cell.get("verdict") == "reachable" for cell in old_by_key.values()
+        ),
+        "mappedReachableCount": mapped_reachable_count,
+        "retiredReachableCount": len(retired_reachable),
+        "retiredReachableCells": sorted(
+            retired_reachable,
+            key=lambda item: (item["presentation"], item["operation"]),
+        ),
+        "reachableRegressionCount": len(reachable_regressions),
+        "reachableRegressions": reachable_regressions,
+        "removedNotApplicableCount": sum(
+            cell.get("verdict") == "not-applicable" and key not in used_old_keys
+            for key, cell in old_by_key.items()
+        ),
+    }
+    return migrated_baseline, report
 
 
 def main() -> int:
@@ -1314,11 +1437,11 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--reclassify-baseline-applicability",
+        "--migrate-baseline-proof-contexts",
         action="store_true",
         help=(
-            "Reconcile non-reachable baseline cells with source-derived "
-            "presentation hosts while preserving device-proven reachable cells."
+            "Replace the legacy four-presentation matrix with source-derived "
+            "proof-context decisions and print an executable migration report."
         ),
     )
     arguments = parser.parse_args()
@@ -1345,7 +1468,7 @@ def main() -> int:
             f"extended {MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)} "
             f"with {added} known-defect cells"
         )
-    if arguments.reclassify_baseline_applicability:
+    if arguments.migrate_baseline_proof_contexts:
         if not MATRIX_BASELINE.is_file():
             print(
                 f"missing {MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)}",
@@ -1353,19 +1476,15 @@ def main() -> int:
             )
             return 1
         baseline = json.loads(MATRIX_BASELINE.read_text(encoding="utf-8"))
-        reclassified = reclassify_matrix_applicability(baseline, inventory)
-        changed = sum(
-            old != new
-            for old, new in zip(baseline["cells"], reclassified["cells"])
-        )
+        migrated, report = migrate_matrix_baseline(baseline, inventory)
+        if report["reachableRegressionCount"] != 0:
+            print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+            return 1
         MATRIX_BASELINE.write_text(
-            json.dumps(reclassified, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            json.dumps(migrated, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        print(
-            f"reclassified {changed} cells in "
-            f"{MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)}"
-        )
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     if not OUTPUT.is_file():
         print(f"missing {OUTPUT.relative_to(REPOSITORY_ROOT)}; rerun with --write", file=sys.stderr)
         return 1
@@ -1380,12 +1499,12 @@ def main() -> int:
     if MATRIX_BASELINE.is_file():
         baseline = json.loads(MATRIX_BASELINE.read_text(encoding="utf-8"))
         expected = {
-            (presentation, str(operation["id"]))
-            for presentation in PRESENTATIONS
-            for operation in build_inventory()["operations"]
+            (str(context), str(operation["id"]))
+            for operation in inventory["operations"]
+            for context in operation["proofContexts"]
         }
         actual = {
-            (str(cell.get("presentation")), str(cell.get("operation")))
+            (str(cell.get("context")), str(cell.get("operation")))
             for cell in baseline.get("cells", [])
             if isinstance(cell, dict)
         }
@@ -1396,12 +1515,13 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        reclassified = reclassify_matrix_applicability(baseline, inventory)
-        if reclassified != baseline:
+        if any(
+            cell.get("verdict") == "not-applicable"
+            for cell in baseline.get("cells", [])
+            if isinstance(cell, dict)
+        ):
             print(
-                "reachability matrix applicability drifted; run "
-                "Scripts/verification/generate_reachability_inventory.py "
-                "--reclassify-baseline-applicability",
+                "proof-context baseline must not contain not-applicable filler",
                 file=sys.stderr,
             )
             return 1

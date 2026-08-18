@@ -234,7 +234,7 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
             operation_id = f"menu:settings:{family}"
             with self.subTest(operation_id=operation_id):
                 operation = self.operations[operation_id]
-                self.assertEqual(operation["presentations"], ["window"])
+                self.assertEqual(operation["proofContexts"], ["main-window-browser"])
                 self.assertEqual(
                     operation["source"],
                     "Apps/Enchron/Screens/SettingsScreen.swift",
@@ -246,7 +246,7 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
                 self.assertEqual(route["families"], [family])
 
 
-class PresentationApplicabilityInventoryTests(unittest.TestCase):
+class RenderHostInventoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.operations = {
@@ -265,8 +265,8 @@ class PresentationApplicabilityInventoryTests(unittest.TestCase):
         ):
             with self.subTest(operation_id=operation_id):
                 operation = self.operations[operation_id]
-                self.assertEqual(operation["presentations"], ["panorama", "docked"])
-                derivation = operation["presentationDerivation"]
+                self.assertEqual(operation["proofContexts"], ["panorama", "docked"])
+                derivation = operation["proofContextDerivation"]
                 self.assertEqual(derivation["host"], "playerControlDockControls")
                 self.assertTrue(
                     any(
@@ -288,19 +288,13 @@ class PresentationApplicabilityInventoryTests(unittest.TestCase):
                 )
             ):
                 with self.subTest(operation_id=operation_id):
-                    self.assertEqual(operation["presentations"], ["window"])
                     self.assertEqual(
-                        operation["presentationDerivation"]["host"],
+                        operation["proofContexts"], ["main-window-browser"]
+                    )
+                    self.assertEqual(
+                        operation["proofContextDerivation"]["host"],
                         "browserWindowSurface",
                     )
-
-    def test_every_operation_has_a_source_derived_presentation_host(self) -> None:
-        for operation_id, operation in self.operations.items():
-            with self.subTest(operation_id=operation_id):
-                self.assertIn("presentations", operation)
-                derivation = operation["presentationDerivation"]
-                self.assertTrue(derivation["host"])
-                self.assertTrue(derivation["sources"])
 
     def test_unknown_product_family_fails_instead_of_defaulting_to_all_presentations(self) -> None:
         documents = {
@@ -321,69 +315,177 @@ class PresentationApplicabilityInventoryTests(unittest.TestCase):
     def test_playback_issue_action_identifiers_follow_their_actual_alert_locations(self) -> None:
         self.assertEqual(
             self.operations["accessibility:PlayerUI-loadFailure-secondary"][
-                "presentations"
+                "proofContexts"
             ],
             ["window", "portal"],
         )
         self.assertEqual(
             self.operations["accessibility:PlayerUI-spatialFailure-secondary"][
-                "presentations"
+                "proofContexts"
             ],
             ["panorama", "docked"],
         )
         self.assertEqual(
             self.operations["accessibility:PlayerUI-playbackIssue-primary"][
-                "presentations"
+                "proofContexts"
             ],
             [],
         )
         self.assertEqual(
             self.operations[
                 "accessibility:PlayerUI-presentation-conversion-dismiss"
-            ]["presentations"],
-            ["window"],
+            ]["proofContexts"],
+            ["main-window-browser"],
         )
 
 
-class MatrixApplicabilityReclassificationTests(unittest.TestCase):
-    def test_reclassifies_only_unproven_cells_from_derived_presentations(self) -> None:
-        baseline = {
+class ProofContextInventoryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.operations = {
+            operation["id"]: operation
+            for operation in inventory.build_inventory()["operations"]
+        }
+
+    def test_browser_operations_have_one_main_window_browser_context(self) -> None:
+        operation = self.operations[
+            "accessibility:FileBrowsing-SourceConnection-smb-connect"
+        ]
+
+        self.assertEqual(operation["proofDomain"], "browser")
+        self.assertEqual(operation["proofContexts"], ["main-window-browser"])
+        self.assertEqual(
+            operation["proofContextDerivation"]["host"],
+            "browserWindowSurface",
+        )
+        self.assertNotIn("presentations", operation)
+
+    def test_playback_operations_keep_each_rendered_presentation_context(self) -> None:
+        operation = self.operations["accessibility:PlayerPanel-menu-more"]
+
+        self.assertEqual(operation["proofDomain"], "playback")
+        self.assertEqual(operation["proofContexts"], ["panorama", "docked"])
+        self.assertEqual(
+            operation["proofContextDerivation"]["host"],
+            "playerControlDockControls",
+        )
+
+    def test_shared_menu_commands_cover_browser_and_playback_contexts(self) -> None:
+        for operation_id in ("command:listMenuItems", "command:selectMenuItem"):
+            with self.subTest(operation_id=operation_id):
+                operation = self.operations[operation_id]
+                self.assertEqual(operation["proofDomain"], "shared")
+                self.assertEqual(
+                    operation["proofContexts"],
+                    [
+                        "main-window-browser",
+                        "window",
+                        "portal",
+                        "panorama",
+                        "docked",
+                    ],
+                )
+
+    def test_every_operation_has_a_nondefaulted_proof_context_derivation(self) -> None:
+        for operation_id, operation in self.operations.items():
+            with self.subTest(operation_id=operation_id):
+                self.assertIn(operation["proofDomain"], {"browser", "playback", "shared"})
+                self.assertIsInstance(operation["proofContexts"], list)
+                derivation = operation["proofContextDerivation"]
+                self.assertTrue(derivation["host"])
+                self.assertTrue(derivation["sources"])
+
+
+class MatrixProofContextMigrationTests(unittest.TestCase):
+    def test_migrates_browser_once_and_playback_only_where_rendered(self) -> None:
+        old = {
             "schemaVersion": 1,
             "cells": [
                 {
-                    "operation": "accessibility:PlayerPanel-menu-more",
-                    "presentation": "window",
-                    "verdict": "known-defect",
-                },
+                    "operation": "accessibility:FileBrowsing-FilesScreen-search",
+                    "presentation": presentation,
+                    "verdict": "reachable" if presentation == "window" else "not-applicable",
+                }
+                for presentation in inventory.PRESENTATIONS
+            ] + [
                 {
                     "operation": "accessibility:PlayerPanel-menu-more",
-                    "presentation": "portal",
-                    "verdict": "reachable",
+                    "presentation": presentation,
+                    "verdict": "reachable" if presentation == "panorama" else "known-defect",
+                }
+                for presentation in inventory.PRESENTATIONS
+            ],
+        }
+        generated = {
+            "operations": [
+                {
+                    "id": "accessibility:FileBrowsing-FilesScreen-search",
+                    "proofContexts": ["main-window-browser"],
+                    "proofDomain": "browser",
                 },
                 {
-                    "operation": "accessibility:PlayerPanel-menu-more",
-                    "presentation": "panorama",
-                    "verdict": "not-applicable",
+                    "id": "accessibility:PlayerPanel-menu-more",
+                    "proofContexts": ["panorama", "docked"],
+                    "proofDomain": "playback",
                 },
             ],
         }
-        generated_inventory = {
-            "operations": [
-                {
-                    "id": "accessibility:PlayerPanel-menu-more",
-                    "presentations": ["panorama", "docked"],
-                }
-            ]
-        }
 
-        reclassified = inventory.reclassify_matrix_applicability(
-            baseline,
-            generated_inventory,
-        )
+        migrated, report = inventory.migrate_matrix_baseline(old, generated)
 
         self.assertEqual(
-            [cell["verdict"] for cell in reclassified["cells"]],
-            ["not-applicable", "reachable", "known-defect"],
+            migrated["cells"],
+            [
+                {
+                    "context": "main-window-browser",
+                    "operation": "accessibility:FileBrowsing-FilesScreen-search",
+                    "verdict": "reachable",
+                },
+                {
+                    "context": "panorama",
+                    "operation": "accessibility:PlayerPanel-menu-more",
+                    "verdict": "reachable",
+                },
+                {
+                    "context": "docked",
+                    "operation": "accessibility:PlayerPanel-menu-more",
+                    "verdict": "known-defect",
+                },
+            ],
+        )
+        self.assertEqual(report["oldCellCount"], 8)
+        self.assertEqual(report["newDecisionCount"], 3)
+        self.assertEqual(report["removedNotApplicableCount"], 3)
+        self.assertEqual(report["mappedReachableCount"], 2)
+        self.assertEqual(report["reachableRegressionCount"], 0)
+
+    def test_reports_a_reachable_old_cell_whose_derived_context_disappeared(self) -> None:
+        old = {
+            "schemaVersion": 1,
+            "cells": [{
+                "operation": "accessibility:PlayerUI-TopAction-more",
+                "presentation": "docked",
+                "verdict": "reachable",
+            }],
+        }
+        generated = {
+            "operations": [{
+                "id": "accessibility:PlayerUI-TopAction-more",
+                "proofContexts": ["window", "portal"],
+                "proofDomain": "playback",
+            }],
+        }
+
+        _, report = inventory.migrate_matrix_baseline(old, generated)
+
+        self.assertEqual(report["retiredReachableCount"], 1)
+        self.assertEqual(
+            report["retiredReachableCells"],
+            [{
+                "operation": "accessibility:PlayerUI-TopAction-more",
+                "presentation": "docked",
+                "reason": "source-derived-proof-context-does-not-exist",
+            }],
         )
 
 
@@ -391,7 +493,7 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
     def test_adds_only_missing_cells_as_known_defects(self) -> None:
         original_cell = {
             "operation": "accessibility:FileBrowsing-existing",
-            "presentation": "window",
+            "context": "main-window-browser",
             "verdict": "reachable",
         }
         baseline = {
@@ -402,15 +504,20 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
         }
         generated_inventory = {
             "operations": [
-                {"id": "accessibility:FileBrowsing-existing"},
-                {"id": "accessibility:FileBrowsing-new"},
+                {
+                    "id": "accessibility:FileBrowsing-existing",
+                    "proofContexts": ["main-window-browser"],
+                },
+                {
+                    "id": "accessibility:FileBrowsing-new",
+                    "proofContexts": ["main-window-browser"],
+                },
             ]
         }
 
         extended = inventory.extend_matrix_baseline(
             baseline,
             generated_inventory,
-            presentations=("window",),
         )
 
         self.assertEqual(extended["acceptedAt"], "device-evidence-time")
@@ -420,12 +527,12 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
             extended["cells"][1],
             {
                 "operation": "accessibility:FileBrowsing-new",
-                "presentation": "window",
+                "context": "main-window-browser",
                 "verdict": "known-defect",
             },
         )
 
-    def test_marks_new_cells_outside_explicit_presentations_not_applicable(self) -> None:
+    def test_does_not_create_filler_for_contexts_outside_the_contract(self) -> None:
         baseline = {
             "schemaVersion": 1,
             "cells": [],
@@ -434,7 +541,7 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
             "operations": [
                 {
                     "id": "menu:settings:resume-strategy",
-                    "presentations": ["window"],
+                    "proofContexts": ["main-window-browser"],
                 }
             ]
         }
@@ -445,8 +552,12 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            [cell["verdict"] for cell in extended["cells"]],
-            ["known-defect", "not-applicable", "not-applicable", "not-applicable"],
+            extended["cells"],
+            [{
+                "context": "main-window-browser",
+                "operation": "menu:settings:resume-strategy",
+                "verdict": "known-defect",
+            }],
         )
 
 

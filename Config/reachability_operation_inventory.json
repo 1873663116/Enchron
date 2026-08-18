@@ -3254,7 +3254,7 @@
       "id": "accessibility:Emby-Connection-Address",
       "identifierTemplate": "Emby-Connection-Address",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3263,16 +3263,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Connection-Connect",
       "identifierTemplate": "Emby-Connection-Connect",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3281,16 +3282,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Connection-Password",
       "identifierTemplate": "Emby-Connection-Password",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3299,16 +3301,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Connection-Username",
       "identifierTemplate": "Emby-Connection-Username",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3317,16 +3320,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Detail-Overview-Expand",
       "identifierTemplate": "Emby-Detail-Overview-Expand",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3335,9 +3339,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -3353,7 +3358,7 @@
       "id": "accessibility:Emby-Detail-Version",
       "identifierTemplate": "Emby-Detail-Version",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3362,16 +3367,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
       "identifierTemplate": "Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3380,16 +3386,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Episode-{metadata.id.rawValue}",
       "identifierTemplate": "Emby-Episode-{metadata.id.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3398,16 +3405,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Library-Sort",
       "identifierTemplate": "Emby-Library-Sort",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3416,16 +3424,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Navigation-Tab",
       "identifierTemplate": "Emby-Navigation-Tab",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3434,16 +3443,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
       "identifierTemplate": "Emby-PosterCard-{metadata.id.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3452,16 +3462,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-Search-Field",
       "identifierTemplate": "Emby-Search-Field",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3470,9 +3481,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -3488,7 +3500,7 @@
       "id": "accessibility:Emby-Season-Picker",
       "identifierTemplate": "Emby-Season-Picker",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3497,9 +3509,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -3515,7 +3528,7 @@
       "id": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
       "identifierTemplate": "Emby-Season-{season.metadata.id.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3524,16 +3537,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-SignOut",
       "identifierTemplate": "Emby-SignOut",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3542,16 +3556,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
       "identifierTemplate": "Emby-StillCard-{metadata.id.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3560,16 +3575,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
       "identifierTemplate": "EnvironmentCard-button-environment-{environment.environment.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "environmentVolume",
         "sources": [
           {
@@ -3578,17 +3594,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-card",
       "identifierTemplate": "EnvironmentCard-card",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "environmentVolume",
         "sources": [
           {
@@ -3597,17 +3614,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-carousel",
       "identifierTemplate": "EnvironmentCard-carousel",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "environmentVolume",
         "sources": [
           {
@@ -3616,17 +3634,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
       "identifierTemplate": "EnvironmentCard-effect-{environment.environment.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "environmentVolume",
         "sources": [
           {
@@ -3635,17 +3654,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
       "identifierTemplate": "FileBrowsing-Breadcrumb-button-{segment.index}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3654,9 +3674,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -3672,7 +3693,7 @@
       "id": "accessibility:FileBrowsing-Breadcrumb-current",
       "identifierTemplate": "FileBrowsing-Breadcrumb-current",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3681,16 +3702,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
       "identifierTemplate": "FileBrowsing-FilesScreen-navBackForward-back",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3699,16 +3721,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
       "identifierTemplate": "FileBrowsing-FilesScreen-navBackForward-forward",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3717,16 +3740,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-search",
       "identifierTemplate": "FileBrowsing-FilesScreen-search",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3735,16 +3759,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
       "identifierTemplate": "FileBrowsing-FilesScreen-sidebarToggle",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3753,9 +3778,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -3772,7 +3798,7 @@
       "id": "accessibility:FileBrowsing-FilesScreen-sort",
       "identifierTemplate": "FileBrowsing-FilesScreen-sort",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3781,16 +3807,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FilesScreen-viewMode",
       "identifierTemplate": "FileBrowsing-FilesScreen-viewMode",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3799,16 +3826,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
       "identifierTemplate": "FileBrowsing-FolderList-button-file-{file.id}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3817,16 +3845,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
       "identifierTemplate": "FileBrowsing-FolderList-button-folder-{folder.id}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3835,16 +3864,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Manage-button",
       "identifierTemplate": "FileBrowsing-Manage-button",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3853,16 +3883,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Sidebar-row-local",
       "identifierTemplate": "FileBrowsing-Sidebar-row-local",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3871,16 +3902,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
       "identifierTemplate": "FileBrowsing-Sidebar-row-{ds.id}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3889,16 +3921,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-address",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-address",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3907,16 +3940,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-cancel",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3925,16 +3959,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-connect",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-connect",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3943,16 +3978,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-guest",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-guest",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3961,16 +3997,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-name",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-name",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3979,16 +4016,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-password",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-password",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -3997,16 +4035,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-smb-username",
       "identifierTemplate": "FileBrowsing-SourceConnection-smb-username",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4015,16 +4054,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-address",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4033,16 +4073,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-cancel",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4051,16 +4092,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-connect",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4069,16 +4111,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-name",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4087,16 +4130,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-password",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4105,16 +4149,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
       "identifierTemplate": "FileBrowsing-SourceConnection-webDAV-username",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4123,9 +4168,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4142,7 +4188,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addFiles",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4151,9 +4197,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4170,7 +4217,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addFolder",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4179,9 +4226,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4198,7 +4246,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addPhotos",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4207,9 +4255,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4226,7 +4275,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addSMB",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4235,9 +4284,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4254,7 +4304,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-addWebDAV",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4263,9 +4313,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4282,7 +4333,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-delete",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-delete",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4291,9 +4342,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4310,7 +4362,7 @@
       "id": "accessibility:FileBrowsing-SourcesSidebar-refresh",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-refresh",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4319,16 +4371,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-source-{item.id}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4337,16 +4390,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
       "identifierTemplate": "FileBrowsing-SourcesSidebar-sourceMore",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4355,16 +4409,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-error-primary",
       "identifierTemplate": "FileBrowsing-error-primary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4373,16 +4428,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-error-secondary",
       "identifierTemplate": "FileBrowsing-error-secondary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4391,16 +4447,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-grid-folder-{folder.name}",
       "identifierTemplate": "FileBrowsing-grid-folder-{folder.name}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4409,16 +4466,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:FileBrowsing-grid-video-{file.name}",
       "identifierTemplate": "FileBrowsing-grid-video-{file.name}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4427,9 +4485,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4445,7 +4504,7 @@
       "id": "accessibility:MediaLibrary-Breadcrumb-current",
       "identifierTemplate": "MediaLibrary-Breadcrumb-current",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4454,9 +4513,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4473,7 +4533,7 @@
       "id": "accessibility:MediaLibrary-Manage-addFiles",
       "identifierTemplate": "MediaLibrary-Manage-addFiles",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4482,9 +4542,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4501,7 +4562,7 @@
       "id": "accessibility:MediaLibrary-Manage-addFolder",
       "identifierTemplate": "MediaLibrary-Manage-addFolder",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4510,9 +4571,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4529,7 +4591,7 @@
       "id": "accessibility:MediaLibrary-Manage-addPhotos",
       "identifierTemplate": "MediaLibrary-Manage-addPhotos",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4538,9 +4600,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4557,7 +4620,7 @@
       "id": "accessibility:MediaLibrary-Manage-newFolder",
       "identifierTemplate": "MediaLibrary-Manage-newFolder",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4566,9 +4629,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4585,7 +4649,7 @@
       "id": "accessibility:MediaLibrary-Manage-selectMultiple",
       "identifierTemplate": "MediaLibrary-Manage-selectMultiple",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4594,16 +4658,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
       "identifierTemplate": "MediaLibrary-MultiSelect-confirmDelete",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4612,16 +4677,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-MultiSelect-delete",
       "identifierTemplate": "MediaLibrary-MultiSelect-delete",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4630,16 +4696,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-MultiSelect-done",
       "identifierTemplate": "MediaLibrary-MultiSelect-done",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4648,9 +4715,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4666,7 +4734,7 @@
       "id": "accessibility:MediaLibrary-MultiSelect-move",
       "identifierTemplate": "MediaLibrary-MultiSelect-move",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4675,16 +4743,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-NewFolder-create",
       "identifierTemplate": "MediaLibrary-NewFolder-create",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4693,16 +4762,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-NewFolder-name",
       "identifierTemplate": "MediaLibrary-NewFolder-name",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4711,16 +4781,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-RenameFolder-confirm",
       "identifierTemplate": "MediaLibrary-RenameFolder-confirm",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4729,16 +4800,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-RenameFolder-name",
       "identifierTemplate": "MediaLibrary-RenameFolder-name",
       "kind": "typeText",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4747,16 +4819,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-error-dismiss",
       "identifierTemplate": "MediaLibrary-error-dismiss",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4765,16 +4838,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-grid-folder-{folder.name}",
       "identifierTemplate": "MediaLibrary-grid-folder-{folder.name}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4783,16 +4857,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:MediaLibrary-grid-video-{reference.name}",
       "identifierTemplate": "MediaLibrary-grid-video-{reference.name}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4801,16 +4876,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Navigation-Ornament-tab-environment",
       "identifierTemplate": "Navigation-Ornament-tab-environment",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4819,16 +4895,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Navigation-Ornament-tab-files",
       "identifierTemplate": "Navigation-Ornament-tab-files",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4837,16 +4914,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Navigation-Ornament-tab-settings",
       "identifierTemplate": "Navigation-Ornament-tab-settings",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -4855,16 +4933,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-DockedPlacement-reset",
       "identifierTemplate": "PlayerPanel-DockedPlacement-reset",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "dockedPlacementControls",
         "sources": [
           {
@@ -4873,9 +4952,10 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4891,7 +4971,7 @@
       "id": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
       "identifierTemplate": "PlayerPanel-VideoFormat-CustomAngle",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
@@ -4900,14 +4980,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
       "identifierTemplate": "PlayerPanel-VideoFormat-HDRFallback",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
@@ -4916,14 +4997,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-apply",
       "identifierTemplate": "PlayerPanel-VideoFormat-apply",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
@@ -4932,14 +5014,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-automatic",
       "identifierTemplate": "PlayerPanel-VideoFormat-automatic",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
@@ -4948,14 +5031,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-cancel",
       "identifierTemplate": "PlayerPanel-VideoFormat-cancel",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
@@ -4964,14 +5048,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
       "identifierTemplate": "PlayerPanel-VideoFormat-{title}-{label(option)}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
@@ -4980,14 +5065,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-enter-panorama",
       "identifierTemplate": "PlayerPanel-button-enter-panorama",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPortalPlayerControlDockBranch",
         "sources": [
           {
@@ -4996,14 +5082,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-exit-spatial",
       "identifierTemplate": "PlayerPanel-button-exit-spatial",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "immersiveReturnControls",
         "sources": [
           {
@@ -5016,17 +5103,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-forward",
       "identifierTemplate": "PlayerPanel-button-forward",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "fusedPlayerPanelSharedContent",
         "sources": [
           {
@@ -5047,19 +5135,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-play",
       "identifierTemplate": "PlayerPanel-button-play",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "fusedPlayerPanelSharedContent",
         "sources": [
           {
@@ -5080,19 +5169,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-rewind",
       "identifierTemplate": "PlayerPanel-button-rewind",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "fusedPlayerPanelSharedContent",
         "sources": [
           {
@@ -5113,19 +5203,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-button-settings",
       "identifierTemplate": "PlayerPanel-button-settings",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "dockedPlayerControlSettings",
         "sources": [
           {
@@ -5134,16 +5225,17 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-media-information-close",
       "identifierTemplate": "PlayerPanel-media-information-close",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "fusedPlayerPanelSharedContent",
         "sources": [
           {
@@ -5164,12 +5256,13 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5185,7 +5278,7 @@
       "id": "accessibility:PlayerPanel-menu-audio",
       "identifierTemplate": "PlayerPanel-menu-audio",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playerControlDockControls",
         "sources": [
           {
@@ -5198,10 +5291,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5217,7 +5311,7 @@
       "id": "accessibility:PlayerPanel-menu-episodes",
       "identifierTemplate": "PlayerPanel-menu-episodes",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playerControlDockControls",
         "sources": [
           {
@@ -5230,17 +5324,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-menu-more",
       "identifierTemplate": "PlayerPanel-menu-more",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playerControlDockControls",
         "sources": [
           {
@@ -5253,10 +5348,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5272,7 +5368,7 @@
       "id": "accessibility:PlayerPanel-menu-speed",
       "identifierTemplate": "PlayerPanel-menu-speed",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playerControlDockControls",
         "sources": [
           {
@@ -5285,10 +5381,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5304,7 +5401,7 @@
       "id": "accessibility:PlayerPanel-menu-subtitles",
       "identifierTemplate": "PlayerPanel-menu-subtitles",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playerControlDockControls",
         "sources": [
           {
@@ -5317,10 +5414,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5339,7 +5437,7 @@
       "id": "accessibility:PlayerPanel-menu-{category}-{item.id}",
       "identifierTemplate": "PlayerPanel-menu-{category}-{item.id}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playerControlDockControls",
         "sources": [
           {
@@ -5352,17 +5450,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-precision-timeline",
       "identifierTemplate": "PlayerPanel-precision-timeline",
       "kind": "adjust",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "fusedPlayerPanelSharedContent",
         "sources": [
           {
@@ -5383,19 +5482,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-progress",
       "identifierTemplate": "PlayerPanel-progress",
       "kind": "adjust",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "fusedPlayerPanelSharedContent",
         "sources": [
           {
@@ -5416,19 +5516,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerPanel-{identifier}-slider",
       "identifierTemplate": "PlayerPanel-{identifier}-slider",
       "kind": "adjust",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "dockedPlacementControls",
         "sources": [
           {
@@ -5437,16 +5538,17 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-DockMenu-skybox",
       "identifierTemplate": "PlayerUI-DockMenu-skybox",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "flatPlaybackEntryTopActions",
         "sources": [
           {
@@ -5455,17 +5557,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
       "identifierTemplate": "PlayerUI-DockMenu-{$0.rawValue}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "flatPlaybackEntryTopActions",
         "sources": [
           {
@@ -5474,17 +5577,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-InfoBar-button-back",
       "identifierTemplate": "PlayerUI-InfoBar-button-back",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5497,17 +5601,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-dock",
       "identifierTemplate": "PlayerUI-TopAction-dock",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "flatPlaybackEntryTopActions",
         "sources": [
           {
@@ -5516,17 +5621,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-more",
       "identifierTemplate": "PlayerUI-TopAction-more",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChromeMoreControl",
         "sources": [
           {
@@ -5539,17 +5645,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-resumePanorama",
       "identifierTemplate": "PlayerUI-TopAction-resumePanorama",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "panoramicPlaybackEntryTopActions",
         "sources": [
           {
@@ -5558,17 +5665,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "portal",
         "panorama"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-TopAction-videoFormat",
       "identifierTemplate": "PlayerUI-TopAction-videoFormat",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5581,10 +5689,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5600,7 +5709,7 @@
       "id": "accessibility:PlayerUI-VideoFormat-CustomAngle",
       "identifierTemplate": "PlayerUI-VideoFormat-CustomAngle",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5613,17 +5722,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-HDRFallback",
       "identifierTemplate": "PlayerUI-VideoFormat-HDRFallback",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5636,17 +5746,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-apply",
       "identifierTemplate": "PlayerUI-VideoFormat-apply",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5659,17 +5770,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-automatic",
       "identifierTemplate": "PlayerUI-VideoFormat-automatic",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5682,17 +5794,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-cancel",
       "identifierTemplate": "PlayerUI-VideoFormat-cancel",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5705,17 +5818,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
       "identifierTemplate": "PlayerUI-VideoFormat-{title}-{label(option)}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
@@ -5728,17 +5842,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-loadFailure-primary",
       "identifierTemplate": "PlayerUI-loadFailure-primary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
@@ -5751,17 +5866,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-loadFailure-secondary",
       "identifierTemplate": "PlayerUI-loadFailure-secondary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
@@ -5774,10 +5890,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -5793,7 +5910,7 @@
       "id": "accessibility:PlayerUI-menu-subtitles",
       "identifierTemplate": "PlayerUI-menu-subtitles",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "windowPlaybackTopChromeMoreControl",
         "sources": [
           {
@@ -5806,17 +5923,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-playbackIssue-confirm",
       "identifierTemplate": "PlayerUI-playbackIssue-confirm",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playbackIssuePresentationSites",
         "sources": [
           {
@@ -5833,19 +5951,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-playbackIssue-primary",
       "identifierTemplate": "PlayerUI-playbackIssue-primary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
@@ -5858,14 +5977,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-playbackIssue-secondary",
       "identifierTemplate": "PlayerUI-playbackIssue-secondary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
@@ -5878,14 +5998,15 @@
           }
         ]
       },
-      "presentations": [],
+      "proofContexts": [],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-presentation-conversion-dismiss",
       "identifierTemplate": "PlayerUI-presentation-conversion-dismiss",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowPlaybackIssue",
         "sources": [
           {
@@ -5894,16 +6015,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-resumeDecision-primary",
       "identifierTemplate": "PlayerUI-resumeDecision-primary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowResumeDecision",
         "sources": [
           {
@@ -5912,16 +6034,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-resumeDecision-secondary",
       "identifierTemplate": "PlayerUI-resumeDecision-secondary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowResumeDecision",
         "sources": [
           {
@@ -5930,16 +6053,17 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-spatialFailure-primary",
       "identifierTemplate": "PlayerUI-spatialFailure-primary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "immersivePlaybackIssueActions",
         "sources": [
           {
@@ -5952,17 +6076,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-spatialFailure-secondary",
       "identifierTemplate": "PlayerUI-spatialFailure-secondary",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "immersivePlaybackIssueActions",
         "sources": [
           {
@@ -5975,17 +6100,18 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:PlayerUI-unmetCapability-dismiss",
       "identifierTemplate": "PlayerUI-unmetCapability-dismiss",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "playbackIssuePresentationSites",
         "sources": [
           {
@@ -6002,19 +6128,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "accessibility:Settings-category-{item.id}",
       "identifierTemplate": "Settings-category-{item.id}",
       "kind": "activate",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
           {
@@ -6023,15 +6150,16 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
       "id": "command:listMenuItems",
       "kind": "command",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6040,18 +6168,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
+        "main-window-browser",
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "shared",
       "source": "Apps/Enchron/TestCommandChannel.swift"
     },
     {
       "id": "command:seekNormalized",
       "kind": "command",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6060,18 +6190,19 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "Apps/Enchron/TestCommandChannel.swift"
     },
     {
       "id": "command:selectMenuItem",
       "kind": "command",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6080,18 +6211,20 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
+        "main-window-browser",
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "shared",
       "source": "Apps/Enchron/TestCommandChannel.swift"
     },
     {
       "id": "command:setDockedPlacement",
       "kind": "command",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6100,15 +6233,16 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "Apps/Enchron/TestCommandChannel.swift"
     },
     {
       "id": "command:setWindowSize",
       "kind": "command",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6117,15 +6251,16 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "portal"
       ],
+      "proofDomain": "playback",
       "source": "Apps/Enchron/TestCommandChannel.swift"
     },
     {
       "id": "command:toggleControls",
       "kind": "command",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6134,18 +6269,19 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "portal",
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "Apps/Enchron/TestCommandChannel.swift"
     },
     {
       "id": "environmentVolume:open-interact-close",
       "kind": "compound",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6154,10 +6290,11 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "window",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "Apps/Enchron/MainView.swift"
     },
     {
@@ -6171,7 +6308,7 @@
       },
       "id": "menu:settings:controls-auto-hide",
       "kind": "menu-selection",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6180,9 +6317,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Apps/Enchron/Screens/SettingsScreen.swift"
     },
     {
@@ -6196,7 +6334,7 @@
       },
       "id": "menu:settings:default-scenic-environment",
       "kind": "menu-selection",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6205,9 +6343,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Apps/Enchron/Screens/SettingsScreen.swift"
     },
     {
@@ -6221,7 +6360,7 @@
       },
       "id": "menu:settings:default-speed",
       "kind": "menu-selection",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6230,9 +6369,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Apps/Enchron/Screens/SettingsScreen.swift"
     },
     {
@@ -6246,7 +6386,7 @@
       },
       "id": "menu:settings:end-behavior",
       "kind": "menu-selection",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6255,9 +6395,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Apps/Enchron/Screens/SettingsScreen.swift"
     },
     {
@@ -6271,7 +6412,7 @@
       },
       "id": "menu:settings:resume-strategy",
       "kind": "menu-selection",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6280,15 +6421,16 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Apps/Enchron/Screens/SettingsScreen.swift"
     },
     {
       "id": "negative:immersive-resident-window",
       "kind": "negative",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6297,16 +6439,17 @@
           }
         ]
       },
-      "presentations": [
+      "proofContexts": [
         "panorama",
         "docked"
       ],
+      "proofDomain": "playback",
       "source": "Apps/Enchron/EnchronApp.swift"
     },
     {
       "id": "scroll:emby",
       "kind": "scroll",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6315,15 +6458,16 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Modules/Emby/EmbyScreens.swift"
     },
     {
       "id": "scroll:file-list",
       "kind": "scroll",
-      "presentationDerivation": {
+      "proofContextDerivation": {
         "host": "explicitOperationContract",
         "sources": [
           {
@@ -6332,9 +6476,10 @@
           }
         ]
       },
-      "presentations": [
-        "window"
+      "proofContexts": [
+        "main-window-browser"
       ],
+      "proofDomain": "browser",
       "source": "Apps/Enchron/Screens/FilesScreen.swift"
     }
   ],
@@ -6345,5 +6490,5 @@
     "Modules/MediaLibrary",
     "Modules/PlaybackPresentation"
   ],
-  "version": 2
+  "version": 3
 }

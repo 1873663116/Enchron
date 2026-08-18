@@ -11,6 +11,20 @@ from unittest.mock import Mock, patch
 import reachability_matrix as matrix
 
 
+class ProofContextAxisTests(unittest.TestCase):
+    def test_runner_uses_only_inventory_proof_contexts(self) -> None:
+        self.assertEqual(
+            matrix.product_proof_contexts({
+                "proofContexts": ["main-window-browser"],
+            }),
+            ("main-window-browser",),
+        )
+
+    def test_missing_proof_context_contract_fails_loudly(self) -> None:
+        with self.assertRaisesRegex(ValueError, "has no proofContexts"):
+            matrix.product_proof_contexts({"id": "accessibility:missing"})
+
+
 class ImmersiveResidentWindowEvidenceTests(unittest.TestCase):
     def test_cleanup_response_recovers_lost_toggle_response(self) -> None:
         self.assertTrue(
@@ -282,27 +296,27 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
 
 class PartialBaselineAcceptanceTests(unittest.TestCase):
-    def test_unselected_presentations_keep_their_accepted_verdicts(self) -> None:
+    def test_unselected_contexts_keep_their_accepted_verdicts(self) -> None:
         baseline = [
             {
-                "presentation": "window",
+                "context": "main-window-browser",
                 "operation": "accessibility:fixture",
                 "verdict": "known-defect",
             },
             {
-                "presentation": "portal",
+                "context": "portal",
                 "operation": "accessibility:fixture",
                 "verdict": "reachable",
             },
         ]
         current = [
             {
-                "presentation": "window",
+                "context": "main-window-browser",
                 "operation": "accessibility:fixture",
                 "verdict": "reachable",
             },
             {
-                "presentation": "portal",
+                "context": "portal",
                 "operation": "accessibility:fixture",
                 "verdict": "known-defect",
             },
@@ -311,19 +325,19 @@ class PartialBaselineAcceptanceTests(unittest.TestCase):
         merged = matrix.merge_selected_cells_into_baseline(
             baseline,
             current,
-            selected={"window"},
+            selected={"main-window-browser"},
         )
 
         self.assertEqual(
             merged,
             [
                 {
-                    "presentation": "window",
+                    "context": "main-window-browser",
                     "operation": "accessibility:fixture",
                     "verdict": "reachable",
                 },
                 {
-                    "presentation": "portal",
+                    "context": "portal",
                     "operation": "accessibility:fixture",
                     "verdict": "reachable",
                 },
@@ -334,17 +348,17 @@ class PartialBaselineAcceptanceTests(unittest.TestCase):
 class SegmentedDeliveryTests(unittest.TestCase):
     baseline = [
         {
-            "presentation": "window",
+            "context": "main-window-browser",
             "operation": "accessibility:old-reachable",
             "verdict": "reachable",
         },
         {
-            "presentation": "window",
+            "context": "main-window-browser",
             "operation": "accessibility:candidate",
             "verdict": "known-defect",
         },
         {
-            "presentation": "portal",
+            "context": "portal",
             "operation": "accessibility:uncovered",
             "verdict": "reachable",
         },
@@ -380,11 +394,11 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 "failures": [] if continuity_passed else ["controller-timeout"],
             },
             "drivenCells": [
-                {"presentation": "window", "operation": operation}
+                {"context": "main-window-browser", "operation": operation}
             ],
             "cells": [
                 {
-                    "presentation": "window",
+                    "context": "main-window-browser",
                     "operation": operation,
                     "verdict": verdict,
                 }
@@ -407,17 +421,17 @@ class SegmentedDeliveryTests(unittest.TestCase):
         delivery = matrix.merge_segment_delivery(self.baseline, [valid, invalid])
 
         verdicts = {
-            (cell["presentation"], cell["operation"]): cell["verdict"]
+            (cell["context"], cell["operation"]): cell["verdict"]
             for cell in delivery["candidateCells"]
         }
         self.assertTrue(delivery["accepted"])
         self.assertEqual(delivery["acceptedSegments"], ["valid"])
         self.assertEqual(delivery["rejectedSegments"], ["invalid"])
         self.assertEqual(
-            verdicts[("window", "accessibility:candidate")], "reachable"
+            verdicts[("main-window-browser", "accessibility:candidate")], "reachable"
         )
         self.assertEqual(
-            verdicts[("window", "accessibility:old-reachable")], "reachable"
+            verdicts[("main-window-browser", "accessibility:old-reachable")], "reachable"
         )
         self.assertEqual(
             verdicts[("portal", "accessibility:uncovered")], "reachable"
@@ -437,7 +451,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
             delivery["failures"],
             [
                 {
-                    "presentation": "window",
+                    "context": "main-window-browser",
                     "operation": "accessibility:old-reachable",
                     "reason": "driven-old-reachable-not-reproved",
                 }
@@ -470,24 +484,32 @@ class SegmentedDeliveryTests(unittest.TestCase):
             "segments": [
                 {
                     "id": "window-a",
-                    "presentation": "window",
+                    "context": "main-window-browser",
                     "expectedMaximumSteps": 100,
                     "scenarios": ["sources-smb"],
-                    "operations": ["accessibility:candidate"],
+                    "decisions": [{
+                        "context": "main-window-browser",
+                        "operation": "accessibility:candidate",
+                    }],
                 },
                 {
                     "id": "window-a",
-                    "presentation": "wrong",
+                    "context": "wrong",
                     "expectedMaximumSteps": 100,
                     "scenarios": ["missing"],
-                    "operations": ["accessibility:missing"],
+                    "decisions": [{
+                        "context": "wrong",
+                        "operation": "accessibility:missing",
+                    }],
                 },
             ],
         }
 
         errors = matrix.validate_segment_plan(
             plan,
-            operation_ids={"accessibility:candidate"},
+            operation_contexts={
+                "accessibility:candidate": {"main-window-browser"},
+            },
             scenario_names={"sources-smb"},
         )
 
@@ -495,8 +517,9 @@ class SegmentedDeliveryTests(unittest.TestCase):
             errors,
             [
                 "segment window-a is duplicated",
-                "segment window-a has unknown presentation wrong",
+                "segment window-a has unknown proof context wrong",
                 "segment window-a has unknown scenario missing",
+                "segment window-a decision has unknown proof context wrong",
                 "segment window-a has unknown operation accessibility:missing",
             ],
         )
@@ -507,23 +530,57 @@ class SegmentedDeliveryTests(unittest.TestCase):
             "segments": [
                 {
                     "id": "docked-too-large",
-                    "presentation": "docked",
+                    "context": "docked",
                     "expectedMaximumSteps": 101,
                     "scenarios": ["docked-placement"],
-                    "operations": ["accessibility:candidate"],
+                    "decisions": [{
+                        "context": "docked",
+                        "operation": "accessibility:candidate",
+                    }],
                 }
             ],
         }
 
         errors = matrix.validate_segment_plan(
             plan,
-            operation_ids={"accessibility:candidate"},
+            operation_contexts={"accessibility:candidate": {"docked"}},
             scenario_names={"docked-placement"},
         )
 
         self.assertEqual(
             errors,
             ["segment docked-too-large expectedMaximumSteps must be between 1 and 100"],
+        )
+
+    def test_segment_plan_rejects_an_operation_outside_its_derived_contexts(self) -> None:
+        plan = {
+            "schemaVersion": 2,
+            "segments": [{
+                "id": "wrong-host",
+                "context": "docked",
+                "expectedMaximumSteps": 20,
+                "scenarios": ["docked-placement"],
+                "decisions": [{
+                    "context": "docked",
+                    "operation": "accessibility:browser-only",
+                }],
+            }],
+        }
+
+        errors = matrix.validate_segment_plan(
+            plan,
+            operation_contexts={
+                "accessibility:browser-only": {"main-window-browser"},
+            },
+            scenario_names={"docked-placement"},
+        )
+
+        self.assertEqual(
+            errors,
+            [
+                "segment wrong-host operation accessibility:browser-only "
+                "is not derived for proof context docked"
+            ],
         )
 
 

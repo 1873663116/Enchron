@@ -3,2865 +3,1021 @@
   "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round8-20260818/merged-final/delivery.json",
   "cells": [
     {
+      "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Address",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Connect",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Password",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Username",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
-      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Library-Sort",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Navigation-Tab",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Search-Field",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Season-Picker",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-SignOut",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-card",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-carousel",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-search",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Manage-button",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-local",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFiles",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFolder",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-newFolder",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-done",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-move",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-create",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-name",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-name",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-error-dismiss",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-environment",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-files",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-settings",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-enter-panorama",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-forward",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-play",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-rewind",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-settings",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-media-information-close",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-audio",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-episodes",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-more",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-speed",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-precision-timeline",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-progress",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-{identifier}-slider",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-skybox",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-dock",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-more",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-menu-subtitles",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-primary",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-secondary",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-primary",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "command:seekNormalized",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:setDockedPlacement",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:setWindowSize",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:toggleControls",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "environmentVolume:open-interact-close",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "negative:immersive-resident-window",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "scroll:emby",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "scroll:file-list",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Address",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Connect",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Password",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Username",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Library-Sort",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Navigation-Tab",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Search-Field",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Season-Picker",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-SignOut",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-card",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-carousel",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-search",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Manage-button",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-local",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFiles",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFolder",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-newFolder",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-done",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-move",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-create",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-name",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-name",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-error-dismiss",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-environment",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-files",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-settings",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-enter-panorama",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-forward",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-play",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-rewind",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-settings",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-media-information-close",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-audio",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-episodes",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-more",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-speed",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-precision-timeline",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-progress",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-{identifier}-slider",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-skybox",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-dock",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-more",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-menu-subtitles",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-primary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-secondary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-primary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "command:seekNormalized",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:setDockedPlacement",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:setWindowSize",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:toggleControls",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "environmentVolume:open-interact-close",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "negative:immersive-resident-window",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "scroll:emby",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "scroll:file-list",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Address",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Connect",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Password",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Username",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Library-Sort",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Navigation-Tab",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Search-Field",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Season-Picker",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-SignOut",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-card",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-carousel",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-search",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Manage-button",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-local",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFiles",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFolder",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-newFolder",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-done",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-move",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-create",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-name",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-name",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-error-dismiss",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-environment",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-files",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-settings",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-enter-panorama",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-forward",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-play",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-rewind",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-settings",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-media-information-close",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-audio",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-episodes",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-more",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-speed",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-precision-timeline",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-progress",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-{identifier}-slider",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-skybox",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-dock",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-more",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-menu-subtitles",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-primary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-secondary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-primary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "command:seekNormalized",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:setDockedPlacement",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:setWindowSize",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:toggleControls",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "environmentVolume:open-interact-close",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "negative:immersive-resident-window",
-      "presentation": "panorama",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "scroll:emby",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "scroll:file-list",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Address",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Connect",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Password",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Connection-Username",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Library-Sort",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Navigation-Tab",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Search-Field",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Season-Picker",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-SignOut",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-card",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-carousel",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-search",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Manage-button",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-local",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFiles",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addFolder",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-newFolder",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-done",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-MultiSelect-move",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-create",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-NewFolder-name",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-RenameFolder-name",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-error-dismiss",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-environment",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-files",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Navigation-Ornament-tab-settings",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-enter-panorama",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-forward",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-play",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-rewind",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-button-settings",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-media-information-close",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-audio",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-episodes",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-more",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-speed",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-precision-timeline",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-progress",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-{identifier}-slider",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-skybox",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-dock",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-more",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-menu-subtitles",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-primary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-playbackIssue-secondary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-primary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "command:seekNormalized",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:setDockedPlacement",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:setWindowSize",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:toggleControls",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "environmentVolume:open-interact-close",
-      "presentation": "docked",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "negative:immersive-resident-window",
-      "presentation": "docked",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "scroll:emby",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "scroll:file-list",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-primary",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-secondary",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
-      "presentation": "window",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Settings-category-{item.id}",
-      "presentation": "window",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-primary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-secondary",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "presentation": "portal",
-      "verdict": "known-defect"
-    },
-    {
-      "operation": "accessibility:Settings-category-{item.id}",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-primary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-secondary",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Settings-category-{item.id}",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-primary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-error-secondary",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:Settings-category-{item.id}",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
+      "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Version",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Library-Sort",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Navigation-Tab",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Search-Field",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Season-Picker",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-SignOut",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
-      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
-      "presentation": "window",
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
       "verdict": "known-defect"
     },
     {
-      "operation": "command:listMenuItems",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:selectMenuItem",
-      "presentation": "window",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-Version",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
-      "presentation": "portal",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:listMenuItems",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:selectMenuItem",
-      "presentation": "portal",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-Version",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:listMenuItems",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "command:selectMenuItem",
-      "presentation": "panorama",
-      "verdict": "reachable"
-    },
-    {
-      "operation": "accessibility:Emby-Detail-Version",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
-      "presentation": "docked",
-      "verdict": "not-applicable"
-    },
-    {
-      "operation": "command:listMenuItems",
-      "presentation": "docked",
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
       "verdict": "known-defect"
     },
     {
-      "operation": "command:selectMenuItem",
-      "presentation": "docked",
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-search",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
       "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Manage-button",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Sidebar-row-local",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
-      "presentation": "window",
       "verdict": "known-defect"
     },
     {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
-      "presentation": "portal",
-      "verdict": "not-applicable"
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "verdict": "reachable"
     },
     {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "verdict": "known-defect"
     },
     {
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
-      "presentation": "docked",
-      "verdict": "not-applicable"
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "verdict": "known-defect"
     },
     {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addFiles",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addFolder",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-newFolder",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-done",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-move",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-create",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-name",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-name",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-error-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-environment",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-files",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-settings",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-resumeDecision-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-category-{item.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
       "operation": "menu:settings:controls-auto-hide",
-      "presentation": "window",
       "verdict": "reachable"
     },
     {
+      "context": "main-window-browser",
       "operation": "menu:settings:default-scenic-environment",
-      "presentation": "window",
       "verdict": "reachable"
     },
     {
+      "context": "main-window-browser",
       "operation": "menu:settings:default-speed",
-      "presentation": "window",
       "verdict": "reachable"
     },
     {
+      "context": "main-window-browser",
       "operation": "menu:settings:end-behavior",
-      "presentation": "window",
       "verdict": "reachable"
     },
     {
+      "context": "main-window-browser",
       "operation": "menu:settings:resume-strategy",
-      "presentation": "window",
       "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:controls-auto-hide",
-      "presentation": "portal",
-      "verdict": "not-applicable"
+      "context": "main-window-browser",
+      "operation": "scroll:emby",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:default-scenic-environment",
-      "presentation": "portal",
-      "verdict": "not-applicable"
+      "context": "main-window-browser",
+      "operation": "scroll:file-list",
+      "verdict": "known-defect"
     },
     {
-      "operation": "menu:settings:default-speed",
-      "presentation": "portal",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "verdict": "known-defect"
     },
     {
-      "operation": "menu:settings:end-behavior",
-      "presentation": "portal",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-card",
+      "verdict": "known-defect"
     },
     {
-      "operation": "menu:settings:resume-strategy",
-      "presentation": "portal",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-carousel",
+      "verdict": "known-defect"
     },
     {
-      "operation": "menu:settings:controls-auto-hide",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:default-scenic-environment",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:default-speed",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:end-behavior",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:resume-strategy",
-      "presentation": "panorama",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "known-defect"
     },
     {
-      "operation": "menu:settings:controls-auto-hide",
-      "presentation": "docked",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:default-scenic-environment",
-      "presentation": "docked",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:default-speed",
-      "presentation": "docked",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerUI-DockMenu-skybox",
+      "verdict": "reachable"
     },
     {
-      "operation": "menu:settings:end-behavior",
-      "presentation": "docked",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
+      "verdict": "known-defect"
     },
     {
-      "operation": "menu:settings:resume-strategy",
-      "presentation": "docked",
-      "verdict": "not-applicable"
+      "context": "window",
+      "operation": "accessibility:PlayerUI-InfoBar-button-back",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-dock",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-loadFailure-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-loadFailure-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "command:listMenuItems",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "command:selectMenuItem",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "environmentVolume:open-interact-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-InfoBar-button-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-loadFailure-primary",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-loadFailure-secondary",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:setWindowSize",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-exit-spatial",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-audio",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-episodes",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-speed",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-spatialFailure-primary",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "negative:immersive-resident-window",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-card",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-carousel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-exit-spatial",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-settings",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-audio",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-episodes",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-more",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-speed",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-subtitles",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-{identifier}-slider",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-DockMenu-skybox",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-TopAction-dock",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-spatialFailure-primary",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "command:listMenuItems",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:selectMenuItem",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "command:setDockedPlacement",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "environmentVolume:open-interact-close",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "negative:immersive-resident-window",
+      "verdict": "reachable"
     }
   ],
-  "schemaVersion": 1
+  "coordinateSystem": "proof-context-v1",
+  "schemaVersion": 2
 }

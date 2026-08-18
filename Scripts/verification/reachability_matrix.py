@@ -26,16 +26,18 @@ CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round7-20260818"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round9-20260818"
 )
 DEFAULT_DERIVED_DATA = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach7-20260818"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach9-20260818"
 )
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
 DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"
 APP_BUNDLE = "com.xiongzhipeng.XrPlayer"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
+MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
+PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 SEGMENT_SCENARIO_NAMES = {
     "browser-core",
     "breadcrumbs",
@@ -105,25 +107,20 @@ def template_pattern(template: str) -> re.Pattern[str]:
     return re.compile("^" + "".join(parts) + "$")
 
 
-def product_presentations(operation: dict[str, Any]) -> tuple[str, ...]:
-    explicit = operation.get("presentations")
-    if isinstance(explicit, list):
-        return tuple(str(value) for value in explicit)
-    template = str(operation.get("identifierTemplate", ""))
-    family = template.partition("-")[0]
-    if family in {"Emby", "FileBrowsing", "MediaLibrary", "Navigation", "Settings"}:
-        return ("window",)
-    if family in {"EnvironmentCard", "SenseZone"}:
-        return ("window", "docked")
-    if family == "PlayerPanel":
-        return PRESENTATIONS
-    if family == "PlayerUI":
-        if template.startswith("PlayerUI-window-"):
-            return ("window", "portal")
-        if template == "PlayerUI-spatial-state":
-            return ("panorama", "docked")
-        return PRESENTATIONS
-    return ("window",)
+def product_proof_contexts(operation: dict[str, Any]) -> tuple[str, ...]:
+    explicit = operation.get("proofContexts")
+    if not isinstance(explicit, list):
+        raise ValueError(
+            f"operation {operation.get('id', '<unknown>')} has no proofContexts"
+        )
+    contexts = tuple(str(value) for value in explicit)
+    unknown = set(contexts) - set(PROOF_CONTEXTS)
+    if unknown:
+        raise ValueError(
+            f"operation {operation.get('id', '<unknown>')} has unknown proof contexts "
+            f"{sorted(unknown)}"
+        )
+    return contexts
 
 
 def reachability_evidence_is_complete(cell: dict[str, Any]) -> bool:
@@ -179,19 +176,19 @@ def merge_selected_cells_into_baseline(
     selected: set[str],
 ) -> list[dict[str, Any]]:
     baseline_by_key = {
-        (cell.get("presentation"), cell.get("operation")): cell
+        (cell.get("context"), cell.get("operation")): cell
         for cell in baseline_cells
     }
     merged: list[dict[str, Any]] = []
     for cell in current_cells:
-        key = (cell["presentation"], cell["operation"])
+        key = (cell["context"], cell["operation"])
         accepted = (
             cell
-            if cell["presentation"] in selected
+            if cell["context"] in selected
             else baseline_by_key.get(key, cell)
         )
         merged.append({
-            "presentation": accepted["presentation"],
+            "context": accepted["context"],
             "operation": accepted["operation"],
             "verdict": accepted["verdict"],
         })
@@ -204,7 +201,7 @@ def merge_segment_delivery(
 ) -> dict[str, Any]:
     """Merge only cells driven by complete, channel-continuous segments."""
     candidate_by_key = {
-        (str(cell["presentation"]), str(cell["operation"])): dict(cell)
+        (str(cell["context"]), str(cell["operation"])): dict(cell)
         for cell in baseline_cells
     }
     accepted_segments: list[str] = []
@@ -236,7 +233,7 @@ def merge_segment_delivery(
 
         accepted_segments.append(name)
         cells = {
-            (str(cell.get("presentation")), str(cell.get("operation"))): cell
+            (str(cell.get("context")), str(cell.get("operation"))): cell
             for cell in segment.get("cells", [])
             if isinstance(cell, dict)
         }
@@ -244,7 +241,7 @@ def merge_segment_delivery(
             if not isinstance(driven, dict):
                 continue
             key = (
-                str(driven.get("presentation")),
+                str(driven.get("context")),
                 str(driven.get("operation")),
             )
             if key not in candidate_by_key:
@@ -259,7 +256,7 @@ def merge_segment_delivery(
 
     failures: list[dict[str, str]] = []
     baseline_by_key = {
-        (str(cell["presentation"]), str(cell["operation"])): cell
+        (str(cell["context"]), str(cell["operation"])): cell
         for cell in baseline_cells
     }
     for key in sorted(driven_keys):
@@ -268,7 +265,7 @@ def merge_segment_delivery(
             and candidate_by_key[key].get("verdict") != "reachable"
         ):
             failures.append({
-                "presentation": key[0],
+                "context": key[0],
                 "operation": key[1],
                 "reason": "driven-old-reachable-not-reproved",
             })
@@ -278,12 +275,12 @@ def merge_segment_delivery(
         "acceptedSegments": accepted_segments,
         "rejectedSegments": rejected_segments,
         "drivenCells": [
-            {"presentation": presentation, "operation": operation}
-            for presentation, operation in sorted(driven_keys)
+            {"context": context, "operation": operation}
+            for context, operation in sorted(driven_keys)
         ],
         "failures": failures,
         "candidateCells": [
-            candidate_by_key[(str(cell["presentation"]), str(cell["operation"]))]
+            candidate_by_key[(str(cell["context"]), str(cell["operation"]))]
             for cell in baseline_cells
         ],
     }
@@ -292,7 +289,7 @@ def merge_segment_delivery(
 def validate_segment_plan(
     plan: dict[str, Any],
     *,
-    operation_ids: set[str],
+    operation_contexts: dict[str, set[str]],
     scenario_names: set[str],
 ) -> list[str]:
     errors: list[str] = []
@@ -310,10 +307,10 @@ def validate_segment_plan(
         elif name in seen:
             errors.append(f"segment {name} is duplicated")
         seen.add(name)
-        presentation = str(segment.get("presentation", ""))
-        if presentation not in PRESENTATIONS:
+        context = str(segment.get("context", ""))
+        if context not in PROOF_CONTEXTS:
             errors.append(
-                f"segment {name or '<missing>'} has unknown presentation {presentation}"
+                f"segment {name or '<missing>'} has unknown proof context {context}"
             )
         expected_maximum_steps = segment.get("expectedMaximumSteps")
         if (
@@ -333,14 +330,31 @@ def validate_segment_plan(
                     errors.append(
                         f"segment {name or '<missing>'} has unknown scenario {scenario}"
                     )
-        operations = segment.get("operations")
-        if not isinstance(operations, list) or not operations:
-            errors.append(f"segment {name or '<missing>'} has no operations")
+        decisions = segment.get("decisions")
+        if not isinstance(decisions, list) or not decisions:
+            errors.append(f"segment {name or '<missing>'} has no decisions")
         else:
-            for operation in operations:
-                if str(operation) not in operation_ids:
+            for decision in decisions:
+                if not isinstance(decision, dict):
+                    errors.append(
+                        f"segment {name or '<missing>'} contains a non-object decision"
+                    )
+                    continue
+                decision_context = str(decision.get("context", ""))
+                operation = str(decision.get("operation", ""))
+                if decision_context not in PROOF_CONTEXTS:
+                    errors.append(
+                        f"segment {name or '<missing>'} decision has unknown proof "
+                        f"context {decision_context}"
+                    )
+                if operation not in operation_contexts:
                     errors.append(
                         f"segment {name or '<missing>'} has unknown operation {operation}"
+                    )
+                elif decision_context not in operation_contexts[operation]:
+                    errors.append(
+                        f"segment {name or '<missing>'} operation {operation} is not "
+                        f"derived for proof context {decision_context}"
                     )
     return errors
 
@@ -393,24 +407,18 @@ class ReachabilityRun:
                 ) + "\n",
                 encoding="utf-8",
             )
-        for presentation in PRESENTATIONS:
-            for operation_id, operation in self.operations.items():
-                applicable = presentation in product_presentations(operation)
-                self.cells[(presentation, operation_id)] = {
-                    "presentation": presentation,
+        for operation_id, operation in self.operations.items():
+            for context in product_proof_contexts(operation):
+                self.cells[(context, operation_id)] = {
+                    "context": context,
                     "operation": operation_id,
                     "kind": operation["kind"],
                     "identifierTemplate": operation.get("identifierTemplate"),
-                    "applicable": applicable,
-                    "existsInHierarchy": None if not applicable else False,
-                    "reportsHittable": None if not applicable else False,
-                    "applicationReceived": None if not applicable else False,
-                    "verdict": "not-applicable" if not applicable else "known-defect",
-                    "reason": (
-                        "The product semantic is not offered in this presentation."
-                        if not applicable
-                        else "The first-run fixture has not produced delivery evidence."
-                    ),
+                    "existsInHierarchy": False,
+                    "reportsHittable": False,
+                    "applicationReceived": False,
+                    "verdict": "known-defect",
+                    "reason": "The first-run fixture has not produced delivery evidence.",
                     "evidence": [],
                 }
 
@@ -509,24 +517,28 @@ class ReachabilityRun:
 
     def app_command(self, verb: str, **arguments: str) -> dict[str, Any]:
         operation_id = f"command:{verb}"
-        presentation = self.active_presentation
-        if operation_id in self.operations and presentation is not None:
-            self.driven_cells.add((presentation, operation_id))
+        context = self.active_context
+        if operation_id in self.operations and context is not None:
+            self.mark_driven(context, operation_id)
         extra = ["--verb", verb, "--no-screenshot"]
         for key, value in arguments.items():
             extra.extend(("--arg", f"{key}={value}"))
         return self.controller("app-command", *extra)
 
     @property
-    def active_presentation(self) -> str | None:
+    def active_context(self) -> str | None:
         if self.segment is not None:
-            return str(self.segment["presentation"])
-        selected = list(getattr(self.arguments, "presentations", []))
+            return str(self.segment["context"])
+        selected = list(getattr(self.arguments, "contexts", []))
         return selected[0] if len(selected) == 1 else None
 
-    def mark_driven(self, presentation: str, operation_id: str) -> None:
+    def mark_driven(self, context: str, operation_id: str) -> None:
         if operation_id in self.operations:
-            self.driven_cells.add((presentation, operation_id))
+            if (context, operation_id) not in self.cells:
+                raise ValueError(
+                    f"operation {operation_id} has no proof context {context}"
+                )
+            self.driven_cells.add((context, operation_id))
 
     def channel_health_probe(self, phase: str) -> dict[str, Any]:
         session_id = self.session_id
@@ -815,9 +827,12 @@ class ReachabilityRun:
         evidence: str,
         reason: str,
     ) -> None:
-        cell = self.cells[(presentation, operation_id)]
-        if not cell["applicable"]:
-            return
+        key = (presentation, operation_id)
+        if key not in self.cells:
+            raise ValueError(
+                f"operation {operation_id} has no proof context {presentation}"
+            )
+        cell = self.cells[key]
         if exists is not None:
             cell["existsInHierarchy"] = bool(cell["existsInHierarchy"] or exists)
         if hittable is not None:
@@ -1067,10 +1082,10 @@ class ReachabilityRun:
         ):
             time.sleep(0.5)
             result = self.app_command("toggleControls", visible="true")
-        presentation = self.active_presentation
-        if result.get("success") is True and presentation is not None:
+        context = self.active_context
+        if result.get("success") is True and context is not None:
             self.delivered(
-                presentation,
+                context,
                 "command:toggleControls",
                 self.events[-1]["evidence"],
                 "The DEBUG command reached the product control-visibility handler and returned success.",
@@ -1106,7 +1121,7 @@ class ReachabilityRun:
         )
 
     def browser_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.observe(presentation, "browser launch")
         before = self.copy_probe("browser-before")
@@ -1275,7 +1290,7 @@ class ReachabilityRun:
             )
 
     def prove_navigation_tab(self, tab: str) -> bool:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         identifiers = {
             "files": "Navigation-Ornament-tab-files",
             "settings": "Navigation-Ornament-tab-settings",
@@ -1302,7 +1317,7 @@ class ReachabilityRun:
     def open_source_connection(
         self, source: str
     ) -> tuple[dict[str, Any], list[str]]:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         before = self.copy_probe(f"source-connection-{source}-open-before")
         offset = len(before)
         parent = self.tap(
@@ -1347,7 +1362,7 @@ class ReachabilityRun:
     def type_source_connection_field(
         self, source: str, field: str, value: str, probe: list[str]
     ) -> list[str]:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.mark_driven(
             presentation,
             f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
@@ -1380,7 +1395,7 @@ class ReachabilityRun:
         return updated
 
     def source_connection_scenario(self, source: str) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         opened, probe = self.open_source_connection(
@@ -1477,7 +1492,7 @@ class ReachabilityRun:
             )
 
     def source_sidebar_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         for identifier, family, target, expected_action in (
             ("addFiles", "sourceAdd", "local", "sidebar.add.local"),
             ("addFolder", "sourceAdd", "folder", "sidebar.addFolder"),
@@ -1538,7 +1553,7 @@ class ReachabilityRun:
             )
 
     def file_browser_error_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
 
@@ -1575,7 +1590,7 @@ class ReachabilityRun:
     def browser_condition_scenario(
         self, *, include_source_scenarios: bool = True
     ) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         if include_source_scenarios:
             self.source_connection_scenario("smb")
             self.source_connection_scenario("webDAV")
@@ -1928,7 +1943,7 @@ class ReachabilityRun:
             )
 
     def manage_add_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         for target, expected_action in (
             ("addFiles", "manage.addFiles"),
             ("addFolder", "manage.addFolder"),
@@ -1977,7 +1992,7 @@ class ReachabilityRun:
                 )
 
     def settings_menu_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-settings")
         self.tap(presentation, "Settings-category-playback", operation_id=(
@@ -2013,7 +2028,7 @@ class ReachabilityRun:
                 )
 
     def library_reference_move_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         imported = self.app_command("importMedia", file="furyroad-stripped.mkv")
@@ -2041,7 +2056,7 @@ class ReachabilityRun:
             )
 
     def breadcrumb_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         folder_before = self.copy_probe("media-library-folder-before")
@@ -2166,7 +2181,7 @@ class ReachabilityRun:
             )
 
     def emby_version_season_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         found_families: set[str] = set()
         self.relaunch()
         self.tap(presentation, "Emby-Navigation-Tab")
@@ -2253,7 +2268,7 @@ class ReachabilityRun:
 
     def open_media(self, identifier: str) -> dict[str, Any]:
         self.relaunch()
-        self.tap("window", "Navigation-Ornament-tab-files")
+        self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
         before = self.copy_probe("open-media-before")
         offset = len(before)
         file_name = identifier.removeprefix("MediaLibrary-grid-video-")
@@ -2285,7 +2300,7 @@ class ReachabilityRun:
                     "error": f"listLibrary did not report imported media {file_name}",
                 }
             self.relaunch()
-            self.tap("window", "Navigation-Ornament-tab-files")
+            self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
 
         self.controller("activate", "--no-screenshot")
         card = self.wait_for_identifier(identifier, timeout=20)
@@ -2295,7 +2310,9 @@ class ReachabilityRun:
                 "error": f"Media card did not appear after product import: {identifier}",
             }
         result = self.tap_label(
-            "window", media_label, operation_id=operation_id
+            MAIN_WINDOW_BROWSER_CONTEXT,
+            media_label,
+            operation_id=operation_id,
         )
         probe = self.wait_for_probe(
             "open-media-selected",
@@ -2308,7 +2325,8 @@ class ReachabilityRun:
             for line in probe[offset:]
         ):
             self.delivered(
-                "window", "accessibility:MediaLibrary-grid-video-{reference.name}",
+                MAIN_WINDOW_BROWSER_CONTEXT,
+                "accessibility:MediaLibrary-grid-video-{reference.name}",
                 self.events[-1]["evidence"],
                 "The Media Library video card ran its playback activation handler.",
             )
@@ -2771,12 +2789,13 @@ class ReachabilityRun:
         return delivered
 
     def resume_decision_scenario(self) -> None:
-        presentation = "window"
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        playback_context = "window"
         active = self.wait_for_identifier(
             "PlayerUI-window-control-plane", timeout=3
         )
         if isinstance(active.get("matchedElement"), dict):
-            if not self.stop_playback(presentation):
+            if not self.stop_playback(playback_context):
                 return
             self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
 
@@ -2835,8 +2854,8 @@ class ReachabilityRun:
         ):
             return
         time.sleep(16)
-        self.seek_scenario(presentation, "0.25")
-        if not self.stop_playback(presentation):
+        self.seek_scenario(playback_context, "0.25")
+        if not self.stop_playback(playback_context):
             return
         self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
 
@@ -2871,7 +2890,7 @@ class ReachabilityRun:
                     "The visible resume decision ran its product-owned playback choice and appended an action probe.",
                 )
             self.wait_for_identifier("PlayerUI-window-control-plane", timeout=15)
-            if not self.stop_playback(presentation):
+            if not self.stop_playback(playback_context):
                 return
             self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
 
@@ -3936,17 +3955,21 @@ class ReachabilityRun:
     def finish_segment(self, status: str) -> int:
         assert self.segment is not None
         ordered_cells = [
-            self.cells[(presentation, operation_id)]
-            for presentation in PRESENTATIONS
+            self.cells[(context, operation_id)]
+            for context in PROOF_CONTEXTS
             for operation_id in sorted(self.operations)
+            if (context, operation_id) in self.cells
         ]
-        planned = {str(value) for value in self.segment["operations"]}
+        planned = {
+            (str(value["context"]), str(value["operation"]))
+            for value in self.segment["decisions"]
+        }
         driven = [
-            {"presentation": presentation, "operation": operation}
-            for presentation, operation in sorted(self.driven_cells)
+            {"context": context, "operation": operation}
+            for context, operation in sorted(self.driven_cells)
         ]
         result = {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "generatedAt": utc_now(),
             "status": status,
             "segment": str(self.segment["id"]),
@@ -3960,10 +3983,15 @@ class ReachabilityRun:
             "device": DEVICE,
             "coreDevice": CORE_DEVICE,
             "inventory": str(INVENTORY.relative_to(ROOT)),
-            "plannedOperations": sorted(planned),
+            "plannedDecisions": [
+                {"context": context, "operation": operation}
+                for context, operation in sorted(planned)
+            ],
             "drivenCells": driven,
             "unplannedDrivenCells": [
-                cell for cell in driven if cell["operation"] not in planned
+                cell
+                for cell in driven
+                if (cell["context"], cell["operation"]) not in planned
             ],
             "stepCount": len(self.events),
             "cells": ordered_cells,
@@ -3987,32 +4015,34 @@ class ReachabilityRun:
     def run(self) -> int:
         if self.segment is not None:
             return self.run_segment()
-        selected = set(self.arguments.presentations)
+        selected = set(self.arguments.contexts)
         state_reset = False
-        window_scenario = (
-            self.resume_decision_scenario
-            if self.arguments.window_resume_only
-            else lambda: (
+        browser_scenario = (
+            self.resume_decision_scenario if self.arguments.window_resume_only else
+            lambda: (
                 self.browser_condition_scenario(),
                 self.browser_scenario(),
+            )
+        )
+        window_scenario = lambda: (
                 self.window_scenario(),
                 self.playback_failure_scenario(),
             )
-        )
         scenarios = {
+            MAIN_WINDOW_BROWSER_CONTEXT: browser_scenario,
             "window": window_scenario,
             "portal": self.portal_scenario,
             "panorama": self.panorama_scenario,
             "docked": self.docked_scenario,
         }
-        for presentation in PRESENTATIONS:
-            if presentation not in selected:
+        for context in PROOF_CONTEXTS:
+            if context not in selected:
                 continue
             if not self.arguments.reuse_session and not self.ensure_session():
                 self.controller("halt", "--no-screenshot", timeout=240)
                 self.finish("drive-error")
                 return 2
-            if presentation == "docked" and not self.stage_fixture(
+            if context == "docked" and not self.stage_fixture(
                 "furyroad-stripped.mkv"
             ):
                 if not self.arguments.reuse_session:
@@ -4028,50 +4058,51 @@ class ReachabilityRun:
                     return 2
                 self.relaunch()
                 state_reset = True
-            initial = self.copy_probe(f"{presentation}-initial")
+            initial = self.copy_probe(f"{context}-initial")
             if initial and self.clear_probe_after_archive():
                 self.probe_offset = 0
             else:
                 self.probe_offset = len(initial)
-            scenarios[presentation]()
+            scenarios[context]()
         if not self.arguments.reuse_session:
             self.controller("stop", "--no-screenshot", timeout=240)
         return self.finish("complete")
 
     def finish(self, status: str) -> int:
         ordered_cells = [
-            self.cells[(presentation, operation_id)]
-            for presentation in PRESENTATIONS
+            self.cells[(context, operation_id)]
+            for context in PROOF_CONTEXTS
             for operation_id in sorted(self.operations)
+            if (context, operation_id) in self.cells
         ]
         prior_events: list[dict[str, Any]] = []
         results_path = self.output / "results.json"
-        selected = set(self.arguments.presentations)
-        if selected != set(PRESENTATIONS) and results_path.is_file():
+        selected = set(self.arguments.contexts)
+        if selected != set(PROOF_CONTEXTS) and results_path.is_file():
             prior = json.loads(results_path.read_text(encoding="utf-8"))
             prior_cells = {
-                (cell["presentation"], cell["operation"]): cell
+                (cell["context"], cell["operation"]): cell
                 for cell in prior.get("cells", [])
                 if isinstance(cell, dict)
             }
             ordered_cells = [
-                prior_cells.get((cell["presentation"], cell["operation"]), cell)
-                if cell["presentation"] not in selected else cell
+                prior_cells.get((cell["context"], cell["operation"]), cell)
+                if cell["context"] not in selected else cell
                 for cell in ordered_cells
             ]
             prior_events = list(prior.get("events", []))
         summary = {
             verdict: sum(cell["verdict"] == verdict for cell in ordered_cells)
-            for verdict in ("reachable", "known-defect", "not-applicable")
+            for verdict in ("reachable", "known-defect")
         }
         result = {
-            "schemaVersion": 1,
+            "schemaVersion": 3,
             "generatedAt": utc_now(),
             "status": status,
             "device": DEVICE,
             "coreDevice": CORE_DEVICE,
             "inventory": str(INVENTORY.relative_to(ROOT)),
-            "presentations": list(PRESENTATIONS),
+            "proofContexts": list(PROOF_CONTEXTS),
             "summary": summary,
             "cells": ordered_cells,
             "events": prior_events + self.events,
@@ -4084,11 +4115,11 @@ class ReachabilityRun:
         if BASELINE.is_file():
             baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
             current = {
-                (cell["presentation"], cell["operation"]): cell
+                (cell["context"], cell["operation"]): cell
                 for cell in ordered_cells
             }
             for old in baseline.get("cells", []):
-                key = (old.get("presentation"), old.get("operation"))
+                key = (old.get("context"), old.get("operation"))
                 if key[0] not in selected:
                     continue
                 if (
@@ -4102,14 +4133,13 @@ class ReachabilityRun:
                     continue
                 if (
                     self.arguments.window_resume_only
-                    and key[0] == "window"
+                    and key[0] == MAIN_WINDOW_BROWSER_CONTEXT
                     and key[1] not in {
-                        "accessibility:PlayerPanel-precision-timeline",
-                        "accessibility:PlayerPanel-progress",
-                        "accessibility:PlayerUI-InfoBar-button-back",
+                        "accessibility:MediaLibrary-grid-video-{reference.name}",
+                        "accessibility:Navigation-Ornament-tab-files",
+                        "accessibility:Navigation-Ornament-tab-settings",
                         "accessibility:PlayerUI-resumeDecision-primary",
                         "accessibility:PlayerUI-resumeDecision-secondary",
-                        "command:seekNormalized",
                     }
                 ):
                     continue
@@ -4117,7 +4147,7 @@ class ReachabilityRun:
                     key not in current or current[key].get("verdict") != "reachable"
                 ):
                     regression_failures.append({
-                        "presentation": str(key[0]),
+                        "context": str(key[0]),
                         "operation": str(key[1]),
                     })
         if (
@@ -4131,7 +4161,8 @@ class ReachabilityRun:
                     BASELINE.read_text(encoding="utf-8")
                 ).get("cells", [])
             baseline = {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
+                "coordinateSystem": "proof-context-v1",
                 "acceptedFrom": str(results_path),
                 "acceptedAt": utc_now(),
                 "cells": merge_selected_cells_into_baseline(
@@ -4180,8 +4211,8 @@ def parse_arguments() -> argparse.Namespace:
         "--merge-segments", nargs="+", type=Path, metavar="RESULTS_JSON"
     )
     parser.add_argument(
-        "--presentations", nargs="+", choices=PRESENTATIONS,
-        default=list(PRESENTATIONS),
+        "--contexts", nargs="+", choices=PROOF_CONTEXTS,
+        default=list(PROOF_CONTEXTS),
     )
     return parser.parse_args()
 
@@ -4194,7 +4225,7 @@ def merge_segment_result_files(arguments: argparse.Namespace) -> int:
     ]
     delivery = merge_segment_delivery(baseline.get("cells", []), segment_results)
     delivery.update({
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "generatedAt": utc_now(),
         "baseline": str(BASELINE.relative_to(ROOT)),
         "segmentResults": [str(path.resolve()) for path in arguments.merge_segments],
@@ -4204,7 +4235,7 @@ def merge_segment_result_files(arguments: argparse.Namespace) -> int:
             cell.get("verdict") == verdict
             for cell in delivery["candidateCells"]
         )
-        for verdict in ("reachable", "known-defect", "not-applicable")
+        for verdict in ("reachable", "known-defect")
     }
     arguments.output_directory.mkdir(parents=True, exist_ok=True)
     delivery_path = arguments.output_directory / "delivery.json"
@@ -4214,12 +4245,13 @@ def merge_segment_result_files(arguments: argparse.Namespace) -> int:
     )
     if arguments.accept_baseline and delivery["accepted"]:
         accepted = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
+            "coordinateSystem": "proof-context-v1",
             "acceptedFrom": str(delivery_path.resolve()),
             "acceptedAt": utc_now(),
             "cells": [
                 {
-                    "presentation": cell["presentation"],
+                    "context": cell["context"],
                     "operation": cell["operation"],
                     "verdict": cell["verdict"],
                 }
@@ -4248,7 +4280,12 @@ def configure_segment(arguments: argparse.Namespace) -> None:
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
     errors = validate_segment_plan(
         plan,
-        operation_ids={str(item["id"]) for item in inventory["operations"]},
+        operation_contexts={
+            str(item["id"]): {
+                str(context) for context in product_proof_contexts(item)
+            }
+            for item in inventory["operations"]
+        },
         scenario_names=SEGMENT_SCENARIO_NAMES,
     )
     if errors:
@@ -4261,7 +4298,7 @@ def configure_segment(arguments: argparse.Namespace) -> None:
         raise SystemExit(f"Segment plan has no segment named {arguments.segment}")
     arguments.segment_spec = matching[0]
     arguments.segment_plan_document = plan
-    arguments.presentations = [str(matching[0]["presentation"])]
+    arguments.contexts = [str(matching[0]["context"])]
 
 
 def main() -> int:

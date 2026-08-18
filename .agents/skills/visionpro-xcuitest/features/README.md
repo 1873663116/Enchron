@@ -14,7 +14,9 @@ Enchron 应用内的每项产品操作都必须由自动化到达，并由应用
 
 清单之外的产品操作不可达即为缺陷。缺陷归属只有两类：产品没有公开足够的 Accessibility 事实，或测试通道缺少能够进入同一产品状态与处理管线的动词。空间手势无法由 XCUIAutomation 合成时，DEBUG 动词必须进入同一产品状态或处理管线，并以应用证据完成送达判定。任何常驻透明机制窗口都不得向 Accessibility 层级暴露节点，也不得成为可命中目标。
 
-全量操作集由 `Scripts/verification/generate_reachability_inventory.py` 从产品源码生成到 `Config/reachability_operation_inventory.json`。物理设备的第零层回归由 `Scripts/verification/reachability_matrix.py` 执行，覆盖 Window、Portal、Panorama 与 Docked；已证明可达的格回退为不可达时，runner 失败。首次发现的不可达格保留为已知缺陷，继续占据矩阵，直至修复和真机复测转绿。
+全量操作集由 `Scripts/verification/generate_reachability_inventory.py` 从产品源码生成到 `Config/reachability_operation_inventory.json`。每个操作携带源码推导出的证明语境集合。浏览域操作只在“主窗口浏览”语境证明一次；播放域操作按其生产渲染宿主实际出现的 Window、Portal、Panorama 或 Docked 语境逐项证明。同一控件在 ornament、attachment 或 dock 容器中复用时，各容器仍是独立的运行时判定点。生成器无法从生产宿主得到语境集合时必须失败，基线不创建填充性的 N/A 判定点。
+
+物理设备的第零层回归由 `Scripts/verification/reachability_matrix.py` 执行。已证明可达的判定点在被驱动后回退为不可达时，runner 失败。首次发现的不可达判定点保留为已知缺陷，直至修复和真机复测转绿。
 
 ## 特性
 
