@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import Mock
 
 import reachability_matrix as matrix
 
@@ -81,6 +82,153 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
                     "reportsHittable": False,
                 }
             )
+        )
+
+
+class ReachabilityScenarioSequencingTests(unittest.TestCase):
+    def test_probe_precedes_control_reveal_and_immediate_tap(self) -> None:
+        actions: list[str] = []
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.copy_probe = Mock(
+            side_effect=lambda _: actions.append("probe") or ["before"]
+        )
+        run.show_controls = Mock(
+            side_effect=lambda: actions.append("controls") or {"success": True}
+        )
+        run.tap = Mock(
+            side_effect=lambda *_: actions.append("tap") or {"success": True}
+        )
+
+        result, probe = run.tap_with_fresh_controls(
+            "window",
+            "PlayerUI-TopAction-more",
+            probe_label="window-top-menu-before",
+        )
+
+        self.assertEqual(actions, ["probe", "controls", "tap"])
+        self.assertEqual(result, {"success": True})
+        self.assertEqual(probe, ["before"])
+
+    def test_video_format_open_requires_a_new_product_probe(self) -> None:
+        probe = [
+            "old reachability topActions delivered action=videoFormat.open",
+            "new reachability topActions delivered action=videoFormat.open",
+        ]
+
+        self.assertTrue(matrix.video_format_open_was_delivered(probe, offset=1))
+        self.assertFalse(matrix.video_format_open_was_delivered(probe, offset=2))
+
+    def test_reset_requests_a_deterministic_library_folder_fixture(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.app_command = Mock(return_value={"success": True})
+
+        result = run.reset_reachability_state()
+
+        self.assertEqual(result, {"success": True})
+        run.app_command.assert_called_once_with(
+            "resetState",
+            libraryFolder=matrix.REACHABILITY_LIBRARY_FOLDER,
+        )
+
+    def test_window_seek_precedes_transport_controls(self) -> None:
+        actions: list[str] = []
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/controls.json"}]
+        run.open_media = Mock(return_value={"success": True})
+        run.ensure_window_projection = Mock(return_value=True)
+        run.show_controls = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(
+            return_value={"matchedElement": {"identifier": "PlayerPanel-controls"}}
+        )
+        run.delivered = Mock()
+        run.video_format_editor_scenario = Mock()
+        run.observe = Mock()
+        run.seek_scenario = Mock(
+            side_effect=lambda *_: actions.append("seek")
+        )
+        run.transport_scenario = Mock(
+            side_effect=lambda *_: actions.append("transport")
+        )
+        run.top_menu_scenario = Mock()
+        run.resume_decision_scenario = Mock()
+
+        run.window_scenario()
+
+        self.assertEqual(actions, ["seek", "transport"])
+
+    def test_menu_listing_retries_one_file_node_transport_failure(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/menu-command.json"}]
+        run.delivered = Mock()
+        run.app_command = Mock(side_effect=[
+            {
+                "success": False,
+                "error": "Failed to retrieve the file node for Documents/test-command.json",
+            },
+            {"success": True, "payload": ["off"]},
+            {"success": True, "payload": ["off"]},
+        ])
+
+        target, listing, selected = run.select_debug_menu_item(
+            presentation="window",
+            host="playerUI",
+            family="subtitles",
+            preferred=("off",),
+        )
+
+        self.assertEqual(target, "off")
+        self.assertTrue(listing["success"])
+        self.assertTrue(selected["success"])
+        self.assertEqual(run.app_command.call_count, 3)
+
+
+class PartialBaselineAcceptanceTests(unittest.TestCase):
+    def test_unselected_presentations_keep_their_accepted_verdicts(self) -> None:
+        baseline = [
+            {
+                "presentation": "window",
+                "operation": "accessibility:fixture",
+                "verdict": "known-defect",
+            },
+            {
+                "presentation": "portal",
+                "operation": "accessibility:fixture",
+                "verdict": "reachable",
+            },
+        ]
+        current = [
+            {
+                "presentation": "window",
+                "operation": "accessibility:fixture",
+                "verdict": "reachable",
+            },
+            {
+                "presentation": "portal",
+                "operation": "accessibility:fixture",
+                "verdict": "known-defect",
+            },
+        ]
+
+        merged = matrix.merge_selected_cells_into_baseline(
+            baseline,
+            current,
+            selected={"window"},
+        )
+
+        self.assertEqual(
+            merged,
+            [
+                {
+                    "presentation": "window",
+                    "operation": "accessibility:fixture",
+                    "verdict": "reachable",
+                },
+                {
+                    "presentation": "portal",
+                    "operation": "accessibility:fixture",
+                    "verdict": "reachable",
+                },
+            ],
         )
 
 

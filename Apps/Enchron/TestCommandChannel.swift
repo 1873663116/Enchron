@@ -219,16 +219,29 @@ final class TestCommandChannel {
             for reference in references {
                 mediaLibrary.remove(reference)
             }
+            mediaLibrary.navigateToRoot()
+            let folders = mediaLibrary.allFolders
+            for folder in folders.reversed() {
+                mediaLibrary.remove(folder)
+            }
             let keys = defaults.dictionaryRepresentation().keys.filter {
                 $0.hasPrefix("enchron.")
             }
             for key in keys {
                 defaults.removeObject(forKey: key)
             }
+            if let folderName = request.args["libraryFolder"],
+               folderName.isEmpty == false {
+                mediaLibrary.createFolder(named: folderName)
+                if let detail = mediaLibrary.lastErrorMessage {
+                    throw CommandError(message: detail)
+                }
+            }
             return Response(
                 id: request.id,
                 ok: true,
-                detail: "Removed \(references.count) library references and "
+                detail: "Removed \(references.count) library references, "
+                    + "removed \(folders.count) library folders, and "
                     + "deleted \(keys.count) enchron.* defaults keys.",
                 payload: nil
             )

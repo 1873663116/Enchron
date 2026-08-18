@@ -35,6 +35,7 @@ DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Develop
 APP_BUNDLE = "com.xiongzhipeng.XrPlayer"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
+REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
     "reachability-round2-20260818/recovery/TestMediaInbox"
@@ -123,6 +124,42 @@ def menu_selection_target(
             ):
                 return str(item["id"])
     return available[0] if available else None
+
+
+def video_format_open_was_delivered(
+    probe: list[str], *, offset: int
+) -> bool:
+    return any(
+        "reachability " in line
+        and " delivered action=videoFormat.open" in line
+        for line in probe[offset:]
+    )
+
+
+def merge_selected_cells_into_baseline(
+    baseline_cells: list[dict[str, Any]],
+    current_cells: list[dict[str, Any]],
+    *,
+    selected: set[str],
+) -> list[dict[str, Any]]:
+    baseline_by_key = {
+        (cell.get("presentation"), cell.get("operation")): cell
+        for cell in baseline_cells
+    }
+    merged: list[dict[str, Any]] = []
+    for cell in current_cells:
+        key = (cell["presentation"], cell["operation"])
+        accepted = (
+            cell
+            if cell["presentation"] in selected
+            else baseline_by_key.get(key, cell)
+        )
+        merged.append({
+            "presentation": accepted["presentation"],
+            "operation": accepted["operation"],
+            "verdict": accepted["verdict"],
+        })
+    return merged
 
 
 def immersive_resident_window_is_hidden(
@@ -572,6 +609,15 @@ class ReachabilityRun:
             host=host,
             family=family,
         )
+        if listing.get("success") is not True and "file node" in str(
+            listing.get("error", "")
+        ):
+            time.sleep(0.5)
+            listing = self.app_command(
+                "listMenuItems",
+                host=host,
+                family=family,
+            )
         if listing.get("success") is not True:
             return None, listing, {"success": False}
         self.delivered(
@@ -660,6 +706,23 @@ class ReachabilityRun:
     ) -> dict[str, Any]:
         self.show_controls()
         return self.tap(presentation, identifier, operation_id=operation_id)
+
+    def tap_with_fresh_controls(
+        self,
+        presentation: str,
+        identifier: str,
+        *,
+        probe_label: str,
+    ) -> tuple[dict[str, Any], list[str]]:
+        before = self.copy_probe(probe_label)
+        self.show_controls()
+        return self.tap(presentation, identifier), before
+
+    def reset_reachability_state(self) -> dict[str, Any]:
+        return self.app_command(
+            "resetState",
+            libraryFolder=REACHABILITY_LIBRARY_FOLDER,
+        )
 
     def browser_scenario(self) -> None:
         presentation = "window"
@@ -782,13 +845,13 @@ class ReachabilityRun:
         offset = len(before)
         folder = self.tap(
             presentation,
-            "MediaLibrary-grid-folder-DynamicRange",
+            f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
             operation_id="accessibility:MediaLibrary-grid-folder-{folder.name}",
         )
         if folder.get("success") is not True:
             folder = self.tap(
                 presentation,
-                "FileBrowsing-grid-folder-DynamicRange",
+                f"FileBrowsing-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
                 operation_id="accessibility:FileBrowsing-grid-folder-{folder.name}",
             )
         probe = self.copy_probe("browser-folder-open")
@@ -1482,14 +1545,27 @@ class ReachabilityRun:
         )
 
         def open_editor() -> bool:
-            self.show_controls()
-            opened = self.tap(presentation, open_identifier)
+            opened, before = self.tap_with_fresh_controls(
+                presentation,
+                open_identifier,
+                probe_label=f"{identifier_prefix}-open-before",
+            )
+            offset = len(before)
             visible = self.wait_for_identifier(
                 f"{identifier_prefix}-cancel", timeout=10
             )
-            return opened.get("success") is True and isinstance(
+            probe = self.copy_probe(f"{identifier_prefix}-opened")
+            delivered = opened.get("success") is True and isinstance(
                 visible.get("matchedElement"), dict
-            )
+            ) and video_format_open_was_delivered(probe, offset=offset)
+            if delivered:
+                self.delivered(
+                    presentation,
+                    f"accessibility:{open_identifier}",
+                    self.events[-1]["evidence"],
+                    "The visible format host ran its open handler and appended the product open probe.",
+                )
+            return delivered
 
         if open_editor():
             before = self.copy_probe(
@@ -1731,8 +1807,8 @@ class ReachabilityRun:
             "reachability playerPanel delivered action=",
         )
         self.observe(presentation, "Window playback controls")
-        self.transport_scenario(presentation)
         self.seek_scenario(presentation, "0.35")
+        self.transport_scenario(presentation)
         self.top_menu_scenario(presentation)
         self.resume_decision_scenario()
 
@@ -1777,10 +1853,12 @@ class ReachabilityRun:
             )
 
     def top_menu_scenario(self, presentation: str) -> None:
-        self.show_controls()
-        before = self.copy_probe(f"{presentation}-top-menu-before")
+        opened, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerUI-TopAction-more",
+            probe_label=f"{presentation}-top-menu-before",
+        )
         offset = len(before)
-        opened = self.tap(presentation, "PlayerUI-TopAction-more")
         probe = self.copy_probe(f"{presentation}-top-menu-open")
         if opened.get("success") is True and any(
             "reachability top actions delivered action=menu.more" in line
@@ -1830,10 +1908,12 @@ class ReachabilityRun:
             )
 
     def stop_playback(self, presentation: str) -> bool:
-        self.show_controls()
-        before = self.copy_probe(f"{presentation}-back-before")
+        stopped, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerUI-InfoBar-button-back",
+            probe_label=f"{presentation}-back-before",
+        )
         offset = len(before)
-        stopped = self.tap(presentation, "PlayerUI-InfoBar-button-back")
         probe = self.copy_probe(f"{presentation}-back")
         delivered = stopped.get("success") is True and any(
             "reachability top actions delivered action=back" in line
@@ -2010,10 +2090,12 @@ class ReachabilityRun:
             )
 
     def player_panel_menu_scenario(self, presentation: str) -> None:
-        self.show_controls()
-        before = self.copy_probe(f"{presentation}-panel-menu-before")
+        opened, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerPanel-menu-more",
+            probe_label=f"{presentation}-panel-menu-before",
+        )
         offset = len(before)
-        opened = self.tap(presentation, "PlayerPanel-menu-more")
         probe = self.copy_probe(f"{presentation}-panel-menu-open")
         if opened.get("success") is True and any(
             "reachability playerPanel delivered action=menu.more" in line
@@ -2701,7 +2783,7 @@ class ReachabilityRun:
                 self.finish("drive-error")
                 return 2
             if not state_reset:
-                reset = self.app_command("resetState")
+                reset = self.reset_reachability_state()
                 if reset.get("success") is not True:
                     if not self.arguments.reuse_session:
                         self.controller("halt", "--no-screenshot", timeout=240)
@@ -2806,18 +2888,20 @@ class ReachabilityRun:
             and status == "complete"
             and not regression_failures
         ):
+            existing_baseline_cells: list[dict[str, Any]] = []
+            if BASELINE.is_file():
+                existing_baseline_cells = json.loads(
+                    BASELINE.read_text(encoding="utf-8")
+                ).get("cells", [])
             baseline = {
                 "schemaVersion": 1,
                 "acceptedFrom": str(results_path),
                 "acceptedAt": utc_now(),
-                "cells": [
-                    {
-                        "presentation": cell["presentation"],
-                        "operation": cell["operation"],
-                        "verdict": cell["verdict"],
-                    }
-                    for cell in ordered_cells
-                ],
+                "cells": merge_selected_cells_into_baseline(
+                    existing_baseline_cells,
+                    ordered_cells,
+                    selected=selected,
+                ),
             }
             BASELINE.write_text(
                 json.dumps(baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
