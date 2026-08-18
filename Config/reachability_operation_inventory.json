@@ -522,7 +522,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 367,
+          "line": 366,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -535,7 +535,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 392,
+          "line": 391,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -548,7 +548,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 378,
+          "line": 377,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -561,7 +561,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 373,
+          "line": 372,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -574,7 +574,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 370,
+          "line": 369,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -587,7 +587,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1278,
+          "line": 1300,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -600,7 +600,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 901,
+          "line": 909,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -613,7 +613,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 884,
+          "line": 889,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -626,7 +626,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 952,
+          "line": 960,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -639,7 +639,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 731,
+          "line": 736,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -652,7 +652,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1062,
+          "line": 1078,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -665,7 +665,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 654,
+          "line": 659,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -678,7 +678,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1183,
+          "line": 1202,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -691,7 +691,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 455,
+          "line": 454,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -704,24 +704,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 506,
+          "line": 508,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
       "template": "Emby-Library-Sort"
-    },
-    {
-      "action": null,
-      "family": "Emby",
-      "role": "observation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 510,
-          "path": "Modules/Emby/EmbyScreens.swift"
-        }
-      ],
-      "template": "Emby-Library-{viewModel.library.id.rawValue}"
     },
     {
       "action": "activate",
@@ -756,7 +743,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1335,
+          "line": 1357,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -776,26 +763,13 @@
       "template": "Emby-Root"
     },
     {
-      "action": null,
-      "family": "Emby",
-      "role": "observation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 551,
-          "path": "Modules/Emby/EmbyScreens.swift"
-        }
-      ],
-      "template": "Emby-Search"
-    },
-    {
       "action": "typeText",
       "family": "Emby",
       "role": "operation",
       "scope": "product",
       "sources": [
         {
-          "line": 535,
+          "line": 536,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -808,7 +782,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1126,
+          "line": 1142,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -821,24 +795,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1107,
+          "line": 1123,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
       "template": "Emby-Season-{season.metadata.id.rawValue}"
-    },
-    {
-      "action": null,
-      "family": "Emby",
-      "role": "observation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 268,
-          "path": "Modules/Emby/EmbyScreens.swift"
-        }
-      ],
-      "template": "Emby-Sidebar"
     },
     {
       "action": null,
@@ -860,7 +821,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 297,
+          "line": 296,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -886,7 +847,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1355,
+          "line": 1382,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -899,7 +860,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 591,
+          "line": 596,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],

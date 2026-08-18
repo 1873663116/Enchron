@@ -163,6 +163,9 @@ final class EnchronApplication {
             deviceID: UIDevice.current.identifierForVendor?.uuidString ?? "Enchron-visionOS"
         ))
         let embySession = EmbySessionViewModel(client: embyClient)
+#if DEBUG
+        embySession.diagnosticProbe = { AppModel.recordProbe($0) }
+#endif
         let embyConnection = EmbyConnectionViewModel(session: embySession)
         let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)
         let embySearch = EmbySearchViewModel(client: embyClient, session: embySession)

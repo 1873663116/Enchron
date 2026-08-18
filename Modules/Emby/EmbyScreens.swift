@@ -265,7 +265,6 @@ public struct EmbyScreen: View {
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .enchronSidebarSurface()
-        .accessibilityIdentifier("Emby-Sidebar")
     }
 
     /// The same row the Media Library sidebar uses, with reordering and swipe-to-delete switched off.
@@ -489,6 +488,9 @@ private struct EmbyLibraryScreen: View {
                         // The indicator moves with the tap. Only the reload waits on the server.
                         set: { value in
                             guard viewModel.sort != value else { return }
+#if DEBUG
+                            session.recordReachability("library.sort.\(value)")
+#endif
                             withAnimation(DesignTokens.AnimationToken.selection) {
                                 viewModel.setSort(value)
                             }
@@ -505,9 +507,8 @@ private struct EmbyLibraryScreen: View {
                     .enchronGlassControl()
                     .accessibilityIdentifier("Emby-Library-Sort")
                 }
-            }
+        }
         .task { await viewModel.refresh() }
-        .accessibilityIdentifier("Emby-Library-\(viewModel.library.id.rawValue)")
     }
 }
 
@@ -548,7 +549,11 @@ private struct EmbySearchScreen: View {
             guard Task.isCancelled == false else { return }
             await viewModel.refresh()
         }
-        .accessibilityIdentifier("Emby-Search")
+#if DEBUG
+        .onChange(of: viewModel.query) { _, _ in
+            session.recordReachability("search.query")
+        }
+#endif
     }
 }
 
@@ -894,6 +899,9 @@ private struct EmbyDetailScreen: View {
                     .frame(maxWidth: DesignTokens.EmbyDetail.overviewMaxWidth, alignment: .leading)
                 if overview.count > 140 {
                     Button(overviewIsExpanded ? "Less" : "More") {
+#if DEBUG
+                        session.recordReachability("detail.overview.toggle")
+#endif
                         overviewIsExpanded.toggle()
                     }
                     .buttonStyle(.plain)
@@ -981,7 +989,12 @@ private struct EmbyDetailScreen: View {
     private var mediaSourceSelection: Binding<EmbyMediaSourceID?> {
         Binding(
             get: { viewModel.selectedMediaSourceID },
-            set: { viewModel.selectedMediaSourceID = $0 }
+            set: {
+#if DEBUG
+                session.recordReachability("detail.version.select")
+#endif
+                viewModel.selectedMediaSourceID = $0
+            }
         )
     }
 
@@ -1046,6 +1059,9 @@ private struct EmbyDetailScreen: View {
         action: EmbyPlaybackStartAction
     ) -> some View {
         Button {
+#if DEBUG
+            session.recordReachability("detail.play.\(action)")
+#endif
             Task {
                 do {
                     await onPlay(.success(try viewModel.playbackSelection(startAction: action)))
@@ -1155,6 +1171,9 @@ private struct EmbyDetailScreen: View {
             get: { selected },
             set: { value in
                 guard let value, value != selected else { return }
+#if DEBUG
+                session.recordReachability("season.select.\(value.rawValue)")
+#endif
                 Task { await viewModel.selectSeason(value) }
             }
         )
@@ -1182,6 +1201,9 @@ private struct EmbyDetailScreen: View {
             watchedProgress: watchedProgress(metadata),
             accessibilityIdentifier: "Emby-Episode-\(metadata.id.rawValue)",
             action: {
+#if DEBUG
+                session.recordReachability("episode.select.\(metadata.id.rawValue)")
+#endif
                 Task {
                     await onPlay(.success(viewModel.playbackSelection(for: episode)))
                 }
@@ -1333,7 +1355,12 @@ private func posterCard(
         watchedProgress: watchedProgress(metadata),
         unplayedCount: metadata.userData?.unplayedItemCount,
         accessibilityIdentifier: "Emby-PosterCard-\(metadata.id.rawValue)",
-        action: { onSelect(item) }
+        action: {
+#if DEBUG
+            session.recordReachability("posterCard.select.\(metadata.id.rawValue)")
+#endif
+            onSelect(item)
+        }
     )
 }
 
@@ -1353,7 +1380,12 @@ private func stillCard(
         artworkURL: thumbURL(for: metadata, session: session),
         watchedProgress: watchedProgress(metadata),
         accessibilityIdentifier: "Emby-StillCard-\(metadata.id.rawValue)",
-        action: { onSelect(item) }
+        action: {
+#if DEBUG
+            session.recordReachability("stillCard.select.\(metadata.id.rawValue)")
+#endif
+            onSelect(item)
+        }
     )
 }
 

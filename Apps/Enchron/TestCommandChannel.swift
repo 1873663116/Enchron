@@ -271,6 +271,24 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [String(appModel.environmentCardDismissalRequestRevision)]
             )
+        case "exitSpatial":
+            guard let target = appModel.playbackPresentation.exitImmersiveTarget else {
+                throw CommandError(message: "exitSpatial requires immersive playback.")
+            }
+            let transition = try appModel.requestPlaybackPresentation(
+                target,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+            AppModel.recordProbe(
+                "testcmd exitSpatial delivered target=\(target) transition=\(transition.id)"
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [String(describing: target), transition.id.uuidString]
+            )
         case "scrollEmby":
             return try scrollEmby(request)
         case "showPlaybackIssue":

@@ -13,6 +13,10 @@ public final class EmbySessionViewModel {
 
     private let store: any EmbyServerStoring
 
+#if DEBUG
+    @ObservationIgnored public var diagnosticProbe: ((String) -> Void)?
+#endif
+
     public init(
         client: any EmbyClientProtocol,
         store: any EmbyServerStoring = KeychainEmbyServerStore()
@@ -94,6 +98,12 @@ public final class EmbySessionViewModel {
         playbackQueue = snapshot
         return snapshot
     }
+
+#if DEBUG
+    public func recordReachability(_ action: String) {
+        diagnosticProbe?("reachability emby delivered action=\(action)")
+    }
+#endif
 
     private func configurePlaybackBridge() async {
         await playbackBridge.configure(server: server) { [weak self] in
