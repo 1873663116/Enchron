@@ -26,10 +26,10 @@ CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round9-20260818"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round11-20260818"
 )
 DEFAULT_DERIVED_DATA = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach9-20260818"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach11-20260818"
 )
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
@@ -41,8 +41,10 @@ PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 SEGMENT_SCENARIO_NAMES = {
     "browser-core",
     "breadcrumbs",
+    "docked-content-round11",
     "docked",
     "docked-environment",
+    "docked-exit-command-round11",
     "docked-exit",
     "docked-main-window-issues",
     "docked-menus",
@@ -51,11 +53,15 @@ SEGMENT_SCENARIO_NAMES = {
     "docked-spatial-secondary-issue",
     "docked-transport-issues",
     "emby-version-season",
+    "emby-content-round11",
     "file-browser-errors",
     "library-conditions",
+    "library-editing-round11",
     "library-reference-move",
     "manage-add",
     "panorama",
+    "panorama-content-round11",
+    "panorama-exit-command-round11",
     "panorama-immersive-issues",
     "panorama-panel-exit",
     "panorama-resident-window",
@@ -64,26 +70,43 @@ SEGMENT_SCENARIO_NAMES = {
     "player-ui-candidates",
     "player-panel-portal-menus",
     "portal",
+    "portal-dv-round11",
+    "portal-issues-round11",
+    "portal-routes-round11",
+    "remote-browser-round11",
     "resume-decision",
     "settings-menus",
     "source-connection-smb",
     "source-connection-webdav",
     "source-sidebar",
     "window-playback",
+    "window-dv-format-round11",
+    "window-environment-round11",
+    "window-issues-round11",
+    "window-menus-round11",
 }
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
 PROBE_MIDPOINT_ARCHIVE_BYTES = 250_000
-PROBE_MIDPOINT_MARKER = 8
+PROBE_MIDPOINT_MARKER = 4
 EMBY_DETAIL_CANDIDATE_LIMIT = 12
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
     "reachability-round2-20260818/recovery/TestMediaInbox"
 )
+SCENARIO_FIXTURES = {
+    "docked-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
+    "panorama-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
+    "portal-dv-round11": ("furyroad-with-dv.mkv",),
+    "window-dv-format-round11": ("furyroad-with-dv.mkv",),
+    "window-menus-round11": ("furyroad-with-dv.mkv",),
+}
 DEFERRED_MENU_TARGETS = {
+    ("emby", "season"): "__firstUnselected",
+    ("emby", "version"): "__firstUnselected",
     ("settings", "resume-strategy"): "Ask Every Time",
     ("settings", "end-behavior"): "Stop",
     ("settings", "default-scenic-environment"): "Scenic Environment 1",
@@ -620,7 +643,7 @@ class ReachabilityRun:
         self.direct_devicectl_calls = 0
         self.segment_evidence_started = False
         self.evidence_retrieval_devicectl_calls = 0
-        self.midpoint_probe_checked = False
+        self.next_probe_size_marker = PROBE_MIDPOINT_MARKER
         self.probe_chunks: list[str] = []
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
@@ -890,19 +913,21 @@ class ReachabilityRun:
                 "marker": marker,
                 "evidence": "raw/deferred-evidence-replay.json",
             })
-            if (
-                marker >= PROBE_MIDPOINT_MARKER
-                and not self.midpoint_probe_checked
-            ):
-                self.midpoint_probe_checked = True
-                size = self.query_probe_size("segment-midpoint")
+            next_size_marker = getattr(
+                self, "next_probe_size_marker", PROBE_MIDPOINT_MARKER
+            )
+            self.next_probe_size_marker = next_size_marker
+            if marker >= next_size_marker:
+                self.next_probe_size_marker += PROBE_MIDPOINT_MARKER
+                archive_label = f"segment-midpoint-{marker}"
+                size = self.query_probe_size(archive_label)
                 if (
                     size is not None
                     and size >= PROBE_MIDPOINT_ARCHIVE_BYTES
                     and size < PROBE_COPY_LIMIT_BYTES
                 ):
                     self.probe_chunks.extend(self.archive_probe_chunk(
-                        "segment-midpoint", clear_after=True
+                        archive_label, clear_after=True
                     ))
             return DeferredProbeView(self, marker)
         if (
@@ -1251,28 +1276,43 @@ class ReachabilityRun:
 
     def clear_probe_after_archive(self) -> bool:
         empty = self.raw / "probe-empty.log"
-        empty.write_text("", encoding="utf-8")
         timeout = 120 if self.segment is not None else 150
-        try:
+        deadline = time.monotonic() + timeout
+        attempts: list[str] = []
+        completed: subprocess.CompletedProcess[str] | None = None
+        for attempt in range(2):
+            empty.write_text("", encoding="utf-8")
+            remaining = max(1.0, deadline - time.monotonic())
             self.direct_devicectl_calls += 1
-            completed = subprocess.run(
-                [
-                    "xcrun", "devicectl", "device", "copy", "to",
-                    "--device", CORE_DEVICE,
-                    "--domain-type", "appDataContainer",
-                    "--domain-identifier", APP_BUNDLE,
-                    "--source", str(empty),
-                    "--destination", PROBE_REMOTE_PATH,
-                    "--timeout", str(timeout),
-                ],
-                cwd=ROOT,
-                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
+            try:
+                completed = subprocess.run(
+                    [
+                        "xcrun", "devicectl", "device", "copy", "to",
+                        "--device", CORE_DEVICE,
+                        "--domain-type", "appDataContainer",
+                        "--domain-identifier", APP_BUNDLE,
+                        "--source", str(empty),
+                        "--destination", PROBE_REMOTE_PATH,
+                        "--timeout", str(int(remaining)),
+                    ],
+                    cwd=ROOT,
+                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                    capture_output=True,
+                    text=True,
+                    timeout=remaining,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                completed = None
+                break
+            detail = (completed.stderr or completed.stdout)[-1000:]
+            attempts.append(detail)
+            if completed.returncode == 0:
+                break
+            if attempt == 0 and "error 17" in detail:
+                continue
+            break
+        if completed is None:
             self.events.append({
                 "at": utc_now(),
                 "action": "clearProbeAfterArchive",
@@ -1290,7 +1330,8 @@ class ReachabilityRun:
             "at": utc_now(),
             "action": "clearProbeAfterArchive",
             "success": completed.returncode == 0,
-            "detail": (completed.stderr or completed.stdout)[-1000:],
+            "attemptCount": len(attempts),
+            "detail": attempts[-1] if attempts else "",
         })
         return completed.returncode == 0
 
@@ -2029,6 +2070,12 @@ class ReachabilityRun:
                     "The guest toggle changed the SMB form binding and appended its probe.",
                 )
 
+            # Leaving the password field can expose the system-owned save-password
+            # alert. Dismiss it before addressing the product Connect button.
+            self.controller(
+                "tap", "--label", "以后", "--no-screenshot", timeout=90
+            )
+
         offset = len(probe)
         connected = self.tap(
             presentation,
@@ -2578,13 +2625,173 @@ class ReachabilityRun:
                     f"entered the {target} product handler and its probe confirmed delivery.",
                 )
 
+    def library_editing_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        if self.app_command(
+            "importMedia", file="furyroad-stripped.mkv"
+        ).get("success") is not True:
+            return
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+
+        self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, opened = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("newFolder",),
+        )
+        if opened.get("success") is True:
+            before = self.copy_probe("round11-new-folder-name-before")
+            offset = len(before)
+            typed = self.controller(
+                "typeText",
+                "--identifier", "MediaLibrary-NewFolder-name",
+                "--text", "Round 11 draft",
+                "--no-screenshot",
+                timeout=90,
+            )
+            probe = self.copy_probe("round11-new-folder-name")
+            if typed.get("success") is True and any(
+                "reachability files delivered action=newFolder.name" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:MediaLibrary-NewFolder-name",
+                    self.events[-1]["evidence"],
+                    "Typing changed the product new-folder binding.",
+                )
+            self.controller("tap", "--label", "Cancel", "--no-screenshot")
+
+        folder_identifier = (
+            f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}"
+        )
+        pressed = self.controller(
+            "press", "--identifier", folder_identifier,
+            "--duration", "1.2", "--no-screenshot", timeout=90,
+        )
+        rename_menu = self.controller(
+            "tap", "--label", "Rename", "--no-screenshot", timeout=90,
+        )
+        rename_field = self.wait_for_identifier(
+            "MediaLibrary-RenameFolder-name", timeout=10
+        )
+        rename_opened = (
+            pressed.get("success") is True
+            and rename_menu.get("success") is True
+        )
+        if rename_opened and isinstance(rename_field.get("matchedElement"), dict):
+            before = self.copy_probe("round11-rename-name-before")
+            offset = len(before)
+            typed = self.controller(
+                "typeText",
+                "--identifier", "MediaLibrary-RenameFolder-name",
+                "--text", " Round 11",
+                "--no-screenshot",
+                timeout=90,
+            )
+            probe = self.copy_probe("round11-rename-name")
+            if typed.get("success") is True and any(
+                "reachability files delivered action=renameFolder.name" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:MediaLibrary-RenameFolder-name",
+                    self.events[-1]["evidence"],
+                    "Typing changed the product rename binding.",
+                )
+
+        if rename_opened:
+            before = self.copy_probe("round11-rename-confirm-before")
+            offset = len(before)
+            renamed = self.tap(
+                presentation, "MediaLibrary-RenameFolder-confirm"
+            )
+            probe = self.copy_probe("round11-rename-confirm")
+            if renamed.get("success") is True and any(
+                "reachability files delivered action=renameFolder.confirm" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:MediaLibrary-RenameFolder-confirm",
+                    self.events[-1]["evidence"],
+                    "Rename reached MediaLibrary.rename through the product alert action.",
+                )
+
+        self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, selection = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("selectMultiple",),
+        )
+        if selection.get("success") is not True:
+            return
+        selected = self.tap(
+            presentation,
+            "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+        )
+        if selected.get("success") is not True:
+            return
+        before = self.copy_probe("round11-multiselect-delete-before")
+        offset = len(before)
+        deleted = self.tap(presentation, "MediaLibrary-MultiSelect-delete")
+        probe = self.copy_probe("round11-multiselect-delete")
+        if deleted.get("success") is True and any(
+            "reachability files delivered action=multiSelect.delete" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:MediaLibrary-MultiSelect-delete",
+                self.events[-1]["evidence"],
+                "Delete opened the product batch-removal confirmation.",
+            )
+        before = probe
+        offset = len(before)
+        confirmed = self.tap(
+            presentation, "MediaLibrary-MultiSelect-confirmDelete"
+        )
+        probe = self.copy_probe("round11-multiselect-confirm")
+        if confirmed.get("success") is True and any(
+            "reachability files delivered action=multiSelect.confirmDelete" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:MediaLibrary-MultiSelect-confirmDelete",
+                self.events[-1]["evidence"],
+                "Delete Selected reached the product removal handler; the original media was unchanged.",
+            )
+
     def settings_menu_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-settings")
-        self.tap(presentation, "Settings-category-playback", operation_id=(
-            "accessibility:Settings-category-{item.id}"
-        ))
+        before = self.copy_probe("round11-settings-category-before")
+        offset = len(before)
+        category = self.tap(
+            presentation,
+            "Settings-category-storagePrivacy",
+            operation_id="accessibility:Settings-category-{item.id}",
+        )
+        probe = self.copy_probe("round11-settings-category-selected")
+        if category.get("success") is True and any(
+            "reachability settings delivered action=category.storagePrivacy" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Settings-category-{item.id}",
+                self.events[-1]["evidence"],
+                "Storage & Privacy changed the product Settings selection.",
+            )
         for family in (
             "resume-strategy",
             "end-behavior",
@@ -2764,8 +2971,194 @@ class ReachabilityRun:
                 "accessibility:FileBrowsing-Breadcrumb-current",
                 "accessibility:FileBrowsing-Breadcrumb-current",
                 self.events[-1]["evidence"],
-                "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+                    "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+                )
+
+    def remote_browser_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(snapshot)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        if not source_identifiers:
+            return
+
+        operation_id = "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
+        source_selected = False
+        for source_identifier in source_identifiers:
+            for index in (1, 2):
+                before = self.copy_probe("round11-remote-source-before")
+                offset = len(before)
+                self.mark_driven(presentation, operation_id)
+                selected = self.controller(
+                    "tap",
+                    "--identifier", source_identifier,
+                    "--index", str(index),
+                    "--no-screenshot",
+                    timeout=90,
+                )
+                matched = selected.get("matchedElement")
+                if isinstance(matched, dict):
+                    self.mark_observation(
+                        presentation,
+                        operation_id,
+                        exists=True,
+                        hittable=matched.get("isHittable") is True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The non-delete child of the existing source row was addressable.",
+                    )
+                probe = self.copy_probe("round11-remote-source-selected")
+                if selected.get("success") is True and any(
+                    "reachability files delivered action=sidebar.select." in line
+                    for line in probe[offset:]
+                ):
+                    self.mark_observation(
+                        presentation,
+                        operation_id,
+                        received=True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The existing source row reached FilesScreen.select without activating its delete control.",
+                    )
+                    remote_state = self.controller("snapshot", "--no-screenshot")
+                    remote_identifiers = self.hierarchy_identifiers(remote_state)
+                    if "FileBrowsing-error-secondary" in remote_identifiers:
+                        self.tap(presentation, "FileBrowsing-error-secondary")
+                        continue
+                    source_selected = True
+                    break
+            if source_selected:
+                break
+        if not source_selected:
+            return
+
+        current = self.wait_for_identifier(
+            "FileBrowsing-Breadcrumb-current", timeout=20
+        )
+        if isinstance(current.get("matchedElement"), dict):
+            before = self.copy_probe("round11-files-breadcrumb-before")
+            offset = len(before)
+            parent = self.tap(presentation, "FileBrowsing-Breadcrumb-current")
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="files",
+                family="breadcrumb",
+                preferred=("0",),
             )
+            probe = self.copy_probe("round11-files-breadcrumb-selected")
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    "reachability files delivered action=breadcrumb.files" in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:FileBrowsing-Breadcrumb-current",
+                    "accessibility:FileBrowsing-Breadcrumb-current",
+                    self.events[-1]["evidence"],
+                    "The live remote breadcrumb entered its product navigation callback.",
+                )
+
+        remote = self.controller("snapshot", "--no-screenshot")
+        folder_identifier = next(
+            (
+                identifier for identifier in sorted(self.hierarchy_identifiers(remote))
+                if identifier.startswith("FileBrowsing-grid-folder-")
+            ),
+            None,
+        )
+        if folder_identifier is not None:
+            before = self.copy_probe("round11-remote-folder-before")
+            offset = len(before)
+            folder = self.tap(
+                presentation,
+                folder_identifier,
+                operation_id="accessibility:FileBrowsing-grid-folder-{folder.name}",
+            )
+            probe = self.copy_probe("round11-remote-folder-open")
+            if folder.get("success") is True and any(
+                "reachability files delivered action=remote.folder" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-grid-folder-{folder.name}",
+                    self.events[-1]["evidence"],
+                    "The live remote folder card reached the navigation handler.",
+                )
+            for direction in ("back", "forward", "back"):
+                before = probe
+                offset = len(before)
+                button = self.tap(
+                    presentation,
+                    f"FileBrowsing-FilesScreen-navBackForward-{direction}",
+                )
+                probe = self.copy_probe(f"round11-remote-nav-{direction}")
+                if button.get("success") is True and any(
+                    f"reachability files delivered action=files.nav.{direction}" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:FileBrowsing-FilesScreen-"
+                        f"navBackForward-{direction}",
+                        self.events[-1]["evidence"],
+                        "The remote history button reached its product handler.",
+                    )
+
+        self.controller("activate", "--no-screenshot")
+        scroll = self.controller(
+            "swipeUp",
+            "--identifier", "FileBrowsing-FilesScreen-list",
+            "--no-screenshot",
+            timeout=90,
+        )
+        probe = self.copy_probe("round11-remote-scroll")
+        if scroll.get("success") is True and any(
+            "reachability fileScroll" in line for line in probe
+        ):
+            self.delivered(
+                presentation,
+                "scroll:file-list",
+                self.events[-1]["evidence"],
+                "The live remote file surface appended a scroll geometry probe.",
+                has_accessibility_target=False,
+            )
+
+        remote = self.controller("snapshot", "--no-screenshot")
+        video_identifier = next(
+            (
+                identifier for identifier in sorted(self.hierarchy_identifiers(remote))
+                if identifier.startswith("FileBrowsing-grid-video-")
+            ),
+            None,
+        )
+        if video_identifier is not None:
+            before = self.copy_probe("round11-remote-video-before")
+            offset = len(before)
+            video = self.tap(
+                presentation,
+                video_identifier,
+                operation_id="accessibility:FileBrowsing-grid-video-{file.name}",
+            )
+            probe = self.copy_probe("round11-remote-video-open")
+            if video.get("success") is True and any(
+                "reachability files delivered action=remote.video" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-grid-video-{file.name}",
+                    self.events[-1]["evidence"],
+                    "The live remote video card reached the playback handler.",
+                )
 
     def emby_version_season_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
@@ -2838,6 +3231,238 @@ class ReachabilityRun:
                             f"The visible Emby {family} host invoked its product selection binding and the completed command probe followed it.",
                         )
                     found_families.add(family)
+
+    def emby_content_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+
+        def emby_home_snapshot() -> dict[str, Any]:
+            self.relaunch()
+            self.tap(presentation, "Emby-Navigation-Tab")
+            return self.controller("snapshot", "--no-screenshot")
+
+        def open_card(prefix: str, operation_id: str) -> tuple[str | None, dict[str, Any]]:
+            home = emby_home_snapshot()
+            identifier = next(
+                (
+                    value for value in sorted(self.hierarchy_identifiers(home))
+                    if value.startswith(prefix)
+                ),
+                None,
+            )
+            if identifier is None:
+                return None, home
+            before = self.copy_probe(f"round11-{prefix}-before")
+            offset = len(before)
+            opened = self.tap(
+                presentation, identifier, operation_id=operation_id
+            )
+            detail = self.wait_for_identifier("Emby-Detail-list", timeout=20)
+            probe = self.copy_probe(f"round11-{prefix}-opened")
+            needle = (
+                "reachability emby delivered action=posterCard.select."
+                if prefix == "Emby-PosterCard-"
+                else "reachability emby delivered action=stillCard.select."
+            )
+            if (
+                opened.get("success") is True
+                and any(needle in line for line in probe[offset:])
+            ):
+                self.delivered(
+                    presentation,
+                    operation_id,
+                    self.events[-1]["evidence"],
+                    "The existing Emby card reached the shared detail navigation handler.",
+                )
+            return identifier, detail
+
+        poster_identifier, detail = open_card(
+            "Emby-PosterCard-",
+            "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
+        )
+        if poster_identifier is not None:
+            identifiers = self.hierarchy_identifiers(detail)
+            if "Emby-Detail-Overview-Expand" in identifiers:
+                before = self.copy_probe("round11-emby-overview-before")
+                offset = len(before)
+                expanded = self.tap(
+                    presentation, "Emby-Detail-Overview-Expand"
+                )
+                probe = self.copy_probe("round11-emby-overview")
+                if expanded.get("success") is True and any(
+                    "reachability emby delivered action=detail.overview.toggle" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:Emby-Detail-Overview-Expand",
+                        self.events[-1]["evidence"],
+                        "More changed the product overview expansion state.",
+                    )
+
+        still_identifier, still_detail = open_card(
+            "Emby-StillCard-",
+            "accessibility:Emby-StillCard-{metadata.id.rawValue}",
+        )
+        playback_detail = still_detail if still_identifier is not None else detail
+        action_identifier = next(
+            (
+                value for value in (
+                    "Emby-Detail-Resume",
+                    "Emby-Detail-PlayFromBeginning",
+                )
+                if value in self.hierarchy_identifiers(playback_detail)
+            ),
+            None,
+        )
+        if action_identifier is not None:
+            before = self.copy_probe("round11-emby-play-before")
+            offset = len(before)
+            played = self.tap(
+                presentation,
+                action_identifier,
+                operation_id=(
+                    "accessibility:Emby-Detail-"
+                    "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}"
+                ),
+            )
+            control = self.wait_for_identifier(
+                "PlayerUI-window-control-plane", timeout=30
+            )
+            probe = self.copy_probe("round11-emby-play")
+            if (
+                played.get("success") is True
+                and isinstance(control.get("matchedElement"), dict)
+                and any(
+                    "reachability emby delivered action=detail.play." in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:Emby-Detail-"
+                    "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+                    self.events[-1]["evidence"],
+                    "The existing Emby title reached its playback selection handler.",
+                )
+
+        home = emby_home_snapshot()
+        preferred = "Emby-PosterCard-177"
+        card_identifiers = [
+            value for value in sorted(self.hierarchy_identifiers(home))
+            if value.startswith(("Emby-PosterCard-", "Emby-StillCard-"))
+        ]
+        if preferred in card_identifiers:
+            card_identifiers.remove(preferred)
+            card_identifiers.insert(0, preferred)
+        for card_identifier in card_identifiers[:EMBY_DETAIL_CANDIDATE_LIMIT]:
+            self.relaunch()
+            self.tap(presentation, "Emby-Navigation-Tab")
+            if self.tap(presentation, card_identifier).get("success") is not True:
+                continue
+            detail = self.controller("snapshot", "--no-screenshot")
+            episode_identifier = next(
+                (
+                    value for value in sorted(self.hierarchy_identifiers(detail))
+                    if value.startswith("Emby-Episode-")
+                ),
+                None,
+            )
+            if episode_identifier is None:
+                continue
+            before = self.copy_probe("round11-emby-episode-before")
+            offset = len(before)
+            episode = self.tap(
+                presentation,
+                episode_identifier,
+                operation_id="accessibility:Emby-Episode-{metadata.id.rawValue}",
+            )
+            control = self.wait_for_identifier(
+                "PlayerUI-window-control-plane", timeout=30
+            )
+            probe = self.copy_probe("round11-emby-episode")
+            if (
+                episode.get("success") is True
+                and isinstance(control.get("matchedElement"), dict)
+                and any(
+                    "reachability emby delivered action=episode.select." in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:Emby-Episode-{metadata.id.rawValue}",
+                    self.events[-1]["evidence"],
+                    "The existing episode card reached the Emby playback selection handler.",
+                )
+            break
+
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        self.controller("tap", "--label", "Search", "--no-screenshot")
+        search = self.wait_for_identifier("Emby-Search-Field", timeout=15)
+        if isinstance(search.get("matchedElement"), dict):
+            before = self.copy_probe("round11-emby-search-before")
+            offset = len(before)
+            typed = self.controller(
+                "typeText", "--identifier", "Emby-Search-Field",
+                "--text", "a", "--no-screenshot", timeout=90,
+            )
+            probe = self.copy_probe("round11-emby-search")
+            if typed.get("success") is True and any(
+                "reachability emby delivered action=search.query" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:Emby-Search-Field",
+                    self.events[-1]["evidence"],
+                    "Typing changed the product Emby search binding.",
+                )
+
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        sidebar = self.controller("snapshot", "--no-screenshot")
+        library_identifier = next(
+            (
+                value for value in sorted(self.hierarchy_identifiers(sidebar))
+                if value.startswith("Emby-Sidebar-library-")
+            ),
+            None,
+        )
+        if library_identifier is not None:
+            self.controller(
+                "tap", "--identifier", library_identifier,
+                "--index", "2", "--no-screenshot", timeout=90,
+            )
+            sort = self.wait_for_identifier("Emby-Library-Sort", timeout=20)
+            matched = sort.get("matchedElement")
+            self.mark_driven(presentation, "accessibility:Emby-Library-Sort")
+            if isinstance(matched, dict):
+                self.mark_observation(
+                    presentation,
+                    "accessibility:Emby-Library-Sort",
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="The existing Emby library exposed its segmented sort control.",
+                )
+                before = self.copy_probe("round11-emby-sort-before")
+                offset = len(before)
+                changed = self.controller(
+                    "tap", "--label", "Alphabetical", "--no-screenshot", timeout=90,
+                )
+                probe = self.copy_probe("round11-emby-sort")
+                if changed.get("success") is True and any(
+                    "reachability emby delivered action=library.sort." in line
+                    for line in probe[offset:]
+                ):
+                    self.mark_observation(
+                        presentation,
+                        "accessibility:Emby-Library-Sort",
+                        received=True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="Alphabetical changed the product library sort binding.",
+                    )
 
     def player_panel_portal_menu_scenario(self) -> None:
         opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
@@ -2926,6 +3551,9 @@ class ReachabilityRun:
             )
         time.sleep(2)
         return result
+
+    def open_local_media(self, file_name: str) -> dict[str, Any]:
+        return self.open_media(f"MediaLibrary-grid-video-{file_name}")
 
     def video_format_editor_scenario(
         self,
@@ -3214,6 +3842,122 @@ class ReachabilityRun:
         self.transport_scenario(presentation)
         self.top_menu_scenario(presentation)
         self.resume_decision_scenario()
+
+    def window_issue_scenario(self) -> None:
+        if self.open_local_media("furyroad-stripped.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        for category, identifier, action in (
+            ("playbackControlFailed", "PlayerUI-playbackIssue-confirm", "confirm"),
+            ("capabilityUnavailable", "PlayerUI-unmetCapability-dismiss", "confirm"),
+        ):
+            self.exercise_playback_issue(
+                "window",
+                category=category,
+                identifier=identifier,
+                action=action,
+            )
+
+    def window_dv_format_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        self.video_format_editor_scenario(
+            "window",
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+
+    def window_menu_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        self.player_panel_media_information_scenario("window")
+        self.top_menu_scenario("window")
+
+    def window_environment_scenario(self) -> None:
+        presentation = "window"
+        self.relaunch()
+        before = self.copy_probe("window-environment-before")
+        offset = len(before)
+        opened = self.tap(
+            MAIN_WINDOW_BROWSER_CONTEXT,
+            "Navigation-Ornament-tab-environment",
+        )
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=20)
+        identifiers = self.hierarchy_identifiers(volume)
+        environment_identifier = next(
+            (
+                value for value in sorted(identifiers)
+                if value.startswith("EnvironmentCard-button-environment-")
+            ),
+            None,
+        )
+        effect_identifier = next(
+            (
+                value for value in sorted(identifiers)
+                if value.startswith("EnvironmentCard-effect-")
+            ),
+            None,
+        )
+        if opened.get("success") is not True or effect_identifier is None:
+            return
+        for identifier, operation_id in (
+            ("EnvironmentCard-card", "accessibility:EnvironmentCard-card"),
+            ("EnvironmentCard-carousel", "accessibility:EnvironmentCard-carousel"),
+        ):
+            self.tap(presentation, identifier, operation_id=operation_id)
+        changed = self.tap(
+            presentation,
+            effect_identifier,
+            operation_id=(
+                "accessibility:EnvironmentCard-effect-"
+                "{environment.environment.rawValue}"
+            ),
+        )
+        probe = self.copy_probe("window-environment-effect")
+        effect_delivered = changed.get("success") is True and any(
+            "environmentCard effect delivered" in line
+            for line in probe[offset:]
+        )
+        if effect_delivered:
+            for operation_id in (
+                "accessibility:EnvironmentCard-card",
+                "accessibility:EnvironmentCard-carousel",
+            ):
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    received=True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="A contained Environment Card effect reached its product handler.",
+                )
+        if environment_identifier is not None:
+            toggle_offset = len(probe)
+            toggled = self.tap(
+                presentation,
+                environment_identifier,
+                operation_id=(
+                    "accessibility:EnvironmentCard-button-environment-"
+                    "{environment.environment.rawValue}"
+                ),
+            )
+            probe = self.copy_probe("window-environment-toggle")
+            if toggled.get("success") is True and any(
+                "environmentCard toggle delivered" in line
+                for line in probe[toggle_offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:EnvironmentCard-button-environment-"
+                    "{environment.environment.rawValue}",
+                    self.events[-1]["evidence"],
+                    "The visible environment button reached the product toggle handler.",
+                )
+        self.app_command("dismissEnvironmentCard")
 
     def player_ui_candidate_scenario(self) -> None:
         presentation = "window"
@@ -3649,9 +4393,11 @@ class ReachabilityRun:
             )
 
 
-    def enter_panorama_playback(self) -> bool:
+    def enter_panorama_playback(
+        self, file_name: str = "furyroad-stripped.mkv"
+    ) -> bool:
         presentation = "panorama"
-        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        opened = self.open_local_media(file_name)
         if opened.get("success") is not True:
             return False
         if not self.ensure_window_projection("180°"):
@@ -3707,6 +4453,14 @@ class ReachabilityRun:
         self.player_panel_menu_scenario(presentation)
         return True
 
+    def panorama_content_scenario(self) -> None:
+        if not self.enter_panorama_playback(
+            "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        ):
+            return
+        self.player_panel_media_information_scenario("panorama")
+        self.player_panel_menu_scenario("panorama")
+
     def portal_scenario(self) -> None:
         presentation = "portal"
         opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
@@ -3742,16 +4496,61 @@ class ReachabilityRun:
         self.seek_scenario(presentation, "0.4")
         self.top_menu_scenario(presentation)
 
+    def enter_portal_playback(
+        self, file_name: str = "furyroad-stripped.mkv"
+    ) -> bool:
+        if self.open_local_media(file_name).get("success") is not True:
+            return False
+        if not self.ensure_window_projection("180°"):
+            return False
+        control_plane = self.wait_for_identifier(
+            "PlayerUI-window-control-plane", timeout=45
+        )
+        value = str((control_plane.get("matchedElement") or {}).get("value", ""))
+        return "presentation=portal" in value and "transition=none" in value
+
+    def portal_dv_scenario(self) -> None:
+        if not self.enter_portal_playback("furyroad-with-dv.mkv"):
+            return
+        self.video_format_editor_scenario(
+            "portal",
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+        self.player_panel_media_information_scenario("portal")
+
+    def portal_issue_scenario(self) -> None:
+        cases = (
+            ("mediaOpeningFailed", "PlayerUI-loadFailure-primary", "retry"),
+            ("mediaOpeningFailed", "PlayerUI-loadFailure-secondary", "close"),
+            ("playbackControlFailed", "PlayerUI-playbackIssue-confirm", "confirm"),
+            ("capabilityUnavailable", "PlayerUI-unmetCapability-dismiss", "confirm"),
+        )
+        for category, identifier, action in cases:
+            if not self.enter_portal_playback():
+                return
+            self.exercise_playback_issue(
+                "portal",
+                category=category,
+                identifier=identifier,
+                action=action,
+            )
+
+    def portal_route_scenario(self) -> None:
+        if not self.enter_portal_playback():
+            return
+        self.stop_playback("portal")
+        self.enter_panorama_playback()
+
     def enter_docked_playback(
         self,
         *,
         dock_choice: str = "skybox",
+        file_name: str = "furyroad-stripped.mkv",
         record_route: bool = False,
     ) -> bool:
         presentation = "docked"
-        opened = self.open_media(
-            "MediaLibrary-grid-video-furyroad-stripped.mkv"
-        )
+        opened = self.open_local_media(file_name)
         if opened.get("success") is not True:
             return False
         if not self.ensure_window_projection("Flat"):
@@ -3873,7 +4672,8 @@ class ReachabilityRun:
         before = self.copy_probe("docked-environment-card-before")
         offset = len(before)
         opened = self.app_command("openEnvironmentCard")
-        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=15)
+        self.controller("activate", "--no-screenshot")
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=25)
         identifiers = self.hierarchy_identifiers(volume)
         effect_identifier = next(
             (value for value in sorted(identifiers)
@@ -4050,6 +4850,67 @@ class ReachabilityRun:
 
     def docked_issue_scenario(self) -> None:
         self.immersive_issue_scenario("docked")
+
+    def docked_content_scenario(self) -> None:
+        if not self.enter_docked_playback(
+            file_name="sdr-bframe-multiaudio-subtitles-30s.mkv"
+        ):
+            return
+        self.player_panel_media_information_scenario("docked")
+        self.player_panel_menu_scenario("docked")
+
+    def exit_spatial_with_product_command(
+        self, presentation: str, expected_presentation: str
+    ) -> None:
+        operation_id = "accessibility:PlayerPanel-button-exit-spatial"
+        visible = self.wait_for_identifier(
+            "PlayerPanel-button-exit-spatial", timeout=15
+        )
+        matched = visible.get("matchedElement")
+        self.mark_driven(presentation, operation_id)
+        if not isinstance(matched, dict):
+            return
+        self.mark_observation(
+            presentation,
+            operation_id,
+            exists=True,
+            hittable=matched.get("isHittable") is True,
+            evidence=self.events[-1]["evidence"],
+            reason="The immersive attachment exposed the product exit button.",
+        )
+        before = self.copy_probe(f"{presentation}-exit-command-before")
+        offset = len(before)
+        exited = self.app_command("exitSpatial")
+        self.controller("activate", "--no-screenshot")
+        settled = self.wait_for_identifier(
+            "PlayerUI-window-control-plane", timeout=45
+        )
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        probe = self.copy_probe(f"{presentation}-exit-command-settled")
+        if (
+            exited.get("success") is True
+            and f"presentation={expected_presentation}" in value
+            and "transition=none" in value
+            and any(
+                "testcmd exitSpatial delivered" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.mark_observation(
+                presentation,
+                operation_id,
+                received=True,
+                evidence=self.events[-1]["evidence"],
+                reason="The DEBUG equivalent called requestPlaybackPresentation, the same product handler used by the button, and the control plane settled at the exit target.",
+            )
+
+    def panorama_exit_command_scenario(self) -> None:
+        if self.enter_panorama_playback():
+            self.exit_spatial_with_product_command("panorama", "portal")
+
+    def docked_exit_command_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.exit_spatial_with_product_command("docked", "window")
 
     def docked_main_window_issue_scenario(self) -> None:
         presentation = "docked"
@@ -4408,6 +5269,8 @@ class ReachabilityRun:
             "breadcrumbs": self.breadcrumb_scenario,
             "docked": self.docked_scenario,
             "docked-environment": self.docked_environment_segment_scenario,
+            "docked-content-round11": self.docked_content_scenario,
+            "docked-exit-command-round11": self.docked_exit_command_scenario,
             "docked-exit": self.docked_exit_segment_scenario,
             "docked-main-window-issues": self.docked_main_window_issue_scenario,
             "docked-menus": self.docked_menu_segment_scenario,
@@ -4418,13 +5281,17 @@ class ReachabilityRun:
             ),
             "docked-transport-issues": self.docked_transport_issue_segment_scenario,
             "emby-version-season": self.emby_version_season_scenario,
+            "emby-content-round11": self.emby_content_scenario,
             "file-browser-errors": self.file_browser_error_scenario,
             "library-conditions": lambda: self.browser_condition_scenario(
                 include_source_scenarios=False
             ),
+            "library-editing-round11": self.library_editing_scenario,
             "library-reference-move": self.library_reference_move_scenario,
             "manage-add": self.manage_add_scenario,
             "panorama": self.panorama_scenario,
+            "panorama-content-round11": self.panorama_content_scenario,
+            "panorama-exit-command-round11": self.panorama_exit_command_scenario,
             "panorama-immersive-issues": (
                 self.panorama_immersive_issue_segment_scenario
             ),
@@ -4439,12 +5306,20 @@ class ReachabilityRun:
             "player-ui-candidates": self.player_ui_candidate_scenario,
             "player-panel-portal-menus": self.player_panel_portal_menu_scenario,
             "portal": self.portal_scenario,
+            "portal-dv-round11": self.portal_dv_scenario,
+            "portal-issues-round11": self.portal_issue_scenario,
+            "portal-routes-round11": self.portal_route_scenario,
+            "remote-browser-round11": self.remote_browser_scenario,
             "resume-decision": self.resume_decision_scenario,
             "settings-menus": self.settings_menu_scenario,
             "source-connection-smb": lambda: self.source_connection_scenario("smb"),
             "source-connection-webdav": lambda: self.source_connection_scenario("webDAV"),
             "source-sidebar": self.source_sidebar_scenario,
             "window-playback": self.window_scenario,
+            "window-dv-format-round11": self.window_dv_format_scenario,
+            "window-environment-round11": self.window_environment_scenario,
+            "window-issues-round11": self.window_issue_scenario,
+            "window-menus-round11": self.window_menu_scenario,
         }
         scenarios[name]()
 
@@ -4510,11 +5385,22 @@ class ReachabilityRun:
             "portal",
             "resume-decision",
             "window-playback",
+            "docked-exit-command-round11",
+            "library-editing-round11",
+            "panorama-exit-command-round11",
+            "portal-issues-round11",
+            "portal-routes-round11",
+            "window-issues-round11",
         }
         planned_scenarios = {str(value) for value in self.segment["scenarios"]}
-        if planned_scenarios & fixture_scenarios and not self.stage_fixture(
-            "furyroad-stripped.mkv"
-        ):
+        fixture_files: set[str] = set()
+        if planned_scenarios & fixture_scenarios:
+            fixture_files.add("furyroad-stripped.mkv")
+        for scenario in planned_scenarios:
+            fixture_files.update(SCENARIO_FIXTURES.get(scenario, ()))
+        for fixture_file in sorted(fixture_files):
+            if self.stage_fixture(fixture_file):
+                continue
             self.controller("halt", "--no-screenshot", timeout=240)
             return self.finish_segment("drive-error")
 

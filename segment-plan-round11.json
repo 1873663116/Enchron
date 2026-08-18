@@ -1,0 +1,268 @@
+{
+  "delivery": "reachability-round11-remaining-defects",
+  "schemaVersion": 2,
+  "segments": [
+    {
+      "id": "browser-01-remote-content",
+      "context": "main-window-browser",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["remote-browser-round11"],
+      "decisions": [
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-Breadcrumb-current"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-Sidebar-row-local"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-SourcesSidebar-delete"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}"},
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-grid-video-{file.name}"},
+        {"context": "main-window-browser", "operation": "scroll:file-list"}
+      ]
+    },
+    {
+      "id": "browser-02-library-editing",
+      "context": "main-window-browser",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["library-editing-round11"],
+      "decisions": [
+        {"context": "main-window-browser", "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete"},
+        {"context": "main-window-browser", "operation": "accessibility:MediaLibrary-MultiSelect-delete"},
+        {"context": "main-window-browser", "operation": "accessibility:MediaLibrary-NewFolder-name"},
+        {"context": "main-window-browser", "operation": "accessibility:MediaLibrary-RenameFolder-confirm"},
+        {"context": "main-window-browser", "operation": "accessibility:MediaLibrary-RenameFolder-name"}
+      ]
+    },
+    {
+      "id": "browser-03-settings-category",
+      "context": "main-window-browser",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["settings-menus"],
+      "decisions": [
+        {"context": "main-window-browser", "operation": "accessibility:Settings-category-{item.id}"}
+      ]
+    },
+    {
+      "id": "browser-04-smb-connect",
+      "context": "main-window-browser",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["source-connection-smb"],
+      "decisions": [
+        {"context": "main-window-browser", "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect"}
+      ]
+    },
+    {
+      "id": "browser-05-emby-content",
+      "context": "main-window-browser",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["emby-content-round11"],
+      "decisions": [
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Detail-Overview-Expand"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Library-Sort"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Search-Field"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}"}
+      ]
+    },
+    {
+      "id": "browser-06-emby-conditional",
+      "context": "main-window-browser",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["emby-version-season"],
+      "decisions": [
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Connection-Address"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Connection-Connect"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Connection-Password"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Connection-Username"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Detail-Version"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Season-Picker"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}"},
+        {"context": "main-window-browser", "operation": "accessibility:Emby-SignOut"}
+      ]
+    },
+    {
+      "id": "window-01-dv-format",
+      "context": "window",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["window-dv-format-round11"],
+      "decisions": [
+        {"context": "window", "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback"}
+      ]
+    },
+    {
+      "id": "window-01-menus",
+      "context": "window",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["window-menus-round11"],
+      "decisions": [
+        {"context": "window", "operation": "accessibility:PlayerPanel-media-information-close"},
+        {"context": "window", "operation": "command:listMenuItems"},
+        {"context": "window", "operation": "command:selectMenuItem"}
+      ]
+    },
+    {
+      "id": "window-02-issues",
+      "context": "window",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["window-issues-round11"],
+      "decisions": [
+        {"context": "window", "operation": "accessibility:PlayerUI-playbackIssue-confirm"},
+        {"context": "window", "operation": "accessibility:PlayerUI-unmetCapability-dismiss"}
+      ]
+    },
+    {
+      "id": "window-03-environment",
+      "context": "window",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["window-environment-round11"],
+      "decisions": [
+        {"context": "window", "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}"},
+        {"context": "window", "operation": "accessibility:EnvironmentCard-card"},
+        {"context": "window", "operation": "accessibility:EnvironmentCard-carousel"}
+      ]
+    },
+    {
+      "id": "portal-01-dv",
+      "context": "portal",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["portal-dv-round11"],
+      "decisions": [
+        {"context": "portal", "operation": "accessibility:PlayerPanel-media-information-close"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-VideoFormat-apply"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-VideoFormat-automatic"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-VideoFormat-cancel"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}"}
+      ]
+    },
+    {
+      "id": "portal-02-issues",
+      "context": "portal",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["portal-issues-round11"],
+      "decisions": [
+        {"context": "portal", "operation": "accessibility:PlayerUI-loadFailure-primary"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-loadFailure-secondary"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-playbackIssue-confirm"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-unmetCapability-dismiss"}
+      ]
+    },
+    {
+      "id": "portal-03-routes",
+      "context": "portal",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["portal-routes-round11"],
+      "decisions": [
+        {"context": "portal", "operation": "accessibility:PlayerUI-InfoBar-button-back"},
+        {"context": "portal", "operation": "accessibility:PlayerUI-TopAction-resumePanorama"}
+      ]
+    },
+    {
+      "id": "panorama-01-content",
+      "context": "panorama",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["panorama-content-round11"],
+      "decisions": [
+        {"context": "panorama", "operation": "accessibility:PlayerPanel-media-information-close"},
+        {"context": "panorama", "operation": "accessibility:PlayerPanel-menu-audio"}
+      ]
+    },
+    {
+      "id": "panorama-02-exit",
+      "context": "panorama",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["panorama-exit-command-round11"],
+      "decisions": [
+        {"context": "panorama", "operation": "accessibility:PlayerPanel-button-exit-spatial"}
+      ]
+    },
+    {
+      "id": "panorama-03-primary-issues",
+      "context": "panorama",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["panorama-immersive-issues"],
+      "decisions": [
+        {"context": "panorama", "operation": "accessibility:PlayerUI-playbackIssue-confirm"},
+        {"context": "panorama", "operation": "accessibility:PlayerUI-spatialFailure-primary"},
+        {"context": "panorama", "operation": "accessibility:PlayerUI-unmetCapability-dismiss"}
+      ]
+    },
+    {
+      "id": "panorama-04-secondary-issue",
+      "context": "panorama",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["panorama-spatial-secondary-issue"],
+      "decisions": [
+        {"context": "panorama", "operation": "accessibility:PlayerUI-spatialFailure-secondary"}
+      ]
+    },
+    {
+      "id": "panorama-05-resident-window",
+      "context": "panorama",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["panorama-resident-window"],
+      "decisions": [
+        {"context": "panorama", "operation": "negative:immersive-resident-window"}
+      ]
+    },
+    {
+      "id": "docked-01-environment",
+      "context": "docked",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["docked-environment"],
+      "decisions": [
+        {"context": "docked", "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}"},
+        {"context": "docked", "operation": "accessibility:EnvironmentCard-card"},
+        {"context": "docked", "operation": "accessibility:EnvironmentCard-carousel"},
+        {"context": "docked", "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}"},
+        {"context": "docked", "operation": "environmentVolume:open-interact-close"}
+      ]
+    },
+    {
+      "id": "docked-02-content",
+      "context": "docked",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["docked-content-round11"],
+      "decisions": [
+        {"context": "docked", "operation": "accessibility:PlayerPanel-media-information-close"},
+        {"context": "docked", "operation": "accessibility:PlayerPanel-menu-audio"},
+        {"context": "docked", "operation": "accessibility:PlayerPanel-menu-episodes"}
+      ]
+    },
+    {
+      "id": "docked-03-exit",
+      "context": "docked",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["docked-exit-command-round11"],
+      "decisions": [
+        {"context": "docked", "operation": "accessibility:PlayerPanel-button-exit-spatial"}
+      ]
+    },
+    {
+      "id": "docked-04-primary-issues",
+      "context": "docked",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["docked-transport-issues"],
+      "decisions": [
+        {"context": "docked", "operation": "accessibility:PlayerUI-playbackIssue-confirm"},
+        {"context": "docked", "operation": "accessibility:PlayerUI-spatialFailure-primary"},
+        {"context": "docked", "operation": "accessibility:PlayerUI-unmetCapability-dismiss"}
+      ]
+    },
+    {
+      "id": "docked-05-secondary-issue",
+      "context": "docked",
+      "expectedMaximumSteps": 100,
+      "scenarios": ["docked-spatial-secondary-issue"],
+      "decisions": [
+        {"context": "docked", "operation": "accessibility:PlayerUI-spatialFailure-secondary"}
+      ]
+    }
+  ]
+}

@@ -171,6 +171,32 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             self.assertEqual(run.channel_failures[0]["action"], "copyProbe")
             self.assertIn("120.0 seconds", run.channel_failures[0]["error"])
 
+    def test_probe_clear_retries_a_transient_destination_exists_error(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.segment = {"id": "window-dv-format"}
+            run.events = []
+            run.channel_failures = []
+            run.raw = Path(directory)
+            run.direct_devicectl_calls = 0
+            destination_exists = Mock(
+                returncode=1,
+                stderr="NSPOSIXErrorDomain error 17",
+                stdout="",
+            )
+            cleared = Mock(returncode=0, stderr="", stdout="File Size: Zero KB")
+
+            with patch.object(
+                matrix.subprocess,
+                "run",
+                side_effect=(destination_exists, cleared),
+            ) as subprocess_run:
+                self.assertTrue(run.clear_probe_after_archive())
+
+            self.assertEqual(subprocess_run.call_count, 2)
+            self.assertEqual(run.events[-1]["attemptCount"], 2)
+            self.assertTrue(run.events[-1]["success"])
+
     def test_controller_enforces_the_120_second_continuity_deadline_by_default(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
