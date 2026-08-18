@@ -89,6 +89,24 @@ def product_presentations(operation: dict[str, Any]) -> tuple[str, ...]:
     return ("window",)
 
 
+def immersive_resident_window_is_hidden(
+    *,
+    toggle: dict[str, Any],
+    cleanup: dict[str, Any],
+    no_named_node: bool,
+    no_new_identifier: bool,
+) -> bool:
+    cleanup_proves_intermediate_state = (
+        cleanup.get("success") is True
+        and cleanup.get("ok") is True
+        and cleanup.get("payload") == ["false"]
+    )
+    mechanism_was_open = (
+        toggle.get("success") is True or cleanup_proves_intermediate_state
+    )
+    return mechanism_was_open and no_named_node and no_new_identifier
+
+
 class ReachabilityRun:
     def __init__(self, arguments: argparse.Namespace) -> None:
         self.arguments = arguments
@@ -2400,22 +2418,39 @@ class ReachabilityRun:
         after_identifiers = self.hierarchy_identifiers(after)
         no_named_node = "Blackout Probe" not in after_hierarchy
         no_new_identifier = after_identifiers <= before_identifiers
-        if toggle.get("success") is True and no_named_node and no_new_identifier:
+        hierarchy_evidence = self.events[-1]["evidence"]
+        cleanup = self.app_command("toggleBlackoutProbeWindow")
+        cleanup_evidence = self.events[-1]["evidence"]
+        if immersive_resident_window_is_hidden(
+            toggle=toggle,
+            cleanup=cleanup,
+            no_named_node=no_named_node,
+            no_new_identifier=no_new_identifier,
+        ):
             self.delivered(
                 presentation, "negative:immersive-resident-window",
-                self.events[-1]["evidence"],
+                hierarchy_evidence,
                 "Opening the mechanism added no named or identifier-addressable Accessibility target.",
                 has_accessibility_target=False,
             )
+            if toggle.get("success") is not True:
+                self.cells[
+                    (presentation, "negative:immersive-resident-window")
+                ]["evidence"].append(cleanup_evidence)
         else:
             cell = self.cells[(presentation, "negative:immersive-resident-window")]
-            cell["evidence"].append(self.events[-1]["evidence"])
-            cell["reason"] = (
-                "The mechanism exposed a named or identifier-addressable Accessibility target "
-                f"(newIdentifiers={sorted(after_identifiers - before_identifiers)}, "
-                f"named={not no_named_node})."
-            )
-        self.app_command("toggleBlackoutProbeWindow")
+            cell["evidence"].extend((hierarchy_evidence, cleanup_evidence))
+            if no_named_node and no_new_identifier:
+                cell["reason"] = (
+                    "The Accessibility hierarchy remained hidden, but neither command "
+                    "response proved that the mechanism window was open."
+                )
+            else:
+                cell["reason"] = (
+                    "The mechanism exposed a named or identifier-addressable Accessibility target "
+                    f"(newIdentifiers={sorted(after_identifiers - before_identifiers)}, "
+                    f"named={not no_named_node})."
+                )
 
         if not self.enter_docked_playback():
             return
