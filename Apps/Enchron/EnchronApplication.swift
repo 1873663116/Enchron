@@ -40,6 +40,7 @@ final class EnchronApplication {
     let appModel: AppModel
     let playbackRuntime: PlaybackRuntime
     let playbackVideoEntityStore: PlaybackVideoEntityStore
+    let embyNavigationModel: EmbyNavigationModel
     let embySessionViewModel: EmbySessionViewModel
     let embyConnectionViewModel: EmbyConnectionViewModel
     let embyHomeViewModel: EmbyHomeViewModel
@@ -146,7 +147,11 @@ final class EnchronApplication {
             deviceName: UIDevice.current.name,
             deviceID: UIDevice.current.identifierForVendor?.uuidString ?? "Enchron-visionOS"
         ))
-        let embySession = EmbySessionViewModel(client: embyClient)
+        let embyNavigation = EmbyNavigationModel()
+        let embySession = EmbySessionViewModel(
+            client: embyClient,
+            navigation: embyNavigation
+        )
         let embyConnection = EmbyConnectionViewModel(session: embySession)
         let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)
         let embySearch = EmbySearchViewModel(client: embyClient, session: embySession)
@@ -304,6 +309,7 @@ final class EnchronApplication {
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
+        embyNavigationModel = embyNavigation
         embySessionViewModel = embySession
         embyConnectionViewModel = embyConnection
         embyHomeViewModel = embyHome
@@ -407,6 +413,7 @@ extension View {
             .environment(application.playbackRuntime)
             .environment(application.playbackVideoEntityStore)
             .environment(application.spatialPlatformEffectCoordinator)
+            .environment(application.embyNavigationModel)
             .environment(application.embySessionViewModel)
             .environment(application.embyConnectionViewModel)
             .environment(application.embyHomeViewModel)

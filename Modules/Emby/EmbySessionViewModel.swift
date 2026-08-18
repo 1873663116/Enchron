@@ -12,13 +12,16 @@ public final class EmbySessionViewModel {
     public private(set) var playbackQueue: PlaybackQueueSnapshot = .empty
 
     private let store: any EmbyServerStoring
+    private let navigation: EmbyNavigationModel
 
     public init(
         client: any EmbyClientProtocol,
-        store: any EmbyServerStoring = KeychainEmbyServerStore()
+        store: any EmbyServerStoring = KeychainEmbyServerStore(),
+        navigation: EmbyNavigationModel = EmbyNavigationModel()
     ) {
         self.client = client
         self.store = store
+        self.navigation = navigation
         let loadedServer: EmbyAuthenticatedServer?
         let loadErrorMessage: String?
         do {
@@ -54,6 +57,7 @@ public final class EmbySessionViewModel {
         }
         server = nil
         playbackQueue = .empty
+        navigation.reset()
         await playbackBridge.configure(server: nil)
     }
 

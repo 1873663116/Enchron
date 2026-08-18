@@ -2,6 +2,46 @@ import DesignSystem
 import Foundation
 import Observation
 
+@MainActor
+@Observable
+public final class EmbyNavigationModel {
+    public enum Destination: Hashable, Sendable {
+        case home
+        case library(EmbyItemID)
+        case search
+
+        var id: String {
+            switch self {
+            case .home: "home"
+            case .library(let id): "library-\(id.rawValue)"
+            case .search: "search"
+            }
+        }
+    }
+
+    public var destination: Destination
+    public var path: [EmbyLibraryItem]
+
+    public init(destination: Destination = .home, path: [EmbyLibraryItem] = []) {
+        self.destination = destination
+        self.path = path
+    }
+
+    public func select(_ destination: Destination) {
+        self.destination = destination
+        path = []
+    }
+
+    public func open(_ item: EmbyLibraryItem) {
+        path.append(item)
+    }
+
+    public func reset() {
+        destination = .home
+        path = []
+    }
+}
+
 public struct EmbyHomeShelf: Identifiable, Equatable, Sendable {
     public enum Kind: Equatable, Hashable, Sendable {
         case continueWatching
