@@ -441,7 +441,7 @@ public final class FileBrowsingViewModel {
     public func playbackItem(
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> MediaPlaybackItem {
-        let resolvedSource: ResolvedMediaSource
+        let resolvedSource: MediaByteStreamHandle
         if let activeRemoteAdapter {
             resolvedSource = try await activeRemoteAdapter.resolvePlayableSource(for: file)
         } else {
@@ -455,9 +455,16 @@ public final class FileBrowsingViewModel {
             provider: activeRemoteAdapter ?? localDataSource,
             dataSource: activeDataSource
         )
-        let sourceAccess = resolvedSource.accessLease ?? (playableURL.isFileURL
-            ? MediaAccessLease.securityScoped(securityScopedRootURL ?? playableURL)
-            : nil)
+        let source = if resolvedSource.accessLease == nil, playableURL.isFileURL {
+            MediaByteStreamHandle.localFile(
+                url: playableURL,
+                accessLease: MediaAccessLease.securityScoped(
+                    securityScopedRootURL ?? playableURL
+                )
+            )
+        } else {
+            resolvedSource
+        }
         let versionedIdentity: VersionedMediaIdentity?
         if let dataSource = activeDataSource {
             versionedIdentity = VersionedMediaIdentity.remote(
@@ -474,13 +481,12 @@ public final class FileBrowsingViewModel {
         }
         return MediaPlaybackItem(
             id: file.id,
-            url: playableURL,
+            source: source,
             displayName: file.name,
             stableIdentifier: stableIdentifier,
             sizeInBytes: file.sizeInBytes,
             collectionOrigin: .sourceDirectory,
             versionedIdentity: versionedIdentity,
-            accessLease: sourceAccess,
             externalSubtitleSources: externalSubtitles.sources,
             externalSubtitleErrorMessage: externalSubtitles.errorMessage
         )
@@ -510,7 +516,7 @@ public final class FileBrowsingViewModel {
         var sources: [ResolvedExternalSubtitleSource] = []
         var failureMessages: [String] = []
         for candidate in candidates {
-            let resolved: ResolvedMediaSource
+            let resolved: MediaByteStreamHandle
             do {
                 resolved = try await provider.resolveSubtitleSource(for: candidate)
             } catch {
@@ -622,10 +628,10 @@ public final class FileBrowsingViewModel {
         dataSourceID: UUID,
         path: String,
         reference: FileBrowsingDomain.MediaReference
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         if dataSourceID == localDataSourceID {
             guard let url = URL(string: path) else { throw LocalDataSourceError.itemNotReachable }
-            return ResolvedMediaSource(url: url)
+            return MediaByteStreamHandle.localFile(url: url)
         }
         guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
             throw MediaReferenceResolver.ResolutionError.unavailableSource

@@ -209,7 +209,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         guard smbManager != nil, let info = connectionInfo else {
             throw SMBError.notConnected
         }

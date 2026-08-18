@@ -127,20 +127,20 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         guard filter.matches(fileURL: file.url) else {
             throw LocalDataSourceError.fileNotPlayable
         }
-        return ResolvedMediaSource(url: try await resolveURL(for: file))
+        return MediaByteStreamHandle.localFile(url: try await resolveURL(for: file))
     }
 
     public func resolveSubtitleSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         guard FileBrowsingDomain.FileFilter.externalSubtitles.matches(fileURL: file.url) else {
             throw LocalDataSourceError.fileNotPlayable
         }
-        return ResolvedMediaSource(url: try await resolveURL(for: file))
+        return MediaByteStreamHandle.localFile(url: try await resolveURL(for: file))
     }
 
     private func connectedBaseURL() throws -> URL {

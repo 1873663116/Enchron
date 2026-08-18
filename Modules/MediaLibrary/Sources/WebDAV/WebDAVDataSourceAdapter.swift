@@ -165,7 +165,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         guard connectionInfo != nil else {
             throw WebDAVError.notConnected
         }

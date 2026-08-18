@@ -25,6 +25,7 @@ $(SRCROOT)/Modules/Emby/EmbyClient.swift
 $(SRCROOT)/Modules/Emby/EmbyClientProtocol.swift
 $(SRCROOT)/Modules/Emby/EmbyItemPresentation.swift
 $(SRCROOT)/Modules/Emby/EmbyLaunchRoute.swift
+$(SRCROOT)/Modules/Emby/EmbyMediaByteSource.swift
 $(SRCROOT)/Modules/Emby/EmbyModels.swift
 $(SRCROOT)/Modules/Emby/EmbyPlaybackBridge.swift
 $(SRCROOT)/Modules/Emby/EmbyScreenViewModels.swift
@@ -64,10 +65,10 @@ $(SRCROOT)/Modules/MediaLibrary/Views/SourceSidebar.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
+$(SRCROOT)/Modules/MediaSource/MediaByteStreamHandle.swift
 $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
 $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
-$(SRCROOT)/Modules/MediaSource/ResolvedMediaSource.swift
 $(SRCROOT)/Modules/MediaSource/VersionedMediaIdentity.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/MediaFormat.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/MediaStateStore.swift

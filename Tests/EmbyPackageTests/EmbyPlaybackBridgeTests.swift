@@ -37,11 +37,17 @@ struct EmbyPlaybackBridgeTests {
             mediaSourceID: selectedSource.id,
             startAction: .fromBeginning
         ))
+        defer {
+            resumed.sourceAccess?.release()
+            restarted.sourceAccess?.release()
+        }
 
         #expect(resumed.viewingStateAuthority == .mediaServer)
         #expect(resumed.startPositionSeconds == 5)
         #expect(restarted.startPositionSeconds == 0)
-        #expect(resumed.url == selectedSource.directPlayURL)
+        #expect(resumed.source.issuance == .loopbackRoute)
+        #expect(resumed.url.host == "127.0.0.1")
+        #expect(resumed.url != selectedSource.directPlayURL)
         #expect(resumed.versionedIdentity == selectedSource.versionedIdentity)
         #expect(resumed.collectionOrigin == .standalone)
         #expect(resumed.externalSubtitleSources.map(\.id) == ["emby.subtitle.4"])
@@ -119,6 +125,11 @@ struct EmbyPlaybackBridgeTests {
         let end = await bridge.nextRequest()
         let selected = await bridge.request(for: initialSnapshot.entries[0].id)
         let selectedSnapshot = await bridge.queueSnapshot
+        defer {
+            initial.sourceAccess?.release()
+            next?.sourceAccess?.release()
+            selected?.sourceAccess?.release()
+        }
 
         #expect(initial.collectionOrigin == .mediaServer)
         #expect(initialSnapshot.entries.count == 3)

@@ -5,7 +5,6 @@ import OSLog
 
 @MainActor
 public protocol PlaybackLaunching: AnyObject {
-    func beginPlayback(for url: URL)
     func beginPlayback(_ request: PlaybackLaunchRequest)
     func stopPlayback()
 }
@@ -107,10 +106,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     public func viewingState(for identity: MediaIdentity) async -> ViewingStatus? {
         await mediaStateStore.viewingProjection(for: identity)
-    }
-
-    public func beginPlayback(for url: URL) {
-        requestPlayback(.init(url: url, displayName: url.lastPathComponent))
     }
 
     public func requestPlayback(_ request: PlaybackLaunchRequest) {

@@ -68,7 +68,7 @@ final class MediaReferenceResolver {
         UUID,
         String,
         FileBrowsingDomain.MediaReference
-    ) async throws -> ResolvedMediaSource)?
+    ) async throws -> MediaByteStreamHandle)?
     var resolveExternalSubtitleSources: (@MainActor (
         UUID,
         String,
@@ -84,11 +84,13 @@ final class MediaReferenceResolver {
         try? fileManager.removeItem(at: Self.photoStagingRoot(fileManager: fileManager))
     }
 
-    fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedMediaSource {
+    fileprivate func resolve(
+        _ reference: FileBrowsingDomain.MediaReference
+    ) async throws -> MediaByteStreamHandle {
         switch reference.locator {
         case .file(let bookmark, let relativePath):
             let resolved = try fileResolver.resolve(bookmark: bookmark, relativePath: relativePath)
-            return ResolvedMediaSource(
+            return MediaByteStreamHandle.localFile(
                 url: resolved.url,
                 accessLease: resolved.access
             )
@@ -190,7 +192,9 @@ final class MediaReferenceResolver {
         }
     }
 
-    private func resolvePhoto(localIdentifier: String) async throws -> ResolvedMediaSource {
+    private func resolvePhoto(
+        localIdentifier: String
+    ) async throws -> MediaByteStreamHandle {
         let result = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
         guard let asset = result.firstObject else { throw ResolutionError.unavailablePhoto }
         let requestedAsset = await Self.requestOriginalAsset(SendablePHAsset(value: asset))
@@ -199,14 +203,19 @@ final class MediaReferenceResolver {
             let sourceAccess = MediaAccessLease.retaining(avAsset, securityScoped: urlAsset.url)
             if (try? urlAsset.url.checkResourceIsReachable()) == true {
                 logger.info("Photos source resolved as a directly readable file URL")
-                return ResolvedMediaSource(url: urlAsset.url, accessLease: sourceAccess)
+                return MediaByteStreamHandle.localFile(
+                    url: urlAsset.url,
+                    accessLease: sourceAccess
+                )
             }
             sourceAccess.release()
         }
         return try await stageOriginalPhoto(asset)
     }
 
-    private func stageOriginalPhoto(_ asset: PHAsset) async throws -> ResolvedMediaSource {
+    private func stageOriginalPhoto(
+        _ asset: PHAsset
+    ) async throws -> MediaByteStreamHandle {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .fullSizeVideo })
             ?? resources.first(where: { $0.type == .video })
@@ -244,7 +253,7 @@ final class MediaReferenceResolver {
         }
 
         logger.info("Photos source staged for FFmpeg playback file=\(destination.lastPathComponent, privacy: .public)")
-        return ResolvedMediaSource(
+        return MediaByteStreamHandle.localFile(
             url: destination,
             accessLease: MediaAccessLease.temporaryFile(destination)
         )
@@ -566,13 +575,12 @@ public final class MediaLibraryViewModel {
         let stableIdentifier = "media-library/\(reference.id.uuidString)|\(reference.sizeInBytes)|local"
         return MediaPlaybackItem(
             id: reference.id,
-            url: source.url,
+            source: source,
             displayName: reference.name,
             stableIdentifier: stableIdentifier,
             sizeInBytes: reference.sizeInBytes,
             collectionOrigin: .mediaLibrary,
             versionedIdentity: versionedIdentity,
-            accessLease: source.accessLease,
             externalSubtitleSources: externalSubtitles.sources,
             externalSubtitleErrorMessage: externalSubtitles.errorMessage
         )

@@ -136,19 +136,19 @@ public nonisolated protocol FileProviding: Sendable {
 
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource
+    ) async throws -> MediaByteStreamHandle
 
     func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile]
 
     func resolveSubtitleSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource
+    ) async throws -> MediaByteStreamHandle
 }
 
 public nonisolated extension FileProviding {
     func resolveSubtitleSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         try await resolvePlayableSource(for: file)
     }
 }

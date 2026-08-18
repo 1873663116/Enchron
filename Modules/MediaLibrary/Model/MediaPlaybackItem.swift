@@ -9,36 +9,36 @@ public enum MediaCollectionOrigin: String, Sendable, Equatable {
 
 public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let id: UUID
-    public let url: URL
+    public let source: MediaByteStreamHandle
     public let displayName: String
     public let stableIdentifier: String?
     public let sizeInBytes: Int64?
     public let collectionOrigin: MediaCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
-    public let accessLease: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleErrorMessage: String?
 
+    public var url: URL { source.url }
+    public var accessLease: MediaAccessLease? { source.accessLease }
+
     public init(
         id: UUID,
-        url: URL,
+        source: MediaByteStreamHandle,
         displayName: String,
         stableIdentifier: String? = nil,
         sizeInBytes: Int64? = nil,
         collectionOrigin: MediaCollectionOrigin,
         versionedIdentity: VersionedMediaIdentity? = nil,
-        accessLease: MediaAccessLease? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleErrorMessage: String? = nil
     ) {
         self.id = id
-        self.url = url
+        self.source = source
         self.displayName = displayName
         self.stableIdentifier = stableIdentifier
         self.sizeInBytes = sizeInBytes
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
-        self.accessLease = accessLease
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
     }

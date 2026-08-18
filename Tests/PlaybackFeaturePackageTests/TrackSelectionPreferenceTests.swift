@@ -879,7 +879,7 @@ struct TrackSelectionPreferenceTests {
             contentRevision: .remote(entityTag: revision, sizeInBytes: 1_024)
         )
         return PlaybackLaunchRequest(
-            url: URL(string: "https://example.invalid/Movie.mkv")!,
+            source: .localFile(url: URL(fileURLWithPath: "/Movie.mkv")),
             displayName: "Movie.mkv",
             versionedIdentity: identity,
             viewingStateAuthority: authority,

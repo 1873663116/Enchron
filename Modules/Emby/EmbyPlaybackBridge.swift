@@ -148,6 +148,7 @@ public actor EmbyPlaybackBridge {
     }
 
     private let client: any EmbyClientProtocol
+    private let mediaByteSession: URLSession
     private var server: EmbyAuthenticatedServer?
     private var onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
     private var queue: [QueuedEpisode] = []
@@ -156,15 +157,18 @@ public actor EmbyPlaybackBridge {
     public init(
         client: any EmbyClientProtocol,
         server: EmbyAuthenticatedServer?,
-        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil
+        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
+        mediaByteSession: URLSession = .shared
     ) {
         self.client = client
+        self.mediaByteSession = mediaByteSession
         self.server = server
         self.onUnauthorized = onUnauthorized
     }
 
     public init(client: any EmbyClientProtocol) {
         self.client = client
+        mediaByteSession = .shared
         server = nil
         onUnauthorized = nil
     }
@@ -288,8 +292,18 @@ public actor EmbyPlaybackBridge {
         case .fromBeginning:
             0
         }
+        let byteSource = EmbyMediaByteSource(
+            streamURL: source.directPlayURL,
+            accessToken: server.accessToken,
+            contentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,
+            session: mediaByteSession
+        )
+        let streamHandle = try await MediaByteStreamEndpoint.shared.resolve(
+            byteSource,
+            filename: source.directPlayURL.lastPathComponent
+        )
         return PlaybackLaunchRequest(
-            url: source.directPlayURL,
+            source: streamHandle,
             displayName: freshItem.metadata.name,
             initialMetadata: PlaybackMediaMetadata(
                 fileSizeInBytes: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,

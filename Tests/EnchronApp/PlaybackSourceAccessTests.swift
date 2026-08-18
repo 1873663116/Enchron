@@ -61,8 +61,8 @@ struct PlaybackSourceAccessTests {
         var lease: MediaAccessLease? = MediaAccessLease {
             counter.increment()
         }
-        var source: ResolvedMediaSource? = ResolvedMediaSource(
-            url: URL(string: "http://127.0.0.1/media")!,
+        var source: MediaByteStreamHandle? = .localFile(
+            url: URL(fileURLWithPath: "/media"),
             accessLease: lease
         )
 
@@ -74,11 +74,11 @@ struct PlaybackSourceAccessTests {
         #expect(counter.value == 1)
     }
 
-    @Test("resolved media source owns and releases its access lease")
+    @Test("media byte-stream handle owns and releases its access lease")
     func resolvedSourceOwnsAccessLease() throws {
         let counter = ReleaseCounter()
-        var source: ResolvedMediaSource? = ResolvedMediaSource(
-            url: URL(string: "http://127.0.0.1/media")!,
+        var source: MediaByteStreamHandle? = .localFile(
+            url: URL(fileURLWithPath: "/media"),
             accessLease: MediaAccessLease {
                 counter.increment()
             }
@@ -93,8 +93,8 @@ struct PlaybackSourceAccessTests {
 
     @Test("released file lease cannot report itself active again")
     func transferredFileLeaseIsOneShot() throws {
-        let source = ResolvedMediaSource(
-            url: URL(string: "http://127.0.0.1/media")!,
+        let source = MediaByteStreamHandle.localFile(
+            url: URL(fileURLWithPath: "/media"),
             accessLease: MediaAccessLease {}
         )
         let access = try #require(source.accessLease)

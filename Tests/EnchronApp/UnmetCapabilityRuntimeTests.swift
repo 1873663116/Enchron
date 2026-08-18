@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 import PlaybackCore
 import PlaybackFeature
 import Testing
@@ -57,9 +58,8 @@ func preventingCapabilitySuppressesRendererDiagnosticText() {
 @Test("overview remains source-neutral metadata and resets for a local request")
 func overviewFlowsThroughRuntimeMetadataWithoutSourceBranching() throws {
     let runtime = PlaybackRuntime()
-    let serverURL = try #require(URL(string: "https://example.invalid/video.mp4"))
     let serverRequest = PlaybackLaunchRequest(
-        url: serverURL,
+        source: .localFile(url: URL(fileURLWithPath: "/video.mp4")),
         displayName: "Episode",
         initialMetadata: PlaybackMediaMetadata(overview: "Episode overview")
     )
@@ -67,7 +67,9 @@ func overviewFlowsThroughRuntimeMetadataWithoutSourceBranching() throws {
     #expect(runtime.overview == "Episode overview")
 
     let localRequest = PlaybackLaunchRequest(
-        url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/local.mp4"),
+        source: .localFile(
+            url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/local.mp4")
+        ),
         displayName: "local.mp4"
     )
     runtime.prepareForPlayback(localRequest)
@@ -87,7 +89,9 @@ func preparingPlaybackClearsPreviousCapabilityFacts() {
 
     runtime.prepareForPlayback(
         PlaybackLaunchRequest(
-            url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/next.mp4"),
+            source: .localFile(
+                url: URL(fileURLWithPath: "/Volumes/Cortisol/Media/next.mp4")
+            ),
             displayName: "next.mp4"
         )
     )

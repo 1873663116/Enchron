@@ -66,69 +66,41 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
 
 public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable, Identifiable {
     public let id: URL
-    public let url: URL
+    public let source: MediaByteStreamHandle
     public let displayName: String
     public let fileIdentifier: PlaybackFileIdentifier?
     public let initialMetadata: PlaybackMediaMetadata?
     public let collectionOrigin: PlaybackCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
-    public let sourceAccess: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleErrorMessage: String?
     public let viewingStateAuthority: ViewingStateAuthority
     public let startPositionSeconds: Double?
     public let sessionReporter: (any PlaybackSessionReporting)?
 
-    public init(
-        url: URL,
-        displayName: String,
-        fileIdentifier: PlaybackFileIdentifier? = nil,
-        initialMetadata: PlaybackMediaMetadata? = nil,
-        collectionOrigin: PlaybackCollectionOrigin = .standalone,
-        versionedIdentity: VersionedMediaIdentity? = nil,
-        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
-        viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
-        startPositionSeconds: Double? = nil,
-        sessionReporter: (any PlaybackSessionReporting)? = nil
-    ) {
-        self.id = url
-        self.url = url
-        self.displayName = displayName
-        self.fileIdentifier = fileIdentifier
-        self.initialMetadata = initialMetadata
-        self.collectionOrigin = collectionOrigin
-        self.versionedIdentity = versionedIdentity
-        self.sourceAccess = nil
-        self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
-        self.viewingStateAuthority = viewingStateAuthority
-        self.startPositionSeconds = startPositionSeconds
-        self.sessionReporter = sessionReporter
-    }
+    public var url: URL { source.url }
+    public var sourceAccess: MediaAccessLease? { source.accessLease }
 
     public init(
-        url: URL,
+        source: MediaByteStreamHandle,
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
-        sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleErrorMessage: String? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
-        self.id = url
-        self.url = url
+        self.id = source.url
+        self.source = source
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
-        self.sourceAccess = sourceAccess
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
         self.viewingStateAuthority = viewingStateAuthority
@@ -138,13 +110,12 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
 
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
         PlaybackLaunchRequest(
-            url: url,
+            source: source,
             displayName: displayName,
             fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
-            sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
             externalSubtitleErrorMessage: externalSubtitleErrorMessage,
             viewingStateAuthority: viewingStateAuthority,

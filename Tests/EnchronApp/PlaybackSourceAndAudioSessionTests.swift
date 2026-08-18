@@ -212,7 +212,10 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let missingURL = FileManager.default.temporaryDirectory
             .appending(path: "missing-\(UUID().uuidString).mkv")
 
-        launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
+        launcher.beginPlayback(.init(
+            source: .localFile(url: missingURL),
+            displayName: "Missing Video"
+        ))
 
         let deadline = ContinuousClock.now + .seconds(5)
         while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
@@ -241,7 +244,10 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let missingURL = FileManager.default.temporaryDirectory
             .appending(path: "missing-\(UUID().uuidString).mkv")
 
-        launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
+        launcher.beginPlayback(.init(
+            source: .localFile(url: missingURL),
+            displayName: "Missing Video"
+        ))
 
         let deadline = ContinuousClock.now + .seconds(5)
         while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
@@ -281,7 +287,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         let runtime = PlaybackRuntime()
         let request = PlaybackLaunchRequest(
-            url: fixture,
+            source: .localFile(url: fixture),
             displayName: fixture.lastPathComponent
         )
 
@@ -383,7 +389,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             audioSessionLifecycle: PlaybackAudioSessionLifecycle()
         )
         let request = PlaybackLaunchRequest(
-            url: URL(fileURLWithPath: "/tmp/format-revision.mp4"),
+            source: .localFile(url: URL(fileURLWithPath: "/tmp/format-revision.mp4")),
             displayName: "format-revision.mp4"
         )
         runtime.prepareForPlayback(request)
@@ -422,7 +428,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         try await runtime.open(
             PlaybackLaunchRequest(
-                url: fixture,
+                source: .localFile(url: fixture),
                 displayName: fixture.lastPathComponent
             )
         )
@@ -645,7 +651,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         try await runtime.open(
             PlaybackLaunchRequest(
-                url: fixture,
+                source: .localFile(url: fixture),
                 displayName: fixture.lastPathComponent
             )
         )
@@ -789,7 +795,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         try await runtime.open(
             PlaybackLaunchRequest(
-                url: fixture,
+                source: .localFile(url: fixture),
                 displayName: fixture.lastPathComponent
             )
         )
@@ -932,7 +938,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         runtime.stop()
         runtime.prepareForPlayback(
             PlaybackLaunchRequest(
-                url: URL(fileURLWithPath: "/dev/null"),
+                source: .localFile(url: URL(fileURLWithPath: "/dev/null")),
                 displayName: "second.mp4"
             )
         )

@@ -111,7 +111,7 @@ public nonisolated final class MediaByteStreamEndpoint: @unchecked Sendable {
         _ source: any MediaByteSource,
         filename: String,
         onTermination: @escaping @Sendable () async -> Void = {}
-    ) async throws -> ResolvedMediaSource {
+    ) async throws -> MediaByteStreamHandle {
         guard let totalLength = source.totalLength, totalLength > 0 else {
             throw EndpointError.lengthUnavailable
         }
@@ -132,11 +132,12 @@ public nonisolated final class MediaByteStreamEndpoint: @unchecked Sendable {
 
         let registration = Registration(source: source, totalLength: totalLength)
         lock.withLock { registrations[token] = registration }
-        return ResolvedMediaSource(
+        return MediaByteStreamHandle(
             url: url,
             accessLease: MediaAccessLease { [weak self] in
                 self?.unregister(token: token, onTermination: onTermination)
-            }
+            },
+            issuance: .loopbackRoute
         )
     }
 

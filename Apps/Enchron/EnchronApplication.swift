@@ -380,13 +380,12 @@ private extension MediaPlaybackItem {
         case .sourceDirectory: .sourceDirectory
         }
         return PlaybackLaunchRequest(
-            url: url,
+            source: source,
             displayName: displayName,
             fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
             collectionOrigin: playbackOrigin,
             versionedIdentity: versionedIdentity,
-            sourceAccess: accessLease,
             externalSubtitleSources: externalSubtitleSources,
             externalSubtitleErrorMessage: externalSubtitleErrorMessage
         )

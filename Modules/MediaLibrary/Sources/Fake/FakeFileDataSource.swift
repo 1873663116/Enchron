@@ -90,8 +90,8 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
-        ResolvedMediaSource(url: file.url)
+    ) async throws -> MediaByteStreamHandle {
+        MediaByteStreamHandle.localFile(url: file.url)
     }
 
     // MARK: - Helpers
