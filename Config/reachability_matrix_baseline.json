@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-18T06:30:30.381954+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round7-20260818/delivery/final/delivery.json",
+  "acceptedAt": "2026-08-18T08:13:24.449166+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round8-20260818/merged-final/delivery.json",
   "cells": [
     {
       "operation": "accessibility:Emby-Connection-Address",
@@ -1240,7 +1240,7 @@
     {
       "operation": "accessibility:PlayerPanel-menu-episodes",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-menu-more",
@@ -1260,7 +1260,7 @@
     {
       "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-precision-timeline",
@@ -2710,12 +2710,12 @@
     {
       "operation": "command:listMenuItems",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "command:selectMenuItem",
       "presentation": "panorama",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:Emby-Detail-Version",
@@ -2761,6 +2761,106 @@
       "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
       "presentation": "docked",
       "verdict": "known-defect"
+    },
+    {
+      "operation": "menu:settings:controls-auto-hide",
+      "presentation": "window",
+      "verdict": "reachable"
+    },
+    {
+      "operation": "menu:settings:default-scenic-environment",
+      "presentation": "window",
+      "verdict": "reachable"
+    },
+    {
+      "operation": "menu:settings:default-speed",
+      "presentation": "window",
+      "verdict": "reachable"
+    },
+    {
+      "operation": "menu:settings:end-behavior",
+      "presentation": "window",
+      "verdict": "reachable"
+    },
+    {
+      "operation": "menu:settings:resume-strategy",
+      "presentation": "window",
+      "verdict": "reachable"
+    },
+    {
+      "operation": "menu:settings:controls-auto-hide",
+      "presentation": "portal",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:default-scenic-environment",
+      "presentation": "portal",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:default-speed",
+      "presentation": "portal",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:end-behavior",
+      "presentation": "portal",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:resume-strategy",
+      "presentation": "portal",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:controls-auto-hide",
+      "presentation": "panorama",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:default-scenic-environment",
+      "presentation": "panorama",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:default-speed",
+      "presentation": "panorama",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:end-behavior",
+      "presentation": "panorama",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:resume-strategy",
+      "presentation": "panorama",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:controls-auto-hide",
+      "presentation": "docked",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:default-scenic-environment",
+      "presentation": "docked",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:default-speed",
+      "presentation": "docked",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:end-behavior",
+      "presentation": "docked",
+      "verdict": "not-applicable"
+    },
+    {
+      "operation": "menu:settings:resume-strategy",
+      "presentation": "docked",
+      "verdict": "not-applicable"
     }
   ],
   "schemaVersion": 1
