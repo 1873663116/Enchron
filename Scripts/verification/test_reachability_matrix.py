@@ -232,5 +232,174 @@ class PartialBaselineAcceptanceTests(unittest.TestCase):
         )
 
 
+class SegmentedDeliveryTests(unittest.TestCase):
+    baseline = [
+        {
+            "presentation": "window",
+            "operation": "accessibility:old-reachable",
+            "verdict": "reachable",
+        },
+        {
+            "presentation": "window",
+            "operation": "accessibility:candidate",
+            "verdict": "known-defect",
+        },
+        {
+            "presentation": "portal",
+            "operation": "accessibility:uncovered",
+            "verdict": "reachable",
+        },
+    ]
+
+    @staticmethod
+    def segment(
+        *,
+        name: str,
+        operation: str,
+        verdict: str,
+        before_passed: bool = True,
+        after_passed: bool = True,
+        continuity_passed: bool = True,
+    ) -> dict:
+        return {
+            "schemaVersion": 2,
+            "segment": name,
+            "status": "complete",
+            "sessionID": f"session-{name}",
+            "channelHealth": {
+                "before": {
+                    "passed": before_passed,
+                    "sessionID": f"session-{name}",
+                },
+                "after": {
+                    "passed": after_passed,
+                    "sessionID": f"session-{name}",
+                },
+            },
+            "channelContinuity": {
+                "passed": continuity_passed,
+                "failures": [] if continuity_passed else ["controller-timeout"],
+            },
+            "drivenCells": [
+                {"presentation": "window", "operation": operation}
+            ],
+            "cells": [
+                {
+                    "presentation": "window",
+                    "operation": operation,
+                    "verdict": verdict,
+                }
+            ],
+        }
+
+    def test_only_valid_driven_cells_update_the_candidate(self) -> None:
+        valid = self.segment(
+            name="valid",
+            operation="accessibility:candidate",
+            verdict="reachable",
+        )
+        invalid = self.segment(
+            name="invalid",
+            operation="accessibility:old-reachable",
+            verdict="known-defect",
+            after_passed=False,
+        )
+
+        delivery = matrix.merge_segment_delivery(self.baseline, [valid, invalid])
+
+        verdicts = {
+            (cell["presentation"], cell["operation"]): cell["verdict"]
+            for cell in delivery["candidateCells"]
+        }
+        self.assertTrue(delivery["accepted"])
+        self.assertEqual(delivery["acceptedSegments"], ["valid"])
+        self.assertEqual(delivery["rejectedSegments"], ["invalid"])
+        self.assertEqual(
+            verdicts[("window", "accessibility:candidate")], "reachable"
+        )
+        self.assertEqual(
+            verdicts[("window", "accessibility:old-reachable")], "reachable"
+        )
+        self.assertEqual(
+            verdicts[("portal", "accessibility:uncovered")], "reachable"
+        )
+
+    def test_driven_old_reachable_cell_must_be_reproved(self) -> None:
+        regression = self.segment(
+            name="regression",
+            operation="accessibility:old-reachable",
+            verdict="known-defect",
+        )
+
+        delivery = matrix.merge_segment_delivery(self.baseline, [regression])
+
+        self.assertFalse(delivery["accepted"])
+        self.assertEqual(
+            delivery["failures"],
+            [
+                {
+                    "presentation": "window",
+                    "operation": "accessibility:old-reachable",
+                    "reason": "driven-old-reachable-not-reproved",
+                }
+            ],
+        )
+        self.assertEqual(
+            delivery["candidateCells"][0]["verdict"], "known-defect"
+        )
+
+    def test_segment_with_an_interior_transport_break_is_rejected(self) -> None:
+        interrupted = self.segment(
+            name="interrupted",
+            operation="accessibility:candidate",
+            verdict="reachable",
+            continuity_passed=False,
+        )
+
+        delivery = matrix.merge_segment_delivery(self.baseline, [interrupted])
+
+        self.assertFalse(delivery["accepted"])
+        self.assertEqual(delivery["acceptedSegments"], [])
+        self.assertEqual(delivery["rejectedSegments"], ["interrupted"])
+        self.assertEqual(
+            delivery["candidateCells"][1]["verdict"], "known-defect"
+        )
+
+    def test_segment_plan_rejects_unknown_and_duplicate_entries(self) -> None:
+        plan = {
+            "schemaVersion": 1,
+            "segments": [
+                {
+                    "id": "window-a",
+                    "presentation": "window",
+                    "scenarios": ["sources-smb"],
+                    "operations": ["accessibility:candidate"],
+                },
+                {
+                    "id": "window-a",
+                    "presentation": "wrong",
+                    "scenarios": ["missing"],
+                    "operations": ["accessibility:missing"],
+                },
+            ],
+        }
+
+        errors = matrix.validate_segment_plan(
+            plan,
+            operation_ids={"accessibility:candidate"},
+            scenario_names={"sources-smb"},
+        )
+
+        self.assertEqual(
+            errors,
+            [
+                "segment window-a is duplicated",
+                "segment window-a has unknown presentation wrong",
+                "segment window-a has unknown scenario missing",
+                "segment window-a has unknown operation accessibility:missing",
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

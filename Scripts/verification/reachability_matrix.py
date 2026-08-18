@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -17,6 +18,7 @@ import subprocess
 import sys
 import time
 from typing import Any
+import uuid
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,17 +26,38 @@ CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round2-20260818"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round7-20260818"
 )
 DEFAULT_DERIVED_DATA = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReachabilityRound2-20260818"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach7-20260818"
 )
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
 DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"
 APP_BUNDLE = "com.xiongzhipeng.XrPlayer"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
+SEGMENT_SCENARIO_NAMES = {
+    "browser-core",
+    "breadcrumbs",
+    "docked",
+    "file-browser-errors",
+    "library-conditions",
+    "library-reference-move",
+    "manage-add",
+    "panorama",
+    "playback-failures",
+    "player-ui-candidates",
+    "player-panel-portal-menus",
+    "portal",
+    "resume-decision",
+    "settings-menus",
+    "source-connection-smb",
+    "source-connection-webdav",
+    "source-sidebar",
+    "window-playback",
+}
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
+CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
@@ -162,6 +185,144 @@ def merge_selected_cells_into_baseline(
     return merged
 
 
+def merge_segment_delivery(
+    baseline_cells: list[dict[str, Any]],
+    segment_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Merge only cells driven by complete, channel-continuous segments."""
+    candidate_by_key = {
+        (str(cell["presentation"]), str(cell["operation"])): dict(cell)
+        for cell in baseline_cells
+    }
+    accepted_segments: list[str] = []
+    rejected_segments: list[str] = []
+    driven_keys: set[tuple[str, str]] = set()
+
+    for segment in segment_results:
+        name = str(segment.get("segment", "unnamed"))
+        session_id = segment.get("sessionID")
+        health = segment.get("channelHealth")
+        before = health.get("before", {}) if isinstance(health, dict) else {}
+        after = health.get("after", {}) if isinstance(health, dict) else {}
+        channel_continuous = (
+            segment.get("status") == "complete"
+            and isinstance(session_id, str)
+            and bool(session_id)
+            and before.get("passed") is True
+            and after.get("passed") is True
+            and before.get("sessionID") == session_id
+            and after.get("sessionID") == session_id
+            and (
+                not isinstance(segment.get("channelContinuity"), dict)
+                or segment["channelContinuity"].get("passed") is True
+            )
+        )
+        if not channel_continuous:
+            rejected_segments.append(name)
+            continue
+
+        accepted_segments.append(name)
+        cells = {
+            (str(cell.get("presentation")), str(cell.get("operation"))): cell
+            for cell in segment.get("cells", [])
+            if isinstance(cell, dict)
+        }
+        for driven in segment.get("drivenCells", []):
+            if not isinstance(driven, dict):
+                continue
+            key = (
+                str(driven.get("presentation")),
+                str(driven.get("operation")),
+            )
+            if key not in candidate_by_key:
+                continue
+            driven_keys.add(key)
+            observed = cells.get(key)
+            candidate_by_key[key]["verdict"] = (
+                str(observed.get("verdict"))
+                if isinstance(observed, dict)
+                else "known-defect"
+            )
+
+    failures: list[dict[str, str]] = []
+    baseline_by_key = {
+        (str(cell["presentation"]), str(cell["operation"])): cell
+        for cell in baseline_cells
+    }
+    for key in sorted(driven_keys):
+        if (
+            baseline_by_key[key].get("verdict") == "reachable"
+            and candidate_by_key[key].get("verdict") != "reachable"
+        ):
+            failures.append({
+                "presentation": key[0],
+                "operation": key[1],
+                "reason": "driven-old-reachable-not-reproved",
+            })
+
+    return {
+        "accepted": bool(accepted_segments) and not failures,
+        "acceptedSegments": accepted_segments,
+        "rejectedSegments": rejected_segments,
+        "drivenCells": [
+            {"presentation": presentation, "operation": operation}
+            for presentation, operation in sorted(driven_keys)
+        ],
+        "failures": failures,
+        "candidateCells": [
+            candidate_by_key[(str(cell["presentation"]), str(cell["operation"]))]
+            for cell in baseline_cells
+        ],
+    }
+
+
+def validate_segment_plan(
+    plan: dict[str, Any],
+    *,
+    operation_ids: set[str],
+    scenario_names: set[str],
+) -> list[str]:
+    errors: list[str] = []
+    seen: set[str] = set()
+    segments = plan.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return ["segment plan must contain a nonempty segments array"]
+    for segment in segments:
+        if not isinstance(segment, dict):
+            errors.append("segment plan contains a non-object segment")
+            continue
+        name = str(segment.get("id", ""))
+        if not name:
+            errors.append("segment is missing id")
+        elif name in seen:
+            errors.append(f"segment {name} is duplicated")
+        seen.add(name)
+        presentation = str(segment.get("presentation", ""))
+        if presentation not in PRESENTATIONS:
+            errors.append(
+                f"segment {name or '<missing>'} has unknown presentation {presentation}"
+            )
+        scenarios = segment.get("scenarios")
+        if not isinstance(scenarios, list) or not scenarios:
+            errors.append(f"segment {name or '<missing>'} has no scenarios")
+        else:
+            for scenario in scenarios:
+                if str(scenario) not in scenario_names:
+                    errors.append(
+                        f"segment {name or '<missing>'} has unknown scenario {scenario}"
+                    )
+        operations = segment.get("operations")
+        if not isinstance(operations, list) or not operations:
+            errors.append(f"segment {name or '<missing>'} has no operations")
+        else:
+            for operation in operations:
+                if str(operation) not in operation_ids:
+                    errors.append(
+                        f"segment {name or '<missing>'} has unknown operation {operation}"
+                    )
+    return errors
+
+
 def immersive_resident_window_is_hidden(
     *,
     toggle: dict[str, Any],
@@ -195,8 +356,21 @@ class ReachabilityRun:
         }
         self.cells: dict[tuple[str, str], dict[str, Any]] = {}
         self.events: list[dict[str, Any]] = []
+        self.driven_cells: set[tuple[str, str]] = set()
+        self.session_id: str | None = None
+        self.channel_health: dict[str, dict[str, Any]] = {}
+        self.channel_failures: list[dict[str, Any]] = []
+        self.segment: dict[str, Any] | None = getattr(arguments, "segment_spec", None)
         self.sequence = 0
         self.probe_offset = 0
+        plan_document = getattr(arguments, "segment_plan_document", None)
+        if self.segment is not None and isinstance(plan_document, dict):
+            (self.output / "segment-plan.json").write_text(
+                json.dumps(
+                    plan_document, ensure_ascii=False, indent=2, sort_keys=True
+                ) + "\n",
+                encoding="utf-8",
+            )
         for presentation in PRESENTATIONS:
             for operation_id, operation in self.operations.items():
                 applicable = presentation in product_presentations(operation)
@@ -219,6 +393,26 @@ class ReachabilityRun:
                 }
 
     def controller(self, action: str, *extra: str, timeout: float = 180.0) -> dict[str, Any]:
+        if self.segment is not None and self.channel_failures and action != "halt":
+            document = {
+                "success": False,
+                "error": "segment channel continuity already failed",
+            }
+            self.sequence += 1
+            name = f"{self.sequence:03d}-{action}.json"
+            (self.raw / name).write_text(
+                json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            self.events.append({
+                "at": utc_now(),
+                "action": action,
+                "arguments": list(extra),
+                "success": False,
+                "evidence": f"raw/{name}",
+                "elapsedSeconds": 0.0,
+            })
+            return document
         command = [
             sys.executable,
             str(CONTROLLER),
@@ -274,15 +468,153 @@ class ReachabilityRun:
                 "elapsedSeconds": round(time.monotonic() - started, 3),
             }
         )
+        error = str(document.get("error", ""))
+        if (
+            self.segment is not None
+            and (
+                "exceeded" in error
+                or "runner is not ready" in error
+            )
+        ):
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": action,
+                "error": error,
+                "evidence": f"raw/{name}",
+            })
         return document
 
     def app_command(self, verb: str, **arguments: str) -> dict[str, Any]:
+        operation_id = f"command:{verb}"
+        presentation = self.active_presentation
+        if operation_id in self.operations and presentation is not None:
+            self.driven_cells.add((presentation, operation_id))
         extra = ["--verb", verb, "--no-screenshot"]
         for key, value in arguments.items():
             extra.extend(("--arg", f"{key}={value}"))
         return self.controller("app-command", *extra)
 
+    @property
+    def active_presentation(self) -> str | None:
+        if self.segment is not None:
+            return str(self.segment["presentation"])
+        selected = list(getattr(self.arguments, "presentations", []))
+        return selected[0] if len(selected) == 1 else None
+
+    def mark_driven(self, presentation: str, operation_id: str) -> None:
+        if operation_id in self.operations:
+            self.driven_cells.add((presentation, operation_id))
+
+    def channel_health_probe(self, phase: str) -> dict[str, Any]:
+        session_id = self.session_id
+        payload = (
+            f"reachability-channel-health phase={phase} session={session_id} "
+            f"nonce={uuid.uuid4()}\n"
+        ).encode("utf-8")
+        source = self.raw / f"channel-health-{phase}-source.txt"
+        returned = self.raw / f"channel-health-{phase}-returned.txt"
+        empty = self.raw / "channel-health-empty.txt"
+        source.write_bytes(payload)
+        empty.write_bytes(b"")
+        commands = (
+            (
+                "to",
+                "--source", str(source),
+                "--destination", CHANNEL_HEALTH_REMOTE_PATH,
+            ),
+            (
+                "from",
+                "--source", CHANNEL_HEALTH_REMOTE_PATH,
+                "--destination", str(returned),
+            ),
+            (
+                "to",
+                "--source", str(empty),
+                "--destination", CHANNEL_HEALTH_REMOTE_PATH,
+            ),
+        )
+        transfers: list[dict[str, Any]] = []
+        for direction, *copy_arguments in commands:
+            started = time.monotonic()
+            try:
+                completed = subprocess.run(
+                    [
+                        "xcrun", "devicectl", "device", "copy", direction,
+                        "--device", CORE_DEVICE,
+                        "--domain-type", "appDataContainer",
+                        "--domain-identifier", APP_BUNDLE,
+                        *copy_arguments,
+                    ],
+                    cwd=ROOT,
+                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                transfers.append({
+                    "direction": direction,
+                    "passed": completed.returncode == 0,
+                    "elapsedSeconds": round(time.monotonic() - started, 3),
+                    "detail": (completed.stderr or completed.stdout)[-1000:],
+                })
+            except subprocess.TimeoutExpired:
+                transfers.append({
+                    "direction": direction,
+                    "passed": False,
+                    "elapsedSeconds": round(time.monotonic() - started, 3),
+                    "detail": "The 30-second channel-health transfer deadline expired.",
+                })
+                break
+        returned_bytes = returned.read_bytes() if returned.is_file() else b""
+        digest = hashlib.sha256(payload).hexdigest()
+        returned_digest = hashlib.sha256(returned_bytes).hexdigest()
+        passed = (
+            len(transfers) == 3
+            and all(transfer["passed"] for transfer in transfers)
+            and returned_bytes == payload
+            and isinstance(session_id, str)
+            and bool(session_id)
+        )
+        result = {
+            "phase": phase,
+            "sessionID": session_id,
+            "passed": passed,
+            "byteCount": len(payload),
+            "sha256": digest,
+            "returnedSha256": returned_digest,
+            "transfers": transfers,
+            "source": f"raw/{source.name}",
+            "returned": f"raw/{returned.name}",
+        }
+        health_path = self.raw / f"channel-health-{phase}.json"
+        health_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "channelHealth",
+            "phase": phase,
+            "success": passed,
+            "evidence": f"raw/{health_path.name}",
+        })
+        self.channel_health[phase] = result
+        return result
+
     def copy_probe(self, label: str, *, timeout: float = 150) -> list[str]:
+        if (
+            self.segment is not None
+            and self.channel_failures
+            and label != "segment-after-surface"
+        ):
+            self.events.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "success": False,
+                "detail": "Skipped after segment channel continuity failed.",
+            })
+            return []
         destination = self.raw / f"{self.sequence + 1:03d}-{label}-probe.log"
         try:
             completed = subprocess.run(
@@ -302,6 +634,12 @@ class ReachabilityRun:
                 check=False,
             )
         except subprocess.TimeoutExpired:
+            if self.segment is not None and timeout >= 120:
+                self.channel_failures.append({
+                    "at": utc_now(),
+                    "action": "copyProbe",
+                    "error": f"Device probe copy exceeded {timeout:.1f} seconds.",
+                })
             self.events.append({
                 "at": utc_now(), "action": "copyProbe", "success": False,
                 "detail": f"Device probe copy exceeded {timeout:.1f} seconds.",
@@ -513,6 +851,7 @@ class ReachabilityRun:
         operation_id: str | None = None,
     ) -> dict[str, Any]:
         operation_id = operation_id or f"accessibility:{identifier}"
+        self.mark_driven(presentation, operation_id)
         document = self.controller(
             "tap", "--identifier", identifier,
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
@@ -536,6 +875,8 @@ class ReachabilityRun:
         *,
         operation_id: str | None = None,
     ) -> dict[str, Any]:
+        if operation_id is not None:
+            self.mark_driven(presentation, operation_id)
         document = self.controller(
             "tap", "--label", label,
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
@@ -561,6 +902,7 @@ class ReachabilityRun:
         *,
         has_accessibility_target: bool = True,
     ) -> None:
+        self.mark_driven(presentation, operation_id)
         self.mark_observation(
             presentation,
             operation_id,
@@ -603,7 +945,10 @@ class ReachabilityRun:
         host: str,
         family: str,
         preferred: tuple[str, ...] = (),
+        driven_operations: tuple[str, ...] = (),
     ) -> tuple[str | None, dict[str, Any], dict[str, Any]]:
+        for operation_id in driven_operations:
+            self.mark_driven(presentation, operation_id)
         listing = self.app_command(
             "listMenuItems",
             host=host,
@@ -686,7 +1031,11 @@ class ReachabilityRun:
             "--no-screenshot",
             timeout=420,
         )
-        return ready.get("success") is True
+        session_id = ready.get("sessionID")
+        if ready.get("success") is True and isinstance(session_id, str):
+            self.session_id = session_id
+            return True
+        return False
 
     def show_controls(self) -> dict[str, Any]:
         result = self.app_command("toggleControls", visible="true")
@@ -695,6 +1044,15 @@ class ReachabilityRun:
         ):
             time.sleep(0.5)
             result = self.app_command("toggleControls", visible="true")
+        presentation = self.active_presentation
+        if result.get("success") is True and presentation is not None:
+            self.delivered(
+                presentation,
+                "command:toggleControls",
+                self.events[-1]["evidence"],
+                "The DEBUG command reached the product control-visibility handler and returned success.",
+                has_accessibility_target=False,
+            )
         return result
 
     def tap_control(
@@ -893,6 +1251,31 @@ class ReachabilityRun:
                 has_accessibility_target=False,
             )
 
+    def prove_navigation_tab(self, tab: str) -> bool:
+        presentation = "window"
+        identifiers = {
+            "files": "Navigation-Ornament-tab-files",
+            "settings": "Navigation-Ornament-tab-settings",
+        }
+        identifier = identifiers[tab]
+        self.relaunch()
+        before = self.copy_probe(f"segment-navigation-{tab}-before")
+        offset = len(before)
+        response = self.tap(presentation, identifier)
+        probe = self.copy_probe(f"segment-navigation-{tab}")
+        delivered = response.get("success") is True and any(
+            f"navigation tab delivered tab={tab}" in line
+            for line in probe[offset:]
+        )
+        if delivered:
+            self.delivered(
+                presentation,
+                f"accessibility:{identifier}",
+                self.events[-1]["evidence"],
+                "The segment prerequisite navigation reached its product handler and appended the tab probe.",
+            )
+        return delivered
+
     def open_source_connection(
         self, source: str
     ) -> tuple[dict[str, Any], list[str]]:
@@ -908,6 +1291,9 @@ class ReachabilityRun:
             host="files",
             family="sourceAdd",
             preferred=(source_value,),
+            driven_operations=(
+                f"accessibility:FileBrowsing-SourcesSidebar-add{source}",
+            ),
         )
         probe = self.copy_probe(f"source-connection-{source}-opened")
         recent = probe[offset:]
@@ -939,6 +1325,10 @@ class ReachabilityRun:
         self, source: str, field: str, value: str, probe: list[str]
     ) -> list[str]:
         presentation = "window"
+        self.mark_driven(
+            presentation,
+            f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
+        )
         offset = len(probe)
         typed = self.controller(
             "typeText",
@@ -1083,6 +1473,9 @@ class ReachabilityRun:
                 host="files",
                 family=family,
                 preferred=(target,),
+                driven_operations=(
+                    f"accessibility:FileBrowsing-SourcesSidebar-{identifier}",
+                ),
             )
             probe = self.copy_probe(f"source-sidebar-{identifier}")
             if parent.get("success") is True and response.get("success") is True and any(
@@ -1156,12 +1549,15 @@ class ReachabilityRun:
                     "The error-dialog action reached its FilesScreen handler and appended an action probe.",
                 )
 
-    def browser_condition_scenario(self) -> None:
+    def browser_condition_scenario(
+        self, *, include_source_scenarios: bool = True
+    ) -> None:
         presentation = "window"
-        self.source_connection_scenario("smb")
-        self.source_connection_scenario("webDAV")
-        self.source_sidebar_scenario()
-        self.file_browser_error_scenario()
+        if include_source_scenarios:
+            self.source_connection_scenario("smb")
+            self.source_connection_scenario("webDAV")
+            self.source_sidebar_scenario()
+            self.file_browser_error_scenario()
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         reference = self.wait_for_identifier(
@@ -1253,6 +1649,9 @@ class ReachabilityRun:
             host="files",
             family="manage",
             preferred=("newFolder",),
+            driven_operations=(
+                "accessibility:MediaLibrary-Manage-newFolder",
+            ),
         )
         probe = self.copy_probe("browser-new-folder-open")
         recent = probe[offset:]
@@ -1375,6 +1774,9 @@ class ReachabilityRun:
                 host="mediaLibrary",
                 family="breadcrumb",
                 preferred=("0",),
+                driven_operations=(
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                ),
             )
             probe = self.copy_probe("browser-library-breadcrumb-root")
             if (
@@ -1408,6 +1810,9 @@ class ReachabilityRun:
             host="files",
             family="manage",
             preferred=("selectMultiple",),
+            driven_operations=(
+                "accessibility:MediaLibrary-Manage-selectMultiple",
+            ),
         )
         probe = self.copy_probe("browser-multiselect-open")
         if parent.get("success") is True and selection.get("success") is True and any(
@@ -1460,6 +1865,9 @@ class ReachabilityRun:
             host="files",
             family="manage",
             preferred=("selectMultiple",),
+            driven_operations=(
+                "accessibility:MediaLibrary-Manage-selectMultiple",
+            ),
         )
         self.tap(
             presentation,
@@ -1496,6 +1904,239 @@ class ReachabilityRun:
                 "delivery.",
             )
 
+    def manage_add_scenario(self) -> None:
+        presentation = "window"
+        for target, expected_action in (
+            ("addFiles", "manage.addFiles"),
+            ("addFolder", "manage.addFolder"),
+            ("addPhotos", "manage.addPhotos"),
+        ):
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+            before = self.copy_probe(f"manage-{target}-before")
+            offset = len(before)
+            parent = self.tap(presentation, "FileBrowsing-Manage-button")
+            self.mark_driven(
+                presentation, f"accessibility:MediaLibrary-Manage-{target}"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="files",
+                family="manage",
+                preferred=(target,),
+            )
+            probe = self.copy_probe(f"manage-{target}-selected")
+            if parent.get("success") is True and any(
+                "reachability files delivered action=manage.open" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-Manage-button",
+                    self.events[-1]["evidence"],
+                    "The named Manage button constructed its product menu and appended the open probe.",
+                )
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    f"reachability files delivered action={expected_action}" in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    f"accessibility:MediaLibrary-Manage-{target}",
+                    "accessibility:FileBrowsing-Manage-button",
+                    self.events[-1]["evidence"],
+                    "The named Manage parent was hittable; the DEBUG equivalent "
+                    f"entered the {target} product handler and its probe confirmed delivery.",
+                )
+
+    def settings_menu_scenario(self) -> None:
+        presentation = "window"
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        self.tap(presentation, "Settings-category-playback", operation_id=(
+            "accessibility:Settings-category-{item.id}"
+        ))
+        for family in (
+            "resume-strategy",
+            "end-behavior",
+            "default-scenic-environment",
+            "default-speed",
+            "controls-auto-hide",
+        ):
+            before = self.copy_probe(f"settings-{family}-before")
+            offset = len(before)
+            target, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="settings",
+                family=family,
+            )
+            probe = self.copy_probe(f"settings-{family}-selected")
+            if selected.get("success") is True and target is not None and any(
+                f"reachability settings delivered action=menu.{family}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "command:selectMenuItem",
+                    self.events[-1]["evidence"],
+                    "The visible Settings host invoked its shared menu binding and appended the family probe.",
+                    has_accessibility_target=False,
+                )
+
+    def library_reference_move_scenario(self) -> None:
+        presentation = "window"
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        imported = self.app_command("importMedia", file="furyroad-stripped.mkv")
+        if imported.get("success") is True:
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("library-reference-move-before")
+        offset = len(before)
+        target, _, moved = self.select_debug_menu_item(
+            presentation=presentation,
+            host="mediaLibrary",
+            family="referenceMoveDestination",
+        )
+        probe = self.copy_probe("library-reference-move-selected")
+        if moved.get("success") is True and target is not None and any(
+            "reachability files delivered action=libraryReference.move" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "command:selectMenuItem",
+                self.events[-1]["evidence"],
+                "The visible library reference host invoked the shared move handler and appended its product probe.",
+                has_accessibility_target=False,
+            )
+
+    def breadcrumb_scenario(self) -> None:
+        presentation = "window"
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        folder = self.tap(
+            presentation,
+            f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
+            operation_id="accessibility:MediaLibrary-grid-folder-{folder.name}",
+        )
+        if folder.get("success") is True:
+            before = self.copy_probe("media-library-breadcrumb-before")
+            offset = len(before)
+            parent = self.tap(presentation, "MediaLibrary-Breadcrumb-current")
+            self.mark_driven(
+                presentation, "accessibility:MediaLibrary-Breadcrumb-current"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="mediaLibrary",
+                family="breadcrumb",
+                preferred=("0",),
+            )
+            probe = self.copy_probe("media-library-breadcrumb-selected")
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    "reachability files delivered action=breadcrumb.mediaLibrary"
+                    in line for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    self.events[-1]["evidence"],
+                    "The named Media Library breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+                )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        sources = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(sources)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        if not source_identifiers:
+            return
+        before = self.copy_probe("files-source-before")
+        offset = len(before)
+        source = self.tap(
+            presentation,
+            source_identifiers[0],
+            operation_id=(
+                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
+            ),
+        )
+        probe = self.wait_for_probe(
+            "files-source-selected",
+            offset,
+            "reachability files delivered action=sidebar.select.",
+        )
+        if source.get("success") is True and any(
+            "reachability files delivered action=sidebar.select." in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+                self.events[-1]["evidence"],
+                "The existing remote-source row ran the product selection handler and appended its item probe.",
+            )
+        visible = self.wait_for_identifier(
+            "FileBrowsing-Breadcrumb-current", timeout=10
+        )
+        if not isinstance(visible.get("matchedElement"), dict):
+            return
+        before = self.copy_probe("files-breadcrumb-before")
+        offset = len(before)
+        parent = self.tap(presentation, "FileBrowsing-Breadcrumb-current")
+        self.mark_driven(
+            presentation, "accessibility:FileBrowsing-Breadcrumb-current"
+        )
+        _, _, selected = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="breadcrumb",
+            preferred=("0",),
+        )
+        probe = self.copy_probe("files-breadcrumb-selected")
+        if (
+            parent.get("success") is True
+            and selected.get("success") is True
+            and any(
+                "reachability files delivered action=breadcrumb.files" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:FileBrowsing-Breadcrumb-current",
+                "accessibility:FileBrowsing-Breadcrumb-current",
+                self.events[-1]["evidence"],
+                "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+            )
+
+    def player_panel_portal_menu_scenario(self) -> None:
+        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        if opened.get("success") is not True:
+            return
+        if not self.ensure_window_projection("180°"):
+            return
+        portal = self.wait_for_identifier(
+            "PlayerUI-window-control-plane", timeout=45
+        )
+        value = str((portal.get("matchedElement") or {}).get("value", ""))
+        if "presentation=portal" not in value:
+            return
+        self.player_panel_menu_scenario("portal")
+
     def open_media(self, identifier: str) -> dict[str, Any]:
         self.relaunch()
         self.tap("window", "Navigation-Ornament-tab-files")
@@ -1519,7 +2160,12 @@ class ReachabilityRun:
                 result = self.tap_label(
                     "window", media_label, operation_id=operation_id
                 )
-        probe = self.copy_probe("open-media-selected")
+        probe = self.wait_for_probe(
+            "open-media-selected",
+            offset,
+            "reachability files delivered action=library.video",
+            timeout=15,
+        )
         if result.get("success") is True and any(
             "reachability files delivered action=library.video" in line
             for line in probe[offset:]
@@ -1544,12 +2190,38 @@ class ReachabilityRun:
             else "PlayerPanel-button-settings"
         )
 
+        def cancel_editor() -> None:
+            before = self.copy_probe(f"{identifier_prefix}-cancel-before")
+            offset = len(before)
+            cancelled = self.tap(
+                presentation, f"{identifier_prefix}-cancel"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-cancel",
+                offset,
+                f"{probe_prefix}videoFormat.cancel",
+            )
+            if cancelled.get("success") is True and any(
+                f"{probe_prefix}videoFormat.cancel" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-cancel",
+                    self.events[-1]["evidence"],
+                    "Cancel ran the format editor's discard handler and appended its probe.",
+                )
+
         def open_editor() -> bool:
+            if self.channel_failures:
+                return False
             opened, before = self.tap_with_fresh_controls(
                 presentation,
                 open_identifier,
                 probe_label=f"{identifier_prefix}-open-before",
             )
+            if self.channel_failures:
+                return False
             offset = len(before)
             visible = self.wait_for_identifier(
                 f"{identifier_prefix}-cancel", timeout=10
@@ -1597,25 +2269,7 @@ class ReachabilityRun:
                     "The format option changed the editor selection and appended its option probe.",
                 )
 
-            offset = len(probe)
-            cancelled = self.tap(
-                presentation, f"{identifier_prefix}-cancel"
-            )
-            probe = self.wait_for_probe(
-                f"{identifier_prefix}-cancel",
-                offset,
-                f"{probe_prefix}videoFormat.cancel",
-            )
-            if cancelled.get("success") is True and any(
-                f"{probe_prefix}videoFormat.cancel" in line
-                for line in probe[offset:]
-            ):
-                self.delivered(
-                    presentation,
-                    f"accessibility:{identifier_prefix}-cancel",
-                    self.events[-1]["evidence"],
-                    "Cancel ran the format editor's discard handler and appended its probe.",
-                )
+            cancel_editor()
 
         if open_editor():
             before = self.copy_probe(
@@ -1661,7 +2315,7 @@ class ReachabilityRun:
             self.controller(
                 "tap", "--label", "180°", "--no-screenshot", timeout=90
             )
-            self.tap(presentation, f"{identifier_prefix}-cancel")
+            cancel_editor()
 
         if open_editor():
             fallback = self.wait_for_identifier(
@@ -1690,7 +2344,7 @@ class ReachabilityRun:
                         self.events[-1]["evidence"],
                         "The HDR fallback toggle changed its editor binding and appended a probe.",
                     )
-            self.tap(presentation, f"{identifier_prefix}-cancel")
+            cancel_editor()
 
         if open_editor():
             self.tap(presentation, f"{identifier_prefix}-Projection-Flat")
@@ -1812,6 +2466,57 @@ class ReachabilityRun:
         self.top_menu_scenario(presentation)
         self.resume_decision_scenario()
 
+    def player_ui_candidate_scenario(self) -> None:
+        presentation = "window"
+        opened = self.open_media(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+        )
+        if opened.get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(
+            visible.get("matchedElement"), dict
+        ):
+            self.delivered(
+                presentation,
+                "command:toggleControls",
+                self.events[-1]["evidence"],
+                "The command changed product control visibility and the controls entered the hierarchy.",
+                has_accessibility_target=False,
+            )
+        self.video_format_editor_scenario(
+            presentation,
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+        if self.channel_failures:
+            return
+        self.seek_scenario(presentation, "0.35")
+        before = self.copy_probe("window-forward-before")
+        offset = len(before)
+        forwarded = self.tap_control(
+            presentation, "PlayerPanel-button-forward"
+        )
+        probe = self.wait_for_probe(
+            "window-forward",
+            offset,
+            "playback control delivered action=forward",
+        )
+        if forwarded.get("success") is True and any(
+            "playback control delivered action=forward" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-button-forward",
+                self.events[-1]["evidence"],
+                "The forward control closure appended its action-specific application probe after the deterministic pre-seek.",
+            )
+        self.top_menu_scenario(presentation)
+
     def transport_scenario(self, presentation: str) -> None:
         before = self.copy_probe(f"{presentation}-transport-before")
         offset = len(before)
@@ -1880,6 +2585,7 @@ class ReachabilityRun:
             host="playerUI",
             family="subtitles",
             preferred=("off",),
+            driven_operations=("accessibility:PlayerUI-menu-subtitles",),
         )
         probe = self.copy_probe(f"{presentation}-top-subtitles-selected")
         if selected.get("success") is True and target is not None and any(
@@ -2121,6 +2827,10 @@ class ReachabilityRun:
                 host="playerPanel",
                 family=family,
                 preferred=preferred,
+                driven_operations=(
+                    operation_id,
+                    "accessibility:PlayerPanel-menu-{category}-{item.id}",
+                ),
             )
             probe = self.copy_probe(
                 f"{presentation}-panel-{family}-selected"
@@ -2749,7 +3459,183 @@ class ReachabilityRun:
             action="close",
         )
 
+    def run_named_segment_scenario(self, name: str) -> None:
+        scenarios = {
+            "browser-core": self.browser_scenario,
+            "breadcrumbs": self.breadcrumb_scenario,
+            "docked": self.docked_scenario,
+            "file-browser-errors": self.file_browser_error_scenario,
+            "library-conditions": lambda: self.browser_condition_scenario(
+                include_source_scenarios=False
+            ),
+            "library-reference-move": self.library_reference_move_scenario,
+            "manage-add": self.manage_add_scenario,
+            "panorama": self.panorama_scenario,
+            "playback-failures": self.playback_failure_scenario,
+            "player-ui-candidates": self.player_ui_candidate_scenario,
+            "player-panel-portal-menus": self.player_panel_portal_menu_scenario,
+            "portal": self.portal_scenario,
+            "resume-decision": self.resume_decision_scenario,
+            "settings-menus": self.settings_menu_scenario,
+            "source-connection-smb": lambda: self.source_connection_scenario("smb"),
+            "source-connection-webdav": lambda: self.source_connection_scenario("webDAV"),
+            "source-sidebar": self.source_sidebar_scenario,
+            "window-playback": self.window_scenario,
+        }
+        scenarios[name]()
+
+    def record_segment_health_context(
+        self,
+        phase: str,
+        *,
+        surface_probe_copied: bool,
+        surface_probe_cleared: bool,
+    ) -> dict[str, Any]:
+        health = self.channel_health_probe(phase)
+        health["surfaceProbeCopied"] = surface_probe_copied
+        health["surfaceProbeCleared"] = surface_probe_cleared
+        health["passed"] = (
+            health["passed"]
+            and surface_probe_copied
+            and surface_probe_cleared
+        )
+        health_path = self.raw / f"channel-health-{phase}.json"
+        health_path.write_text(
+            json.dumps(health, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.channel_health[phase] = health
+        return health
+
+    def run_segment(self) -> int:
+        assert self.segment is not None
+        if getattr(self.arguments, "reuse_session", False):
+            raise ValueError("Segmented runs require an independent XCTest session.")
+        if not self.ensure_session():
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("session-failed")
+
+        initial_probe = self.copy_probe("segment-before-surface")
+        initial_copied = self.events[-1].get("success") is True
+        initial_cleared = self.clear_probe_after_archive() if initial_copied else False
+        before_health = self.record_segment_health_context(
+            "before",
+            surface_probe_copied=initial_copied,
+            surface_probe_cleared=initial_cleared,
+        )
+        if before_health["passed"] is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("channel-health-failed")
+        self.probe_offset = 0
+
+        fixture_scenarios = {
+            "breadcrumbs",
+            "docked",
+            "library-conditions",
+            "library-reference-move",
+            "panorama",
+            "playback-failures",
+            "player-ui-candidates",
+            "player-panel-portal-menus",
+            "portal",
+            "resume-decision",
+            "window-playback",
+        }
+        planned_scenarios = {str(value) for value in self.segment["scenarios"]}
+        if planned_scenarios & fixture_scenarios and not self.stage_fixture(
+            "furyroad-stripped.mkv"
+        ):
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("drive-error")
+
+        reset = self.reset_reachability_state()
+        if reset.get("success") is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("drive-error")
+        self.relaunch()
+        if planned_scenarios != {"settings-menus"}:
+            self.prove_navigation_tab("files")
+        if "settings-menus" in planned_scenarios:
+            self.prove_navigation_tab("settings")
+        for scenario in self.segment["scenarios"]:
+            self.run_named_segment_scenario(str(scenario))
+            if self.channel_failures:
+                break
+
+        self.copy_probe("segment-after-surface")
+        final_copied = self.events[-1].get("success") is True
+        final_cleared = self.clear_probe_after_archive() if final_copied else False
+        after_health = self.record_segment_health_context(
+            "after",
+            surface_probe_copied=final_copied,
+            surface_probe_cleared=final_cleared,
+        )
+        if self.channel_failures:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("channel-continuity-failed")
+        if after_health["passed"] is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("channel-health-failed")
+        stopped = self.controller("stop", "--no-screenshot", timeout=240)
+        if stopped.get("success") is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("stop-failed")
+        return self.finish_segment("complete")
+
+    def finish_segment(self, status: str) -> int:
+        assert self.segment is not None
+        ordered_cells = [
+            self.cells[(presentation, operation_id)]
+            for presentation in PRESENTATIONS
+            for operation_id in sorted(self.operations)
+        ]
+        planned = {str(value) for value in self.segment["operations"]}
+        driven = [
+            {"presentation": presentation, "operation": operation}
+            for presentation, operation in sorted(self.driven_cells)
+        ]
+        result = {
+            "schemaVersion": 2,
+            "generatedAt": utc_now(),
+            "status": status,
+            "segment": str(self.segment["id"]),
+            "segmentPlan": self.segment,
+            "sessionID": self.session_id,
+            "channelHealth": self.channel_health,
+            "channelContinuity": {
+                "passed": not self.channel_failures,
+                "failures": self.channel_failures,
+            },
+            "device": DEVICE,
+            "coreDevice": CORE_DEVICE,
+            "inventory": str(INVENTORY.relative_to(ROOT)),
+            "plannedOperations": sorted(planned),
+            "drivenCells": driven,
+            "unplannedDrivenCells": [
+                cell for cell in driven if cell["operation"] not in planned
+            ],
+            "stepCount": len(self.events),
+            "cells": ordered_cells,
+            "events": self.events,
+        }
+        results_path = self.output / "results.json"
+        results_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({
+            "results": str(results_path),
+            "segment": result["segment"],
+            "sessionID": self.session_id,
+            "status": status,
+            "stepCount": result["stepCount"],
+            "drivenCellCount": len(driven),
+        }, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if status == "complete" else 2
+
     def run(self) -> int:
+        if self.segment is not None:
+            return self.run_segment()
         selected = set(self.arguments.presentations)
         state_reset = False
         window_scenario = (
@@ -2937,6 +3823,11 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--accept-baseline", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--window-resume-only", action="store_true")
+    parser.add_argument("--segment-plan", type=Path)
+    parser.add_argument("--segment")
+    parser.add_argument(
+        "--merge-segments", nargs="+", type=Path, metavar="RESULTS_JSON"
+    )
     parser.add_argument(
         "--presentations", nargs="+", choices=PRESENTATIONS,
         default=list(PRESENTATIONS),
@@ -2944,5 +3835,94 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def merge_segment_result_files(arguments: argparse.Namespace) -> int:
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    segment_results = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in arguments.merge_segments
+    ]
+    delivery = merge_segment_delivery(baseline.get("cells", []), segment_results)
+    delivery.update({
+        "schemaVersion": 1,
+        "generatedAt": utc_now(),
+        "baseline": str(BASELINE.relative_to(ROOT)),
+        "segmentResults": [str(path.resolve()) for path in arguments.merge_segments],
+    })
+    delivery["summary"] = {
+        verdict: sum(
+            cell.get("verdict") == verdict
+            for cell in delivery["candidateCells"]
+        )
+        for verdict in ("reachable", "known-defect", "not-applicable")
+    }
+    arguments.output_directory.mkdir(parents=True, exist_ok=True)
+    delivery_path = arguments.output_directory / "delivery.json"
+    delivery_path.write_text(
+        json.dumps(delivery, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    if arguments.accept_baseline and delivery["accepted"]:
+        accepted = {
+            "schemaVersion": 1,
+            "acceptedFrom": str(delivery_path.resolve()),
+            "acceptedAt": utc_now(),
+            "cells": [
+                {
+                    "presentation": cell["presentation"],
+                    "operation": cell["operation"],
+                    "verdict": cell["verdict"],
+                }
+                for cell in delivery["candidateCells"]
+            ],
+        }
+        BASELINE.write_text(
+            json.dumps(accepted, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    print(json.dumps({
+        "accepted": delivery["accepted"],
+        "acceptedSegments": delivery["acceptedSegments"],
+        "rejectedSegments": delivery["rejectedSegments"],
+        "failures": delivery["failures"],
+        "summary": delivery["summary"],
+        "delivery": str(delivery_path),
+    }, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if delivery["accepted"] else 1
+
+
+def configure_segment(arguments: argparse.Namespace) -> None:
+    if arguments.segment_plan is None or arguments.segment is None:
+        raise SystemExit("--segment-plan and --segment must be supplied together")
+    plan = json.loads(arguments.segment_plan.read_text(encoding="utf-8"))
+    inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    errors = validate_segment_plan(
+        plan,
+        operation_ids={str(item["id"]) for item in inventory["operations"]},
+        scenario_names=SEGMENT_SCENARIO_NAMES,
+    )
+    if errors:
+        raise SystemExit("Invalid segment plan:\n" + "\n".join(errors))
+    matching = [
+        segment for segment in plan["segments"]
+        if str(segment["id"]) == arguments.segment
+    ]
+    if not matching:
+        raise SystemExit(f"Segment plan has no segment named {arguments.segment}")
+    arguments.segment_spec = matching[0]
+    arguments.segment_plan_document = plan
+    arguments.presentations = [str(matching[0]["presentation"])]
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    if arguments.merge_segments:
+        if arguments.segment_plan is not None or arguments.segment is not None:
+            raise SystemExit("--merge-segments cannot be combined with --segment")
+        return merge_segment_result_files(arguments)
+    if arguments.segment_plan is not None or arguments.segment is not None:
+        configure_segment(arguments)
+    return ReachabilityRun(arguments).run()
+
+
 if __name__ == "__main__":
-    raise SystemExit(ReachabilityRun(parse_arguments()).run())
+    raise SystemExit(main())
