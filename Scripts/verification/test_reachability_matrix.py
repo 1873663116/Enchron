@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+from pathlib import Path
+from subprocess import TimeoutExpired
+from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 import reachability_matrix as matrix
 
@@ -129,6 +132,49 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "resetState",
             libraryFolder=matrix.REACHABILITY_LIBRARY_FOLDER,
         )
+
+    def test_segment_probe_copy_enforces_the_120_second_continuity_deadline(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.segment = {"id": "panorama"}
+            run.channel_failures = []
+            run.events = []
+            run.raw = Path(directory)
+            run.sequence = 0
+
+            with patch.object(
+                matrix.subprocess,
+                "run",
+                side_effect=TimeoutExpired("devicectl", 120),
+            ) as subprocess_run:
+                self.assertEqual(run.copy_probe("segment-after-surface"), [])
+
+            self.assertEqual(subprocess_run.call_args.kwargs["timeout"], 120)
+            self.assertEqual(run.channel_failures[0]["action"], "copyProbe")
+            self.assertIn("120.0 seconds", run.channel_failures[0]["error"])
+
+    def test_controller_enforces_the_120_second_continuity_deadline_by_default(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.segment = {"id": "panorama"}
+            run.channel_failures = []
+            run.events = []
+            run.raw = Path(directory)
+            run.sequence = 0
+            run.controller_output = Path(directory)
+            run.arguments = Mock(derived_data_path=Path(directory))
+
+            with patch.object(
+                matrix.subprocess,
+                "run",
+                side_effect=TimeoutExpired("controller", 120),
+            ) as subprocess_run:
+                result = run.controller("snapshot", "--no-screenshot")
+
+            self.assertEqual(subprocess_run.call_args.kwargs["timeout"], 120)
+            self.assertFalse(result["success"])
+            self.assertEqual(run.channel_failures[0]["action"], "snapshot")
+            self.assertIn("120.0 seconds", run.channel_failures[0]["error"])
 
     def test_window_seek_precedes_transport_controls(self) -> None:
         actions: list[str] = []

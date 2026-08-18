@@ -427,6 +427,7 @@ class ReachabilityRun:
             action,
             *extra,
         ]
+        effective_timeout = min(timeout, 120.0) if self.segment is not None else timeout
         started = time.monotonic()
         try:
             completed = subprocess.run(
@@ -434,13 +435,13 @@ class ReachabilityRun:
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
+                timeout=effective_timeout,
                 check=False,
             )
         except subprocess.TimeoutExpired:
             document = {
                 "success": False,
-                "error": f"controller {action} exceeded {timeout:.1f} seconds",
+                "error": f"controller {action} exceeded {effective_timeout:.1f} seconds",
             }
         else:
             try:
@@ -602,7 +603,7 @@ class ReachabilityRun:
         self.channel_health[phase] = result
         return result
 
-    def copy_probe(self, label: str, *, timeout: float = 150) -> list[str]:
+    def copy_probe(self, label: str, *, timeout: float = 120) -> list[str]:
         if (
             self.segment is not None
             and self.channel_failures
