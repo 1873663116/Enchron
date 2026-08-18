@@ -75,8 +75,9 @@ PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
-PROBE_MIDPOINT_ARCHIVE_BYTES = 450_000
-PROBE_MIDPOINT_MARKER = 25
+PROBE_MIDPOINT_ARCHIVE_BYTES = 250_000
+PROBE_MIDPOINT_MARKER = 8
+EMBY_DETAIL_CANDIDATE_LIMIT = 12
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
@@ -410,6 +411,7 @@ def merge_segment_delivery(
     accepted_segments: list[str] = []
     rejected_segments: list[str] = []
     driven_keys: set[tuple[str, str]] = set()
+    observed_verdicts: dict[tuple[str, str], set[str]] = {}
 
     for segment in segment_results:
         name = str(segment.get("segment", "unnamed"))
@@ -451,11 +453,17 @@ def merge_segment_delivery(
                 continue
             driven_keys.add(key)
             observed = cells.get(key)
-            candidate_by_key[key]["verdict"] = (
+            verdict = (
                 str(observed.get("verdict"))
                 if isinstance(observed, dict)
                 else "known-defect"
             )
+            observed_verdicts.setdefault(key, set()).add(verdict)
+
+    for key, verdicts in observed_verdicts.items():
+        candidate_by_key[key]["verdict"] = (
+            "reachable" if "reachable" in verdicts else "known-defect"
+        )
 
     failures: list[dict[str, str]] = []
     baseline_by_key = {
@@ -1777,7 +1785,7 @@ class ReachabilityRun:
         )
         effect_delivered = False
         if effect_ids:
-            self.tap(presentation, effect_ids[0], operation_id=(
+            self.tap("window", effect_ids[0], operation_id=(
                 "accessibility:EnvironmentCard-effect-"
                 "{environment.environment.rawValue}"
             ))
@@ -1790,7 +1798,7 @@ class ReachabilityRun:
             self.probe_offset = len(probe)
             if effect_delivered:
                 self.delivered(
-                    presentation,
+                    "window",
                     "accessibility:EnvironmentCard-effect-"
                     "{environment.environment.rawValue}",
                     self.events[-1]["evidence"],
@@ -1806,7 +1814,7 @@ class ReachabilityRun:
             and not isinstance(closed.get("matchedElement"), dict)
         ):
             self.delivered(
-                presentation,
+                "window",
                 "environmentVolume:open-interact-close",
                 self.events[-1]["evidence"],
                 "Open, effect interaction, and application-driven close each produced device evidence.",
@@ -2772,7 +2780,7 @@ class ReachabilityRun:
                 ("Emby-PosterCard-", "Emby-StillCard-")
             )
         )
-        for card_identifier in candidate_identifiers:
+        for card_identifier in candidate_identifiers[:EMBY_DETAIL_CANDIDATE_LIMIT]:
             if found_families == {"version", "season"}:
                 break
             self.relaunch()
@@ -3671,7 +3679,7 @@ class ReachabilityRun:
             for line in probe[offset:]
         ):
             self.mark_observation(
-                presentation,
+                "portal",
                 "accessibility:PlayerUI-TopAction-resumePanorama",
                 exists=True,
                 hittable=True,
@@ -4103,7 +4111,7 @@ class ReachabilityRun:
             )
 
         self.exercise_playback_issue(
-            "window",
+            MAIN_WINDOW_BROWSER_CONTEXT,
             category="presentationConversionFailed",
             identifier="PlayerUI-presentation-conversion-dismiss",
             action="confirm",

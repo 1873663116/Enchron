@@ -776,6 +776,32 @@ class SegmentedDeliveryTests(unittest.TestCase):
         self.assertEqual(
             verdicts[("main-window-browser", "accessibility:old-reachable")], "reachable"
         )
+
+    def test_reachable_evidence_is_not_overwritten_by_a_later_defect_segment(self) -> None:
+        proved = self.segment(
+            name="proved",
+            operation="accessibility:old-reachable",
+            verdict="reachable",
+        )
+        later_unproved = self.segment(
+            name="later-unproved",
+            operation="accessibility:old-reachable",
+            verdict="known-defect",
+        )
+
+        delivery = matrix.merge_segment_delivery(
+            self.baseline, [proved, later_unproved]
+        )
+
+        verdicts = {
+            (cell["context"], cell["operation"]): cell["verdict"]
+            for cell in delivery["candidateCells"]
+        }
+        self.assertTrue(delivery["accepted"])
+        self.assertEqual(
+            verdicts[("main-window-browser", "accessibility:old-reachable")],
+            "reachable",
+        )
         self.assertEqual(
             verdicts[("portal", "accessibility:uncovered")], "reachable"
         )
