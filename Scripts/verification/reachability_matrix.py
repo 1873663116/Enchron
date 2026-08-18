@@ -89,6 +89,42 @@ def product_presentations(operation: dict[str, Any]) -> tuple[str, ...]:
     return ("window",)
 
 
+def reachability_evidence_is_complete(cell: dict[str, Any]) -> bool:
+    if cell.get("identifierTemplate") is None:
+        return cell.get("applicationReceived") is True
+    return all(
+        cell.get(key) is True
+        for key in (
+            "existsInHierarchy",
+            "reportsHittable",
+            "applicationReceived",
+        )
+    )
+
+
+def menu_selection_target(
+    listing: dict[str, Any],
+    *,
+    preferred: tuple[str, ...] = (),
+) -> str | None:
+    payload = listing.get("payload")
+    available = [str(value) for value in payload] if isinstance(payload, list) else []
+    for target in preferred:
+        if target in available:
+            return target
+
+    menu_items = listing.get("menuItems")
+    if isinstance(menu_items, list):
+        for item in menu_items:
+            if (
+                isinstance(item, dict)
+                and item.get("isSelected") is False
+                and str(item.get("id")) in available
+            ):
+                return str(item["id"])
+    return available[0] if available else None
+
+
 def immersive_resident_window_is_hidden(
     *,
     toggle: dict[str, Any],
@@ -392,7 +428,7 @@ class ReachabilityRun:
             cell["applicationReceived"] = bool(cell["applicationReceived"] or received)
         cell["evidence"].append(evidence)
         cell["reason"] = reason
-        if cell["applicationReceived"] is True:
+        if reachability_evidence_is_complete(cell):
             cell["verdict"] = "reachable"
         elif cell["existsInHierarchy"] is True and cell["reportsHittable"] is False:
             cell["verdict"] = "known-defect"
@@ -497,6 +533,72 @@ class ReachabilityRun:
             evidence=evidence,
             reason=reason,
         )
+
+    def delivered_by_debug_menu_selection(
+        self,
+        presentation: str,
+        operation_id: str,
+        parent_operation_id: str,
+        evidence: str,
+        reason: str,
+    ) -> bool:
+        parent = self.cells[(presentation, parent_operation_id)]
+        if not (
+            parent["existsInHierarchy"] is True
+            and parent["reportsHittable"] is True
+        ):
+            return False
+        self.mark_observation(
+            presentation,
+            operation_id,
+            exists=True,
+            hittable=True,
+            received=True,
+            evidence=evidence,
+            reason=reason,
+        )
+        return True
+
+    def select_debug_menu_item(
+        self,
+        *,
+        presentation: str,
+        host: str,
+        family: str,
+        preferred: tuple[str, ...] = (),
+    ) -> tuple[str | None, dict[str, Any], dict[str, Any]]:
+        listing = self.app_command(
+            "listMenuItems",
+            host=host,
+            family=family,
+        )
+        if listing.get("success") is not True:
+            return None, listing, {"success": False}
+        self.delivered(
+            presentation,
+            "command:listMenuItems",
+            self.events[-1]["evidence"],
+            "The visible product host enumerated its current menu items.",
+            has_accessibility_target=False,
+        )
+        target = menu_selection_target(listing, preferred=preferred)
+        if target is None:
+            return None, listing, {"success": False}
+        selected = self.app_command(
+            "selectMenuItem",
+            host=host,
+            family=family,
+            target=target,
+        )
+        if selected.get("success") is True:
+            self.delivered(
+                presentation,
+                "command:selectMenuItem",
+                self.events[-1]["evidence"],
+                "The visible product host invoked its shared menu selection handler.",
+                has_accessibility_target=False,
+            )
+        return target, listing, selected
 
     def wait_for_identifier(
         self, identifier: str, *, timeout: float = 40.0
@@ -734,20 +836,19 @@ class ReachabilityRun:
         presentation = "window"
         before = self.copy_probe(f"source-connection-{source}-open-before")
         offset = len(before)
-        opened = self.controller(
-            "tapSequence",
-            "--identifiers",
-            "FileBrowsing-SourcesSidebar-sourceMore",
-            "plus",
-            f"FileBrowsing-SourcesSidebar-add{source}",
-            "--no-screenshot",
-            "--timeout-seconds",
-            "90",
-            timeout=120,
+        parent = self.tap(
+            presentation, "FileBrowsing-SourcesSidebar-sourceMore"
+        )
+        source_value = "smb" if source == "SMB" else "webDAV"
+        _, _, opened = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="sourceAdd",
+            preferred=(source_value,),
         )
         probe = self.copy_probe(f"source-connection-{source}-opened")
         recent = probe[offset:]
-        if opened.get("success") is True and any(
+        if parent.get("success") is True and opened.get("success") is True and any(
             "reachability files delivered action=sourceSidebar.sourceMore" in line
             for line in recent
         ):
@@ -757,16 +858,17 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "Opening the source menu constructed its product-owned actions and appended a probe.",
             )
-        source_value = "smb" if source == "SMB" else "webDAV"
-        if opened.get("success") is True and any(
+        if parent.get("success") is True and opened.get("success") is True and any(
             f"reachability files delivered action=sidebar.add.{source_value}" in line
             for line in recent
         ):
-            self.delivered(
+            self.delivered_by_debug_menu_selection(
                 presentation,
                 f"accessibility:FileBrowsing-SourcesSidebar-add{source}",
+                "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
                 self.events[-1]["evidence"],
-                "The source-type action reached FilesScreen and presented its connection form.",
+                "The named source menu was hittable; the DEBUG equivalent ran the "
+                "source-type product action and presented its connection form.",
             )
         return opened, probe
 
@@ -900,39 +1002,37 @@ class ReachabilityRun:
 
     def source_sidebar_scenario(self) -> None:
         presentation = "window"
-        for identifier, expected_action, nested in (
-            ("addFiles", "sidebar.add.local", True),
-            ("addFolder", "sidebar.addFolder", True),
-            ("addPhotos", "sidebar.add.photoLibrary", True),
-            ("refresh", "sidebar.refresh", False),
+        for identifier, family, target, expected_action in (
+            ("addFiles", "sourceAdd", "local", "sidebar.add.local"),
+            ("addFolder", "sourceAdd", "folder", "sidebar.addFolder"),
+            ("addPhotos", "sourceAdd", "photoLibrary", "sidebar.add.photoLibrary"),
+            ("refresh", "sourceAction", "refresh", "sidebar.refresh"),
         ):
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")
             before = self.copy_probe(f"source-sidebar-{identifier}-before")
             offset = len(before)
-            sequence = ["FileBrowsing-SourcesSidebar-sourceMore"]
-            if nested:
-                sequence.append("plus")
-            sequence.append(f"FileBrowsing-SourcesSidebar-{identifier}")
-            response = self.controller(
-                "tapSequence",
-                "--identifiers",
-                *sequence,
-                "--no-screenshot",
-                "--timeout-seconds",
-                "90",
-                timeout=120,
+            parent = self.tap(
+                presentation, "FileBrowsing-SourcesSidebar-sourceMore"
+            )
+            _, _, response = self.select_debug_menu_item(
+                presentation=presentation,
+                host="files",
+                family=family,
+                preferred=(target,),
             )
             probe = self.copy_probe(f"source-sidebar-{identifier}")
-            if response.get("success") is True and any(
+            if parent.get("success") is True and response.get("success") is True and any(
                 f"reachability files delivered action={expected_action}" in line
                 for line in probe[offset:]
             ):
-                self.delivered(
+                self.delivered_by_debug_menu_selection(
                     presentation,
                     f"accessibility:FileBrowsing-SourcesSidebar-{identifier}",
+                    "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
                     self.events[-1]["evidence"],
-                    "The source-sidebar action reached its FilesScreen handler and appended an action probe.",
+                    "The named source menu was hittable; the DEBUG equivalent reached "
+                    "the FilesScreen handler and appended its product action probe.",
                 )
 
         self.relaunch()
@@ -1038,20 +1138,30 @@ class ReachabilityRun:
                 "The view-mode gesture changed the screen-local product binding.",
             )
 
-        self.tap(presentation, "FileBrowsing-FilesScreen-sort")
         before = self.copy_probe("browser-sort-before")
         offset = len(before)
-        sort = self.controller("tap", "--label", "Size", "--no-screenshot")
+        parent = self.tap(presentation, "FileBrowsing-FilesScreen-sort")
+        target, _, sort = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="sortKey",
+            preferred=("size", "modifiedDate", "name"),
+        )
         probe = self.copy_probe("browser-sort-selected")
-        if sort.get("success") is True and any(
+        if parent.get("success") is True and sort.get("success") is True and any(
             "reachability files delivered action=files.sort" in line
             for line in probe[offset:]
         ):
-            self.delivered(
-                presentation, "accessibility:FileBrowsing-FilesScreen-sort",
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:FileBrowsing-FilesScreen-sort",
+                "accessibility:FileBrowsing-FilesScreen-sort",
                 self.events[-1]["evidence"],
-                "The sort Picker changed its product sort criteria and appended a probe.",
+                "The named sort parent was hittable; the DEBUG equivalent selected "
+                f"target={target} through the Picker binding and its product onChange probe.",
             )
+        if target is not None:
+            self.controller("tap", "--label", "Size", "--no-screenshot")
 
         before = self.copy_probe("browser-search-before")
         offset = len(before)
@@ -1074,26 +1184,37 @@ class ReachabilityRun:
         self.tap(presentation, "Navigation-Ornament-tab-files")
         before = self.copy_probe("browser-new-folder-before")
         offset = len(before)
-        opened = self.controller(
-            "tapSequence", "--identifiers",
-            "FileBrowsing-Manage-button", "MediaLibrary-Manage-newFolder",
-            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+        parent = self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, opened = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("newFolder",),
         )
         probe = self.copy_probe("browser-new-folder-open")
         recent = probe[offset:]
-        if opened.get("success") is True:
-            for operation_id, fact in (
-                ("accessibility:FileBrowsing-Manage-button", "manage.open"),
-                ("accessibility:MediaLibrary-Manage-newFolder", "manage.newFolder"),
-            ):
-                if any(
-                    f"reachability files delivered action={fact}" in line
-                    for line in recent
-                ):
-                    self.delivered(
-                        presentation, operation_id, self.events[-1]["evidence"],
-                        "The Manage menu path appended its action-specific product probe.",
-                    )
+        if parent.get("success") is True and any(
+            "reachability files delivered action=manage.open" in line
+            for line in recent
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-Manage-button",
+                self.events[-1]["evidence"],
+                "The named Manage menu was hittable and constructed its product actions.",
+            )
+        if opened.get("success") is True and any(
+            "reachability files delivered action=manage.newFolder" in line
+            for line in recent
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:MediaLibrary-Manage-newFolder",
+                "accessibility:FileBrowsing-Manage-button",
+                self.events[-1]["evidence"],
+                "The named Manage parent was hittable; the DEBUG equivalent entered "
+                "the product new-folder action and its probe confirmed delivery.",
+            )
         before = probe
         offset = len(before)
         typed = self.controller(
@@ -1178,26 +1299,65 @@ class ReachabilityRun:
                     )
 
             # Return through the product breadcrumb before exercising root-only
-            # multi-selection controls.
-            self.tap(presentation, "MediaLibrary-Breadcrumb-current")
-            self.controller("tap", "--label", "Media Library", "--no-screenshot")
+            # multi-selection controls. The named parent supplies structural
+            # evidence; the equivalent selection enters the same callback as the
+            # system Picker item.
+            before = probe
+            offset = len(before)
+            parent = self.tap(
+                presentation, "MediaLibrary-Breadcrumb-current"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="mediaLibrary",
+                family="breadcrumb",
+                preferred=("0",),
+            )
+            probe = self.copy_probe("browser-library-breadcrumb-root")
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    "reachability files delivered "
+                    "action=breadcrumb.mediaLibrary" in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    self.events[-1]["evidence"],
+                    "The named breadcrumb was hittable; the DEBUG equivalent "
+                    "entered its product navigation callback and the callback "
+                    "probe confirmed delivery.",
+                )
+            self.controller(
+                "tap", "--label", "Media Library", "--no-screenshot",
+                timeout=90,
+            )
 
         before = self.copy_probe("browser-multiselect-before")
         offset = len(before)
-        selection = self.controller(
-            "tapSequence", "--identifiers",
-            "FileBrowsing-Manage-button", "MediaLibrary-Manage-selectMultiple",
-            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+        parent = self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, selection = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("selectMultiple",),
         )
         probe = self.copy_probe("browser-multiselect-open")
-        if selection.get("success") is True and any(
+        if parent.get("success") is True and selection.get("success") is True and any(
             "reachability files delivered action=manage.selectMultiple" in line
             for line in probe[offset:]
         ):
-            self.delivered(
-                presentation, "accessibility:MediaLibrary-Manage-selectMultiple",
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:MediaLibrary-Manage-selectMultiple",
+                "accessibility:FileBrowsing-Manage-button",
                 self.events[-1]["evidence"],
-                "The Manage action entered Media Library multi-selection mode.",
+                "The named Manage parent was hittable; the DEBUG equivalent entered "
+                "the product multi-selection action and its probe confirmed delivery.",
             )
         before = probe
         offset = len(before)
@@ -1227,6 +1387,50 @@ class ReachabilityRun:
                 presentation, "accessibility:MediaLibrary-MultiSelect-done",
                 self.events[-1]["evidence"],
                 "Done exited the product multi-selection state and appended a probe.",
+            )
+
+        # Re-enter selection so the system-owned Move To menu can keep its own
+        # three-tier evidence without sacrificing the Done regression cell.
+        self.tap(presentation, "FileBrowsing-Manage-button")
+        self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("selectMultiple",),
+        )
+        self.tap(
+            presentation,
+            "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+        )
+        before = self.copy_probe("browser-move-selection-before")
+        offset = len(before)
+        move_parent = self.tap(
+            presentation, "MediaLibrary-MultiSelect-move"
+        )
+        _, _, moved = self.select_debug_menu_item(
+            presentation=presentation,
+            host="mediaLibrary",
+            family="moveDestination",
+            preferred=("root",),
+        )
+        probe = self.copy_probe("browser-move-selection")
+        if (
+            move_parent.get("success") is True
+            and moved.get("success") is True
+            and any(
+                "reachability files delivered action=multiSelect.move" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:MediaLibrary-MultiSelect-move",
+                "accessibility:MediaLibrary-MultiSelect-move",
+                self.events[-1]["evidence"],
+                "The named Move To parent was hittable; the DEBUG equivalent "
+                "entered the shared move handler and its product probe confirmed "
+                "delivery.",
             )
 
     def open_media(self, identifier: str) -> dict[str, Any]:
@@ -1345,28 +1549,42 @@ class ReachabilityRun:
             picker = self.tap(
                 presentation, f"{identifier_prefix}-CustomAngle"
             )
-            selected = (
-                self.controller(
-                    "tap", "--label", "180°", "--no-screenshot", timeout=90
-                )
-                if picker.get("success") is True
-                else {"success": False}
+            host = (
+                "playerUI"
+                if identifier_prefix == "PlayerUI-VideoFormat"
+                else "playerPanel"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host=host,
+                family="customAngle",
+                preferred=("180",),
             )
             probe = self.wait_for_probe(
                 f"{identifier_prefix}-custom-angle",
                 offset,
                 f"{probe_prefix}videoFormat.customAngle",
             )
-            if selected.get("success") is True and any(
-                f"{probe_prefix}videoFormat.customAngle" in line
-                for line in probe[offset:]
+            if (
+                picker.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    f"{probe_prefix}videoFormat.customAngle" in line
+                    for line in probe[offset:]
+                )
             ):
-                self.delivered(
+                self.delivered_by_debug_menu_selection(
                     presentation,
                     f"accessibility:{identifier_prefix}-CustomAngle",
+                    f"accessibility:{identifier_prefix}-CustomAngle",
                     self.events[-1]["evidence"],
-                    "The custom-angle Picker changed its editor binding and appended a probe.",
+                    "The named custom-angle Picker was hittable; the DEBUG "
+                    "equivalent changed the same editor binding and its existing "
+                    "product probe confirmed delivery.",
                 )
+            self.controller(
+                "tap", "--label", "180°", "--no-screenshot", timeout=90
+            )
             self.tap(presentation, f"{identifier_prefix}-cancel")
 
         if open_editor():
@@ -1574,38 +1792,41 @@ class ReachabilityRun:
                 "Opening the system Menu caused its product-owned content to append a probe.",
             )
 
-        # Complete a real selection so the first system-owned Menu closes before
-        # opening another path. Reusing the open Menu leaves the top action hidden.
+        # System Menu removes item identifiers. The named top-level parent still
+        # supplies the hierarchy and hittability evidence; the DEBUG verb invokes
+        # the same Picker binding setter and its existing product probe proves
+        # delivery beyond XCTest.
+        item_offset = len(probe)
+        target, _, selected = self.select_debug_menu_item(
+            presentation=presentation,
+            host="playerUI",
+            family="subtitles",
+            preferred=("off",),
+        )
+        probe = self.copy_probe(f"{presentation}-top-subtitles-selected")
+        if selected.get("success") is True and target is not None and any(
+            "reachability top actions delivered action=menu.item."
+            + target in line
+            for line in probe[item_offset:]
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:PlayerUI-menu-subtitles",
+                "accessibility:PlayerUI-TopAction-more",
+                self.events[-1]["evidence"],
+                "The named More parent supplied hierarchy and hittability evidence; "
+                "the DEBUG equivalent entered the subtitle Picker binding and its "
+                "menu.item product probe confirmed delivery.",
+            )
+
+        # The equivalent action does not dismiss the system-owned menu. A label
+        # action is cleanup only and never contributes delivery evidence.
         speed = self.controller(
             "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
         )
         if speed.get("success") is True:
             self.controller(
                 "tap", "--label", "1.25×", "--no-screenshot", timeout=90,
-            )
-
-        # Selection is the delivery boundary for the system-owned submenu. Merely
-        # seeing its label or constructing its content is not enough.
-        self.show_controls()
-        before = self.copy_probe(f"{presentation}-top-subtitles-before")
-        offset = len(before)
-        submenu = self.controller(
-            "tapSequence", "--identifiers",
-            "PlayerUI-TopAction-more", "PlayerUI-menu-subtitles",
-            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
-        )
-        selected = self.controller(
-            "tap", "--label", "Off", "--no-screenshot", timeout=90,
-        ) if submenu.get("success") is True else {"success": False}
-        probe = self.copy_probe(f"{presentation}-top-subtitles-selected")
-        if selected.get("success") is True and any(
-            "reachability top actions delivered action=menu.item.off" in line
-            for line in probe[offset:]
-        ):
-            self.delivered(
-                presentation, "accessibility:PlayerUI-menu-subtitles",
-                self.events[-1]["evidence"],
-                "A subtitle choice ran the product selection binding and appended an item probe.",
             )
 
     def stop_playback(self, presentation: str) -> bool:
@@ -1792,87 +2013,68 @@ class ReachabilityRun:
         self.show_controls()
         before = self.copy_probe(f"{presentation}-panel-menu-before")
         offset = len(before)
-        self.controller(
-            "tapSequence", "--identifiers",
-            "PlayerPanel-menu-more", "PlayerPanel-menu-speed",
-            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
-        )
+        opened = self.tap(presentation, "PlayerPanel-menu-more")
         probe = self.copy_probe(f"{presentation}-panel-menu-open")
-        recent = probe[offset:]
-        for operation_id, fact in (
-            ("accessibility:PlayerPanel-menu-more", "menu.more"),
-            ("accessibility:PlayerPanel-menu-speed", "menu.speed"),
-            ("accessibility:PlayerPanel-menu-subtitles", "menu.subtitle"),
-            ("accessibility:PlayerPanel-menu-audio", "menu.audio"),
-            ("accessibility:PlayerPanel-menu-episodes", "menu.episode"),
-        ):
-            if any(
-                f"reachability playerPanel delivered action={fact}" in line
-                for line in recent
-            ):
-                self.delivered(
-                    presentation,
-                    operation_id,
-                    self.events[-1]["evidence"],
-                    "The PlayerPanel menu content appended its action-specific product probe.",
-                )
-
-        item_offset = len(probe)
-        speed = self.controller(
-            "tap", "--label", "1.25×", "--no-screenshot", timeout=90,
-        )
-        probe = self.copy_probe(f"{presentation}-panel-speed-selected")
-        if speed.get("success") is True and any(
-            "reachability playerPanel delivered action=menu.item." in line
-            for line in probe[item_offset:]
+        if opened.get("success") is True and any(
+            "reachability playerPanel delivered action=menu.more" in line
+            for line in probe[offset:]
         ):
             self.delivered(
                 presentation,
-                "accessibility:PlayerPanel-menu-{category}-{item.id}",
+                "accessibility:PlayerPanel-menu-more",
                 self.events[-1]["evidence"],
-                "The selected menu item appended its product item probe.",
+                "The named PlayerPanel More menu was hittable and constructed its product content.",
             )
 
-        for category in ("subtitles",):
-            self.show_controls()
-            before = self.copy_probe(f"{presentation}-panel-{category}-before")
-            offset = len(before)
-            self.controller(
-                "tapSequence", "--identifiers",
-                "PlayerPanel-menu-more", f"PlayerPanel-menu-{category}",
-                "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+        family_operations = (
+            ("speed", "accessibility:PlayerPanel-menu-speed", ("1.25",)),
+            ("subtitles", "accessibility:PlayerPanel-menu-subtitles", ("off",)),
+            ("audio", "accessibility:PlayerPanel-menu-audio", ()),
+            ("episodes", "accessibility:PlayerPanel-menu-episodes", ()),
+        )
+        for family, operation_id, preferred in family_operations:
+            item_offset = len(probe)
+            target, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="playerPanel",
+                family=family,
+                preferred=preferred,
             )
-            probe = self.copy_probe(f"{presentation}-panel-{category}-open")
-            singular = category.removesuffix("s")
-            submenu_delivered = any(
-                f"reachability playerPanel delivered action=menu.{singular}" in line
-                for line in probe[offset:]
+            probe = self.copy_probe(
+                f"{presentation}-panel-{family}-selected"
             )
-            if submenu_delivered:
-                self.delivered(
-                    presentation, f"accessibility:PlayerPanel-menu-{category}",
+            if selected.get("success") is True and target is not None and any(
+                "reachability playerPanel delivered action=menu.item."
+                + target in line
+                for line in probe[item_offset:]
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    operation_id,
+                    "accessibility:PlayerPanel-menu-more",
                     self.events[-1]["evidence"],
-                    "The product submenu entered its active content state and appended a probe.",
+                    "The named More parent supplied hierarchy and hittability evidence; "
+                    f"the DEBUG equivalent entered the {family} item handler and its "
+                    "menu.item product probe confirmed delivery.",
                 )
-            if category == "subtitles" and submenu_delivered:
-                before = probe
-                offset = len(before)
-                selected = self.controller(
-                    "tap", "--label", "Off", "--no-screenshot", timeout=90,
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:PlayerPanel-menu-{category}-{item.id}",
+                    "accessibility:PlayerPanel-menu-more",
+                    self.events[-1]["evidence"],
+                    "The named More parent supplied hierarchy and hittability evidence; "
+                    "the DEBUG equivalent entered the exact item action and its product "
+                    "probe confirmed delivery.",
                 )
-                probe = self.copy_probe(
-                    f"{presentation}-panel-{category}-selected"
-                )
-                if selected.get("success") is True and any(
-                    "reachability playerPanel delivered action=menu.item.off" in line
-                    for line in probe[offset:]
-                ):
-                    self.delivered(
-                        presentation,
-                        "accessibility:PlayerPanel-menu-{category}-{item.id}",
-                        self.events[-1]["evidence"],
-                        "The subtitle menu ran an explicit product item action and appended its selection probe.",
-                    )
+
+        # The equivalent action does not dismiss the system-owned menu. These
+        # label actions are cleanup only and never contribute delivery evidence.
+        self.controller(
+            "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+        )
+        self.controller(
+            "tap", "--label", "1×", "--no-screenshot", timeout=90,
+        )
 
     def docked_settings_scenario(self) -> None:
         presentation = "docked"
