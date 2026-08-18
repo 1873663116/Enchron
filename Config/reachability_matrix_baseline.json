@@ -1665,7 +1665,7 @@
     {
       "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-button-enter-panorama",
@@ -1680,22 +1680,22 @@
     {
       "operation": "accessibility:PlayerPanel-button-forward",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-button-play",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-button-rewind",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-button-settings",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-media-information-close",
@@ -1745,17 +1745,17 @@
     {
       "operation": "accessibility:PlayerPanel-{identifier}-slider",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-DockMenu-skybox",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-InfoBar-button-back",
@@ -1765,12 +1765,12 @@
     {
       "operation": "accessibility:PlayerUI-TopAction-dock",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-TopAction-more",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
@@ -1785,7 +1785,7 @@
     {
       "operation": "accessibility:PlayerUI-loadFailure-primary",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-loadFailure-secondary",
@@ -1850,7 +1850,7 @@
     {
       "operation": "command:setDockedPlacement",
       "presentation": "docked",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "command:setWindowSize",
