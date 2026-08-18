@@ -267,6 +267,19 @@ def replay_deferred_evidence(
     }
 
 
+def deferred_replay_failure_reason(replay: dict[str, Any]) -> str | None:
+    if replay.get("sessionAligned") is not True:
+        return "The segment probe has no matching session marker."
+    if replay.get("passed") is not True:
+        failed = max(
+            0,
+            int(replay.get("deliveryCount", 0))
+            - int(replay.get("verifiedDeliveryCount", 0)),
+        )
+        return f"Deferred evidence replay left {failed} delivery facts unverified."
+    return None
+
+
 class DeferredProbeLine:
     def __init__(self, requirement: dict[str, Any]) -> None:
         self.requirement = requirement
@@ -5444,16 +5457,17 @@ class ReachabilityRun:
         self.events.append({
             "at": utc_now(),
             "action": "replayDeferredEvidence",
-            "success": replay["sessionAligned"],
+            "success": replay["passed"],
             "evidence": f"raw/{replay_path.name}",
             "deliveryCount": replay["deliveryCount"],
             "verifiedDeliveryCount": replay["verifiedDeliveryCount"],
         })
-        if replay["sessionAligned"] is not True:
+        replay_failure = deferred_replay_failure_reason(replay)
+        if replay_failure is not None:
             self.channel_failures.append({
                 "at": utc_now(),
                 "action": "replayDeferredEvidence",
-                "error": "The segment probe has no matching session marker.",
+                "error": replay_failure,
                 "evidence": f"raw/{replay_path.name}",
             })
         after_health = self.record_segment_health_context(

@@ -399,6 +399,27 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
 
 class DeferredSegmentEvidenceTests(unittest.TestCase):
+    def test_replay_gate_rejects_aligned_but_unverified_deliveries(self) -> None:
+        reason = matrix.deferred_replay_failure_reason({
+            "passed": False,
+            "sessionAligned": True,
+            "deliveryCount": 17,
+            "verifiedDeliveryCount": 2,
+        })
+
+        self.assertEqual(
+            reason,
+            "Deferred evidence replay left 15 delivery facts unverified.",
+        )
+
+    def test_replay_gate_accepts_a_fully_verified_replay(self) -> None:
+        self.assertIsNone(matrix.deferred_replay_failure_reason({
+            "passed": True,
+            "sessionAligned": True,
+            "deliveryCount": 2,
+            "verifiedDeliveryCount": 2,
+        }))
+
     def test_segment_probe_reads_are_deferred_without_devicectl(self) -> None:
         operation = "accessibility:PlayerPanel-button-forward"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
