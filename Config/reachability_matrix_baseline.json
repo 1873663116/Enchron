@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-17T14:15:48+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round2-20260818/aggregate-results.json",
+  "acceptedAt": "2026-08-18T06:30:30.381954+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round7-20260818/delivery/final/delivery.json",
   "cells": [
     {
       "operation": "accessibility:Emby-Connection-Address",
@@ -165,7 +165,7 @@
     {
       "operation": "accessibility:MediaLibrary-Manage-addFolder",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:MediaLibrary-Manage-addPhotos",
@@ -200,7 +200,7 @@
     {
       "operation": "accessibility:MediaLibrary-MultiSelect-move",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:MediaLibrary-NewFolder-create",
@@ -1895,12 +1895,12 @@
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
@@ -1910,82 +1910,82 @@
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
@@ -2000,12 +2000,12 @@
     {
       "operation": "accessibility:FileBrowsing-error-primary",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:FileBrowsing-error-secondary",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
@@ -2040,7 +2040,7 @@
     {
       "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
@@ -2050,22 +2050,22 @@
     {
       "operation": "accessibility:PlayerUI-VideoFormat-apply",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-VideoFormat-automatic",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-VideoFormat-cancel",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:Settings-category-{item.id}",
@@ -2660,12 +2660,12 @@
     {
       "operation": "command:listMenuItems",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "command:selectMenuItem",
       "presentation": "window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:Emby-Detail-Version",
@@ -2685,12 +2685,12 @@
     {
       "operation": "command:listMenuItems",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "command:selectMenuItem",
       "presentation": "portal",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "operation": "accessibility:Emby-Detail-Version",
