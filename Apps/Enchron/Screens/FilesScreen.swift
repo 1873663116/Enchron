@@ -46,6 +46,24 @@ struct FilesScreen: View {
         }
     }
 
+    private enum ManageAction: String, CaseIterable {
+        case addFiles
+        case addFolder
+        case addPhotos
+        case newFolder
+        case selectMultiple
+
+        var title: String {
+            switch self {
+            case .addFiles: "Add Files"
+            case .addFolder: "Add Folder"
+            case .addPhotos: "Add from Photos"
+            case .newFolder: "New Library Folder"
+            case .selectMultiple: "Select Multiple"
+            }
+        }
+    }
+
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @Environment(MediaLibraryViewModel.self) private var mediaLibrary
 
@@ -151,6 +169,14 @@ struct FilesScreen: View {
                 return
             }
             request.handle { viewModel.lastErrorMessage = $0 }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest else {
+                return
+            }
+            handleDebugMenuSelection(request)
         }
 #endif
         .sheet(item: $presentedSourceConnection) { kind in
@@ -671,6 +697,7 @@ struct FilesScreen: View {
             return PathBreadcrumbMenu(
                 path: ["Media Library"] + folders.map(\.name),
                 onSelectLevel: { position in
+                    recordReachability("breadcrumb.mediaLibrary")
                     if position == 0 {
                         mediaLibrary.navigateToRoot()
                     } else if folders.indices.contains(position - 1) {
@@ -685,6 +712,7 @@ struct FilesScreen: View {
             path: segments.map(\.name),
             onSelectLevel: { position in
                 guard position >= 0, position < segments.count else { return }
+                recordReachability("breadcrumb.files")
                 let stackIndex = segments[position].index
                 Task { await viewModel.navigateToBreadcrumb(index: stackIndex) }
             },
@@ -696,31 +724,26 @@ struct FilesScreen: View {
         Menu {
             Group {
                 Button {
-                    recordReachability("manage.addFiles")
-                    fileSelectionKind = .files
-                    isFileImporterPresented = true
+                    performManageAction(.addFiles)
                 } label: {
                     Label("Add Files", systemImage: "doc.badge.plus")
                 }
                 .accessibilityIdentifier("MediaLibrary-Manage-addFiles")
                 Button {
-                    recordReachability("manage.addFolder")
-                    presentFolderImporter()
+                    performManageAction(.addFolder)
                 } label: {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
                 .accessibilityIdentifier("MediaLibrary-Manage-addFolder")
                 Button {
-                    recordReachability("manage.addPhotos")
-                    requestPhotosAccessAndPresentPicker()
+                    performManageAction(.addPhotos)
                 } label: {
                     Label("Add from Photos", systemImage: "photo.on.rectangle")
                 }
                 .accessibilityIdentifier("MediaLibrary-Manage-addPhotos")
                 Divider()
                 Button {
-                    recordReachability("manage.newFolder")
-                    isCreatingFolder = true
+                    performManageAction(.newFolder)
                 } label: {
                     Label("New Library Folder", systemImage: "folder.badge.plus")
                 }
@@ -728,8 +751,7 @@ struct FilesScreen: View {
                 if !isBrowsingSource {
                     Divider()
                     Button {
-                        recordReachability("manage.selectMultiple")
-                        beginMediaReferenceSelection()
+                        performManageAction(.selectMultiple)
                     } label: {
                         Label("Select Multiple", systemImage: "checkmark.circle")
                     }
@@ -759,13 +781,11 @@ struct FilesScreen: View {
 
             Menu {
                 Button("Media Library") {
-                    recordReachability("multiSelect.move")
-                    moveSelectedMediaReferences(to: nil)
+                    selectMoveDestination(nil)
                 }
                 ForEach(mediaLibrary.allFolders) { folder in
                     Button(folder.name) {
-                        recordReachability("multiSelect.move")
-                        moveSelectedMediaReferences(to: folder.id)
+                        selectMoveDestination(folder.id)
                     }
                 }
             } label: {
@@ -1026,6 +1046,99 @@ struct FilesScreen: View {
         endMediaReferenceSelection()
     }
 
+    private func selectMoveDestination(_ folderID: UUID?) {
+        recordReachability("multiSelect.move")
+        moveSelectedMediaReferences(to: folderID)
+    }
+
+    private func performManageAction(_ action: ManageAction) {
+        recordReachability("manage.\(action.rawValue)")
+        switch action {
+        case .addFiles:
+            fileSelectionKind = .files
+            isFileImporterPresented = true
+        case .addFolder:
+            presentFolderImporter()
+        case .addPhotos:
+            requestPhotosAccessAndPresentPicker()
+        case .newFolder:
+            isCreatingFolder = true
+        case .selectMultiple:
+            beginMediaReferenceSelection()
+        }
+    }
+
+#if DEBUG
+    private func handleDebugMenuSelection(
+        _ request: DebugMenuSelectionRequest
+    ) {
+        switch (request.host, request.family) {
+        case (.files, .manage):
+            let actions = ManageAction.allCases.filter {
+                $0 != .selectMultiple || isBrowsingSource == false
+            }
+            request.handle(
+                host: .files,
+                family: .manage,
+                items: actions.map { action in
+                    DebugMenuSelectionItem(
+                        id: action.rawValue,
+                        title: action.title,
+                        isSelected: false,
+                        select: { performManageAction(action) }
+                    )
+                }
+            )
+        case (.mediaLibrary, .moveDestination):
+            guard mediaReferenceSelectionIsActive else { return }
+            let root = DebugMenuSelectionItem(
+                id: "root",
+                title: "Media Library",
+                isSelected: false,
+                select: { selectMoveDestination(nil) }
+            )
+            let folders = mediaLibrary.allFolders.map { folder in
+                DebugMenuSelectionItem(
+                    id: folder.id.uuidString,
+                    title: folder.name,
+                    isSelected: false,
+                    select: { selectMoveDestination(folder.id) }
+                )
+            }
+            request.handle(
+                host: .mediaLibrary,
+                family: .moveDestination,
+                items: [root] + folders
+            )
+        case (.mediaLibrary, .referenceMoveDestination):
+            let items = displayedLibraryReferences.flatMap { reference in
+                let root = DebugMenuSelectionItem(
+                    id: "\(reference.id.uuidString):root",
+                    title: "\(reference.name) → Media Library",
+                    isSelected: false,
+                    select: { moveReference(reference, to: nil) }
+                )
+                let folders = mediaLibrary.allFolders.map { folder in
+                    DebugMenuSelectionItem(
+                        id: "\(reference.id.uuidString):\(folder.id.uuidString)",
+                        title: "\(reference.name) → \(folder.name)",
+                        isSelected: false,
+                        select: { moveReference(reference, to: folder.id) }
+                    )
+                }
+                return [root] + folders
+            }
+            request.handle(
+                host: .mediaLibrary,
+                family: .referenceMoveDestination,
+                items: items
+            )
+        default:
+            return
+        }
+    }
+#endif
+
     private func recordReachability(_ action: String) {
 #if DEBUG
         AppModel.recordProbe("reachability files delivered action=\(action)")
@@ -1035,14 +1148,22 @@ struct FilesScreen: View {
     @ViewBuilder
     private func libraryReferenceActions(_ reference: FileBrowsingDomain.MediaReference) -> some View {
         Menu("Move to", systemImage: "folder") {
-            Button("Media Library") { mediaLibrary.move(reference, to: nil) }
+            Button("Media Library") { moveReference(reference, to: nil) }
             ForEach(mediaLibrary.allFolders) { folder in
-                Button(folder.name) { mediaLibrary.move(reference, to: folder.id) }
+                Button(folder.name) { moveReference(reference, to: folder.id) }
             }
         }
         Button("Remove from Library", systemImage: "trash", role: .destructive) {
             mediaLibrary.remove(reference)
         }
+    }
+
+    private func moveReference(
+        _ reference: FileBrowsingDomain.MediaReference,
+        to folderID: UUID?
+    ) {
+        recordReachability("libraryReference.move")
+        mediaLibrary.move(reference, to: folderID)
     }
 
     @ViewBuilder

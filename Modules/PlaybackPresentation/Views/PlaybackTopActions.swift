@@ -332,6 +332,35 @@ struct PlaybackVideoFormatEditor: View {
                     .accessibilityIdentifier("\(identifierPrefix)-apply")
             }
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  request.family == .customAngle else {
+                return
+            }
+            let host: DebugMenuSelectionHost
+            switch identifierPrefix {
+            case "PlayerUI-VideoFormat": host = .playerUI
+            case "PlayerPanel-VideoFormat": host = .playerPanel
+            default: return
+            }
+            request.handle(
+                host: host,
+                family: .customAngle,
+                items: PanoramaHorizontalCoverage.selectableAngles.map { degrees in
+                    DebugMenuSelectionItem(
+                        id: String(degrees),
+                        title: "\(degrees)°",
+                        isSelected: projection == .customAngle
+                            && horizontalFieldOfViewDegrees == degrees,
+                        select: { customAngleSelection.wrappedValue = degrees }
+                    )
+                }
+            )
+        }
+#endif
     }
 
     private func menuHeading(_ title: String, supporting: String) -> some View {

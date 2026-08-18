@@ -417,6 +417,16 @@ struct ProductionPlaybackMoreMenu: View {
             }
         }
         .accessibilityLabel("More playback settings")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest else {
+                return
+            }
+            handleDebugMenuSelection(request)
+        }
+#endif
     }
 
     @ViewBuilder
@@ -447,6 +457,41 @@ struct ProductionPlaybackMoreMenu: View {
             }
         )
     }
+
+#if DEBUG
+    private func handleDebugMenuSelection(
+        _ request: DebugMenuSelectionRequest
+    ) {
+        let items: [DeckMenuItem]
+        switch request.family {
+        case .subtitles:
+            items = subtitleItems
+        case .audio:
+            items = audioItems
+        case .speed:
+            items = speedItems
+        case .episodes:
+            items = episodeItems
+        default:
+            return
+        }
+        guard items.isEmpty == false else { return }
+        request.handle(
+            host: .playerUI,
+            family: request.family,
+            items: items.map { item in
+                DebugMenuSelectionItem(
+                    id: item.id,
+                    title: item.title,
+                    isSelected: item.isSelected,
+                    select: {
+                        selection(items).wrappedValue = item.id
+                    }
+                )
+            }
+        )
+    }
+#endif
 
     private func register() {
         appModel.registerControlsInteraction()

@@ -1,4 +1,5 @@
 import DesignSystem
+import Foundation
 import MediaLibrary
 import SwiftUI
 
@@ -39,6 +40,34 @@ struct PathBreadcrumbMenu: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(currentFolder)
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  request.family == .breadcrumb else {
+                return
+            }
+            let host: DebugMenuSelectionHost
+            switch accessibilityIdentifier {
+            case "FileBrowsing-Breadcrumb-current": host = .files
+            case "MediaLibrary-Breadcrumb-current": host = .mediaLibrary
+            default: return
+            }
+            request.handle(
+                host: host,
+                family: .breadcrumb,
+                items: path.indices.map { index in
+                    DebugMenuSelectionItem(
+                        id: String(index),
+                        title: pathPrefix(through: index),
+                        isSelected: index == path.count - 1,
+                        select: { onSelectLevel(index) }
+                    )
+                }
+            )
+        }
+#endif
     }
 
     private func pathPrefix(through index: Int) -> String {

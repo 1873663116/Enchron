@@ -136,6 +136,7 @@
 				DesignSystem/Components/SettingsComponents.swift,
 				DesignSystem/Components/SidebarRow.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,
+				DesignSystem/DebugMenuSelection.swift,
 				DesignSystem/DesignTokens.swift,
 				"DesignSystem/View+EnchronGlass.swift",
 				"DesignSystem/View+Platform.swift",

@@ -370,6 +370,17 @@ struct FusedPlayerPanel: View {
         .enchronGlassBackground(in: shape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  let live else {
+                return
+            }
+            handleDebugMenuSelection(request, live: live)
+        }
+#endif
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .enchronScrubSensoryFeedback(
             pressTrigger: scrubFeedbackTrigger,
@@ -1163,8 +1174,8 @@ struct FusedPlayerPanel: View {
     ) -> some View {
         ForEach(items) { item in
             Button {
-                live?.onReachabilityAction("menu.item.\(item.id)")
-                item.action()
+                guard let live else { return }
+                activateMenuItem(item, live: live)
             } label: {
                 if item.isSelected {
                     Label(item.title, systemImage: "checkmark")
@@ -1178,6 +1189,48 @@ struct FusedPlayerPanel: View {
             live?.onReachabilityAction("menu.\(category)")
         }
     }
+
+    private func activateMenuItem(
+        _ item: DeckMenuItem,
+        live: FusedPlayerPanelLive
+    ) {
+        live.onReachabilityAction("menu.item.\(item.id)")
+        item.action()
+    }
+
+#if DEBUG
+    private func handleDebugMenuSelection(
+        _ request: DebugMenuSelectionRequest,
+        live: FusedPlayerPanelLive
+    ) {
+        let items: [DeckMenuItem]
+        switch request.family {
+        case .subtitles:
+            items = live.subtitleItems
+        case .audio:
+            items = live.audioItems
+        case .speed:
+            items = live.speedItems
+        case .episodes:
+            items = live.episodeItems
+        default:
+            return
+        }
+        guard items.isEmpty == false else { return }
+        request.handle(
+            host: .playerPanel,
+            family: request.family,
+            items: items.map { item in
+                DebugMenuSelectionItem(
+                    id: item.id,
+                    title: item.title,
+                    isSelected: item.isSelected,
+                    select: { activateMenuItem(item, live: live) }
+                )
+            }
+        )
+    }
+#endif
 
     private func menuOption(_ title: String) -> some View {
         Button {} label: { Text(title) }

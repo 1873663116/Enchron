@@ -940,10 +940,7 @@ private struct EmbyDetailScreen: View {
                 }
 
                 if item.metadata.mediaSources.count > 1 {
-                    Picker("Version", selection: Binding(
-                        get: { viewModel.selectedMediaSourceID },
-                        set: { viewModel.selectedMediaSourceID = $0 }
-                    )) {
+                    Picker("Version", selection: mediaSourceSelection) {
                         ForEach(item.metadata.mediaSources) { source in
                             Text(versionSummary(source)).tag(Optional(source.id))
                         }
@@ -956,6 +953,36 @@ private struct EmbyDetailScreen: View {
                 }
             }
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  item.metadata.mediaSources.count > 1,
+                  request.family == .version else {
+                return
+            }
+            request.handle(
+                host: .emby,
+                family: .version,
+                items: item.metadata.mediaSources.map { source in
+                    DebugMenuSelectionItem(
+                        id: source.id.rawValue,
+                        title: versionSummary(source),
+                        isSelected: viewModel.selectedMediaSourceID == source.id,
+                        select: { mediaSourceSelection.wrappedValue = source.id }
+                    )
+                }
+            )
+        }
+#endif
+    }
+
+    private var mediaSourceSelection: Binding<EmbyMediaSourceID?> {
+        Binding(
+            get: { viewModel.selectedMediaSourceID },
+            set: { viewModel.selectedMediaSourceID = $0 }
+        )
     }
 
     private func isPlayable(_ item: EmbyLibraryItem) -> Bool {
@@ -1097,6 +1124,30 @@ private struct EmbyDetailScreen: View {
         .menuStyle(.button)
         .buttonStyle(.plain)
         .accessibilityIdentifier("Emby-Season-Picker")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  request.family == .season else {
+                return
+            }
+            request.handle(
+                host: .emby,
+                family: .season,
+                items: seasons.map { season in
+                    DebugMenuSelectionItem(
+                        id: season.metadata.id.rawValue,
+                        title: season.metadata.name,
+                        isSelected: season.metadata.id == selected,
+                        select: {
+                            seasonSelection(selected).wrappedValue = season.metadata.id
+                        }
+                    )
+                }
+            )
+        }
+#endif
     }
 
     private func seasonSelection(_ selected: EmbyItemID?) -> Binding<EmbyItemID?> {

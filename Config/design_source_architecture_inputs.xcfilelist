@@ -18,6 +18,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarToggleButton.swift
+$(SRCROOT)/Modules/DesignSystem/DebugMenuSelection.swift
 $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift
 $(SRCROOT)/Modules/DesignSystem/View+Platform.swift

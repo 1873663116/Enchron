@@ -1,5 +1,6 @@
-import Foundation
+import DesignSystem
 import Emby
+import Foundation
 import MediaLibrary
 import PlaybackFeature
 import PlaybackPresentation
@@ -16,10 +17,17 @@ final class TestCommandChannel {
     }
 
     private struct Response: Encodable {
+        struct MenuItem: Encodable {
+            let id: String
+            let title: String
+            let isSelected: Bool
+        }
+
         let id: String
         let ok: Bool
         let detail: String?
         let payload: [String]?
+        var menuItems: [MenuItem]? = nil
     }
 
     private struct CommandError: LocalizedError {
@@ -180,6 +188,18 @@ final class TestCommandChannel {
             return try seekNormalized(request)
         case "setDockedPlacement":
             return try setDockedPlacement(request)
+        case "listMenuItems":
+            return try performMenuSelection(request, operation: .list)
+        case "selectMenuItem":
+            guard let target = request.args["target"], target.isEmpty == false else {
+                throw CommandError(
+                    message: "selectMenuItem requires a target argument."
+                )
+            }
+            return try performMenuSelection(
+                request,
+                operation: .select(target: target)
+            )
         case "toggleBlackoutProbeWindow":
             appModel.showBlackoutProbeWindow.toggle()
             return Response(
@@ -269,6 +289,95 @@ final class TestCommandChannel {
     }
 
 #if DEBUG && os(visionOS)
+    private func performMenuSelection(
+        _ request: Request,
+        operation: DebugMenuSelectionRequest.Operation
+    ) throws -> Response {
+        guard let hostText = request.args["host"],
+              let host = DebugMenuSelectionHost(rawValue: hostText) else {
+            throw CommandError(
+                message: "\(request.verb) requires host="
+                    + DebugMenuSelectionHost.allCases.map(\.rawValue).joined(separator: "|")
+                    + "."
+            )
+        }
+        guard let familyText = request.args["family"],
+              let family = DebugMenuSelectionFamily(rawValue: familyText) else {
+            throw CommandError(
+                message: "\(request.verb) requires family="
+                    + DebugMenuSelectionFamily.allCases.map(\.rawValue).joined(separator: "|")
+                    + "."
+            )
+        }
+
+        let menuRequest = DebugMenuSelectionRequest(
+            host: host,
+            family: family,
+            operation: operation
+        )
+        NotificationCenter.default.post(
+            name: .debugMenuSelection,
+            object: menuRequest
+        )
+
+        switch operation {
+        case .list:
+            guard let items = menuRequest.items else {
+                throw CommandError(
+                    message: "No visible \(host.rawValue) host accepted family="
+                        + family.rawValue + "."
+                )
+            }
+            return menuResponse(
+                request: request,
+                host: host,
+                family: family,
+                items: items
+            )
+        case .select(let target):
+            guard let selectedItem = menuRequest.selectedItem else {
+                if let items = menuRequest.items {
+                    let available = items.map(\.id).joined(separator: ",")
+                    throw CommandError(
+                        message: "\(host.rawValue).\(family.rawValue) has no target="
+                            + target + "; available=" + available + "."
+                    )
+                }
+                throw CommandError(
+                    message: "No visible \(host.rawValue) host accepted family="
+                        + family.rawValue + "."
+                )
+            }
+            return menuResponse(
+                request: request,
+                host: host,
+                family: family,
+                items: [selectedItem]
+            )
+        }
+    }
+
+    private func menuResponse(
+        request: Request,
+        host: DebugMenuSelectionHost,
+        family: DebugMenuSelectionFamily,
+        items: [DebugMenuSelectionSnapshot]
+    ) -> Response {
+        Response(
+            id: request.id,
+            ok: true,
+            detail: "host=\(host.rawValue) family=\(family.rawValue)",
+            payload: items.map(\.id),
+            menuItems: items.map {
+                Response.MenuItem(
+                    id: $0.id,
+                    title: $0.title,
+                    isSelected: $0.isSelected
+                )
+            }
+        )
+    }
+
     private func seekNormalized(_ request: Request) throws -> Response {
         guard let positionText = request.args["position"],
               let position = Double(positionText),

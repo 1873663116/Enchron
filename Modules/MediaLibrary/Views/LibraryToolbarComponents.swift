@@ -1,4 +1,5 @@
 import DesignSystem
+import Foundation
 import MediaLibrary
 import SwiftUI
 
@@ -45,5 +46,63 @@ struct SortMenuButton: View {
             }
         }
         .accessibilityLabel("Sort")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard accessibilityIdentifier == "FileBrowsing-FilesScreen-sort",
+                  let request = notification.object as? DebugMenuSelectionRequest else {
+                return
+            }
+            switch request.family {
+            case .sortKey:
+                request.handle(
+                    host: .files,
+                    family: .sortKey,
+                    items: [
+                        DebugMenuSelectionItem(
+                            id: "name",
+                            title: "Name",
+                            isSelected: sortKey == .name,
+                            select: { sortKey = .name }
+                        ),
+                        DebugMenuSelectionItem(
+                            id: "modifiedDate",
+                            title: "Date Modified",
+                            isSelected: sortKey == .modifiedDate,
+                            select: { sortKey = .modifiedDate }
+                        ),
+                        DebugMenuSelectionItem(
+                            id: "size",
+                            title: "Size",
+                            isSelected: sortKey == .size,
+                            select: { sortKey = .size }
+                        ),
+                    ]
+                )
+            case .sortOrder:
+                request.handle(
+                    host: .files,
+                    family: .sortOrder,
+                    items: [
+                        DebugMenuSelectionItem(
+                            id: "ascending",
+                            title: "Ascending",
+                            isSelected: sortOrder == .ascending,
+                            select: { sortOrder = .ascending }
+                        ),
+                        DebugMenuSelectionItem(
+                            id: "descending",
+                            title: "Descending",
+                            isSelected: sortOrder == .descending,
+                            select: { sortOrder = .descending }
+                        ),
+                    ]
+                )
+            default:
+                return
+            }
+        }
+#endif
     }
 }
