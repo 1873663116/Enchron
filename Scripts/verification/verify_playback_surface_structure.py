@@ -181,8 +181,20 @@ def main() -> int:
         "struct ImmersivePlaybackControlsAttachmentView: View",
         "private func rendererPerformanceAccessibilityFields(",
     )
+    player_panel_more_menu = region(
+        playback_panel,
+        "private var moreMenu: some View",
+        "private func stepFrame(",
+    )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
+    require(
+        '.accessibilityElement(children: .contain)' in player_panel_more_menu
+        and '.contentShape(.interaction, Circle())' in player_panel_more_menu
+        and 'accessibilityIdentifier: "PlayerPanel-menu-more"'
+        in player_panel_more_menu,
+        "the PlayerPanel More menu is not an independently named, hittable accessibility host",
+    )
     require(
         "Color.clear" not in vision_surface
         and ".allowsHitTesting(appModel.showControls == false)" in vision_surface,
