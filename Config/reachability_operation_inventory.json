@@ -2135,7 +2135,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2152,7 +2161,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2169,7 +2187,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2186,7 +2213,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2203,7 +2239,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2220,7 +2265,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerControlDockVideoFormat",
+        "sources": [
+          {
+            "line": 467,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2237,7 +2291,16 @@
     {
       "action": "activate",
       "family": "PlayerPanel",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPortalPlayerControlDockBranch",
+        "sources": [
+          {
+            "line": 912,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2896,7 +2959,20 @@
     {
       "action": "activate",
       "family": "PlayerUI",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerDeckRetryCloseActions",
+        "sources": [
+          {
+            "line": 1417,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 254,
+            "path": "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -2909,7 +2985,20 @@
     {
       "action": "activate",
       "family": "PlayerUI",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedPlayerDeckRetryCloseActions",
+        "sources": [
+          {
+            "line": 1417,
+            "path": "Apps/Enchron/MainView.swift"
+          },
+          {
+            "line": 254,
+            "path": "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -4959,134 +5048,6 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "debugEquivalent": {
-        "families": [
-          "customAngle"
-        ],
-        "host": "playerPanel",
-        "listVerb": "listMenuItems",
-        "parentOperation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
-        "selectVerb": "selectMenuItem"
-      },
-      "id": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
-      "identifierTemplate": "PlayerPanel-VideoFormat-CustomAngle",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerControlDockVideoFormat",
-        "sources": [
-          {
-            "line": 467,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
-      "identifierTemplate": "PlayerPanel-VideoFormat-HDRFallback",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerControlDockVideoFormat",
-        "sources": [
-          {
-            "line": 467,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerPanel-VideoFormat-apply",
-      "identifierTemplate": "PlayerPanel-VideoFormat-apply",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerControlDockVideoFormat",
-        "sources": [
-          {
-            "line": 467,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerPanel-VideoFormat-automatic",
-      "identifierTemplate": "PlayerPanel-VideoFormat-automatic",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerControlDockVideoFormat",
-        "sources": [
-          {
-            "line": 467,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerPanel-VideoFormat-cancel",
-      "identifierTemplate": "PlayerPanel-VideoFormat-cancel",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerControlDockVideoFormat",
-        "sources": [
-          {
-            "line": 467,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
-      "identifierTemplate": "PlayerPanel-VideoFormat-{title}-{label(option)}",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerControlDockVideoFormat",
-        "sources": [
-          {
-            "line": 467,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerPanel-button-enter-panorama",
-      "identifierTemplate": "PlayerPanel-button-enter-panorama",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPortalPlayerControlDockBranch",
-        "sources": [
-          {
-            "line": 912,
-            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
       "id": "accessibility:PlayerPanel-button-exit-spatial",
       "identifierTemplate": "PlayerPanel-button-exit-spatial",
       "kind": "activate",
@@ -5969,48 +5930,6 @@
         "panorama",
         "docked"
       ],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerUI-playbackIssue-primary",
-      "identifierTemplate": "PlayerUI-playbackIssue-primary",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerDeckRetryCloseActions",
-        "sources": [
-          {
-            "line": 1417,
-            "path": "Apps/Enchron/MainView.swift"
-          },
-          {
-            "line": 254,
-            "path": "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
-      "proofDomain": "playback",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:PlayerUI-playbackIssue-secondary",
-      "identifierTemplate": "PlayerUI-playbackIssue-secondary",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "uninstantiatedPlayerDeckRetryCloseActions",
-        "sources": [
-          {
-            "line": 1417,
-            "path": "Apps/Enchron/MainView.swift"
-          },
-          {
-            "line": 254,
-            "path": "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift"
-          }
-        ]
-      },
-      "proofContexts": [],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },

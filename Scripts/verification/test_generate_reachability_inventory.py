@@ -325,11 +325,9 @@ class RenderHostInventoryTests(unittest.TestCase):
             ],
             ["panorama", "docked"],
         )
-        self.assertEqual(
-            self.operations["accessibility:PlayerUI-playbackIssue-primary"][
-                "proofContexts"
-            ],
-            [],
+        self.assertNotIn(
+            "accessibility:PlayerUI-playbackIssue-primary",
+            self.operations,
         )
         self.assertEqual(
             self.operations[
@@ -409,9 +407,35 @@ class ProofContextInventoryTests(unittest.TestCase):
             with self.subTest(operation_id=operation_id):
                 self.assertIn(operation["proofDomain"], {"browser", "playback", "shared"})
                 self.assertIsInstance(operation["proofContexts"], list)
+                self.assertTrue(operation["proofContexts"])
                 derivation = operation["proofContextDerivation"]
                 self.assertTrue(derivation["host"])
                 self.assertTrue(derivation["sources"])
+
+    def test_uninstantiated_identifiers_are_not_operations(self) -> None:
+        uninstantiated = {
+            record["template"]: record
+            for record in inventory.build_inventory()["identifiers"]
+            if record["role"] == "uninstantiated-identifier"
+        }
+
+        self.assertEqual(
+            set(uninstantiated),
+            {
+                "PlayerPanel-VideoFormat-CustomAngle",
+                "PlayerPanel-VideoFormat-HDRFallback",
+                "PlayerPanel-VideoFormat-apply",
+                "PlayerPanel-VideoFormat-automatic",
+                "PlayerPanel-VideoFormat-cancel",
+                "PlayerPanel-VideoFormat-{title}-{label(option)}",
+                "PlayerPanel-button-enter-panorama",
+                "PlayerUI-playbackIssue-primary",
+                "PlayerUI-playbackIssue-secondary",
+            },
+        )
+        self.assertTrue(
+            all(record["renderDerivation"]["sources"] for record in uninstantiated.values())
+        )
 
 
 class MatrixProofContextMigrationTests(unittest.TestCase):

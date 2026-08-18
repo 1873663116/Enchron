@@ -17,6 +17,11 @@ MATRIX_BASELINE = REPOSITORY_ROOT / "Config/reachability_matrix_baseline.json"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
+UNINSTANTIATED_RENDER_HOSTS = {
+    "uninstantiatedPlayerControlDockVideoFormat",
+    "uninstantiatedPortalPlayerControlDockBranch",
+    "uninstantiatedPlayerDeckRetryCloseActions",
+}
 SETTINGS_MENU_FAMILIES = (
     "resume-strategy",
     "end-behavior",
@@ -1120,6 +1125,15 @@ def build_inventory() -> dict[str, object]:
                 template,
                 documents,
             )
+            if not presentations:
+                host = str(derivation.get("host", ""))
+                if host not in UNINSTANTIATED_RENDER_HOSTS:
+                    raise PresentationDerivationError(
+                        f"accessibility:{template} has no production proof context"
+                    )
+                record["role"] = "uninstantiated-identifier"
+                record["renderDerivation"] = derivation
+                continue
             domain, contexts, context_derivation = proof_context_contract(
                 presentations,
                 derivation,
