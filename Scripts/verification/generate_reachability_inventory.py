@@ -347,6 +347,78 @@ def swift_structs(documents: dict[str, str]) -> list[SwiftStruct]:
     return structs
 
 
+def source_without_preview_blocks(text: str) -> str:
+    """Blank #Preview declarations while preserving source line positions."""
+    characters = list(text)
+    cursor = 0
+    while True:
+        preview = text.find("#Preview", cursor)
+        if preview < 0:
+            break
+        opening = text.find("{", preview + len("#Preview"))
+        if opening < 0:
+            break
+        closing = matching_brace(text, opening)
+        if closing is None:
+            break
+        for index in range(preview, closing + 1):
+            if characters[index] != "\n":
+                characters[index] = " "
+        cursor = closing + 1
+    return "".join(characters)
+
+
+def uninstantiated_view_identifier_owners(
+    documents: dict[str, str],
+    identifiers: dict[str, list[SourceLocation]],
+) -> dict[str, SwiftStruct]:
+    """Find identifier-owning SwiftUI views with no production construction."""
+    structs = swift_structs(documents)
+    ranges: list[tuple[SwiftStruct, int, int]] = []
+    for component in structs:
+        text = documents[component.path]
+        first_line = text.count("\n", 0, component.body_offset) + 1
+        last_line = text.count(
+            "\n", 0, component.body_offset + len(component.body)
+        ) + 1
+        ranges.append((component, first_line, last_line))
+
+    production_documents = {
+        path: source_without_preview_blocks(text)
+        for path, text in documents.items()
+    }
+    constructed = {
+        component.name
+        for component in structs
+        if any(
+            re.search(rf"\b{re.escape(component.name)}\s*(?:\(|\{{)", text)
+            for text in production_documents.values()
+        )
+    }
+
+    archived: dict[str, SwiftStruct] = {}
+    for template, locations in identifiers.items():
+        owners: list[SwiftStruct] = []
+        for location in locations:
+            matching = [
+                component
+                for component, first_line, last_line in ranges
+                if component.path == location.path
+                and first_line <= location.line <= last_line
+            ]
+            if not matching:
+                owners = []
+                break
+            owners.append(min(matching, key=lambda component: len(component.body)))
+        if (
+            owners
+            and all(owner.name == owners[0].name for owner in owners)
+            and owners[0].name not in constructed
+        ):
+            archived[template] = owners[0]
+    return archived
+
+
 def swift_functions(documents: dict[str, str]) -> list[SwiftFunction]:
     functions: list[SwiftFunction] = []
     declaration = re.compile(r"\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")
@@ -1110,6 +1182,11 @@ def build_inventory() -> dict[str, object]:
     for template, locations in runtime_identifiers.items():
         identifiers.setdefault(template, []).extend(locations)
 
+    uninstantiated_view_identifiers = uninstantiated_view_identifier_owners(
+        documents,
+        identifiers,
+    )
+
     records: list[dict[str, object]] = []
     operations: list[dict[str, object]] = []
     for template, locations in sorted(identifiers.items()):
@@ -1128,6 +1205,18 @@ def build_inventory() -> dict[str, object]:
         }
         records.append(record)
         if role == "operation" and record["scope"] == "product":
+            uninstantiated_owner = uninstantiated_view_identifiers.get(template)
+            if uninstantiated_owner is not None:
+                source = documents[uninstantiated_owner.path]
+                record["role"] = "uninstantiated-identifier"
+                record["renderDerivation"] = {
+                    "host": "uninstantiatedSwiftUIView",
+                    "sources": [asdict(SourceLocation(
+                        uninstantiated_owner.path,
+                        source.count("\n", 0, uninstantiated_owner.body_offset) + 1,
+                    ))],
+                }
+                continue
             presentations, derivation = presentation_derivation(
                 template,
                 documents,

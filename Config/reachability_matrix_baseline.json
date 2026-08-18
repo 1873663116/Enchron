@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-18T16:17:14.722855+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round11-20260818/delivery/delivery.json",
+  "acceptedAt": "2026-08-18T23:47:08.776548+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round12-20260819/offline-round11-replay-archived/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -25,7 +25,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -35,17 +35,17 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Library-Sort",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -55,22 +55,22 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Search-Field",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Season-Picker",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -80,17 +80,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -124,28 +119,8 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-Manage-button",
       "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-Sidebar-row-local",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
-      "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
@@ -250,7 +225,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -310,12 +285,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -340,7 +315,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",

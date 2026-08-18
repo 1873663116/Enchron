@@ -142,6 +142,55 @@ class RuntimeIdentifierExpansionTests(unittest.TestCase):
             inventory.runtime_identifier_templates(documents)
 
 
+class UninstantiatedViewInventoryTests(unittest.TestCase):
+    def test_preview_only_view_is_archived_but_production_view_remains(self) -> None:
+        documents = {
+            "Modules/MediaLibrary/Panels.swift": """
+                struct PreviewOnlyPanel: View {
+                    var body: some View {
+                        Button("Dead") {}
+                            .accessibilityIdentifier("FileBrowsing-PreviewOnly-dead")
+                    }
+                }
+
+                struct LivePanel: View {
+                    var body: some View {
+                        Button("Live") {}
+                            .accessibilityIdentifier("FileBrowsing-Live-action")
+                    }
+                }
+
+                #Preview {
+                    PreviewOnlyPanel()
+                }
+            """,
+            "Apps/Enchron/Host.swift": """
+                struct Host: View {
+                    var body: some View {
+                        LivePanel()
+                    }
+                }
+            """,
+        }
+        identifiers = {
+            template: [inventory.SourceLocation("Modules/MediaLibrary/Panels.swift", line)]
+            for template, line in inventory.source_strings(documents[
+                "Modules/MediaLibrary/Panels.swift"
+            ])
+            if template.startswith("FileBrowsing-")
+        }
+
+        archived = inventory.uninstantiated_view_identifier_owners(
+            documents,
+            identifiers,
+        )
+
+        self.assertEqual(
+            {template: owner.name for template, owner in archived.items()},
+            {"FileBrowsing-PreviewOnly-dead": "PreviewOnlyPanel"},
+        )
+
+
 class ConnectionFormInventoryTests(unittest.TestCase):
     def test_each_supported_source_has_each_interactive_child(self) -> None:
         operations = {
@@ -422,6 +471,11 @@ class ProofContextInventoryTests(unittest.TestCase):
         self.assertEqual(
             set(uninstantiated),
             {
+                "FileBrowsing-Breadcrumb-button-{segment.index}",
+                "FileBrowsing-FolderList-button-file-{file.id}",
+                "FileBrowsing-FolderList-button-folder-{folder.id}",
+                "FileBrowsing-Sidebar-row-local",
+                "FileBrowsing-Sidebar-row-{ds.id}",
                 "PlayerPanel-VideoFormat-CustomAngle",
                 "PlayerPanel-VideoFormat-HDRFallback",
                 "PlayerPanel-VideoFormat-apply",

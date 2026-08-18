@@ -921,7 +921,16 @@
     {
       "action": "activate",
       "family": "FileBrowsing",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedSwiftUIView",
+        "sources": [
+          {
+            "line": 7,
+            "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -1119,7 +1128,16 @@
     {
       "action": "activate",
       "family": "FileBrowsing",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedSwiftUIView",
+        "sources": [
+          {
+            "line": 5,
+            "path": "Modules/MediaLibrary/Views/FolderListView.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -1132,7 +1150,16 @@
     {
       "action": "activate",
       "family": "FileBrowsing",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedSwiftUIView",
+        "sources": [
+          {
+            "line": 5,
+            "path": "Modules/MediaLibrary/Views/FolderListView.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -1171,7 +1198,16 @@
     {
       "action": "activate",
       "family": "FileBrowsing",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedSwiftUIView",
+        "sources": [
+          {
+            "line": 7,
+            "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -1184,7 +1220,16 @@
     {
       "action": "activate",
       "family": "FileBrowsing",
-      "role": "operation",
+      "renderDerivation": {
+        "host": "uninstantiatedSwiftUIView",
+        "sources": [
+          {
+            "line": 7,
+            "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
+          }
+        ]
+      },
+      "role": "uninstantiated-identifier",
       "scope": "product",
       "sources": [
         {
@@ -3712,25 +3757,6 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:FileBrowsing-Breadcrumb-button-{segment.index}",
-      "identifierTemplate": "FileBrowsing-Breadcrumb-button-{segment.index}",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 404,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
       "debugEquivalent": {
         "families": [
           "breadcrumb"
@@ -3883,84 +3909,8 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:FileBrowsing-FolderList-button-file-{file.id}",
-      "identifierTemplate": "FileBrowsing-FolderList-button-file-{file.id}",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 404,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:FileBrowsing-FolderList-button-folder-{folder.id}",
-      "identifierTemplate": "FileBrowsing-FolderList-button-folder-{folder.id}",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 404,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
       "id": "accessibility:FileBrowsing-Manage-button",
       "identifierTemplate": "FileBrowsing-Manage-button",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 404,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:FileBrowsing-Sidebar-row-local",
-      "identifierTemplate": "FileBrowsing-Sidebar-row-local",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 404,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:FileBrowsing-Sidebar-row-{ds.id}",
-      "identifierTemplate": "FileBrowsing-Sidebar-row-{ds.id}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
