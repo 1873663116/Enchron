@@ -119,3 +119,5 @@ verification-quick 在 aa314ac6 上 success（运行 32080600518），CI 钥匙�
 新事实：探针文件存在安全上限，长段需中点归档；Emby 候选扫描需设上限（收敛为 12）；合并器改为跨合格段聚合，较晚段的缺陷观察不再覆盖较早段的合格可达证据。
 
 第十一轮编成（task_id `86a1e8c4-b0cc-4876-bec3-99baada63472`，wt-reach11，基线 24095112）：先对剩余 78 点按障碍性质分类，再据此新编分段计划——①状态诱发类（playbackIssue/unmetCapability/spatialFailure/loadFailure 浮层跨语境，PlayerPanel 的 audio/episodes/media-information-close/exit-spatial），不能由普通操作或既有动词诱发的按 setUserVisibleIssue 单写纪律补动词；②内容依赖类（VideoFormat 一族需真实格式选择与 HDR 回退片源，Emby Season/Version/Episode/StillCard 需剧集条目，只用设备既有源）；③界面状态类（多选删除、新建与重命名文件夹、网格与列表条目、侧边栏行、前进后退、Settings 分类、scroll、EnvironmentCard 一族与 environmentVolume）；④疑似产品缺陷（FileBrowsing 面包屑两点连续多轮不在层级内，同名 MediaLibrary-Breadcrumb-current 已可达可作对照，允许修正可访问性事实但不得改 UI 语义）。要求对清不掉的点给出定性结论：内容条件不满足／产品可访问性缺陷／通道未覆盖／语义不适用。
+
+2026-08-18T夜：合并态全量 gauntlet PASS（20260818T134905Z-52629），已推送 4d08c564..9db47165 与 work/reachability-round10。分支推送首次被 pre-push 的 quick gauntlet 拦下，报新失败名 `audioRendererFailureRetiresAudioAndVideoContinues`（PlaybackCoreTests.swift:3290-3294，lastFailure 与 audioRendererState 快照尚未落定）；隔离复跑三次全通过，判定为与 ProRes 同类的负载下偶发——当时第十一轮委托正在并发构建。按既有隔离复跑规则放行，不写入既定失败名单；若再次出现应改为在测试内等待快照落定而不是延长超时。
