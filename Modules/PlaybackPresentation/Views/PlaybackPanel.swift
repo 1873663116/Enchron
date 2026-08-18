@@ -1074,8 +1074,6 @@ struct FusedPlayerPanel: View {
                 mockMoreMenuSections
             }
         }
-        .accessibilityElement(children: .contain)
-        .contentShape(.interaction, Circle())
         .accessibilityLabel("More playback settings")
     }
 
