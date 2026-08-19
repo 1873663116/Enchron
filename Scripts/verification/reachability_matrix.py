@@ -79,6 +79,7 @@ SEGMENT_SCENARIO_NAMES = {
     "portal-routes-round11",
     "remote-browser-round11",
     "resume-decision",
+    "settings-category-round13",
     "settings-menus",
     "source-connection-smb",
     "source-connection-webdav",
@@ -3066,25 +3067,6 @@ class ReachabilityRun:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-settings")
-        before = self.copy_probe("round11-settings-category-before")
-        offset = len(before)
-        category = self.tap(
-            presentation,
-            "Settings-category-storagePrivacy",
-            operation_id="accessibility:Settings-category-{item.id}",
-            index=2,
-        )
-        probe = self.copy_probe("round11-settings-category-selected")
-        if category.get("success") is True and any(
-            "reachability settings delivered action=category.storagePrivacy" in line
-            for line in probe[offset:]
-        ):
-            self.delivered(
-                presentation,
-                "accessibility:Settings-category-{item.id}",
-                self.events[-1]["evidence"],
-                "Storage & Privacy changed the product Settings selection.",
-            )
         for family in (
             "resume-strategy",
             "end-behavior",
@@ -3113,6 +3095,35 @@ class ReachabilityRun:
                     "The visible Settings host invoked its shared menu binding and appended the family probe.",
                     has_accessibility_target=False,
                 )
+        self.select_settings_category()
+
+    def settings_category_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        self.select_settings_category()
+
+    def select_settings_category(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        before = self.copy_probe("round13-settings-category-before")
+        offset = len(before)
+        category = self.tap(
+            presentation,
+            "Settings-category-storagePrivacy",
+            operation_id="accessibility:Settings-category-{item.id}",
+            index=2,
+        )
+        probe = self.copy_probe("round13-settings-category-selected")
+        if category.get("success") is True and any(
+            "reachability settings delivered action=category.storagePrivacy" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Settings-category-{item.id}",
+                self.events[-1]["evidence"],
+                "Storage & Privacy changed the product Settings selection.",
+            )
 
     def library_reference_move_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
@@ -5832,6 +5843,7 @@ class ReachabilityRun:
             "portal-routes-round11": self.portal_route_scenario,
             "remote-browser-round11": self.remote_browser_scenario,
             "resume-decision": self.resume_decision_scenario,
+            "settings-category-round13": self.settings_category_scenario,
             "settings-menus": self.settings_menu_scenario,
             "source-connection-smb": lambda: self.source_connection_scenario("smb"),
             "source-connection-webdav": lambda: self.source_connection_scenario("webDAV"),
@@ -5923,7 +5935,9 @@ class ReachabilityRun:
             self.controller("halt", "--no-screenshot", timeout=240)
             return self.finish_segment("drive-error")
         self.relaunch()
-        if planned_scenarios != {"settings-menus"}:
+        if planned_scenarios.isdisjoint(
+            {"settings-category-round13", "settings-menus"}
+        ):
             self.prove_navigation_tab("files")
         if "settings-menus" in planned_scenarios:
             self.prove_navigation_tab("settings")
