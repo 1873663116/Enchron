@@ -1051,7 +1051,7 @@
 				DEVELOPMENT_TEAM = JFLYK8F636;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -package-name enchron_emby";
+				OTHER_SWIFT_FLAGS = "$(inherited) -package-name $(SRCROOT:base:identifier)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.EnchronDomainTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "xros xrsimulator";
@@ -1073,7 +1073,7 @@
 				DEVELOPMENT_TEAM = JFLYK8F636;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -package-name enchron_emby";
+				OTHER_SWIFT_FLAGS = "$(inherited) -package-name $(SRCROOT:base:identifier)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.EnchronDomainTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "xros xrsimulator";

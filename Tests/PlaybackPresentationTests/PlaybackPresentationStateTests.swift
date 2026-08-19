@@ -2103,9 +2103,8 @@ struct PlaybackPresentationStateTests {
             id: residentRootID,
             makePreferred: true
         )
-        let originalClaim = try #require(
-            registry.claim(requestID: requestID, mediaSessionID: nil)
-        )
+        let originalClaimValue = registry.claim(requestID: requestID, mediaSessionID: nil)
+        let originalClaim = try #require(originalClaimValue)
 
         #expect(registry.unregister(id: residentRootID) == nil)
         #expect(registry.registeredCapabilityCount == 0)
@@ -2123,9 +2122,8 @@ struct PlaybackPresentationStateTests {
         #expect(registry.claim(requestID: requestID, mediaSessionID: nil) == nil)
 
         registry.finish(originalClaim.lease)
-        let nextClaim = try #require(
-            registry.claim(requestID: UUID(), mediaSessionID: nil)
-        )
+        let nextClaimValue = registry.claim(requestID: UUID(), mediaSessionID: nil)
+        let nextClaim = try #require(nextClaimValue)
         #expect(nextClaim.capability == "resident-actions-after-refresh")
         #expect(nextClaim.lease.executionID != originalClaim.lease.executionID)
     }
