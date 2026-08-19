@@ -1,26 +1,26 @@
 {
-  "acceptedAt": "2026-08-18T23:47:08.776548+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round12-20260819/offline-round11-replay-archived/delivery.json",
+  "acceptedAt": "2026-08-19T01:07:30.672944+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round12-20260819/delivery-physical-valid-accepted/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Address",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Connect",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Password",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Username",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -75,7 +75,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-SignOut",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -420,7 +420,7 @@
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -505,7 +505,7 @@
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -555,7 +555,7 @@
     {
       "context": "window",
       "operation": "command:listMenuItems",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -565,7 +565,7 @@
     {
       "context": "window",
       "operation": "command:selectMenuItem",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -635,27 +635,27 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
