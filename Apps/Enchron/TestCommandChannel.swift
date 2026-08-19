@@ -240,13 +240,14 @@ final class TestCommandChannel {
             )
         }
         let size = CGSize(width: width, height: height)
-        guard PortalWindowLayout.contains(size) else {
+        let bounds = WindowPlaybackLayout.fallback
+        guard bounds.contains(size) else {
             throw CommandError(
-                message: "setWindowSize must stay within Portal bounds "
-                    + "\(PortalWindowLayout.minimumSize.width)x"
-                    + "\(PortalWindowLayout.minimumSize.height)..."
-                    + "\(PortalWindowLayout.maximumSize.width)x"
-                    + "\(PortalWindowLayout.maximumSize.height)."
+                message: "setWindowSize must stay within playback window bounds "
+                    + "\(bounds.minimumSize.width)x"
+                    + "\(bounds.minimumSize.height)..."
+                    + "\(bounds.maximumSize.width)x"
+                    + "\(bounds.maximumSize.height)."
             )
         }
         guard let windowScene = UIApplication.shared.connectedScenes
@@ -261,8 +262,8 @@ final class TestCommandChannel {
         windowScene.requestGeometryUpdate(
             UIWindowScene.GeometryPreferences.Vision(
                 size: size,
-                minimumSize: PortalWindowLayout.minimumSize,
-                maximumSize: PortalWindowLayout.maximumSize,
+                minimumSize: bounds.minimumSize,
+                maximumSize: bounds.maximumSize,
                 resizingRestrictions: .freeform
             )
         ) { [weak appModel] error in

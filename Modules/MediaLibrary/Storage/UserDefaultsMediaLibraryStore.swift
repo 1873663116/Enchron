@@ -27,3 +27,31 @@ nonisolated final class UserDefaultsMediaLibraryStore: MediaLibraryStoring, @unc
         defaults.set(try encoder.encode(library), forKey: key)
     }
 }
+
+nonisolated public protocol MediaLibraryUIPreferencesStoring: Sendable {
+    func loadPreferences() -> Data?
+    func savePreferences(_ data: Data)
+}
+
+nonisolated public final class UserDefaultsMediaLibraryPreferencesStore:
+    MediaLibraryUIPreferencesStoring,
+    @unchecked Sendable {
+    private let defaults: UserDefaults
+    private let key: String
+
+    public init(
+        defaults: UserDefaults = .standard,
+        key: String = "enchron.mediaLibrary.uiPreferences"
+    ) {
+        self.defaults = defaults
+        self.key = key
+    }
+
+    public func loadPreferences() -> Data? {
+        defaults.data(forKey: key)
+    }
+
+    public func savePreferences(_ data: Data) {
+        defaults.set(data, forKey: key)
+    }
+}

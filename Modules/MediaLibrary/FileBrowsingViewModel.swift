@@ -10,8 +10,9 @@ public final class FileBrowsingViewModel {
     public var folders: [FileBrowsingDomain.MediaFolder] = []
     public var isLoading: Bool = false
     public var lastErrorMessage: String?
-    public var sortCriteria: FileBrowsingDomain.SortCriteria = .nameAscending {
-        didSet { applySortToFiles() }
+    public var sortCriteria: FileBrowsingDomain.SortCriteria {
+        get { uiState.sortCriteria }
+        set { uiState.sortCriteria = newValue }
     }
     public private(set) var currentRootDisplayName: String = "Documents"
     public private(set) var currentRemotePath: String = "/"
@@ -50,6 +51,7 @@ public final class FileBrowsingViewModel {
     public private(set) var canNavigateForward: Bool = false
 
     private let localDataSource: any LocalFileSource
+    private let uiState: MediaLibraryUIState
     private let logger = Logger(subsystem: "app.enchron", category: "FileBrowser")
     private let fileManager: FileManager
     private let credentialStoreForConfig: CredentialStoring
@@ -83,6 +85,7 @@ public final class FileBrowsingViewModel {
 
     init(
         localDataSource: any LocalFileSource,
+        uiState: MediaLibraryUIState = MediaLibraryUIState(),
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
@@ -96,6 +99,7 @@ public final class FileBrowsingViewModel {
         onPrepareFile: (@MainActor (MediaPlaybackItem) -> Void)? = nil
     ) {
         self.localDataSource = localDataSource
+        self.uiState = uiState
         self.fileManager = fileManager
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
@@ -112,6 +116,9 @@ public final class FileBrowsingViewModel {
         self.localDataSource.ownerDataSourceID = localDataSourceID
 
         loadSavedDataSources()
+        uiState.observeSortCriteriaChanges { [weak self] _ in
+            self?.applySortToFiles()
+        }
     }
 
     public func saveCredential(

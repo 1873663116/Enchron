@@ -1,5 +1,123 @@
 import Foundation
 import MediaSource
+import Observation
+
+@MainActor
+@Observable
+public final class MediaLibraryUIState {
+    public enum SourceSelection: Equatable, Sendable {
+        case mediaLibrary
+        case dataSource(UUID)
+
+        public var isDataSource: Bool {
+            if case .dataSource = self { return true }
+            return false
+        }
+
+        public var dataSourceID: UUID? {
+            if case .dataSource(let id) = self { return id }
+            return nil
+        }
+    }
+
+    public enum ViewMode: String, Codable, Sendable {
+        case grid
+        case list
+    }
+
+    public var sourceSelection: SourceSelection = .mediaLibrary
+    public var viewMode: ViewMode {
+        didSet {
+            guard viewMode != oldValue else { return }
+            persistPreferences()
+        }
+    }
+    public var sidebarIsVisible = true
+    public var sortCriteria: FileBrowsingDomain.SortCriteria {
+        didSet {
+            guard sortCriteria != oldValue else { return }
+            persistPreferences()
+            sortCriteriaDidChange?(sortCriteria)
+        }
+    }
+
+    @ObservationIgnored
+    private let store: (any MediaLibraryUIPreferencesStoring)?
+    @ObservationIgnored
+    private var sortCriteriaDidChange: (@MainActor (FileBrowsingDomain.SortCriteria) -> Void)?
+
+    public init(store: (any MediaLibraryUIPreferencesStoring)? = nil) {
+        self.store = store
+        let preferences = store
+            .flatMap { $0.loadPreferences() }
+            .flatMap { try? JSONDecoder().decode(PersistedPreferences.self, from: $0) }
+        viewMode = preferences?.viewMode ?? .grid
+        sortCriteria = preferences?.sortCriteria ?? .nameAscending
+    }
+
+    func observeSortCriteriaChanges(
+        _ observer: @escaping @MainActor (FileBrowsingDomain.SortCriteria) -> Void
+    ) {
+        sortCriteriaDidChange = observer
+    }
+
+    private func persistPreferences() {
+        guard let store,
+              let data = try? JSONEncoder().encode(
+                PersistedPreferences(viewMode: viewMode, sortCriteria: sortCriteria)
+              )
+        else {
+            return
+        }
+        store.savePreferences(data)
+    }
+}
+
+private struct PersistedPreferences: Codable {
+    enum SortKey: String, Codable {
+        case name
+        case modifiedDate
+        case size
+    }
+
+    enum SortOrder: String, Codable {
+        case ascending
+        case descending
+    }
+
+    let viewMode: MediaLibraryUIState.ViewMode
+    let sortKey: SortKey
+    let sortOrder: SortOrder
+
+    init(
+        viewMode: MediaLibraryUIState.ViewMode,
+        sortCriteria: FileBrowsingDomain.SortCriteria
+    ) {
+        self.viewMode = viewMode
+        sortKey = switch sortCriteria.key {
+        case .name: .name
+        case .modifiedDate: .modifiedDate
+        case .size: .size
+        }
+        sortOrder = switch sortCriteria.order {
+        case .ascending: .ascending
+        case .descending: .descending
+        }
+    }
+
+    var sortCriteria: FileBrowsingDomain.SortCriteria {
+        let key: FileBrowsingDomain.SortCriteria.Key = switch sortKey {
+        case .name: .name
+        case .modifiedDate: .modifiedDate
+        case .size: .size
+        }
+        let order: FileBrowsingDomain.SortCriteria.Order = switch sortOrder {
+        case .ascending: .ascending
+        case .descending: .descending
+        }
+        return FileBrowsingDomain.SortCriteria(key: key, order: order)
+    }
+}
 
 @MainActor
 public final class MediaLibraryFeature {
@@ -18,6 +136,7 @@ public final class MediaLibraryFeature {
 
     public let browser: FileBrowsingViewModel
     public let library: MediaLibraryViewModel
+    public let uiState: MediaLibraryUIState
 
     public init(
         sourceMode: SourceMode = .production,
@@ -45,8 +164,12 @@ public final class MediaLibraryFeature {
         }
 
         let resolver = MediaReferenceResolver()
+        let uiState = MediaLibraryUIState(
+            store: UserDefaultsMediaLibraryPreferencesStore(defaults: defaults)
+        )
         let browser = FileBrowsingViewModel(
             localDataSource: localSource,
+            uiState: uiState,
             viewingStateProvider: viewingStateProvider,
             localDataSourceID: sourceID,
             onPlayFile: onPlay
@@ -82,6 +205,7 @@ public final class MediaLibraryFeature {
 
         self.browser = browser
         self.library = library
+        self.uiState = uiState
     }
 
     private static func makeUITestLibrary(

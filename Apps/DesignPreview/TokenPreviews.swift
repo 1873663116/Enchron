@@ -446,7 +446,7 @@ struct InteractionLayoutPreview: View {
 
     private var progressBarSpecs: [TokenSpec] {
         [
-            .spec("thumbDiameter", "24pt", "standard draggable scrubber button") {
+            .spec("thumbDiameter", "15pt", "scrubber button, drawn at track height") {
                 Circle()
                     .fill(.white)
                     .overlay {
@@ -454,22 +454,39 @@ struct InteractionLayoutPreview: View {
                     }
                     .frame(width: DesignTokens.ProgressBar.thumbDiameter, height: DesignTokens.ProgressBar.thumbDiameter)
             },
-            .spec("trackHeight", "24pt", "active drag track height") {
+            .spec("trackHeight", "15pt", "active drag track height") {
                 Capsule()
                     .fill(DesignTokens.Theme.accent)
                     .frame(width: 48, height: DesignTokens.ProgressBar.trackHeight)
             },
-            .scalar("inactiveScale", "0.66", "unfocused and hover track height scale"),
-            .spec("inactiveTrackHeight", "15.8pt", "track height before active drag") {
+            .scalar("inactiveScale", "0.6", "unfocused and hover track height scale"),
+            .spec("inactiveTrackHeight", "9pt", "track height before active drag") {
                 Capsule()
                     .fill(DesignTokens.Theme.accent)
                     .frame(width: 48, height: DesignTokens.ProgressBar.inactiveTrackHeight)
             },
-            .spec("hitHeight", "60pt", "hover and drag target height") {
+            .spec("hitHeight", "44pt", "hover and drag target height") {
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
                     .fill(Color.accentColor.opacity(0.18))
-                    .frame(width: 28, height: 56)
+                    .frame(width: 28, height: DesignTokens.ProgressBar.hitHeight)
             },
+            .spec("thumbGrabWidth", "60pt", "width that catches a gaze and starts a scrub") {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.18))
+                    .frame(
+                        width: DesignTokens.ProgressBar.thumbGrabWidth,
+                        height: DesignTokens.ProgressBar.hitHeight
+                    )
+                    .overlay {
+                        Circle()
+                            .fill(.white)
+                            .frame(
+                                width: DesignTokens.ProgressBar.thumbDiameter,
+                                height: DesignTokens.ProgressBar.thumbDiameter
+                            )
+                    }
+            },
+            .scalar("activationSlop", "32pt", "drift tolerated while the press holds to unlock"),
             .spec("previewWidth", "680pt", "Design Preview player progress width") {
                 tokenBarSwatch(DesignTokens.ProgressBar.previewWidth, max: 680)
             },
@@ -477,8 +494,8 @@ struct InteractionLayoutPreview: View {
             .spec("playedColor", "white 0.72", "played portion in normal state") {
                 tokenColorSwatch(.white.opacity(0.72))
             },
-            .spec("unplayedColor", "white 0.16", "unplayed portion in normal state") {
-                tokenColorSwatch(.white.opacity(0.16))
+            .spec("playedHoverColor", "white 0.95", "played portion under gaze or drag") {
+                tokenColorSwatch(.white.opacity(0.95))
             },
         ]
     }

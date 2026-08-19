@@ -320,11 +320,14 @@ enum SpatialPlatformPlaybackWindowPolicy {
     }
 }
 
+/// Both ways out of Panorama land in the same retained Portal viewport, so
+/// app-requested exits and system collapses refresh it alike.
 enum PortalPlaybackViewportRefreshPolicy {
     static func requiresRefresh(
         for transition: SpatialPlatformPlaybackWindowTransition
     ) -> Bool {
         transition == .collapseImmersivePlayback(.panoramic)
+            || transition == .exitImmersivePlayback(.panoramic)
     }
 }
 

@@ -7,29 +7,10 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 struct FilesScreen: View {
-    private enum SourceSelection: Equatable {
-        case mediaLibrary
-        case dataSource(UUID)
-
-        var isDataSource: Bool {
-            if case .dataSource = self { return true }
-            return false
-        }
-
-        var dataSourceID: UUID? {
-            if case .dataSource(let id) = self { return id }
-            return nil
-        }
-    }
-
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @Environment(MediaLibraryViewModel.self) private var mediaLibrary
+    @Environment(MediaLibraryUIState.self) private var uiState
 
-    /// 0 = grid, 1 = list (UC-FILE-34). View-mode is screen-local UI state.
-    @State private var viewMode = 0
-    @State private var sidebarIsVisible = true
-    @State private var sortKey: SortMenuKey = .name
-    @State private var sortOrder: SortMenuOrder = .ascending
     @State private var sourceItems: [SidebarSourceItem] = []
     @State private var presentedSourceConnection: SourceConnectionKind?
     @State private var sourceConnectionName = ""
@@ -37,7 +18,6 @@ struct FilesScreen: View {
     @State private var sourceConnectionUsername = ""
     @State private var sourceConnectionPassword = ""
     @State private var sourceConnectionConnectsAsGuest = false
-    @State private var sourceSelection: SourceSelection = .mediaLibrary
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderToRename: FileBrowsingDomain.LibraryFolder?
@@ -50,6 +30,11 @@ struct FilesScreen: View {
     @State private var mediaReferenceSelectionIsActive = false
     @State private var selectedMediaReferenceIDs: Set<UUID> = []
     @State private var isBatchRemoveConfirmationPresented = false
+
+    private var sourceSelection: MediaLibraryUIState.SourceSelection {
+        get { uiState.sourceSelection }
+        nonmutating set { uiState.sourceSelection = newValue }
+    }
 
     private var isBrowsingSource: Bool { sourceSelection.isDataSource }
 
@@ -80,7 +65,7 @@ struct FilesScreen: View {
         }
         return references.sorted { lhs, rhs in
             let comparison: ComparisonResult
-            switch sortKey {
+            switch uiState.sortCriteria.key {
             case .name:
                 comparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
             case .modifiedDate:
@@ -92,7 +77,7 @@ struct FilesScreen: View {
                     ? lhs.name.localizedCaseInsensitiveCompare(rhs.name)
                     : (lhs.sizeInBytes < rhs.sizeInBytes ? .orderedAscending : .orderedDescending)
             }
-            return sortOrder == .ascending
+            return uiState.sortCriteria.order == .ascending
                 ? comparison == .orderedAscending
                 : comparison == .orderedDescending
         }
@@ -100,13 +85,13 @@ struct FilesScreen: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if sidebarIsVisible {
+            if uiState.sidebarIsVisible {
                 sidebar
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
             contentArea
         }
-        .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
+        .animation(DesignTokens.AnimationToken.controlsTransition, value: uiState.sidebarIsVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("FileBrowsing-FilesScreen")
@@ -454,7 +439,7 @@ struct FilesScreen: View {
             loadingState
         } else if isEmpty {
             emptyState
-        } else if viewMode == 0 {
+        } else if uiState.viewMode == .grid {
             grid
         } else {
             list
@@ -493,7 +478,7 @@ struct FilesScreen: View {
     private var topBar: some View {
         HStack(alignment: .center) {
             SidebarToggleButton(
-                isVisible: $sidebarIsVisible,
+                isVisible: sidebarVisibilityBinding,
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
             )
             NavBackForwardCapsuleControl(
@@ -525,16 +510,14 @@ struct FilesScreen: View {
                 mediaReferenceSelectionControls
             } else {
                 ViewModeCapsuleControl(
-                    selection: $viewMode,
+                    selection: viewModeBinding,
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
                 )
                 SortMenuButton(
-                    sortKey: $sortKey,
-                    sortOrder: $sortOrder,
+                    sortKey: sortKeyBinding,
+                    sortOrder: sortOrderBinding,
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
                 )
-                .onChange(of: sortKey) { _, _ in applySort() }
-                .onChange(of: sortOrder) { _, _ in applySort() }
                 manageMenu
                 SearchInputCapsule(
                     text: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 }),
@@ -802,19 +785,62 @@ struct FilesScreen: View {
 
     // MARK: - Helpers
 
-    private func applySort() {
-        let key: FileBrowsingDomain.SortCriteria.Key =
-            switch sortKey {
-            case .name: .name
-            case .modifiedDate: .modifiedDate
-            case .size: .size
+    private var sidebarVisibilityBinding: Binding<Bool> {
+        Binding(
+            get: { uiState.sidebarIsVisible },
+            set: { uiState.sidebarIsVisible = $0 }
+        )
+    }
+
+    private var viewModeBinding: Binding<Int> {
+        Binding(
+            get: { uiState.viewMode == .grid ? 0 : 1 },
+            set: { uiState.viewMode = $0 == 0 ? .grid : .list }
+        )
+    }
+
+    private var sortKeyBinding: Binding<SortMenuKey> {
+        Binding(
+            get: {
+                switch uiState.sortCriteria.key {
+                case .name: .name
+                case .modifiedDate: .modifiedDate
+                case .size: .size
+                }
+            },
+            set: { key in
+                let domainKey: FileBrowsingDomain.SortCriteria.Key = switch key {
+                case .name: .name
+                case .modifiedDate: .modifiedDate
+                case .size: .size
+                }
+                uiState.sortCriteria = .init(
+                    key: domainKey,
+                    order: uiState.sortCriteria.order
+                )
             }
-        let order: FileBrowsingDomain.SortCriteria.Order =
-            switch sortOrder {
-            case .ascending: .ascending
-            case .descending: .descending
+        )
+    }
+
+    private var sortOrderBinding: Binding<SortMenuOrder> {
+        Binding(
+            get: {
+                switch uiState.sortCriteria.order {
+                case .ascending: .ascending
+                case .descending: .descending
+                }
+            },
+            set: { order in
+                let domainOrder: FileBrowsingDomain.SortCriteria.Order = switch order {
+                case .ascending: .ascending
+                case .descending: .descending
+                }
+                uiState.sortCriteria = .init(
+                    key: uiState.sortCriteria.key,
+                    order: domainOrder
+                )
             }
-        viewModel.sortCriteria = FileBrowsingDomain.SortCriteria(key: key, order: order)
+        )
     }
 
     private func displayTitle(_ file: FileBrowsingDomain.MediaFile) -> String {

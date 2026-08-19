@@ -728,7 +728,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             ].firstMatch.exists
         )
         let enterPanorama = app.descendants(matching: .any)[
-            "PlayerPanel-button-enter-panorama"
+            "PlayerUI-TopAction-resumePanorama"
         ].firstMatch
         guard requireHittable(enterPanorama, named: "Enter Panorama") else { return }
         let portalComponentRevision = try XCTUnwrap(
@@ -1058,7 +1058,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             portal.uint64("videoComponentRevision")
         )
         let enterPanorama = app.descendants(matching: .any)[
-            "PlayerPanel-button-enter-panorama"
+            "PlayerUI-TopAction-resumePanorama"
         ].firstMatch
         guard requireHittable(enterPanorama, named: "Enter Panorama") else { return }
         enterPanorama.tap()

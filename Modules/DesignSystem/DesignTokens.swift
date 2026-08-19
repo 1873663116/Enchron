@@ -326,6 +326,8 @@ public enum DesignTokens {
     /// Shared layout dimension tokens.
     public enum Layout {
         /// Width available to the PlayerControls content before outer padding.
+        /// The progress bar and the transport row both span it, so they share the
+        /// deck's left and right edges.
         public static let playerControlsContentWidth: CGFloat = 680
         /// Shared width for Precision Timeline and expanded playback settings.
         public static let expandedPlayerControlsContentWidth: CGFloat = 880
@@ -666,8 +668,15 @@ public enum DesignTokens {
         public static let thumbDiameter: CGFloat = trackHeight
         /// Scale from the activated track to its resting height.
         public static let inactiveScale: CGFloat = inactiveTrackHeight / trackHeight
-        /// Movement tolerated while the scrubber is waiting to unlock.
-        public static let activationSlop: CGFloat = Spacing.lg
+        /// Width of the region that accepts a grab, centred on the scrubber. The
+        /// thumb is drawn at track height so it reads as part of the rail, which
+        /// is far under the gaze target a wearer can hit; the region that starts
+        /// a scrub and shows the gaze highlight is this wide instead.
+        public static let thumbGrabWidth: CGFloat = Interactive.large
+        /// Movement tolerated while the scrubber is waiting to unlock. An indirect
+        /// pinch carries hand travel from its first frame, so this is the drift a
+        /// wearer spends holding still, not a deliberate drag.
+        public static let activationSlop: CGFloat = Spacing.xxl
         /// Wall-clock gate before seeking is unlocked.
         public static let activationDuration: Duration = .milliseconds(200)
         /// Height transition paired with the activation gate.

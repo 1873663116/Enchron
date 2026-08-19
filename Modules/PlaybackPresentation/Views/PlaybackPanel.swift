@@ -191,7 +191,7 @@ struct FusedPlayerPanel: View {
     ) {
         let presentation = live?.presentation ?? .window
         let resolvedSurface: PlaybackControlPanelSurface = (
-            presentation == .window
+            presentation.usesMainWindow
                 ? .windowOrnament
                 : .playerControlDock
         )
@@ -410,15 +410,18 @@ struct FusedPlayerPanel: View {
 
     private var windowOrnamentContent: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                windowTransportControls
-                mediaInformationWell(width: windowMediaInformationWidth)
-            }
-
+            // The scrubber leads the capsule. It is the control a gaze has to
+            // find, and putting it at the bottom edge left it competing with the
+            // system window bar directly beneath the deck.
             if expansion.layout == .timeline {
                 timelineBlock
             } else {
                 progressBar(width: compactProgressBarWidth)
+            }
+
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                windowTransportControls
+                mediaInformationWell(width: windowMediaInformationWidth)
             }
         }
     }
@@ -455,8 +458,10 @@ struct FusedPlayerPanel: View {
             - DesignTokens.Spacing.sm
     }
 
+    /// The rail runs the deck's full content width, which is also what the
+    /// transport row spans, so the two share the deck's left and right edges.
     private var compactProgressBarWidth: CGFloat {
-        max(clusterWidth - DesignTokens.Spacing.xxxl * 2, 0)
+        clusterWidth
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
@@ -868,12 +873,6 @@ struct FusedPlayerPanel: View {
                 accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
             )
             .keyboardShortcut(.escape, modifiers: [])
-        } else if live.presentation == .portal {
-            GlassCircleIconButton.expandVertically(
-                accessibilityLabel: "Enter Panorama",
-                action: live.onEnterImmersive,
-                accessibilityIdentifier: "PlayerPanel-button-enter-panorama"
-            )
         } else if live.presentation == .docked {
             GlassCircleIconButton.collapse(
                 accessibilityLabel: "Return to Window",
@@ -1417,11 +1416,14 @@ struct FusedPlayerPanel: View {
             .accessibilityLabel("Playback position thumb")
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect()
-            .frame(width: DesignTokens.ProgressBar.hitHeight,
+            // The lift above hugs the drawn thumb. This outer capsule is the
+            // catchment: it matches `isThumbHit`, so wherever a gaze lands and
+            // lights the control is also where a pinch starts a scrub.
+            .frame(width: DesignTokens.ProgressBar.thumbGrabWidth,
                    height: DesignTokens.ProgressBar.hitHeight)
-            .enchronHoverContentShape(Circle())
+            .enchronHoverContentShape(Capsule())
             .enchronHoverActivation(in: hoverActivationGroup)
-            .contentShape(Circle())
+            .contentShape(Capsule())
             .onHover { isProgressHovered = $0 }
     }
 
@@ -1629,12 +1631,12 @@ struct FusedPlayerPanel: View {
         onInteraction()
     }
 
+    /// Only the horizontal distance is tested. The gesture is attached to the
+    /// strip, so a start location has already passed the strip's interaction
+    /// shape vertically, and on a horizontal rail the axis that decides whether
+    /// the wearer meant this scrubber is the one along the rail.
     private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
-        let thumbCenter = CGPoint(x: thumbX, y: DesignTokens.ProgressBar.hitHeight / 2)
-        let hitRadius = DesignTokens.ProgressBar.hitHeight / 2
-        let dx = location.x - thumbCenter.x
-        let dy = location.y - thumbCenter.y
-        return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
+        abs(location.x - thumbX) <= DesignTokens.ProgressBar.thumbGrabWidth / 2
     }
 }
 

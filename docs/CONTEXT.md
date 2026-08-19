@@ -5,7 +5,8 @@
 ## 播放与媒体
 
 **Playback Presentation**：视频在产品中的呈现位置。它与解释媒体画面的 Media Format 是不同概念。
-**Media Format**：用户要求 Enchron 如何解释媒体画面。它不表示视频当前呈现在哪里。
+**Media Format**：用户要求 Enchron 如何解释媒体画面。它不表示视频当前呈现在哪里，也不是来源媒体自身声明的 Format Description。
+**Format Description**：一条媒体流向解码器声明的技术事实，包括编码、尺寸、色彩解释，以及立体与动态范围的配置。它由来源媒体决定，不随用户偏好改变。
 **Custom Angle**：Enchron 将矩形全景画面按 180° 至 360° 的水平覆盖角解释。它不表示鱼眼镜头映射。
 
 **Media Library**：Enchron 管理的虚拟媒体分类。它保存对媒体的组织和引用，不拥有来源媒体。
@@ -13,7 +14,7 @@
 **Source Directory**：本地文件系统或远程服务实际拥有的目录。它不属于 Enchron 的虚拟媒体分类。
 
 **File Source**：直接提供目录结构与文件字节流的媒体来源，如本地、SMB、WebDAV。它不提供媒体实体、元数据或服务器端用户状态。
-**Emby Source**：提供媒体实体、元数据与服务器端用户状态的媒体服务器来源。它不是 File Source；其媒体流仍以 HTTP 直连交给播放核心。
+**Media Byte Stream**：把一个来源媒体表达为可按字节区间读取的流。它只回答长度与指定区间的字节，不解释容器内容，也不代表提供它的来源。
 
 **Media Reference**：从 Media Library 指向来源媒体的持久引用。它是访问入口，不是底层媒体的身份。
 **Media Identity**：Enchron 用于判断不同入口是否指向同一底层媒体的稳定身份。它独立于 Media Reference。

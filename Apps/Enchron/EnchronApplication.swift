@@ -46,6 +46,7 @@ final class EnchronApplication {
     let embySearchViewModel: EmbySearchViewModel
     let fileBrowsingViewModel: FileBrowsingViewModel
     let mediaLibraryViewModel: MediaLibraryViewModel
+    let mediaLibraryUIState: MediaLibraryUIState
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
     let thumbnailService: ThumbnailService
@@ -329,6 +330,7 @@ final class EnchronApplication {
         }
         fileBrowsingViewModel = browser
         mediaLibraryViewModel = mediaLibrary
+        mediaLibraryUIState = mediaLibraryFeature.uiState
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
         thumbnailService = .shared
@@ -413,6 +415,7 @@ extension View {
             .environment(application.embySearchViewModel)
             .environment(application.fileBrowsingViewModel)
             .environment(application.mediaLibraryViewModel)
+            .environment(application.mediaLibraryUIState)
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
             .environment(application.thumbnailService)

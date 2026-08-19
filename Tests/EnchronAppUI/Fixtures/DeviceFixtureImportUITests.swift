@@ -865,7 +865,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                 name: "\(expectation.evidenceSlug)-01-automatic-portal-state"
             )
             let enterPanorama = app.buttons[
-                "PlayerPanel-button-enter-panorama"
+                "PlayerUI-TopAction-resumePanorama"
             ].firstMatch
             try requireMatrix(
                 requireHittable(enterPanorama, named: "Enter Panorama"),
@@ -1339,7 +1339,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             "\(evidenceSlug) opened Panorama before explicit entry."
         )
         let enterPanorama = playback.app.buttons[
-            "PlayerPanel-button-enter-panorama"
+            "PlayerUI-TopAction-resumePanorama"
         ].firstMatch
         try requireMatrix(
             requireHittable(enterPanorama, named: "Enter Panorama"),
@@ -1576,7 +1576,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         if expectation.presentation == "panorama" {
             attachState(firstRestored, name: "\(evidenceSlug)-portal-state")
             let enterPanorama = playback.app.buttons[
-                "PlayerPanel-button-enter-panorama"
+                "PlayerUI-TopAction-resumePanorama"
             ].firstMatch
             try requireMatrix(
                 requireHittable(enterPanorama, named: "Enter Panorama"),
@@ -1850,7 +1850,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         if expectation.presentation == "panorama" {
             attachState(firstReopened, name: "\(evidenceSlug)-portal-state")
             let enterPanorama = playback.app.buttons[
-                "PlayerPanel-button-enter-panorama"
+                "PlayerUI-TopAction-resumePanorama"
             ].firstMatch
             try requireMatrix(
                 requireHittable(enterPanorama, named: "Enter Panorama"),
@@ -2307,7 +2307,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             observedFailures: &observedFailures
         ) != nil else { return }
         let enterPanorama = app.buttons.matching(
-            identifier: "PlayerPanel-button-enter-panorama"
+            identifier: "PlayerUI-TopAction-resumePanorama"
         ).firstMatch
         guard requireHittable(enterPanorama, named: "Enter persisted Panorama") else {
             return
@@ -2756,7 +2756,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             observedFailures: &observedFailures
         ) != nil else { return false }
         let enterPanorama = app.buttons.matching(
-            identifier: "PlayerPanel-button-enter-panorama"
+            identifier: "PlayerUI-TopAction-resumePanorama"
         ).firstMatch
         guard requireHittable(
             enterPanorama,

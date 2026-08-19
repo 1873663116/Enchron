@@ -137,29 +137,24 @@ struct WindowPlaybackPageGeometryTests {
         #expect(BrowserWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_017))
     }
 
-    @Test("Portal uses bounded 16:9 geometry")
-    func portalWindowUsesBoundedSixteenByNineGeometry() {
+    @Test("Portal shares the window's aspect lock and owns no sizing rule")
+    func portalWindowSharesTheAspectLock() {
         let videoLayout = WindowPlaybackLayout(aspectRatio: 1)
 
         #expect(
             WindowPlaybackGeometryPolicy(
                 presentation: .portal,
                 videoLayout: videoLayout
-            ) == .freeform(
-                defaultSize: PortalWindowLayout.defaultSize,
-                minimumSize: PortalWindowLayout.minimumSize,
-                maximumSize: PortalWindowLayout.maximumSize
-            )
+            ) == .aspectLocked(videoLayout)
         )
-        #expect(PortalWindowLayout.minimumSize == CGSize(width: 912, height: 513))
-        #expect(PortalWindowLayout.defaultSize == CGSize(width: 1_280, height: 720))
-        #expect(PortalWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_017))
-        #expect(PortalWindowLayout.contains(PortalWindowLayout.minimumSize))
-        #expect(PortalWindowLayout.contains(PortalWindowLayout.maximumSize))
         #expect(
-            PortalWindowLayout.contains(
-                CGSize(width: 911, height: PortalWindowLayout.minimumSize.height)
-            ) == false
+            WindowPlaybackGeometryPolicy(
+                presentation: .portal,
+                videoLayout: videoLayout
+            ) == WindowPlaybackGeometryPolicy(
+                presentation: .window,
+                videoLayout: videoLayout
+            )
         )
     }
 
