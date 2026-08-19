@@ -1122,6 +1122,35 @@ class SegmentedDeliveryTests(unittest.TestCase):
             verdicts[("main-window-browser", "accessibility:old-reachable")], "reachable"
         )
 
+    def test_explicit_complete_facts_are_driven_after_deferred_replay(self) -> None:
+        replayed = self.segment(
+            name="replayed",
+            operation="accessibility:candidate",
+            verdict="reachable",
+        )
+        replayed["deliveryAssessmentModel"] = "explicit-v1"
+        replayed["drivenCells"] = []
+        replayed["cells"][0].update({
+            "applicationReceived": True,
+            "existsInHierarchy": True,
+            "kind": "activate",
+            "reportsHittable": True,
+        })
+
+        delivery = matrix.merge_segment_delivery(self.baseline, [replayed])
+
+        self.assertIn(
+            {
+                "context": "main-window-browser",
+                "operation": "accessibility:candidate",
+            },
+            delivery["drivenCells"],
+        )
+        self.assertEqual(
+            delivery["candidateCells"][1]["verdict"],
+            "reachable",
+        )
+
     def test_reachable_evidence_is_not_overwritten_by_a_later_defect_segment(self) -> None:
         proved = self.segment(
             name="proved",

@@ -651,10 +651,19 @@ def merge_segment_delivery(
             for cell in segment.get("cells", [])
             if isinstance(cell, dict)
         }
-        raw_driven = [
-            driven for driven in segment.get("drivenCells", [])
+        raw_driven_by_key = {
+            (str(driven.get("context")), str(driven.get("operation"))): driven
+            for driven in segment.get("drivenCells", [])
             if isinstance(driven, dict)
-        ]
+        }
+        if segment.get("deliveryAssessmentModel") == "explicit-v1":
+            for key, cell in cells.items():
+                if reachability_evidence_is_complete(cell):
+                    raw_driven_by_key.setdefault(
+                        key,
+                        {"context": key[0], "operation": key[1]},
+                    )
+        raw_driven = list(raw_driven_by_key.values())
         assessed_keys: set[tuple[str, str]] | None = None
         if (
             segment.get("deliveryAssessmentModel") != "explicit-v1"
@@ -6062,6 +6071,11 @@ class ReachabilityRun:
             (str(value["context"]), str(value["operation"]))
             for value in self.segment["decisions"]
         }
+        self.driven_cells.update(
+            key
+            for key, cell in self.cells.items()
+            if reachability_evidence_is_complete(cell)
+        )
         driven = [
             {"context": context, "operation": operation}
             for context, operation in sorted(self.driven_cells)
