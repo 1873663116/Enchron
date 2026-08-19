@@ -1425,6 +1425,229 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(afterPlay.synchronousApplicationReturned)
 }
 
+@Test func pauseAfterSeekBehaviourReportsPausedToTheProduct() async throws {
+    let samples = try (0..<4).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) * 0.25,
+            durationSeconds: 0.25
+        )
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-pause-status-session",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end],
+            durationSeconds: 1
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-pause.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    try await session.seek(
+        to: CMTime(seconds: 0.5, preferredTimescale: 600),
+        startsPaused: true
+    )
+
+    // The timeline is left stopped on the target, so no rate activation runs in
+    // delivery. Without an explicit report the session keeps announcing the
+    // lifecycle it had before the seek and the transport button never flips.
+    #expect(statuses.withLock { $0.last } == .paused)
+    #expect(session.debugSnapshot().lifecycle == .paused)
+}
+
+@Test(arguments: [false, true])
+func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
+    hasAudio: Bool
+) async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 4)
+    let audioProvider: any AudioSampleProvider = if hasAudio {
+        FakeAudioSampleProvider(sampleAfterPrepare: try makeAudioSample(durationSeconds: 4))
+    } else {
+        NoAudioSampleProvider()
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "repeated-seek-pause-\(hasAudio ? "audio" : "video-only")",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(videoSample), .end],
+            durationSeconds: 4
+        ),
+        audioProvider: audioProvider,
+        rendererSink: FakeRendererInputSink()
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/repeated-seek.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    if hasAudio {
+        try await waitForAudioSampleCount(1, in: session)
+    }
+    statuses.withLock { $0.removeAll() }
+
+    for target in [1.0, 0.0, 2.0] {
+        let statusCountBeforeSeek = statuses.withLock(\.count)
+        try await session.seek(
+            to: CMTime(seconds: target, preferredTimescale: 600),
+            startsPaused: true
+        )
+
+        #expect(statuses.withLock { Array($0.dropFirst(statusCountBeforeSeek)) } == [.paused])
+        #expect(session.debugSnapshot().lifecycle == .paused)
+    }
+
+    #expect(statuses.withLock { $0 } == [.paused, .paused, .paused])
+}
+
+@Test func pauseAfterSeekThenPlayThenSeekReportsTheLatestPause() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 4)
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-pause-play-seek-pause",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(sample), .end],
+            durationSeconds: 4
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-play-seek.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    statuses.withLock { $0.removeAll() }
+
+    try await session.seek(
+        to: CMTime(seconds: 1, preferredTimescale: 600),
+        startsPaused: true
+    )
+    try session.play()
+    try await session.seek(
+        to: CMTime(seconds: 2, preferredTimescale: 600),
+        startsPaused: true
+    )
+
+    #expect(statuses.withLock { $0 } == [.paused, .playing, .paused])
+    #expect(session.debugSnapshot().lifecycle == .paused)
+}
+
+@Test func preservingAfterSeekStateReportsPlayingAndPausedToTheProduct() async throws {
+    let initialSample = try makeCompressedH264Sample(durationSeconds: 0.25)
+    let targetSample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 2,
+        durationSeconds: 0.25
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-preserves-product-state",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(initialSample), .sample(targetSample), .end],
+            durationSeconds: 4
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/preserve-seek.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    statuses.withLock { $0.removeAll() }
+
+    try await session.seek(
+        to: CMTime(seconds: 1, preferredTimescale: 600),
+        startsPaused: false
+    )
+    #expect(statuses.withLock { $0.last } == .playing)
+    #expect(session.debugSnapshot().lifecycle == .playing)
+
+    try session.pause()
+    try await session.seek(
+        to: CMTime(seconds: 2, preferredTimescale: 600),
+        startsPaused: true
+    )
+
+    #expect(statuses.withLock { $0 } == [.playing, .paused, .paused])
+    #expect(session.debugSnapshot().lifecycle == .paused)
+}
+
+@MainActor
+@Test func supersededSeekCannotPublishPlayingAfterTheNewestSeekPauses() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 4)
+    let provider = GenerationDelayedVideoSampleProvider(
+        sample: sample,
+        durationSeconds: 4,
+        firstReadDelays: [2: .milliseconds(250), 3: .milliseconds(25)]
+    )
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: provider,
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    controller.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { controller.close() }
+
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/superseded-seek-status.mkv")
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try await waitForLifecycle(.playing, in: session)
+    statuses.withLock { $0.removeAll() }
+
+    let superseded = Task {
+        try await controller.seek(
+            to: CMTime(seconds: 1, preferredTimescale: 600),
+            after: .play
+        )
+    }
+    try await provider.waitUntilFirstReadStarts(forGeneration: 2)
+    let newest = Task {
+        try await controller.seek(
+            to: CMTime(seconds: 2, preferredTimescale: 600),
+            after: .pause
+        )
+    }
+
+    do {
+        try await superseded.value
+        Issue.record("Expected the first seek to be superseded")
+    } catch let error as PlaybackControlError {
+        guard case .seekSuperseded(let target) = error else {
+            Issue.record("Expected seekSuperseded, got \(error)")
+            return
+        }
+        #expect(target == 1)
+    }
+    try await newest.value
+    try await provider.waitUntilFirstReadReturns(forGeneration: 2)
+    try await Task.sleep(for: .milliseconds(25))
+
+    #expect(statuses.withLock { $0 } == [.paused])
+    #expect(controller.status == .paused)
+    #expect(session.debugSnapshot().lifecycle == .paused)
+}
+
 @Test func seekToExactDurationPublishesEndedWithoutReopeningTheProvider() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
     let provider = FakeVideoSampleProvider(
@@ -1446,15 +1669,16 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     try session.start()
     try await waitForSampleCount(1, in: session)
     let startCount = provider.startCount
+    statuses.withLock { $0.removeAll() }
 
     try await session.seek(
         to: CMTime(seconds: 1, preferredTimescale: 600),
-        startsPaused: false
+        startsPaused: true
     )
 
     #expect(provider.startCount == startCount)
     #expect(session.debugSnapshot().lifecycle == .ended)
-    #expect(statuses.withLock { $0.last } == .ended(.seekToEnd))
+    #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
     #expect(session.renderer.displayedPixelBuffer() == nil)
 }
 
@@ -3194,6 +3418,88 @@ private func fixtureSource(_ name: String) -> MediaSourceRecord {
         privacySafeSummary: name,
         accessRequirement: "notRequired"
     )
+}
+
+private final class GenerationDelayedVideoSampleProvider: VideoSampleProvider {
+    let info: VideoSampleProviderInfo
+
+    private let lock = NSLock()
+    private let sample: CMSampleBuffer
+    private let firstReadDelays: [Int: Duration]
+    private var prepareGeneration = 0
+    private var readCountByGeneration: [Int: Int] = [:]
+    private var firstReadStartedGenerations: Set<Int> = []
+    private var firstReadReturnedGenerations: Set<Int> = []
+
+    init(
+        sample: CMSampleBuffer,
+        durationSeconds: Double,
+        firstReadDelays: [Int: Duration]
+    ) {
+        self.sample = sample
+        self.firstReadDelays = firstReadDelays
+        info = FakeVideoSampleProvider(
+            events: [],
+            durationSeconds: durationSeconds
+        ).info
+    }
+
+    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+        lock.withLock {
+            prepareGeneration += 1
+            readCountByGeneration[prepareGeneration] = 0
+        }
+    }
+
+    func start() throws {}
+
+    func nextEvent() async throws -> VideoSampleProviderEvent {
+        let read = lock.withLock { () -> (generation: Int, ordinal: Int, delay: Duration) in
+            let generation = prepareGeneration
+            let ordinal = readCountByGeneration[generation, default: 0]
+            readCountByGeneration[generation] = ordinal + 1
+            if ordinal == 0 {
+                firstReadStartedGenerations.insert(generation)
+            }
+            return (generation, ordinal, firstReadDelays[generation] ?? .zero)
+        }
+        if read.delay > .zero {
+            await Task.detached {
+                try? await Task.sleep(for: read.delay)
+            }.value
+        }
+        if read.ordinal == 0 {
+            _ = lock.withLock {
+                firstReadReturnedGenerations.insert(read.generation)
+            }
+            return .sample(sample)
+        }
+        return .end
+    }
+
+    func cancel() {}
+
+    func waitUntilFirstReadStarts(forGeneration generation: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while ContinuousClock.now < deadline {
+            if lock.withLock({ firstReadStartedGenerations.contains(generation) }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        Issue.record("Timed out waiting for generation \(generation) to start reading")
+    }
+
+    func waitUntilFirstReadReturns(forGeneration generation: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while ContinuousClock.now < deadline {
+            if lock.withLock({ firstReadReturnedGenerations.contains(generation) }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        Issue.record("Timed out waiting for generation \(generation) to finish reading")
+    }
 }
 
 final class FakeVideoSampleProvider: VideoSampleProvider {
