@@ -841,6 +841,8 @@ struct FusedPlayerPanel: View {
             .padding(DesignTokens.Spacing.xl)
         }
         .frame(width: clusterWidth, height: 420)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
 
     private func toggleMediaInformation() {
