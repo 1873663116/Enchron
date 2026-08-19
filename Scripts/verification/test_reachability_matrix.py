@@ -113,6 +113,26 @@ class DrivenCellRegistrationTests(unittest.TestCase):
 
         self.assertEqual(run.driven_cells, {("portal", operation)})
 
+    def test_show_controls_uses_the_actual_playback_context(self) -> None:
+        operation = "command:toggleControls"
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "resume", "context": "main-window-browser"}
+        run.cells = {("window", operation): {}}
+        run.app_command = Mock(return_value={"success": True})
+        run.events = [{"evidence": "raw/toggle.json"}]
+        run.delivered = Mock()
+
+        result = run.show_controls("window")
+
+        self.assertTrue(result["success"])
+        run.delivered.assert_called_once_with(
+            "window",
+            operation,
+            "raw/toggle.json",
+            "The DEBUG command reached the product control-visibility handler and returned success.",
+            has_accessibility_target=False,
+        )
+
 
 class MenuSelectionEvidenceTests(unittest.TestCase):
     def test_deferred_player_panel_families_have_runtime_safe_targets(self) -> None:
@@ -165,6 +185,51 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
         self.assertTrue(matrix.should_open_player_panel_system_menu("portal"))
         self.assertFalse(matrix.should_open_player_panel_system_menu("panorama"))
         self.assertFalse(matrix.should_open_player_panel_system_menu("docked"))
+
+    def test_immersive_menu_refreshes_controls_before_every_family(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/menu.json"}]
+        run.show_controls = Mock()
+        run.wait_for_identifier = Mock(return_value={})
+        run.copy_probe = Mock(return_value=[])
+        run.select_debug_menu_item = Mock(
+            return_value=(None, {"success": True}, {"success": False})
+        )
+
+        run.player_panel_menu_scenario("panorama")
+
+        self.assertEqual(run.show_controls.call_count, 5)
+
+    def test_segmented_menu_drives_only_its_planned_families(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {
+            "context": "panorama",
+            "decisions": [
+                {
+                    "context": "panorama",
+                    "operation": "accessibility:PlayerPanel-menu-speed",
+                },
+                {
+                    "context": "panorama",
+                    "operation": "accessibility:PlayerPanel-menu-subtitles",
+                },
+            ],
+        }
+        run.events = [{"evidence": "raw/menu.json"}]
+        run.show_controls = Mock()
+        run.wait_for_identifier = Mock(return_value={})
+        run.copy_probe = Mock(return_value=[])
+        run.select_debug_menu_item = Mock(
+            return_value=(None, {"success": True}, {"success": False})
+        )
+
+        run.player_panel_menu_scenario("panorama")
+
+        self.assertEqual(run.show_controls.call_count, 3)
+        self.assertEqual(
+            [call.kwargs["family"] for call in run.select_debug_menu_item.call_args_list],
+            ["speed", "subtitles"],
+        )
 
     def test_prior_accessibility_fact_requires_a_complete_healthy_segment(self) -> None:
         document = {
@@ -219,6 +284,43 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
 
 class ReachabilityScenarioSequencingTests(unittest.TestCase):
+    def test_remote_source_selection_skips_the_delete_child(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/source.json"}]
+        run.copy_probe = Mock(side_effect=[
+            [],
+            ["reachability files delivered action=sidebar.select.remote"],
+        ])
+        run.mark_driven = Mock()
+        run.mark_observation = Mock()
+        run.hierarchy_identifiers = Mock(
+            return_value={"FileBrowsing-grid-folder-root"}
+        )
+        run.controller = Mock(side_effect=[
+            {
+                "success": True,
+                "matchedElement": {"isHittable": True},
+            },
+            {"success": True, "hierarchy": "remote"},
+        ])
+
+        selected = run.select_browseable_remote_source(
+            "main-window-browser",
+            ["FileBrowsing-SourcesSidebar-source-remote"],
+            evidence_prefix="test",
+        )
+
+        self.assertTrue(selected)
+        run.controller.assert_any_call(
+            "tap",
+            "--identifier",
+            "FileBrowsing-SourcesSidebar-source-remote",
+            "--index",
+            "1",
+            "--no-screenshot",
+            timeout=90,
+        )
+
     def test_docked_content_collects_menu_facts_before_removing_expanded_media(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         events: list[str] = []
@@ -240,7 +342,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = [{"evidence": "raw/exit.json"}]
         run.show_controls = Mock(return_value={"success": True})
-        run.wait_for_identifier = Mock(side_effect=[
+        run.wait_for_identifier_value = Mock(side_effect=[
             {
                 "matchedElement": {
                     "value": ";".join((
@@ -253,18 +355,20 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             },
             {
                 "matchedElement": {
-                    "identifier": "PlayerPanel-button-exit-spatial",
-                    "isHittable": True,
-                }
-            },
-            {
-                "matchedElement": {
                     "value": ";".join((
                         "presentation=portal",
                         "transition=none",
                         "pendingSpatialEffect=none",
                         "attached=portal",
                     ))
+                }
+            },
+        ])
+        run.wait_for_identifier = Mock(side_effect=[
+            {
+                "matchedElement": {
+                    "identifier": "PlayerPanel-button-exit-spatial",
+                    "isHittable": True,
                 }
             },
         ])
@@ -281,12 +385,14 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
         run.show_controls.assert_called_once_with()
         self.assertEqual(
-            [call.args[0] for call in run.wait_for_identifier.call_args_list],
+            [call.args[0] for call in run.wait_for_identifier_value.call_args_list],
             [
                 "PlayerUI-spatial-state",
-                "PlayerPanel-button-exit-spatial",
                 "PlayerUI-window-control-plane",
             ],
+        )
+        run.wait_for_identifier.assert_called_once_with(
+            "PlayerPanel-button-exit-spatial", timeout=15
         )
         self.assertTrue(
             any(
@@ -377,7 +483,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             side_effect=lambda _: actions.append("probe") or ["before"]
         )
         run.show_controls = Mock(
-            side_effect=lambda: actions.append("controls") or {"success": True}
+            side_effect=lambda _: actions.append("controls") or {"success": True}
         )
         run.tap = Mock(
             side_effect=lambda *_: actions.append("tap") or {"success": True}
@@ -890,6 +996,47 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             "visible=true",
         )
 
+    def test_setup_app_command_does_not_register_an_unrelated_context(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "resume", "context": "main-window-browser"}
+        run.session_id = "session-11"
+        run.operations = {"command:seekNormalized": {}}
+        run.cells = {("window", "command:seekNormalized"): {}}
+        run.driven_cells = set()
+        run.deferred_command_ids = set()
+        run.last_deferred_command_id = None
+        run.controller = Mock(return_value={
+            "success": True,
+            "deferred": True,
+            "id": "seek-command",
+        })
+
+        result = run.app_command(
+            "seekNormalized",
+            position="0.25",
+            track_reachability=False,
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(run.driven_cells, set())
+        self.assertEqual(run.deferred_command_ids, {"seek-command"})
+
+    def test_app_command_ignores_an_operation_owned_by_another_context(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "resume", "context": "main-window-browser"}
+        run.session_id = "session-12"
+        run.operations = {"command:toggleControls": {}}
+        run.cells = {("window", "command:toggleControls"): {}}
+        run.driven_cells = set()
+        run.deferred_command_ids = set()
+        run.last_deferred_command_id = None
+        run.controller = Mock(return_value={"success": True})
+
+        result = run.app_command("toggleControls", visible="true")
+
+        self.assertTrue(result["success"])
+        self.assertEqual(run.driven_cells, set())
+
     def test_segment_observation_reuses_the_latest_hierarchy(self) -> None:
         operation = "accessibility:Navigation-Ornament-tab-files"
         hierarchy = "identifier: 'Navigation-Ornament-tab-files'"
@@ -1396,6 +1543,89 @@ class SegmentedDeliveryTests(unittest.TestCase):
         self.assertEqual(delivery["rejectedSegments"], ["interrupted"])
         self.assertEqual(
             delivery["candidateCells"][1]["verdict"], "known-defect"
+        )
+
+    def test_required_baseline_coverage_rejects_an_undriven_reachable_cell(
+        self,
+    ) -> None:
+        candidate = self.segment(
+            name="candidate",
+            operation="accessibility:candidate",
+            verdict="reachable",
+        )
+
+        delivery = matrix.merge_segment_delivery(
+            self.baseline,
+            [candidate],
+            require_baseline_coverage=True,
+        )
+
+        self.assertFalse(delivery["accepted"])
+        self.assertEqual(
+            delivery["uncoveredReachableCells"],
+            [
+                {
+                    "context": "main-window-browser",
+                    "operation": "accessibility:old-reachable",
+                },
+                {
+                    "context": "portal",
+                    "operation": "accessibility:uncovered",
+                },
+            ],
+        )
+        self.assertTrue(all(
+            failure["reason"] == "old-reachable-not-driven"
+            for failure in delivery["failures"]
+        ))
+
+    def test_no_regression_evidence_covers_an_undriven_baseline_cell(self) -> None:
+        candidate = self.segment(
+            name="candidate",
+            operation="accessibility:old-reachable",
+            verdict="reachable",
+        )
+
+        delivery = matrix.merge_segment_delivery(
+            self.baseline,
+            [candidate],
+            require_baseline_coverage=True,
+            no_regression_cells={
+                ("portal", "accessibility:uncovered"),
+            },
+        )
+
+        self.assertTrue(delivery["accepted"])
+        self.assertEqual(delivery["uncoveredReachableCells"], [])
+        self.assertEqual(
+            delivery["noRegressionCoveredCells"],
+            [{"context": "portal", "operation": "accessibility:uncovered"}],
+        )
+
+    def test_no_regression_evidence_cannot_hide_device_defect_evidence(self) -> None:
+        regression = self.segment(
+            name="regression",
+            operation="accessibility:old-reachable",
+            verdict="known-defect",
+        )
+        regression["cells"][0]["evidence"] = ["raw/defect.json"]
+
+        delivery = matrix.merge_segment_delivery(
+            self.baseline,
+            [regression],
+            no_regression_cells={
+                ("main-window-browser", "accessibility:old-reachable"),
+            },
+        )
+
+        self.assertFalse(delivery["accepted"])
+        self.assertIn(
+            {
+                "context": "main-window-browser",
+                "operation": "accessibility:old-reachable",
+                "reason": "no-regression-evidence-conflicts-with-device-evidence",
+            },
+            delivery["failures"],
         )
 
     def test_segment_plan_rejects_unknown_and_duplicate_entries(self) -> None:

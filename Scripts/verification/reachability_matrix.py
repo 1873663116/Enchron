@@ -652,8 +652,12 @@ def merge_selected_cells_into_baseline(
 def merge_segment_delivery(
     baseline_cells: list[dict[str, Any]],
     segment_results: list[dict[str, Any]],
+    *,
+    require_baseline_coverage: bool = False,
+    no_regression_cells: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Merge only cells driven by complete, channel-continuous segments."""
+    static_coverage = set(no_regression_cells or ())
     candidate_by_key = {
         (str(cell["context"]), str(cell["operation"])): dict(cell)
         for cell in baseline_cells
@@ -662,6 +666,7 @@ def merge_segment_delivery(
     rejected_segments: list[str] = []
     driven_keys: set[tuple[str, str]] = set()
     observed_verdicts: dict[tuple[str, str], set[str]] = {}
+    observed_defect_evidence: set[tuple[str, str]] = set()
     unassessed_legacy_driven_cells: list[dict[str, str]] = []
 
     for segment in segment_results:
@@ -752,6 +757,12 @@ def merge_segment_delivery(
                 else "known-defect"
             )
             observed_verdicts.setdefault(key, set()).add(verdict)
+            if (
+                verdict != "reachable"
+                and isinstance(observed, dict)
+                and bool(observed.get("evidence"))
+            ):
+                observed_defect_evidence.add(key)
 
     for key, verdicts in observed_verdicts.items():
         candidate_by_key[key]["verdict"] = (
@@ -763,6 +774,30 @@ def merge_segment_delivery(
         (str(cell["context"]), str(cell["operation"])): cell
         for cell in baseline_cells
     }
+    unknown_static_coverage = static_coverage - set(baseline_by_key)
+    if unknown_static_coverage:
+        raise ValueError(
+            "No-regression evidence names unknown baseline cells: "
+            + ", ".join(
+                f"{context}:{operation}"
+                for context, operation in sorted(unknown_static_coverage)
+            )
+        )
+    non_reachable_static_coverage = {
+        key for key in static_coverage
+        if baseline_by_key[key].get("verdict") != "reachable"
+    }
+    if non_reachable_static_coverage:
+        raise ValueError(
+            "No-regression evidence may cover only reachable baseline cells: "
+            + ", ".join(
+                f"{context}:{operation}"
+                for context, operation in sorted(non_reachable_static_coverage)
+            )
+        )
+    static_conflicts = static_coverage & observed_defect_evidence
+    for key in static_coverage - static_conflicts:
+        candidate_by_key[key]["verdict"] = "reachable"
     for key in sorted(driven_keys):
         if (
             baseline_by_key[key].get("verdict") == "reachable"
@@ -773,6 +808,28 @@ def merge_segment_delivery(
                 "operation": key[1],
                 "reason": "driven-old-reachable-not-reproved",
             })
+    failures.extend({
+        "context": context,
+        "operation": operation,
+        "reason": "no-regression-evidence-conflicts-with-device-evidence",
+    } for context, operation in sorted(static_conflicts))
+
+    covered_keys = driven_keys | static_coverage
+    uncovered_reachable_cells = [
+        {
+            "context": str(cell["context"]),
+            "operation": str(cell["operation"]),
+        }
+        for cell in baseline_cells
+        if cell.get("verdict") == "reachable"
+        and (str(cell["context"]), str(cell["operation"])) not in covered_keys
+    ]
+    if require_baseline_coverage:
+        failures.extend({
+            "context": cell["context"],
+            "operation": cell["operation"],
+            "reason": "old-reachable-not-driven",
+        } for cell in uncovered_reachable_cells)
 
     return {
         "accepted": bool(accepted_segments) and not failures,
@@ -782,7 +839,12 @@ def merge_segment_delivery(
             {"context": context, "operation": operation}
             for context, operation in sorted(driven_keys)
         ],
+        "noRegressionCoveredCells": [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(static_coverage)
+        ],
         "failures": failures,
+        "uncoveredReachableCells": uncovered_reachable_cells,
         "unassessedLegacyDrivenCells": unassessed_legacy_driven_cells,
         "candidateCells": [
             candidate_by_key[(str(cell["context"]), str(cell["operation"]))]
@@ -1057,11 +1119,17 @@ class ReachabilityRun:
         verb: str,
         *,
         defer_response: bool = True,
+        track_reachability: bool = True,
         **arguments: str,
     ) -> dict[str, Any]:
         operation_id = f"command:{verb}"
         context = self.active_context
-        if operation_id in self.operations and context is not None:
+        if (
+            track_reachability
+            and operation_id in self.operations
+            and context is not None
+            and (context, operation_id) in self.cells
+        ):
             self.mark_driven(context, operation_id)
         extra = ["--verb", verb, "--no-screenshot"]
         if getattr(self, "segment", None) is not None and defer_response:
@@ -2065,6 +2133,26 @@ class ReachabilityRun:
             time.sleep(1)
         return latest
 
+    def wait_for_identifier_value(
+        self,
+        identifier: str,
+        required_facts: tuple[str, ...],
+        *,
+        timeout: float = 40.0,
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout
+        latest: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            latest = self.controller(
+                "snapshot", "--identifier", identifier, "--no-screenshot"
+            )
+            matched = latest.get("matchedElement")
+            value = str(matched.get("value", "")) if isinstance(matched, dict) else ""
+            if all(fact in value for fact in required_facts):
+                return latest
+            time.sleep(1)
+        return latest
+
     def wait_for_any_identifier(
         self, identifiers: tuple[str, ...], *, timeout: float = 40.0
     ) -> tuple[str | None, dict[str, Any]]:
@@ -2097,15 +2185,19 @@ class ReachabilityRun:
             return True
         return False
 
-    def show_controls(self) -> dict[str, Any]:
+    def show_controls(self, presentation: str | None = None) -> dict[str, Any]:
         result = self.app_command("toggleControls", visible="true")
         if result.get("success") is not True and "file node" in str(
             result.get("error", "")
         ):
             time.sleep(0.5)
             result = self.app_command("toggleControls", visible="true")
-        context = self.active_context
-        if result.get("success") is True and context is not None:
+        context = presentation or self.active_context
+        if (
+            result.get("success") is True
+            and context is not None
+            and (context, "command:toggleControls") in self.cells
+        ):
             self.delivered(
                 context,
                 "command:toggleControls",
@@ -2122,7 +2214,7 @@ class ReachabilityRun:
         *,
         operation_id: str | None = None,
     ) -> dict[str, Any]:
-        self.show_controls()
+        self.show_controls(presentation)
         return self.tap(presentation, identifier, operation_id=operation_id)
 
     def tap_with_fresh_controls(
@@ -2133,7 +2225,7 @@ class ReachabilityRun:
         probe_label: str,
     ) -> tuple[dict[str, Any], list[str]]:
         before = self.copy_probe(probe_label)
-        self.show_controls()
+        self.show_controls(presentation)
         return self.tap(presentation, identifier), before
 
     def reset_reachability_state(self) -> dict[str, Any]:
@@ -3284,30 +3376,12 @@ class ReachabilityRun:
         )
         if not source_identifiers:
             return
-        before = self.copy_probe("files-source-before")
-        offset = len(before)
-        source = self.tap(
+        if not self.select_browseable_remote_source(
             presentation,
-            source_identifiers[0],
-            operation_id=(
-                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
-            ),
-        )
-        probe = self.wait_for_probe(
-            "files-source-selected",
-            offset,
-            "reachability files delivered action=sidebar.select.",
-        )
-        if source.get("success") is True and any(
-            "reachability files delivered action=sidebar.select." in line
-            for line in probe[offset:]
+            source_identifiers,
+            evidence_prefix="files-breadcrumb",
         ):
-            self.delivered(
-                presentation,
-                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-                self.events[-1]["evidence"],
-                "The existing remote-source row ran the product selection handler and appended its item probe.",
-            )
+            return
         visible = self.wait_for_identifier(
             "FileBrowsing-Breadcrumb-current", timeout=10
         )
@@ -3342,25 +3416,17 @@ class ReachabilityRun:
                     "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
                 )
 
-    def remote_browser_scenario(self) -> None:
-        presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
-        snapshot = self.controller("snapshot", "--no-screenshot")
-        source_identifiers = sorted(
-            identifier
-            for identifier in self.hierarchy_identifiers(snapshot)
-            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
-            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
-        )
-        if not source_identifiers:
-            return
-
+    def select_browseable_remote_source(
+        self,
+        presentation: str,
+        source_identifiers: list[str],
+        *,
+        evidence_prefix: str,
+    ) -> bool:
         operation_id = "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
-        source_selected = False
         for source_identifier in source_identifiers:
             for index in (1, 2):
-                before = self.copy_probe("round11-remote-source-before")
+                before = self.copy_probe(f"{evidence_prefix}-source-before")
                 offset = len(before)
                 self.mark_driven(presentation, operation_id)
                 selected = self.controller(
@@ -3380,7 +3446,7 @@ class ReachabilityRun:
                         evidence=self.events[-1]["evidence"],
                         reason="The non-delete child of the existing source row was addressable.",
                     )
-                probe = self.copy_probe("round11-remote-source-selected")
+                probe = self.copy_probe(f"{evidence_prefix}-source-selected")
                 if selected.get("success") is True and any(
                     "reachability files delivered action=sidebar.select." in line
                     for line in probe[offset:]
@@ -3416,11 +3482,26 @@ class ReachabilityRun:
                         self.tap(presentation, "FileBrowsing-error-secondary")
                         continue
                     if has_browseable_content:
-                        source_selected = True
+                        return True
                     break
-            if source_selected:
-                break
-        if not source_selected:
+        return False
+
+    def remote_browser_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(snapshot)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        if not source_identifiers or not self.select_browseable_remote_source(
+            presentation,
+            source_identifiers,
+            evidence_prefix="round11-remote",
+        ):
             return
 
         remote = self.controller("snapshot", "--no-screenshot")
@@ -4787,7 +4868,13 @@ class ReachabilityRun:
         ):
             return
         time.sleep(16)
-        self.seek_scenario(playback_context, "0.25")
+        seek = self.app_command(
+            "seekNormalized",
+            position="0.25",
+            track_reachability=False,
+        )
+        if seek.get("success") is not True:
+            return
         if not self.stop_playback(playback_context):
             return
         self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
@@ -4931,7 +5018,19 @@ class ReachabilityRun:
             ("audio", "accessibility:PlayerPanel-menu-audio", ()),
             ("episodes", "accessibility:PlayerPanel-menu-episodes", ()),
         )
+        segment = getattr(self, "segment", None)
+        if segment is not None:
+            planned = {
+                (str(value["context"]), str(value["operation"]))
+                for value in segment["decisions"]
+            }
+            family_operations = tuple(
+                entry for entry in family_operations
+                if (presentation, entry[1]) in planned
+            )
         for family, operation_id, preferred in family_operations:
+            if not opens_system_menu:
+                self.show_controls()
             item_offset = len(probe)
             target, _, selected = self.select_debug_menu_item(
                 presentation=presentation,
@@ -5528,7 +5627,16 @@ class ReachabilityRun:
     ) -> None:
         operation_id = "accessibility:PlayerPanel-button-exit-spatial"
         controls = self.show_controls()
-        state = self.wait_for_identifier("PlayerUI-spatial-state", timeout=15)
+        state = self.wait_for_identifier_value(
+            "PlayerUI-spatial-state",
+            (
+                f"presentation={presentation}",
+                "transition=none",
+                "controls=shown",
+                "controlsInteractive=true",
+            ),
+            timeout=15,
+        )
         state_value = str((state.get("matchedElement") or {}).get("value", ""))
         if controls.get("success") is not True or not all(
             fact in state_value
@@ -5559,8 +5667,15 @@ class ReachabilityRun:
         offset = len(before)
         exited = self.app_command("exitSpatial")
         self.controller("activate", "--no-screenshot")
-        settled = self.wait_for_identifier(
-            "PlayerUI-window-control-plane", timeout=45
+        settled = self.wait_for_identifier_value(
+            "PlayerUI-window-control-plane",
+            (
+                f"presentation={expected_presentation}",
+                "transition=none",
+                "pendingSpatialEffect=none",
+                f"attached={expected_presentation}",
+            ),
+            timeout=45,
         )
         value = str((settled.get("matchedElement") or {}).get("value", ""))
         probe = self.copy_probe(f"{presentation}-exit-command-settled")
@@ -6489,6 +6604,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--reuse-session", action="store_true")
     parser.add_argument("--accept-baseline", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--require-baseline-coverage", action="store_true")
+    parser.add_argument("--baseline-no-regression-evidence", type=Path)
     parser.add_argument("--window-resume-only", action="store_true")
     parser.add_argument("--emby-credentials", type=Path)
     parser.add_argument("--segment-plan", type=Path)
@@ -6509,12 +6626,44 @@ def merge_segment_result_files(arguments: argparse.Namespace) -> int:
         json.loads(path.read_text(encoding="utf-8"))
         for path in arguments.merge_segments
     ]
-    delivery = merge_segment_delivery(baseline.get("cells", []), segment_results)
+    no_regression_cells: set[tuple[str, str]] = set()
+    no_regression_evidence: dict[str, Any] | None = None
+    if arguments.baseline_no_regression_evidence is not None:
+        no_regression_evidence = json.loads(
+            arguments.baseline_no_regression_evidence.read_text(encoding="utf-8")
+        )
+        if no_regression_evidence.get("status") != "passed":
+            raise SystemExit("Baseline no-regression evidence did not pass.")
+        cells = no_regression_evidence.get("cells")
+        if not isinstance(cells, list) or not cells:
+            raise SystemExit("Baseline no-regression evidence has no cells.")
+        no_regression_cells = {
+            (str(cell.get("context")), str(cell.get("operation")))
+            for cell in cells
+            if isinstance(cell, dict)
+            and cell.get("context")
+            and cell.get("operation")
+        }
+        if len(no_regression_cells) != len(cells):
+            raise SystemExit(
+                "Baseline no-regression evidence contains invalid or duplicate cells."
+            )
+    delivery = merge_segment_delivery(
+        baseline.get("cells", []),
+        segment_results,
+        require_baseline_coverage=arguments.require_baseline_coverage,
+        no_regression_cells=no_regression_cells,
+    )
     delivery.update({
         "schemaVersion": 2,
         "generatedAt": utc_now(),
         "baseline": str(BASELINE.relative_to(ROOT)),
         "segmentResults": [str(path.resolve()) for path in arguments.merge_segments],
+        "baselineNoRegressionEvidence": (
+            str(arguments.baseline_no_regression_evidence.resolve())
+            if arguments.baseline_no_regression_evidence is not None
+            else None
+        ),
     })
     delivery["summary"] = {
         verdict: sum(
