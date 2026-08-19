@@ -1759,6 +1759,7 @@ class ReachabilityRun:
         cell["reason"] = reason
         if reachability_evidence_is_complete(cell):
             cell["verdict"] = "reachable"
+            self.mark_driven(presentation, operation_id)
         elif cell["existsInHierarchy"] is True and cell["reportsHittable"] is False:
             cell["verdict"] = "known-defect"
 

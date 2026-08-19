@@ -84,6 +84,36 @@ class ImmersiveResidentWindowEvidenceTests(unittest.TestCase):
         )
 
 
+class DrivenCellRegistrationTests(unittest.TestCase):
+    def test_complete_three_level_evidence_registers_the_cell_as_driven(self) -> None:
+        operation = "accessibility:target"
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.operations = {operation: {}}
+        run.driven_cells = set()
+        run.segment = None
+        run.cells = {
+            ("portal", operation): {
+                "applicationReceived": False,
+                "evidence": [],
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "verdict": "known-defect",
+            }
+        }
+
+        run.mark_observation(
+            "portal",
+            operation,
+            exists=True,
+            hittable=True,
+            received=True,
+            evidence="raw/proof.json",
+            reason="Complete product evidence.",
+        )
+
+        self.assertEqual(run.driven_cells, {("portal", operation)})
+
+
 class MenuSelectionEvidenceTests(unittest.TestCase):
     def test_prefers_requested_current_state_item(self) -> None:
         listing = {
