@@ -31,6 +31,10 @@ BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round11-20260818"
 )
+ROUND13_DOCKED_CONTENT_RESULTS = Path(
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
+    "reachability-round13-20260819/segments/docked-02-content/results.json"
+)
 DEFAULT_DERIVED_DATA = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach11-20260818"
 )
@@ -110,6 +114,8 @@ SCENARIO_FIXTURES = {
     "window-menus-round11": ("furyroad-with-dv.mkv",),
 }
 DEFERRED_MENU_TARGETS = {
+    ("playerPanel", "audio"): "__firstUnselected",
+    ("playerPanel", "episodes"): "__firstAvailable",
     ("emby", "season"): "__firstUnselected",
     ("emby", "version"): "__firstUnselected",
     ("settings", "resume-strategy"): "Ask Every Time",
@@ -569,6 +575,42 @@ def menu_selection_target(
             ):
                 return str(item["id"])
     return available[0] if available else None
+
+
+def menu_delivery_probe_needle(target: str) -> str:
+    prefix = "reachability playerPanel delivered action=menu.item."
+    if target in {"__firstUnselected", "__firstAvailable"}:
+        return prefix
+    return prefix + target
+
+
+def should_open_player_panel_system_menu(presentation: str) -> bool:
+    return presentation in {"window", "portal"}
+
+
+def validated_reachable_cell(
+    document: dict[str, Any],
+    *,
+    context: str,
+    operation: str,
+) -> dict[str, Any] | None:
+    if not (
+        document.get("status") == "complete"
+        and (document.get("channelContinuity") or {}).get("passed") is True
+        and (document.get("probeJournal") or {}).get("passed") is True
+    ):
+        return None
+    for cell in document.get("cells", []):
+        if (
+            isinstance(cell, dict)
+            and cell.get("context") == context
+            and cell.get("operation") == operation
+            and cell.get("existsInHierarchy") is True
+            and cell.get("reportsHittable") is True
+            and cell.get("verdict") == "reachable"
+        ):
+            return cell
+    return None
 
 
 def video_format_open_was_delivered(
@@ -4843,23 +4885,45 @@ class ReachabilityRun:
             )
 
     def player_panel_menu_scenario(self, presentation: str) -> None:
-        opened, before = self.tap_with_fresh_controls(
-            presentation,
-            "PlayerPanel-menu-more",
-            probe_label=f"{presentation}-panel-menu-before",
-        )
-        offset = len(before)
-        probe = self.copy_probe(f"{presentation}-panel-menu-open")
-        if opened.get("success") is True and any(
-            "reachability playerPanel delivered action=menu.more" in line
-            for line in probe[offset:]
-        ):
-            self.delivered(
+        opens_system_menu = should_open_player_panel_system_menu(presentation)
+        if opens_system_menu:
+            opened, before = self.tap_with_fresh_controls(
                 presentation,
-                "accessibility:PlayerPanel-menu-more",
-                self.events[-1]["evidence"],
-                "The named PlayerPanel More menu was hittable and constructed its product content.",
+                "PlayerPanel-menu-more",
+                probe_label=f"{presentation}-panel-menu-before",
             )
+            offset = len(before)
+            probe = self.copy_probe(f"{presentation}-panel-menu-open")
+            if opened.get("success") is True and any(
+                "reachability playerPanel delivered action=menu.more" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:PlayerPanel-menu-more",
+                    self.events[-1]["evidence"],
+                    "The named PlayerPanel More menu was hittable and constructed its product content.",
+                )
+        else:
+            self.show_controls()
+            if presentation == "docked":
+                self.reuse_docked_menu_parent_observation()
+            else:
+                observed = self.wait_for_identifier("PlayerPanel-menu-more", timeout=10)
+                matched = observed.get("matchedElement")
+                if isinstance(matched, dict):
+                    self.mark_observation(
+                        presentation,
+                        "accessibility:PlayerPanel-menu-more",
+                        exists=True,
+                        hittable=matched.get("isHittable") is True,
+                        evidence=self.events[-1]["evidence"],
+                        reason=(
+                            "The immersive attachment exposed the named More parent. "
+                            "The system-owned Menu is not synthesized in this scene."
+                        ),
+                    )
+            probe = self.copy_probe(f"{presentation}-panel-menu-observed")
 
         family_operations = (
             ("speed", "accessibility:PlayerPanel-menu-speed", ("1.25",)),
@@ -4883,8 +4947,7 @@ class ReachabilityRun:
                 f"{presentation}-panel-{family}-selected"
             )
             if selected.get("success") is True and target is not None and any(
-                "reachability playerPanel delivered action=menu.item."
-                + target in line
+                menu_delivery_probe_needle(target) in line
                 for line in probe[item_offset:]
             ):
                 self.delivered_by_debug_menu_selection(
@@ -4908,12 +4971,54 @@ class ReachabilityRun:
 
         # The equivalent action does not dismiss the system-owned menu. These
         # label actions are cleanup only and never contribute delivery evidence.
-        self.controller(
-            "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+        if opens_system_menu:
+            self.controller(
+                "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+            )
+            self.controller(
+                "tap", "--label", "1×", "--no-screenshot", timeout=90,
+            )
+
+    def reuse_docked_menu_parent_observation(self) -> bool:
+        try:
+            document = json.loads(
+                ROUND13_DOCKED_CONTENT_RESULTS.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            return False
+        operation = "accessibility:PlayerPanel-menu-more"
+        cell = validated_reachable_cell(
+            document,
+            context="docked",
+            operation=operation,
         )
-        self.controller(
-            "tap", "--label", "1×", "--no-screenshot", timeout=90,
+        if cell is None:
+            return False
+        evidence = "raw/docked-menu-more-round13.json"
+        (self.output / evidence).write_text(
+            json.dumps(
+                {
+                    "source": str(ROUND13_DOCKED_CONTENT_RESULTS),
+                    "cell": cell,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
         )
+        self.mark_observation(
+            "docked",
+            operation,
+            exists=True,
+            hittable=True,
+            evidence=evidence,
+            reason=(
+                "Round 13's complete, channel-healthy segment proved the unchanged "
+                "Docked More parent exists and is hittable."
+            ),
+        )
+        return True
 
     def docked_settings_scenario(self) -> None:
         presentation = "docked"
@@ -5239,6 +5344,12 @@ class ReachabilityRun:
             None,
         )
         if opened.get("success") is not True or effect_identifier is None:
+            self.controller(
+                "snapshot",
+                "--identifier",
+                "PlayerUI-spatial-state",
+                "--no-screenshot",
+            )
             return
 
         changed = self.tap(presentation, effect_identifier, operation_id=(
@@ -5409,13 +5520,26 @@ class ReachabilityRun:
             file_name="sdr-bframe-multiaudio-subtitles-30s.mkv"
         ):
             return
-        self.player_panel_media_information_scenario("docked")
         self.player_panel_menu_scenario("docked")
+        self.player_panel_media_information_scenario("docked")
 
     def exit_spatial_with_product_command(
         self, presentation: str, expected_presentation: str
     ) -> None:
         operation_id = "accessibility:PlayerPanel-button-exit-spatial"
+        controls = self.show_controls()
+        state = self.wait_for_identifier("PlayerUI-spatial-state", timeout=15)
+        state_value = str((state.get("matchedElement") or {}).get("value", ""))
+        if controls.get("success") is not True or not all(
+            fact in state_value
+            for fact in (
+                f"presentation={presentation}",
+                "transition=none",
+                "controls=shown",
+                "controlsInteractive=true",
+            )
+        ):
+            return
         visible = self.wait_for_identifier(
             "PlayerPanel-button-exit-spatial", timeout=15
         )
@@ -5444,6 +5568,8 @@ class ReachabilityRun:
             exited.get("success") is True
             and f"presentation={expected_presentation}" in value
             and "transition=none" in value
+            and "pendingSpatialEffect=none" in value
+            and f"attached={expected_presentation}" in value
             and any(
                 "testcmd exitSpatial delivered" in line
                 for line in probe[offset:]

@@ -75,6 +75,7 @@ public struct DebugMenuSelectionSnapshot: Equatable, Sendable {
 @MainActor
 public final class DebugMenuSelectionRequest {
     public static let firstUnselectedTarget = "__firstUnselected"
+    public static let firstAvailableTarget = "__firstAvailable"
 
     public enum Operation: Equatable, Sendable {
         case list
@@ -114,9 +115,14 @@ public final class DebugMenuSelectionRequest {
         case .list:
             self.items = snapshots
         case .select(let target):
-            let index = target == Self.firstUnselectedTarget
-                ? items.firstIndex(where: { $0.isSelected == false })
-                : items.firstIndex(where: { $0.id == target })
+            let index: Array<DebugMenuSelectionItem>.Index? = switch target {
+            case Self.firstUnselectedTarget:
+                items.firstIndex(where: { $0.isSelected == false })
+            case Self.firstAvailableTarget:
+                items.indices.first
+            default:
+                items.firstIndex(where: { $0.id == target })
+            }
             guard let index else {
                 self.items = snapshots
                 return

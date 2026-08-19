@@ -115,6 +115,16 @@ class DrivenCellRegistrationTests(unittest.TestCase):
 
 
 class MenuSelectionEvidenceTests(unittest.TestCase):
+    def test_deferred_player_panel_families_have_runtime_safe_targets(self) -> None:
+        self.assertEqual(
+            matrix.DEFERRED_MENU_TARGETS[("playerPanel", "audio")],
+            "__firstUnselected",
+        )
+        self.assertEqual(
+            matrix.DEFERRED_MENU_TARGETS[("playerPanel", "episodes")],
+            "__firstAvailable",
+        )
+
     def test_prefers_requested_current_state_item(self) -> None:
         listing = {
             "payload": ["1.0", "1.25"],
@@ -139,6 +149,49 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
         }
 
         self.assertEqual(matrix.menu_selection_target(listing), "available")
+
+    def test_deferred_menu_target_requires_the_resolved_product_item_probe(self) -> None:
+        self.assertEqual(
+            matrix.menu_delivery_probe_needle("__firstUnselected"),
+            "reachability playerPanel delivered action=menu.item.",
+        )
+        self.assertEqual(
+            matrix.menu_delivery_probe_needle("2"),
+            "reachability playerPanel delivered action=menu.item.2",
+        )
+
+    def test_native_menu_is_not_opened_through_an_immersive_attachment(self) -> None:
+        self.assertTrue(matrix.should_open_player_panel_system_menu("window"))
+        self.assertTrue(matrix.should_open_player_panel_system_menu("portal"))
+        self.assertFalse(matrix.should_open_player_panel_system_menu("panorama"))
+        self.assertFalse(matrix.should_open_player_panel_system_menu("docked"))
+
+    def test_prior_accessibility_fact_requires_a_complete_healthy_segment(self) -> None:
+        document = {
+            "status": "complete",
+            "channelContinuity": {"passed": True},
+            "probeJournal": {"passed": True},
+            "cells": [{
+                "context": "docked",
+                "operation": "accessibility:PlayerPanel-menu-more",
+                "existsInHierarchy": True,
+                "reportsHittable": True,
+                "applicationReceived": True,
+                "verdict": "reachable",
+            }],
+        }
+
+        self.assertIsNotNone(matrix.validated_reachable_cell(
+            document,
+            context="docked",
+            operation="accessibility:PlayerPanel-menu-more",
+        ))
+        document["channelContinuity"]["passed"] = False
+        self.assertIsNone(matrix.validated_reachable_cell(
+            document,
+            context="docked",
+            operation="accessibility:PlayerPanel-menu-more",
+        ))
 
     def test_accessibility_cell_requires_all_three_evidence_levels(self) -> None:
         cell = {
@@ -166,6 +219,82 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
 
 class ReachabilityScenarioSequencingTests(unittest.TestCase):
+    def test_docked_content_collects_menu_facts_before_removing_expanded_media(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        events: list[str] = []
+        run.enter_docked_playback = Mock(return_value=True)
+        run.player_panel_menu_scenario = Mock(
+            side_effect=lambda _: events.append("menu")
+        )
+        run.player_panel_media_information_scenario = Mock(
+            side_effect=lambda _: events.append("media")
+        )
+
+        run.docked_content_scenario()
+
+        self.assertEqual(events, ["menu", "media"])
+
+    def test_spatial_exit_requires_interactive_controls_and_terminal_window_state(
+        self,
+    ) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/exit.json"}]
+        run.show_controls = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(side_effect=[
+            {
+                "matchedElement": {
+                    "value": ";".join((
+                        "presentation=panorama",
+                        "transition=none",
+                        "controls=shown",
+                        "controlsInteractive=true",
+                    ))
+                }
+            },
+            {
+                "matchedElement": {
+                    "identifier": "PlayerPanel-button-exit-spatial",
+                    "isHittable": True,
+                }
+            },
+            {
+                "matchedElement": {
+                    "value": ";".join((
+                        "presentation=portal",
+                        "transition=none",
+                        "pendingSpatialEffect=none",
+                        "attached=portal",
+                    ))
+                }
+            },
+        ])
+        run.mark_driven = Mock()
+        run.mark_observation = Mock()
+        run.copy_probe = Mock(side_effect=[
+            [],
+            ["testcmd exitSpatial delivered target=portal"],
+        ])
+        run.app_command = Mock(return_value={"success": True})
+        run.controller = Mock(return_value={"success": True})
+
+        run.exit_spatial_with_product_command("panorama", "portal")
+
+        run.show_controls.assert_called_once_with()
+        self.assertEqual(
+            [call.args[0] for call in run.wait_for_identifier.call_args_list],
+            [
+                "PlayerUI-spatial-state",
+                "PlayerPanel-button-exit-spatial",
+                "PlayerUI-window-control-plane",
+            ],
+        )
+        self.assertTrue(
+            any(
+                call.kwargs.get("received") is True
+                for call in run.mark_observation.call_args_list
+            )
+        )
+
     def test_tap_without_delivery_evaluation_is_not_a_driven_defect(self) -> None:
         operation = "accessibility:Emby-Navigation-Tab"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
