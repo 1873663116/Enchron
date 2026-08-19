@@ -145,3 +145,17 @@ verification-quick 在 aa314ac6 上 success（运行 32080600518），CI 钥匙�
 设备通道仍是唯一硬约束，且触发条件已量化：Portal 重复入场时探针四个 marker 内由 68,651 涨到 636,660 字节越过 600,000 上限；改为每两标记检查后，仍在 504,471 字节归档时遇 CoreDevice 7000 socket 关闭。裁决：缩短归档间隔是追着体积跑，第十三轮改为让产品侧 DEBUG 探针落盘自身有界，使段内取回变成小而恒定的读取。
 
 2026-08-19：合并态全量 gauntlet PASS（20260819T014445Z-50922）。第十三轮已派出：task_id `edbdf37c-fc4a-4747-b2bb-39f64872c86c`（wt-reach13）。范围：探针有界化先行→系统 alert 两点走 DEBUG 动词→浏览域余点（含用"新建指向同一既有服务器的条目再删除"证明 SourcesSidebar-delete、Settings 段重跑、Emby Version 全库 128 项确定结论）→未运行的 13 段（Portal routes/issues、Panorama 五段、Docked 五段、Window 媒体信息与环境卡片）。
+
+## 2026-08-19 — 第十三轮验收：通道问题收口，剩余障碍转为产品可访问性
+
+第十三轮验收通过并合并（main 55f4631c 前的分支 rebase 后快进）。独立复核：194 点坐标集不变，152→168 可达、42→26 缺口，零回退，16 个新增（浏览 7、Portal 6、Window 2、Panorama 1）。产品 Swift 改动经查全部为 DEBUG 门控：新增 DebugProbeJournal、各处 recordReachability 探针体在 #if DEBUG 内（Release 为空操作）、FilesScreen 的 alert Binding 请求类与观察者整体在 #if DEBUG 内、PlaybackVideoSurface 的改动是探针去重签名与 2 秒心跳（只影响日志量），物理设备 Release 构建通过。
+
+探针有界化兑现且量化：硬上限 196,608 字节、压缩目标 131,072，19 个最终段峰值 196,564（差 44 字节），每段仅 1 次探针取回，对照第十二轮 portal-01-dv 的段末 491,799 字节与 12 次取回、现场残留 1,284,191 字节。判定事实不参与截断，仅事实即溢出时整段作废。重要区分：本轮仍有一次 28,813 字节探针复制触发 CoreDevice 7000——"大文件必然失败"与"CoreDevice 可独立失败"就此分开，通道不再是主要限制因素。
+
+Emby 多版本条件彻底了结：递归只读扫描 1,081 项（996 Episode、83 Movie、2 Video），MediaSources.count 最大为 1，多版本项为 0，产品仅在计数大于 1 时显示 Version，故为内容条件不满足而非缺陷。第十二轮的 128 是顶层库项数，不是完整目录。SourcesSidebar-delete 亦查清：可见菜单项与 DEBUG 动词都进 performDeleteSelection，该处理器只进入选择模式，真正删除是另一动作，因此无需删除设备数据即可证明。
+
+剩余 26 点的性质已改变，主体是产品侧可访问性事实缺失：层级未暴露 20、存在但不可命中 3、系统 alert 桥接 2、内容条件 1。分布规律构成线索：media-information-close 四语境全缺席；错误与失败浮层动作目标在 Window/Portal 可达而在 Panorama/Docked 全缺席（同一问题入口已被调用）；EnvironmentCard 一族只在 Docked 缺席而 Window 已可达；menu-audio 与 menu-episodes 只在沉浸语境缺席。裁决：第十四轮不再排段重复观察，先把症状还原为机制（渲染在哪个 scene、挂哪个宿主、XCUITest 元素树是否包含该子树、isHittable=false 是碰撞体/遮挡/traits），再按机制修可访问性事实；判别"系统边界"与"我方缺陷"的判据是同样内容在别的语境能否暴露。
+
+工作树卫生问题一处（我方失误）：第十三轮 worktree 因相对路径落在 wt-integration 内部，交付物两份。已用绝对路径重建，nested worktree 已移除，REPORT.md 归档到证据目录。
+
+第十四轮已派出：task_id `112ebe1a-f725-4c97-8f46-70e2d0c6f5da`（wt-reach14，基线 55f4631c）。
