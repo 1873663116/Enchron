@@ -831,6 +831,18 @@ def immersive_resident_window_is_hidden(
     return mechanism_was_open and no_named_node and no_new_identifier
 
 
+def product_accessibility_identifiers(document: dict[str, Any]) -> set[str]:
+    """Return addressable product identifiers, excluding system scene identities."""
+    hierarchy = str(document.get("hierarchy", ""))
+    identifiers = set(re.findall(r"identifier: '([^']+)'", hierarchy))
+    system_scene_prefix = f"{APP_BUNDLE}:SFBSystemService-"
+    return {
+        identifier
+        for identifier in identifiers
+        if not identifier.startswith(system_scene_prefix)
+    }
+
+
 class ReachabilityRun:
     def __init__(self, arguments: argparse.Namespace) -> None:
         self.arguments = arguments
@@ -5573,8 +5585,8 @@ class ReachabilityRun:
         after = self.controller("snapshot", "--no-screenshot")
         before_hierarchy = str(before.get("hierarchy", ""))
         after_hierarchy = str(after.get("hierarchy", ""))
-        before_identifiers = self.hierarchy_identifiers(before)
-        after_identifiers = self.hierarchy_identifiers(after)
+        before_identifiers = product_accessibility_identifiers(before)
+        after_identifiers = product_accessibility_identifiers(after)
         no_named_node = "Blackout Probe" not in after_hierarchy
         no_new_identifier = after_identifiers <= before_identifiers
         hierarchy_evidence = self.events[-1]["evidence"]
@@ -5743,8 +5755,8 @@ class ReachabilityRun:
         after = self.controller("snapshot", "--no-screenshot")
         before_hierarchy = str(before.get("hierarchy", ""))
         after_hierarchy = str(after.get("hierarchy", ""))
-        before_identifiers = self.hierarchy_identifiers(before)
-        after_identifiers = self.hierarchy_identifiers(after)
+        before_identifiers = product_accessibility_identifiers(before)
+        after_identifiers = product_accessibility_identifiers(after)
         no_named_node = "Blackout Probe" not in after_hierarchy
         no_new_identifier = after_identifiers <= before_identifiers
         hierarchy_evidence = self.events[-1]["evidence"]

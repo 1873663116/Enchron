@@ -44,6 +44,21 @@ class ProofContextAxisTests(unittest.TestCase):
 
 
 class ImmersiveResidentWindowEvidenceTests(unittest.TestCase):
+    def test_system_scene_identity_is_not_an_addressable_product_target(self) -> None:
+        document = {
+            "hierarchy": "\n".join(
+                (
+                    "identifier: 'com.xiongzhipeng.XrPlayer:SFBSystemService-1234'",
+                    "identifier: 'PlayerUI-product-target'",
+                )
+            )
+        }
+
+        self.assertEqual(
+            matrix.product_accessibility_identifiers(document),
+            {"PlayerUI-product-target"},
+        )
+
     def test_cleanup_response_recovers_lost_toggle_response(self) -> None:
         self.assertTrue(
             matrix.immersive_resident_window_is_hidden(
