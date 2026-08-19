@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-19T04:18:33.649658+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round13-20260819/delivery/delivery.json",
+  "acceptedAt": "2026-08-19T04:31:34.535447+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round13-20260819/delivery-final/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -425,12 +425,12 @@
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-card",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-carousel",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -620,7 +620,7 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
@@ -660,12 +660,12 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
@@ -675,12 +675,12 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
