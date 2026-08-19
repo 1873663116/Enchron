@@ -156,6 +156,46 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         self.assertTrue(cell["reportsHittable"])
         self.assertFalse(cell["applicationReceived"])
 
+    def test_tap_passes_an_explicit_index_to_the_controller(self) -> None:
+        operation = "accessibility:Settings-category-{item.id}"
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.operations = {operation: {}}
+        run.driven_cells = set()
+        run.tapped_cells = set()
+        run.cells = {
+            ("main-window-browser", operation): {
+                "context": "main-window-browser",
+                "operation": operation,
+                "identifierTemplate": "Settings-category-{item.id}",
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+        run.events = [{"evidence": "raw/indexed-tap.json"}]
+        run.controller = Mock(return_value={"success": False})
+
+        run.tap(
+            "main-window-browser",
+            "Settings-category-storagePrivacy",
+            operation_id=operation,
+            index=2,
+        )
+
+        run.controller.assert_called_once_with(
+            "tap",
+            "--identifier",
+            "Settings-category-storagePrivacy",
+            "--index",
+            "2",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+
     def test_probe_precedes_control_reveal_and_immediate_tap(self) -> None:
         actions: list[str] = []
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)

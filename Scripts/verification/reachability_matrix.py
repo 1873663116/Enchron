@@ -1795,12 +1795,16 @@ class ReachabilityRun:
         identifier: str,
         *,
         operation_id: str | None = None,
+        index: int | None = None,
     ) -> dict[str, Any]:
         operation_id = operation_id or f"accessibility:{identifier}"
         if operation_id in self.operations:
             self.tapped_cells.add((presentation, operation_id))
+        target_arguments = ["--identifier", identifier]
+        if index is not None:
+            target_arguments.extend(("--index", str(index)))
         document = self.controller(
-            "tap", "--identifier", identifier,
+            "tap", *target_arguments,
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
         )
         matched = document.get("matchedElement")
@@ -3068,6 +3072,7 @@ class ReachabilityRun:
             presentation,
             "Settings-category-storagePrivacy",
             operation_id="accessibility:Settings-category-{item.id}",
+            index=2,
         )
         probe = self.copy_probe("round11-settings-category-selected")
         if category.get("success") is True and any(
