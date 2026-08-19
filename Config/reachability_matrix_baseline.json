@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-19T01:07:30.672944+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round12-20260819/delivery-physical-valid-accepted/delivery.json",
+  "acceptedAt": "2026-08-19T04:18:33.649658+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round13-20260819/delivery/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -90,12 +90,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -215,7 +215,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -245,12 +245,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -370,7 +370,7 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-category-{item.id}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
@@ -415,7 +415,7 @@
     {
       "context": "main-window-browser",
       "operation": "scroll:file-list",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -610,7 +610,7 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
@@ -815,7 +815,7 @@
     {
       "context": "panorama",
       "operation": "negative:immersive-resident-window",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
