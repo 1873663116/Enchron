@@ -339,6 +339,8 @@ final class TestCommandChannel {
             return try showPlaybackIssue(request)
         case "showFileBrowserError":
             return try showFileBrowserError(request)
+        case "setFileBrowserAlertField":
+            return try setFileBrowserAlertField(request)
         case "seekNormalized":
             return try seekNormalized(request)
         case "setDockedPlacement":
@@ -715,6 +717,36 @@ final class TestCommandChannel {
             ok: true,
             detail: nil,
             payload: [message]
+        )
+    }
+
+    private func setFileBrowserAlertField(_ request: Request) throws -> Response {
+        guard let fieldText = request.args["field"],
+              let field = FileBrowserAlertFieldRequest.Field(rawValue: fieldText),
+              let value = request.args["value"] else {
+            throw CommandError(
+                message: "setFileBrowserAlertField requires "
+                    + "field=newFolderName|renameFolderName and value."
+            )
+        }
+        let fieldRequest = FileBrowserAlertFieldRequest(
+            field: field,
+            value: value
+        )
+        NotificationCenter.default.post(
+            name: .fileBrowserAlertField,
+            object: fieldRequest
+        )
+        guard fieldRequest.wasHandled else {
+            throw CommandError(
+                message: "No visible Files alert accepted field=\(field.rawValue)."
+            )
+        }
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [field.rawValue]
         )
     }
 

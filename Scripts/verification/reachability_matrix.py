@@ -1945,6 +1945,44 @@ class ReachabilityRun:
             )
         return target, listing, selected
 
+    def set_file_browser_alert_field(
+        self,
+        *,
+        presentation: str,
+        operation: str,
+        field: str,
+        value: str,
+        evidence_label: str,
+    ) -> tuple[dict[str, Any], list[str] | DeferredProbeView]:
+        before = self.copy_probe(f"{evidence_label}-before")
+        offset = len(before)
+        self.mark_driven(presentation, operation)
+        response = self.app_command(
+            "setFileBrowserAlertField",
+            field=field,
+            value=value,
+        )
+        probe = self.copy_probe(evidence_label)
+        action = (
+            "newFolder.name"
+            if field == "newFolderName"
+            else "renameFolder.name"
+        )
+        if response.get("success") is True and any(
+            f"reachability files delivered action={action}" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                operation,
+                self.events[-1]["evidence"],
+                "The DEBUG command wrote the same Binding used by the visible "
+                "SwiftUI alert field. The visionOS system alert bridge does not "
+                "export that field's product accessibility identifier.",
+                has_accessibility_target=False,
+            )
+        return response, probe
+
     def wait_for_identifier(
         self, identifier: str, *, timeout: float = 40.0
     ) -> dict[str, Any]:
@@ -2637,22 +2675,13 @@ class ReachabilityRun:
                 "The named Manage parent was hittable; the DEBUG equivalent entered "
                 "the product new-folder action and its probe confirmed delivery.",
             )
-        before = probe
-        offset = len(before)
-        typed = self.controller(
-            "typeText", "--identifier", "MediaLibrary-NewFolder-name",
-            "--text", "Reachability Round 2", "--no-screenshot", timeout=90,
+        _, probe = self.set_file_browser_alert_field(
+            presentation=presentation,
+            operation="accessibility:MediaLibrary-NewFolder-name",
+            field="newFolderName",
+            value="Reachability Round 2",
+            evidence_label="browser-new-folder-name",
         )
-        probe = self.copy_probe("browser-new-folder-name")
-        if typed.get("success") is True and any(
-            "reachability files delivered action=newFolder.name" in line
-            for line in probe[offset:]
-        ):
-            self.delivered(
-                presentation, "accessibility:MediaLibrary-NewFolder-name",
-                self.events[-1]["evidence"],
-                "Typing changed the new-folder name binding and appended a probe.",
-            )
         before = probe
         offset = len(before)
         created = self.tap(presentation, "MediaLibrary-NewFolder-create")
@@ -2932,26 +2961,13 @@ class ReachabilityRun:
             preferred=("newFolder",),
         )
         if opened.get("success") is True:
-            before = self.copy_probe("round11-new-folder-name-before")
-            offset = len(before)
-            typed = self.controller(
-                "typeText",
-                "--identifier", "MediaLibrary-NewFolder-name",
-                "--text", "Round 11 draft",
-                "--no-screenshot",
-                timeout=90,
+            self.set_file_browser_alert_field(
+                presentation=presentation,
+                operation="accessibility:MediaLibrary-NewFolder-name",
+                field="newFolderName",
+                value="Round 13 draft",
+                evidence_label="round13-new-folder-name",
             )
-            probe = self.copy_probe("round11-new-folder-name")
-            if typed.get("success") is True and any(
-                "reachability files delivered action=newFolder.name" in line
-                for line in probe[offset:]
-            ):
-                self.delivered(
-                    presentation,
-                    "accessibility:MediaLibrary-NewFolder-name",
-                    self.events[-1]["evidence"],
-                    "Typing changed the product new-folder binding.",
-                )
             self.controller("tap", "--label", "Cancel", "--no-screenshot")
 
         folder_identifier = (
@@ -2964,34 +2980,18 @@ class ReachabilityRun:
         rename_menu = self.controller(
             "tap", "--label", "Rename", "--no-screenshot", timeout=90,
         )
-        rename_field = self.wait_for_identifier(
-            "MediaLibrary-RenameFolder-name", timeout=10
-        )
         rename_opened = (
             pressed.get("success") is True
             and rename_menu.get("success") is True
         )
-        if rename_opened and isinstance(rename_field.get("matchedElement"), dict):
-            before = self.copy_probe("round11-rename-name-before")
-            offset = len(before)
-            typed = self.controller(
-                "typeText",
-                "--identifier", "MediaLibrary-RenameFolder-name",
-                "--text", " Round 11",
-                "--no-screenshot",
-                timeout=90,
+        if rename_opened:
+            self.set_file_browser_alert_field(
+                presentation=presentation,
+                operation="accessibility:MediaLibrary-RenameFolder-name",
+                field="renameFolderName",
+                value=f"{REACHABILITY_LIBRARY_FOLDER} Round 13",
+                evidence_label="round13-rename-name",
             )
-            probe = self.copy_probe("round11-rename-name")
-            if typed.get("success") is True and any(
-                "reachability files delivered action=renameFolder.name" in line
-                for line in probe[offset:]
-            ):
-                self.delivered(
-                    presentation,
-                    "accessibility:MediaLibrary-RenameFolder-name",
-                    self.events[-1]["evidence"],
-                    "Typing changed the product rename binding.",
-                )
 
         if rename_opened:
             before = self.copy_probe("round11-rename-confirm-before")

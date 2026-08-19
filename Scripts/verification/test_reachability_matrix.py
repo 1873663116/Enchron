@@ -451,6 +451,34 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
 
 class DeferredSegmentEvidenceTests(unittest.TestCase):
+    def test_system_alert_field_uses_debug_binding_without_claiming_a_target(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.mark_driven = Mock()
+        run.app_command = Mock(return_value={"success": True})
+        run.copy_probe = Mock(side_effect=[
+            [],
+            ["reachability files delivered action=newFolder.name"],
+        ])
+        run.delivered = Mock()
+        run.events = [{"evidence": "raw/alert-field.json"}]
+
+        run.set_file_browser_alert_field(
+            presentation="main-window-browser",
+            operation="accessibility:MediaLibrary-NewFolder-name",
+            field="newFolderName",
+            value="Round 13",
+            evidence_label="new-folder-name",
+        )
+
+        run.app_command.assert_called_once_with(
+            "setFileBrowserAlertField",
+            field="newFolderName",
+            value="Round 13",
+        )
+        self.assertFalse(
+            run.delivered.call_args.kwargs["has_accessibility_target"]
+        )
+
     def test_deferred_probe_markers_never_read_or_clear_the_device_file(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = {"id": "portal-issues", "context": "portal"}

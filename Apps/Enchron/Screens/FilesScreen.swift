@@ -23,9 +23,41 @@ final class FileBrowserReachabilityErrorRequest {
     }
 }
 
+@MainActor
+final class FileBrowserAlertFieldRequest {
+    enum Field: String {
+        case newFolderName
+        case renameFolderName
+    }
+
+    let field: Field
+    let value: String
+    private(set) var wasHandled = false
+
+    init(field: Field, value: String) {
+        self.field = field
+        self.value = value
+    }
+
+    func handle(
+        field expectedField: Field,
+        isPresented: Bool,
+        binding: Binding<String>
+    ) {
+        guard wasHandled == false,
+              field == expectedField,
+              isPresented else { return }
+        binding.wrappedValue = value
+        wasHandled = true
+    }
+}
+
 extension Notification.Name {
     static let fileBrowserReachabilityError = Notification.Name(
         "app.enchron.debug.file-browser-reachability-error"
+    )
+    static let fileBrowserAlertField = Notification.Name(
+        "app.enchron.debug.file-browser-alert-field"
     )
 }
 #endif
@@ -94,6 +126,26 @@ struct FilesScreen: View {
     @State private var isBatchRemoveConfirmationPresented = false
 
     private var isBrowsingSource: Bool { sourceSelection.isDataSource }
+
+    private var newFolderNameBinding: Binding<String> {
+        Binding(
+            get: { newFolderName },
+            set: {
+                recordReachability("newFolder.name")
+                newFolderName = $0
+            }
+        )
+    }
+
+    private var renamedFolderNameBinding: Binding<String> {
+        Binding(
+            get: { renamedFolderName },
+            set: {
+                recordReachability("renameFolder.name")
+                renamedFolderName = $0
+            }
+        )
+    }
 
     private var totalItemCount: Int {
         if isBrowsingSource {
@@ -171,6 +223,23 @@ struct FilesScreen: View {
             request.handle { viewModel.lastErrorMessage = $0 }
         }
         .onReceive(
+            NotificationCenter.default.publisher(for: .fileBrowserAlertField)
+        ) { notification in
+            guard let request = notification.object as? FileBrowserAlertFieldRequest else {
+                return
+            }
+            request.handle(
+                field: .newFolderName,
+                isPresented: isCreatingFolder,
+                binding: newFolderNameBinding
+            )
+            request.handle(
+                field: .renameFolderName,
+                isPresented: folderToRename != nil,
+                binding: renamedFolderNameBinding
+            )
+        }
+        .onReceive(
             NotificationCenter.default.publisher(for: .debugMenuSelection)
         ) { notification in
             guard let request = notification.object as? DebugMenuSelectionRequest else {
@@ -219,13 +288,7 @@ struct FilesScreen: View {
         .alert("New Library Folder", isPresented: $isCreatingFolder) {
             TextField(
                 "Folder name",
-                text: Binding(
-                    get: { newFolderName },
-                    set: {
-                        recordReachability("newFolder.name")
-                        newFolderName = $0
-                    }
-                )
+                text: newFolderNameBinding
             )
                 .accessibilityIdentifier("MediaLibrary-NewFolder-name")
             Button("Cancel") { newFolderName = "" }
@@ -245,13 +308,7 @@ struct FilesScreen: View {
         ) {
             TextField(
                 "Folder name",
-                text: Binding(
-                    get: { renamedFolderName },
-                    set: {
-                        recordReachability("renameFolder.name")
-                        renamedFolderName = $0
-                    }
-                )
+                text: renamedFolderNameBinding
             )
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-name")
             Button("Cancel") { folderToRename = nil }
