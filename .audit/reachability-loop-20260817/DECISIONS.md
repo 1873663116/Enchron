@@ -159,3 +159,13 @@ Emby 多版本条件彻底了结：递归只读扫描 1,081 项（996 Episode、
 工作树卫生问题一处（我方失误）：第十三轮 worktree 因相对路径落在 wt-integration 内部，交付物两份。已用绝对路径重建，nested worktree 已移除，REPORT.md 归档到证据目录。
 
 第十四轮已派出：task_id `112ebe1a-f725-4c97-8f46-70e2d0c6f5da`（wt-reach14，基线 55f4631c）。
+
+## 2026-08-19 — 第十四轮验收：机制诊断兑现，设备锁定挡住终局回归
+
+第十四轮部分验收并合并产品修复（main 05b899f7）。任务方守住关键纪律：因 19 段防回退回归未执行（设备进入 needs-to-be-unlocked 锁定态），基线保持 168/26 未动，18 个新增三级证据只存于交付物，待回归通过后才接纳 186/8。合并的是产品修复本身（构建、结构、Python 门禁全过）。
+
+三项机制诊断与修复，全部有真机证据：①沉浸问题浮层此前挂在 ImmersiveSpace 的 RealityView attachment 上，SwiftUI 系统 alert 不进入 application 元素树——Window/Portal 同策略可暴露而沉浸语境不能，排除 identifier 与策略本身；修法是由常驻 volumetric Window 承载 alert，presentation owner 改变而 UI 语义不变，Panorama/Docked 八个 action 全部转为三级可达。②Docked 环境卡入口绕过 AppModel 转场初始化，执行器拿到空时间门放弃后自旋重领同一请求（1 秒 706 次 replacementPrepared）；修后走同一初始化、volume 不再注册竞争执行器、同 identity 刷新保留 lease，Docked EnvironmentCard 五点全部可达——这同时是真实产品缺陷修复。③展开媒体信息容器的 identifier 覆盖子元素，四语境全缺席的共同机制是 SwiftUI identifier 传播而非内容条件；用 .accessibilityElement(children: .contain) 保留双方身份，Window/Portal/Panorama 三点可达。exit 按钮的 isHittable=false 是 controls=hidden 状态问题而非遮挡，Panorama 已证；Portal CustomAngle 是原生 Picker 系统边界（坐标事件无有效 scene ID）。Docked 的 menu-more 查询触发 XCUITest 使 App 崩溃且设备重启后复现，属可复现系统边界。
+
+剩余 8 点：Docked 四点（media close、audio、episodes、exit）纯因设备锁定未跑，机制与修复已就绪；其余四点为确证的系统边界或内容条件（CustomAngle、两个系统 alert 输入框、Emby Version）。
+
+阻塞与处置：设备解锁是物理输入，属用户封闭清单项，已通知用户。等待期间派出测试门修复任务 task_id `ea9c7281-dfc4-4a32-ae74-ac2b385f0246`（wt-testgate）：TrackSelectionPreferenceTests 找不到 package 级 MediaStateStore/PersistedMediaState，经查为 main 上既有阻断，与第十四轮无关。第十五轮待设备解锁后派出：19 段防回退回归＋Docked 四点终局段＋接纳 186/8 基线。
