@@ -16,6 +16,25 @@ struct PlaybackPresentationStateTests {
         let error: PlaybackPresentationTransitionError?
     }
 
+    @Test("immersive resident resolves each issue to its existing product location")
+    func immersiveResidentIssueLocation() {
+        #expect(
+            PlaybackIssuePresentationScope.immersiveResident.resolve(
+                .environmentLoadingFailed
+            ) == .immersiveSpace
+        )
+        #expect(
+            PlaybackIssuePresentationScope.immersiveResident.resolve(
+                .capabilityUnavailable(.videoDecoderUnavailable)
+            ) == .playerDeck
+        )
+        #expect(
+            PlaybackIssuePresentationScope.immersiveResident.resolve(
+                .mediaRequestFailed
+            ) == nil
+        )
+    }
+
     @Test("Immersive playback entry pushes a resident window")
     func immersivePlaybackEntryPushesResidentWindow() {
         for family in [PresentationContentFamily.flat, .panoramic] {
@@ -1485,6 +1504,30 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.showControls == false)
     }
 
+    @Test("Docked Environment Card initializes the same transition timing gates")
+    @MainActor
+    func dockedEnvironmentCardInitializesTransitionAppearance() throws {
+        let appModel = AppModel(
+            playbackPresentationModel: try settledModel(in: .docked)
+        )
+
+        #expect(
+            try appModel.requestEnvironmentCard(
+                mediaSessionID: "test-media-session",
+                wasPlaying: true
+            )
+        )
+        #expect(appModel.presentationTransition?.targetPresentation == .window)
+        #expect(
+            appModel.presentationTransitionRemainingTime(
+                until: PlaybackPresentationTransitionAppearance.sourceFadeDuration
+            ) != nil
+        )
+        #expect(appModel.presentationSourceRendererMayRelease == false)
+        #expect(appModel.presentationTargetRendererMayBind == false)
+        #expect(appModel.presentationVisualCutoverMayBegin == false)
+    }
+
     @Test("A Window target waits for the departing spatial surface to release the renderer")
     func windowTargetWaitsForSpatialRendererRelease() {
         #expect(
@@ -2046,6 +2089,69 @@ struct PlaybackPresentationStateTests {
         let secondClaim = try #require(secondClaimValue)
         #expect(secondClaim.capability == "second-root")
         #expect(secondClaim.lease.executionID != firstClaim.lease.executionID)
+    }
+
+    @Test("the same scene identity refreshes actions without restarting its execution")
+    @MainActor
+    func sameSceneIdentityRefreshPreservesActiveExecution() throws {
+        var registry = SpatialPlatformExecutionLeaseRegistry<String>()
+        let residentRootID = UUID()
+        let requestID = UUID()
+
+        registry.register(
+            "resident-actions-before-refresh",
+            id: residentRootID,
+            makePreferred: true
+        )
+        let originalClaim = try #require(
+            registry.claim(requestID: requestID, mediaSessionID: nil)
+        )
+
+        #expect(registry.unregister(id: residentRootID) == nil)
+        #expect(registry.registeredCapabilityCount == 0)
+        #expect(
+            registry.register(
+                "resident-actions-after-refresh",
+                id: residentRootID,
+                makePreferred: true
+            ) == nil
+        )
+
+        #expect(registry.registeredCapabilityCount == 1)
+        #expect(registry.currentCapability == "resident-actions-after-refresh")
+        #expect(registry.isLive(originalClaim.lease))
+        #expect(registry.claim(requestID: requestID, mediaSessionID: nil) == nil)
+
+        registry.finish(originalClaim.lease)
+        let nextClaim = try #require(
+            registry.claim(requestID: UUID(), mediaSessionID: nil)
+        )
+        #expect(nextClaim.capability == "resident-actions-after-refresh")
+        #expect(nextClaim.lease.executionID != originalClaim.lease.executionID)
+    }
+
+    @Test("an abandoned request waits for an external change before draining again")
+    func abandonedRequestDoesNotImmediatelyReclaimItself() {
+        let requestID = UUID()
+
+        #expect(
+            SpatialPlatformExecutionDrainPolicy.shouldDrainAfterFinish(
+                executedRequestID: requestID,
+                pendingRequestID: requestID
+            ) == false
+        )
+        #expect(
+            SpatialPlatformExecutionDrainPolicy.shouldDrainAfterFinish(
+                executedRequestID: requestID,
+                pendingRequestID: nil
+            ) == false
+        )
+        #expect(
+            SpatialPlatformExecutionDrainPolicy.shouldDrainAfterFinish(
+                executedRequestID: requestID,
+                pendingRequestID: UUID()
+            )
+        )
     }
 
     @Test("a pushed Window can become the preferred platform action source")

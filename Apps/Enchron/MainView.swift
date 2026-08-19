@@ -340,6 +340,11 @@ public struct MainView: View {
                 WindowPlayerDeckView(
                     presentationOverride: hostedPlaybackPresentation
                 )
+                .playbackIssueAlert(
+                    at: .playerDeck,
+                    onRetry: playbackLauncher.retryPlayback,
+                    onClose: playbackLauncher.stopPlayback
+                )
             }
     }
 
@@ -1097,11 +1102,6 @@ struct ImmersivePlaybackControlsAttachmentView: View {
                 "immersiveControlsAttachment visible=\(visible) scope=attachment"
             )
         }
-        .playbackIssueAlert(
-            at: .immersiveSpace,
-            onRetry: retryPlayback,
-            onClose: { Task { await stopSpatialPlayback() } }
-        )
         .overlay {
             if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
                 Text("Spatial playback state")
@@ -1263,6 +1263,9 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             "screenElevation=\(String(format: "%.4f", appModel.screenViewAngle))",
             "registeredPlatformExecutorCount=\(spatialPlatformEffectCoordinator.registeredPlatformExecutorCount)",
             "lastPlatformOperation=\(spatialPlatformEffectCoordinator.lastPlatformOperation)",
+            "lastExecutionCheckpoint=\(spatialPlatformEffectCoordinator.lastExecutionCheckpoint)",
+            "executionAttemptCount=\(spatialPlatformEffectCoordinator.executionAttemptCount)",
+            "lastExecutionResolution=\(spatialPlatformEffectCoordinator.lastExecutionResolution)",
             "mainWindowObservedResidency=\(spatialPlatformEffectCoordinator.mainWindowObservedResidency)",
             "mainWindowObservationRevision=\(spatialPlatformEffectCoordinator.mainWindowObservationRevision)"
         ]
@@ -1281,11 +1284,6 @@ struct ImmersivePlaybackControlsAttachmentView: View {
 
         await playbackLauncher.stopPlaybackAndWait()
         appModel.requestStoppedPlaybackCleanup()
-    }
-
-    private func retryPlayback() {
-        playbackRuntime.setUserVisibleIssue(nil)
-        playbackLauncher.retryPlayback()
     }
 
 }
@@ -1317,15 +1315,49 @@ private func environmentAccessibilityValues(
     }
 }
 
+enum PlaybackIssuePresentationScope {
+    case location(PlaybackIssuePresentationLocation)
+    case immersiveResident
+
+    func resolve(
+        _ issue: PlaybackUserVisibleIssue
+    ) -> PlaybackIssuePresentationLocation? {
+        switch self {
+        case .location(let location):
+            return issue.canPresent(at: location) ? location : nil
+        case .immersiveResident:
+            if issue.canPresent(at: .immersiveSpace) {
+                return .immersiveSpace
+            }
+            if issue.canPresent(at: .playerDeck) {
+                return .playerDeck
+            }
+            return nil
+        }
+    }
+}
+
 extension View {
     func playbackIssueAlert(
         at location: PlaybackIssuePresentationLocation,
         onRetry: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {}
     ) -> some View {
+        playbackIssueAlert(
+            in: .location(location),
+            onRetry: onRetry,
+            onClose: onClose
+        )
+    }
+
+    func playbackIssueAlert(
+        in scope: PlaybackIssuePresentationScope,
+        onRetry: @escaping () -> Void = {},
+        onClose: @escaping () -> Void = {}
+    ) -> some View {
         modifier(
             PlaybackIssueAlertModifier(
-                location: location,
+                scope: scope,
                 onRetry: onRetry,
                 onClose: onClose
             )
@@ -1337,35 +1369,38 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
 
-    let location: PlaybackIssuePresentationLocation
+    let scope: PlaybackIssuePresentationScope
     let onRetry: () -> Void
     let onClose: () -> Void
 
-    private var issue: PlaybackUserVisibleIssue? {
+    private var presentation: (
+        issue: PlaybackUserVisibleIssue,
+        location: PlaybackIssuePresentationLocation
+    )? {
         guard let issue = playbackRuntime.userVisibleIssue,
-              issue.canPresent(at: location) else { return nil }
-        return issue
+              let location = scope.resolve(issue) else { return nil }
+        return (issue, location)
     }
 
     func body(content: Content) -> some View {
         content.alert(
-            issue?.title ?? "Playback Error",
+            presentation?.issue.title ?? "Playback Error",
             isPresented: Binding(
-                get: { issue != nil },
+                get: { presentation != nil },
                 set: { presented in
-                    if presented == false, issue != nil {
+                    if presented == false, presentation != nil {
                         playbackRuntime.setUserVisibleIssue(nil)
                     }
                 }
             )
         ) {
-            if let issue {
-                ForEach(issue.allowedActions, id: \.self) { action in
-                    actionButton(action)
+            if let presentation {
+                ForEach(presentation.issue.allowedActions, id: \.self) { action in
+                    actionButton(action, at: presentation.location)
                 }
             }
         } message: {
-            if let issue {
+            if let issue = presentation?.issue {
                 if issue.category == .presentationConversionFailed {
                     Text(issue.message)
                         .accessibilityIdentifier(
@@ -1384,33 +1419,39 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
     }
 
     @ViewBuilder
-    private func actionButton(_ action: PlaybackUserVisibleIssueAction) -> some View {
+    private func actionButton(
+        _ action: PlaybackUserVisibleIssueAction,
+        at location: PlaybackIssuePresentationLocation
+    ) -> some View {
         switch action {
         case .retry:
             Button("Retry") {
-                recordReachability(action)
+                recordReachability(action, at: location)
                 playbackRuntime.setUserVisibleIssue(nil)
                 onRetry()
             }
             .keyboardShortcut(.defaultAction)
-            .accessibilityIdentifier(primaryActionIdentifier)
+            .accessibilityIdentifier(primaryActionIdentifier(at: location))
         case .close:
             Button("Close", role: .cancel) {
-                recordReachability(action)
+                recordReachability(action, at: location)
                 playbackRuntime.setUserVisibleIssue(nil)
                 onClose()
             }
-            .accessibilityIdentifier(secondaryActionIdentifier)
+            .accessibilityIdentifier(secondaryActionIdentifier(at: location))
         case .confirm:
             Button("OK", role: .cancel) {
-                recordReachability(action)
+                recordReachability(action, at: location)
                 playbackRuntime.setUserVisibleIssue(nil)
             }
-            .accessibilityIdentifier(confirmActionIdentifier)
+            .accessibilityIdentifier(confirmActionIdentifier(at: location))
         }
     }
 
-    private func recordReachability(_ action: PlaybackUserVisibleIssueAction) {
+    private func recordReachability(
+        _ action: PlaybackUserVisibleIssueAction,
+        at location: PlaybackIssuePresentationLocation
+    ) {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
             "reachability playback issue delivered location=\(location) action=\(action)",
@@ -1419,7 +1460,9 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
 #endif
     }
 
-    private var primaryActionIdentifier: String {
+    private func primaryActionIdentifier(
+        at location: PlaybackIssuePresentationLocation
+    ) -> String {
         switch location {
         case .mainWindow: "PlayerUI-loadFailure-primary"
         case .immersiveSpace: "PlayerUI-spatialFailure-primary"
@@ -1427,7 +1470,9 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
         }
     }
 
-    private var secondaryActionIdentifier: String {
+    private func secondaryActionIdentifier(
+        at location: PlaybackIssuePresentationLocation
+    ) -> String {
         switch location {
         case .mainWindow: "PlayerUI-loadFailure-secondary"
         case .immersiveSpace: "PlayerUI-spatialFailure-secondary"
@@ -1435,7 +1480,9 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
         }
     }
 
-    private var confirmActionIdentifier: String {
+    private func confirmActionIdentifier(
+        at location: PlaybackIssuePresentationLocation
+    ) -> String {
         switch location {
         case .playerDeck: "PlayerUI-unmetCapability-dismiss"
         case .mediaLibrary: "PlayerUI-presentation-conversion-dismiss"

@@ -256,6 +256,13 @@ public final class AppModel {
                 wasPlaying: wasPlaying
             )
         )
+        preparePresentationTransitionAppearance(transition)
+        return transition
+    }
+
+    private func preparePresentationTransitionAppearance(
+        _ transition: PlaybackPresentationTransition
+    ) {
         presentationSourceRendererMayRelease = false
         presentationTargetRendererMayBind = false
         presentationVisualCutoverMayBegin = false
@@ -275,7 +282,6 @@ public final class AppModel {
             to=\(targetPresentation, privacy: .public)
             """
         )
-        return transition
     }
 
     public func activateEnvironment(
@@ -317,9 +323,16 @@ public final class AppModel {
                 wasPlaying: wasPlaying
             )
         }
-        return try playbackPresentationModel.requestEnvironmentCard(
+        let previousTransitionID = presentationTransition?.id
+        let requested = try playbackPresentationModel.requestEnvironmentCard(
             playbackContext: playbackContext
         )
+        if requested,
+           let transition = presentationTransition,
+           transition.id != previousTransitionID {
+            preparePresentationTransitionAppearance(transition)
+        }
+        return requested
     }
 
     public func requestStoppedPlaybackCleanup(

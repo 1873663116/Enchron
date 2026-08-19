@@ -448,6 +448,12 @@ final class SpatialPlatformEffectCoordinator {
 
     private func finishExecution(_ lease: SpatialPlatformExecutionLease) {
         lastExecutionCheckpoint = "execution-finish-entered"
+        let pendingRequestBeforeFinish = appModel.pendingSpatialPlatformEffect?.id
+        let nextRequestIsReady = SpatialPlatformExecutionDrainPolicy
+            .shouldDrainAfterFinish(
+                executedRequestID: lease.requestID,
+                pendingRequestID: pendingRequestBeforeFinish
+            )
         if appModel.isSpatialPlatformEffectCurrent(
             lease.requestID,
             executionID: lease.executionID
@@ -464,7 +470,9 @@ final class SpatialPlatformEffectCoordinator {
             activeTask = nil
         }
         executionProgress[lease.executionID] = nil
-        requestDrain()
+        if nextRequestIsReady {
+            requestDrain()
+        }
         lastExecutionCheckpoint = "execution-finished"
     }
 

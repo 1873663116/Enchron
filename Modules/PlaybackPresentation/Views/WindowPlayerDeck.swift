@@ -32,11 +32,6 @@ struct WindowPlayerDeckView: View {
                 .onHover { appModel.setControlsFocused($0) }
             }
         }
-        .playbackIssueAlert(
-            at: .playerDeck,
-            onRetry: playbackLauncher.retryPlayback,
-            onClose: onExitPlayback ?? playbackLauncher.stopPlayback
-        )
     }
 
     private func register() {
