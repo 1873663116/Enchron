@@ -256,7 +256,12 @@ public struct EmbyScreen: View {
                 rowOffset: 0,
                 allowsReordering: false,
                 allowsSwipe: false,
-                onTap: { Task { await session.signOut() } }
+                onTap: {
+#if DEBUG
+                    session.recordReachability("signOut")
+#endif
+                    Task { await session.signOut() }
+                }
             )
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
             .accessibilityIdentifier("Emby-SignOut")
@@ -350,6 +355,7 @@ private enum SidebarDestination: Hashable {
 
 private struct EmbyConnectionScreen: View {
     @Environment(EmbyConnectionViewModel.self) private var viewModel
+    @Environment(EmbySessionViewModel.self) private var session
 
     var body: some View {
         @Bindable var viewModel = viewModel
@@ -378,6 +384,9 @@ private struct EmbyConnectionScreen: View {
             }
 
             Button {
+#if DEBUG
+                session.recordReachability("connection.connect")
+#endif
                 Task { await viewModel.connect() }
             } label: {
                 if viewModel.isConnecting {
@@ -395,6 +404,17 @@ private struct EmbyConnectionScreen: View {
         .frame(width: 520)
         .background(.regularMaterial, in: DesignTokens.ShapeToken.panel)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+#if DEBUG
+        .onChange(of: viewModel.address) { _, _ in
+            session.recordReachability("connection.address")
+        }
+        .onChange(of: viewModel.username) { _, _ in
+            session.recordReachability("connection.username")
+        }
+        .onChange(of: viewModel.password) { _, _ in
+            session.recordReachability("connection.password")
+        }
+#endif
     }
 }
 

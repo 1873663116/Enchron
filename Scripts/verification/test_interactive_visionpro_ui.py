@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import interactive_visionpro_ui as controller
@@ -20,7 +22,6 @@ class DeferredAppCommandTests(unittest.TestCase):
             device="device",
             defer_response=True,
         )
-
         def capture_request(**kwargs) -> None:
             sent.update(json.loads(kwargs["local_path"].read_text(encoding="utf-8")))
 
@@ -59,6 +60,35 @@ class DeferredAppCommandTests(unittest.TestCase):
                 "verb": "toggleControls",
             },
         )
+
+
+class CommandTextTests(unittest.TestCase):
+    def test_json_field_is_loaded_without_putting_secret_in_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = Path(directory) / "credentials.json"
+            credentials.write_text(
+                json.dumps({"username": "viewer", "password": "secret-value"}),
+                encoding="utf-8",
+            )
+            arguments = argparse.Namespace(
+                text=None,
+                text_file=credentials,
+                text_json_key="password",
+            )
+
+            self.assertEqual(controller.resolve_command_text(arguments), "secret-value")
+            self.assertNotIn("secret-value", repr(arguments))
+
+    def test_response_redaction_removes_the_input_from_nested_text(self) -> None:
+        response = {
+            "hierarchy": "Username: private-user",
+            "matchedElement": {"value": "private-user"},
+        }
+
+        redacted = controller.redact_command_text(response, "private-user")
+
+        self.assertNotIn("private-user", json.dumps(redacted))
+        self.assertEqual(redacted["matchedElement"]["value"], "<redacted-input>")
 
 
 if __name__ == "__main__":

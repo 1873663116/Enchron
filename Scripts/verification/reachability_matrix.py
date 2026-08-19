@@ -18,6 +18,9 @@ import subprocess
 import sys
 import time
 from typing import Any
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 
 
@@ -54,6 +57,7 @@ SEGMENT_SCENARIO_NAMES = {
     "docked-transport-issues",
     "emby-version-season",
     "emby-content-round11",
+    "emby-session-recovery",
     "file-browser-errors",
     "library-conditions",
     "library-editing-round11",
@@ -81,6 +85,9 @@ SEGMENT_SCENARIO_NAMES = {
     "source-sidebar",
     "window-playback",
     "window-dv-format-round11",
+    "window-hdr-fallback-round12",
+    "window-media-information-round12",
+    "window-top-menu-round12",
     "window-environment-round11",
     "window-issues-round11",
     "window-menus-round11",
@@ -90,7 +97,7 @@ CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
 PROBE_MIDPOINT_ARCHIVE_BYTES = 250_000
-PROBE_MIDPOINT_MARKER = 4
+PROBE_MIDPOINT_MARKER = 2
 EMBY_DETAIL_CANDIDATE_LIMIT = 12
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
@@ -117,6 +124,96 @@ DEFERRED_MENU_TARGETS = {
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def redact_sensitive_values(value: object, values: tuple[str, ...]) -> object:
+    secrets = tuple(sorted((item for item in values if item), key=len, reverse=True))
+    if isinstance(value, str):
+        for secret in secrets:
+            value = value.replace(secret, "<redacted-credential>")
+        return value
+    if isinstance(value, list):
+        return [redact_sensitive_values(item, secrets) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: redact_sensitive_values(item, secrets)
+            for key, item in value.items()
+        }
+    return value
+
+
+def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "checkedAt": utc_now(),
+        "credentialFieldsNonempty": False,
+        "publicStatus": None,
+        "authenticationStatus": None,
+        "accessTokenPresent": False,
+        "serverIdentityDigest": None,
+        "passed": False,
+    }
+    try:
+        credentials = json.loads(path.read_text(encoding="utf-8"))
+        address = str(credentials.get("address", "")).strip()
+        username = str(credentials.get("username", ""))
+        password = str(credentials.get("password", ""))
+        result["credentialFieldsNonempty"] = all((address, username, password))
+        if result["credentialFieldsNonempty"] is not True:
+            result["failure"] = "credential-fields-empty"
+            return result
+
+        base = address.rstrip("/") + "/"
+        public_request = urllib.request.Request(
+            urllib.parse.urljoin(base, "System/Info/Public"),
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(public_request, timeout=15) as response:
+            result["publicStatus"] = response.status
+            public_info = json.load(response)
+
+        authorization = (
+            'MediaBrowser Client="Enchron Reachability", '
+            'Device="Mac", DeviceId="reachability-round12", Version="1"'
+        )
+        auth_request = urllib.request.Request(
+            urllib.parse.urljoin(base, "Users/AuthenticateByName"),
+            data=json.dumps({"Username": username, "Pw": password}).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Emby-Authorization": authorization,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(auth_request, timeout=15) as response:
+            result["authenticationStatus"] = response.status
+            authentication = json.load(response)
+
+        server_id = public_info.get("Id") if isinstance(public_info, dict) else None
+        token = (
+            authentication.get("AccessToken")
+            if isinstance(authentication, dict)
+            else None
+        )
+        result["accessTokenPresent"] = isinstance(token, str) and bool(token)
+        if isinstance(server_id, str) and server_id:
+            result["serverIdentityDigest"] = hashlib.sha256(
+                server_id.encode("utf-8")
+            ).hexdigest()
+        result["passed"] = (
+            result["publicStatus"] == 200
+            and result["authenticationStatus"] == 200
+            and result["accessTokenPresent"] is True
+            and isinstance(result["serverIdentityDigest"], str)
+        )
+        if result["passed"] is not True:
+            result["failure"] = "server-response-incomplete"
+    except urllib.error.HTTPError as error:
+        result["failure"] = "http-error"
+        result["httpStatus"] = error.code
+    except (OSError, ValueError, json.JSONDecodeError, urllib.error.URLError):
+        result["failure"] = "credential-check-failed"
+    return result
 
 
 def parse_probe_line(line: str) -> tuple[datetime, str] | None:
@@ -694,6 +791,7 @@ class ReachabilityRun:
         self.evidence_retrieval_devicectl_calls = 0
         self.next_probe_size_marker = PROBE_MIDPOINT_MARKER
         self.probe_chunks: list[str] = []
+        self.sensitive_values: tuple[str, ...] = ()
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
             (self.output / "segment-plan.json").write_text(
@@ -779,6 +877,9 @@ class ReachabilityRun:
                     "stdout": completed.stdout[-1000:],
                     "stderr": completed.stderr[-1000:],
                 }
+        document = redact_sensitive_values(
+            document, getattr(self, "sensitive_values", ())
+        )
         self.sequence += 1
         name = f"{self.sequence:03d}-{action}.json"
         (self.raw / name).write_text(
@@ -954,14 +1055,6 @@ class ReachabilityRun:
             marker = self.next_probe_marker
             self.next_probe_marker += 1
             self.probe_markers[marker] = utc_now()
-            self.events.append({
-                "at": self.probe_markers[marker],
-                "action": "deferProbeRead",
-                "label": label,
-                "success": True,
-                "marker": marker,
-                "evidence": "raw/deferred-evidence-replay.json",
-            })
             next_size_marker = getattr(
                 self, "next_probe_size_marker", PROBE_MIDPOINT_MARKER
             )
@@ -978,6 +1071,14 @@ class ReachabilityRun:
                     self.probe_chunks.extend(self.archive_probe_chunk(
                         archive_label, clear_after=True
                     ))
+            self.events.append({
+                "at": self.probe_markers[marker],
+                "action": "deferProbeRead",
+                "label": label,
+                "success": True,
+                "marker": marker,
+                "evidence": "raw/deferred-evidence-replay.json",
+            })
             return DeferredProbeView(self, marker)
         if (
             self.segment is not None
@@ -3282,6 +3383,166 @@ class ReachabilityRun:
                         )
                     found_families.add(family)
 
+    def emby_session_recovery_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        credentials_path = self.arguments.emby_credentials
+        if credentials_path is None:
+            return
+        credential_document = json.loads(credentials_path.read_text(encoding="utf-8"))
+        self.sensitive_values = tuple(
+            str(credential_document.get(key, ""))
+            for key in ("address", "username", "password")
+        )
+
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        current_identity = self.controller(
+            "app-command",
+            "--verb", "embyServerIdentityDigest",
+            "--no-screenshot",
+            timeout=120,
+        )
+        readiness = verify_emby_recovery_credentials(credentials_path)
+        readiness_path = self.raw / "emby-recovery-readiness.json"
+        device_payload = current_identity.get("payload")
+        device_digest = (
+            device_payload[0]
+            if isinstance(device_payload, list)
+            and len(device_payload) == 1
+            and isinstance(device_payload[0], str)
+            else None
+        )
+        readiness["deviceIdentityDigest"] = device_digest
+        readiness["sameServer"] = (
+            readiness.get("serverIdentityDigest") == device_digest
+            and isinstance(device_digest, str)
+        )
+        readiness["passed"] = bool(
+            readiness.get("passed") is True
+            and readiness["sameServer"] is True
+            and current_identity.get("success") is True
+        )
+        readiness_path.write_text(
+            json.dumps(readiness, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "verifyEmbyRecoveryCredentials",
+            "success": readiness["passed"],
+            "evidence": f"raw/{readiness_path.name}",
+        })
+        if readiness["passed"] is not True:
+            return
+
+        before = self.copy_probe("emby-signout-before")
+        offset = len(before)
+        sign_out_operation = "accessibility:Emby-SignOut"
+        self.tapped_cells.add((presentation, sign_out_operation))
+        signed_out = self.controller(
+            "tap",
+            "--identifier", "Emby-SignOut",
+            "--index", "1",
+            "--no-screenshot",
+            "--timeout-seconds", "90",
+            timeout=120,
+        )
+        matched = signed_out.get("matchedElement")
+        if isinstance(matched, dict):
+            self.mark_observation(
+                presentation,
+                sign_out_operation,
+                exists=True,
+                hittable=matched.get("isHittable") is True,
+                evidence=self.events[-1]["evidence"],
+                reason=(
+                    "XCTest selected the non-delete child of the shared sidebar row; "
+                    "product delivery is judged separately."
+                ),
+            )
+        connection = self.wait_for_identifier("Emby-Connection-Address", timeout=20)
+        probe = self.copy_probe("emby-signout")
+        if (
+            signed_out.get("success") is True
+            and isinstance(connection.get("matchedElement"), dict)
+            and any(
+                "reachability emby delivered action=signOut" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Emby-SignOut",
+                self.events[-1]["evidence"],
+                "Sign Out reached the session handler and exposed the connection form.",
+            )
+
+        for field, key in (
+            ("Address", "address"),
+            ("Username", "username"),
+            ("Password", "password"),
+        ):
+            before = probe
+            offset = len(before)
+            typed = self.controller(
+                "replaceText",
+                "--identifier", f"Emby-Connection-{field}",
+                "--text-file", str(credentials_path),
+                "--text-json-key", key,
+                "--redact-response-text",
+                "--no-screenshot",
+                timeout=120,
+            )
+            probe = self.copy_probe(f"emby-connection-{key}")
+            if typed.get("success") is True and any(
+                f"reachability emby delivered action=connection.{key}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:Emby-Connection-{field}",
+                    self.events[-1]["evidence"],
+                    "The connection field binding changed through the ordinary product form.",
+                )
+
+        before = probe
+        offset = len(before)
+        connected = self.tap(presentation, "Emby-Connection-Connect")
+        self.controller(
+            "tap", "--label", "以后", "--no-screenshot", timeout=120
+        )
+        authenticated = self.wait_for_identifier("Emby-SignOut", timeout=35)
+        probe = self.copy_probe("emby-reconnected")
+        reconnected_identity = self.controller(
+            "app-command",
+            "--verb", "embyServerIdentityDigest",
+            "--no-screenshot",
+            timeout=120,
+        )
+        reconnect_payload = reconnected_identity.get("payload")
+        reconnected_digest = (
+            reconnect_payload[0]
+            if isinstance(reconnect_payload, list)
+            and len(reconnect_payload) == 1
+            and isinstance(reconnect_payload[0], str)
+            else None
+        )
+        if (
+            connected.get("success") is True
+            and reconnected_identity.get("success") is True
+            and reconnected_digest == device_digest
+            and any(
+                "reachability emby delivered action=connection.connect" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Emby-Connection-Connect",
+                self.events[-1]["evidence"],
+                "Connect reached the product handler and restored the same authenticated server identity.",
+            )
+
     def emby_content_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
 
@@ -3920,6 +4181,56 @@ class ReachabilityRun:
             "reachability top actions delivered action=",
         )
 
+    def window_hdr_fallback_scenario(self) -> None:
+        presentation = "window"
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+
+        opened, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerUI-TopAction-videoFormat",
+            probe_label="window-hdr-open-before",
+        )
+        offset = len(before)
+        fallback = self.wait_for_identifier(
+            "PlayerUI-VideoFormat-HDRFallback", timeout=10
+        )
+        probe = self.copy_probe("window-hdr-opened")
+        if (
+            opened.get("success") is True
+            and isinstance(fallback.get("matchedElement"), dict)
+            and video_format_open_was_delivered(probe, offset=offset)
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerUI-TopAction-videoFormat",
+                self.events[-1]["evidence"],
+                "The Window format host ran its open handler and exposed HDR Fallback.",
+            )
+
+        before = probe
+        offset = len(before)
+        toggled = self.tap(
+            presentation, "PlayerUI-VideoFormat-HDRFallback"
+        )
+        probe = self.wait_for_probe(
+            "window-hdr-fallback",
+            offset,
+            "reachability top actions delivered action=videoFormat.hdrFallback",
+        )
+        if toggled.get("success") is True and any(
+            "reachability top actions delivered action=videoFormat.hdrFallback"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerUI-VideoFormat-HDRFallback",
+                self.events[-1]["evidence"],
+                "The HDR fallback toggle changed its editor binding and appended a probe.",
+            )
+
     def window_menu_scenario(self) -> None:
         if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
             return
@@ -3927,6 +4238,18 @@ class ReachabilityRun:
             return
         self.player_panel_media_information_scenario("window")
         self.top_menu_scenario("window")
+
+    def window_media_information_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if self.ensure_window_projection("Flat"):
+            self.player_panel_media_information_scenario("window")
+
+    def window_top_menu_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if self.ensure_window_projection("Flat"):
+            self.top_menu_scenario("window")
 
     def window_environment_scenario(self) -> None:
         presentation = "window"
@@ -5332,6 +5655,7 @@ class ReachabilityRun:
             "docked-transport-issues": self.docked_transport_issue_segment_scenario,
             "emby-version-season": self.emby_version_season_scenario,
             "emby-content-round11": self.emby_content_scenario,
+            "emby-session-recovery": self.emby_session_recovery_scenario,
             "file-browser-errors": self.file_browser_error_scenario,
             "library-conditions": lambda: self.browser_condition_scenario(
                 include_source_scenarios=False
@@ -5367,6 +5691,9 @@ class ReachabilityRun:
             "source-sidebar": self.source_sidebar_scenario,
             "window-playback": self.window_scenario,
             "window-dv-format-round11": self.window_dv_format_scenario,
+            "window-hdr-fallback-round12": self.window_hdr_fallback_scenario,
+            "window-media-information-round12": self.window_media_information_scenario,
+            "window-top-menu-round12": self.window_top_menu_scenario,
             "window-environment-round11": self.window_environment_scenario,
             "window-issues-round11": self.window_issue_scenario,
             "window-menus-round11": self.window_menu_scenario,
@@ -5822,6 +6149,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--accept-baseline", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--window-resume-only", action="store_true")
+    parser.add_argument("--emby-credentials", type=Path)
     parser.add_argument("--segment-plan", type=Path)
     parser.add_argument("--segment")
     parser.add_argument(

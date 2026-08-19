@@ -209,7 +209,7 @@ private final class InteractiveDeviceUIChannel {
             }
             element.press(forDuration: duration)
             return (true, "Element pressed.")
-        case .typeText:
+        case .typeText, .replaceText:
             guard let text = command.text else {
                 return (false, "typeText requires text.")
             }
@@ -220,8 +220,14 @@ private final class InteractiveDeviceUIChannel {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             element.tap()
+            if command.action == .replaceText {
+                element.typeKey(XCUIKeyboardKey(rawValue: "a"), modifierFlags: .command)
+            }
             element.typeText(text)
-            return (true, "Text entered.")
+            return (
+                true,
+                command.action == .replaceText ? "Text replaced." : "Text entered."
+            )
         case .swipeUp, .swipeDown, .swipeLeft, .swipeRight:
             let surface: XCUIElement
             if command.identifier == nil {
@@ -422,6 +428,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case doubleTap
         case press
         case typeText
+        case replaceText
         case swipeUp
         case swipeDown
         case swipeLeft

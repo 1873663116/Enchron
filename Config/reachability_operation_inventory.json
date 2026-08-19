@@ -522,7 +522,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 366,
+          "line": 372,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -535,7 +535,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 391,
+          "line": 400,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -548,7 +548,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 377,
+          "line": 383,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -561,7 +561,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 372,
+          "line": 378,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -574,7 +574,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 369,
+          "line": 375,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -587,7 +587,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1300,
+          "line": 1320,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -600,7 +600,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 909,
+          "line": 929,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -613,7 +613,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 889,
+          "line": 909,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -626,7 +626,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 960,
+          "line": 980,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -639,7 +639,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 736,
+          "line": 756,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -652,7 +652,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1078,
+          "line": 1098,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -665,7 +665,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 659,
+          "line": 679,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -678,7 +678,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1202,
+          "line": 1222,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -691,7 +691,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 454,
+          "line": 474,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -704,7 +704,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 508,
+          "line": 528,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -743,7 +743,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1357,
+          "line": 1377,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -769,7 +769,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 536,
+          "line": 556,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -782,7 +782,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1142,
+          "line": 1162,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -795,7 +795,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1123,
+          "line": 1143,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -821,7 +821,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 296,
+          "line": 301,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -834,7 +834,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 262,
+          "line": 267,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -847,7 +847,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1382,
+          "line": 1402,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -860,7 +860,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 596,
+          "line": 616,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],

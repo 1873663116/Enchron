@@ -1,4 +1,5 @@
 import DesignSystem
+import CryptoKit
 import Emby
 import Foundation
 import MediaLibrary
@@ -39,6 +40,7 @@ final class TestCommandChannel {
     private let mediaLibrary: MediaLibraryViewModel
     private let appModel: AppModel
     private let playbackRuntime: PlaybackRuntime
+    private let embySession: EmbySessionViewModel
     private let fileManager: FileManager
     private let defaults: UserDefaults
     private let commandURL: URL
@@ -52,12 +54,14 @@ final class TestCommandChannel {
         mediaLibrary: MediaLibraryViewModel,
         appModel: AppModel,
         playbackRuntime: PlaybackRuntime,
+        embySession: EmbySessionViewModel,
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
         self.mediaLibrary = mediaLibrary
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
+        self.embySession = embySession
         self.fileManager = fileManager
         self.defaults = defaults
 
@@ -238,6 +242,21 @@ final class TestCommandChannel {
         switch request.verb {
         case "ping":
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
+#if DEBUG
+        case "embyServerIdentityDigest":
+            guard let server = embySession.server else {
+                throw CommandError(message: "No authenticated Emby server is configured.")
+            }
+            let digest = SHA256.hash(data: Data(server.id.rawValue.utf8))
+                .map { String(format: "%02x", $0) }
+                .joined()
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [digest]
+            )
+#endif
         case "toggleControls":
             let requestedVisibility = request.args["visible"].flatMap(Bool.init)
             if requestedVisibility == nil || requestedVisibility != appModel.showControls {
@@ -764,7 +783,8 @@ private enum TestCommandChannelBootstrap {
             let channel = try TestCommandChannel(
                 mediaLibrary: application.mediaLibraryViewModel,
                 appModel: application.appModel,
-                playbackRuntime: application.playbackRuntime
+                playbackRuntime: application.playbackRuntime,
+                embySession: application.embySessionViewModel
             )
             activeChannel = channel
             channel.start()

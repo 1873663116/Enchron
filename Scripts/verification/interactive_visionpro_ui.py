@@ -504,6 +504,38 @@ def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object
     return observations
 
 
+def resolve_command_text(arguments: argparse.Namespace) -> str | None:
+    text_file = getattr(arguments, "text_file", None)
+    if text_file is None:
+        return getattr(arguments, "text", None)
+
+    path = Path(text_file).expanduser().resolve()
+    value = path.read_text(encoding="utf-8")
+    key = getattr(arguments, "text_json_key", None)
+    if key is None:
+        return value
+
+    document = json.loads(value)
+    if not isinstance(document, dict) or not isinstance(document.get(key), str):
+        raise ValueError(f"{path} has no string field {key!r}.")
+    return document[key]
+
+
+def redact_command_text(value: object, text: str) -> object:
+    if not text:
+        return value
+    if isinstance(value, str):
+        return value.replace(text, "<redacted-input>")
+    if isinstance(value, list):
+        return [redact_command_text(item, text) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: redact_command_text(item, text)
+            for key, item in value.items()
+        }
+    return value
+
+
 def send_command(arguments: argparse.Namespace) -> dict[str, object]:
     ready = read_ready_state(arguments)
     command_id = str(uuid.uuid4())
@@ -518,7 +550,6 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "identifiers",
         "label",
         "index",
-        "text",
         "duration",
         "normalizedX",
         "normalizedY",
@@ -526,6 +557,9 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         value = getattr(arguments, key)
         if value is not None:
             command[key] = value
+    text = resolve_command_text(arguments)
+    if text is not None:
+        command["text"] = text
 
     with tempfile.TemporaryDirectory(prefix="enchron-interactive-command-") as directory:
         directory_path = Path(directory)
@@ -561,6 +595,8 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
                 "observations": timeout_observations(arguments),
             }
         response = json.loads(response_path.read_text(encoding="utf-8"))
+        if getattr(arguments, "redact_response_text", False):
+            response = redact_command_text(response, text or "")
         annotate_response(arguments, str(ready["sessionID"]), response)
         screenshot_relative_path = response.get("screenshotRelativePath")
         if screenshot_relative_path:
@@ -884,6 +920,7 @@ def parse_arguments() -> argparse.Namespace:
             "doubleTap",
             "press",
             "typeText",
+            "replaceText",
             "swipeUp",
             "swipeDown",
             "swipeLeft",
@@ -926,7 +963,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--identifiers", nargs="+")
     parser.add_argument("--label")
     parser.add_argument("--index", type=int)
-    parser.add_argument("--text")
+    text_source = parser.add_mutually_exclusive_group()
+    text_source.add_argument("--text")
+    text_source.add_argument("--text-file", dest="text_file", type=Path)
+    parser.add_argument("--text-json-key", dest="text_json_key")
+    parser.add_argument(
+        "--redact-response-text",
+        dest="redact_response_text",
+        action="store_true",
+    )
     parser.add_argument("--duration", type=float)
     parser.add_argument("--normalized-x", dest="normalizedX", type=float)
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
@@ -940,7 +985,10 @@ def parse_arguments() -> argparse.Namespace:
         type=float,
         default=30.0,
     )
-    return parser.parse_args()
+    arguments = parser.parse_args()
+    if arguments.text_json_key is not None and arguments.text_file is None:
+        parser.error("--text-json-key requires --text-file")
+    return arguments
 
 
 AUTO_HIDING_PREFIXES = (

@@ -12,6 +12,23 @@ from unittest.mock import Mock, patch
 import reachability_matrix as matrix
 
 
+class SensitiveEvidenceTests(unittest.TestCase):
+    def test_redacts_every_sensitive_value_from_later_hierarchies(self) -> None:
+        document = {
+            "hierarchy": "address=http://private.test username=private-user",
+            "matchedElement": {"value": "private-user"},
+        }
+
+        redacted = matrix.redact_sensitive_values(
+            document,
+            ("http://private.test", "private-user"),
+        )
+
+        encoded = json.dumps(redacted)
+        self.assertNotIn("http://private.test", encoded)
+        self.assertNotIn("private-user", encoded)
+
+
 class ProofContextAxisTests(unittest.TestCase):
     def test_runner_uses_only_inventory_proof_contexts(self) -> None:
         self.assertEqual(
@@ -434,6 +451,37 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
 
 class DeferredSegmentEvidenceTests(unittest.TestCase):
+    def test_each_deferred_probe_pair_can_archive_before_the_safe_limit(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "portal-issues", "context": "portal"}
+        run.events = []
+        run.deferred_probe_requirements = []
+        run.probe_markers = {}
+        run.next_probe_marker = 2
+        run.next_probe_size_marker = 2
+        run.probe_chunks = []
+        run.query_probe_size = Mock(side_effect=lambda _label: (
+            run.events.append({"action": "probeSize", "byteCount": 300_000})
+            or 300_000
+        ))
+        run.archive_probe_chunk = Mock(side_effect=lambda *_args, **_kwargs: (
+            run.events.append({"action": "archiveProbe", "success": True})
+            or ["session probe line"]
+        ))
+
+        run.copy_probe("after-first-portal-entry")
+
+        run.query_probe_size.assert_called_once_with("segment-midpoint-2")
+        run.archive_probe_chunk.assert_called_once_with(
+            "segment-midpoint-2", clear_after=True
+        )
+        self.assertEqual(run.probe_chunks, ["session probe line"])
+        self.assertEqual(run.next_probe_size_marker, 4)
+        self.assertEqual(run.events[-1]["action"], "deferProbeRead")
+        self.assertEqual(
+            run.events[-1]["evidence"], "raw/deferred-evidence-replay.json"
+        )
+
     def test_replay_gate_rejects_aligned_but_unverified_deliveries(self) -> None:
         reason = matrix.deferred_replay_failure_reason({
             "passed": False,
