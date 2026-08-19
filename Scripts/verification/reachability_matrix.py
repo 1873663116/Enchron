@@ -96,7 +96,6 @@ PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
-EMBY_DETAIL_CANDIDATE_LIMIT = 12
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
@@ -2458,6 +2457,7 @@ class ReachabilityRun:
             ("addFolder", "sourceAdd", "folder", "sidebar.addFolder"),
             ("addPhotos", "sourceAdd", "photoLibrary", "sidebar.add.photoLibrary"),
             ("refresh", "sourceAction", "refresh", "sidebar.refresh"),
+            ("delete", "sourceAction", "delete", "sourceSidebar.delete"),
         ):
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")
@@ -3402,15 +3402,18 @@ class ReachabilityRun:
                     )
 
         self.controller("activate", "--no-screenshot")
+        before = self.copy_probe("round11-remote-scroll-before")
+        offset = len(before)
         scroll = self.controller(
             "swipeUp",
-            "--identifier", "FileBrowsing-FilesScreen-list",
+            "--identifier", "FileBrowsing-FilesScreen",
             "--no-screenshot",
             timeout=90,
         )
         probe = self.copy_probe("round11-remote-scroll")
         if scroll.get("success") is True and any(
-            "reachability fileScroll" in line for line in probe
+            "reachability fileScroll kind=grid" in line
+            for line in probe[offset:]
         ):
             self.delivered(
                 presentation,
@@ -3461,7 +3464,7 @@ class ReachabilityRun:
                 ("Emby-PosterCard-", "Emby-StillCard-")
             )
         )
-        for card_identifier in candidate_identifiers[:EMBY_DETAIL_CANDIDATE_LIMIT]:
+        for card_identifier in candidate_identifiers:
             if found_families == {"version", "season"}:
                 break
             self.relaunch()
@@ -3802,7 +3805,7 @@ class ReachabilityRun:
         if preferred in card_identifiers:
             card_identifiers.remove(preferred)
             card_identifiers.insert(0, preferred)
-        for card_identifier in card_identifiers[:EMBY_DETAIL_CANDIDATE_LIMIT]:
+        for card_identifier in card_identifiers:
             self.relaunch()
             self.tap(presentation, "Emby-Navigation-Tab")
             if self.tap(presentation, card_identifier).get("success") is not True:

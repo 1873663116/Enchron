@@ -184,6 +184,57 @@ def catalog_sources(address, token, user_id, page_size=250):
     return rows
 
 
+def summarize_version_inventory(catalog):
+    items = {}
+    for row in catalog:
+        item = row.get("item") or {}
+        item_id = str(item.get("Id") or "")
+        if not item_id:
+            continue
+        entry = items.setdefault(
+            item_id,
+            {"type": str(item.get("Type") or "Unknown"), "sources": set()},
+        )
+        source = row.get("source")
+        if source is not None:
+            source_id = source.get("Id")
+            source_key = str(source_id) if source_id else hashlib.sha256(
+                json.dumps(source, sort_keys=True).encode("utf-8")
+            ).hexdigest()
+            entry["sources"].add(source_key)
+
+    source_counts = {
+        item_id: len(entry["sources"])
+        for item_id, entry in items.items()
+    }
+    histogram = Counter(source_counts.values())
+    multiple = sorted(
+        item_id for item_id, count in source_counts.items() if count > 1
+    )
+    type_counts = Counter(entry["type"] for entry in items.values())
+    catalog_facts = "\n".join(
+        f"{item_id}:{source_counts[item_id]}" for item_id in sorted(items)
+    )
+    return {
+        "schemaVersion": 1,
+        "itemCount": len(items),
+        "mediaSourceCount": sum(source_counts.values()),
+        "itemsWithMultipleMediaSources": len(multiple),
+        "maxMediaSourcesPerItem": max(source_counts.values(), default=0),
+        "mediaSourcesPerItem": {
+            str(count): histogram[count] for count in sorted(histogram)
+        },
+        "itemTypes": dict(sorted(type_counts.items())),
+        "multipleMediaSourceItemDigests": [
+            hashlib.sha256(item_id.encode("utf-8")).hexdigest()
+            for item_id in multiple
+        ],
+        "catalogDigest": hashlib.sha256(
+            catalog_facts.encode("utf-8")
+        ).hexdigest(),
+    }
+
+
 def bounded_http_probe(url, timeout):
     req = urllib.request.Request(url.geturl(), method="GET")
     req.add_header("Range", "bytes=0-1023")
@@ -421,6 +472,7 @@ def main():
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--filter")
+    parser.add_argument("--version-inventory-only", action="store_true")
     args = parser.parse_args()
     if not str(args.scratch_path).startswith("/Volumes/Cortisol/"):
         parser.error("--scratch-path must be under /Volumes/Cortisol")
@@ -428,11 +480,36 @@ def main():
     password = os.environ.get("EMBY_PASSWORD")
     if not username or not password:
         parser.error("set EMBY_USER and EMBY_PASSWORD")
+    token, user_id = authenticate(args.address, username, password)
+    catalog = catalog_sources(args.address, token, user_id)
+    if args.version_inventory_only:
+        summary = summarize_version_inventory(catalog)
+        summary["generatedAt"] = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+        )
+        summary["readOnlyAPI"] = {
+            "recursive": True,
+            "includeItemTypes": ["Movie", "Episode", "Video"],
+            "fields": ["MediaSources", "Path"],
+            "pageSize": 250,
+        }
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({
+            "itemCount": summary["itemCount"],
+            "itemsWithMultipleMediaSources": summary[
+                "itemsWithMultipleMediaSources"
+            ],
+            "maxMediaSourcesPerItem": summary["maxMediaSourcesPerItem"],
+            "output": str(args.output),
+        }, ensure_ascii=False, indent=2))
+        return
     mount = mount_preflight()
     if not mount["mounted"]:
         parser.error("EmbyMedia is not mounted; restore the mount before probing")
-    token, user_id = authenticate(args.address, username, password)
-    catalog = catalog_sources(args.address, token, user_id)
     if args.filter:
         pattern = re.compile(args.filter)
         catalog = [row for row in catalog if pattern.search(row["item"].get("Name") or "")]

@@ -966,7 +966,8 @@ struct FilesScreen: View {
         } action: { previous, current in
             guard abs(current - previous) >= 1 else { return }
             AppModel.recordProbe(
-                "reachability fileScroll kind=grid offset=\(current)"
+                "reachability fileScroll kind=grid offset=\(current)",
+                retention: .evidence
             )
         }
 #endif
@@ -988,7 +989,8 @@ struct FilesScreen: View {
         } action: { previous, current in
             guard abs(current - previous) >= 1 else { return }
             AppModel.recordProbe(
-                "reachability fileScroll kind=list offset=\(current)"
+                "reachability fileScroll kind=list offset=\(current)",
+                retention: .evidence
             )
         }
 #endif
