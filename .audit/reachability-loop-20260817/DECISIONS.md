@@ -169,3 +169,9 @@ Emby 多版本条件彻底了结：递归只读扫描 1,081 项（996 Episode、
 剩余 8 点：Docked 四点（media close、audio、episodes、exit）纯因设备锁定未跑，机制与修复已就绪；其余四点为确证的系统边界或内容条件（CustomAngle、两个系统 alert 输入框、Emby Version）。
 
 阻塞与处置：设备解锁是物理输入，属用户封闭清单项，已通知用户。等待期间派出测试门修复任务 task_id `ea9c7281-dfc4-4a32-ae74-ac2b385f0246`（wt-testgate）：TrackSelectionPreferenceTests 找不到 package 级 MediaStateStore/PersistedMediaState，经查为 main 上既有阻断，与第十四轮无关。第十五轮待设备解锁后派出：19 段防回退回归＋Docked 四点终局段＋接纳 186/8 基线。
+
+2026-08-19：结构检查失败定性为检查编码旧架构——playback-surface-structure 要求环境卡 volume 注册 SpatialPlatformEffectExecutor，而第十四轮修复正是取消该竞争注册；已把检查改为新不变量（volume 根不得注册执行器、三执行器均在 App scene），guard 自测通过，全量 gauntlet PASS，main 420c274c 与第十三、十四轮分支已推送。
+
+测试门修复验收合并（main c751fe9e）：根因是 package unit 名不一致——Xcode 把本地 Swift package 编译为 -package-name <工作树目录名>，而 EnchronDomainTests 硬编码 -package-name enchron_emby，故 package 级类型不可见；修法改为 $(SRCROOT:base:identifier)，可在任意工作树成立。附带修一处 Xcode beta Swift Testing 宏兼容（#require 内 mutating 调用先存局部变量）。真机验证：TrackSelectionPreferenceTests 24 项、PlaybackPresentationStateTests 105 项、全目标 313 项（排除需私有凭据的 EmbyLiveIntegrationTests）全部通过。Swift 测试执行门恢复。重要信号：该任务在物理设备上完成全部测试，设备已解锁。
+
+第十五轮终局已派出：task_id `f10e06bf-06e6-496e-a739-68162a8397fe`（wt-reach15，基线 c751fe9e）。范围：168 点防回退回归（产品代码在第十四轮改动过，必须当前构建重证）→设备锁定前未跑的四个 Docked 点→合并第十四轮 18 个证据接纳新基线（预期 190/4）；剩余应只有四类确证边界（Portal CustomAngle、两个系统 alert 输入框、Emby Version），若发现可清则证明之。
