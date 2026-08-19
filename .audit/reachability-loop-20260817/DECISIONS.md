@@ -175,3 +175,17 @@ Emby 多版本条件彻底了结：递归只读扫描 1,081 项（996 Episode、
 测试门修复验收合并（main c751fe9e）：根因是 package unit 名不一致——Xcode 把本地 Swift package 编译为 -package-name <工作树目录名>，而 EnchronDomainTests 硬编码 -package-name enchron_emby，故 package 级类型不可见；修法改为 $(SRCROOT:base:identifier)，可在任意工作树成立。附带修一处 Xcode beta Swift Testing 宏兼容（#require 内 mutating 调用先存局部变量）。真机验证：TrackSelectionPreferenceTests 24 项、PlaybackPresentationStateTests 105 项、全目标 313 项（排除需私有凭据的 EmbyLiveIntegrationTests）全部通过。Swift 测试执行门恢复。重要信号：该任务在物理设备上完成全部测试，设备已解锁。
 
 第十五轮终局已派出：task_id `f10e06bf-06e6-496e-a739-68162a8397fe`（wt-reach15，基线 c751fe9e）。范围：168 点防回退回归（产品代码在第十四轮改动过，必须当前构建重证）→设备锁定前未跑的四个 Docked 点→合并第十四轮 18 个证据接纳新基线（预期 190/4）；剩余应只有四类确证边界（Portal CustomAngle、两个系统 alert 输入框、Emby Version），若发现可清则证明之。
+
+## 2026-08-19 — 第十五轮终局：194 点 190 可达，承诺达成
+
+第十五轮验收通过并合并（main 83c7f13e）。独立复核：194 点坐标集不变，168→190 可达、26→4 缺陷，零回退。**Window、Panorama、Docked 三个语境已 100% 清零**（32/0、22/0、31/0），Portal 25/1，主窗口浏览 80/3。本轮零产品代码改动（纯脚本与配置）。
+
+回归覆盖是本轮的核心交付：33 段/172 计划判定，168 个旧可达点中 163 个由当前构建物理设备重证，另 5 个由无回退门禁覆盖（Docked menu-more、Emby Season Picker 与 Season 条目、MediaLibrary error-dismiss、Portal unmetCapability-dismiss），未覆盖旧可达点为 0，unassessedLegacyDrivenCells=0。静态门禁的设计经查是收紧而非放宽：要求相关产品文件整文件哈希未变、精确代码区段未变、无工作树修改，且只允许覆盖旧基线中已为 reachable 的点；若当前设备证据报告带证据的缺陷，静态证明不得覆盖设备事实。
+
+四个 Docked 点全部证成：media-information-close 走完整三级；menu-audio 与 menu-episodes 复用历史合格段的父按钮两级事实＋当前 session 的 DEBUG closure 送达，未展开系统 Menu（该 attachment 的 targeted snapshot 与合成展开会终止 App，是已确证系统边界）；exit-spatial 先证 presentation=docked/controls=shown/controlsInteractive=true，再经按钮共用的 requestPlaybackPresentation 处理器，并证 Window 终态。
+
+轮内又抓到两个同源 runner 判定缺陷并补了单元测试：准备性 app 命令登记到无关证明语境、跨语境命令登记；均按纪律要求真机重跑而非以代码测试替代设备证据。段 08/15/19 出现建立连接前挂起，定性为自动化基础设施疲劳（设备保持解锁、无授权拒绝特征），重启设备一次后恢复。
+
+剩余 4 点全部是有机制证据的边界，非"未评估"：Emby-Detail-Version（1,081 项递归扫描多版本项为 0，运行时内容条件不满足）、两个系统 alert 输入框（visionOS alert bridge 不导出 identifier，显式方案已证伪，同 Binding 送达已证但不满足三级判定）、Portal CustomAngle（原生 Picker 节点存在且 enabled、frame 48×44 但 isHittable=false，坐标事件返回无效 scene ID 并终止 runner）。四者都无法在不改变 UI 语义、布局与交互的前提下清除。
+
+承诺状态：除系统域、物理输入与感知项外，应用内操作可自动化触达并证实送达——已达成。剩余 4 点落在系统边界与内容条件，属承诺的封闭清单范畴，不构成我方未兑现项。若将来要动它们，路径是产品自有 sheet 替换系统 alert（改 UI 语义，需用户裁决）与显式按钮组替换原生 Picker（同上），以及获得多版本 Emby 内容。
