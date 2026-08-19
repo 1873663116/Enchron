@@ -133,3 +133,15 @@ verification-quick 在 aa314ac6 上 success（运行 32080600518），CI 钥匙�
 同轮另两项裁决：①`BreadcrumbView`、`FolderListView`、`FileBrowserSidebar` 经核实在 Apps 与 Modules 内无任何生产调用点，其六个点应由生成器按第九轮规则归档为 uninstantiated 并退出操作清单、收缩矩阵分母，而不是在报告散文里标"语义不适用"。②Emby 会话约束更新：登出后重连设备上已配置的同一服务器不属于"新建外部连接"，原约束意图是不引入新外部依赖而非冻结会话，故 Emby-Connection 四点与 SignOut 可证，前提是先确认 Keychain 凭据可恢复并在同段内证完登出与重连。
 
 第十二轮已派出：task_id `347e6a72-5aa2-4f58-8910-6ee251501502`（wt-reach12，基线 ea2c49b5）。范围：runner 判定缺陷修复与回归测试先行→四段离线重算→uninstantiated 归档→Emby 会话与 fixture 内容条件复核→两个系统 alert 输入框 identifier 缺陷（只做不改 UI 语义的修法）→未运行的 14 段真机证明与 Window HDRFallback 段。
+
+## 2026-08-19 — 第十二轮验收：判定缺陷修复兑现，矩阵 194/152/42
+
+第十二轮验收通过并合并（main 9c90c8cc，分支先 rebase 再快进）。独立复核：分母 199→194（归档 5 点全部原为缺陷，无可达点被归档掩盖），124→152 可达、75→42 缺陷，零回退，28 个新增与报告逐条相符（浏览 19、Window 4、Portal 5）。产品 Swift 改动仅 DEBUG：Emby 送达探针、同服务器身份 SHA-256 摘要动词；凭据走本机凭据文件、不进命令行、证据经清洗，仓库未新增任何文件。
+
+判定缺陷修复兑现：tap 观察与送达评估分离（tappedCells / unassessedTappedCells / drivenCells / applicationReceived），只有明确送达评估进入门禁；旧 schema 证据按实际 delivery 重新分类。第十一轮被误拒的四段离线重算回收 14 点，其中 browser-05 七点全收、browser-01 只收 2/13、browser-06 只收 2/8——选择性接纳说明规则没有被放宽成"全收"。browser-03-settings 仍不接纳（17 条 delivery 仅 2 条验证通过），需重跑。
+
+两项真机证伪：①系统 alert 输入框的显式 identifier 修法无效，visionOS 把 SwiftUI alert 桥接成系统层级、子控件 identifier 不保留，无效改动已撤回——与系统 Menu 剥离子项 identifier 同类，第十三轮按既定办法用 DEBUG 动词进同一处理器与 Binding 证明送达。②"既有远程源根目录为空"是选错了源，另一个既有 WebDAV 源根目录有 7 个文件夹与 1 个视频，那批浏览点条件具备。归档纠正一处：我预估 6 个未实例化点，实际 5 个，`FileBrowsing-Breadcrumb-current` 属生产在用的 PathBreadcrumbMenu，不可归档且已证明可达。
+
+设备通道仍是唯一硬约束，且触发条件已量化：Portal 重复入场时探针四个 marker 内由 68,651 涨到 636,660 字节越过 600,000 上限；改为每两标记检查后，仍在 504,471 字节归档时遇 CoreDevice 7000 socket 关闭。裁决：缩短归档间隔是追着体积跑，第十三轮改为让产品侧 DEBUG 探针落盘自身有界，使段内取回变成小而恒定的读取。
+
+2026-08-19：合并态全量 gauntlet PASS（20260819T014445Z-50922）。第十三轮已派出：task_id `edbdf37c-fc4a-4747-b2bb-39f64872c86c`（wt-reach13）。范围：探针有界化先行→系统 alert 两点走 DEBUG 动词→浏览域余点（含用"新建指向同一既有服务器的条目再删除"证明 SourcesSidebar-delete、Settings 段重跑、Emby Version 全库 128 项确定结论）→未运行的 13 段（Portal routes/issues、Panorama 五段、Docked 五段、Window 媒体信息与环境卡片）。
