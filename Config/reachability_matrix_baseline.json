@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-08-19T04:31:34.535447+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round13-20260819/delivery-final/delivery.json",
+  "acceptedAt": "2026-08-19T12:32:28.679807+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round15-20260819/delivery-final/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -455,7 +455,7 @@
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "window",
@@ -595,7 +595,7 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "portal",
@@ -710,7 +710,7 @@
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
@@ -730,12 +730,12 @@
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-audio",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
@@ -775,22 +775,22 @@
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "panorama",
@@ -820,22 +820,22 @@
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-card",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-carousel",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
@@ -845,7 +845,7 @@
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
@@ -870,17 +870,17 @@
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-audio",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-episodes",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
@@ -920,22 +920,22 @@
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
@@ -965,7 +965,7 @@
     {
       "context": "docked",
       "operation": "environmentVolume:open-interact-close",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "docked",
