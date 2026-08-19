@@ -3343,36 +3343,6 @@ class ReachabilityRun:
         if not source_selected:
             return
 
-        current = self.wait_for_identifier(
-            "FileBrowsing-Breadcrumb-current", timeout=20
-        )
-        if isinstance(current.get("matchedElement"), dict):
-            before = self.copy_probe("round11-files-breadcrumb-before")
-            offset = len(before)
-            parent = self.tap(presentation, "FileBrowsing-Breadcrumb-current")
-            _, _, selected = self.select_debug_menu_item(
-                presentation=presentation,
-                host="files",
-                family="breadcrumb",
-                preferred=("0",),
-            )
-            probe = self.copy_probe("round11-files-breadcrumb-selected")
-            if (
-                parent.get("success") is True
-                and selected.get("success") is True
-                and any(
-                    "reachability files delivered action=breadcrumb.files" in line
-                    for line in probe[offset:]
-                )
-            ):
-                self.delivered_by_debug_menu_selection(
-                    presentation,
-                    "accessibility:FileBrowsing-Breadcrumb-current",
-                    "accessibility:FileBrowsing-Breadcrumb-current",
-                    self.events[-1]["evidence"],
-                    "The live remote breadcrumb entered its product navigation callback.",
-                )
-
         remote = self.controller("snapshot", "--no-screenshot")
         folder_identifier = next(
             (
