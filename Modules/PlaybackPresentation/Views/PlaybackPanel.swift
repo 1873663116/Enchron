@@ -780,7 +780,7 @@ struct FusedPlayerPanel: View {
     /// A mark the wearer cannot open is worse than no mark, so anything the well
     /// would show when expanded also makes it expandable.
     private var mediaInformationIsExpandable: Bool {
-        live?.overview?.isEmpty == false || persistentCapabilities.isEmpty == false
+        live != nil
     }
 
     private var mediaInformationAccessibilityValue: String {
@@ -841,7 +841,6 @@ struct FusedPlayerPanel: View {
             .padding(DesignTokens.Spacing.xl)
         }
         .frame(width: clusterWidth, height: 420)
-        .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
 
     private func toggleMediaInformation() {
