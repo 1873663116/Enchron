@@ -3312,12 +3312,31 @@ class ReachabilityRun:
                         evidence=self.events[-1]["evidence"],
                         reason="The existing source row reached FilesScreen.select without activating its delete control.",
                     )
-                    remote_state = self.controller("snapshot", "--no-screenshot")
-                    remote_identifiers = self.hierarchy_identifiers(remote_state)
+                    has_browseable_content = False
+                    remote_identifiers: set[str] = set()
+                    for _ in range(4):
+                        remote_state = self.controller("snapshot", "--no-screenshot")
+                        remote_identifiers = self.hierarchy_identifiers(remote_state)
+                        has_browseable_content = any(
+                            identifier.startswith(
+                                (
+                                    "FileBrowsing-grid-folder-",
+                                    "FileBrowsing-grid-video-",
+                                )
+                            )
+                            for identifier in remote_identifiers
+                        )
+                        if (
+                            has_browseable_content
+                            or "FileBrowsing-FilesScreen-loadingState"
+                            not in remote_identifiers
+                        ):
+                            break
                     if "FileBrowsing-error-secondary" in remote_identifiers:
                         self.tap(presentation, "FileBrowsing-error-secondary")
                         continue
-                    source_selected = True
+                    if has_browseable_content:
+                        source_selected = True
                     break
             if source_selected:
                 break
@@ -3401,12 +3420,25 @@ class ReachabilityRun:
                         "The remote history button reached its product handler.",
                     )
 
+        scroll_state = self.controller("snapshot", "--no-screenshot")
+        scroll_identifier = next(
+            (
+                identifier
+                for identifier in sorted(self.hierarchy_identifiers(scroll_state))
+                if identifier.startswith(
+                    ("FileBrowsing-grid-folder-", "FileBrowsing-grid-video-")
+                )
+            ),
+            None,
+        )
+        if scroll_identifier is None:
+            return
         self.controller("activate", "--no-screenshot")
         before = self.copy_probe("round11-remote-scroll-before")
         offset = len(before)
         scroll = self.controller(
             "swipeUp",
-            "--identifier", "FileBrowsing-FilesScreen",
+            "--identifier", scroll_identifier,
             "--no-screenshot",
             timeout=90,
         )
