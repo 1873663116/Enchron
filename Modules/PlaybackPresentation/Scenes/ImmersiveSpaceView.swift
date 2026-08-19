@@ -1065,7 +1065,7 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: playbackRuntime.videoComponentRevision,
             entity: videoEntity,
             entityIsInRealityView: content.entities.contains { $0 === videoEntity },
-            emit: appModel.recordSurfaceInputProbe
+            emit: { appModel.recordSurfaceInputProbe($0) }
         )
         let videoComponentRevision = playbackRuntime.videoComponentRevision
         guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
@@ -1252,7 +1252,7 @@ public struct ImmersiveSpaceView: View {
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
             frame: playbackRuntime.activeSubtitleFrame,
-            emitEnablementWrite: appModel.recordSurfaceInputProbe
+            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         attachSpatialSurfaceIfReady()
     }
@@ -1750,7 +1750,8 @@ public struct ImmersiveSpaceView: View {
 #if DEBUG
             appModel.recordSurfaceInputProbe(
                 "worldLoad event=completed"
-                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)"
+                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)",
+                retention: .evidence
             )
 #endif
             update(
@@ -1785,7 +1786,7 @@ public struct ImmersiveSpaceView: View {
         guard let environment = requestedEnvironmentContext.environment else {
             EnvironmentSceneAppearanceApplier.clear(
                 in: entity,
-                emitEnablementWrite: appModel.recordSurfaceInputProbe
+                emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
             )
             world.appliedEnvironment = nil
             world.appliedEnvironmentEffect = nil
@@ -1802,7 +1803,7 @@ public struct ImmersiveSpaceView: View {
             environment: environment,
             effect: effect,
             to: entity,
-            emitEnablementWrite: appModel.recordSurfaceInputProbe
+            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         ) else {
             return false
         }
@@ -1847,7 +1848,9 @@ public struct ImmersiveSpaceView: View {
     private func releaseSpatialSurface() {
         let presentation = playbackRuntime.rendererConsumerPresentation
             ?? playbackRuntime.attachedPresentation
-        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
+        subtitleSurface.remove {
+            appModel.recordSurfaceInputProbe($0)
+        }
         surfaceActivation.cancel()
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
@@ -1889,7 +1892,9 @@ public struct ImmersiveSpaceView: View {
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
         displayLinkProbe.reset()
-        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
+        subtitleSurface.remove {
+            appModel.recordSurfaceInputProbe($0)
+        }
         guard let sourcePresentation,
               playbackRuntime.rendererConsumerEntityID
                 == entityID(for: sourcePresentation) else {
@@ -1922,7 +1927,7 @@ public struct ImmersiveSpaceView: View {
             entityIsInRealityView: entityIsInRealityView,
             targetIsAvailable: rendererTargetObservation.targetIsAvailable,
             isExplicitFirstFrameWaitSample: isExplicitFirstFrameWaitSample,
-            emit: appModel.recordSurfaceInputProbe
+            emit: { appModel.recordSurfaceInputProbe($0) }
         )
     }
 

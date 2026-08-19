@@ -2080,7 +2080,8 @@ struct SpatialPlatformEffectExecutor: View {
                 guard windowIdentity == .main, revision > 0 else { return }
                 dismissWindow(id: AppModel.senseZoneVolumeID)
                 appModel.recordSurfaceInputProbe(
-                    "testcmd dismissEnvironmentCard delivered revision=\(revision)"
+                    "testcmd dismissEnvironmentCard delivered revision=\(revision)",
+                    retention: .evidence
                 )
             }
 #endif

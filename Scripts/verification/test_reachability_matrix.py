@@ -451,41 +451,100 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
 
 class DeferredSegmentEvidenceTests(unittest.TestCase):
-    def test_each_deferred_probe_pair_can_archive_before_the_safe_limit(self) -> None:
+    def test_deferred_probe_markers_never_read_or_clear_the_device_file(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = {"id": "portal-issues", "context": "portal"}
         run.events = []
         run.deferred_probe_requirements = []
         run.probe_markers = {}
         run.next_probe_marker = 2
-        run.next_probe_size_marker = 2
-        run.probe_chunks = []
-        run.query_probe_size = Mock(side_effect=lambda _label: (
-            run.events.append({"action": "probeSize", "byteCount": 300_000})
-            or 300_000
-        ))
-        run.archive_probe_chunk = Mock(side_effect=lambda *_args, **_kwargs: (
-            run.events.append({"action": "archiveProbe", "success": True})
-            or ["session probe line"]
-        ))
+        run.query_probe_size = Mock()
+        run.archive_probe_chunk = Mock()
 
         run.copy_probe("after-first-portal-entry")
 
-        run.query_probe_size.assert_called_once_with("segment-midpoint-2")
-        run.archive_probe_chunk.assert_called_once_with(
-            "segment-midpoint-2", clear_after=True
-        )
-        self.assertEqual(run.probe_chunks, ["session probe line"])
-        self.assertEqual(run.next_probe_size_marker, 4)
+        run.query_probe_size.assert_not_called()
+        run.archive_probe_chunk.assert_not_called()
         self.assertEqual(run.events[-1]["action"], "deferProbeRead")
         self.assertEqual(
             run.events[-1]["evidence"], "raw/deferred-evidence-replay.json"
         )
 
+    def test_probe_status_gate_accepts_only_a_healthy_product_journal(self) -> None:
+        healthy = matrix.parse_probe_status_response({
+            "success": True,
+            "ok": True,
+            "payload": [
+                "byteLimit=196608",
+                "fileBytes=88201",
+                "peakFileBytes=131043",
+                "compactionCount=4",
+                "evidenceOverflowed=false",
+                "writeFailed=false",
+            ],
+        })
+        overflowed = matrix.parse_probe_status_response({
+            "success": False,
+            "ok": False,
+            "payload": [
+                "byteLimit=196608",
+                "fileBytes=1000",
+                "peakFileBytes=196000",
+                "compactionCount=8",
+                "evidenceOverflowed=true",
+                "writeFailed=false",
+            ],
+        })
+
+        self.assertTrue(healthy["passed"])
+        self.assertEqual(healthy["byteLimit"], 196_608)
+        self.assertEqual(healthy["fileBytes"], 88_201)
+        self.assertFalse(overflowed["passed"])
+        self.assertTrue(overflowed["evidenceOverflowed"])
+
+    def test_bounded_segment_probe_uses_one_device_copy(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.raw = Path(directory)
+            run.events = []
+            run.channel_failures = []
+            run.direct_devicectl_calls = 0
+            run.evidence_retrieval_devicectl_calls = 0
+            run.probe_retrieval_count = 0
+
+            def copy_probe(command: list[str], **_kwargs: object) -> Mock:
+                destination = Path(command[command.index("--destination") + 1])
+                destination.write_text(
+                    "2026-08-19T00:00:00Z probeSequence=1 "
+                    "probeRetention=evidence proof\n",
+                    encoding="utf-8",
+                )
+                return Mock(returncode=0, stderr="", stdout="")
+
+            with patch.object(
+                matrix.subprocess,
+                "run",
+                side_effect=copy_probe,
+            ) as subprocess_run:
+                lines = run.retrieve_bounded_probe(
+                    "segment-after-surface",
+                    byte_limit=196_608,
+                )
+
+            self.assertEqual(lines, [
+                "2026-08-19T00:00:00Z probeSequence=1 "
+                "probeRetention=evidence proof"
+            ])
+            self.assertEqual(subprocess_run.call_count, 1)
+            self.assertEqual(run.probe_retrieval_count, 1)
+            self.assertEqual(run.evidence_retrieval_devicectl_calls, 1)
+            self.assertTrue(run.events[-1]["success"])
+
     def test_replay_gate_rejects_aligned_but_unverified_deliveries(self) -> None:
         reason = matrix.deferred_replay_failure_reason({
             "passed": False,
             "sessionAligned": True,
+            "sequenceOrdered": True,
             "deliveryCount": 17,
             "verifiedDeliveryCount": 2,
         })
@@ -499,6 +558,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         self.assertIsNone(matrix.deferred_replay_failure_reason({
             "passed": True,
             "sessionAligned": True,
+            "sequenceOrdered": True,
             "deliveryCount": 2,
             "verifiedDeliveryCount": 2,
         }))
@@ -656,8 +716,10 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 "commandIDs": ["command-forward"],
             }],
             probe_lines=[
-                "2026-08-18T01:00:00Z reachability evidence session=session-10",
-                "2026-08-18T01:00:02Z playback control delivered action=forward",
+                "2026-08-18T01:00:00Z probeSequence=40 "
+                "reachability evidence session=session-10",
+                "2026-08-18T01:00:02Z probeSequence=41 "
+                "playback control delivered action=forward",
             ],
             responses={
                 "command-forward": {"id": "command-forward", "ok": True}
@@ -701,7 +763,8 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 "commandIDs": ["toggle"],
             }],
             probe_lines=[
-                "2026-08-18T01:00:00Z reachability evidence session=older-session"
+                "2026-08-18T01:00:00Z probeSequence=40 "
+                "reachability evidence session=older-session"
             ],
             responses={"toggle": {"id": "toggle", "ok": True}},
             session_id="session-10",
@@ -711,6 +774,45 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         )
 
         self.assertFalse(replay["passed"])
+        self.assertFalse(cells[("panorama", operation)]["applicationReceived"])
+
+    def test_offline_replay_rejects_reordered_probe_records(self) -> None:
+        operation = "command:toggleControls"
+        cells = {
+            ("panorama", operation): {
+                "context": "panorama",
+                "operation": operation,
+                "identifierTemplate": None,
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+
+        replay = matrix.replay_deferred_evidence(
+            cells=cells,
+            deliveries=[{
+                "context": "panorama",
+                "operation": operation,
+                "probeRequirements": [],
+                "commandIDs": ["toggle"],
+            }],
+            probe_lines=[
+                "2026-08-18T01:00:01Z probeSequence=42 testcmd toggle ok",
+                "2026-08-18T01:00:00Z probeSequence=41 "
+                "reachability evidence session=session-10",
+            ],
+            responses={"toggle": {"id": "toggle", "ok": True}},
+            session_id="session-10",
+            started_at="2026-08-18T01:00:00Z",
+            ended_at="2026-08-18T01:01:00Z",
+            evidence="raw/segment-probe.log",
+        )
+
+        self.assertFalse(replay["passed"])
+        self.assertFalse(replay["sequenceOrdered"])
         self.assertFalse(cells[("panorama", operation)]["applicationReceived"])
 
     def test_batched_response_loader_accepts_flat_or_source_named_copy(self) -> None:

@@ -147,11 +147,15 @@ final class TestCommandChannel {
                evidenceSession.isEmpty == false {
                 AppModel.recordProbe(
                     "reachability evidence session=\(evidenceSession)"
-                        + " command=\(request.id) verb=\(request.verb)"
+                        + " command=\(request.id) verb=\(request.verb)",
+                    retention: .evidenceSession(evidenceSession)
                 )
             }
 #endif
-            AppModel.recordProbe("testcmd \(request.verb) begin")
+            AppModel.recordProbe(
+                "testcmd \(request.verb) begin",
+                retention: .evidence
+            )
             let response: Response
             do {
                 response = try execute(request)
@@ -167,14 +171,16 @@ final class TestCommandChannel {
             let data = try JSONEncoder().encode(response)
             try data.write(to: responseURL, options: .atomic)
             AppModel.recordProbe(
-                "testcmd \(request.verb) \(response.ok ? "ok" : "failed")"
+                "testcmd \(request.verb) \(response.ok ? "ok" : "failed")",
+                retention: .evidence
             )
             if requestURL == commandURL {
                 try fileManager.removeItem(at: requestURL)
             }
         } catch {
             AppModel.recordProbe(
-                "testcmd channel failed error=\(error.localizedDescription)"
+                "testcmd channel failed error=\(error.localizedDescription)",
+                retention: .evidence
             )
         }
     }
@@ -243,6 +249,24 @@ final class TestCommandChannel {
         case "ping":
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
 #if DEBUG
+        case "probeStatus":
+            let status = AppModel.debugProbeStatus
+            let healthy = status.fileBytes <= status.byteLimit
+                && status.evidenceOverflowed == false
+                && status.writeFailed == false
+            return Response(
+                id: request.id,
+                ok: healthy,
+                detail: healthy ? nil : "The DEBUG probe journal is unhealthy.",
+                payload: [
+                    "byteLimit=\(status.byteLimit)",
+                    "fileBytes=\(status.fileBytes)",
+                    "peakFileBytes=\(status.peakFileBytes)",
+                    "compactionCount=\(status.compactionCount)",
+                    "evidenceOverflowed=\(status.evidenceOverflowed)",
+                    "writeFailed=\(status.writeFailed)"
+                ]
+            )
         case "embyServerIdentityDigest":
             guard let server = embySession.server else {
                 throw CommandError(message: "No authenticated Emby server is configured.")
@@ -300,7 +324,8 @@ final class TestCommandChannel {
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
             AppModel.recordProbe(
-                "testcmd exitSpatial delivered target=\(target) transition=\(transition.id)"
+                "testcmd exitSpatial delivered target=\(target) transition=\(transition.id)",
+                retention: .evidence
             )
             return Response(
                 id: request.id,
@@ -537,7 +562,8 @@ final class TestCommandChannel {
         let seconds = position * duration
         playbackRuntime.seek(to: seconds, event: .progressBar)
         AppModel.recordProbe(
-            "testcmd seekNormalized delivered position=\(position) seconds=\(seconds)"
+            "testcmd seekNormalized delivered position=\(position) seconds=\(seconds)",
+            retention: .evidence
         )
         return Response(
             id: request.id,
@@ -585,7 +611,8 @@ final class TestCommandChannel {
             )
         }
         AppModel.recordProbe(
-            "testcmd setDockedPlacement delivered axis=\(axis) value=\(applied)"
+            "testcmd setDockedPlacement delivered axis=\(axis) value=\(applied)",
+            retention: .evidence
         )
         return Response(
             id: request.id,
@@ -618,7 +645,8 @@ final class TestCommandChannel {
         }
         playbackRuntime.setUserVisibleIssue(issue)
         AppModel.recordProbe(
-            "testcmd showPlaybackIssue delivered category=\(category)"
+            "testcmd showPlaybackIssue delivered category=\(category)",
+            retention: .evidence
         )
         return Response(
             id: request.id,
@@ -649,7 +677,8 @@ final class TestCommandChannel {
         ) { deliveredPage in
             AppModel.recordProbe(
                 "testcmd scrollEmby delivered page=\(deliveredPage)"
-                    + " direction=\(direction.rawValue)"
+                    + " direction=\(direction.rawValue)",
+                retention: .evidence
             )
         }
         NotificationCenter.default.post(
@@ -741,7 +770,8 @@ final class TestCommandChannel {
             guard let windowScene else { return }
             let applied = windowScene.effectiveGeometry.coordinateSpace.bounds.size
             appModel?.recordSurfaceInputProbe(
-                "setWindowSize observed=\(applied.width)x\(applied.height)"
+                "setWindowSize observed=\(applied.width)x\(applied.height)",
+                retention: .evidence
             )
         }
         return Response(
@@ -790,7 +820,8 @@ private enum TestCommandChannelBootstrap {
             channel.start()
         } catch {
             AppModel.recordProbe(
-                "testcmd channel failed error=\(error.localizedDescription)"
+                "testcmd channel failed error=\(error.localizedDescription)",
+                retention: .evidence
             )
         }
     }

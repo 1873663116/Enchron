@@ -164,7 +164,9 @@ final class EnchronApplication {
         ))
         let embySession = EmbySessionViewModel(client: embyClient)
 #if DEBUG
-        embySession.diagnosticProbe = { AppModel.recordProbe($0) }
+        embySession.diagnosticProbe = {
+            AppModel.recordProbe($0, retention: .evidence)
+        }
 #endif
         let embyConnection = EmbyConnectionViewModel(session: embySession)
         let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)

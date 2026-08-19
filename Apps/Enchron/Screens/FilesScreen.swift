@@ -1141,7 +1141,10 @@ struct FilesScreen: View {
 
     private func recordReachability(_ action: String) {
 #if DEBUG
-        AppModel.recordProbe("reachability files delivered action=\(action)")
+        AppModel.recordProbe(
+            "reachability files delivered action=\(action)",
+            retention: .evidence
+        )
 #endif
     }
 

@@ -66,7 +66,8 @@ struct SettingsScreen: View {
         .onChange(of: selectedCategoryID) { _, category in
 #if DEBUG
             appModel.recordSurfaceInputProbe(
-                "reachability settings delivered action=category.\(category)"
+                "reachability settings delivered action=category.\(category)",
+                retention: .evidence
             )
 #endif
         }
@@ -297,7 +298,8 @@ struct SettingsScreen: View {
     private func recordMenuReachability(_ family: String) {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
-            "reachability settings delivered action=menu.\(family)"
+            "reachability settings delivered action=menu.\(family)",
+            retention: .evidence
         )
 #endif
     }

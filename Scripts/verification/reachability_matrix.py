@@ -96,8 +96,6 @@ PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
-PROBE_MIDPOINT_ARCHIVE_BYTES = 250_000
-PROBE_MIDPOINT_MARKER = 2
 EMBY_DETAIL_CANDIDATE_LIMIT = 12
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 FIXTURE_SOURCE_ROOT = Path(
@@ -227,6 +225,14 @@ def parse_probe_line(line: str) -> tuple[datetime, str] | None:
     return parsed, detail
 
 
+PROBE_SEQUENCE_PATTERN = re.compile(r"(?:^| )probeSequence=(\d+)(?: |$)")
+
+
+def parse_probe_sequence(detail: str) -> int | None:
+    match = PROBE_SEQUENCE_PATTERN.search(detail)
+    return int(match.group(1)) if match is not None else None
+
+
 def load_batched_app_responses(
     directory: Path, *, expected_ids: set[str]
 ) -> dict[str, dict[str, Any]]:
@@ -289,6 +295,56 @@ def device_file_size(document: Any, remote_path: str) -> int | None:
     return visit(document)
 
 
+def parse_probe_status_response(document: dict[str, Any]) -> dict[str, Any]:
+    values: dict[str, str] = {}
+    for item in document.get("payload", []):
+        if not isinstance(item, str) or "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        values[key] = value
+
+    def integer(key: str) -> int | None:
+        value = values.get(key)
+        return int(value) if value is not None and value.isdecimal() else None
+
+    def boolean(key: str) -> bool | None:
+        value = values.get(key)
+        if value == "true":
+            return True
+        if value == "false":
+            return False
+        return None
+
+    byte_limit = integer("byteLimit")
+    file_bytes = integer("fileBytes")
+    peak_file_bytes = integer("peakFileBytes")
+    compaction_count = integer("compactionCount")
+    evidence_overflowed = boolean("evidenceOverflowed")
+    write_failed = boolean("writeFailed")
+    passed = (
+        document.get("success") is True
+        and document.get("ok") is True
+        and byte_limit is not None
+        and byte_limit > 0
+        and file_bytes is not None
+        and file_bytes <= byte_limit
+        and peak_file_bytes is not None
+        and peak_file_bytes <= byte_limit
+        and compaction_count is not None
+        and evidence_overflowed is False
+        and write_failed is False
+    )
+    return {
+        "passed": passed,
+        "byteLimit": byte_limit,
+        "fileBytes": file_bytes,
+        "peakFileBytes": peak_file_bytes,
+        "compactionCount": compaction_count,
+        "evidenceOverflowed": evidence_overflowed,
+        "writeFailed": write_failed,
+    }
+
+
 def replay_deferred_evidence(
     *,
     cells: dict[tuple[str, str], dict[str, Any]],
@@ -309,6 +365,16 @@ def replay_deferred_evidence(
         if (record := parse_probe_line(line)) is not None
         and start <= record[0] <= end
     ]
+    sequences = [parse_probe_sequence(detail) for _, detail in records]
+    sequence_ordered = (
+        bool(sequences)
+        and all(sequence is not None for sequence in sequences)
+        and all(
+            previous < current
+            for previous, current in zip(sequences, sequences[1:])
+            if previous is not None and current is not None
+        )
+    )
     session_marker = f"reachability evidence session={session_id}"
     session_aligned = any(session_marker in detail for _, detail in records)
     failures: list[dict[str, Any]] = []
@@ -337,12 +403,18 @@ def replay_deferred_evidence(
                 for timestamp, detail in records
             ))
         probe_passes = all(requirement_results)
-        passed = session_aligned and command_responses_pass and probe_passes
+        passed = (
+            session_aligned
+            and sequence_ordered
+            and command_responses_pass
+            and probe_passes
+        )
         if not passed:
             failures.append({
                 "context": context,
                 "operation": operation,
                 "sessionAligned": session_aligned,
+                "sequenceOrdered": sequence_ordered,
                 "commandResponsesPassed": command_responses_pass,
                 "probeRequirementsPassed": probe_passes,
             })
@@ -356,8 +428,9 @@ def replay_deferred_evidence(
             cell["verdict"] = "reachable"
 
     return {
-        "passed": session_aligned and not failures,
+        "passed": session_aligned and sequence_ordered and not failures,
         "sessionAligned": session_aligned,
+        "sequenceOrdered": sequence_ordered,
         "deliveryCount": len(deliveries),
         "verifiedDeliveryCount": len(deliveries) - len(failures),
         "failures": failures,
@@ -367,6 +440,8 @@ def replay_deferred_evidence(
 def deferred_replay_failure_reason(replay: dict[str, Any]) -> str | None:
     if replay.get("sessionAligned") is not True:
         return "The segment probe has no matching session marker."
+    if replay.get("sequenceOrdered") is not True:
+        return "The segment probe records are missing sequence metadata or out of order."
     if replay.get("passed") is not True:
         failed = max(
             0,
@@ -789,8 +864,8 @@ class ReachabilityRun:
         self.direct_devicectl_calls = 0
         self.segment_evidence_started = False
         self.evidence_retrieval_devicectl_calls = 0
-        self.next_probe_size_marker = PROBE_MIDPOINT_MARKER
-        self.probe_chunks: list[str] = []
+        self.probe_retrieval_count = 0
+        self.probe_status: dict[str, Any] = {}
         self.sensitive_values: tuple[str, ...] = ()
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
@@ -914,20 +989,27 @@ class ReachabilityRun:
         self.last_controller_document = document
         return document
 
-    def app_command(self, verb: str, **arguments: str) -> dict[str, Any]:
+    def app_command(
+        self,
+        verb: str,
+        *,
+        defer_response: bool = True,
+        **arguments: str,
+    ) -> dict[str, Any]:
         operation_id = f"command:{verb}"
         context = self.active_context
         if operation_id in self.operations and context is not None:
             self.mark_driven(context, operation_id)
         extra = ["--verb", verb, "--no-screenshot"]
-        if getattr(self, "segment", None) is not None:
+        if getattr(self, "segment", None) is not None and defer_response:
             extra.append("--defer-response")
+        if getattr(self, "segment", None) is not None:
             if self.session_id is not None:
                 extra.extend(("--arg", f"evidenceSession={self.session_id}"))
         for key, value in arguments.items():
             extra.extend(("--arg", f"{key}={value}"))
         response = self.controller("app-command", *extra)
-        if self.segment is not None:
+        if self.segment is not None and defer_response:
             command_id = response.get("id")
             if isinstance(command_id, str):
                 self.deferred_command_ids.add(command_id)
@@ -1055,22 +1137,6 @@ class ReachabilityRun:
             marker = self.next_probe_marker
             self.next_probe_marker += 1
             self.probe_markers[marker] = utc_now()
-            next_size_marker = getattr(
-                self, "next_probe_size_marker", PROBE_MIDPOINT_MARKER
-            )
-            self.next_probe_size_marker = next_size_marker
-            if marker >= next_size_marker:
-                self.next_probe_size_marker += PROBE_MIDPOINT_MARKER
-                archive_label = f"segment-midpoint-{marker}"
-                size = self.query_probe_size(archive_label)
-                if (
-                    size is not None
-                    and size >= PROBE_MIDPOINT_ARCHIVE_BYTES
-                    and size < PROBE_COPY_LIMIT_BYTES
-                ):
-                    self.probe_chunks.extend(self.archive_probe_chunk(
-                        archive_label, clear_after=True
-                    ))
             self.events.append({
                 "at": self.probe_markers[marker],
                 "action": "deferProbeRead",
@@ -1132,6 +1198,77 @@ class ReachabilityRun:
         self.events.append({
             "at": utc_now(), "action": "copyProbe", "success": True,
             "evidence": f"raw/{destination.name}", "lineCount": len(lines),
+        })
+        return lines
+
+    def retrieve_bounded_probe(
+        self,
+        label: str,
+        *,
+        byte_limit: int,
+        timeout: float = 120,
+    ) -> list[str]:
+        destination = self.raw / f"{label}-probe.log"
+        self.direct_devicectl_calls += 1
+        self.evidence_retrieval_devicectl_calls += 1
+        self.probe_retrieval_count += 1
+        try:
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", PROBE_REMOTE_PATH,
+                    "--destination", str(destination),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            completed = None
+        byte_count = destination.stat().st_size if destination.is_file() else None
+        passed = (
+            completed is not None
+            and completed.returncode == 0
+            and byte_count is not None
+            and byte_count <= byte_limit
+        )
+        detail = None
+        if not passed:
+            detail = (
+                f"Bounded probe copy exceeded {timeout:.1f} seconds."
+                if completed is None
+                else (completed.stderr or completed.stdout)[-1000:]
+            )
+            if byte_count is not None and byte_count > byte_limit:
+                detail = (
+                    f"Copied probe has {byte_count} bytes, above the product "
+                    f"limit of {byte_limit} bytes."
+                )
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "retrieveBoundedProbe",
+                "error": detail,
+            })
+        lines = (
+            destination.read_text(encoding="utf-8", errors="replace").splitlines()
+            if passed else []
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "retrieveBoundedProbe",
+            "success": passed,
+            "evidence": f"raw/{destination.name}" if passed else None,
+            "byteCount": byte_count,
+            "byteLimit": byte_limit,
+            "lineCount": len(lines),
+            "detail": detail,
         })
         return lines
 
@@ -5704,17 +5841,16 @@ class ReachabilityRun:
         self,
         phase: str,
         *,
-        surface_probe_copied: bool,
-        surface_probe_cleared: bool,
+        probe_status_passed: bool | None = None,
+        probe_retrieval_passed: bool | None = None,
     ) -> dict[str, Any]:
         health = self.channel_health_probe(phase)
-        health["surfaceProbeCopied"] = surface_probe_copied
-        health["surfaceProbeCleared"] = surface_probe_cleared
-        health["passed"] = (
-            health["passed"]
-            and surface_probe_copied
-            and surface_probe_cleared
-        )
+        health["probeStatusPassed"] = probe_status_passed
+        health["probeRetrievalPassed"] = probe_retrieval_passed
+        if probe_status_passed is not None:
+            health["passed"] = health["passed"] and probe_status_passed
+        if probe_retrieval_passed is not None:
+            health["passed"] = health["passed"] and probe_retrieval_passed
         health_path = self.raw / f"channel-health-{phase}.json"
         health_path.write_text(
             json.dumps(health, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -5731,16 +5867,7 @@ class ReachabilityRun:
             self.controller("halt", "--no-screenshot", timeout=240)
             return self.finish_segment("session-failed")
 
-        initial_probe = self.archive_probe_chunk(
-            "segment-before-surface", clear_after=True
-        )
-        initial_copied = self.events[-1].get("success") is True
-        initial_cleared = self.events[-1].get("cleared") is True
-        before_health = self.record_segment_health_context(
-            "before",
-            surface_probe_copied=initial_copied,
-            surface_probe_cleared=initial_cleared,
-        )
+        before_health = self.record_segment_health_context("before")
         if before_health["passed"] is not True:
             self.controller("halt", "--no-screenshot", timeout=240)
             return self.finish_segment("channel-health-failed")
@@ -5795,18 +5922,53 @@ class ReachabilityRun:
             if self.channel_failures:
                 break
 
-        final_probe = self.archive_probe_chunk(
-            "segment-after-surface", clear_after=True
+        status_document = self.app_command(
+            "probeStatus",
+            defer_response=False,
         )
-        final_copied = self.events[-1].get("success") is True
-        final_cleared = self.events[-1].get("cleared") is True
+        self.probe_status = parse_probe_status_response(status_document)
+        status_path = self.raw / "probe-status.json"
+        status_path.write_text(
+            json.dumps(
+                self.probe_status,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "probeStatus",
+            "success": self.probe_status["passed"],
+            "evidence": f"raw/{status_path.name}",
+        })
+        if self.probe_status["passed"] is not True:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "probeStatus",
+                "error": "The product DEBUG probe journal reported an unhealthy state.",
+                "evidence": f"raw/{status_path.name}",
+            })
+        byte_limit = self.probe_status.get("byteLimit")
+        final_probe = (
+            self.retrieve_bounded_probe(
+                "segment-after-surface",
+                byte_limit=int(byte_limit),
+            )
+            if isinstance(byte_limit, int) and byte_limit > 0 else []
+        )
+        final_copied = (
+            self.events[-1].get("action") == "retrieveBoundedProbe"
+            and self.events[-1].get("success") is True
+        )
         responses = self.copy_batched_app_responses()
         self.segment_evidence_started = False
         segment_ended_at = utc_now()
         replay = replay_deferred_evidence(
             cells=self.cells,
             deliveries=self.deferred_deliveries,
-            probe_lines=[*self.probe_chunks, *final_probe],
+            probe_lines=final_probe,
             responses=responses,
             session_id=str(self.session_id),
             started_at=segment_started_at,
@@ -5836,8 +5998,8 @@ class ReachabilityRun:
             })
         after_health = self.record_segment_health_context(
             "after",
-            surface_probe_copied=final_copied,
-            surface_probe_cleared=final_cleared,
+            probe_status_passed=self.probe_status["passed"] is True,
+            probe_retrieval_passed=final_copied,
         )
         if self.channel_failures:
             self.controller("halt", "--no-screenshot", timeout=240)
@@ -5899,6 +6061,7 @@ class ReachabilityRun:
                 "commandIDs": sorted(self.deferred_command_ids),
                 "deliveries": self.deferred_deliveries,
             },
+            "probeJournal": self.probe_status,
             "channelExposure": {
                 "controllerDevicectlCalls": controller_devicectl_calls,
                 "directDevicectlCalls": self.direct_devicectl_calls,
@@ -5913,6 +6076,7 @@ class ReachabilityRun:
                 "currentEndOfSegmentEvidenceRetrievalCalls": (
                     current_evidence_retrieval_calls
                 ),
+                "probeRetrievalCount": self.probe_retrieval_count,
                 "evidenceRetrievalReductionFactorLowerBound": round(
                     prior_evidence_retrieval_lower_bound
                     / max(1, current_evidence_retrieval_calls),

@@ -88,7 +88,8 @@ struct WindowPlayerDeckView: View {
                 self.register()
 #if DEBUG
                 self.appModel.recordSurfaceInputProbe(
-                    "playback control delivered action=playPause"
+                    "playback control delivered action=playPause",
+                    retention: .evidence
                 )
 #endif
                 self.togglePlayPause()
@@ -97,7 +98,8 @@ struct WindowPlayerDeckView: View {
                 self.register()
 #if DEBUG
                 self.appModel.recordSurfaceInputProbe(
-                    "playback control delivered action=rewind"
+                    "playback control delivered action=rewind",
+                    retention: .evidence
                 )
 #endif
                 self.playbackRuntime.skip(by: -15)
@@ -106,7 +108,8 @@ struct WindowPlayerDeckView: View {
                 self.register()
 #if DEBUG
                 self.appModel.recordSurfaceInputProbe(
-                    "playback control delivered action=forward"
+                    "playback control delivered action=forward",
+                    retention: .evidence
                 )
 #endif
                 self.playbackRuntime.skip(by: 15)
@@ -136,7 +139,8 @@ struct WindowPlayerDeckView: View {
             onEnterImmersive: {
 #if DEBUG
                 self.appModel.recordSurfaceInputProbe(
-                    "reachability playerPanel delivered action=enterSpatial"
+                    "reachability playerPanel delivered action=enterSpatial",
+                    retention: .evidence
                 )
 #endif
                 self.enterImmersive()
@@ -144,7 +148,8 @@ struct WindowPlayerDeckView: View {
             onExitSpatial: {
 #if DEBUG
                 self.appModel.recordSurfaceInputProbe(
-                    "reachability playerPanel delivered action=exitSpatial"
+                    "reachability playerPanel delivered action=exitSpatial",
+                    retention: .evidence
                 )
 #endif
                 self.exitImmersive()
@@ -186,7 +191,8 @@ struct WindowPlayerDeckView: View {
             onReachabilityAction: { action in
 #if DEBUG
                 self.appModel.recordSurfaceInputProbe(
-                    "reachability playerPanel delivered action=\(action)"
+                    "reachability playerPanel delivered action=\(action)",
+                    retention: .evidence
                 )
 #endif
             },
@@ -500,7 +506,8 @@ struct ProductionPlaybackMoreMenu: View {
     private func recordReachability(_ action: String) {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
-            "reachability top actions delivered action=\(action)"
+            "reachability top actions delivered action=\(action)",
+            retention: .evidence
         )
 #endif
     }

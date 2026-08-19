@@ -1,5 +1,6 @@
 $(SRCROOT)/Apps/Enchron/AppModel.swift
 $(SRCROOT)/Apps/Enchron/CertificateTrustPrompt.swift
+$(SRCROOT)/Apps/Enchron/DebugProbeJournal.swift
 $(SRCROOT)/Apps/Enchron/EnchronApp.swift
 $(SRCROOT)/Apps/Enchron/EnchronApplication.swift
 $(SRCROOT)/Apps/Enchron/MainView.swift

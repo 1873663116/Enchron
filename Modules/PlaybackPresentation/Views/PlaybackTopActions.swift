@@ -581,7 +581,8 @@ struct PlaybackTopActions: View {
                     action: {
 #if DEBUG
                         AppModel.recordProbe(
-                            "reachability topActions delivered action=enterPanorama"
+                            "reachability topActions delivered action=enterPanorama",
+                            retention: .evidence
                         )
 #endif
                         onEnterImmersive?(nil, nil)
@@ -595,7 +596,8 @@ struct PlaybackTopActions: View {
                     action: {
 #if DEBUG
                         AppModel.recordProbe(
-                            "reachability topActions delivered action=dock.open"
+                            "reachability topActions delivered action=dock.open",
+                            retention: .evidence
                         )
 #endif
                         toggle(.dock)
@@ -612,7 +614,8 @@ struct PlaybackTopActions: View {
                     action: {
 #if DEBUG
                         AppModel.recordProbe(
-                            "reachability topActions delivered action=videoFormat.open"
+                            "reachability topActions delivered action=videoFormat.open",
+                            retention: .evidence
                         )
 #endif
                         toggle(.videoFormat)
@@ -695,7 +698,8 @@ struct PlaybackTopActions: View {
             AppModel.recordProbe(
                 "reachability topActions delivered action=dock.select"
                     + " environment=\(environment.rawValue)"
-                    + " effect=\(effect?.rawValue ?? "none")"
+                    + " effect=\(effect?.rawValue ?? "none")",
+                retention: .evidence
             )
 #endif
             let requested = state.selectDockTarget(
@@ -774,7 +778,8 @@ struct PlaybackTopActions: View {
         guard let selection = state.finishVideoFormatEditing(.apply) else { return }
 #if DEBUG
         AppModel.recordProbe(
-            "reachability topActions delivered action=videoFormat.apply"
+            "reachability topActions delivered action=videoFormat.apply",
+            retention: .evidence
         )
 #endif
         // The runtime remains authoritative until the async core operation

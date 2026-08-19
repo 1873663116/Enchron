@@ -87,7 +87,8 @@ struct SenseZoneVolumeRoot: View {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
             "environmentCard effect delivered environment=\(featured.environment.rawValue)"
-                + " effect=\(effect.rawValue)"
+                + " effect=\(effect.rawValue)",
+            retention: .evidence
         )
 #endif
         guard appModel.environmentContext.environment == featured.environment else {
@@ -104,7 +105,8 @@ struct SenseZoneVolumeRoot: View {
 #if DEBUG
             appModel.recordSurfaceInputProbe(
                 "environmentCard toggle delivered environment=\(featured.environment.rawValue)"
-                    + " effect=\(effect.rawValue)"
+                    + " effect=\(effect.rawValue)",
+                retention: .evidence
             )
 #endif
             if appModel.environmentContext.environment == featured.environment {

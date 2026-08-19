@@ -366,7 +366,8 @@ public struct MainView: View {
                     onResume: {
 #if DEBUG
                         appModel.recordSurfaceInputProbe(
-                            "reachability resume decision delivered action=resume"
+                            "reachability resume decision delivered action=resume",
+                            retention: .evidence
                         )
 #endif
                         playbackLauncher.resumePendingPlayback()
@@ -374,7 +375,8 @@ public struct MainView: View {
                     onStartOver: {
 #if DEBUG
                         appModel.recordSurfaceInputProbe(
-                            "reachability resume decision delivered action=startOver"
+                            "reachability resume decision delivered action=startOver",
+                            retention: .evidence
                         )
 #endif
                         playbackLauncher.startPendingPlaybackFromBeginning()
@@ -473,7 +475,10 @@ public struct MainView: View {
     private func selectBrowserTab(_ tab: AppModel.NavigationTab) {
         guard tab.isContentDestination else {
 #if DEBUG
-            AppModel.recordProbe("navigation tab delivered tab=\(tab.rawValue)")
+            AppModel.recordProbe(
+                "navigation tab delivered tab=\(tab.rawValue)",
+                retention: .evidence
+            )
 #endif
             try? appModel.requestEnvironmentCard(
                 mediaSessionID: playbackRuntime.activeSessionID,
@@ -482,7 +487,10 @@ public struct MainView: View {
             return
         }
 #if DEBUG
-        AppModel.recordProbe("navigation tab delivered tab=\(tab.rawValue)")
+        AppModel.recordProbe(
+            "navigation tab delivered tab=\(tab.rawValue)",
+            retention: .evidence
+        )
 #endif
         appModel.selectedTab = tab
     }
@@ -1405,7 +1413,8 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
     private func recordReachability(_ action: PlaybackUserVisibleIssueAction) {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
-            "reachability playback issue delivered location=\(location) action=\(action)"
+            "reachability playback issue delivered location=\(location) action=\(action)",
+            retention: .evidence
         )
 #endif
     }

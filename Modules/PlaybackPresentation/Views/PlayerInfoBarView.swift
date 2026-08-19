@@ -22,7 +22,8 @@ struct PlayerInfoBarView: View {
                 action: {
 #if DEBUG
                     appModel.recordSurfaceInputProbe(
-                        "reachability top actions delivered action=back"
+                        "reachability top actions delivered action=back",
+                        retention: .evidence
                     )
 #endif
                     launcher.stopPlayback()
@@ -62,7 +63,8 @@ struct PlayerInfoBarView: View {
     private func recordReachability(_ action: String) {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
-            "reachability top actions delivered action=\(action)"
+            "reachability top actions delivered action=\(action)",
+            retention: .evidence
         )
 #endif
     }
