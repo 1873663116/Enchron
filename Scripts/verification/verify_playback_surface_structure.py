@@ -370,9 +370,13 @@ def main() -> int:
         "PlaybackPresentation does not own the pure platform request/result channel",
     )
     require(
-        app_scene.count("SpatialPlatformEffectExecutor(") >= 3
-        and "SpatialPlatformEffectExecutor()" in environment_card_root,
+        app_scene.count("SpatialPlatformEffectExecutor(") >= 3,
         "the live nonimmersive roots do not register platform action capability",
+    )
+    require(
+        "SpatialPlatformEffectExecutor" not in environment_card_root,
+        "the environment card volume competes for platform execution instead of"
+        " presenting passively",
     )
     require(
         "let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator"
