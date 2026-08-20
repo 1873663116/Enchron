@@ -175,6 +175,17 @@ struct WindowPlaybackPageGeometryTests {
         #expect(abs(sideBySide.aspectRatio - 16.0 / 9.0) < 0.001)
     }
 
+    @Test("audio-only playback uses a compact window tier")
+    func audioOnlyWindowUsesCompactGeometry() {
+        let policy = WindowPlaybackGeometryPolicy.audioOnly
+        let idealWidth = policy.idealSize?.width ?? .infinity
+
+        #expect(policy.minimumSize == CGSize(width: 750, height: 380))
+        #expect(policy.idealSize == CGSize(width: 800, height: 450))
+        #expect(policy.maximumSize == CGSize(width: 960, height: 540))
+        #expect(idealWidth < WindowPlaybackLayout.fallback.defaultSize.width)
+    }
+
     @Test("a 4:3 source sits inside its tiers without touching both ceilings")
     func fourByThreeSourceStaysInsideItsTiers() {
         let layout = WindowPlaybackLayout(aspectRatio: 4.0 / 3.0)

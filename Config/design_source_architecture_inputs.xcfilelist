@@ -105,6 +105,7 @@ $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformExecutionLease.s
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Views/AudioSpectrumSurface.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/DragRotationModifier.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/EnvironmentComponents.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/PlaybackFormatters.swift

@@ -131,6 +131,7 @@ extension View {
 /// video's aspect tiers. Portal owns no sizing rule of its own.
 enum WindowPlaybackGeometryPolicy: Equatable {
     case aspectLocked(WindowPlaybackLayout)
+    case audioOnly
 
     init(
         presentation: PlaybackPresentation,
@@ -147,18 +148,21 @@ enum WindowPlaybackGeometryPolicy: Equatable {
     var minimumSize: CGSize? {
         switch self {
         case let .aspectLocked(layout): layout.minimumSize
+        case .audioOnly: CGSize(width: 750, height: 380)
         }
     }
 
     var idealSize: CGSize? {
         switch self {
         case let .aspectLocked(layout): layout.defaultSize
+        case .audioOnly: CGSize(width: 800, height: 450)
         }
     }
 
     var maximumSize: CGSize? {
         switch self {
         case let .aspectLocked(layout): layout.maximumSize
+        case .audioOnly: CGSize(width: 960, height: 540)
         }
     }
 }
@@ -447,6 +451,13 @@ struct WindowPlaybackRootView<
                 size: size ?? preferredInitialSize ?? layout.defaultSize,
                 minimumSize: layout.minimumSize,
                 maximumSize: layout.maximumSize,
+                resizingRestrictions: .uniform
+            )
+        case .audioOnly:
+            return UIWindowScene.GeometryPreferences.Vision(
+                size: size ?? preferredInitialSize ?? geometryPolicy.idealSize,
+                minimumSize: geometryPolicy.minimumSize,
+                maximumSize: geometryPolicy.maximumSize,
                 resizingRestrictions: .uniform
             )
         }

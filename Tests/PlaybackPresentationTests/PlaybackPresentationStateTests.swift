@@ -1662,6 +1662,13 @@ struct PlaybackPresentationStateTests {
                 isPresentationTransitionActive: false
             )
         )
+        #expect(
+            WindowPlaybackLoadingVisibility.shouldShow(
+                hasPlaybackError: false,
+                presentationState: .audioVisible,
+                isPresentationTransitionActive: false
+            ) == false
+        )
     }
 
     @Test("Presentation transition keeps source visible until the visual cutover")

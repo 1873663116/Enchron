@@ -181,6 +181,13 @@ public enum DesignTokens {
         public static let tertiary: Color = accent
     }
 
+    public enum AudioSpectrum {
+        public static let barSpacing: CGFloat = 6
+        public static let horizontalInset: CGFloat = Spacing.xxxl
+        public static let verticalInset: CGFloat = Spacing.xxl
+        public static let barColor: Color = Theme.accent
+    }
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Press Feedback
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

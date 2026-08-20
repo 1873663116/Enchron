@@ -971,6 +971,36 @@
       "context": "docked",
       "operation": "negative:immersive-resident-window",
       "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-audio",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-episodes",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-speed",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-audio",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-episodes",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-speed",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",
