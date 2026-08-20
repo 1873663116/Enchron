@@ -5,15 +5,19 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+import errno
 import fcntl
 import json
 import os
 from pathlib import Path
 import re
+import selectors
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import time
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +37,8 @@ TEST_SUMMARY = re.compile(
     r"(?P<verdict>passed|failed) after"
 )
 RUN_DIRECTORY = re.compile(r"^\d{8}T\d{6}Z-\d+$")
+LOCK_WAIT_SECONDS = float(os.environ.get("GAUNTLET_LOCK_WAIT_SECONDS", 1800))
+STEP_SILENCE_SECONDS = float(os.environ.get("GAUNTLET_STEP_SILENCE_SECONDS", 900))
 
 
 @dataclass(frozen=True)
@@ -85,6 +91,10 @@ STRUCTURE_CHECKS = (
     StructureCheck(
         "reachability-inventory-tests",
         "test_generate_reachability_inventory.py",
+    ),
+    StructureCheck(
+        "gauntlet-guard-tests",
+        "test_run_verification_gauntlet.py",
     ),
     StructureCheck(
         "visionpro-core-regression-plan",
@@ -175,6 +185,7 @@ def run_logged(
                 text=True,
                 errors="replace",
                 bufsize=1,
+                start_new_session=True,
             )
         except OSError as error:
             message = f"could not start command: {error}\n"
@@ -182,12 +193,48 @@ def run_logged(
             sink.write(message)
             return 127, message
         assert process.stdout is not None
-        for line in process.stdout:
-            print(line, end="")
-            sink.write(line)
-            sink.flush()
-            output.append(line)
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        try:
+            while True:
+                if not selector.select(timeout=STEP_SILENCE_SECONDS):
+                    message = (
+                        f"no output for {STEP_SILENCE_SECONDS:.0f}s and still running;"
+                        " terminating. A shared build directory can wedge a"
+                        " subprocess on its own lock after the build completes.\n"
+                    )
+                    print(message, end="", file=sys.stderr)
+                    sink.write(message)
+                    output.append(message)
+                    terminate(process)
+                    return 124, "".join(output)
+                line = process.stdout.readline()
+                if not line:
+                    break
+                print(line, end="")
+                sink.write(line)
+                sink.flush()
+                output.append(line)
+        finally:
+            selector.close()
+            process.stdout.close()
         return process.wait(), "".join(output)
+
+
+def terminate(process: subprocess.Popen[str]) -> None:
+    for escalation in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(os.getpgid(process.pid), escalation)
+        except (ProcessLookupError, PermissionError):
+            try:
+                process.send_signal(escalation)
+            except ProcessLookupError:
+                return
+        try:
+            process.wait(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def relative_log(path: Path, run_directory: Path) -> str:
@@ -653,7 +700,59 @@ def parse_arguments() -> argparse.Namespace:
     return arguments
 
 
+def lock_holders(lock_path: Path) -> str:
+    try:
+        listing = subprocess.run(
+            ["/usr/sbin/lsof", "-t", str(lock_path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    holders = listing.stdout.split()
+    return ", ".join(holders) if holders else "unknown"
+
+
+def acquire_lock(lock, lock_path: Path) -> bool:
+    """Take the gate's exclusive lock, naming the holder rather than hanging.
+
+    Every worktree shares one lock and one build directory, so a wedged run
+    blocks every later run and every push through the pre-push hook. Waiting
+    forever in silence makes that indistinguishable from slow work.
+    """
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError as error:
+        if error.errno not in (errno.EACCES, errno.EAGAIN):
+            raise
+    print(
+        f"Verification lock held by pid {lock_holders(lock_path)}:"
+        f" {lock_path}\nWaiting up to {LOCK_WAIT_SECONDS:.0f}s.",
+        flush=True,
+    )
+    deadline = time.monotonic() + LOCK_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            print("Verification lock acquired.", flush=True)
+            return True
+        except OSError as error:
+            if error.errno not in (errno.EACCES, errno.EAGAIN):
+                raise
+        time.sleep(2)
+    print(
+        f"FAIL Verification lock still held by pid {lock_holders(lock_path)}"
+        f" after {LOCK_WAIT_SECONDS:.0f}s. Inspect or kill that run, then retry.",
+        file=sys.stderr,
+        flush=True,
+    )
+    return False
+
+
 def main() -> int:
+    sys.stdout.reconfigure(line_buffering=True)
     arguments = parse_arguments()
     log_root = arguments.log_root.resolve()
     log_root.mkdir(parents=True, exist_ok=True)
@@ -663,8 +762,8 @@ def main() -> int:
     run_directory = log_root / run_id
 
     with lock_path.open("a+", encoding="utf-8") as lock:
-        print(f"Acquiring verification lock: {lock_path}")
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not acquire_lock(lock, lock_path):
+            return 1
         run_directory.mkdir()
         print(f"Mode: {'quick' if arguments.quick else 'full'}")
         print(f"Repository: {REPOSITORY_ROOT}")
