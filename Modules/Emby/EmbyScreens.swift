@@ -125,8 +125,7 @@ public struct EmbyScreen: View {
 
     @Environment(EmbySessionViewModel.self) private var session
     @Environment(EmbyHomeViewModel.self) private var home
-    @State private var destination: SidebarDestination = .home
-    @State private var path: [EmbyLibraryItem] = []
+    @Environment(EmbyNavigationModel.self) private var navigation
     @State private var sidebarIsVisible = true
 
     private let onPlay: PlayHandler
@@ -136,6 +135,7 @@ public struct EmbyScreen: View {
     }
 
     public var body: some View {
+        @Bindable var navigation = navigation
         Group {
             if session.server == nil {
                 EmbyConnectionScreen()
@@ -143,21 +143,24 @@ public struct EmbyScreen: View {
                 HStack(spacing: 0) {
                     // A detail page navigates with its own back control, so the sidebar and the
                     // control that hides it are both gone there: the sidebar only ever browses.
-                    if path.isEmpty, sidebarIsVisible {
+                    if navigation.path.isEmpty, sidebarIsVisible {
                         sidebar
                             .transition(.move(edge: .leading).combined(with: .opacity))
                     }
-                    NavigationStack(path: $path) {
+                    NavigationStack(path: $navigation.path) {
                         // Sidebar destinations are siblings with no direction between them, so they
                         // cross-fade the way the Settings detail cross-fades categories. The ZStack
                         // is what carries the animation: a modifier attached above the changing
                         // `.id` is rebuilt along with it and animates nothing.
                         ZStack {
                             destinationContent
-                                .id(destination)
+                                .id(navigation.destination)
                                 .transition(.opacity)
                         }
-                            .animation(DesignTokens.AnimationToken.controlsTransition, value: destination)
+                            .animation(
+                                DesignTokens.AnimationToken.controlsTransition,
+                                value: navigation.destination
+                            )
                             .navigationDestination(for: EmbyLibraryItem.self) { item in
                                 EmbyDetailScreen(
                                     viewModel: EmbyDetailViewModel(
@@ -174,7 +177,10 @@ public struct EmbyScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
-                .animation(DesignTokens.AnimationToken.controlsTransition, value: path.isEmpty)
+                .animation(
+                    DesignTokens.AnimationToken.controlsTransition,
+                    value: navigation.path.isEmpty
+                )
             }
         }
         .accessibilityElement(children: .contain)
@@ -188,7 +194,7 @@ public struct EmbyScreen: View {
     /// loading as the push begins rather than after it lands.
     private func open(_ item: EmbyLibraryItem) {
         warmDetailArtwork(for: item, session: session)
-        path.append(item)
+        navigation.open(item)
     }
 
 #if DEBUG
@@ -204,12 +210,12 @@ public struct EmbyScreen: View {
         }
         await home.refresh()
         if let libraryID = route.libraryID {
-            destination = .library(libraryID)
+            navigation.destination = .library(libraryID)
         }
         sidebarIsVisible = route.sidebarIsVisible
         guard let itemID = route.itemID, let server = session.server else { return }
         if let item = try? await session.client.item(withID: itemID, on: server) {
-            path = [item]
+            navigation.path = [item]
         }
     }
 #endif
@@ -276,12 +282,12 @@ public struct EmbyScreen: View {
     private func sidebarRow(
         icon: String,
         title: String,
-        destination: SidebarDestination
+        destination: EmbyNavigationModel.Destination
     ) -> some View {
         EditableSourceSidebarRow(
             icon: icon,
             title: title,
-            isSelected: self.destination == destination,
+            isSelected: navigation.destination == destination,
             isEnabled: true,
             isActiveSource: false,
             isDeletable: false,
@@ -294,8 +300,7 @@ public struct EmbyScreen: View {
             allowsReordering: false,
             allowsSwipe: false,
             onTap: {
-                self.destination = destination
-                path = []
+                navigation.select(destination)
             }
         )
         .accessibilityIdentifier("Emby-Sidebar-\(destination.id)")
@@ -303,7 +308,7 @@ public struct EmbyScreen: View {
 
     @ViewBuilder
     private var destinationContent: some View {
-        switch destination {
+        switch navigation.destination {
         case .home:
             EmbyHomeScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
         case .library(let id):
@@ -325,30 +330,6 @@ public struct EmbyScreen: View {
             }
         case .search:
             EmbySearchScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
-        }
-    }
-}
-
-private enum SidebarDestination: Hashable {
-    case home
-    case library(EmbyItemID)
-    case search
-
-    var id: String {
-        switch self {
-        case .home: "home"
-        case .library(let id): "library-\(id.rawValue)"
-        case .search: "search"
-        }
-    }
-
-    init?(id: String) {
-        switch id {
-        case "home": self = .home
-        case "search": self = .search
-        default:
-            guard id.hasPrefix("library-") else { return nil }
-            self = .library(EmbyItemID(rawValue: String(id.dropFirst("library-".count))))
         }
     }
 }
