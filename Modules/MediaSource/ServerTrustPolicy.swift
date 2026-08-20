@@ -9,6 +9,20 @@ public struct ServerCertificateInfo: Sendable, Equatable, Identifiable {
     public let sha256Fingerprint: String
     public let validFrom: Date?
     public let validUntil: Date?
+
+    public init(
+        address: String,
+        certificateName: String,
+        sha256Fingerprint: String,
+        validFrom: Date?,
+        validUntil: Date?
+    ) {
+        self.address = address
+        self.certificateName = certificateName
+        self.sha256Fingerprint = sha256Fingerprint
+        self.validFrom = validFrom
+        self.validUntil = validUntil
+    }
 }
 
 public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked Sendable {

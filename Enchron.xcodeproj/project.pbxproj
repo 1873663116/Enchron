@@ -178,6 +178,7 @@
 				MediaSource/MediaByteStream.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
 				MediaSource/NetworkMonitor.swift,
+				MediaSource/RemoteConnectionFailureDiagnoser.swift,
 				MediaSource/ResolvedExternalSubtitleSource.swift,
 				MediaSource/ResolvedMediaSource.swift,
 				MediaSource/ServerTrustPolicy.swift,
