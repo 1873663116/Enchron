@@ -86,7 +86,7 @@
       "context": "docked",
       "operation": "accessibility:PlayerPanel-media-information",
       "unit": "playback.transport",
-      "step": 8,
+      "step": 9,
       "drive": "real",
       "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
@@ -94,7 +94,7 @@
       "context": "docked",
       "operation": "accessibility:PlayerPanel-media-information-close",
       "unit": "playback.transport",
-      "step": 9,
+      "step": 10,
       "drive": "real",
       "expect": "Media information panel closes."
     },
@@ -150,9 +150,9 @@
       "context": "docked",
       "operation": "accessibility:PlayerPanel-precision-timeline",
       "unit": "playback.transport",
-      "step": 6,
+      "step": 7,
       "drive": "real",
-      "expect": "Precision timeline opens."
+      "expect": "Precision timeline closes, symmetrically."
     },
     {
       "context": "docked",
@@ -212,7 +212,7 @@
       "context": "docked",
       "operation": "command:seekNormalized",
       "unit": "playback.transport",
-      "step": 10,
+      "step": 11,
       "drive": "injected",
       "expect": "Position lands at half the duration."
     },
@@ -1006,7 +1006,7 @@
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-media-information",
       "unit": "playback.transport",
-      "step": 8,
+      "step": 9,
       "drive": "real",
       "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
@@ -1014,7 +1014,7 @@
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-media-information-close",
       "unit": "playback.transport",
-      "step": 9,
+      "step": 10,
       "drive": "real",
       "expect": "Media information panel closes."
     },
@@ -1070,9 +1070,9 @@
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-precision-timeline",
       "unit": "playback.transport",
-      "step": 6,
+      "step": 7,
       "drive": "real",
-      "expect": "Precision timeline opens."
+      "expect": "Precision timeline closes, symmetrically."
     },
     {
       "context": "panorama",
@@ -1124,7 +1124,7 @@
       "context": "panorama",
       "operation": "command:seekNormalized",
       "unit": "playback.transport",
-      "step": 10,
+      "step": 11,
       "drive": "injected",
       "expect": "Position lands at half the duration."
     },
@@ -1178,7 +1178,7 @@
       "context": "portal",
       "operation": "accessibility:PlayerPanel-media-information",
       "unit": "playback.transport",
-      "step": 8,
+      "step": 9,
       "drive": "real",
       "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
@@ -1186,7 +1186,7 @@
       "context": "portal",
       "operation": "accessibility:PlayerPanel-media-information-close",
       "unit": "playback.transport",
-      "step": 9,
+      "step": 10,
       "drive": "real",
       "expect": "Media information panel closes."
     },
@@ -1194,9 +1194,9 @@
       "context": "portal",
       "operation": "accessibility:PlayerPanel-precision-timeline",
       "unit": "playback.transport",
-      "step": 6,
+      "step": 7,
       "drive": "real",
-      "expect": "Precision timeline opens."
+      "expect": "Precision timeline closes, symmetrically."
     },
     {
       "context": "portal",
@@ -1368,7 +1368,7 @@
       "context": "portal",
       "operation": "command:seekNormalized",
       "unit": "playback.transport",
-      "step": 10,
+      "step": 11,
       "drive": "injected",
       "expect": "Position lands at half the duration."
     },
@@ -1452,7 +1452,7 @@
       "context": "window",
       "operation": "accessibility:PlayerPanel-media-information",
       "unit": "playback.transport",
-      "step": 8,
+      "step": 9,
       "drive": "real",
       "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
@@ -1460,7 +1460,7 @@
       "context": "window",
       "operation": "accessibility:PlayerPanel-media-information-close",
       "unit": "playback.transport",
-      "step": 9,
+      "step": 10,
       "drive": "real",
       "expect": "Media information panel closes."
     },
@@ -1468,9 +1468,9 @@
       "context": "window",
       "operation": "accessibility:PlayerPanel-precision-timeline",
       "unit": "playback.transport",
-      "step": 6,
+      "step": 7,
       "drive": "real",
-      "expect": "Precision timeline opens."
+      "expect": "Precision timeline closes, symmetrically."
     },
     {
       "context": "window",
@@ -1658,7 +1658,7 @@
       "context": "window",
       "operation": "command:seekNormalized",
       "unit": "playback.transport",
-      "step": 10,
+      "step": 11,
       "drive": "injected",
       "expect": "Position lands at half the duration."
     },

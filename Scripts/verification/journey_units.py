@@ -55,6 +55,7 @@ DRIVES = (REAL, INJECTED, SETUP, EVIDENCE, WEARER)
 
 VERBS = (
     "tap",
+    "doubleTap",
     "tapSequence",
     "type",
     "swipeUp",
@@ -1199,9 +1200,16 @@ UNITS: tuple[Unit, ...] = (
                 expect="Progress bar accepts a tap and seeks.",
             ),
             real(
-                "tap",
+                "doubleTap",
+                "PlayerPanel-progress",
+                expect="Precision timeline opens. A single tap seeks; the "
+                "timeline is a double tap, and it does not exist to be tapped "
+                "until that gesture opens it.",
+            ),
+            real(
+                "doubleTap",
                 "PlayerPanel-precision-timeline",
-                expect="Precision timeline opens.",
+                expect="Precision timeline closes, symmetrically.",
             ),
             wearer(
                 "progress drag",
