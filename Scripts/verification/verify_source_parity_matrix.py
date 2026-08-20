@@ -40,9 +40,14 @@ EMBY_ADDRESS = "http://192.168.5.2:8096"
 MEDIA_SUFFIXES = {".mp4", ".mkv", ".mov", ".m4v", ".ts", ".m2ts"}
 
 # Transport decides how bytes arrive; it must not decide what the decoder sees.
+# The colour fields are what licenses testing picture interpretation on local
+# files alone: if transport could change them, every dynamic-range family would
+# have to be re-proved per source.
 COMPARED_FIELDS = (
     "codec", "samples", "sample_bytes", "decoded_frames",
     "submit_failures", "callback_failures", "decode",
+    "color_primaries", "transfer", "matrix", "full_range",
+    "atoms", "mastering", "light_level",
 )
 
 
