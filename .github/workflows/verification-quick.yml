@@ -2,7 +2,7 @@ name: verification-quick
 
 on:
   push:
-    branches: [main]
+    branches: [perf/presentation-switch-source-reopen]
 
 concurrency:
   group: verification

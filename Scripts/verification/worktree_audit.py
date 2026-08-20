@@ -97,7 +97,7 @@ def audit(repository: Path, integration: str) -> list[dict[str, object]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=".", type=Path)
-    parser.add_argument("--integration", default="main")
+    parser.add_argument("--integration", default="perf/presentation-switch-source-reopen")
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args()
 
