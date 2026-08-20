@@ -30,6 +30,7 @@ nonisolated struct PlaybackSwitchStateRecord: Codable, Equatable, Sendable {
     var sequence: UInt64
     var monotonicNanoseconds: UInt64
     var event: PlaybackSwitchStateRecordEvent
+    var sampleTrigger: PlaybackSwitchSampleTrigger
     var switchID: UInt64?
     var switchKind: PlaybackSwitchKind?
     var logicalSessionID: String
@@ -37,6 +38,7 @@ nonisolated struct PlaybackSwitchStateRecord: Codable, Equatable, Sendable {
     var targetPresentation: PlaybackPresentation?
     var technicalSessionID: String
     var rendererIdentity: UInt64
+    var departingRendererIdentity: UInt64?
     var graphRevision: UInt64
     var lifecycle: PlaybackLifecycle
     var acceptedInputCount: UInt64
@@ -203,6 +205,7 @@ nonisolated final class PlaybackSwitchStateRing: @unchecked Sendable {
             sequence: nextSequence,
             monotonicNanoseconds: sample.monotonicNanoseconds,
             event: event,
+            sampleTrigger: sample.trigger,
             switchID: activeSwitchID,
             switchKind: activeSwitchKind,
             logicalSessionID: context.logicalSessionID,
@@ -210,6 +213,7 @@ nonisolated final class PlaybackSwitchStateRing: @unchecked Sendable {
             targetPresentation: context.targetPresentation,
             technicalSessionID: sample.technicalSessionID,
             rendererIdentity: sample.rendererIdentity,
+            departingRendererIdentity: sample.departingRendererIdentity,
             graphRevision: sample.graphRevision,
             lifecycle: sample.lifecycle,
             acceptedInputCount: sample.acceptedInputCount,

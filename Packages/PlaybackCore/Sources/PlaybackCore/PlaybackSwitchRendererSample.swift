@@ -1,12 +1,17 @@
 #if DEBUG
 import Foundation
 
+struct PlaybackSwitchRendererGraphIdentity: Sendable {
+    var renderer: UInt64
+    var departingRenderer: UInt64?
+    var revision: UInt64
+}
+
 public enum PlaybackSwitchSampleTrigger: String, Codable, Equatable, Sendable {
     case periodic
     case graphChanged
     case lifecycleChanged
     case firstInputAccepted
-    case flushed
 }
 
 public struct PlaybackSwitchRendererSample: Codable, Equatable, Sendable {
@@ -14,6 +19,7 @@ public struct PlaybackSwitchRendererSample: Codable, Equatable, Sendable {
     public var trigger: PlaybackSwitchSampleTrigger
     public var technicalSessionID: String
     public var rendererIdentity: UInt64
+    public var departingRendererIdentity: UInt64?
     public var graphRevision: UInt64
     public var lifecycle: PlaybackLifecycle
     public var acceptedInputCount: UInt64
@@ -37,12 +43,14 @@ public struct PlaybackSwitchRendererSample: Codable, Equatable, Sendable {
         actualTimebaseRate: Float,
         effectiveTimebaseRate: Float,
         streamEpoch: UInt64,
-        flushCount: UInt64
+        flushCount: UInt64,
+        departingRendererIdentity: UInt64? = nil
     ) {
         self.monotonicNanoseconds = monotonicNanoseconds
         self.trigger = trigger
         self.technicalSessionID = technicalSessionID
         self.rendererIdentity = rendererIdentity
+        self.departingRendererIdentity = departingRendererIdentity
         self.graphRevision = graphRevision
         self.lifecycle = lifecycle
         self.acceptedInputCount = acceptedInputCount

@@ -155,6 +155,22 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         videoRendererGraphLock.withLock { videoRendererGraph.sink }
     }
 
+    #if DEBUG
+        func playbackSwitchRendererGraphIdentity() -> PlaybackSwitchRendererGraphIdentity {
+            videoRendererGraphLock.withLock {
+                PlaybackSwitchRendererGraphIdentity(
+                    renderer: UInt64(UInt(
+                        bitPattern: ObjectIdentifier(videoRendererGraph.renderer)
+                    )),
+                    departingRenderer: videoRendererGraph.departingRenderer.map {
+                        UInt64(UInt(bitPattern: ObjectIdentifier($0)))
+                    },
+                    revision: videoRendererGraph.revision
+                )
+            }
+        }
+    #endif
+
     /// Callers must have suspended video sample delivery, so the departing sink
     /// has no enqueue in flight when the replacement takes its place.
     func adoptVideoRendererGraph(

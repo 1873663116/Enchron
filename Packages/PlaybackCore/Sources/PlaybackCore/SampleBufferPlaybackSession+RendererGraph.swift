@@ -45,6 +45,14 @@ extension SampleBufferPlaybackSession {
     func retireDepartingVideoRendererGraph() async {
         guard let departing = takeDepartingVideoRenderer() else { return }
         await synchronizer.removeRenderer(departing, at: currentTime())
+        #if DEBUG
+            deliveryQueue.async { [weak self] in
+                self?.recordPlaybackSwitchRendererSample(
+                    trigger: .graphChanged,
+                    observesDisplayProgress: true
+                )
+            }
+        #endif
         debugStore.emit(
             mediaSessionID: traceID,
             node: .rendererInputCoordination,

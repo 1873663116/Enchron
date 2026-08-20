@@ -34,13 +34,13 @@ extension SampleBufferPlaybackSession {
         }
         let actualRate = finiteRate(CMTimebaseGetRate(synchronizer.timebase))
         let effectiveRate = finiteRate(CMTimebaseGetEffectiveRate(synchronizer.timebase))
-        let rendererIdentity = UInt64(UInt(bitPattern: ObjectIdentifier(renderer)))
+        let rendererGraph = playbackSwitchRendererGraphIdentity()
         sink.recordPlaybackSwitchRendererSample(PlaybackSwitchRendererSample(
             monotonicNanoseconds: DispatchTime.now().uptimeNanoseconds,
             trigger: trigger,
             technicalSessionID: traceID,
-            rendererIdentity: rendererIdentity,
-            graphRevision: graphRevision,
+            rendererIdentity: rendererGraph.renderer,
+            graphRevision: rendererGraph.revision,
             lifecycle: mediaSessionRecord?.lifecycle ?? .idle,
             acceptedInputCount: UInt64(diagnostics.enqueuedSampleCount),
             displayedFrameObservationCount: displayedCount,
@@ -48,7 +48,8 @@ extension SampleBufferPlaybackSession {
             actualTimebaseRate: actualRate,
             effectiveTimebaseRate: effectiveRate,
             streamEpoch: streamEpoch,
-            flushCount: flushCount
+            flushCount: flushCount,
+            departingRendererIdentity: rendererGraph.departingRenderer
         ))
     }
 
