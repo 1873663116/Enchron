@@ -1416,6 +1416,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             try controller.pause()
         }
         let cutoverTime = sourceSession.currentTime()
+        let sourcePresentation = attachedPresentation
         let endedContinuity = controller.endedContinuity ?? initiallyEndedContinuity
 
         let replacement: AVSampleBufferVideoRenderer
@@ -1446,6 +1447,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             generation: conversionGeneration,
             logicalSessionID: logicalSessionID,
             activeReplacementSessionID: sourceSession.traceID,
+            sourcePresentation: sourcePresentation,
             delivery: .pending(
                 endedContinuity.map(TechnicalSessionRebuildContinuity.ended)
                     ?? .timeline(cutoverTime)

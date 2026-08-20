@@ -639,7 +639,7 @@ struct DemuxNetworkResilienceTests {
     defer { server.stop() }
     var error = [CChar](repeating: 0, count: 512)
     let source = server.url.absoluteString.withCString { path in
-        PBFFmpegDemuxSourceCreate(path, nil, &error, error.count)
+        PBFFmpegDemuxSourceCreate(path, true, nil, &error, error.count)
     }
     let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
     defer { PBFFmpegDemuxSourceDestroy(openedSource) }

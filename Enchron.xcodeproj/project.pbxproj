@@ -145,6 +145,7 @@
 				Emby/EmbyClientProtocol.swift,
 				Emby/EmbyItemPresentation.swift,
 				Emby/EmbyLaunchRoute.swift,
+				Emby/EmbyMediaByteSource.swift,
 				Emby/EmbyModels.swift,
 				Emby/EmbyPlaybackBridge.swift,
 				Emby/EmbyScreens.swift,

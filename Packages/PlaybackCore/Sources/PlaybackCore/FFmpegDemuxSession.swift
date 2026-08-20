@@ -14,7 +14,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     }
 
     func configureSource(isRemote: Bool) throws {
-        try lock.withLock {
+        try operationLock.withLock {
             guard source == nil else {
                 if sourceIsRemote != isRemote {
                     throw FFmpegDemuxSessionError.sourceChanged

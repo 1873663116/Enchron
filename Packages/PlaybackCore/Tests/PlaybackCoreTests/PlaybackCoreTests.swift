@@ -3683,7 +3683,12 @@ private final class GenerationDelayedVideoSampleProvider: VideoSampleProvider {
         ).info
     }
 
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?,
+        startTime: CMTime
+    ) async throws {
         lock.withLock {
             prepareGeneration += 1
             readCountByGeneration[prepareGeneration] = 0

@@ -28,6 +28,7 @@ $(SRCROOT)/Modules/Emby/EmbyClient.swift
 $(SRCROOT)/Modules/Emby/EmbyClientProtocol.swift
 $(SRCROOT)/Modules/Emby/EmbyItemPresentation.swift
 $(SRCROOT)/Modules/Emby/EmbyLaunchRoute.swift
+$(SRCROOT)/Modules/Emby/EmbyMediaByteSource.swift
 $(SRCROOT)/Modules/Emby/EmbyModels.swift
 $(SRCROOT)/Modules/Emby/EmbyPlaybackBridge.swift
 $(SRCROOT)/Modules/Emby/EmbyScreenViewModels.swift
