@@ -30,10 +30,44 @@ final class TestCommandChannel {
         let ok: Bool
         let detail: String?
         let payload: [String]?
-        var menuItems: [MenuItem]? = nil
+        var menuItems: [MenuItem]?
         #if DEBUG
-            var transitionTraceSnapshot: PlaybackSwitchStateSnapshot? = nil
-            var transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil
+            var transitionTraceSnapshot: PlaybackSwitchStateSnapshot?
+            var transitionTraceAnalysis: PlaybackSwitchStateAnalysis?
+        #endif
+
+        #if DEBUG
+        init(
+            id: String,
+            ok: Bool,
+            detail: String?,
+            payload: [String]?,
+            menuItems: [MenuItem]? = nil,
+            transitionTraceSnapshot: PlaybackSwitchStateSnapshot? = nil,
+            transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil
+        ) {
+            self.id = id
+            self.ok = ok
+            self.detail = detail
+            self.payload = payload
+            self.menuItems = menuItems
+            self.transitionTraceSnapshot = transitionTraceSnapshot
+            self.transitionTraceAnalysis = transitionTraceAnalysis
+        }
+        #else
+        init(
+            id: String,
+            ok: Bool,
+            detail: String?,
+            payload: [String]?,
+            menuItems: [MenuItem]? = nil
+        ) {
+            self.id = id
+            self.ok = ok
+            self.detail = detail
+            self.payload = payload
+            self.menuItems = menuItems
+        }
         #endif
     }
 
@@ -308,8 +342,7 @@ final class TestCommandChannel {
                     playbackRuntime.debugCurrentByteStreamCounters()
                 )
             )
-            playbackRuntime.debugSetPlaybackSwitchSampleHandler {
-                [weak playbackSwitchStateRing] sample, counters in
+            playbackRuntime.debugSetPlaybackSwitchSampleHandler { [weak playbackSwitchStateRing] sample, counters in
                 playbackSwitchStateRing?.record(
                     sample,
                     byteStreamCounters: Self.switchCounters(counters)

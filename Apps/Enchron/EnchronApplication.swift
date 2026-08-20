@@ -371,8 +371,7 @@ final class EnchronApplication {
         self.certificateTrustPrompt = certificateTrustPrompt
         self.modalPresentationCoordinator = modalPresentationCoordinator
         #if DEBUG
-            appModel.playbackSwitchPresentationRequestHandler = {
-                [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
+            appModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()
                 _ = playbackSwitchStateRing?.beginSwitch(
                     kind: .presentation,
@@ -380,12 +379,10 @@ final class EnchronApplication {
                     at: DispatchTime.now().uptimeNanoseconds
                 )
             }
-            appModel.playbackSwitchPresentationSettlementHandler = {
-                [weak playbackSwitchStateRing] presentation in
+            appModel.playbackSwitchPresentationSettlementHandler = { [weak playbackSwitchStateRing] presentation in
                 playbackSwitchStateRing?.settlePresentation(presentation)
             }
-            playbackRuntime.debugSetPlaybackFormatSwitchHandler {
-                [weak playbackSwitchStateRing, weak appModel, weak playbackRuntime] in
+            playbackRuntime.debugSetPlaybackFormatSwitchHandler { [weak playbackSwitchStateRing, weak appModel, weak playbackRuntime] in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()
                 _ = playbackSwitchStateRing?.beginSwitch(
                     kind: .format,

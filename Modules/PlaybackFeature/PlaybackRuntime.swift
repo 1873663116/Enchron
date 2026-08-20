@@ -12,8 +12,7 @@ import PlaybackPresentation
 #if DEBUG
 private final class PlaybackSwitchRendererSampleForwarder:
     PlaybackSwitchRendererSampleSink,
-    @unchecked Sendable
-{
+    @unchecked Sendable {
     private let byteStreamHandle: MediaByteStreamHandle?
     private let handler: @Sendable (
         PlaybackSwitchRendererSample,
