@@ -714,9 +714,13 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testDockedVideoSurfaceKeepsRealityKitInputComponentsWhileContainerTemporarilyDisablesInput() throws {
+    func testDockedVideoSurfaceOmitsRealityKitHitTargets() throws {
         let renderer = AVSampleBufferVideoRenderer()
         let entity = Entity()
+        entity.components.set(InputTargetComponent())
+        entity.components.set(
+            CollisionComponent(shapes: [.generateBox(size: [1.8, 1, 0.01])])
+        )
 
         PlaybackRealityPresenter.configure(
             entity,
@@ -725,8 +729,8 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             requestsSpatialVideoMode: false
         )
 
-        XCTAssertNotNil(entity.components[InputTargetComponent.self])
-        XCTAssertNotNil(entity.components[CollisionComponent.self])
+        XCTAssertNil(entity.components[InputTargetComponent.self])
+        XCTAssertNil(entity.components[CollisionComponent.self])
         let accessibility = try XCTUnwrap(
             entity.components[AccessibilityComponent.self]
         )
@@ -734,13 +738,40 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertNotNil(accessibility.label)
         XCTAssertTrue(accessibility.systemActions.contains(.activate))
         XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .docked))
+    }
 
-        // Presentation transitions block the containing RealityView. They do
-        // not remove the entity components needed when the spatial target settles.
-        XCTAssertNotNil(entity.components[InputTargetComponent.self])
-        XCTAssertNotNil(entity.components[CollisionComponent.self])
-        XCTAssertNotNil(entity.components[AccessibilityComponent.self])
-        XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .docked))
+    @MainActor
+    func testDockedUsesInteractionPlateSizedFromVideoAspectAndScreenScale() throws {
+        let videoEntity = Entity()
+        videoEntity.scale = .init(repeating: 1.75)
+        let store = PlaybackVideoEntityStore()
+        let interactionSurface = store.dockedInteractionSurface
+
+        PlaybackDockedInteractionSurface.install(
+            interactionSurface,
+            on: videoEntity,
+            screenSize: [2.4, 1]
+        )
+
+        XCTAssertTrue(interactionSurface.parent === videoEntity)
+        XCTAssertTrue(PlaybackDockedInteractionSurface.contains(interactionSurface))
+        XCTAssertEqual(
+            interactionSurface.position,
+            [0, 0, PlaybackDockedInteractionSurface.frontOffset]
+        )
+        XCTAssertNotNil(interactionSurface.components[InputTargetComponent.self])
+        let collision = try XCTUnwrap(
+            interactionSurface.components[CollisionComponent.self]
+        )
+        let shape = try XCTUnwrap(collision.shapes.first)
+        XCTAssertEqual(
+            shape.bounds.extents,
+            [2.4, 1, PlaybackDockedInteractionSurface.thickness]
+        )
+        XCTAssertEqual(
+            interactionSurface.scale(relativeTo: nil),
+            [1.75, 1.75, 1.75]
+        )
     }
 
     @MainActor
@@ -785,7 +816,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
         XCTAssertEqual(
             PlaybackSurfaceInputOwnership.owner(for: .docked),
-            .spatialVideoEntity
+            .dockedInteractionSurface
         )
         XCTAssertEqual(
             PlaybackSurfaceInputOwnership.owner(for: .panorama),
