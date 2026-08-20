@@ -62,12 +62,27 @@ VERBS = (
     "swipeLeft",
     "swipeRight",
     "snapshot",
+    "relaunch",
     "app",
     "settle",
     "assert",
     "frames",
     "handoff",
 )
+
+COMMAND_CHANNEL_PATH = REPOSITORY_ROOT / "Apps/Enchron/TestCommandChannel.swift"
+
+
+def app_commands() -> set[str]:
+    """The verbs the app's command channel answers, read from the channel itself.
+
+    A unit naming a verb the app does not have fails on the device, several
+    minutes into a session, as a response the runner cannot explain. Reading the
+    dispatcher makes it a local failure instead.
+    """
+    source = COMMAND_CHANNEL_PATH.read_text(encoding="utf-8")
+    body = source[source.index('case "ping":') : source.index("case \"screenSize\":")]
+    return set(re.findall(r'case "([A-Za-z]+)"', body))
 
 
 @dataclass(frozen=True)
@@ -847,7 +862,7 @@ UNITS: tuple[Unit, ...] = (
                 expect="End behaviour menu opens.",
             ),
             real("tap", "", label="Play Next", expect="Row shows the chosen value."),
-            setup("app", "relaunch", expect="App restarts."),
+            setup("relaunch", expect="App restarts."),
             evidence(
                 "snapshot",
                 "Settings-menu-default-speed",
@@ -1861,6 +1876,7 @@ def check() -> int:
     cells = matrix_cells()
     known = set(cells)
     patterns = identifier_operations()
+    commands = app_commands()
     seen: set[tuple[str, str]] = set()
     unit_ids = set()
 
@@ -1880,6 +1896,11 @@ def check() -> int:
             where = f"{unit.id} step {position}"
             if step.verb not in VERBS:
                 failures.append(f"{where}: unknown verb {step.verb!r}")
+            if step.verb == "app" and step.target not in commands:
+                failures.append(
+                    f"{where}: app command {step.target!r} is not in "
+                    f"{COMMAND_CHANNEL_PATH.relative_to(REPOSITORY_ROOT)}"
+                )
             if step.drive not in DRIVES:
                 failures.append(f"{where}: unknown drive {step.drive!r}")
             if step.drive == INJECTED:

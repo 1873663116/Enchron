@@ -396,7 +396,7 @@ Every settings menu opens by touch and its choice sticks.
    - expect: End behaviour menu opens.
 11. `real` tap label Play Next
    - expect: Row shows the chosen value.
-12. `setup` app `relaunch`
+12. `setup` relaunch
    - expect: App restarts.
 13. `evidence` snapshot `Settings-menu-default-speed`
    - expect: Every chosen value survived the relaunch.
