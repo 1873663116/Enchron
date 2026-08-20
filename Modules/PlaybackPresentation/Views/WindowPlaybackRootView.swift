@@ -136,7 +136,12 @@ enum WindowPlaybackGeometryPolicy: Equatable {
         presentation: PlaybackPresentation,
         videoLayout: WindowPlaybackLayout
     ) {
-        self = .aspectLocked(videoLayout)
+        switch presentation {
+        case .portal:
+            self = .aspectLocked(.fallback)
+        case .window, .docked, .panorama:
+            self = .aspectLocked(videoLayout)
+        }
     }
 
     var minimumSize: CGSize? {
@@ -328,6 +333,7 @@ struct WindowPlaybackRootView<
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
             .zIndex(2)
+            .transition(.opacity)
     }
 
     @ViewBuilder
