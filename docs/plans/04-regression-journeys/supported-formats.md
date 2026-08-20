@@ -2,8 +2,8 @@
 
 > 面向产品负责人。主表只写格式名与事实陈述，代码位置以脚注形式附后。结论均来自当前分支的构建产物与源码，非 FFmpeg 默认值的推测。
 
-- 版本：Enchron @ `FFmpeg 9.0.1` vendored 构建 `decoded-audio-pcm-v1-ffmpeg-9.0.1`[^1]
-- 播放架构：自带 FFmpeg 只做解封装，视频以压缩样本经 VideoToolbox 硬解，音频除两项压缩透传外由 FFmpeg 解为 PCM 再送系统[^2]
+- 版本：Enchron @ `FFmpeg 9.0.1` vendored 构建 `apac-passthrough-v1-ffmpeg-9.0.1`[^1]
+- 播放架构：自带 FFmpeg 只做解封装，视频以压缩样本经 VideoToolbox 硬解。AC-3、E-AC-3 和 APAC 音频走压缩透传，其余音频由 FFmpeg 解为 PCM 再送系统[^2]
 - 浏览入口的可见范围由文件发现策略另行收敛，并不等同于解封装能力[^3]
 
 ---
@@ -36,7 +36,7 @@
 
 ## 2. 音频编码
 
-音频分两条管线，判定点为 `audio_codec_uses_compressed_passthrough`[^14]。透传仅两个编码，其余凡能找到 FFmpeg 解码器的均解为 Float32 交错 PCM（`kAudioFormatLinearPCM` / `kAudioFormatFlagsNativeFloatPacked`）后送系统[^15]。
+音频分两条管线，判定点为 `audio_codec_uses_compressed_passthrough`[^14]。AC-3、E-AC-3 和 Apple APAC 走压缩透传，其余凡能找到 FFmpeg 解码器的均解为 Float32 交错 PCM（`kAudioFormatLinearPCM` / `kAudioFormatFlagsNativeFloatPacked`）后送系统[^15]。
 
 | 格式名 | 支持状态 | 交付给系统的方式 |
 |---|---|---|
@@ -54,7 +54,7 @@
 | WMA / WMA Pro / WMA Lossless / WMA Voice | 完整支持 — FFmpeg 解为 PCM | PCM |
 | APE / TAK / WavPack / TTA | 完整支持 — FFmpeg 解为 PCM | PCM |
 | PCM 各变体 (s16/s24/s32/float, alaw/mulaw 等) | 完整支持 — FFmpeg 解为 PCM | PCM |
-| Apple Positional Audio (APAC, `apac`) | 目标：压缩透传（2026-08-20 裁决）；当前实现仍走 PCM 分支，透传实现进行中 | 代码显式将 `apack` 的 `AV_CODEC_ID_NONE` / `AV_CODEC_ID_APPLE_APAC` 折叠为 `AV_CODEC_ID_APAC`[^19]，但 `compressed_audio_format_id` 仅覆盖 AC-3/E-AC-3[^14]；裁决要求 APAC 走系统原生 `kAudioFormatAPAC` 透传以保留空间元数据 |
+| Apple Positional Audio (APAC, `apac`) | 完整支持 — 压缩透传 | vendored FFmpeg 从 MOV 初始化段保留完整 `dapa` box，桥接层以 `kAudioFormatAPAC` 和该 cookie 构造格式[^19]。`mFramesPerPacket` 由 AudioToolbox 根据 cookie 推导，不使用常数[^17] |
 
 > 采样率或声道数缺失的流先落入 `audio_stream_needs_more_probe`，会触发扩展探测与 ADTS 修复；仍不可用时报错 “Audio stream parameters are unavailable after extended probe”[^20]。
 
@@ -107,7 +107,7 @@ FFmpeg 层 vendored 构建未裁剪解封装：`--disable-muxers` 但未禁用 d
 - Dolby Vision：P5、P8.1、P8.4、P10.0/10.1/10.4 (AV1)、P7.6 双层（含 FEL ISO/M2TS/MKV/MP4）、P20 (HLS)
 - ProRes：`ARRI-ALEXA-Mini` / `ARRI-AMIRA` 原片及 `ProRes RAW HQ` 样片
 - 全景/立体：`360.mp4`、`insta360.mp4`、`MVHEVC` 官方样片、`180_3D`/`HNVR-158` 立体样片
-- 音频：AAC、HE-AAC v1/v2 (`he-aac-v1/v2-apple-audio-toolbox.m4a`)、AC-3、E-AC-3 Atmos、FLAC、Opus/Vorbis 间接通过 `av1-flac-avsync` 与编解码矩阵样片
+- 音频：AAC、HE-AAC v1/v2 (`he-aac-v1/v2-apple-audio-toolbox.m4a`)、AC-3、E-AC-3 Atmos、APAC 官方 HLS、FLAC、Opus/Vorbis 间接通过 `av1-flac-avsync` 与编解码矩阵样片
 - 字幕：`sdr-bframe-multiaudio-avsync` 的 `ASS` 内嵌与 `zh-CN.srt` 边车
 
 **声明支持但无本地样片的格式**
@@ -119,14 +119,14 @@ FATE 定向拉取（`TestVectors/Upstream/FATE/`，44 件）已补齐 H.264/HEVC
 | 视频 | Dolby Vision Profile 5 的 IPT 演示片的非官方变体（非测试向量） | 仅 `CM4_L3L8` 等两条测试向量，未覆盖用户自制 P5 片源的色彩边界 |
 | 视频 | ProRes 4444 XQ (`ap4x`) | 有 `ap4h`/`apcn` 等，未见 `ap4x` 独立样片 |
 | 音频 | WMA 系列、APE、TAK | 无样片；FFmpeg 解码器已启用但无回归输入 |
-| 音频 | APAC 空间音频 | 有官方样片：`TestVectors/Upstream/Apple/Audio/APAC-HLS/`（Apple HLS 分段资产，`apple_apac` 双声道）；缺的是非 HLS 独立样片 |
+| 音频 | APAC 空间音频 | 有官方样片：`TestVectors/Upstream/Apple/Audio/APAC-HLS/`（Apple HLS 分段资产，`apple_apac` 双声道）；缺的是非 HLS 独立样片与真机可听验证 |
 | 字幕 | 外挂 `vtt` / `ssa` / `sup` 边车 | 发现过滤器支持 `vtt`/`ssa` 但无边车样片；`sup` 纳入发现范围（2026-08-20 裁决）后同样需要样片 |
 
 ---
 
 ## 裁决记录（2026-08-20）
 
-1. **Apple Positional Audio (APAC)**：走系统原生 `kAudioFormatAPAC` 压缩透传，保留空间元数据。当前实现仍是 PCM 分支，透传实现进行中。
+1. **Apple Positional Audio (APAC)**：走系统原生 `kAudioFormatAPAC` 压缩透传，保留空间元数据。
 
 2. **VP9 / MPEG-2 等 Apple 硬件解码不支持的视频编码**：一律明确拒绝，维持现状。视频支持清单的上界是 VideoToolbox 能力，不随 FFmpeg 解封装能力扩大。
 
@@ -140,7 +140,7 @@ FATE 定向拉取（`TestVectors/Upstream/FATE/`，44 件）已补齐 H.264/HEVC
 
 ## 脚注（代码位置）
 
-[^1]: `Packages/PlaybackCore/Scripts/build_ffmpeg.sh:5-6` `VERSION="9.0.1"` / `CONFIGURATION_REVISION="decoded-audio-pcm-v1-ffmpeg-$VERSION"`；`38-61` 完整 `configure` 参数。
+[^1]: `Packages/PlaybackCore/Scripts/build_ffmpeg.sh:5-6` `VERSION="9.0.1"` / `CONFIGURATION_REVISION="apac-passthrough-v1-ffmpeg-$VERSION"`；同脚本保存源码归档校验和、应用项目补丁并构建全部 Apple 平台切片。
 [^2]: 视频 `PBFFmpegReader` → `create_compressed_format` → `CMSampleBuffer` 压缩样本；音频 `PBFFmpegAudioReader` 分 `outputsPCM` 与压缩透传两支，见 `PlaybackFFmpegBridge.c:4721`, `934`, `5309`。
 [^3]: `Modules/MediaLibrary/Model/MediaBrowsing.swift:68-73` `MediaDiscoveryAdmissionPolicy.mediaFiles`；`89-91` `FileFilter.playable`。
 [^4]: `Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c:1399-1410` `codec_type`；`3842-3877` `PBDOVIDeclarationUnknown` 与 `compressed_codec_is_renderable` 拒绝分支。
@@ -153,12 +153,12 @@ FATE 定向拉取（`TestVectors/Upstream/FATE/`，44 件）已补齐 H.264/HEVC
 [^11]: `PlaybackFFmpegBridge.c:1290-1300` `prores_codec_type`；`1408` `AV_CODEC_ID_PRORES` 分支；`2614`, `2961` ProRes 跳过 extradata 引导。
 [^12]: `PlaybackFFmpegBridge.c:4162-4179` `PBFFmpegReaderIsMVHEVC`。
 [^13]: `PlaybackFFmpegBridge.c:1905-2011` `add_projected_media_extensions`；`3121-3135` `media_stream_projection_kind`。
-[^14]: `PlaybackFFmpegBridge.c:926-936` `compressed_audio_format_id` / `audio_codec_uses_compressed_passthrough`（仅 `AC3`/`EAC3`）。
+[^14]: `PlaybackFFmpegBridge.c:926-966` `compressed_audio_codec` / `audio_codec_uses_compressed_passthrough`。Apple APAC 同时要求归一后的 codec ID 与 `apac` sample-entry tag，避免误收 Marian's A-pac。
 [^15]: `PlaybackFFmpegBridge.c:4721-4771` `outputsPCM` 判定与 `SwrContext` 初始化；`5300-5352` `ensure_decoded_pcm_audio_format`（`kAudioFormatLinearPCM`）。
 [^16]: `PlaybackFFmpegBridge.c:973-991` `fill_aac_parameters_from_adts`；`993-1028` `probe_delayed_audio_parameters`。
-[^17]: `PlaybackFFmpegBridge.c:5128-5135` `audio_frames_per_packet`；`5225-5284` `ensure_compressed_audio_format`。
+[^17]: `PlaybackFFmpegBridge.c:5145-5210` `audio_frames_per_packet` / `complete_apple_apac_asbd`；`5296-5369` `ensure_compressed_audio_format`。
 [^18]: `PlaybackFFmpegBridge.c:4948-4993` `aggregate_truehd_decoder_packet`；`4921-4928` `decoded_audio_minimum_buffer_frames`。
-[^19]: `PlaybackFFmpegBridge.c:1080-1098` `normalize_mov_codec_ids` 对 `apac` 的折叠。
+[^19]: `PlaybackFFmpegBridge.c:1107-1124` `normalize_mov_codec_ids` 对 `apac` 的折叠；`Packages/PlaybackCore/Vendor/FFmpeg/Patches/0001-mov-preserve-apple-apac-dapa.patch` 让 MOV demuxer 把完整 `dapa` box 交给 `codecpar->extradata`。
 [^20]: `PlaybackFFmpegBridge.c:952-957` `audio_stream_needs_more_probe`；`1030-1066` `set_audio_stream_selection_error`。
 [^21]: `PlaybackFFmpegBridge.c:909-924` `subtitle_stream_is_supported`（`ASS/SSA/SUBRIP/WEBVTT/MOV_TEXT/HDMV_PGS/DVD/DVB`）。
 [^22]: `Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/SubtitleFrameRenderer.c:79-91` `is_bitmap_codec` / `is_text_codec`；`365-523` `create_subtitle_frame_renderer` 的 libass / 位图双路径；`668-847` `copy_ass_frame` / `copy_bitmap_frame`。

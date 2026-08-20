@@ -1858,7 +1858,7 @@ func highEfficiencyAACProfilesDecodeToPCM(
     #expect(metadata.payloadByteCount > 0)
 }
 
-@Test func appleAPACHLSDecodesToPCM() throws {
+@Test func appleAPACHLSPassesCompressedPacketsToCoreMedia() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Upstream/Apple/Audio/APAC-HLS/playlist.m3u8"
@@ -1893,11 +1893,51 @@ func highEfficiencyAACProfilesDecodeToPCM(
     ).pointee
 
     #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == "apac")
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
-    #expect(bridgeDescription.mFormatID == kAudioFormatLinearPCM)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == false)
+    #expect(bridgeDescription.mFormatID == kAudioFormatAPAC)
     #expect(bridgeDescription.mSampleRate == 48_000)
-    #expect(bridgeDescription.mFramesPerPacket == 1)
+    #expect(bridgeDescription.mFormatFlags == 0)
+    #expect(bridgeDescription.mBytesPerPacket == 0)
+    #expect(bridgeDescription.mFramesPerPacket == 1_024)
+    #expect(bridgeDescription.mBytesPerFrame == 0)
+    #expect(bridgeDescription.mChannelsPerFrame == 2)
+    #expect(bridgeDescription.mBitsPerChannel == 0)
+    #expect(CMSampleBufferGetNumSamples(buffer) == 1)
+    #expect(CMSampleBufferGetDuration(buffer) == CMTime(value: 1_024, timescale: 48_000))
+    #expect(CMSampleBufferGetTotalSampleSize(buffer) == metadata.payloadByteCount)
     #expect(metadata.payloadByteCount > 0)
+    #expect(metadata.cookieSource == PBFFmpegAudioCookieSourceExtradata)
+
+    let initializationSegment = fixture.deletingLastPathComponent()
+        .appendingPathComponent("fileSequence0.mp4")
+    let expectedMagicCookie = try isoBaseMediaBox(
+        named: "dapa",
+        in: initializationSegment
+    )
+    #expect(magicCookieData(bridgeFormat) == expectedMagicCookie)
+}
+
+@Test func appleAudioRendererAcceptsAPACPassthrough() throws {
+    let buffer = try firstCompressedAudioSample(
+        relativePath: "TestVectors/Upstream/Apple/Audio/APAC-HLS/playlist.m3u8"
+    )
+    let synchronizer = AVSampleBufferRenderSynchronizer()
+    let renderer = AVSampleBufferAudioRenderer()
+    let receiver = synchronizer.sampleBufferReceiver(adding: renderer)
+    let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
+        unsafeBuffer: buffer
+    )
+    let outcome = receiver.enqueueImmediately(readySample)
+    let accepted: Bool
+    switch outcome {
+    case .enqueued, .enqueuedWithSuggestedFlush:
+        accepted = true
+    case .cancelledDueToFlush, .cancelledDueToError:
+        accepted = false
+    @unknown default:
+        accepted = false
+    }
+    #expect(accepted, Comment(rawValue: String(describing: outcome)))
 }
 
 @Test func appleAudioRendererAcceptsPrivilegedDolbyPassthrough() throws {
@@ -2347,6 +2387,21 @@ private func magicCookieData(_ format: CMAudioFormatDescription) -> Data? {
         return nil
     }
     return Data(bytes: cookie, count: size)
+}
+
+private func isoBaseMediaBox(named type: String, in file: URL) throws -> Data {
+    let data = try Data(contentsOf: file)
+    let typeData = Data(type.utf8)
+    let typeRange = try #require(data.range(of: typeData))
+    try #require(typeRange.lowerBound >= MemoryLayout<UInt32>.size)
+    let sizeOffset = typeRange.lowerBound - MemoryLayout<UInt32>.size
+    let declaredSize = data[sizeOffset..<typeRange.lowerBound].reduce(UInt32(0)) {
+        ($0 << 8) | UInt32($1)
+    }
+    let endOffset = sizeOffset + Int(declaredSize)
+    try #require(declaredSize >= 8)
+    try #require(endOffset <= data.endIndex)
+    return data.subdata(in: sizeOffset..<endOffset)
 }
 
 private func decoderSpecificInfo(in cookie: Data?) -> Data? {

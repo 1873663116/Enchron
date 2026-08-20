@@ -1,0 +1,23 @@
+diff --git a/libavformat/mov.c b/libavformat/mov.c
+--- a/libavformat/mov.c
++++ b/libavformat/mov.c
+@@ -2313,6 +2313,11 @@ static int mov_read_alac(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+     return mov_read_extradata(c, pb, atom, AV_CODEC_ID_ALAC);
+ }
+ 
++static int mov_read_apple_apac(MOVContext *c, AVIOContext *pb, MOVAtom atom)
++{
++    return mov_read_extradata(c, pb, atom, AV_CODEC_ID_APPLE_APAC);
++}
++
+ static int mov_read_avss(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+ {
+     return mov_read_extradata(c, pb, atom, AV_CODEC_ID_CAVS);
+@@ -9775,6 +9780,7 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
+ { MKTAG('m','v','h','d'), mov_read_mvhd },
+ { MKTAG('S','M','I',' '), mov_read_svq3 },
+ { MKTAG('a','l','a','c'), mov_read_alac }, /* alac specific atom */
++{ MKTAG('d','a','p','a'), mov_read_apple_apac },
+ { MKTAG('a','v','c','C'), mov_read_glbl },
+ { MKTAG('p','a','s','p'), mov_read_pasp },
+ { MKTAG('c','l','a','p'), mov_read_clap },
