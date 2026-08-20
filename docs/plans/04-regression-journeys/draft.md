@@ -71,6 +71,19 @@
 执行：回到预期界面；诊断串无 userVisibleIssue；旅程涉及的持久化状态逐项复核（listLibrary、设置值、进度）；本旅程证据段末批量取回归档。
 成功：清单全部成立。
 
+**P12 汇总切换段(来源名)**
+共享段落，四条来源旅程逐字复用同一序列，只有片源来自哪个来源不同。这是「同一片源经不同来源进来，交互机器表现一致」的证明装置；判据在各来源间必须完全一致，任何来源上的差异即该来源的缺陷。
+
+前提：汇总片源 sdr-bframe-aggregate-30s.mkv 已在稳态播放（P3 通过）。
+
+执行：
+1. 音轨连续切换三次：P5(more 菜单, audio 家族) 依次选 FLAC 660Hz → AC-3 440Hz → E-AC-3 550Hz，跨越解码与透传两条管线。每次切换双重验证——机械层：重新 listMenuItems 断言目标轨 isSelected=true，lifecycle 保持 Playing，position 持续推进；判断层：P9 主导频率翻转到目标轨频率。
+2. 字幕连续切换三次：P5(more 菜单, subtitles 家族) 依次选 内嵌 SubRip → 内嵌 DVB 位图 → 外挂文本边车，覆盖文本／位图与内嵌／外挂两轴。每次切换双重验证——机械层：目标轨 isSelected=true，lifecycle 保持 Playing；判断层：截图判读呈现与目标轨一致（内嵌与外挂文本刻意不同，可直接区分）。
+3. 远程来源附加断言：切换期间不重开会话（renderer 与 session 身份不变），字节流未中断。
+
+成功：六次切换全部双重验证通过。失败：任一次不通过即本段失败——连续切换可行性是本段的证明目标，不允许「三次里过一次」。
+内容条件：外挂边车须与视频同目录同基名。远程来源上若边车缺失，字幕第三次切换记为内容条件缺口而非缺陷。
+
 ---
 
 ## J00 格式覆盖（按需触发，完整详述）
@@ -144,31 +157,36 @@
 3. P3(该卡片, window)。机械层：lifecycle=Playing、videoVisible=true。判断层：P8(SDR 真实内容)。
 4. P9(880Hz 主导、非静音)——音画皆在解码，判断层收口。
 5. 轮询诊断串至 position≥10 秒。
-6. 音轨连续切换三次：P5(more 菜单, audio 家族) 依次选 FLAC 660Hz → AC-3 440Hz → E-AC-3 550Hz。三次切换刻意跨越两条音频管线（AAC/FLAC 解为 PCM，AC-3/E-AC-3 压缩透传），每次切换同时验证一次管线接缝。每次切换后双重验证，全部通过才算一次切换成功：机械层=重新 listMenuItems 断言目标轨 isSelected=true，且 lifecycle 保持 Playing、position 持续推进；判断层=P9 主导频率翻转到目标轨独特频率。任一次验证不通过即本步失败（连续切换可行性是本步的证明目标，不允许「三次里过一次」）。
-7. 字幕轨连续切换三次：P5(more 菜单, subtitles 家族) 依次选 内嵌 SubRip → 内嵌 DVB 位图 → 外挂文本边车。三步覆盖「文本／位图」与「内嵌／外挂」两个轴。每次切换后双重验证：机械层=重新 listMenuItems 断言目标轨 isSelected=true，lifecycle 保持 Playing；判断层=截图判读字幕呈现与目标轨一致——内嵌与外挂的字幕文本刻意写得不同，截图可直接区分当前显示的是哪一条；画面仍在正常推进。
-8. P4(PlayerUI-InfoBar-button-back) 退出播放 → 回到网格，无错误浮层。
-9. 采网格卡片区域截图，Agent 判读卡片画面是否为退出前后的画面内容【判断层·此前无人看守，本步建立看守】。
-10. P11(库中恰一条引用；无 userVisibleIssue)。
+6. P12(本地)——汇总切换段：音轨三次跨管线切换，字幕三次跨文本／位图与内嵌／外挂切换。
+7. P4(PlayerUI-InfoBar-button-back) 退出播放 → 回到网格，无错误浮层。
+8. 采网格卡片区域截图，Agent 判读卡片画面是否为退出前后的画面内容【判断层·此前无人看守，本步建立看守】。
+9. P11(库中恰一条引用；无 userVisibleIssue)。
 
 不证明：Files 选择器与相册两条系统面导入入口（人工层，佩戴者场次各走一遍即终身有效）；画质主观；逐格式解码覆盖（归 J00）。
 
-## J02 WebDAV：从连接到续播（完整详述）
+## J02 WebDAV：从错误凭据到连接、切换与续播（完整详述）
 
-覆盖：remote-source-connection（WebDAV）、viewing-state（本地权威）。
-内容条件：既有 WebDAV 服务器（旅程开始前主机侧探活：请求根目录列表成功；目标目录与视频名由探活结果确定）。凭据自本机凭据文件读取，不进命令行，证据经清洗。
+覆盖：remote-source-connection（WebDAV 全套：证书信任、凭据错误阶梯、连接、浏览）、track-selection（经远程来源）、viewing-state（本地权威）。
+内容条件：既有 WebDAV 服务器，经 HTTPS 且使用自签名证书（触发证书信任询问是本旅程的证明目标之一）。汇总片源 sdr-bframe-aggregate-30s.mkv 与其外挂边车已上传至该服务器的固定目录。旅程开始前主机侧探活：根目录列表成功、汇总片源与边车在位。凭据自本机凭据文件读取，不进命令行，证据经清洗。
 
 1. P0；P1(files 页签)。
 2. P4(FileBrowsing-SourcesSidebar-sourceMore) 打开来源菜单 → P5(该菜单, addWebDAV) → 表单出现：SourceConnection-webDAV 的 name/address/username/password/connect 五控件均在层级。
-3. 逐字段 typeText 填入（每字段经 P10：产品侧绑定值变化由探针或表单回读确认）。密码字段确认层级中不回显明文。
-4. tap connect → 成功判据：面包屑显示「WebDAV · 地址」且侧栏出现新 source 条目。若出现错误表达：本步失败并存错误截图（错误路径的正向验证归 J03）。
-5. tap 新侧栏条目进根目录 → 机械层：FileBrowsing-FilesScreen-itemCount 数值与层级中卡片计数一致。
-6. 按探活得到的路径逐层 tap --label '目录名, folder' 直至含视频目录；每层 itemCount 复核。
-7. P3(目标远程视频卡片, window)；P8；P9(非静音)。
-8. 轮询至 position≥60 秒；P4(InfoBar-button-back) 退出。
-9. 再次 tap 同一卡片 → 机械层：position 在退出值 ±5 秒内且 lifecycle=Playing（本地续播权威）。
-10. P11(侧栏含该来源；无 userVisibleIssue)。证据清洗复查：凭据值、URL userinfo、Authorization 头在全部归档中零命中。
+3. **凭据错误阶梯（先错后对）**。依次尝试三种不同的错误形态，每种都要产品给出可读的错误表达，且表单保持可继续编辑、无残留状态：
+   - 用户名对、密码错
+   - 用户名错、密码对
+   - 地址指向不存在的路径
+   每次尝试：逐字段 typeText 填入（每字段经 P10：产品侧绑定值变化由探针或表单回读确认；密码字段确认层级中不回显明文）→ tap connect → 判据：出现错误表达、未创建来源条目、表单仍可编辑。任一次静默失败（无表达）或表单卡死即本步失败。
+4. **证书信任询问**。填入正确凭据 → tap connect → 自签名证书触发信任询问 → tap 确认。判据：询问出现且其控件在层级中可命中（无 identifier 即产品可访问性缺陷，按在应用内可达性承诺记缺陷，不豁免）；确认后连接继续。若服务器证书已被系统信任而不弹询问，本步记为内容条件缺口并说明。
+5. 连接成功判据：面包屑显示「WebDAV · 地址」且侧栏出现新 source 条目。此处失败为缺陷（错误阶梯已在步骤 3 完成，此处只应成功）。
+6. tap 新侧栏条目进根目录 → 机械层：FileBrowsing-FilesScreen-itemCount 数值与层级中卡片计数一致。
+7. 按探活得到的路径逐层 tap --label '目录名, folder' 直至汇总片源所在目录；每层 itemCount 复核。
+8. P3(汇总片源卡片, window)；P8；P9(880Hz 主导、非静音)。
+9. **P12(WebDAV)——汇总切换段**。与 J01 逐字同判据：音轨三次跨管线切换，字幕三次跨文本／位图与内嵌／外挂切换；附加远程断言：切换期间不重开会话、字节流未中断。本段证明远程来源经得起同样的连续切换。
+10. 轮询至 position≥60 秒；P4(InfoBar-button-back) 退出。
+11. 再次 tap 同一卡片 → 机械层：position 在退出值 ±5 秒内且 lifecycle=Playing（本地续播权威）。
+12. P11(侧栏含该来源；无 userVisibleIssue)。证据清洗复查：凭据值、URL userinfo、Authorization 头在全部归档中零命中。
 
-不证明：证书信任询问（附录 D3 裁决前豁免）；凭据错误路径（J03）；服务器端行为（WebDAV 无进度协议，本地持久化即权威）。
+不证明：服务器端观看状态（WebDAV 无进度协议，本地持久化即权威）。
 
 ## J05 画面解释：动态范围家族（完整详述，新判读模型）
 
@@ -215,7 +233,22 @@
 
 ## J03 SMB / J04 Emby / J06 立体投影 / J08 轨道 / J09 网络韧性 / J10 存储设置 / J11 库管理 / J12 错误面
 
-（v1 紧凑版内容保持有效，粒度批准后按 J01 至 J07 同等粒度详述。v1 各表见 git 历史或直接要求展开。）
+（v1 紧凑版内容保持有效，粒度批准后按 J00 至 J02 同等粒度详述。v1 各表见 git 历史或直接要求展开。）
+
+J03（SMB）与 J04（Emby）按 J02 的形状起草：错误凭据阶梯在先，连接成功在后，然后 P12 汇总切换段。J03 的错误阶梯按 SMB 的失败形态改写（凭据错误、共享名不存在、主机不可达）。J04 的 Emby 段额外覆盖服务器侧观看状态权威。
+
+## 汇总片源的四来源布置
+
+同一件 sdr-bframe-aggregate-30s.mkv 及其外挂边车经四条来源分别进入产品，P12 在四处逐字同判据。四来源的物理布置：
+
+| 来源 | 片源位置 |
+|---|---|
+| 本地（J01） | 经 TestMediaInbox 注入设备 |
+| WebDAV（J02） | 网盘固定目录（用户上传） |
+| Emby（J04） | Emby 库指向同一网盘目录 |
+| SMB（J03） | 本机 TestMedia 共享 |
+
+由此四条来源旅程不再各自纠结片源：差异只在来源机器，片源恒定，任何来源上的切换差异直接归因于该来源。
 
 ---
 
@@ -228,7 +261,7 @@
 | emby-library | J04（Emby 自身机器）、J00 F 段（Emby 独占内容播放）、J00 0 段（全库与支持范围差集） |
 | clean-state-playback | J01 |
 | picture-interpretation | J05、J06 |
-| track-selection | J01（内嵌与外挂连续切换）、J08 |
+| track-selection | P12 汇总切换段 × 四来源（J01 本地、J02 WebDAV、J03 SMB、J04 Emby）、J08 |
 | format-coverage | J00（按需触发：解码代码、样片库、支持清单三者任一变更） |
 | viewing-state | J02、J04、J10 |
 | network-resilience | J09 |
@@ -244,7 +277,8 @@
 3. track-selection：不支持/失败音轨的感叹号表达（缺样片）
 4. network-resilience：三条（J09 全部，待 E1 至 E4 界面实现）
 5. cache-and-artwork：Artwork 留影（J01 步骤 7 建立看守）
-6. 未声明缺口四处：SMB/WebDAV 错误路径（J03 建立）、证书信任询问（D3）、看完标记与 Clear All（J10 建立）、外挂字幕独立证据（J08 建立）
+6. 未声明缺口三处：看完标记与 Clear All（J10 建立）、Emby 海报墙 swipeUp 杀 runner（D4）、Emby 详情页播放图标（D5）
+   已建立看守：SMB/WebDAV 错误路径（J02、J03 的错误凭据阶梯）、证书信任询问（J02 步骤 4）、外挂字幕（P12 字幕第三次切换）
 
 ## 附录 B：人工层清单（每项一次，此后由机械层加判断层代理）
 
@@ -272,7 +306,7 @@
 
 1. format-editing 双宿主：README 与特性文件不一致（J07 步骤 16 按两宿主起草）
 2. cache-and-artwork 索引判据的自动化程度：正文与表格矛盾
-3. 证书信任询问无 identifier：产品可访问性缺陷（修）还是系统域豁免
+3. ~~证书信任询问无 identifier~~ **已裁决 2026-08-20**：证书信任询问是 WebDAV 全套的一部分，纳入 J02 正向验证（自签名证书经 HTTPS 触发询问，确认即可）。无 identifier 即可访问性缺陷，按在应用内可达性承诺修复，不豁免。
 4. Emby 海报墙 swipeUp 一次杀 runner：未定性，需根因
 5. Emby 系列详情页顶部播放图标无 identifier 且点按无效：疑似产品缺陷
 6. EDR 余量等呈现字段是否已在诊断串暴露（老积压项，J05 依赖）
