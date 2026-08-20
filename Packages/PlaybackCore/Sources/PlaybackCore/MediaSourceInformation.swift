@@ -8,6 +8,12 @@ public enum MediaSourceStreamCategory: String, Codable, Sendable {
     case other
 }
 
+public enum PlaybackMediaKind: String, Codable, Sendable {
+    case video
+    case audioOnly
+    case unsupported
+}
+
 public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
     public let width: Int
     public let height: Int
@@ -104,6 +110,16 @@ public struct MediaSourceInformation: Codable, Equatable, Sendable {
     public let dolbyVisionCrossCompatibilityID: Int
     public let dolbyVisionHasEnhancementLayer: Bool
     public let hasStereoVideoEnhancementLayer: Bool
+
+    public var playbackMediaKind: PlaybackMediaKind {
+        if streams.contains(where: { $0.category == .video }) {
+            return .video
+        }
+        if streams.contains(where: { $0.category == .audio }) {
+            return .audioOnly
+        }
+        return .unsupported
+    }
 
     public init(
         containerFormat: String,
@@ -396,7 +412,8 @@ private extension MediaSourceStreamInformation {
     var supportsPlaybackAudio: Bool {
         guard let audio, audio.sampleRate > 0, audio.channelCount > 0 else { return false }
         return [
-            "aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "flac", "apac",
+            "aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "vorbis", "flac",
+            "dca", "truehd", "apac",
         ].contains(codecName) || codecName.hasPrefix("pcm_")
     }
 

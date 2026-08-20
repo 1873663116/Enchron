@@ -54,6 +54,7 @@ extension SampleBufferPlaybackSession {
         closeEndState()
         stopVideoDelivery()
         stopAudioDelivery()
+        resetAudioSpectrum()
         discardPendingVideoSample()
         deliveryQueue.sync {
             isClosed = true
@@ -117,6 +118,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func startVideoDelivery() {
+        guard mediaKind == .video else { return }
         let start = deliveryTaskLock.withLock { () -> (UInt64, Task<Void, Never>?)? in
             guard videoSampleDeliverySuspended == false else { return nil }
             videoDeliveryGeneration &+= 1
@@ -871,6 +873,15 @@ extension SampleBufferPlaybackSession {
                     nextSample = try await audioProvider.copyNextSample()
                 } catch {
                     guard !Task.isCancelled, !isClosed else { return }
+                    if mediaKind == .audioOnly {
+                        recordFailure(
+                            error,
+                            node: .mediaEventStream,
+                            kind: "audioProvider.readFailed"
+                        )
+                        onStatusChange?(.failed(error.localizedDescription))
+                        return
+                    }
                     retireAudio(
                         after: error,
                         node: .mediaEventStream,
@@ -916,6 +927,14 @@ extension SampleBufferPlaybackSession {
                 let presentationEnd = duration.isNumeric
                     ? CMTimeAdd(presentationTime, duration)
                     : presentationTime
+                let shouldAnchorAudioTimeline = mediaKind == .audioOnly && !hasStartedTimeline
+                if shouldAnchorAudioTimeline {
+                    let timelineStart = targetTimelineTime(fallback: presentationTime)
+                    setTimelineStopped(at: timelineStart, reason: .initialTimelineAnchor)
+                    hasStartedTimeline = true
+                    recordTimelineControlState()
+                    publishDiagnostics(at: timelineStart, force: true)
+                }
                 let audioInfo = audioProvider.info
                 let rawStreamIndex = audioInfo?.streamIndex
                     ?? selectedAudioStreamIndex
@@ -923,6 +942,14 @@ extension SampleBufferPlaybackSession {
                 let trackID = rawStreamIndex >= 0
                     ? "\(traceID).audio.\(rawStreamIndex)"
                     : "\(traceID).audio.unknown"
+                if mediaKind == .audioOnly {
+                    audioSpectrumAnalyzer.submit(
+                        sample,
+                        presentationTime: presentationTime
+                    ) { [weak self] frame in
+                        self?.enqueueAudioSpectrumFrame(frame)
+                    }
+                }
                 let record = AudioSampleRecord(
                     mediaSessionID: traceID,
                     audioTrackID: trackID,
@@ -1020,6 +1047,23 @@ extension SampleBufferPlaybackSession {
                 audioFrameCount += UInt64(max(0, record.sampleCount))
                 recordAudioPresentationEnd(presentationEnd)
                 recordAudioRendererState()
+                if shouldAnchorAudioTimeline {
+                    let activationTime = targetTimelineTime(fallback: presentationTime)
+                    if timelineStartRate > 0 {
+                        setRateAtHostTime(
+                            timelineStartRate,
+                            time: activationTime,
+                            reason: .firstSample
+                        )
+                        recordAudioRateActivation(
+                            rate: timelineStartRate,
+                            time: activationTime,
+                            reason: "firstAudioSample"
+                        )
+                    }
+                    publishTargetTimelineState(at: activationTime)
+                    publishDiagnostics(at: activationTime, force: true)
+                }
                 if audioSampleBufferCount == 1 {
                     var details = audioSampleFormatDetails(sample)
                     details["audioTrackID"] = trackID
@@ -1040,6 +1084,15 @@ extension SampleBufferPlaybackSession {
                 }
             } catch {
                 guard !Task.isCancelled, !isClosed else { return }
+                if mediaKind == .audioOnly {
+                    recordFailure(
+                        error,
+                        node: .rendererInputCoordination,
+                        kind: "audioRenderer.deliveryFailed"
+                    )
+                    onStatusChange?(.failed(error.localizedDescription))
+                    return
+                }
                 retireAudio(
                     after: error,
                     node: .rendererInputCoordination,
@@ -1956,6 +2009,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func resetAudioEndState(requiresAudio: Bool) {
+        resetAudioSpectrum()
         endStateLock.withLock {
             guard !endState.isClosed else { return }
             endState.requiresAudio = requiresAudio
@@ -2048,6 +2102,17 @@ extension SampleBufferPlaybackSession {
     func claimEndIfReady(at time: CMTime) -> Bool {
         guard time.isNumeric else { return false }
         return endStateLock.withLock {
+            if mediaKind == .audioOnly {
+                guard !endState.isClosed,
+                      !endState.didReportEnd,
+                      endState.audioProviderEnded,
+                      let presentationEnd = endState.audioPresentationEnd,
+                      CMTimeCompare(time, presentationEnd) >= 0 else {
+                    return false
+                }
+                endState.didReportEnd = true
+                return true
+            }
             guard !endState.isClosed,
                   !endState.didReportEnd,
                   endState.videoProviderEnded,

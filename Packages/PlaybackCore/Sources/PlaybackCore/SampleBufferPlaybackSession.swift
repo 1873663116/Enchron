@@ -132,6 +132,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     public let traceID: String
+    public private(set) var mediaKind: PlaybackMediaKind = .video
     /// A presentation conversion needs a renderer its new RealityView Entity has
     /// never bound, which is a different renderer graph on the same timeline and
     /// the same open source. `videoRendererGraph` is the only mutable part of the
@@ -206,6 +207,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var onAcceptedVideoFormatRevisionChange: (@Sendable (UInt64) -> Void)?
     var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
     var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
+    var onAudioSpectrumFrameChange: (@Sendable (AudioSpectrumFrame) -> Void)?
 
     let provider: VideoSampleProvider
     let audioProvider: AudioSampleProvider
@@ -222,6 +224,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let videoTrackID: String
     let deliveryQueue = DispatchQueue(label: "PlaybackCore.sample-delivery")
     let audioDeliveryQueue = DispatchQueue(label: "PlaybackCore.audio-sample-delivery")
+    let audioSpectrumAnalyzer = AudioSpectrumAnalyzer()
+    let audioSpectrumFramesLock = NSLock()
+    var audioSpectrumFrames: [AudioSpectrumFrame] = []
     let deliveryTaskLock = NSLock()
     let timelineProgressRecoveryLock = NSLock()
     var timelineProgressRecovery = PlaybackTimelineProgressRecovery()
@@ -451,6 +456,14 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             try demuxSession.seek(to: startTime.seconds)
         }
         if let sourceInformation {
+            mediaKind = sourceInformation.playbackMediaKind
+            guard mediaKind != .unsupported else {
+                throw CorePlaybackError.noPlayableMediaStream
+            }
+        } else {
+            mediaKind = .video
+        }
+        if let sourceInformation {
             availableAudioTracks = try await audioProvider.tracks(
                 in: url,
                 asset: asset,
@@ -522,16 +535,18 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             outcome: .succeeded,
             details: ["source": url.lastPathComponent]
         )
-        do {
-            try await provider.prepare(
-                url: url,
-                asset: asset,
-                sourceInformation: sourceInformation,
-                startTime: startTime
-            )
-        } catch {
-            recordFailure(error, node: .providerOpen, kind: "provider.openFailed")
-            throw error
+        if mediaKind == .video {
+            do {
+                try await provider.prepare(
+                    url: url,
+                    asset: asset,
+                    sourceInformation: sourceInformation,
+                    startTime: startTime
+                )
+            } catch {
+                recordFailure(error, node: .providerOpen, kind: "provider.openFailed")
+                throw error
+            }
         }
         do {
             try await audioProvider.prepare(
@@ -566,6 +581,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 )
             }
         } catch AudioSampleProviderError.noAudioStream {
+            if mediaKind == .audioOnly {
+                throw CorePlaybackError.noPlayableMediaStream
+            }
             hasAudio = false
             debugStore.recordAudioTrack(nil)
             debugStore.emit(
@@ -575,6 +593,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 outcome: .succeeded
             )
         } catch {
+            if mediaKind == .audioOnly {
+                recordFailure(error, node: .providerOpen, kind: "audioProvider.openFailed")
+                throw error
+            }
             retireAudio(
                 after: error,
                 node: .providerOpen,
@@ -583,17 +605,32 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
         resetAudioEndState(requiresAudio: hasAudio)
         recordAudioRendererState()
-        diagnostics.durationSeconds = provider.info.durationSeconds
-        diagnostics.nominalFrameRate = provider.info.nominalFrameRate
-        diagnostics.codecName = provider.info.codecName
-        diagnostics.isMVHEVC = provider.info.isMVHEVC
+        diagnostics.durationSeconds = mediaKind == .audioOnly
+            ? (sourceInformation?.durationSeconds ?? 0)
+            : provider.info.durationSeconds
+        diagnostics.nominalFrameRate = mediaKind == .audioOnly ? 0 : provider.info.nominalFrameRate
+        diagnostics.codecName = mediaKind == .audioOnly
+            ? (audioProvider.info?.codecName ?? "audio")
+            : provider.info.codecName
+        diagnostics.isMVHEVC = mediaKind == .video && provider.info.isMVHEVC
         diagnostics.dolbyVisionProfile = sourceInformation?.dolbyVisionProfile ?? 0
         diagnostics.dolbyVisionCrossCompatibilityID =
             sourceInformation?.dolbyVisionCrossCompatibilityID ?? 0
         diagnostics.dolbyVisionHasEnhancementLayer =
             sourceInformation?.dolbyVisionHasEnhancementLayer ?? false
-        diagnostics.trackFormatHasMasteringDisplayMetadata = provider.info.trackFormatHasMasteringDisplayMetadata
-        diagnostics.trackFormatHasContentLightLevelMetadata = provider.info.trackFormatHasContentLightLevelMetadata
+        diagnostics.trackFormatHasMasteringDisplayMetadata = mediaKind == .video
+            && provider.info.trackFormatHasMasteringDisplayMetadata
+        diagnostics.trackFormatHasContentLightLevelMetadata = mediaKind == .video
+            && provider.info.trackFormatHasContentLightLevelMetadata
+        if mediaKind == .audioOnly {
+            logger.info("Prepared audio-only codec=\(self.diagnostics.codecName, privacy: .public) duration=\(self.diagnostics.durationSeconds, format: .fixed(precision: 3))s")
+            PlaybackTrace.event(
+                "session.prepare.end id=\(traceID) kind=audioOnly codec=\(diagnostics.codecName) " +
+                "duration=\(diagnostics.durationSeconds)"
+            )
+            startRendererFailureMonitoring()
+            return
+        }
         let openSnapshot = ProviderOpenSnapshot(
             mediaSessionID: traceID,
             sourceSummary: url.lastPathComponent,
@@ -666,11 +703,17 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             return
         }
         PlaybackTrace.event("session.start.begin id=\(traceID)")
-        do {
-            try provider.start()
-        } catch {
-            recordFailure(error, node: .mediaEventStream, kind: "provider.startFailed")
-            throw error
+        if mediaKind == .audioOnly {
+            startAudioDelivery()
+            PlaybackTrace.event("session.start.end id=\(traceID) kind=audioOnly")
+            return
+        } else {
+            do {
+                try provider.start()
+            } catch {
+                recordFailure(error, node: .mediaEventStream, kind: "provider.startFailed")
+                throw error
+            }
         }
         if firstVideoFrameDeadlineWaitsForPlay == false {
             armFirstVideoFrameDeadline()

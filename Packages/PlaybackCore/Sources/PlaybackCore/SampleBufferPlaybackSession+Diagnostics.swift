@@ -18,6 +18,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func updatePresentationStatus(at time: CMTime) {
+        publishAudioSpectrumFrame(at: time)
         recordSubtitleState(at: time)
         publishSubtitleCues(at: time)
         publishDiagnostics(at: time)
@@ -44,7 +45,9 @@ extension SampleBufferPlaybackSession {
         diagnostics.rendererError = currentVideoRendererError ?? "none"
         recordRendererState(at: time)
         recordAudioRendererState()
-        refreshVideoPerformanceMetrics()
+        if mediaKind == .video {
+            refreshVideoPerformanceMetrics()
+        }
         let actualTimebaseRate = CMTimebaseGetRate(synchronizer.timebase)
         if actualTimebaseRate == 0 {
             refreshDisplayedPixelBufferDetails()
@@ -800,7 +803,7 @@ extension SampleBufferPlaybackSession {
                 "errorType": fact.errorType,
                 "rendererKind": fact.rendererKind.rawValue,
                 "requiresFlushToResumeDecoding": fact.requiresFlushToResumeDecoding
-                    .map { String($0) } ?? "notAvailable",
+                    .map { String($0) } ?? "notAvailable"
             ]
         )
         if activeOperation != nil {
@@ -857,7 +860,7 @@ extension SampleBufferPlaybackSession {
                         ? (audioRenderer.error?.localizedDescription
                             ?? currentAudioRendererError
                             ?? "none")
-                        : (currentVideoRendererError ?? "none"),
+                        : (currentVideoRendererError ?? "none")
                 ]
             )
         }

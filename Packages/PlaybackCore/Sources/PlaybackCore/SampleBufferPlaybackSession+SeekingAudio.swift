@@ -10,6 +10,10 @@ extension SampleBufferPlaybackSession {
         requiresAudioTarget: Bool = true
     ) async throws {
         guard !isClosed, let sourceURL else { return }
+        if mediaKind == .audioOnly {
+            try await seekAudioOnly(to: time, startsPaused: startsPaused, sourceURL: sourceURL)
+            return
+        }
         let target = try clampedSeekTime(time).seconds
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedBySeek)
         try Task.checkCancellation()
@@ -316,6 +320,94 @@ extension SampleBufferPlaybackSession {
         throw error
     }
 
+    private func seekAudioOnly(
+        to time: CMTime,
+        startsPaused: Bool,
+        sourceURL: URL
+    ) async throws {
+        let target = try clampedSeekTime(time).seconds
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedBySeek)
+        try Task.checkCancellation()
+        let currentRate = currentRate()
+        let preservedRate: Float = startsPaused
+            ? 0
+            : (currentRate > 0 ? currentRate : preferredPlaybackRate)
+        beginOperation(.seek, targetTimeSeconds: target)
+        let subtitleSeekEpoch = beginSubtitleTimelineDiscontinuity()
+        stopAudioDelivery()
+        setTimelineStopped(reason: .seek)
+        audioDeliveryQueue.sync { audioProvider.cancel() }
+        audioRendererSink.flush()
+        resetEndState(requiresAudio: true)
+        audioStreamEpoch += 1
+
+        let seeksToKnownEnd = diagnostics.durationSeconds > 0
+            && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000
+        if seeksToKnownEnd {
+            let endTime = CMTime(seconds: diagnostics.durationSeconds, preferredTimescale: 60_000)
+            timelineStartRate = 0
+            requestedTimelineStart = endTime
+            hasStartedTimeline = true
+            setTimelineStopped(at: endTime, reason: .seekToEnd)
+            diagnostics.currentSeconds = diagnostics.durationSeconds
+            updateLifecycle(.ended)
+            publishDiagnostics(at: endTime, force: true)
+            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+            finishActiveOperation(.completed)
+            onStatusChange?(.ended(.seekToEnd))
+            return
+        }
+
+        let targetTime = CMTime(seconds: target, preferredTimescale: 60_000)
+        do {
+            try demuxSession?.seek(to: target)
+            try await audioProvider.prepare(
+                url: sourceURL,
+                asset: sourceAsset,
+                startTime: targetTime,
+                streamIndex: selectedAudioStreamIndex
+            )
+        } catch {
+            recordFailure(error, node: .providerOpen, kind: "audioProvider.seekOpenFailed")
+            finishActiveOperation(.failed, failure: error.localizedDescription)
+            onStatusChange?(.failed(error.localizedDescription))
+            throw error
+        }
+
+        timelineStartRate = preservedRate
+        requestedTimelineStart = targetTime
+        hasStartedTimeline = false
+        isPrerolling = false
+        recordTimelineControlState()
+        startAudioDelivery()
+
+        let expectedEpoch = audioStreamEpoch
+        let deadline = ContinuousClock.now
+            + PlaybackBufferingPolicy.seekTargetCoordinationTimeout
+        while ContinuousClock.now < deadline {
+            try Task.checkCancellation()
+            let sample = debugStore.snapshot().lastAudioSample
+            if sample?.streamEpoch == expectedEpoch,
+               sample.map({
+                   samplePresentationCoversTarget(
+                       presentationTime: $0.presentationTimeSeconds,
+                       duration: $0.durationSeconds,
+                       target: target
+                   )
+               }) == true {
+                completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+                finishActiveOperation(.completed)
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let error = CorePlaybackError.seekTimedOut(target)
+        recordFailure(error, node: .rendererInputCoordination, kind: "control.seek.failed")
+        finishActiveOperation(.failed, failure: error.localizedDescription)
+        onStatusChange?(.failed(error.localizedDescription))
+        throw error
+    }
+
     func restoreEndedPresentation(_ continuity: PlaybackEndedContinuity) {
         stopVideoDelivery()
         stopAudioDelivery()
@@ -414,15 +506,17 @@ extension SampleBufferPlaybackSession {
         audioRendererSink.flush()
         resetAudioEndState(requiresAudio: previouslyHadAudio)
         if let demuxSession {
-            stopVideoDelivery()
-            deliveryQueue.sync { provider.cancel() }
             try demuxSession.seek(to: time.seconds)
-            try await provider.prepare(
-                url: sourceURL,
-                asset: sourceAsset,
-                startTime: time
-            )
-            try provider.start()
+            if mediaKind == .video {
+                stopVideoDelivery()
+                deliveryQueue.sync { provider.cancel() }
+                try await provider.prepare(
+                    url: sourceURL,
+                    asset: sourceAsset,
+                    startTime: time
+                )
+                try provider.start()
+            }
         }
         do {
             try await audioProvider.prepare(
@@ -455,7 +549,7 @@ extension SampleBufferPlaybackSession {
                     at: time,
                     reason: .audioTrackRollbackFailure
                 )
-                if demuxSession != nil {
+                if demuxSession != nil, mediaKind == .video {
                     startVideoDelivery()
                 }
                 return
@@ -466,7 +560,7 @@ extension SampleBufferPlaybackSession {
             if hasAudio {
                 startAudioDelivery()
             }
-            if demuxSession != nil {
+            if demuxSession != nil, mediaKind == .video {
                 startVideoDelivery()
             }
             setTimelineRateForDiscontinuity(
@@ -507,7 +601,9 @@ extension SampleBufferPlaybackSession {
         audioStreamEpoch += 1
         startAudioDelivery()
         if demuxSession != nil {
-            startVideoDelivery()
+            if mediaKind == .video {
+                startVideoDelivery()
+            }
         }
         setTimelineRateForDiscontinuity(
             rate,
