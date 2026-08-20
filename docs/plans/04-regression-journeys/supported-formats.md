@@ -119,7 +119,7 @@ FATE 定向拉取（`TestVectors/Upstream/FATE/`，44 件）已补齐 H.264/HEVC
 | 视频 | Dolby Vision Profile 5 的 IPT 演示片的非官方变体（非测试向量） | 仅 `CM4_L3L8` 等两条测试向量，未覆盖用户自制 P5 片源的色彩边界 |
 | 视频 | ProRes 4444 XQ (`ap4x`) | 有 `ap4h`/`apcn` 等，未见 `ap4x` 独立样片 |
 | 音频 | WMA 系列、APE、TAK | 无样片；FFmpeg 解码器已启用但无回归输入 |
-| 音频 | APAC 空间音频 | 无样片；透传实现进行中，样片拟以系统编码器生成，生成不了则如实上报 |
+| 音频 | APAC 空间音频 | 有官方样片：`TestVectors/Upstream/Apple/Audio/APAC-HLS/`（Apple HLS 分段资产，`apple_apac` 双声道）；缺的是非 HLS 独立样片 |
 | 字幕 | 外挂 `vtt` / `ssa` / `sup` 边车 | 发现过滤器支持 `vtt`/`ssa` 但无边车样片；`sup` 纳入发现范围（2026-08-20 裁决）后同样需要样片 |
 
 ---
