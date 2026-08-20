@@ -1,6 +1,6 @@
 import Foundation
 import MediaSource
-@_spi(Testing) import PlaybackFeature
+@testable @_spi(Testing) import PlaybackFeature
 import Synchronization
 import Testing
 
@@ -18,6 +18,7 @@ struct TrackSelectionPreferenceTests {
 
         #expect(format == .standard)
         #expect(format.usesDolbyVisionFallback == false)
+    }
 
     @Test("network retry stops when its launch generation becomes stale")
     func staleGenerationStopsNetworkRetry() {
