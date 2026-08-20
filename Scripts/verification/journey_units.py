@@ -341,8 +341,11 @@ UNITS: tuple[Unit, ...] = (
             real(
                 "type",
                 "MediaLibrary-NewFolder-name",
+                label="Folder name",
                 text="Unit Folder",
-                expect="Field holds the typed name.",
+                expect="Field holds the typed name. SwiftUI drops the "
+                "identifier from a TextField inside an alert, so the label is "
+                "the handle that resolves.",
             ),
             real(
                 "tap",
@@ -370,15 +373,13 @@ UNITS: tuple[Unit, ...] = (
         needs=("library.new-folder",),
         steps=(
             real(
-                "tap",
-                "MediaLibrary-RenameFolder-name",
-                expect="Rename field is focused.",
-            ),
-            real(
                 "type",
                 "MediaLibrary-RenameFolder-name",
+                label="Folder name",
                 text="Renamed Folder",
-                expect="Field holds the new name.",
+                expect="Field holds the new name. The alert focuses the field "
+                "on appearance, and its identifier does not survive the alert, "
+                "so the label is the handle that resolves.",
             ),
             real(
                 "tap",
