@@ -585,7 +585,6 @@ extension SampleBufferPlaybackSession {
                         isPrerolling = false
                         clearPrerollRequirement()
                         recordTimelineControlState()
-                        publishTargetTimelineState(at: activationTime)
                         publishDiagnostics(at: activationTime, force: true)
                     }
                 } else if synchronizer.rate == timelineStartRate {
