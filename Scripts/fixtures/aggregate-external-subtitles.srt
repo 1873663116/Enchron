@@ -1,0 +1,15 @@
+1
+00:00:00,500 --> 00:00:29,500
+Enchron external sidecar SubRip
+
+2
+00:00:08,000 --> 00:00:11,000
+External sidecar window cue
+
+3
+00:00:14,000 --> 00:00:17,000
+External sidecar seek cue
+
+4
+00:00:22,000 --> 00:00:26,000
+External sidecar docked cue

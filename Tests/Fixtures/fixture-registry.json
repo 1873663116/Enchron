@@ -230,6 +230,123 @@
       }
     },
     {
+      "id": "generated-sdr-avc-bframe-aggregate-30s-v1",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv",
+      "sha256": "e290e5c8a9b10a06795b081b476ff84f55374a8266929a21dde6b895034bd133",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "Matroska / MKV",
+      "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range; copied byte-for-byte from the deterministic SDR fixture",
+      "audio": "four 48 kHz stereo tracks with distinct 80 ms pulses: AAC 880 Hz, FLAC 660 Hz, AC-3 440 Hz and E-AC-3 550 Hz",
+      "subtitles": "three embedded tracks: SubRip / S_TEXT/UTF8, styled ASS / S_TEXT/ASS and generated DVB bitmap; two automatically associated external sidecars use distinct text",
+      "durationSeconds": 30.021,
+      "matrix": {
+        "container": "mkv",
+        "videoCodec": "h264",
+        "audioCodecs": ["aac", "flac", "ac3", "eac3"],
+        "subtitleCodecs": ["subrip", "ass", "dvb_subtitle"],
+        "hasAudio": true,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "audioTrackSelection",
+        "embeddedSubtitleSelection",
+        "externalSubtitleSelection"
+      ],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv",
+        "ffmpegVersion": "N-125990-g5c395992f9"
+      },
+      "oracle": {
+        "sourceVideoFixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+        "videoPacketPayloadSHA256": "2cc646433b8a55fee7870ffc999138a2bf0d03627003812cebb97bf4edec88d9",
+        "audioTracks": [
+          {
+            "streamIndex": 1,
+            "codec": "aac",
+            "title": "AAC 880 Hz sync pulse",
+            "pulseFrequencyHz": 880,
+            "pipeline": "FFmpeg decoded PCM",
+            "default": true
+          },
+          {
+            "streamIndex": 2,
+            "codec": "flac",
+            "title": "FLAC 660 Hz sync pulse",
+            "pulseFrequencyHz": 660,
+            "pipeline": "FFmpeg decoded PCM",
+            "default": false
+          },
+          {
+            "streamIndex": 3,
+            "codec": "ac3",
+            "title": "AC-3 440 Hz sync pulse",
+            "pulseFrequencyHz": 440,
+            "pipeline": "compressed passthrough to system",
+            "default": false
+          },
+          {
+            "streamIndex": 4,
+            "codec": "eac3",
+            "title": "E-AC-3 550 Hz sync pulse",
+            "pulseFrequencyHz": 550,
+            "pipeline": "compressed passthrough to system",
+            "default": false
+          }
+        ],
+        "crossPipelineSwitchOrderByStreamIndex": [1, 3, 2, 4],
+        "embeddedSubtitleTracks": [
+          {
+            "streamIndex": 5,
+            "codec": "subrip",
+            "language": "zho",
+            "title": "Enchron acceptance subtitles",
+            "cueTexts": [
+              "Enchron 字幕验证\nlibass GPU SubtitleFrame",
+              "Window playback subtitle",
+              "Seek 后只显示当前 cue",
+              "Docked scene subtitle"
+            ]
+          },
+          {
+            "streamIndex": 6,
+            "codec": "ass",
+            "language": "eng",
+            "title": "Enchron styled libass proof",
+            "cueTexts": ["Enchron GPU PIXEL PROOF"]
+          },
+          {
+            "streamIndex": 7,
+            "codec": "dvb_subtitle",
+            "language": "eng",
+            "title": "Enchron generated bitmap proof",
+            "cueTexts": [],
+            "pixelContent": "top-safe-area project-generated color bars"
+          }
+        ],
+        "externalSidecars": [
+          {
+            "fileName": "sdr-bframe-aggregate-30s.zh-CN.srt",
+            "codec": "subrip",
+            "cueTexts": [
+              "Enchron external sidecar SubRip",
+              "External sidecar window cue",
+              "External sidecar seek cue",
+              "External sidecar docked cue"
+            ]
+          },
+          {
+            "fileName": "sdr-bframe-aggregate-30s.styled.ass",
+            "codec": "ass",
+            "cueTexts": ["Enchron EXTERNAL SIDECAR ASS"]
+          }
+        ]
+      }
+    },
+    {
       "id": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
       "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4",
       "sha256": "9c318aac50d9c4d03c82b988ad0ae83a06403cf5d813622724da3f5eed4eb80e",
@@ -437,6 +554,71 @@
         "associatedVideoFixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
         "expectedAutomaticAssociation": true,
         "styledCueText": "Enchron GPU PIXEL PROOF"
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-aggregate-external-subrip-zh-cn-v1",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.zh-CN.srt",
+      "sha256": "23596e6f98cbbcd9c220df28d9e3138198c7a80c7a141069534583d13f0e1d1e",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "standalone SubRip subtitle file",
+      "videoCodec": "none; associated with generated-sdr-avc-bframe-aggregate-30s-v1",
+      "audio": "none",
+      "durationSeconds": 29.5,
+      "matrix": {
+        "container": "srt",
+        "videoCodec": "none",
+        "audioCodecs": [],
+        "subtitleCodecs": ["subrip"],
+        "hasAudio": false,
+        "color": "not-applicable"
+      },
+      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.zh-CN.srt"
+      },
+      "oracle": {
+        "associatedVideoFixtureID": "generated-sdr-avc-bframe-aggregate-30s-v1",
+        "expectedAutomaticAssociation": true,
+        "distinctFromEmbeddedSubtitleText": true,
+        "cueTexts": [
+          "Enchron external sidecar SubRip",
+          "External sidecar window cue",
+          "External sidecar seek cue",
+          "External sidecar docked cue"
+        ]
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-aggregate-external-ass-styled-v1",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.styled.ass",
+      "sha256": "b2eb965a5287dadb320aea5c1cb2ad7a95f03f147001e754082dbcb4fe98699f",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "standalone ASS subtitle file",
+      "videoCodec": "none; associated with generated-sdr-avc-bframe-aggregate-30s-v1",
+      "audio": "none",
+      "durationSeconds": 29.5,
+      "matrix": {
+        "container": "ass",
+        "videoCodec": "none",
+        "audioCodecs": [],
+        "subtitleCodecs": ["ass"],
+        "hasAudio": false,
+        "color": "not-applicable"
+      },
+      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.styled.ass"
+      },
+      "oracle": {
+        "associatedVideoFixtureID": "generated-sdr-avc-bframe-aggregate-30s-v1",
+        "expectedAutomaticAssociation": true,
+        "distinctFromEmbeddedSubtitleText": true,
+        "styledCueText": "Enchron EXTERNAL SIDECAR ASS"
       }
     }
   ]

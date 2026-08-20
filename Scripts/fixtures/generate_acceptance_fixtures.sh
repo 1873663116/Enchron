@@ -2,21 +2,103 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUTPUT_DIR="${1:-$ROOT_DIR/../TestMedia/TestVectors/Enchron/PlaybackBehavior}"
+OUTPUT_DIR="$ROOT_DIR/../TestMedia/TestVectors/Enchron/PlaybackBehavior"
+SELECTED_FIXTURE=""
 FFMPEG="${FFMPEG:-ffmpeg}"
 FFPROBE="${FFPROBE:-ffprobe}"
 CC="${CC:-clang}"
 PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
 JQ="${JQ:-jq}"
+REGISTRY="$ROOT_DIR/Tests/Fixtures/fixture-registry.json"
+
+usage() {
+  cat <<'EOF'
+Usage: generate_acceptance_fixtures.sh [output-directory] [--fixture fixture-name]
+
+With no --fixture option, generates the legacy acceptance fixture set with FFmpeg 8.0.1.
+The only fixture currently available for targeted generation is sdr-bframe-aggregate-30s.
+EOF
+}
+
+if [[ $# -gt 0 && "$1" != --* ]]; then
+  OUTPUT_DIR="$1"
+  shift
+fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fixture)
+      if [[ $# -lt 2 || -n "$SELECTED_FIXTURE" ]]; then
+        usage >&2
+        exit 2
+      fi
+      SELECTED_FIXTURE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+case "$SELECTED_FIXTURE" in
+  ""|sdr-bframe-aggregate-30s)
+    ;;
+  sdr-bframe-aggregate-30s.mkv)
+    SELECTED_FIXTURE="sdr-bframe-aggregate-30s"
+    ;;
+  *)
+    printf 'unsupported targeted fixture: %s\n' "$SELECTED_FIXTURE" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
 
 command -v "$FFMPEG" >/dev/null
 command -v "$FFPROBE" >/dev/null
 command -v "$CC" >/dev/null
 command -v "$PKG_CONFIG" >/dev/null
 command -v "$JQ" >/dev/null
-"$FFMPEG" -version | head -n 1 | grep -q 'ffmpeg version 8\.0\.1'
+FFMPEG_VERSION_LINE="$("$FFMPEG" -version | sed -n '1p')"
+FFMPEG_VERSION="${FFMPEG_VERSION_LINE#ffmpeg version }"
+FFMPEG_VERSION="${FFMPEG_VERSION%% Copyright*}"
+if [[ -z "$SELECTED_FIXTURE" && "$FFMPEG_VERSION" != "8.0.1" ]]; then
+  printf 'legacy acceptance fixtures require FFmpeg 8.0.1, found %s\n' \
+    "$FFMPEG_VERSION" >&2
+  exit 1
+fi
 
 mkdir -p "$OUTPUT_DIR"
+
+verify_hash() {
+  local fixture_id="$1"
+  local fixture="$2"
+  local expected="$3"
+  local actual
+  actual="$(shasum -a 256 "$fixture" | awk '{print $1}')"
+  if [[ "$actual" != "$expected" ]]; then
+    printf 'fixture hash mismatch for %s at %s: expected %s, got %s\n' \
+      "$fixture_id" "$fixture" "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+verify_registered_source() {
+  local device_import_path="$1"
+  local fixture="$OUTPUT_DIR/${device_import_path#TestVectors/Enchron/PlaybackBehavior/}"
+  local fixture_id
+  local expected_hash
+  fixture_id="$("$JQ" -er --arg path "$device_import_path" \
+    '.fixtures[] | select(.deviceImportPath == $path) | .id' "$REGISTRY")"
+  expected_hash="$("$JQ" -er --arg path "$device_import_path" \
+    '.fixtures[] | select(.deviceImportPath == $path) | .sha256' "$REGISTRY")"
+  verify_hash "$fixture_id" "$fixture" "$expected_hash"
+}
 
 audio_pulse() {
   local frequency="$1"
@@ -138,6 +220,53 @@ generate_audio_codec_matrix() {
     -t 15 -bitexact "$output"
 }
 
+generate_aggregate() {
+  local output="$OUTPUT_DIR/sdr-bframe-aggregate-30s.mkv"
+  local source_path="TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4"
+  local build_dir
+  verify_registered_source "$source_path"
+  build_dir="$(mktemp -d "${TMPDIR:-/tmp}/enchron-aggregate-fixture.XXXXXX")"
+  local bitmap="$build_dir/generated-bitmap-subtitle.mks"
+  local generator="$build_dir/generate-bitmap-subtitle-fixture"
+  local ffmpeg_build_flags
+  read -r -a ffmpeg_build_flags <<< "$("$PKG_CONFIG" --cflags --libs libavformat libavcodec libavutil)"
+  "$CC" -std=c17 -Wall -Wextra \
+    "$ROOT_DIR/Scripts/fixtures/generate_bitmap_subtitle_fixture.c" \
+    "${ffmpeg_build_flags[@]}" \
+    -o "$generator"
+  "$generator" "$bitmap"
+  "$FFMPEG" -hide_banner -loglevel error -y \
+    -i "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4" \
+    -f lavfi -i "$(audio_pulse 660 30)" \
+    -f lavfi -i "$(audio_pulse 440 30)" \
+    -f lavfi -i "$(audio_pulse 550 30)" \
+    -f srt -i "$ROOT_DIR/Scripts/fixtures/acceptance-subtitles.srt" \
+    -f ass -i "$ROOT_DIR/Scripts/fixtures/acceptance-subtitles.ass" \
+    -i "$bitmap" \
+    -map 0:v:0 -map 0:a:0 -map 1:a:0 -map 2:a:0 -map 3:a:0 \
+    -map 4:s:0 -map 5:s:0 -map 6:s:0 \
+    -map_metadata -1 -c:v copy \
+    -c:a:0 copy \
+    -c:a:1 flac \
+    -c:a:2 ac3 -b:a:2 192k \
+    -c:a:3 eac3 -b:a:3 192k \
+    -metadata:s:a:0 title='AAC 880 Hz sync pulse' \
+    -metadata:s:a:1 title='FLAC 660 Hz sync pulse' \
+    -metadata:s:a:2 title='AC-3 440 Hz sync pulse' \
+    -metadata:s:a:3 title='E-AC-3 550 Hz sync pulse' \
+    -disposition:a:0 default -disposition:a:1 0 \
+    -disposition:a:2 0 -disposition:a:3 0 \
+    -c:s:0 srt -c:s:1 ass -c:s:2 copy \
+    -metadata:s:s:0 language=zho \
+    -metadata:s:s:0 title='Enchron acceptance subtitles' \
+    -metadata:s:s:1 language=eng \
+    -metadata:s:s:1 title='Enchron styled libass proof' \
+    -metadata:s:s:2 language=eng \
+    -metadata:s:s:2 title='Enchron generated bitmap proof' \
+    -t 30 -bitexact "$output"
+  rm -rf -- "$build_dir"
+}
+
 generate_av1_flac() {
   local output="$OUTPUT_DIR/av1-flac-avsync-10s.mkv"
   "$FFMPEG" -hide_banner -loglevel error -y \
@@ -158,36 +287,45 @@ generate_external_subtitles() {
     "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.styled.ass"
 }
 
-generate_sdr
-generate_long_sdr
-generate_hdr arib-std-b67 arib-std-b67 hlg-hevc-10bit-avsync-10s.mp4
-generate_hdr smpte2084 smpte2084 pq-hevc-10bit-avsync-10s.mp4
-generate_subtitle
-generate_video_only
-generate_audio_codec_matrix
-generate_av1_flac
-generate_external_subtitles
-
-REGISTRY="$ROOT_DIR/Tests/Fixtures/fixture-registry.json"
-verify_hash() {
-  local fixture_id="$1"
-  local fixture="$2"
-  local expected="$3"
-  local actual
-  actual="$(shasum -a 256 "$fixture" | awk '{print $1}')"
-  if [[ "$actual" != "$expected" ]]; then
-    printf 'fixture hash mismatch for %s at %s: expected %s, got %s\n' \
-      "$fixture_id" "$fixture" "$expected" "$actual" >&2
-    exit 1
-  fi
+generate_aggregate_external_subtitles() {
+  cp -p "$ROOT_DIR/Scripts/fixtures/aggregate-external-subtitles.srt" \
+    "$OUTPUT_DIR/sdr-bframe-aggregate-30s.zh-CN.srt"
+  cp -p "$ROOT_DIR/Scripts/fixtures/aggregate-external-subtitles.ass" \
+    "$OUTPUT_DIR/sdr-bframe-aggregate-30s.styled.ass"
 }
+
+if [[ "$SELECTED_FIXTURE" == "sdr-bframe-aggregate-30s" ]]; then
+  printf 'Generating %s with FFmpeg %s\n' "$SELECTED_FIXTURE" "$FFMPEG_VERSION"
+  generate_aggregate
+  generate_aggregate_external_subtitles
+else
+  generate_sdr
+  generate_long_sdr
+  generate_hdr arib-std-b67 arib-std-b67 hlg-hevc-10bit-avsync-10s.mp4
+  generate_hdr smpte2084 smpte2084 pq-hevc-10bit-avsync-10s.mp4
+  generate_subtitle
+  generate_video_only
+  generate_audio_codec_matrix
+  generate_av1_flac
+  generate_external_subtitles
+fi
 
 while IFS=$'\t' read -r fixture_id import_path expected_hash; do
   verify_hash "$fixture_id" "$OUTPUT_DIR/${import_path#TestVectors/Enchron/PlaybackBehavior/}" "$expected_hash"
 done < <(
-  "$JQ" -r '
+  "$JQ" -r --arg selected "$SELECTED_FIXTURE" '
     .fixtures[]
     | select(.acceptanceEligibility == "eligible-local-generated")
+    | select(
+        if $selected == "sdr-bframe-aggregate-30s" then
+          .deviceImportPath
+          | startswith("TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.")
+        else
+          .deviceImportPath
+          | startswith("TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.")
+          | not
+        end
+      )
     | [.id, .deviceImportPath, .sha256]
     | @tsv
   ' "$REGISTRY"
