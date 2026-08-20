@@ -73,6 +73,7 @@ STRUCTURE_CHECKS = (
         runs_in_quick_mode=False,
     ),
     StructureCheck("media-byte-stream", "verify_media_byte_stream.py"),
+    StructureCheck("demux-buffer-policy", "verify_demux_buffer_policy.py"),
     StructureCheck(
         "media-byte-stream-conformance",
         "verify_media_byte_stream_conformance.py",
@@ -95,6 +96,10 @@ STRUCTURE_CHECKS = (
     StructureCheck(
         "gauntlet-guard-tests",
         "test_run_verification_gauntlet.py",
+    ),
+    StructureCheck(
+        "journey-operation-coverage",
+        "verify_journey_operation_coverage.py",
     ),
     StructureCheck(
         "visionpro-core-regression-plan",

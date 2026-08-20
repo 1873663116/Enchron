@@ -26,15 +26,16 @@ struct EmbyMediaByteSourceTests {
         #expect(source.byteStreamAttributes == MediaByteStreamAttributes(
             contentLength: 10,
             supportsSeeking: true,
-            isLive: false,
-            preferredBufferDepth: .bytes(1_024 * 1_024)
+            isLive: false
         ))
         let server = MediaByteStreamServer()
         let handle = try await server.register(
             source: source,
-            filename: "stream.mkv"
+            filename: "stream.mkv",
+            preferredBufferDepth: .automatic
         )
         defer { handle.release() }
+        #expect(handle.preferredBufferDepth == .automatic)
 
         let offset = try await Self.read(handle.url, range: "bytes=2-5")
         let suffix = try await Self.read(handle.url, range: "bytes=-3")

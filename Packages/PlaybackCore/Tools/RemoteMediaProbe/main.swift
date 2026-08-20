@@ -137,7 +137,14 @@ func openAudioReader(source: String, monitor: OpaquePointer) throws -> String {
 func openSharedSession(source: String, monitor: OpaquePointer) throws -> String {
     var error = [CChar](repeating: 0, count: 512)
     let demuxSource = source.withCString {
-        PBFFmpegDemuxSourceCreate($0, false, monitor, &error, error.count)
+        PBFFmpegDemuxSourceCreate(
+            $0,
+            false,
+            PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+            monitor,
+            &error,
+            error.count
+        )
     }
     guard let demuxSource else {
         throw ProbeFailure.operation(
@@ -419,7 +426,14 @@ func measurePlayback(
     }
     var error = [CChar](repeating: 0, count: 512)
     let demuxSource = source.withCString {
-        PBFFmpegDemuxSourceCreate($0, false, monitor, &error, error.count)
+        PBFFmpegDemuxSourceCreate(
+            $0,
+            false,
+            PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+            monitor,
+            &error,
+            error.count
+        )
     }
     guard let demuxSource else {
         throw ProbeFailure.operation(

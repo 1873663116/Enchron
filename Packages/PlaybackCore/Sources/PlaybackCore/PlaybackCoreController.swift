@@ -78,7 +78,7 @@ public final class PlaybackCoreController {
     private var seekGeneration: UInt64 = 0
     private var subtitleSelectionGeneration: UInt64 = 0
     private var formatOverrideGeneration: UInt64 = 0
-    private var selectedSourceIsRemote = false
+    private var selectedSourceTransport = PlaybackSourceTransport.localFile
 
     public init() {
         sessionFactory = { sessionID in
@@ -109,7 +109,7 @@ public final class PlaybackCoreController {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
-        sourceIsRemote: Bool = false,
+        sourceTransport: PlaybackSourceTransport = .localFile,
         initialStereoLayout: VideoStereoLayout? = nil,
         initialProjectionOverride: VideoProjectionOverride? = nil,
         initialDynamicRangeOverride: VideoDynamicRangeOverride? = nil,
@@ -147,7 +147,7 @@ public final class PlaybackCoreController {
 
         selectedURL = url
         selectedAsset = asset
-        selectedSourceIsRemote = sourceIsRemote
+        selectedSourceTransport = sourceTransport
         setStatus(.loading)
         let session = sessionFactory(sessionID)
         if initialStereoLayout != nil || initialProjectionOverride != nil
@@ -192,7 +192,7 @@ public final class PlaybackCoreController {
                 startTime: startTime,
                 startsPaused: startsPaused,
                 initialRate: initialRate,
-                sourceIsRemote: sourceIsRemote,
+                sourceTransport: sourceTransport,
                 provenance: provenance,
                 accessRequirement: accessRequirement
             )
@@ -795,7 +795,7 @@ public final class PlaybackCoreController {
         return try await open(
             url,
             asset: selectedAsset,
-            sourceIsRemote: selectedSourceIsRemote,
+            sourceTransport: selectedSourceTransport,
             initialStereoLayout: stereoLayout,
             initialProjectionOverride: projectionOverride,
             initialDynamicRangeOverride: dynamicRangeOverride,
@@ -810,7 +810,7 @@ public final class PlaybackCoreController {
         if clearSource {
             selectedURL = nil
             selectedAsset = nil
-            selectedSourceIsRemote = false
+            selectedSourceTransport = .localFile
         }
         formatOverrideGeneration &+= 1
         activeFormatOverrideTask?.cancel()
@@ -835,7 +835,7 @@ public final class PlaybackCoreController {
         if clearSource {
             selectedURL = nil
             selectedAsset = nil
-            selectedSourceIsRemote = false
+            selectedSourceTransport = .localFile
         }
         formatOverrideGeneration &+= 1
         subtitleSelectionGeneration &+= 1

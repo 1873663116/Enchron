@@ -309,7 +309,8 @@ public actor EmbyPlaybackBridge {
         )
         let byteStreamHandle = try await MediaByteStreamServer.shared.register(
             source: byteSource,
-            filename: source.displayName
+            filename: source.displayName,
+            preferredBufferDepth: .automatic
         )
         return PlaybackLaunchRequest(
             source: PlaybackAddress(byteStreamHandle: byteStreamHandle),
@@ -369,8 +370,7 @@ private final class EmbyByteRangeSource: MediaByteRangeSource, @unchecked Sendab
         byteStreamAttributes = MediaByteStreamAttributes(
             contentLength: reportedContentLength,
             supportsSeeking: true,
-            isLive: false,
-            preferredBufferDepth: .automatic
+            isLive: false
         )
     }
 

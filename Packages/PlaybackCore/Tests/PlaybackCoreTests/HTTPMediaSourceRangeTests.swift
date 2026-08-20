@@ -315,8 +315,173 @@ private func waitUntil(
     return predicate()
 }
 
+private func defaultDemuxBufferConfiguration(
+    isRemote: Bool
+) -> PBFFmpegDemuxBufferConfiguration {
+    PBFFmpegDemuxBufferConfigurationMake(
+        isRemote ? PBFFmpegDemuxBufferModeAutomatic : PBFFmpegDemuxBufferModeNone,
+        0
+    )
+}
+
+private struct DemuxPrefetchObservation {
+    let mode: PBFFmpegDemuxBufferMode
+    let bufferedDurationSeconds: Double
+    let targetDurationSeconds: Double
+    let forwardBufferedBytes: Int64
+    let forwardLimitBytes: Int64
+    let backwardBufferedBytes: Int64
+    let backwardLimitBytes: Int64
+    let readFrameCount: UInt64
+    let readFrameCountAfterSettling: UInt64
+}
+
+private func observeDemuxPrefetch(
+    path: String,
+    isRemote: Bool,
+    configuration: PBFFmpegDemuxBufferConfiguration,
+    reachesStoppingCondition: (OpaquePointer) -> Bool
+) throws -> DemuxPrefetchObservation {
+    var error = [CChar](repeating: 0, count: 512)
+    let source = path.withCString {
+        PBFFmpegDemuxSourceCreate(
+            $0,
+            isRemote,
+            configuration,
+            nil,
+            &error,
+            error.count
+        )
+    }
+    let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
+    defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+    let reader = try #require(PBFFmpegReaderAllocate())
+    defer { PBFFmpegReaderDestroy(reader) }
+    try #require(PBFFmpegReaderOpenWithDemuxSource(
+        reader,
+        openedSource,
+        PBFFmpegModeCompressed,
+        &error,
+        error.count
+    ), Comment(rawValue: reportedError(error)))
+    #expect(waitUntil(timeout: 3) { reachesStoppingCondition(openedSource) })
+    let readFrameCount = PBFFmpegDemuxSourceGetReadFrameCount(openedSource)
+    Thread.sleep(forTimeInterval: 0.15)
+    return DemuxPrefetchObservation(
+        mode: PBFFmpegDemuxSourceGetBufferMode(openedSource),
+        bufferedDurationSeconds: PBFFmpegDemuxSourceGetBufferedDurationSeconds(openedSource),
+        targetDurationSeconds: PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(openedSource),
+        forwardBufferedBytes: PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource),
+        forwardLimitBytes: PBFFmpegDemuxSourceGetForwardBufferByteLimit(openedSource),
+        backwardBufferedBytes: PBFFmpegDemuxSourceGetBackwardBufferedByteCount(openedSource),
+        backwardLimitBytes: PBFFmpegDemuxSourceGetBackwardBufferByteLimit(openedSource),
+        readFrameCount: readFrameCount,
+        readFrameCountAfterSettling: PBFFmpegDemuxSourceGetReadFrameCount(openedSource)
+    )
+}
+
+@Test func demuxBufferDefaultsMatchMpvDesktopDefaults() {
+    let none = PBFFmpegDemuxBufferConfigurationMake(
+        PBFFmpegDemuxBufferModeNone,
+        0
+    )
+    #expect(none.forwardByteLimit == 150 * 1_024 * 1_024)
+    #expect(none.backwardByteLimit == 50 * 1_024 * 1_024)
+    #expect(none.targetDurationSeconds == 1)
+
+    let automatic = PBFFmpegDemuxBufferConfigurationMake(
+        PBFFmpegDemuxBufferModeAutomatic,
+        0
+    )
+    #expect(automatic.forwardByteLimit == 150 * 1_024 * 1_024)
+    #expect(automatic.backwardByteLimit == 50 * 1_024 * 1_024)
+    #expect(automatic.targetDurationSeconds == 1_000 * 60 * 60)
+
+    let explicit = PBFFmpegDemuxBufferConfigurationMake(
+        PBFFmpegDemuxBufferModeBytes,
+        32 * 1_024 * 1_024
+    )
+    #expect(explicit.forwardByteLimit == 32 * 1_024 * 1_024)
+    #expect(explicit.backwardByteLimit == 50 * 1_024 * 1_024)
+    #expect(explicit.targetDurationSeconds == 1_000 * 60 * 60)
+}
+
 @Suite(.serialized)
 struct DemuxNetworkResilienceTests {
+    @Test func localNoneStopsTheReadThreadAtTheDurationTarget() throws {
+        let configuration = PBFFmpegDemuxBufferConfigurationMake(
+            PBFFmpegDemuxBufferModeNone,
+            0
+        )
+        let observation = try observeDemuxPrefetch(
+            path: resilienceFixture.path,
+            isRemote: false,
+            configuration: configuration
+        ) {
+            PBFFmpegDemuxSourceGetBufferedDurationSeconds($0) >= 1
+        }
+
+        #expect(observation.mode == PBFFmpegDemuxBufferModeNone)
+        #expect(observation.bufferedDurationSeconds >= 1)
+        #expect(observation.targetDurationSeconds == 1)
+        #expect(observation.forwardBufferedBytes < observation.forwardLimitBytes)
+        #expect(observation.backwardBufferedBytes == 0)
+        #expect(observation.backwardLimitBytes == 50 * 1_024 * 1_024)
+        #expect(observation.readFrameCountAfterSettling == observation.readFrameCount)
+    }
+
+    @Test func automaticStopsTheReadThreadAtItsForwardByteLimit() throws {
+        let server = try RecordingRangeServer(
+            serving: try Data(contentsOf: resilienceFixture)
+        )
+        defer { server.stop() }
+        var configuration = PBFFmpegDemuxBufferConfigurationMake(
+            PBFFmpegDemuxBufferModeAutomatic,
+            0
+        )
+        configuration.forwardByteLimit = 128 * 1_024
+        let observation = try observeDemuxPrefetch(
+            path: server.url.absoluteString,
+            isRemote: true,
+            configuration: configuration
+        ) {
+            PBFFmpegDemuxSourceGetForwardBufferedByteCount($0) >=
+                configuration.forwardByteLimit
+        }
+
+        #expect(observation.mode == PBFFmpegDemuxBufferModeAutomatic)
+        #expect(observation.targetDurationSeconds == 1_000 * 60 * 60)
+        #expect(observation.forwardBufferedBytes >= configuration.forwardByteLimit)
+        #expect(observation.bufferedDurationSeconds < observation.targetDurationSeconds)
+        #expect(observation.readFrameCountAfterSettling == observation.readFrameCount)
+    }
+
+    @Test func explicitBytesStopsBeforeTheAutomaticByteLimit() throws {
+        let server = try RecordingRangeServer(
+            serving: try Data(contentsOf: resilienceFixture)
+        )
+        defer { server.stop() }
+        let explicitLimit: Int64 = 64 * 1_024
+        let configuration = PBFFmpegDemuxBufferConfigurationMake(
+            PBFFmpegDemuxBufferModeBytes,
+            explicitLimit
+        )
+        let observation = try observeDemuxPrefetch(
+            path: server.url.absoluteString,
+            isRemote: true,
+            configuration: configuration
+        ) {
+            PBFFmpegDemuxSourceGetForwardBufferedByteCount($0) >= explicitLimit
+        }
+
+        #expect(observation.mode == PBFFmpegDemuxBufferModeBytes)
+        #expect(observation.forwardLimitBytes == explicitLimit)
+        #expect(observation.forwardBufferedBytes >= explicitLimit)
+        #expect(observation.bufferedDurationSeconds < 1)
+        #expect(observation.bufferedDurationSeconds < observation.targetDurationSeconds)
+        #expect(observation.readFrameCountAfterSettling == observation.readFrameCount)
+    }
+
     @Test func sharedDemuxPrefetchesWithoutABlockedConsumer() throws {
         setFFmpegLogLevel(-8)
         let server = try RecordingRangeServer(
@@ -328,8 +493,13 @@ struct DemuxNetworkResilienceTests {
         let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
         defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
         var error = [CChar](repeating: 0, count: 512)
+        var bufferConfiguration = defaultDemuxBufferConfiguration(isRemote: true)
+        bufferConfiguration.forwardByteLimit = 128 * 1_024
         let source = server.url.absoluteString.withCString {
-            PBFFmpegDemuxSourceCreate($0, true, monitor, &error, error.count)
+            PBFFmpegDemuxSourceCreate(
+                $0, true, bufferConfiguration,
+                monitor, &error, error.count
+            )
         }
         let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
         defer { PBFFmpegDemuxSourceDestroy(openedSource) }
@@ -353,8 +523,8 @@ struct DemuxNetworkResilienceTests {
         )
         #expect(
             waitUntil(timeout: 3) {
-                PBFFmpegDemuxSourceGetBufferedDurationSeconds(openedSource) >=
-                    PBFFmpegDemuxSourceGetPrefetchDurationSeconds()
+                PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) >=
+                    bufferConfiguration.forwardByteLimit
             }
         )
     }
@@ -369,7 +539,10 @@ struct DemuxNetworkResilienceTests {
         defer { server.stop() }
         var error = [CChar](repeating: 0, count: 512)
         let source = server.url.absoluteString.withCString {
-            PBFFmpegDemuxSourceCreate($0, true, nil, &error, error.count)
+            PBFFmpegDemuxSourceCreate(
+                $0, true, defaultDemuxBufferConfiguration(isRemote: true),
+                nil, &error, error.count
+            )
         }
         let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
         defer { PBFFmpegDemuxSourceDestroy(openedSource) }
@@ -421,7 +594,10 @@ struct DemuxNetworkResilienceTests {
         defer { server.stop() }
         var error = [CChar](repeating: 0, count: 512)
         let source = server.url.absoluteString.withCString {
-            PBFFmpegDemuxSourceCreate($0, true, nil, &error, error.count)
+            PBFFmpegDemuxSourceCreate(
+                $0, true, defaultDemuxBufferConfiguration(isRemote: true),
+                nil, &error, error.count
+            )
         }
         let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
         defer { PBFFmpegDemuxSourceDestroy(openedSource) }
@@ -468,7 +644,10 @@ struct DemuxNetworkResilienceTests {
         defer { server.stop() }
         var error = [CChar](repeating: 0, count: 512)
         let source = server.url.absoluteString.withCString {
-            PBFFmpegDemuxSourceCreate($0, false, nil, &error, error.count)
+            PBFFmpegDemuxSourceCreate(
+                $0, false, defaultDemuxBufferConfiguration(isRemote: false),
+                nil, &error, error.count
+            )
         }
         let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
         defer { PBFFmpegDemuxSourceDestroy(openedSource) }
@@ -532,7 +711,10 @@ struct DemuxNetworkResilienceTests {
     let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
     defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
     let source = server.url.absoluteString.withCString { path in
-        PBFFmpegDemuxSourceCreate(path, true, monitor, &error, error.count)
+        PBFFmpegDemuxSourceCreate(
+            path, true, defaultDemuxBufferConfiguration(isRemote: true),
+            monitor, &error, error.count
+        )
     }
     let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
     defer { PBFFmpegDemuxSourceDestroy(openedSource) }
@@ -627,7 +809,10 @@ struct DemuxNetworkResilienceTests {
     defer { server.stop() }
     var error = [CChar](repeating: 0, count: 512)
     let source = server.url.absoluteString.withCString { path in
-        PBFFmpegDemuxSourceCreate(path, true, nil, &error, error.count)
+        PBFFmpegDemuxSourceCreate(
+            path, true, defaultDemuxBufferConfiguration(isRemote: true),
+            nil, &error, error.count
+        )
     }
     let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
     defer { PBFFmpegDemuxSourceDestroy(openedSource) }
@@ -714,6 +899,7 @@ private final class DrainOutcome: @unchecked Sendable {
         PBFFmpegDemuxSourceCreate(
             path,
             true,
+            defaultDemuxBufferConfiguration(isRemote: true),
             monitor,
             &error,
             error.count

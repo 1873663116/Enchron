@@ -213,7 +213,8 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
             )
             let handle = try await MediaByteStreamServer.shared.register(
                 source: source,
-                filename: file.name
+                filename: file.name,
+                preferredBufferDepth: .automatic
             )
             return ResolvedMediaSource(byteStreamHandle: handle)
         } catch {
@@ -362,8 +363,7 @@ private nonisolated final class SMBByteRangeSource: MediaByteRangeSource, @unche
         byteStreamAttributes = MediaByteStreamAttributes(
             contentLength: reportedContentLength > 0 ? reportedContentLength : nil,
             supportsSeeking: true,
-            isLive: false,
-            preferredBufferDepth: .automatic
+            isLive: false
         )
     }
 

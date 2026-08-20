@@ -24,8 +24,13 @@ private struct MediaByteStreamDebugCounterState: Sendable {
 #endif
 
 public enum MediaByteBufferDepth: Sendable, Equatable {
+    /// Non-cache mode. The demuxer fills to its short duration target unless
+    /// the forward byte safety limit is reached first.
     case none
+    /// Cache mode. Its effectively unbounded duration target makes the forward
+    /// byte limit the normal stopping condition.
     case automatic
+    /// Cache mode with a source-specific forward byte limit.
     case bytes(Int64)
 }
 
@@ -34,18 +39,15 @@ public struct MediaByteStreamAttributes: Sendable, Equatable {
     public let contentLength: Int64?
     public let supportsSeeking: Bool
     public let isLive: Bool
-    public let preferredBufferDepth: MediaByteBufferDepth
 
     public init(
         contentLength: Int64?,
         supportsSeeking: Bool,
-        isLive: Bool,
-        preferredBufferDepth: MediaByteBufferDepth
+        isLive: Bool
     ) {
         self.contentLength = contentLength
         self.supportsSeeking = supportsSeeking
         self.isLive = isLive
-        self.preferredBufferDepth = preferredBufferDepth
     }
 }
 
@@ -69,14 +71,22 @@ public protocol MediaByteRangeSource: AnyObject, Sendable {
 
 public final class MediaByteStreamHandle: @unchecked Sendable {
     public let url: URL
+    /// The demux policy captured when this playable source was registered.
+    public let preferredBufferDepth: MediaByteBufferDepth
 
     private weak var server: MediaByteStreamServer?
     private let token: String
     private let lock = NSLock()
     private var isReleased = false
 
-    fileprivate init(url: URL, token: String, server: MediaByteStreamServer) {
+    fileprivate init(
+        url: URL,
+        preferredBufferDepth: MediaByteBufferDepth,
+        token: String,
+        server: MediaByteStreamServer
+    ) {
         self.url = url
+        self.preferredBufferDepth = preferredBufferDepth
         self.token = token
         self.server = server
     }
@@ -431,7 +441,8 @@ public final class MediaByteStreamServer: @unchecked Sendable {
 
     public func register(
         source: any MediaByteRangeSource,
-        filename: String
+        filename: String,
+        preferredBufferDepth: MediaByteBufferDepth = .none
     ) async throws -> MediaByteStreamHandle {
         let port = try await ensureStarted()
         let token = UUID().uuidString
@@ -441,7 +452,12 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             unregister(token: token)
             throw ServerError.listenerFailed("Invalid loopback URL.")
         }
-        return MediaByteStreamHandle(url: url, token: token, server: self)
+        return MediaByteStreamHandle(
+            url: url,
+            preferredBufferDepth: preferredBufferDepth,
+            token: token,
+            server: self
+        )
     }
 
     public func snapshot() -> Statistics {

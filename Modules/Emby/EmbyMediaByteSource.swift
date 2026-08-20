@@ -59,8 +59,7 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
         byteStreamAttributes = MediaByteStreamAttributes(
             contentLength: contentLength,
             supportsSeeking: true,
-            isLive: false,
-            preferredBufferDepth: .bytes(1_024 * 1_024)
+            isLive: false
         )
     }
 

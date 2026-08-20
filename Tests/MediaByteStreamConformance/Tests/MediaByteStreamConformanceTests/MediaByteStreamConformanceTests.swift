@@ -117,6 +117,48 @@ struct MediaByteStreamConformanceTests {
             throw error
         }
     }
+
+    @Test(
+        "registration preserves every demux buffer declaration",
+        arguments: [
+            MediaByteBufferDepth.none,
+            MediaByteBufferDepth.automatic,
+            MediaByteBufferDepth.bytes(64 * 1_024)
+        ]
+    )
+    func registrationPreservesBufferDepth(_ depth: MediaByteBufferDepth) async throws {
+        let source = BufferDepthByteRangeSource()
+        let server = MediaByteStreamServer(readChunkSize: 4)
+        let handle = try await server.register(
+            source: source,
+            filename: "policy.bin",
+            preferredBufferDepth: depth
+        )
+        defer { handle.release() }
+
+        #expect(handle.preferredBufferDepth == depth)
+        await server.stopAndWait()
+    }
+}
+
+private final class BufferDepthByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
+
+    init() {
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: 1,
+            supportsSeeking: true,
+            isLive: false
+        )
+    }
+
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        MediaByteRangeRead(
+            data: range.lowerBound == 0 ? Data([0]) : Data(),
+            contentLength: 1,
+            supportsSeeking: true
+        )
+    }
 }
 
 enum RequestShape: String, CaseIterable, Sendable, CustomStringConvertible {
@@ -170,8 +212,7 @@ enum SourceShape: String, CaseIterable, Sendable, CustomStringConvertible {
         return MediaByteStreamAttributes(
             contentLength: hintedLength,
             supportsSeeking: self != .sequential,
-            isLive: self == .sequential,
-            preferredBufferDepth: self == .sequential ? .none : .automatic
+            isLive: self == .sequential
         )
     }
 }

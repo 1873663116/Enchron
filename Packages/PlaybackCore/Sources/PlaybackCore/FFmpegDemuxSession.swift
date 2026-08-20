@@ -7,21 +7,28 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     private let sourceReadMeter: PlaybackSourceReadMeter
     private var source: OpaquePointer?
     private var sourceArgument: String?
-    private var sourceIsRemote = false
+    private var sourceTransport: PlaybackSourceTransport = .localFile
+    private var bufferConfiguration = PBFFmpegDemuxBufferConfigurationMake(
+        PBFFmpegDemuxBufferModeNone,
+        0
+    )
 
     init(sourceReadMeter: PlaybackSourceReadMeter) {
         self.sourceReadMeter = sourceReadMeter
     }
 
-    func configureSource(isRemote: Bool) throws {
+    func configureSource(transport: PlaybackSourceTransport) throws {
         try operationLock.withLock {
             guard source == nil else {
-                if sourceIsRemote != isRemote {
+                if sourceTransport != transport {
                     throw FFmpegDemuxSessionError.sourceChanged
                 }
                 return
             }
-            sourceIsRemote = isRemote
+            sourceTransport = transport
+            bufferConfiguration = try .playbackConfiguration(
+                for: transport.bufferPreference
+            )
         }
     }
 
@@ -50,7 +57,8 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             let opened = argument.withCString {
                 PBFFmpegDemuxSourceCreate(
                     $0,
-                    sourceIsRemote,
+                    sourceTransport.isRemote,
+                    bufferConfiguration,
                     sourceReadMeter.bridgeMonitor,
                     &error,
                     error.count
@@ -91,6 +99,29 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         operationLock.withLock {
             sourceLock.withLock { source != nil } && sourceArgument == argument
         }
+    }
+
+    func bufferDiagnostics() -> PlaybackDemuxBufferDiagnostics? {
+        guard let source = sourceLock.withLock({ source }) else { return nil }
+        let mode = switch PBFFmpegDemuxSourceGetBufferMode(source) {
+        case PBFFmpegDemuxBufferModeAutomatic:
+            PlaybackDemuxBufferDiagnostics.Mode.automatic
+        case PBFFmpegDemuxBufferModeBytes:
+            PlaybackDemuxBufferDiagnostics.Mode.bytes
+        default:
+            PlaybackDemuxBufferDiagnostics.Mode.none
+        }
+        return PlaybackDemuxBufferDiagnostics(
+            mode: mode,
+            bufferedDurationSeconds: PBFFmpegDemuxSourceGetBufferedDurationSeconds(source),
+            targetDurationSeconds: PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(source),
+            forwardBufferedBytes: PBFFmpegDemuxSourceGetForwardBufferedByteCount(source),
+            forwardLimitBytes: PBFFmpegDemuxSourceGetForwardBufferByteLimit(source),
+            backwardBufferedBytes: PBFFmpegDemuxSourceGetBackwardBufferedByteCount(source),
+            backwardLimitBytes: PBFFmpegDemuxSourceGetBackwardBufferByteLimit(source),
+            reconnectAttemptCount: PBFFmpegDemuxSourceGetReconnectAttemptCount(source),
+            readFrameCount: PBFFmpegDemuxSourceGetReadFrameCount(source)
+        )
     }
 }
 

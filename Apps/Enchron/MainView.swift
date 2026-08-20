@@ -1006,6 +1006,7 @@ private struct PlaybackAutomationStateProbe: View {
         let outputBoundary = PlaybackOutputVerification.firstIncompleteBoundary(
             current: output
         )
+        let demuxBuffer = playbackRuntime.diagnostics.demuxBuffer
         var fields = [
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "hosted=\(hostedPresentation.rawValue)",
@@ -1063,6 +1064,15 @@ private struct PlaybackAutomationStateProbe: View {
             "audioSessionActive=\(output.audioSessionActive)",
             "outputBoundary=\(outputBoundary.rawValue)",
             "sourceReadBytesPerSecond=\(output.sourceReadBytesPerSecond)",
+            "demuxBufferMode=\(demuxBuffer?.mode.rawValue ?? "notObserved")",
+            "demuxBufferedSeconds=\(demuxBuffer.map { String($0.bufferedDurationSeconds) } ?? "notObserved")",
+            "demuxTargetSeconds=\(demuxBuffer.map { String($0.targetDurationSeconds) } ?? "notObserved")",
+            "demuxForwardBytes=\(demuxBuffer.map { String($0.forwardBufferedBytes) } ?? "notObserved")",
+            "demuxForwardLimitBytes=\(demuxBuffer.map { String($0.forwardLimitBytes) } ?? "notObserved")",
+            "demuxBackwardBytes=\(demuxBuffer.map { String($0.backwardBufferedBytes) } ?? "notObserved")",
+            "demuxBackwardLimitBytes=\(demuxBuffer.map { String($0.backwardLimitBytes) } ?? "notObserved")",
+            "demuxReconnects=\(demuxBuffer.map { String($0.reconnectAttemptCount) } ?? "notObserved")",
+            "demuxReadFrames=\(demuxBuffer.map { String($0.readFrameCount) } ?? "notObserved")",
             "audioTrack=\(playbackRuntime.currentAudioTrackID ?? "none")",
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",

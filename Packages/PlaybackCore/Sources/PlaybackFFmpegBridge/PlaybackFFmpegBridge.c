@@ -42,6 +42,7 @@ typedef struct PBFFmpegPacketNode {
     AVPacket packet;
     int64_t timestampMicroseconds;
     int64_t durationMicroseconds;
+    int64_t byteCount;
     struct PBFFmpegPacketNode *next;
 } PBFFmpegPacketNode;
 
@@ -63,6 +64,7 @@ typedef struct {
     unsigned int waiters;
     int64_t summedDurationMicroseconds;
     int64_t bufferedDurationMicroseconds;
+    int64_t bufferedByteCount;
 } PBFFmpegPacketQueue;
 
 struct PBFFmpegDemuxSource {
@@ -87,19 +89,43 @@ struct PBFFmpegDemuxSource {
     int64_t *lastQueuedTimestamps;
     int64_t *replayThroughTimestamps;
     bool *replayCaughtUp;
+    PBFFmpegDemuxBufferConfiguration bufferConfiguration;
+    int64_t forwardBufferedByteCount;
     PBFFmpegPacketNode *freePacketNodes;
     PBFFmpegPacketNodePoolChunk *packetNodePoolChunks;
     unsigned int reconnectAttemptCount;
+    uint64_t readFrameCount;
 };
 
-// Six seconds covers the complete 1.75-second retry schedule plus two equal
-// budgets for reopening, seeking, and refilling. REPORT.md records the fixture
-// throughput and fault-injection measurements behind this value.
-static const int64_t PB_DEMUX_PREFETCH_DURATION_MICROSECONDS = 6LL * AV_TIME_BASE;
+// These are mpv demux_conf defaults from demux/demux.c. They were selected for
+// desktop playback. Enchron reports the effective values and accepts an
+// explicit configuration so visionOS device regressions can compare budgets.
+static const int64_t PB_DEMUX_DEFAULT_FORWARD_BYTE_LIMIT = 150LL * 1024 * 1024;
+static const int64_t PB_DEMUX_DEFAULT_BACKWARD_BYTE_LIMIT = 50LL * 1024 * 1024;
+static const double PB_DEMUX_DEFAULT_NON_CACHE_TARGET_SECONDS = 1.0;
+static const double PB_DEMUX_DEFAULT_CACHE_TARGET_SECONDS = 1000.0 * 60 * 60;
 static const long PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[] = {250, 500, 1000};
 static const unsigned int PB_DEMUX_RECONNECT_ATTEMPT_LIMIT =
     sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS) /
     sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[0]);
+
+PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
+    PBFFmpegDemuxBufferMode mode,
+    int64_t explicitForwardByteLimit
+) {
+    PBFFmpegDemuxBufferConfiguration configuration = {
+        .mode = mode,
+        .forwardByteLimit = PB_DEMUX_DEFAULT_FORWARD_BYTE_LIMIT,
+        .backwardByteLimit = PB_DEMUX_DEFAULT_BACKWARD_BYTE_LIMIT,
+        .targetDurationSeconds = mode == PBFFmpegDemuxBufferModeNone
+            ? PB_DEMUX_DEFAULT_NON_CACHE_TARGET_SECONDS
+            : PB_DEMUX_DEFAULT_CACHE_TARGET_SECONDS,
+    };
+    if (mode == PBFFmpegDemuxBufferModeBytes) {
+        configuration.forwardByteLimit = explicitForwardByteLimit;
+    }
+    return configuration;
+}
 
 typedef struct {
     bool movFamily;
@@ -334,6 +360,7 @@ static void return_packet_node(
 ) {
     if (!source || !node) return;
     av_packet_unref(&node->packet);
+    node->byteCount = 0;
     node->next = source->freePacketNodes;
     source->freePacketNodes = node;
 }
@@ -353,6 +380,11 @@ static void clear_packet_queue(
     queue->tail = NULL;
     queue->summedDurationMicroseconds = 0;
     queue->bufferedDurationMicroseconds = 0;
+    source->forwardBufferedByteCount -= queue->bufferedByteCount;
+    if (source->forwardBufferedByteCount < 0) {
+        source->forwardBufferedByteCount = 0;
+    }
+    queue->bufferedByteCount = 0;
 }
 
 static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
@@ -375,11 +407,16 @@ static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
 }
 
 static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
+    if (source->forwardBufferedByteCount >=
+        source->bufferConfiguration.forwardByteLimit) return false;
+    int64_t targetDurationMicroseconds = (int64_t)llround(
+        source->bufferConfiguration.targetDurationSeconds * AV_TIME_BASE
+    );
     for (unsigned int index = 0; index < source->queueCount; index++) {
         const PBFFmpegPacketQueue *queue = &source->queues[index];
         if (queue->subscribers > 0 &&
             queue->bufferedDurationMicroseconds <
-                PB_DEMUX_PREFETCH_DURATION_MICROSECONDS) return true;
+                targetDurationMicroseconds) return true;
     }
     return false;
 }
@@ -548,6 +585,7 @@ static void *demux_source_read_loop(void *opaque) {
         publish_source_bytes(&source->sourceReadContext);
 
         pthread_mutex_lock(&source->lock);
+        source->readFrameCount++;
         if (source->stopsReadThread) {
             av_packet_unref(packet);
             pthread_cond_broadcast(&source->changed);
@@ -626,6 +664,7 @@ static void *demux_source_read_loop(void *opaque) {
                     node->timestampMicroseconds = timestamp;
                     node->durationMicroseconds =
                         packet_duration_microseconds(source, packet);
+                    node->byteCount = FFMAX(packet->size, 0);
                     av_packet_move_ref(&node->packet, packet);
                     if (queue->tail) {
                         queue->tail->next = node;
@@ -635,6 +674,8 @@ static void *demux_source_read_loop(void *opaque) {
                     queue->tail = node;
                     queue->summedDurationMicroseconds +=
                         node->durationMicroseconds;
+                    queue->bufferedByteCount += node->byteCount;
+                    source->forwardBufferedByteCount += node->byteCount;
                     update_packet_queue_buffered_duration(queue);
                     source->lastQueuedTimestamps[streamIndex] = timestamp;
                 }
@@ -759,6 +800,12 @@ static int copy_next_demux_packet(
     if (queue->summedDurationMicroseconds < 0) {
         queue->summedDurationMicroseconds = 0;
     }
+    queue->bufferedByteCount -= node->byteCount;
+    source->forwardBufferedByteCount -= node->byteCount;
+    if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
+    if (source->forwardBufferedByteCount < 0) {
+        source->forwardBufferedByteCount = 0;
+    }
     update_packet_queue_buffered_duration(queue);
     av_packet_move_ref(packet, &node->packet);
     return_packet_node(source, node);
@@ -838,12 +885,14 @@ static int copy_next_demux_packet_batch(
         PBFFmpegPacketNode *batchTail = batchHead;
         unsigned int batchCount = 1;
         int64_t batchDurationMicroseconds = batchHead->durationMicroseconds;
+        int64_t batchByteCount = batchHead->byteCount;
         while (batchTail->next && batchCount < PB_AUDIO_PACKET_BATCH_LIMIT &&
                batchDurationMicroseconds <
                    PB_AUDIO_PACKET_BATCH_DURATION_MICROSECONDS) {
             batchTail = batchTail->next;
             batchCount++;
             batchDurationMicroseconds += batchTail->durationMicroseconds;
+            batchByteCount += batchTail->byteCount;
         }
         queue->head = batchTail->next;
         batchTail->next = NULL;
@@ -851,6 +900,12 @@ static int copy_next_demux_packet_batch(
         queue->summedDurationMicroseconds -= batchDurationMicroseconds;
         if (queue->summedDurationMicroseconds < 0) {
             queue->summedDurationMicroseconds = 0;
+        }
+        queue->bufferedByteCount -= batchByteCount;
+        source->forwardBufferedByteCount -= batchByteCount;
+        if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
+        if (source->forwardBufferedByteCount < 0) {
+            source->forwardBufferedByteCount = 0;
         }
         update_packet_queue_buffered_duration(queue);
         *availableNodes = batchHead;
@@ -3397,11 +3452,18 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
     bool isRemote,
+    PBFFmpegDemuxBufferConfiguration bufferConfiguration,
     PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
-    if (!path) {
+    if (!path ||
+        bufferConfiguration.mode < PBFFmpegDemuxBufferModeNone ||
+        bufferConfiguration.mode > PBFFmpegDemuxBufferModeBytes ||
+        bufferConfiguration.forwardByteLimit <= 0 ||
+        bufferConfiguration.backwardByteLimit < 0 ||
+        !isfinite(bufferConfiguration.targetDurationSeconds) ||
+        bufferConfiguration.targetDurationSeconds <= 0) {
         set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg demux source call");
         return NULL;
     }
@@ -3411,6 +3473,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         return NULL;
     }
     source->isRemote = isRemote;
+    source->bufferConfiguration = bufferConfiguration;
     atomic_init(&source->interrupted, false);
     atomic_init(&source->permanentlyInterrupted, false);
     if (pthread_mutex_init(&source->lock, NULL) != 0) {
@@ -3642,8 +3705,73 @@ double PBFFmpegDemuxSourceGetBufferedDurationSeconds(
     return found ? (double)shortest / AV_TIME_BASE : 0;
 }
 
-double PBFFmpegDemuxSourceGetPrefetchDurationSeconds(void) {
-    return (double)PB_DEMUX_PREFETCH_DURATION_MICROSECONDS / AV_TIME_BASE;
+double PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    double seconds = source->bufferConfiguration.targetDurationSeconds;
+    pthread_mutex_unlock(&source->lock);
+    return seconds;
+}
+
+int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t count = source->forwardBufferedByteCount;
+    pthread_mutex_unlock(&source->lock);
+    return count;
+}
+
+int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t limit = source->bufferConfiguration.forwardByteLimit;
+    pthread_mutex_unlock(&source->lock);
+    return limit;
+}
+
+int64_t PBFFmpegDemuxSourceGetBackwardBufferedByteCount(
+    PBFFmpegDemuxSource *source
+) {
+    (void)source;
+    // Consumed packets leave this demuxer immediately. It currently holds no
+    // backward cache, so reporting zero is the exact retained byte count.
+    return 0;
+}
+
+int64_t PBFFmpegDemuxSourceGetBackwardBufferByteLimit(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t limit = source->bufferConfiguration.backwardByteLimit;
+    pthread_mutex_unlock(&source->lock);
+    return limit;
+}
+
+PBFFmpegDemuxBufferMode PBFFmpegDemuxSourceGetBufferMode(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return PBFFmpegDemuxBufferModeNone;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegDemuxBufferMode mode = source->bufferConfiguration.mode;
+    pthread_mutex_unlock(&source->lock);
+    return mode;
+}
+
+uint64_t PBFFmpegDemuxSourceGetReadFrameCount(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    uint64_t count = source->readFrameCount;
+    pthread_mutex_unlock(&source->lock);
+    return count;
 }
 
 unsigned int PBFFmpegDemuxSourceGetReconnectAttemptCount(

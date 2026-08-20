@@ -303,8 +303,7 @@ private final class RecordingByteRangeSource: MediaByteRangeSource, @unchecked S
         byteStreamAttributes = MediaByteStreamAttributes(
             contentLength: Int64(data.count),
             supportsSeeking: true,
-            isLive: false,
-            preferredBufferDepth: .automatic
+            isLive: false
         )
     }
 
@@ -324,8 +323,7 @@ private final class UnknownLengthByteRangeSource: MediaByteRangeSource, @uncheck
     let byteStreamAttributes = MediaByteStreamAttributes(
         contentLength: nil,
         supportsSeeking: false,
-        isLive: true,
-        preferredBufferDepth: .none
+        isLive: true
     )
     private let data: Data
     private let lock = NSLock()
@@ -355,8 +353,7 @@ private final class UnknownLengthSeekableByteRangeSource: MediaByteRangeSource, 
     let byteStreamAttributes = MediaByteStreamAttributes(
         contentLength: nil,
         supportsSeeking: true,
-        isLive: false,
-        preferredBufferDepth: .automatic
+        isLive: false
     )
     private let data: Data
     private let lock = NSLock()
@@ -386,8 +383,7 @@ private final class CancellationAwareByteRangeSource: MediaByteRangeSource, @unc
     let byteStreamAttributes = MediaByteStreamAttributes(
         contentLength: 1_024,
         supportsSeeking: true,
-        isLive: false,
-        preferredBufferDepth: .automatic
+        isLive: false
     )
     private let lock = NSLock()
     private var readStarted = false

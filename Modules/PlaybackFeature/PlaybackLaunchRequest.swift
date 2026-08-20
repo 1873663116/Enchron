@@ -100,6 +100,9 @@ public nonisolated struct PlaybackAddress: @unchecked Sendable, Equatable {
     }
 
     public var isRemote: Bool { remote }
+    public var preferredBufferDepth: MediaByteBufferDepth {
+        byteStreamHandle?.preferredBufferDepth ?? (remote ? .automatic : .none)
+    }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.url == rhs.url

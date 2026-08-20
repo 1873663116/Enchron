@@ -595,7 +595,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     request.url,
                     startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
                     initialRate: Float(initialSpeed.value),
-                    sourceIsRemote: request.source.isRemote,
+                    sourceTransport: request.source.playbackCoreTransport,
                     initialStereoLayout: initialFormat.flatMap {
                         Self.coreStereoLayout(
                             for: Self.playbackStereoLayout(from: $0.stereoLayout)
@@ -1402,7 +1402,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 ),
                 startsPaused: true,
                 initialRate: Float(speed.value),
-                sourceIsRemote: request.source.isRemote,
+                sourceTransport: request.source.playbackCoreTransport,
                 initialStereoLayout: initialStereoLayout,
                 initialProjectionOverride: initialProjectionOverride,
                 initialDynamicRangeOverride: initialDynamicRangeOverride,
@@ -2925,5 +2925,20 @@ private extension PlaybackPresentation {
         case .docked: "ImmersiveSpace.Docked"
         case .panorama: "ImmersiveSpace.Panorama"
         }
+    }
+}
+
+private extension PlaybackAddress {
+    var playbackCoreTransport: PlaybackSourceTransport {
+        guard isRemote else { return .localFile }
+        let preference: PlaybackDemuxBufferPreference = switch preferredBufferDepth {
+        case .none:
+            .none
+        case .automatic:
+            .automatic
+        case .bytes(let byteLimit):
+            .bytes(byteLimit)
+        }
+        return .remoteByteStream(buffering: preference)
     }
 }

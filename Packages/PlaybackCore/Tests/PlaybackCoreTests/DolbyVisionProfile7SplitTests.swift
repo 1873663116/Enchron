@@ -49,7 +49,14 @@ private func verifyProfile7Source(_ relativePath: String) throws {
     )
     var error = [CChar](repeating: 0, count: 512)
     let source = fixture.path.withCString {
-        PBFFmpegDemuxSourceCreate($0, false, nil, &error, error.count)
+        PBFFmpegDemuxSourceCreate(
+            $0,
+            false,
+            PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+            nil,
+            &error,
+            error.count
+        )
     }
     let activeSource = try #require(
         source,

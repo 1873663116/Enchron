@@ -43,6 +43,7 @@ extension SampleBufferPlaybackSession {
         diagnostics.currentSeconds = seconds
         diagnostics.rendererStatus = currentVideoRendererStatus
         diagnostics.rendererError = currentVideoRendererError ?? "none"
+        diagnostics.demuxBuffer = demuxSession?.bufferDiagnostics()
         recordRendererState(at: time)
         recordAudioRendererState()
         if mediaKind == .video {
@@ -55,7 +56,8 @@ extension SampleBufferPlaybackSession {
         PlaybackTrace.event(
             "session.heartbeat id=\(traceID) time=\(time.seconds) samples=\(diagnostics.enqueuedSampleCount) " +
             "rendererStatus=\(diagnostics.rendererStatus) rendererError=\(diagnostics.rendererError) " +
-            "requestedRate=\(synchronizer.rate) actualTimebaseRate=\(actualTimebaseRate)"
+            "requestedRate=\(synchronizer.rate) actualTimebaseRate=\(actualTimebaseRate) " +
+            demuxBufferTraceFields
         )
         debugStore.emit(
             mediaSessionID: traceID,
@@ -68,9 +70,23 @@ extension SampleBufferPlaybackSession {
                 "audioSampleBufferCount": String(audioSampleBufferCount),
                 "requestedRate": String(synchronizer.rate),
                 "actualTimebaseRate": String(actualTimebaseRate),
+                "demuxBuffer": demuxBufferTraceFields
             ]
         )
         onDiagnosticsChange?(diagnostics)
+    }
+
+    private var demuxBufferTraceFields: String {
+        guard let buffer = diagnostics.demuxBuffer else { return "demuxBuffer=notObserved" }
+        return "demuxMode=\(buffer.mode.rawValue) "
+            + "demuxBufferedSeconds=\(buffer.bufferedDurationSeconds) "
+            + "demuxTargetSeconds=\(buffer.targetDurationSeconds) "
+            + "demuxForwardBytes=\(buffer.forwardBufferedBytes) "
+            + "demuxForwardLimitBytes=\(buffer.forwardLimitBytes) "
+            + "demuxBackwardBytes=\(buffer.backwardBufferedBytes) "
+            + "demuxBackwardLimitBytes=\(buffer.backwardLimitBytes) "
+            + "demuxReconnects=\(buffer.reconnectAttemptCount) "
+            + "demuxReadFrames=\(buffer.readFrameCount)"
     }
 
     func refreshVideoPerformanceMetrics() {

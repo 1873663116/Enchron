@@ -198,7 +198,8 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         do {
             let handle = try await MediaByteStreamServer.shared.register(
                 source: source,
-                filename: file.name
+                filename: file.name,
+                preferredBufferDepth: .automatic
             )
             return ResolvedMediaSource(byteStreamHandle: handle)
         } catch {
@@ -471,8 +472,7 @@ private nonisolated final class WebDAVByteRangeSource: MediaByteRangeSource, @un
         byteStreamAttributes = MediaByteStreamAttributes(
             contentLength: reportedContentLength > 0 ? reportedContentLength : nil,
             supportsSeeking: true,
-            isLive: false,
-            preferredBufferDepth: .automatic
+            isLive: false
         )
         self.authorizationHeader = authorizationHeader
         self.session = session

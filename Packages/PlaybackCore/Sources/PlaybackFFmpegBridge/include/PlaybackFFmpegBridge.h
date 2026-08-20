@@ -57,6 +57,24 @@ typedef struct PBFFmpegAudioSampleMetadata {
 typedef struct PBFFmpegSubtitleReader PBFFmpegSubtitleReader;
 typedef struct PBSubtitleFrameRenderer PBSubtitleFrameRenderer;
 
+typedef enum PBFFmpegDemuxBufferMode {
+    PBFFmpegDemuxBufferModeNone = 0,
+    PBFFmpegDemuxBufferModeAutomatic = 1,
+    PBFFmpegDemuxBufferModeBytes = 2,
+} PBFFmpegDemuxBufferMode;
+
+typedef struct PBFFmpegDemuxBufferConfiguration {
+    PBFFmpegDemuxBufferMode mode;
+    int64_t forwardByteLimit;
+    int64_t backwardByteLimit;
+    double targetDurationSeconds;
+} PBFFmpegDemuxBufferConfiguration;
+
+PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
+    PBFFmpegDemuxBufferMode mode,
+    int64_t explicitForwardByteLimit
+);
+
 PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void);
 void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor);
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
@@ -66,6 +84,7 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
     bool isRemote,
+    PBFFmpegDemuxBufferConfiguration bufferConfiguration,
     PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
@@ -86,7 +105,27 @@ bool PBFFmpegDemuxSourceSeek(
 double PBFFmpegDemuxSourceGetBufferedDurationSeconds(
     PBFFmpegDemuxSource *source
 );
-double PBFFmpegDemuxSourceGetPrefetchDurationSeconds(void);
+double PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(
+    PBFFmpegDemuxSource *source
+);
+int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
+    PBFFmpegDemuxSource *source
+);
+int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
+    PBFFmpegDemuxSource *source
+);
+int64_t PBFFmpegDemuxSourceGetBackwardBufferedByteCount(
+    PBFFmpegDemuxSource *source
+);
+int64_t PBFFmpegDemuxSourceGetBackwardBufferByteLimit(
+    PBFFmpegDemuxSource *source
+);
+PBFFmpegDemuxBufferMode PBFFmpegDemuxSourceGetBufferMode(
+    PBFFmpegDemuxSource *source
+);
+uint64_t PBFFmpegDemuxSourceGetReadFrameCount(
+    PBFFmpegDemuxSource *source
+);
 unsigned int PBFFmpegDemuxSourceGetReconnectAttemptCount(
     PBFFmpegDemuxSource *source
 );

@@ -124,6 +124,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var rendererOptimizedCompositingFrameCount: Int?
     public var rendererAccumulatedFrameDelaySeconds: TimeInterval?
     public var rendererPerformanceMetricsObservationCount: UInt64 = 0
+    public var demuxBuffer: PlaybackDemuxBufferDiagnostics?
 
     public init() {}
 
@@ -166,7 +167,20 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         audioRetired: \(audioRetired), reason=\(audioRetirementReason ?? "none")
         rendererFailedToDecode: \(rendererFailedToDecode)
         rendererPerformance: \(rendererPerformanceSummary)
+        demuxBuffer: \(demuxBufferSummary)
         """
+    }
+
+    private var demuxBufferSummary: String {
+        guard let buffer = demuxBuffer else { return "notObserved" }
+        return "mode=\(buffer.mode.rawValue), durationSeconds=\(buffer.bufferedDurationSeconds), "
+            + "targetSeconds=\(buffer.targetDurationSeconds), "
+            + "forwardBytes=\(buffer.forwardBufferedBytes), "
+            + "forwardLimitBytes=\(buffer.forwardLimitBytes), "
+            + "backwardBytes=\(buffer.backwardBufferedBytes), "
+            + "backwardLimitBytes=\(buffer.backwardLimitBytes), "
+            + "reconnects=\(buffer.reconnectAttemptCount), "
+            + "readFrames=\(buffer.readFrameCount)"
     }
 
     private var rendererPerformanceSummary: String {
