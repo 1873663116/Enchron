@@ -381,8 +381,12 @@ final class TestCommandChannel {
             for folder in folders.reversed() {
                 mediaLibrary.remove(folder)
             }
+            // Remembered server certificates are app state under their own
+            // prefix, and the product has no forget entry: leaving them makes
+            // the trust prompt unrepeatable after the first acceptance.
             let keys = defaults.dictionaryRepresentation().keys.filter {
                 $0.hasPrefix("enchron.")
+                    || $0.hasPrefix("server-certificate-fingerprint.")
             }
             for key in keys {
                 defaults.removeObject(forKey: key)

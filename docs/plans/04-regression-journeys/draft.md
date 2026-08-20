@@ -28,7 +28,7 @@
 成功：会话就绪且探针往返一致。失败：本旅程作废（通道故障，不计缺陷），进入恢复阶梯（会话重建→残留进程清理→设备重启一次；重启后以 devicectl 的 passcodeRequired 与 unlockedSinceBoot 字段判读状态，Xcode 错误字符串不构成终局证据，等待后重试）。
 
 **P1 干净开场(起始页签)**
-执行：通道动词 resetState(libraryFolder="Journey Fixture")——先删内存库中全部媒体引用（防止退出时回写持久化）、回到根后逆序删全部库文件夹、删全部 enchron.* 前缀 UserDefaults、新建指定空文件夹；不触碰 TestMediaInbox（harness 暂存区）。然后 relaunch（terminate 加 launch）；tap 对应 Navigation-Ornament-tab-*，探针确认 delivered tab=目标。
+执行：通道动词 resetState(libraryFolder="Journey Fixture")——先删内存库中全部媒体引用（防止退出时回写持久化）、回到根后逆序删全部库文件夹、删全部 enchron.* 与 server-certificate-fingerprint.* 前缀 UserDefaults（后者是已记住的服务器证书，产品无忘记入口，不清则证书信任询问只能触发一次）、新建指定空文件夹；不触碰 TestMediaInbox（harness 暂存区）。然后 relaunch（terminate 加 launch）；tap 对应 Navigation-Ornament-tab-*，探针确认 delivered tab=目标。
 成功：库为空且仅含指定文件夹；应用落在目标页签。失败：旅程作废。
 
 **P2 注入媒体(文件名, 目标文件夹)**
@@ -167,7 +167,7 @@
 ## J02 WebDAV：从错误凭据到连接、切换与续播（完整详述）
 
 覆盖：remote-source-connection（WebDAV 全套：证书信任、凭据错误阶梯、连接、浏览）、track-selection（经远程来源）、viewing-state（本地权威）。
-内容条件：既有 WebDAV 服务器，经 HTTPS 且使用自签名证书（触发证书信任询问是本旅程的证明目标之一）。汇总片源 sdr-bframe-aggregate-30s.mkv 与其外挂边车已上传至该服务器的固定目录。旅程开始前主机侧探活：根目录列表成功、汇总片源与边车在位。凭据自本机凭据文件读取，不进命令行，证据经清洗。
+内容条件：既有 WebDAV 服务器，经 HTTPS 且使用自签名证书，地址在表单中显式以 `https://` 开头（触发证书信任询问是本旅程的证明目标之一；不带协议头的输入被补成明文 HTTP，永不触发）。汇总片源 sdr-bframe-aggregate-30s.mkv 与其外挂边车已上传至该服务器的固定目录。旅程开始前主机侧探活：根目录列表成功、汇总片源与边车在位。凭据自本机凭据文件读取，不进命令行，证据经清洗。
 
 1. P0；P1(files 页签)。
 2. P4(FileBrowsing-SourcesSidebar-sourceMore) 打开来源菜单 → P5(该菜单, addWebDAV) → 表单出现：SourceConnection-webDAV 的 name/address/username/password/connect 五控件均在层级。
@@ -176,7 +176,11 @@
    - 用户名错、密码对
    - 地址指向不存在的路径
    每次尝试：逐字段 typeText 填入（每字段经 P10：产品侧绑定值变化由探针或表单回读确认；密码字段确认层级中不回显明文）→ tap connect → 判据：出现错误表达、未创建来源条目、表单仍可编辑。任一次静默失败（无表达）或表单卡死即本步失败。
-4. **证书信任询问**。填入正确凭据 → tap connect → 自签名证书触发信任询问 → tap 确认。判据：询问出现且其控件在层级中可命中（无 identifier 即产品可访问性缺陷，按在应用内可达性承诺记缺陷，不豁免）；确认后连接继续。若服务器证书已被系统信任而不弹询问，本步记为内容条件缺口并说明。
+4. **证书信任询问**（触发条件与判据见 webdav-tls-trust.md）。地址必须显式写 `https://` 开头——产品对不带协议头的输入一律补 `http://`，明文 HTTP 永远不触发询问。填入正确凭据 → tap connect。
+   - 4a. **本地网络隐私询问（系统域，先于证书）**：首次向局域网地址发起连接时系统弹出询问，且该次连接可能在用户回答前即被拒绝。此为系统域，人工确认一次即长期有效；因它导致的首次连接失败不计缺陷，确认后重试。
+   - 4b. **证书信任询问（产品自绘）**：系统默认信任评估失败且该 host:port 指纹未被记住时，产品弹出自绘 alert（标题「无法验证服务器证书」，按钮「信任」「取消」）。tap 「信任」。判据：alert 出现、可命中、确认后连接继续。控件无 identifier 但 label 可命中，按 label 驱动；若 label 亦不可达则记可访问性缺陷。
+   - 4c. **已知高风险**：该 alert 挂在主视图，而连接表单是其后代的 sheet 且连接期间不关闭。若 SwiftUI 不在 sheet 之上呈现该 alert，连接将无限挂起而非报错。本步同时是这一缺陷的探测器：连接既不成功也不报错、无 alert 出现，即判定为该缺陷而非通道故障。
+   - 4d. **重复触发的前提**：指纹一旦记住即写入偏好存储（键前缀 `server-certificate-fingerprint.`，与产品其余状态的 `enchron.` 前缀不同），产品无「忘记此证书」入口。P1 的清库动词已扩展到一并清除该前缀，本步因此可重复。
 5. 连接成功判据：面包屑显示「WebDAV · 地址」且侧栏出现新 source 条目。此处失败为缺陷（错误阶梯已在步骤 3 完成，此处只应成功）。
 6. tap 新侧栏条目进根目录 → 机械层：FileBrowsing-FilesScreen-itemCount 数值与层级中卡片计数一致。
 7. 按探活得到的路径逐层 tap --label '目录名, folder' 直至汇总片源所在目录；每层 itemCount 复核。
