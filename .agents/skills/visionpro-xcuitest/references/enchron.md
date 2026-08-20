@@ -69,7 +69,9 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 合成滑动一律带 `--identifier`。省略 identifier 时滑动目标退化为 Application 元素，而 visionOS 的 Application 元素不归属任何单一 Scene，合成事件取不到目标 Scene，三次重试全败后失败记到常驻测试方法上，方法结束并拆除 App——表现为 TEST EXECUTE FAILED、设备进程表无 Enchron，但两端进程都没有崩溃，那是正常拆除。与页面无关：Emby 从未打开时同样必死。带 identifier 的滑动在 Emby 各页与整窗具名元素上均正常。定性证据见 docs/plans/04-regression-journeys/emby-poster-wall-scroll.md。
 
-Emby 不滑动时的播放入口（2026-08-16 真机验证）：首页"接下来看"横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内有 `Emby-Detail-Resume` 与 `Emby-Detail-PlayFromBeginning`。系列详情页的剧集条在窗口折叠线以下不可达，顶部 label 为 "Play button on a TV, filled" 的无 identifier 图标点按无可观察效果。海报横条只有可视区内的卡可点，靠右的卡 tap 返回 False。
+Emby 播放入口：首页"接下来看"横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内有 `Emby-Detail-Resume` 与 `Emby-Detail-PlayFromBeginning`。系列详情页按设计不提供播放按钮（`isPlayable` 对 series/season/boxSet 返回 false），播放入口是下方选集面板的 `Emby-Episode-<id>` 卡片，点击直接进入播放，不经三级详情页。折叠线以下的剧集条需先带 identifier 滚动。海报横条只有可视区内的卡可点，靠右的卡 tap 返回 False。
+
+label 为 "Play button on a TV, filled" 的图标是导航栏 Emby 页签（identifier `Emby-Navigation-Tab`，命名与 `Navigation-Ornament-tab-files`/`-settings` 不同族），不在系列详情页；已在 Emby 页签上再点它无可观察效果是正确行为。
 
 播放控制面板前缀是 `PlayerPanel-`（play、forward 等），与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是佩戴者专属（200ms 稳定按住的状态机）。More 菜单里 Subtitles 有 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目无 identifier，按 label 命中，且菜单活不过两次往返，读 tap 自身返回的层级。同名条目（如两条 `und · aac · 2ch` 音轨）用 `--label` 加 `--index` 组合。
 
