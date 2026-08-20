@@ -318,6 +318,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let generation: Int
         let logicalSessionID: String
         let activeReplacementSessionID: String
+        let sourcePresentation: PlaybackPresentation?
         var delivery: TechnicalSessionReplacementDelivery
         var naturalEndNotificationWasPublished: Bool
     }
@@ -1339,6 +1340,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             try sourceController.pause()
         }
         let cutoverTime = sourceSession.currentTime()
+        let sourcePresentation = attachedPresentation
         let endedContinuity = sourceController.endedContinuity
             ?? initiallyEndedContinuity
 
@@ -1384,6 +1386,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             generation: prepared.generation,
             logicalSessionID: prepared.logicalSessionID,
             activeReplacementSessionID: prepared.session.traceID,
+            sourcePresentation: sourcePresentation,
             delivery: .pending(
                 endedContinuity.map(TechnicalSessionRebuildContinuity.ended)
                     ?? .timeline(cutoverTime)
@@ -1477,6 +1480,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
             throw RuntimeError.mediaSessionChanged
         }
+        observeEndedContinuityIfAvailable()
+        if Self.shouldRetireDepartingTechnicalSessionBeforeDelivery(
+            from: cutover.sourcePresentation,
+            to: presentation
+        ) {
+            await retireDepartingTechnicalSessionBeforeReplacementDelivery()
+        }
         try await reconcileAndDeliverTechnicalSessionReplacementIfNeeded()
         guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
             throw RuntimeError.mediaSessionChanged
@@ -1497,6 +1507,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         await departingTechnicalSessionController.closeAndWait(clearSource: false)
         completeTechnicalSessionReplacementAfterSettlement()
         logger.info("departing technical session retired after source Scene disappeared")
+    }
+
+    static func shouldRetireDepartingTechnicalSessionBeforeDelivery(
+        from sourcePresentation: PlaybackPresentation?,
+        to targetPresentation: PlaybackPresentation
+    ) -> Bool {
+        sourcePresentation == .portal && targetPresentation == .panorama
+    }
+
+    private func retireDepartingTechnicalSessionBeforeReplacementDelivery() async {
+        guard let departingTechnicalSessionController else { return }
+        self.departingTechnicalSessionController = nil
+        await departingTechnicalSessionController.closeAndWait(clearSource: false)
+        logger.info("departing technical session retired before replacement delivery")
     }
 
     public func cancelPreparedTechnicalSessionReplacement() async {
