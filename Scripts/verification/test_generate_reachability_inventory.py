@@ -482,7 +482,6 @@ class ProofContextInventoryTests(unittest.TestCase):
                 "PlayerPanel-VideoFormat-automatic",
                 "PlayerPanel-VideoFormat-cancel",
                 "PlayerPanel-VideoFormat-{title}-{label(option)}",
-                "PlayerPanel-button-enter-panorama",
                 "PlayerUI-playbackIssue-primary",
                 "PlayerUI-playbackIssue-secondary",
             },
