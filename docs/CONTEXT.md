@@ -33,3 +33,8 @@
 **Environment**：Enchron 提供的一个稳定观影场景身份。它与场景当前采用的视觉变化分离。
 **Environment Effect**：同一 Environment 内可变化的视觉表现。它不形成新的 Environment 身份。
 **Environment Context**：当前是否有一个 Environment 处于活动状态，以及该场景当前采用什么 Environment Effect。它不是 Playback Presentation。
+
+## 验证
+
+**Journey**：按用户真实使用顺序编写的回归单元，声明前置状态、有序步骤、每步的证明目标与终态判据。每条 Journey 从干净状态开始，Journey 之间不传递状态。它组织行为层回归；送达事实由可达性矩阵回答。
+**Unguarded Evidence Point**：特性声明了但尚无看守者的证据格。它不是失败，是「绿」不覆盖的已知范围，回归报告必须逐项列出。
