@@ -311,16 +311,32 @@ private final class InteractiveDeviceUIChannel {
         return element.exists ? element : nil
     }
 
+    /// SwiftUI drops `.accessibilityIdentifier` from a `TextField` inside an
+    /// `.alert`, while keeping it on the buttons of that same alert. The field
+    /// then has no handle but its placeholder, so typing falls back to the
+    /// label predicate every other verb already accepts and finally to the
+    /// placeholder, rather than leaving the operation undrivable.
     private func textInputElement(
         for command: InteractiveDeviceUICommand
     ) -> XCUIElement? {
-        guard let identifier = command.identifier,
-              identifier.isEmpty == false else { return nil }
         let index = command.index ?? 0
-        for query in [
-            app.textFields.matching(identifier: identifier),
-            app.secureTextFields.matching(identifier: identifier)
-        ] {
+        var queries: [XCUIElementQuery] = []
+        if let identifier = command.identifier, identifier.isEmpty == false {
+            queries += [
+                app.textFields.matching(identifier: identifier),
+                app.secureTextFields.matching(identifier: identifier)
+            ]
+        }
+        if let label = command.label, label.isEmpty == false {
+            for format in ["label == %@", "placeholderValue == %@"] {
+                let predicate = NSPredicate(format: format, label)
+                queries += [
+                    app.textFields.matching(predicate),
+                    app.secureTextFields.matching(predicate)
+                ]
+            }
+        }
+        for query in queries {
             let element = query.element(boundBy: index)
             if element.exists { return element }
         }

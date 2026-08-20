@@ -284,6 +284,7 @@ struct FilesScreen: View {
             )
                 .accessibilityIdentifier("MediaLibrary-NewFolder-name")
             Button("Cancel") { newFolderName = "" }
+                .accessibilityIdentifier("MediaLibrary-NewFolder-cancel")
             Button("Create") {
                 recordReachability("newFolder.create")
                 mediaLibrary.createFolder(named: newFolderName)
@@ -304,6 +305,7 @@ struct FilesScreen: View {
             )
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-name")
             Button("Cancel") { folderToRename = nil }
+                .accessibilityIdentifier("MediaLibrary-RenameFolder-cancel")
             Button("Rename") {
                 recordReachability("renameFolder.confirm")
                 if let folderToRename {

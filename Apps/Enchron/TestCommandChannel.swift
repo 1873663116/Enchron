@@ -516,13 +516,16 @@ final class TestCommandChannel {
                     throw CommandError(message: detail)
                 }
             }
+            // A reset is only useful if the caller can see the state it
+            // established. Reporting the deletions alone hides the one thing
+            // the next unit depends on, which is what the library now holds.
             return Response(
                 id: request.id,
                 ok: true,
                 detail: "Removed \(references.count) library references, "
                     + "removed \(folders.count) library folders, and "
                     + "deleted \(keys.count) enchron.* defaults keys.",
-                payload: nil
+                payload: libraryState
             )
         case "importMedia":
             guard let fileName = request.args["file"],
@@ -571,7 +574,7 @@ final class TestCommandChannel {
                 id: request.id,
                 ok: true,
                 detail: nil,
-                payload: allReferenceNames
+                payload: libraryState
             )
         default:
             throw CommandError(
@@ -952,6 +955,11 @@ final class TestCommandChannel {
 
     private var allReferenceNames: [String] {
         allReferences.map(\.name)
+    }
+
+    private var libraryState: [String] {
+        mediaLibrary.allFolders.map { "folder=\($0.name)" }
+            + allReferenceNames.map { "reference=\($0)" }
     }
 }
 
