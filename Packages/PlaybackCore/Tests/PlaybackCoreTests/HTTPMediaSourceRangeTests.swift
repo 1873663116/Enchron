@@ -622,19 +622,7 @@ struct DemuxNetworkResilienceTests {
 
 @Test func interruptingDemuxSourceAbortsBlockedHTTPRead() throws {
     setFFmpegLogLevel(-8)
-    let fixture = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent(
-            "TestMedia/Samples/Spatial/MVHEVC-Apple-Official/" +
-                "spatial_lighthouse_flowers_waves_short.mov"
-        )
-    let payload = try Data(contentsOf: fixture)
+    let payload = try Data(contentsOf: tailMoovFixture)
     let server = try RecordingRangeServer(serving: payload)
     defer { server.stop() }
     var error = [CChar](repeating: 0, count: 512)
