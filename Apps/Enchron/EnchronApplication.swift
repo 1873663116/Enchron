@@ -56,6 +56,9 @@ final class EnchronApplication {
     let modalPresentationCoordinator: AppModalPresentationCoordinator
     let certificateTrustPrompt: CertificateTrustPrompt
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
+    #if DEBUG
+        let playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
+    #endif
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
@@ -367,6 +370,30 @@ final class EnchronApplication {
         settingsViewModel = SettingsViewModel(store: preferencesStore)
         self.certificateTrustPrompt = certificateTrustPrompt
         self.modalPresentationCoordinator = modalPresentationCoordinator
+        #if DEBUG
+            appModel.playbackSwitchPresentationRequestHandler = {
+                [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
+                playbackRuntime?.debugCapturePlaybackSwitchRendererState()
+                _ = playbackSwitchStateRing?.beginSwitch(
+                    kind: .presentation,
+                    targetPresentation: target,
+                    at: DispatchTime.now().uptimeNanoseconds
+                )
+            }
+            appModel.playbackSwitchPresentationSettlementHandler = {
+                [weak playbackSwitchStateRing] presentation in
+                playbackSwitchStateRing?.settlePresentation(presentation)
+            }
+            playbackRuntime.debugSetPlaybackFormatSwitchHandler {
+                [weak playbackSwitchStateRing, weak appModel, weak playbackRuntime] in
+                playbackRuntime?.debugCapturePlaybackSwitchRendererState()
+                _ = playbackSwitchStateRing?.beginSwitch(
+                    kind: .format,
+                    targetPresentation: appModel?.playbackPresentation,
+                    at: DispatchTime.now().uptimeNanoseconds
+                )
+            }
+        #endif
     }
 
     static func mediaStateSuiteName(

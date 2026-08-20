@@ -181,6 +181,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             lastDisplayedFrameIdentity = nil
             displayedFrameObservationCount = 0
             didRecordFormat = false
+            #if DEBUG
+                recordPlaybackSwitchRendererSample(
+                    trigger: .graphChanged,
+                    observesDisplayProgress: true
+                )
+            #endif
         }
         return graphRevision
     }
@@ -208,6 +214,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
     var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
     var onAudioSpectrumFrameChange: (@Sendable (AudioSpectrumFrame) -> Void)?
+
+    #if DEBUG
+        let playbackSwitchSampleSinkLock = NSLock()
+        var playbackSwitchSampleSink: (any PlaybackSwitchRendererSampleSink)?
+    #endif
 
     let provider: VideoSampleProvider
     let audioProvider: AudioSampleProvider
@@ -411,6 +422,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             forInterval: CMTime(value: 1, timescale: 10),
             queue: deliveryQueue
         ) { [weak self] time in
+            #if DEBUG
+                self?.recordPlaybackSwitchRendererSample(
+                    trigger: .periodic,
+                    observesDisplayProgress: true
+                )
+            #endif
             self?.updatePresentationStatus(at: time)
         }
         activationObservation.start()

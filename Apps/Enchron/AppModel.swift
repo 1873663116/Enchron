@@ -226,6 +226,15 @@ public final class AppModel {
 
     @ObservationIgnored
     private var spatialPlatformEffectReplacementHandler: (() -> Void)?
+    #if DEBUG
+        @ObservationIgnored
+        var playbackSwitchPresentationRequestHandler: ((
+            PlaybackPresentation,
+            PlaybackPresentation
+        ) -> Void)?
+        @ObservationIgnored
+        var playbackSwitchPresentationSettlementHandler: ((PlaybackPresentation) -> Void)?
+    #endif
 
     private let logger = Logger(subsystem: "app.enchron", category: "Presentation")
 
@@ -256,6 +265,12 @@ public final class AppModel {
                 wasPlaying: wasPlaying
             )
         )
+        #if DEBUG
+            playbackSwitchPresentationRequestHandler?(
+                transition.previousPresentation,
+                transition.targetPresentation
+            )
+        #endif
         preparePresentationTransitionAppearance(transition)
         return transition
     }
@@ -400,6 +415,9 @@ public final class AppModel {
         let resolution = playbackPresentationModel.receiveSpatialPlatformResult(event)
         switch resolution {
         case .presentationCommitted(let presentation):
+            #if DEBUG
+                playbackSwitchPresentationSettlementHandler?(presentation)
+            #endif
             resetPresentationTransitionAppearance()
             if presentation.usesMainWindow,
                environmentContext.environment != nil {

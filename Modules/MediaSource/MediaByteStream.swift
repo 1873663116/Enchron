@@ -1,5 +1,22 @@
 import Foundation
 import Network
+#if DEBUG
+import Synchronization
+#endif
+
+#if DEBUG
+public struct MediaByteStreamDebugCounters: Sendable, Equatable {
+    public var scope: UInt64
+    public var acceptedConnectionCount: UInt64
+    public var requestCount: UInt64
+
+    public init(scope: UInt64, acceptedConnectionCount: UInt64, requestCount: UInt64) {
+        self.scope = scope
+        self.acceptedConnectionCount = acceptedConnectionCount
+        self.requestCount = requestCount
+    }
+}
+#endif
 
 public enum MediaByteBufferDepth: Sendable, Equatable {
     case none
@@ -71,6 +88,12 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
     public func discardContainerIndex() {
         server?.discardContainerIndex(token: token)
     }
+
+    #if DEBUG
+        public func debugCounters() -> MediaByteStreamDebugCounters? {
+            server?.debugCounters()
+        }
+    #endif
 
     public func release() {
         let shouldRelease = lock.withLock {
@@ -391,6 +414,10 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var transferTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     private var statistics = Statistics()
+    #if DEBUG
+        private let debugAcceptedConnectionCount = Atomic<UInt64>(0)
+        private let debugRequestCount = Atomic<UInt64>(0)
+    #endif
 
     public init(readChunkSize: Int64 = 1_048_576) {
         self.readChunkSize = max(1, readChunkSize)
@@ -414,6 +441,16 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     public func snapshot() -> Statistics {
         lock.withLock { statistics }
     }
+
+    #if DEBUG
+        fileprivate func debugCounters() -> MediaByteStreamDebugCounters {
+            MediaByteStreamDebugCounters(
+                scope: UInt64(UInt(bitPattern: ObjectIdentifier(self))),
+                acceptedConnectionCount: debugAcceptedConnectionCount.load(ordering: .relaxed),
+                requestCount: debugRequestCount.load(ordering: .relaxed)
+            )
+        }
+    #endif
 
     public func stopAndWait() async {
         let work = lock.withLock { () -> (NWListener?, [NWConnection], [Task<Void, Never>]) in
@@ -513,6 +550,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             connections[id] = connection
             statistics.acceptedConnectionCount += 1
         }
+        #if DEBUG
+            debugAcceptedConnectionCount.wrappingAdd(1, ordering: .relaxed)
+        #endif
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             if case .failed = state { self?.connectionDidEnd(id, connection: connection) }
             if case .cancelled = state { self?.connectionDidEnd(id, connection: connection) }
@@ -671,6 +711,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 statistics.requestCount += 1
                 statistics.largestRequest = max(statistics.largestRequest, responseLength)
             }
+            #if DEBUG
+                debugRequestCount.wrappingAdd(1, ordering: .relaxed)
+            #endif
             var response = "HTTP/1.1 \(request.isPartial ? "206 Partial Content" : "200 OK")\r\n"
             response += "Accept-Ranges: bytes\r\nContent-Type: application/octet-stream\r\n"
             response += "Content-Length: \(responseLength)\r\n"

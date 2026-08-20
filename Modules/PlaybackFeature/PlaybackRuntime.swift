@@ -9,6 +9,34 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 
+#if DEBUG
+private final class PlaybackSwitchRendererSampleForwarder:
+    PlaybackSwitchRendererSampleSink,
+    @unchecked Sendable
+{
+    private let byteStreamHandle: MediaByteStreamHandle?
+    private let handler: @Sendable (
+        PlaybackSwitchRendererSample,
+        MediaByteStreamDebugCounters?
+    ) -> Void
+
+    init(
+        byteStreamHandle: MediaByteStreamHandle?,
+        handler: @escaping @Sendable (
+            PlaybackSwitchRendererSample,
+            MediaByteStreamDebugCounters?
+        ) -> Void
+    ) {
+        self.byteStreamHandle = byteStreamHandle
+        self.handler = handler
+    }
+
+    func recordPlaybackSwitchRendererSample(_ sample: PlaybackSwitchRendererSample) {
+        handler(sample, byteStreamHandle?.debugCounters())
+    }
+}
+#endif
+
 struct PlaybackPresentationSurfacePixelIdentity: Equatable {
     let technicalSessionID: String?
     let videoComponentRevision: UInt64
@@ -145,6 +173,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var externalSubtitleSourceIDByURL: [URL: String] = [:]
     @ObservationIgnored
     private var externalSubtitleAccessBySourceID: [String: MediaAccessLease] = [:]
+    #if DEBUG
+        @ObservationIgnored
+        private var playbackSwitchSampleHandler: (@Sendable (
+            PlaybackSwitchRendererSample,
+            MediaByteStreamDebugCounters?
+        ) -> Void)?
+        @ObservationIgnored
+        private var playbackFormatSwitchHandler: (() -> Void)?
+    #endif
 
     public var hasActivePlaybackRequest: Bool { currentLaunchRequest != nil }
     public var productLifecycle: ProductPlaybackLifecycle {
@@ -472,6 +509,55 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         sessionLifecycleHandler = handler
     }
 
+    #if DEBUG
+        public func debugSetPlaybackSwitchSampleHandler(
+            _ handler: (@Sendable (
+                PlaybackSwitchRendererSample,
+                MediaByteStreamDebugCounters?
+            ) -> Void)?
+        ) {
+            playbackSwitchSampleHandler = handler
+            installPlaybackSwitchSampleHandler(
+                on: session,
+                byteStreamHandle: currentLaunchRequest?.source.byteStreamHandle
+            )
+            installPlaybackSwitchSampleHandler(
+                on: preparedTechnicalSessionReplacement?.session,
+                byteStreamHandle: currentLaunchRequest?.source.byteStreamHandle
+            )
+        }
+
+        public func debugSetPlaybackFormatSwitchHandler(_ handler: (() -> Void)?) {
+            playbackFormatSwitchHandler = handler
+        }
+
+        public func debugCurrentByteStreamCounters() -> MediaByteStreamDebugCounters? {
+            currentLaunchRequest?.source.byteStreamHandle?.debugCounters()
+        }
+
+        public func debugCapturePlaybackSwitchRendererState() {
+            session?.capturePlaybackSwitchRendererState()
+        }
+
+        private func installPlaybackSwitchSampleHandler(
+            on session: SampleBufferPlaybackSession?,
+            byteStreamHandle: MediaByteStreamHandle?
+        ) {
+            guard let session else { return }
+            guard let playbackSwitchSampleHandler else {
+                session.setPlaybackSwitchRendererSampleSink(nil)
+                return
+            }
+            session.setPlaybackSwitchRendererSampleSink(
+                PlaybackSwitchRendererSampleForwarder(
+                    byteStreamHandle: byteStreamHandle,
+                    handler: playbackSwitchSampleHandler
+                )
+            )
+            session.capturePlaybackSwitchRendererState()
+        }
+    #endif
+
     public func open(
         _ request: PlaybackLaunchRequest,
         startTimeSeconds: Double = 0,
@@ -534,6 +620,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 throw error
             }
             let sourceSnapshot = newSession.debugSnapshot()
+            #if DEBUG
+                installPlaybackSwitchSampleHandler(
+                    on: newSession,
+                    byteStreamHandle: request.source.byteStreamHandle
+                )
+            #endif
             let sourceFormat = Self.sourceMediaFormat(from: sourceSnapshot)
             if sourceFormat.contentKind == .appleImmersiveVideo {
                 await controller.closeAndWait()
@@ -1223,6 +1315,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
         technicalSessionFormatReplacementIsPending =
             technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
+        #if DEBUG
+            if technicalSessionFormatReplacementIsPending {
+                playbackFormatSwitchHandler?()
+            }
+        #endif
         // The override becomes renderer input only when a fresh technical
         // session is assembled. Mutating the live renderer would allow
         // RealityKit to retain its previous projection classification.
@@ -1236,6 +1333,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         publishSourceFormat()
         technicalSessionFormatReplacementIsPending =
             technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
+        #if DEBUG
+            if technicalSessionFormatReplacementIsPending {
+                playbackFormatSwitchHandler?()
+            }
+        #endif
         effectiveVideoFormatRevision = nil
     }
 
@@ -1310,6 +1412,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     ? "securityScopedFile"
                     : "networkSource"
             )
+            #if DEBUG
+                installPlaybackSwitchSampleHandler(
+                    on: replacement,
+                    byteStreamHandle: request.source.byteStreamHandle
+                )
+            #endif
             guard generation == replacementGeneration,
                   activeSessionID == logicalSessionID else {
                 await replacementController.closeAndWait(clearSource: false)

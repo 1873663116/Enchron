@@ -693,6 +693,14 @@ extension SampleBufferPlaybackSession {
         record.lifecycle = lifecycle
         mediaSessionRecord = record
         debugStore.recordSession(record)
+        #if DEBUG
+            deliveryQueue.async { [weak self] in
+                self?.recordPlaybackSwitchRendererSample(
+                    trigger: .lifecycleChanged,
+                    observesDisplayProgress: false
+                )
+            }
+        #endif
     }
 
     func recordFailure(_ error: Error, node: PlaybackNode, kind: String) {

@@ -708,6 +708,14 @@ extension SampleBufferPlaybackSession {
             updateCompressedDiagnostics(sample: formatSignaledSample)
             lastSourceEventID = sourceEventID
             diagnostics.enqueuedSampleCount += 1
+            #if DEBUG
+                if diagnostics.enqueuedSampleCount == 1 {
+                    recordPlaybackSwitchRendererSample(
+                        trigger: .firstInputAccepted,
+                        observesDisplayProgress: false
+                    )
+                }
+            #endif
             let rendererRecord = RendererInputRecord(
                 mediaSessionID: traceID,
                 sourceEventID: lastSourceEventID,
