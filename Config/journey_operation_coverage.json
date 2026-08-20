@@ -1,1208 +1,1670 @@
 {
-  "schemaVersion": 1,
-  "generatedFrom": "reachability_matrix_baseline.json",
+  "schemaVersion": 2,
+  "generatedFrom": "Scripts/verification/journey_units.py",
   "cells": [
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 3,
+      "drive": "real",
+      "expect": "Environment changes."
     },
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-card",
-      "journey": "J07",
-      "step": "5a"
+      "unit": "environment.card",
+      "step": 1,
+      "drive": "real",
+      "expect": "Environment card opens."
     },
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-carousel",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 2,
+      "drive": "real",
+      "expect": "Carousel scrolls through environments."
     },
     {
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 4,
+      "drive": "real",
+      "expect": "Effect toggles."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 4,
+      "drive": "real",
+      "expect": "Placement returns to its default."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "journey": "J07",
-      "step": 7
+      "unit": "playback.exit-spatial",
+      "step": 1,
+      "drive": "real",
+      "expect": "Window presentation returns with playback intact."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-button-forward",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 3,
+      "drive": "real",
+      "expect": "Position jumps forward by the skip interval."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-button-play",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 1,
+      "drive": "real",
+      "expect": "Timebase rate goes to zero and the position stops."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-button-rewind",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 4,
+      "drive": "real",
+      "expect": "Position jumps back by the skip interval."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-button-settings",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 2,
+      "drive": "real",
+      "expect": "Placement controls appear."
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "unit": "playback.transport",
+      "step": 8,
+      "drive": "real",
+      "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "journey": "J07",
-      "step": 6
+      "unit": "playback.transport",
+      "step": 9,
+      "drive": "real",
+      "expect": "Media information panel closes."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-audio",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 7,
+      "drive": "real",
+      "expect": "Audio list opens in the docked panel."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-episodes",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 11,
+      "drive": "real",
+      "expect": "Episode list opens."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-more",
-      "journey": "J07",
-      "step": 6
+      "unit": "docked.panel",
+      "step": 6,
+      "drive": "real",
+      "expect": "Docked more menu opens."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-speed",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 10,
+      "drive": "real",
+      "expect": "Speed list opens."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 9,
+      "drive": "real",
+      "expect": "Subtitle list opens."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 8,
+      "drive": "real",
+      "expect": "Track changes from the docked panel."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-precision-timeline",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 6,
+      "drive": "real",
+      "expect": "Precision timeline opens."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-progress",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 5,
+      "drive": "real",
+      "expect": "Progress bar accepts a tap and seeks."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerPanel-{identifier}-slider",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "docked.panel",
+      "step": 3,
+      "drive": "real",
+      "expect": "Screen size changes. The three sliders are screen size, distance and elevation."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "journey": "J12",
-      "step": 5
+      "unit": "issues.spatial-surfaces",
+      "step": 6,
+      "drive": "real",
+      "expect": "Surface closes. The immersive host hit-tests it independently of the window host."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.spatial-surfaces",
+      "step": 2,
+      "drive": "real",
+      "expect": "Primary action retries the attachment."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.spatial-surfaces",
+      "step": 4,
+      "drive": "real",
+      "expect": "Secondary action leaves the immersive scene."
     },
     {
       "context": "docked",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.spatial-surfaces",
+      "step": 8,
+      "drive": "real",
+      "expect": "Surface closes."
     },
     {
       "context": "docked",
       "operation": "command:listMenuItems",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Read-only. It reports which track is selected and asserts nothing about reachability, so it is evidence rather than an operation."
     },
     {
       "context": "docked",
       "operation": "command:seekNormalized",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "playback.transport",
+      "step": 10,
+      "drive": "injected",
+      "expect": "Position lands at half the duration."
     },
     {
       "context": "docked",
       "operation": "command:selectMenuItem",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Superseded. Measured on device 2026-08-20: the menu host is hittable, the items render in the hierarchy, and tapping one by label changes the value. The verb stays in the app only until every menu host has been driven for real, then it is deleted."
     },
     {
       "context": "docked",
       "operation": "command:setDockedPlacement",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "docked.panel",
+      "step": 5,
+      "drive": "injected",
+      "expect": "Placement takes an exact value for the assertion below."
     },
     {
       "context": "docked",
       "operation": "command:toggleControls",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "docked.panel",
+      "step": 1,
+      "drive": "injected",
+      "expect": "Docked panel appears."
     },
     {
       "context": "docked",
       "operation": "environmentVolume:open-interact-close",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 5,
+      "drive": "injected",
+      "expect": "Environment volume opens."
     },
     {
       "context": "docked",
       "operation": "negative:immersive-resident-window",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "docked.panel",
+      "step": 12,
+      "drive": "evidence",
+      "expect": "The main window is not resident behind the docked scene."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Address",
-      "journey": "J04",
-      "step": 2
+      "unit": "emby.connect",
+      "step": 2,
+      "drive": "real",
+      "expect": "Address field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Connect",
-      "journey": "J04",
-      "step": 2
+      "unit": "emby.connect",
+      "step": 5,
+      "drive": "real",
+      "expect": "Home view loads with poster rows."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Password",
-      "journey": "J04",
-      "step": 2
+      "unit": "emby.connect",
+      "step": 4,
+      "drive": "real",
+      "expect": "Password field is filled and never echoed into the log."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Connection-Username",
-      "journey": "J04",
-      "step": 2
+      "unit": "emby.connect",
+      "step": 3,
+      "drive": "real",
+      "expect": "Username field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Overview-Expand",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.browse",
+      "step": 4,
+      "drive": "real",
+      "expect": "Overview expands."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Version",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.play",
+      "step": 2,
+      "drive": "real",
+      "expect": "Version list appears when the item has more than one."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.play",
+      "step": 3,
+      "drive": "real",
+      "expect": "Playback starts from the offered position."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
-      "journey": "J04",
-      "step": 4
+      "unit": "emby.play",
+      "step": 5,
+      "drive": "real",
+      "expect": "An episode card opens playback directly, without a third detail level."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Library-Sort",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.browse",
+      "step": 7,
+      "drive": "real",
+      "expect": "Sort options appear."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Navigation-Tab",
-      "primitive": "P1"
+      "unit": "emby.connect",
+      "step": 1,
+      "drive": "real",
+      "expect": "Emby screen is on screen."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
-      "journey": "J04",
-      "step": 4
+      "unit": "emby.browse",
+      "step": 2,
+      "drive": "real",
+      "expect": "Poster row scrolls. Only cards inside the visible band accept a tap, so scrolling comes first."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Search-Field",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.browse",
+      "step": 8,
+      "drive": "real",
+      "expect": "Search field takes focus."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Season-Picker",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.browse",
+      "step": 5,
+      "drive": "real",
+      "expect": "Season list appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.browse",
+      "step": 6,
+      "drive": "real",
+      "expect": "Episode panel switches to that season."
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Sidebar-Toggle",
+      "unit": "emby.browse",
+      "step": 1,
+      "drive": "real",
+      "expect": "Library sidebar hides, then a second tap brings it back. The toggle sits in the page header of every Emby screen."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-SignOut",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "emby.sign-out",
+      "step": 1,
+      "drive": "real",
+      "expect": "Connection form returns and the library is gone."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
-      "journey": "J04",
-      "step": 4
+      "unit": "emby.play",
+      "step": 1,
+      "drive": "real",
+      "expect": "Single episode detail opens."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-Breadcrumb-current",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "source.webdav",
+      "step": 9,
+      "drive": "real",
+      "expect": "Browser returns up one level."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-CertificateTrust-cancel",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "source.webdav-refused",
+      "step": 4,
+      "drive": "real",
+      "expect": "No source is added and no listing loads."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-CertificateTrust-trust",
-      "journey": "J02",
-      "step": "4b"
+      "unit": "source.webdav",
+      "step": 7,
+      "drive": "real",
+      "expect": "Certificate is accepted and the listing loads."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 6,
+      "drive": "real",
+      "expect": "Browser returns to the previous location."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 7,
+      "drive": "real",
+      "expect": "Browser returns forward."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-search",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 1,
+      "drive": "real",
+      "expect": "Search field takes focus."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 5,
+      "drive": "real",
+      "expect": "Sidebar hides and shows."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-sort",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 3,
+      "drive": "real",
+      "expect": "Sort options appear."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 4,
+      "drive": "real",
+      "expect": "Grid switches between layouts."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-Manage-button",
-      "journey": "J11",
-      "step": 2
+      "unit": "library.import",
+      "step": 1,
+      "drive": "real",
+      "expect": "Manage menu opens."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb",
+      "step": 3,
+      "drive": "real",
+      "expect": "Address field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb-cancel",
+      "step": 2,
+      "drive": "real",
+      "expect": "Form closes and the sidebar is unchanged."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb",
+      "step": 8,
+      "drive": "real",
+      "expect": "Share mounts and its listing loads."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb",
+      "step": 4,
+      "drive": "real",
+      "expect": "Credential fields disable when guest is on."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb",
+      "step": 2,
+      "drive": "real",
+      "expect": "Name field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb",
+      "step": 7,
+      "drive": "real",
+      "expect": "Password field is filled and never echoed into the log."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
-      "journey": "J03",
-      "step": 3
+      "unit": "source.smb",
+      "step": 6,
+      "drive": "real",
+      "expect": "Username field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
-      "journey": "J02",
-      "step": 3
+      "unit": "source.webdav",
+      "step": 3,
+      "drive": "real",
+      "expect": "Address field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
-      "journey": "J02",
-      "step": 3
+      "unit": "source.webdav-refused",
+      "step": 5,
+      "drive": "real",
+      "expect": "Form closes with nothing added."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
-      "journey": "J02",
-      "step": 3
+      "unit": "source.webdav",
+      "step": 6,
+      "drive": "real",
+      "expect": "Connection is attempted."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
-      "journey": "J02",
-      "step": 3
+      "unit": "source.webdav",
+      "step": 2,
+      "drive": "real",
+      "expect": "Name field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
-      "journey": "J02",
-      "step": 3
+      "unit": "source.webdav",
+      "step": 5,
+      "drive": "real",
+      "expect": "Password field is filled and never echoed into the log."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
-      "journey": "J02",
-      "step": 3
+      "unit": "source.webdav",
+      "step": 4,
+      "drive": "real",
+      "expect": "Username field holds the value."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
-      "status": "manual",
-      "reason": "系统面板，人工层每场次各走一遍"
+      "unit": "library.import-entries",
+      "step": 6,
+      "drive": "real",
+      "expect": "Sidebar file entry opens the same picker."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
-      "status": "manual",
-      "reason": "系统面板，人工层每场次各走一遍"
+      "unit": "library.import-entries",
+      "step": 8,
+      "drive": "real",
+      "expect": "Sidebar folder entry opens the folder picker."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "status": "manual",
-      "reason": "系统面板，人工层每场次各走一遍"
+      "unit": "library.import-entries",
+      "step": 10,
+      "drive": "real",
+      "expect": "Sidebar photo entry opens the photo picker."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
-      "journey": "J03",
-      "step": 2
+      "unit": "source.smb",
+      "step": 1,
+      "drive": "real",
+      "expect": "SMB form appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
-      "journey": "J02",
-      "step": 2
+      "unit": "source.webdav",
+      "step": 1,
+      "drive": "real",
+      "expect": "Connection form appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.sources-sidebar",
+      "step": 4,
+      "drive": "real",
+      "expect": "Source leaves the sidebar."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.sources-sidebar",
+      "step": 3,
+      "drive": "real",
+      "expect": "Source listing reloads."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
-      "journey": "J02",
-      "step": 6
+      "unit": "files.sources-sidebar",
+      "step": 1,
+      "drive": "real",
+      "expect": "Source is selected. Three elements share this identifier, so the row is selected by label, not by identifier."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
-      "journey": "J02",
-      "step": 2
+      "unit": "files.sources-sidebar",
+      "step": 2,
+      "drive": "real",
+      "expect": "Source menu opens."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-error-primary",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "library.error-surface",
+      "step": 4,
+      "drive": "real",
+      "expect": "Primary action runs."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-error-secondary",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "library.error-surface",
+      "step": 6,
+      "drive": "real",
+      "expect": "Secondary action runs."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
-      "journey": "J02",
-      "step": 7
+      "unit": "source.webdav",
+      "step": 8,
+      "drive": "real",
+      "expect": "Remote folder opens."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
-      "journey": "J02",
-      "step": 7
+      "unit": "source.smb",
+      "step": 9,
+      "drive": "real",
+      "expect": "Remote file opens into playback."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Breadcrumb-current",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "library.new-folder",
+      "step": 6,
+      "drive": "real",
+      "expect": "Grid returns to the library root."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-addFiles",
-      "status": "manual",
-      "reason": "系统面板，人工层每场次各走一遍"
+      "unit": "library.import",
+      "step": 2,
+      "drive": "real",
+      "expect": "System file picker appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-addFolder",
-      "status": "manual",
-      "reason": "系统面板，人工层每场次各走一遍"
+      "unit": "library.import-entries",
+      "step": 2,
+      "drive": "real",
+      "expect": "Folder picker appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "status": "manual",
-      "reason": "系统面板，人工层每场次各走一遍"
+      "unit": "library.import-entries",
+      "step": 4,
+      "drive": "real",
+      "expect": "Photo picker appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-newFolder",
-      "journey": "J11",
-      "step": 2
+      "unit": "library.new-folder",
+      "step": 2,
+      "drive": "real",
+      "expect": "Naming sheet appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
-      "journey": "J11",
-      "step": 5
+      "unit": "library.multi-select-move",
+      "step": 2,
+      "drive": "real",
+      "expect": "Grid enters selection mode."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
-      "journey": "J11",
-      "step": 7
+      "unit": "library.multi-select-delete",
+      "step": 5,
+      "drive": "real",
+      "expect": "Item leaves the grid and the reference list."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-delete",
-      "journey": "J11",
-      "step": 7
+      "unit": "library.multi-select-delete",
+      "step": 4,
+      "drive": "real",
+      "expect": "Confirmation appears and nothing is deleted yet."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-done",
-      "journey": "J11",
-      "step": 5
+      "unit": "library.multi-select-move",
+      "step": 5,
+      "drive": "real",
+      "expect": "Selection mode ends."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-MultiSelect-move",
-      "journey": "J11",
-      "step": 5
+      "unit": "library.multi-select-move",
+      "step": 4,
+      "drive": "real",
+      "expect": "Destination picker appears."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-NewFolder-create",
-      "journey": "J11",
-      "step": 2
+      "unit": "library.new-folder",
+      "step": 4,
+      "drive": "real",
+      "expect": "Sheet closes and the folder is on the grid."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-NewFolder-name",
-      "journey": "J11",
-      "step": 2
+      "unit": "library.new-folder",
+      "step": 3,
+      "drive": "real",
+      "expect": "Field holds the typed name."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
-      "journey": "J11",
-      "step": 3
+      "unit": "library.rename-folder",
+      "step": 3,
+      "drive": "real",
+      "expect": "Grid shows the new name."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-RenameFolder-name",
-      "journey": "J11",
-      "step": 3
+      "unit": "library.rename-folder",
+      "step": 1,
+      "drive": "real",
+      "expect": "Rename field is focused."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-error-dismiss",
-      "journey": "J12",
-      "step": 5
+      "unit": "library.error-surface",
+      "step": 2,
+      "drive": "real",
+      "expect": "Error surface closes."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
-      "journey": "J11",
-      "step": 4
+      "unit": "library.new-folder",
+      "step": 5,
+      "drive": "real",
+      "expect": "Grid shows the folder contents."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
-      "journey": "J11",
-      "step": 4
+      "unit": "library.multi-select-move",
+      "step": 3,
+      "drive": "real",
+      "expect": "Card shows as selected instead of opening playback."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Navigation-Ornament-tab-environment",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "navigation.tabs",
+      "step": 3,
+      "drive": "real",
+      "expect": "Environment screen is on screen."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Navigation-Ornament-tab-files",
-      "primitive": "P1"
+      "unit": "navigation.tabs",
+      "step": 1,
+      "drive": "real",
+      "expect": "Files screen is on screen."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Navigation-Ornament-tab-settings",
-      "primitive": "P1"
+      "unit": "navigation.tabs",
+      "step": 2,
+      "drive": "real",
+      "expect": "Settings screen is on screen."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.playback-surfaces",
+      "step": 10,
+      "drive": "real",
+      "expect": "Surface closes. Conversion failure is raised by the browser window, so the dismissal is a browser hit test."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:PlayerUI-resumeDecision-primary",
-      "journey": "J10",
-      "step": 7
+      "unit": "playback.resume-decision",
+      "step": 2,
+      "drive": "real",
+      "expect": "Playback starts at the recorded position."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:PlayerUI-resumeDecision-secondary",
-      "journey": "J10",
-      "step": 7
+      "unit": "playback.resume-decision",
+      "step": 3,
+      "drive": "real",
+      "expect": "Playback starts from the beginning."
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-action-{id}",
+      "unit": "settings.actions",
+      "step": 2,
+      "drive": "real",
+      "expect": "Version copies to the pasteboard."
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-category-{item.id}",
-      "journey": "J10",
-      "step": 7
+      "unit": "settings.categories",
+      "step": 1,
+      "drive": "real",
+      "expect": "Detail pane shows playback settings. A delivered tap whose detail pane does not follow is the defect this step exists to catch."
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-{id}",
+      "unit": "settings.menus",
+      "step": 2,
+      "drive": "real",
+      "expect": "Resume strategy menu opens with its items in the hierarchy."
     },
     {
       "context": "main-window-browser",
       "operation": "command:listMenuItems",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Read-only. It reports which track is selected and asserts nothing about reachability, so it is evidence rather than an operation."
     },
     {
       "context": "main-window-browser",
       "operation": "command:selectMenuItem",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Superseded. Measured on device 2026-08-20: the menu host is hittable, the items render in the hierarchy, and tapping one by label changes the value. The verb stays in the app only until every menu host has been driven for real, then it is deleted."
     },
     {
       "context": "main-window-browser",
       "operation": "menu:settings:controls-auto-hide",
-      "journey": "J10",
-      "step": 10
+      "unit": "settings.menus",
+      "step": 6,
+      "drive": "real",
+      "expect": "Auto-hide menu opens."
     },
     {
       "context": "main-window-browser",
       "operation": "menu:settings:default-scenic-environment",
-      "journey": "J10",
-      "step": 11
+      "unit": "settings.menus",
+      "step": 8,
+      "drive": "real",
+      "expect": "Environment menu opens."
     },
     {
       "context": "main-window-browser",
       "operation": "menu:settings:default-speed",
-      "journey": "J10",
-      "step": 9
+      "unit": "settings.menus",
+      "step": 4,
+      "drive": "real",
+      "expect": "Default speed menu opens."
     },
     {
       "context": "main-window-browser",
       "operation": "menu:settings:end-behavior",
-      "journey": "J10",
-      "step": 12
+      "unit": "settings.menus",
+      "step": 10,
+      "drive": "real",
+      "expect": "End behaviour menu opens."
     },
     {
       "context": "main-window-browser",
       "operation": "menu:settings:resume-strategy",
-      "journey": "J10",
-      "step": 7
+      "unit": "settings.menus",
+      "step": 2,
+      "drive": "real",
+      "expect": "Resume strategy menu opens with its items in the hierarchy."
     },
     {
       "context": "main-window-browser",
       "operation": "scroll:emby",
-      "journey": "J04",
-      "step": 4
+      "unit": "emby.browse",
+      "step": 2,
+      "drive": "real",
+      "expect": "Poster row scrolls. Only cards inside the visible band accept a tap, so scrolling comes first."
     },
     {
       "context": "main-window-browser",
       "operation": "scroll:file-list",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "files.chrome",
+      "step": 8,
+      "drive": "real",
+      "expect": "File list scrolls. The identifier is mandatory: a bare swipe degrades to the Application element and tears the session down."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-button-exit-spatial",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 10,
+      "drive": "real",
+      "expect": "Immersive space closes and the window returns."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-button-forward",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 3,
+      "drive": "real",
+      "expect": "Position jumps forward by the skip interval."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-button-play",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 1,
+      "drive": "real",
+      "expect": "Timebase rate goes to zero and the position stops."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-button-rewind",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 4,
+      "drive": "real",
+      "expect": "Position jumps back by the skip interval."
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "unit": "playback.transport",
+      "step": 8,
+      "drive": "real",
+      "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 9,
+      "drive": "real",
+      "expect": "Media information panel closes."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-audio",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 5,
+      "drive": "real",
+      "expect": "Audio list opens over the immersive scene."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-episodes",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 9,
+      "drive": "real",
+      "expect": "Episode list opens over the immersive scene, or the control is absent for single-file media."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-more",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 4,
+      "drive": "real",
+      "expect": "The panorama panel opens its more menu."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-speed",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 8,
+      "drive": "real",
+      "expect": "Speed list opens over the immersive scene."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-subtitles",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 7,
+      "drive": "real",
+      "expect": "Subtitle list opens over the immersive scene."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.panorama",
+      "step": 6,
+      "drive": "real",
+      "expect": "Track changes without leaving panorama."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-precision-timeline",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 6,
+      "drive": "real",
+      "expect": "Precision timeline opens."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerPanel-progress",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 5,
+      "drive": "real",
+      "expect": "Progress bar accepts a tap and seeks."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "journey": "J12",
-      "step": 5
+      "unit": "issues.spatial-surfaces",
+      "step": 6,
+      "drive": "real",
+      "expect": "Surface closes. The immersive host hit-tests it independently of the window host."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-spatialFailure-primary",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.spatial-surfaces",
+      "step": 2,
+      "drive": "real",
+      "expect": "Primary action retries the attachment."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-spatialFailure-secondary",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.spatial-surfaces",
+      "step": 4,
+      "drive": "real",
+      "expect": "Secondary action leaves the immersive scene."
     },
     {
       "context": "panorama",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.spatial-surfaces",
+      "step": 8,
+      "drive": "real",
+      "expect": "Surface closes."
     },
     {
       "context": "panorama",
       "operation": "command:listMenuItems",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Read-only. It reports which track is selected and asserts nothing about reachability, so it is evidence rather than an operation."
     },
     {
       "context": "panorama",
       "operation": "command:seekNormalized",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "playback.transport",
+      "step": 10,
+      "drive": "injected",
+      "expect": "Position lands at half the duration."
     },
     {
       "context": "panorama",
       "operation": "command:selectMenuItem",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Superseded. Measured on device 2026-08-20: the menu host is hittable, the items render in the hierarchy, and tapping one by label changes the value. The verb stays in the app only until every menu host has been driven for real, then it is deleted."
     },
     {
       "context": "panorama",
       "operation": "command:toggleControls",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "playback.panorama",
+      "step": 3,
+      "drive": "injected",
+      "expect": "Controls appear over the immersive scene."
     },
     {
       "context": "panorama",
       "operation": "negative:immersive-resident-window",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "playback.panorama",
+      "step": 2,
+      "drive": "evidence",
+      "expect": "The main window is not in the hierarchy while immersive."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-button-forward",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 3,
+      "drive": "real",
+      "expect": "Position jumps forward by the skip interval."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-button-play",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 1,
+      "drive": "real",
+      "expect": "Timebase rate goes to zero and the position stops."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-button-rewind",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 4,
+      "drive": "real",
+      "expect": "Position jumps back by the skip interval."
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "unit": "playback.transport",
+      "step": 8,
+      "drive": "real",
+      "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 9,
+      "drive": "real",
+      "expect": "Media information panel closes."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-precision-timeline",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 6,
+      "drive": "real",
+      "expect": "Precision timeline opens."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerPanel-progress",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 5,
+      "drive": "real",
+      "expect": "Progress bar accepts a tap and seeks."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "journey": "J01",
-      "step": 11
+      "unit": "playback.controls-window",
+      "step": 3,
+      "drive": "real",
+      "expect": "Playback closes and the library returns."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-TopAction-more",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.controls-window",
+      "step": 2,
+      "drive": "real",
+      "expect": "More menu opens. Sent as a sequence because the controls hide faster than two channel round trips."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
-      "primitive": "P7"
+      "unit": "playback.panorama",
+      "step": 1,
+      "drive": "real",
+      "expect": "Immersive space opens and settles."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-TopAction-videoFormat",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 1,
+      "drive": "real",
+      "expect": "Format editor opens."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 3,
+      "drive": "real",
+      "expect": "Custom angle entry appears."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 4,
+      "drive": "real",
+      "expect": "Fallback transfer choice changes."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 6,
+      "drive": "real",
+      "expect": "Presentation becomes portal with the chosen projection."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 5,
+      "drive": "real",
+      "expect": "Editor returns to the detected format."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 8,
+      "drive": "real",
+      "expect": "Editor closes with the format unchanged."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 2,
+      "drive": "real",
+      "expect": "Projection selection changes."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "journey": "J09",
-      "step": 3
+      "unit": "issues.playback-surfaces",
+      "step": 2,
+      "drive": "real",
+      "expect": "Primary action retries."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "journey": "J09",
-      "step": 3
+      "unit": "issues.playback-surfaces",
+      "step": 4,
+      "drive": "real",
+      "expect": "Secondary action leaves playback."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-menu-audio",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.tracks",
+      "step": 1,
+      "drive": "real",
+      "expect": "Audio track list opens."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-menu-episodes",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.tracks",
+      "step": 7,
+      "drive": "real",
+      "expect": "Episode list opens for a series item."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-menu-speed",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.tracks",
+      "step": 5,
+      "drive": "real",
+      "expect": "Speed list opens."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-menu-subtitles",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.tracks",
+      "step": 3,
+      "drive": "real",
+      "expect": "Subtitle list opens."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "journey": "J12",
-      "step": 5
+      "unit": "issues.playback-surfaces",
+      "step": 6,
+      "drive": "real",
+      "expect": "Surface closes."
     },
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.playback-surfaces",
+      "step": 8,
+      "drive": "real",
+      "expect": "Surface closes."
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-window-playback-surface",
+      "unit": "playback.controls-window",
+      "step": 1,
+      "drive": "real",
+      "expect": "Controls appear. In the window and portal this is a real touch on the video, not an injection."
     },
     {
       "context": "portal",
       "operation": "command:listMenuItems",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Read-only. It reports which track is selected and asserts nothing about reachability, so it is evidence rather than an operation."
     },
     {
       "context": "portal",
       "operation": "command:seekNormalized",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "playback.transport",
+      "step": 10,
+      "drive": "injected",
+      "expect": "Position lands at half the duration."
     },
     {
       "context": "portal",
       "operation": "command:selectMenuItem",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Superseded. Measured on device 2026-08-20: the menu host is hittable, the items render in the hierarchy, and tapping one by label changes the value. The verb stays in the app only until every menu host has been driven for real, then it is deleted."
     },
     {
       "context": "portal",
       "operation": "command:setWindowSize",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "window.geometry",
+      "step": 1,
+      "drive": "injected",
+      "expect": "Portal window reports the requested size."
     },
     {
       "context": "portal",
       "operation": "command:toggleControls",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Deliberately unused here. The controls are summoned by a real tap on the video surface in this presentation, and reaching for the injection would skip a path that works."
     },
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 3,
+      "drive": "real",
+      "expect": "Environment changes."
     },
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-card",
-      "journey": "J07",
-      "step": "5a"
+      "unit": "environment.card",
+      "step": 1,
+      "drive": "real",
+      "expect": "Environment card opens."
     },
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-carousel",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 2,
+      "drive": "real",
+      "expect": "Carousel scrolls through environments."
     },
     {
       "context": "window",
       "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 4,
+      "drive": "real",
+      "expect": "Effect toggles."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-button-forward",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 3,
+      "drive": "real",
+      "expect": "Position jumps forward by the skip interval."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-button-play",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 1,
+      "drive": "real",
+      "expect": "Timebase rate goes to zero and the position stops."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-button-rewind",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 4,
+      "drive": "real",
+      "expect": "Position jumps back by the skip interval."
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "unit": "playback.transport",
+      "step": 8,
+      "drive": "real",
+      "expect": "Media information well expands. The well is its own tap target, and nothing else opens it."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-media-information-close",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 9,
+      "drive": "real",
+      "expect": "Media information panel closes."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-precision-timeline",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 6,
+      "drive": "real",
+      "expect": "Precision timeline opens."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerPanel-progress",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.transport",
+      "step": 5,
+      "drive": "real",
+      "expect": "Progress bar accepts a tap and seeks."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-DockMenu-skybox",
-      "primitive": "P6"
+      "unit": "playback.dock",
+      "step": 1,
+      "drive": "real",
+      "expect": "Docked presentation is requested."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
-      "primitive": "P6"
+      "unit": "playback.dock",
+      "step": 3,
+      "drive": "real",
+      "expect": "Environment changes without a new session."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-InfoBar-button-back",
-      "journey": "J01",
-      "step": 11
+      "unit": "playback.controls-window",
+      "step": 3,
+      "drive": "real",
+      "expect": "Playback closes and the library returns."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-TopAction-dock",
-      "primitive": "P6"
+      "unit": "playback.dock",
+      "step": 1,
+      "drive": "real",
+      "expect": "Docked presentation is requested."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-TopAction-more",
-      "journey": "J07",
-      "step": 3
+      "unit": "playback.controls-window",
+      "step": 2,
+      "drive": "real",
+      "expect": "More menu opens. Sent as a sequence because the controls hide faster than two channel round trips."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-TopAction-videoFormat",
-      "journey": "J07",
-      "step": 4
+      "unit": "playback.format-editor",
+      "step": 1,
+      "drive": "real",
+      "expect": "Format editor opens."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "journey": "J06",
-      "step": 5
+      "unit": "playback.format-editor",
+      "step": 3,
+      "drive": "real",
+      "expect": "Custom angle entry appears."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "journey": "J05",
-      "step": 2
+      "unit": "playback.format-editor",
+      "step": 4,
+      "drive": "real",
+      "expect": "Fallback transfer choice changes."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-apply",
-      "journey": "J07",
-      "step": 4
+      "unit": "playback.format-editor",
+      "step": 6,
+      "drive": "real",
+      "expect": "Presentation becomes portal with the chosen projection."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-automatic",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.format-editor",
+      "step": 5,
+      "drive": "real",
+      "expect": "Editor returns to the detected format."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-cancel",
-      "journey": "J07",
-      "step": 4
+      "unit": "playback.format-editor",
+      "step": 8,
+      "drive": "real",
+      "expect": "Editor closes with the format unchanged."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
-      "primitive": "P7"
+      "unit": "playback.format-editor",
+      "step": 2,
+      "drive": "real",
+      "expect": "Projection selection changes."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-loadFailure-primary",
-      "journey": "J09",
-      "step": 3
+      "unit": "issues.playback-surfaces",
+      "step": 2,
+      "drive": "real",
+      "expect": "Primary action retries."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-loadFailure-secondary",
-      "journey": "J09",
-      "step": 3
+      "unit": "issues.playback-surfaces",
+      "step": 4,
+      "drive": "real",
+      "expect": "Secondary action leaves playback."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-menu-audio",
-      "primitive": "P12"
+      "unit": "playback.tracks",
+      "step": 1,
+      "drive": "real",
+      "expect": "Audio track list opens."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-menu-episodes",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.tracks",
+      "step": 7,
+      "drive": "real",
+      "expect": "Episode list opens for a series item."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-menu-speed",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "playback.tracks",
+      "step": 5,
+      "drive": "real",
+      "expect": "Speed list opens."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-menu-subtitles",
-      "primitive": "P12"
+      "unit": "playback.tracks",
+      "step": 3,
+      "drive": "real",
+      "expect": "Subtitle list opens."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
-      "journey": "J12",
-      "step": 5
+      "unit": "issues.playback-surfaces",
+      "step": 6,
+      "drive": "real",
+      "expect": "Surface closes."
     },
     {
       "context": "window",
       "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "issues.playback-surfaces",
+      "step": 8,
+      "drive": "real",
+      "expect": "Surface closes."
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-window-playback-surface",
+      "unit": "playback.controls-window",
+      "step": 1,
+      "drive": "real",
+      "expect": "Controls appear. In the window and portal this is a real touch on the video, not an injection."
     },
     {
       "context": "window",
       "operation": "command:listMenuItems",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Read-only. It reports which track is selected and asserts nothing about reachability, so it is evidence rather than an operation."
     },
     {
       "context": "window",
       "operation": "command:seekNormalized",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "unit": "playback.transport",
+      "step": 10,
+      "drive": "injected",
+      "expect": "Position lands at half the duration."
     },
     {
       "context": "window",
       "operation": "command:selectMenuItem",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Superseded. Measured on device 2026-08-20: the menu host is hittable, the items render in the hierarchy, and tapping one by label changes the value. The verb stays in the app only until every menu host has been driven for real, then it is deleted."
     },
     {
       "context": "window",
       "operation": "command:toggleControls",
-      "status": "harness",
-      "reason": "取证通道动词，不是产品操作"
+      "status": "exempt",
+      "reason": "Deliberately unused here. The controls are summoned by a real tap on the video surface in this presentation, and reaching for the injection would skip a path that works."
     },
     {
       "context": "window",
       "operation": "environmentVolume:open-interact-close",
-      "status": "gap",
-      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+      "unit": "environment.card",
+      "step": 5,
+      "drive": "injected",
+      "expect": "Environment volume opens."
     }
   ]
 }

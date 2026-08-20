@@ -689,5 +689,96 @@ class MatrixBaselineExtensionTests(unittest.TestCase):
         )
 
 
+class InteractiveEvidenceTests(unittest.TestCase):
+    """A control is an operation when the interaction is attached to it, not
+    when one merely happens to sit nearby."""
+
+    ATTACHED = """
+struct Well: View {
+    var body: some View {
+        Text(name)
+            .contentShape(.interaction, shape)
+            .onTapGesture {
+                toggleMediaInformation()
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("Panel-well")
+    }
+}
+"""
+
+    NEARBY = """
+struct Toolbar: View {
+    var body: some View {
+        HStack {
+            Button("Done") {
+                finish()
+            }
+            Text(countLabel)
+                .accessibilityIdentifier("Toolbar-count")
+        }
+    }
+}
+"""
+
+    def line_of(self, text: str, needle: str) -> int:
+        for number, line in enumerate(text.splitlines(), start=1):
+            if needle in line:
+                return number
+        raise AssertionError(f"{needle!r} not in the fixture")
+
+    def test_modifier_on_the_identified_element_is_attached(self) -> None:
+        line = self.line_of(self.ATTACHED, "Panel-well")
+
+        self.assertEqual(
+            inventory.interactive_evidence(self.ATTACHED, line),
+            ("attached", ".onTapGesture {"),
+        )
+
+    def test_sibling_control_is_only_nearby(self) -> None:
+        line = self.line_of(self.NEARBY, "Toolbar-count")
+        found = inventory.interactive_evidence(self.NEARBY, line)
+
+        self.assertIsNotNone(found)
+        self.assertEqual(found[0], "nearby")
+
+    def test_a_label_with_no_interaction_has_no_evidence(self) -> None:
+        text = 'Text(name)\n    .accessibilityIdentifier("Plain-label")\n'
+        line = self.line_of(text, "Plain-label")
+
+        self.assertIsNone(inventory.interactive_evidence(text, line))
+
+    def test_attachment_survives_a_reviewed_observation_entry(self) -> None:
+        """REVIEWED_OBSERVATIONS silences the `nearby` question. It must never be
+        able to silence an interaction attached to the element itself, because
+        that is the one case where the source has already answered."""
+        line = self.line_of(self.ATTACHED, "Panel-well")
+
+        self.assertEqual(
+            inventory.interactive_evidence(self.ATTACHED, line)[0], "attached"
+        )
+        self.assertNotIn("Panel-well", inventory.REVIEWED_OBSERVATIONS)
+
+
+class ProductInventoryInteractiveTests(unittest.TestCase):
+    def test_the_committed_inventory_files_no_attached_control_as_observation(
+        self,
+    ) -> None:
+        built = inventory.build_inventory()
+        flagged = [
+            record["template"]
+            for record in built["identifiers"]
+            if "interactiveEvidence" in record
+        ]
+
+        self.assertEqual(flagged, [])
+
+    def test_the_media_information_well_is_an_operation(self) -> None:
+        built = inventory.build_inventory()
+        roles = {record["template"]: record["role"] for record in built["identifiers"]}
+
+        self.assertEqual(roles["PlayerPanel-media-information"], "operation")
+
+
 if __name__ == "__main__":
     unittest.main()

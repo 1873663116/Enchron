@@ -795,10 +795,85 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-done",
             "-close",
             "-refresh",
+            "-action-",
+            "-toggle",
+            "-surface",
         )
     ):
         return "operation", "activate"
     return "observation", None
+
+
+INTERACTIVE_CONSTRUCT = re.compile(
+    r"\b(Button|Menu|Toggle|Picker|Slider|TextField|SecureField|NavigationLink)\b"
+    r"|\.onTapGesture"
+    r"|\.accessibilityAddTraits\(\.isButton\)"
+    r"|\.accessibilityAction"
+)
+
+CHAIN_CONTINUATION = re.compile(r"^[.}\)\],]")
+
+# The reason each of these really is an observation even though interactive code
+# sits near it in the source.
+REVIEWED_OBSERVATIONS: dict[str, str] = {
+    "Emby-Connection-Error": "Error text. The retry button beside it has its own "
+    "identifier.",
+    "FileBrowsing-FilesScreen-itemCount": "A count label in a toolbar full of "
+    "buttons.",
+    "MediaLibrary-MultiSelect-count": "A count label beside the multi-select "
+    "buttons.",
+}
+
+
+def modifier_chain(text: str, line: int) -> list[str]:
+    """The modifier chain the identifier at `line` is part of.
+
+    Everything from `.accessibilityIdentifier` upwards that sits at the same
+    indentation and continues the chain, skipping the bodies of any trailing
+    closures those modifiers open. What this returns is attached to the very
+    element the identifier names, which is what separates it from whatever else
+    happens to be nearby in the file.
+    """
+    lines = text.splitlines()
+    if not 0 < line <= len(lines):
+        return []
+    anchor = lines[line - 1]
+    indent = len(anchor) - len(anchor.lstrip())
+    chain = [anchor.strip()]
+    for candidate in reversed(lines[max(0, line - 40) : line - 1]):
+        stripped = candidate.strip()
+        if not stripped:
+            continue
+        depth = len(candidate) - len(candidate.lstrip())
+        if depth > indent:
+            continue
+        if depth < indent or not CHAIN_CONTINUATION.match(stripped):
+            break
+        chain.append(stripped)
+    return chain
+
+
+def interactive_evidence(text: str, line: int) -> tuple[str, str] | None:
+    """Source evidence that an identifier names something interactive.
+
+    Returns how the evidence was found and the line that carries it. `attached`
+    means the construct is a modifier on the identified element itself, which
+    settles the question. `nearby` means it merely sits within a few lines, which
+    a custom wrapper or a sibling control can produce, so it only asks for a
+    decision.
+
+    An interactive control filed as an observation never becomes a matrix cell,
+    so nothing ever demands coverage for it and the gap stays invisible in every
+    green report. That is how a settings row sat unreachable for months.
+    """
+    for candidate in modifier_chain(text, line):
+        if INTERACTIVE_CONSTRUCT.search(candidate):
+            return "attached", candidate
+    lines = text.splitlines()
+    for candidate in reversed(lines[max(0, line - 15) : line + 2]):
+        if INTERACTIVE_CONSTRUCT.search(candidate):
+            return "nearby", candidate.strip()
+    return None
 
 
 def runtime_identifier_role(template: str) -> tuple[str, str | None]:
@@ -1005,6 +1080,16 @@ def presentation_derivation(
         }
 
     if operation_family == "PlayerUI":
+        if template == "PlayerUI-window-playback-surface":
+            source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
+                "private func surfaceTapLayer(",
+            )
+            return main_window_presentations, {
+                "host": "windowPlaybackSurfaceTapLayer",
+                "sources": [asdict(source), asdict(main_window_source)],
+            }
         if template.startswith("PlayerUI-DockMenu-") or template == (
             "PlayerUI-TopAction-dock"
         ):
@@ -1227,14 +1312,38 @@ def build_inventory() -> dict[str, object]:
             if template in runtime_identifiers
             else identifier_role(template)
         )
+        scope = source_scope(template)
+        evidence = None
+        if role == "observation" and scope == "product":
+            for location in sorted(set(locations)):
+                text = documents.get(location.path)
+                if text is None:
+                    continue
+                found = interactive_evidence(text, location.line)
+                if found:
+                    evidence = (location, *found)
+                    break
+        if evidence and evidence[1] == "attached":
+            role, action = "operation", "activate"
         record = {
             "template": template,
             "family": family(template),
-            "scope": source_scope(template),
+            "scope": scope,
             "role": role,
             "action": action,
             "sources": [asdict(location) for location in sorted(set(locations))],
         }
+        if (
+            evidence
+            and evidence[1] == "nearby"
+            and template not in REVIEWED_OBSERVATIONS
+        ):
+            location, _, construct = evidence
+            record["interactiveEvidence"] = {
+                "path": location.path,
+                "line": location.line,
+                "construct": construct,
+            }
         records.append(record)
         if role == "operation" and record["scope"] == "product":
             uninstantiated_owner = uninstantiated_view_identifiers.get(template)
@@ -1390,7 +1499,12 @@ def build_inventory() -> dict[str, object]:
 
 
 def encoded_inventory() -> str:
-    return json.dumps(build_inventory(), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    """The inventory as it is committed. `interactiveEvidence` is a demand for a
+    human decision, not a fact about the product, so it never reaches the file."""
+    inventory = build_inventory()
+    for record in inventory["identifiers"]:  # type: ignore[index]
+        record.pop("interactiveEvidence", None)
+    return json.dumps(inventory, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
 def extend_matrix_baseline(
@@ -1742,6 +1856,23 @@ def main() -> int:
             encoding="utf-8",
         )
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    flagged = [
+        record
+        for record in inventory["identifiers"]
+        if "interactiveEvidence" in record
+    ]
+    if flagged:
+        for record in flagged:
+            found = record["interactiveEvidence"]
+            print(
+                f"FAIL {record['template']} is filed as an observation, but "
+                f"{found['path']}:{found['line']} sits under {found['construct']!r}. "
+                "Either it is an operation and the classifier must say so, or it "
+                "is genuinely inert and belongs in REVIEWED_OBSERVATIONS with the "
+                "reason.",
+                file=sys.stderr,
+            )
+        return 1
     if not OUTPUT.is_file():
         print(f"missing {OUTPUT.relative_to(REPOSITORY_ROOT)}; rerun with --write", file=sys.stderr)
         return 1

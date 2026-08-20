@@ -99,7 +99,11 @@ STRUCTURE_CHECKS = (
     ),
     StructureCheck(
         "journey-operation-coverage",
-        "verify_journey_operation_coverage.py",
+        "journey_units.py",
+    ),
+    StructureCheck(
+        "journey-operation-coverage-tests",
+        "test_journey_units.py",
     ),
     StructureCheck(
         "visionpro-core-regression-plan",

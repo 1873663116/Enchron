@@ -23,7 +23,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 321,
+          "line": 279,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -36,7 +36,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 333,
+          "line": 291,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -49,7 +49,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 336,
+          "line": 294,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -62,7 +62,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 330,
+          "line": 288,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -75,7 +75,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 327,
+          "line": 285,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -88,7 +88,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 342,
+          "line": 300,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -101,7 +101,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 317,
+          "line": 275,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -114,7 +114,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 324,
+          "line": 282,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -802,9 +802,9 @@
       "template": "Emby-Season-{season.metadata.id.rawValue}"
     },
     {
-      "action": null,
+      "action": "activate",
       "family": "Emby",
-      "role": "observation",
+      "role": "operation",
       "scope": "product",
       "sources": [
         {
@@ -2415,9 +2415,9 @@
       "template": "PlayerPanel-controls"
     },
     {
-      "action": null,
+      "action": "activate",
       "family": "PlayerPanel",
-      "role": "observation",
+      "role": "operation",
       "scope": "product",
       "sources": [
         {
@@ -3201,9 +3201,9 @@
       "template": "PlayerUI-window-control-plane"
     },
     {
-      "action": null,
+      "action": "activate",
       "family": "PlayerUI",
-      "role": "observation",
+      "role": "operation",
       "scope": "product",
       "sources": [
         {
@@ -3246,7 +3246,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 1083,
+          "line": 1041,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -3259,7 +3259,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 1090,
+          "line": 1048,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -3272,7 +3272,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 1078,
+          "line": 1036,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -3376,6 +3376,23 @@
       "scope": "product",
       "sources": [
         {
+          "line": 1245,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        },
+        {
+          "line": 1287,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-action-{id}"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
           "line": 54,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         },
@@ -3385,6 +3402,19 @@
         }
       ],
       "template": "Settings-category-{item.id}"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1232,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menu-{id}"
     },
     {
       "action": null,
@@ -3678,6 +3708,25 @@
       },
       "id": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
       "identifierTemplate": "Emby-Season-{season.metadata.id.rawValue}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 421,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Sidebar-Toggle",
+      "identifierTemplate": "Emby-Sidebar-Toggle",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
@@ -5198,6 +5247,40 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:PlayerPanel-media-information",
+      "identifierTemplate": "PlayerPanel-media-information",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "fusedPlayerPanelSharedContent",
+        "sources": [
+          {
+            "line": 172,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 189,
+            "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          },
+          {
+            "line": 25,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:PlayerPanel-media-information-close",
       "identifierTemplate": "PlayerPanel-media-information-close",
       "kind": "activate",
@@ -6173,8 +6256,70 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:PlayerUI-window-playback-surface",
+      "identifierTemplate": "PlayerUI-window-playback-surface",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowPlaybackSurfaceTapLayer",
+        "sources": [
+          {
+            "line": 372,
+            "path": "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "portal"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-action-{id}",
+      "identifierTemplate": "Settings-action-{id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 445,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:Settings-category-{item.id}",
       "identifierTemplate": "Settings-category-{item.id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 445,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-menu-{id}",
+      "identifierTemplate": "Settings-menu-{id}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
