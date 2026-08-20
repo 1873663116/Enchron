@@ -1,11 +1,15 @@
 {
-  "version": 1,
+  "version": 2,
   "probe": {
     "product": "PlaybackCoreRemoteMediaProbe",
-    "stages": [
+    "videoStages": [
       "tracks",
       "video-reader",
       "decode --seconds 1"
+    ],
+    "audioOnlyStages": [
+      "tracks",
+      "audio-reader"
     ]
   },
   "containers": [
@@ -615,6 +619,297 @@
               }
             }
           }
+        }
+      }
+    },
+    {
+      "extension": "m4a",
+      "mediaKind": "audioOnly",
+      "fixture": {
+        "path": "TestVectors/Enchron/CodecContainer/Audio/he-aac-v1-apple-audio-toolbox.m4a",
+        "sha256": "abf6192c3e6a328f818ffd4310a9c80a66337a0ab1364509351de1a8ed7abdf4"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=32768 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=32768 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=32768 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=32768 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "mp3",
+      "mediaKind": "audioOnly",
+      "fixture": {
+        "path": "TestVectors/Upstream/FATE/MP3/extra_overread.mp3",
+        "sha256": "68355987ed1b08ab0633414b04744ff0fc7fd06ec510c8c3ef9a661880f8fe3f"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=32768 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=32768 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=32664 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=32768 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "wav",
+      "mediaKind": "audioOnly",
+      "fixture": {
+        "path": "TestVectors/Upstream/FATE/PCM/chorusnoise_2ch_44kHz_s16.wav",
+        "sha256": "2a8741e61424045b5f908f8bee19e44a89cf33e22e38236b4d5dd5b32d5bbe1b"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=438450 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=438450 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=438450 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=438450 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "ogg",
+      "mediaKind": "audioOnly",
+      "fixture": {
+        "path": "TestVectors/Upstream/FATE/Vorbis/1.0-test_small.ogg",
+        "sha256": "9f510e92b976eaf735009b444511f856db601eb13698b54fdfc9c4e078f9f3bc"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=132768 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=132768 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "audio-open",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=132768 video_tracks=0 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "0",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=audio-reader bytes_read=132664 audio_stream=0",
+              "stderr": "",
+              "expectation": {
+                "audio_stream": "0"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "flac",
+      "mediaKind": "audioOnly",
+      "fixture": null,
+      "transports": {
+        "local": {
+          "evidence": "unproven",
+          "sourceScope": "local-file",
+          "reason": "TestMedia contains no standalone .flac fixture."
+        },
+        "http": {
+          "evidence": "unproven",
+          "sourceScope": "http-byte-range",
+          "reason": "TestMedia contains no standalone .flac fixture."
+        }
+      }
+    },
+    {
+      "extension": "opus",
+      "mediaKind": "audioOnly",
+      "fixture": null,
+      "transports": {
+        "local": {
+          "evidence": "unproven",
+          "sourceScope": "local-file",
+          "reason": "TestMedia contains no standalone .opus fixture."
+        },
+        "http": {
+          "evidence": "unproven",
+          "sourceScope": "http-byte-range",
+          "reason": "TestMedia contains no standalone .opus fixture."
+        }
+      }
+    },
+    {
+      "extension": "aiff",
+      "mediaKind": "audioOnly",
+      "fixture": null,
+      "transports": {
+        "local": {
+          "evidence": "unproven",
+          "sourceScope": "local-file",
+          "reason": "TestMedia contains no standalone .aiff fixture."
+        },
+        "http": {
+          "evidence": "unproven",
+          "sourceScope": "http-byte-range",
+          "reason": "TestMedia contains no standalone .aiff fixture."
         }
       }
     }
