@@ -1221,7 +1221,15 @@ struct SettingListGroupRow: View {
                     trailing: 0
                 )
             )
+            // The hover shape above only styles the hover effect. Without an
+            // interaction shape the menu's hit region stays undefined across the
+            // padded frame, so the host reports not hittable and the only way in
+            // was a debug command that skipped the menu entirely.
+            .contentShape(Capsule())
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
             .accessibilityLabel(title)
+            .accessibilityIdentifier("Settings-menu-\(id)")
 
         case .action(let title, let feedback, let systemName, let role, let action):
             SettingListAccessoryButton(accessibilityLabel: title) {
@@ -1234,6 +1242,7 @@ struct SettingListGroupRow: View {
                     role: role
                 )
             }
+            .accessibilityIdentifier("Settings-action-\(id)")
 
         case .toggle(let isOn):
             GlassToggle(isOn: isOn)
@@ -1264,6 +1273,8 @@ struct SettingListGroupRow: View {
                     .foregroundStyle(DesignTokens.Surface.accessoryText)
                     .lineLimit(1)
 
+                // Two rows both title this button "Copy", so a label match is
+                // ambiguous and lands on whichever comes first in the tree.
                 SettingListAccessoryButton(accessibilityLabel: actionTitle) {
                     action()
                     showFeedback(feedback)
@@ -1273,6 +1284,7 @@ struct SettingListGroupRow: View {
                         systemName: feedbackTitle == nil ? nil : "checkmark"
                     )
                 }
+                .accessibilityIdentifier("Settings-action-\(id)")
             }
         }
     }
