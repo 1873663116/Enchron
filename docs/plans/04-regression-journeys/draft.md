@@ -73,23 +73,84 @@
 
 ---
 
-## J01 本地媒体：从导入到卡片留影（完整详述）
+## J00 格式覆盖（按需触发，完整详述）
 
-覆盖：media-import、clean-state-playback、track-selection（音轨与字幕轨连续切换）、cache-and-artwork（Artwork 侧）。
-内容条件：sdr-bframe-multiaudio-subtitles-30s.mkv（双 AAC 轨 880/440Hz 脉冲；三条字幕轨互异可辨：SubRip 中文纯文本、ASS 英文带样式、DVB 英文位图）。
+覆盖：支持清单（docs/plans/04-regression-journeys/supported-formats.md）声明的每一种视频、音频、字幕格式的解码与呈现；明确拒绝格式的错误呈现；真实世界片源的容器怪癖。
+
+触发条件（三者任一）：解码相关代码变更（PlaybackFFmpegBridge、PlaybackCore 解码与格式描述路径、发现策略）；样片库变更；支持清单变更。不随每轮回归运行。
+
+依赖：音频半场（B 段）依赖纯音频播放模式落地。该功能未落地前，纯音频文件不可发现，B 段整段记为内容条件缺口而非缺陷。
+
+判读预期一律来自支持清单：完整支持＝正常呈现；降级支持＝按声明的降级形态呈现（P7 双层按 HDR10）；明确拒绝＝产品给出可读错误表达且不崩溃、不黑屏卡死。
+
+### 0 段 主机侧 Emby 全库核对（零设备成本，先于设备段）
+
+1. 主机侧枚举 Emby 库全部条目，逐条读取每条流的编码事实（容器、视频编码与动态范围声明、各音轨编码、各字幕轨格式）。凭据自本机凭据文件读取，不进命令行，输出经清洗。
+2. 逐条对照支持清单，分三类落账：在完整支持范围内、在降级支持范围内、越出支持范围。
+3. 产出全量报告（不抽样）。越界条目不构成失败，构成「库内容与支持范围的差集」清单——这是产品决策输入，不是缺陷。
+4. 本段无设备成本，每轮回归均可运行，不受 J00 触发条件限制。
+
+### A 段 视频格式正向覆盖
+
+1. P0；P1(files 页签)；判读者自检（P8 判读能力：furyroad-with-dv 与 stripped 盲判，判错则本旅程全部判断层结论作废）。
+2. 对支持清单视频表中每个「完整支持」格式 f，取 FATE 或既有语料的对应样片：
+   - P2(样片) → P3(卡片, window)
+   - 机械层：FormatDescription 的编码、尺寸、色彩解释、动态范围字段与样片声明一致
+   - 判断层：P8(真实内容、帧间连续、无整体色偏)
+   - P4(InfoBar-button-back) 退出
+3. 降级支持格式（P7 双层）：判读预期改为 HDR10 形态，机械层断言不宣告 Dolby Vision。
+
+### B 段 音频格式正向覆盖（依赖纯音频播放模式）
+
+1. 对支持清单音频表中每个格式，取 FATE 对应纯音频样片：
+   - P2(样片) → P3(卡片, window)：纯音频进入纯音频播放模式，机械层断言无视频帧呈现、呈现锁定为窗口、控件集为最小集
+   - 判断层：P9(非静音，主导频率与样片一致)
+   - P4 退出
+2. 压缩透传格式（AC-3、E-AC-3、APAC）额外断言：交付路径为压缩透传而非 PCM 解码。
+
+### C 段 字幕格式正向覆盖
+
+1. 对支持清单字幕表中每种封装内格式，取对应样片播放并开启该字幕轨：判断层截图确认字幕出现且形态与格式相符（文本类可读、位图类正确合成）。
+2. 外挂边车格式（srt、vtt、ass、ssa，SUP 待实现后加入）：样片与边车同目录同基名，开启后截图确认外挂文本出现。
+
+### D 段 反向覆盖：明确拒绝的格式
+
+1. 对支持清单中标为「明确拒绝」的编码，取 FATE 样片（VP9、MPEG-2、MPEG-4 Part 2 等）：
+   - 尝试导入并打开【入口形态需核对：部分容器不在发现列表内，若产品层根本不可见则记为「发现层拦截」，同样是合格的拒绝形态】
+   - 成功判据：产品给出可读的错误表达，且未崩溃、未黑屏卡死、退出路径可用
+   - 失败判据：崩溃、无限等待、无任何表达的黑屏
+2. 本段证明「拒绝得体面」，此前无人看守。
+
+### E 段 真实世界片源全量
+
+1. 对 TestMedia/Samples 下全部条目（相机原片、动态范围家族、专业素材、SDR、空间视频）：
+   - P2 → P3 → 机械层 FormatDescription 与判断层 P8 → P4 退出
+2. 本段抓的是真实文件的容器怪癖，生成夹具与官方向量都不覆盖。
+
+### F 段 Emby 独占内容设备播放
+
+1. 仅播放 0 段核对出的「只有 Emby 才有」的条目（如唯一 P5 条目、TrueHD 条目）：进 Emby 页签打开条目 → P3 → P8 → P9 → P4 退出。
+2. 不逐格式重过 Emby：源对等已证同一字节经四种来源播放结果一致，逐格式过 Emby 重复证明的是解码；Emby 自身机器由 J04 看守。
+
+终态：每格式一条机械层加判断层记录；拒绝格式各一条错误表达记录；0 段全库差集报告。P11。
+
+## J01 汇总片源：导入、播放、音轨与字幕连续切换（完整详述）
+
+覆盖：media-import、clean-state-playback、track-selection（音轨与字幕轨连续切换，含内嵌与外挂）、cache-and-artwork（Artwork 侧）。
+内容条件：sdr-bframe-aggregate-30s.mkv 汇总片源——视频流与既有 SDR 基准片逐字节一致；四条跨编码音轨各带独特脉冲频率（AAC 880Hz、FLAC 660Hz、AC-3 440Hz、E-AC-3 550Hz），刻意跨越解码与透传两条管线；三条内嵌字幕轨互异可辨（SubRip 中文纯文本、ASS 英文带样式、DVB 英文位图）；两件外挂字幕边车，文本与内嵌轨明显不同以便截图区分内外。生成入口 Scripts/fixtures/generate_acceptance_fixtures.sh，登记于 Tests/Fixtures/fixture-registry.json。
 
 1. P0；P1(files 页签)。
 2. P2(sdr-bframe-multiaudio-subtitles-30s.mkv, "Journey Fixture")。网格出现对应卡片。
 3. P3(该卡片, window)。机械层：lifecycle=Playing、videoVisible=true。判断层：P8(SDR 真实内容)。
 4. P9(880Hz 主导、非静音)——音画皆在解码，判断层收口。
 5. 轮询诊断串至 position≥10 秒。
-6. 音轨连续切换三次：P5(more 菜单, audio 家族) 依次选 轨2→轨1→轨2。每次切换后双重验证，全部通过才算一次切换成功：机械层=重新 listMenuItems 断言目标轨 isSelected=true，且 lifecycle 保持 Playing、position 持续推进；判断层=P9 主导频率翻转到目标轨独特频率（440↔880Hz）。任一次验证不通过即本步失败（连续切换可行性是本步的证明目标，不允许「三次里过一次」）。
-7. 字幕轨连续切换三次：P5(more 菜单, subtitles 家族) 依次选 SubRip→ASS→DVB。每次切换后双重验证：机械层=重新 listMenuItems 断言目标轨 isSelected=true，lifecycle 保持 Playing；判断层=截图判读字幕呈现与目标轨一致（中文纯文本／英文带样式／英文位图三者互斥可辨），且画面仍在正常推进。
+6. 音轨连续切换三次：P5(more 菜单, audio 家族) 依次选 FLAC 660Hz → AC-3 440Hz → E-AC-3 550Hz。三次切换刻意跨越两条音频管线（AAC/FLAC 解为 PCM，AC-3/E-AC-3 压缩透传），每次切换同时验证一次管线接缝。每次切换后双重验证，全部通过才算一次切换成功：机械层=重新 listMenuItems 断言目标轨 isSelected=true，且 lifecycle 保持 Playing、position 持续推进；判断层=P9 主导频率翻转到目标轨独特频率。任一次验证不通过即本步失败（连续切换可行性是本步的证明目标，不允许「三次里过一次」）。
+7. 字幕轨连续切换三次：P5(more 菜单, subtitles 家族) 依次选 内嵌 SubRip → 内嵌 DVB 位图 → 外挂文本边车。三步覆盖「文本／位图」与「内嵌／外挂」两个轴。每次切换后双重验证：机械层=重新 listMenuItems 断言目标轨 isSelected=true，lifecycle 保持 Playing；判断层=截图判读字幕呈现与目标轨一致——内嵌与外挂的字幕文本刻意写得不同，截图可直接区分当前显示的是哪一条；画面仍在正常推进。
 8. P4(PlayerUI-InfoBar-button-back) 退出播放 → 回到网格，无错误浮层。
 9. 采网格卡片区域截图，Agent 判读卡片画面是否为退出前后的画面内容【判断层·此前无人看守，本步建立看守】。
 10. P11(库中恰一条引用；无 userVisibleIssue)。
 
-不证明：Files 选择器与相册两条系统面导入入口（人工层，佩戴者场次各走一遍即终身有效）；画质主观；逐格式解码覆盖（归解码矩阵旅程，等支持范围清单与 FATE 样片到位后展开）。
+不证明：Files 选择器与相册两条系统面导入入口（人工层，佩戴者场次各走一遍即终身有效）；画质主观；逐格式解码覆盖（归 J00）。
 
 ## J02 WebDAV：从连接到续播（完整详述）
 
@@ -164,11 +225,11 @@
 |---|---|
 | media-import | J01、J11 |
 | remote-source-connection | J02、J03 |
-| emby-library | J04 |
+| emby-library | J04（Emby 自身机器）、J00 F 段（Emby 独占内容播放）、J00 0 段（全库与支持范围差集） |
 | clean-state-playback | J01 |
 | picture-interpretation | J05、J06 |
-| track-selection | J01（内嵌轨连续切换）、J08 |
-| decode-matrix | 解码矩阵旅程（待支持范围清单与 FATE 样片到位后展开；仅解码相关代码或样片库变更时重跑） |
+| track-selection | J01（内嵌与外挂连续切换）、J08 |
+| format-coverage | J00（按需触发：解码代码、样片库、支持清单三者任一变更） |
 | viewing-state | J02、J04、J10 |
 | network-resilience | J09 |
 | mode-transitions | J07 |
@@ -197,12 +258,15 @@
 ## 附录 C：内容条件缺口
 
 1. 不支持音轨样片缺失（感叹号表达无从验证）
-2. DTS/TrueHD/Vorbis 本地样片为零（TrueHD 仅 Emby 条目，会漂移）
-3. MV-HEVC 可操作时长不足（仅 4 秒，无循环拷贝）
-4. 平面内容循环片缺失（呈现切换连续场景只有 180/360 三件）
-5. Apple Immersive（AIVU）容器语料为零（是否列为需求维度待定）
-6. 远程外挂字幕与 Emby external stream 无本地语料
-7. DASH/HLS 清单入口的产品形态待核对（J05 步骤 2b）
+2. MV-HEVC 可操作时长不足（仅 4 秒，无循环拷贝）
+3. 平面内容循环片缺失（呈现切换连续场景只有 180/360 三件）
+4. Apple Immersive（AIVU）容器语料为零（是否列为需求维度待定）
+5. 远程外挂字幕与 Emby external stream 无本地语料
+6. DASH/HLS 清单入口的产品形态待核对（J05 步骤 2b）
+7. J00 B 段（音频格式覆盖）依赖纯音频播放模式落地，未落地前整段记为内容条件缺口
+8. WMA 系列、APE、TAK 与 ProRes 4444 XQ 无样片（支持清单声明支持）
+
+已消解：DTS/TrueHD/Vorbis 本地样片（FATE 定向拉取已补齐）。
 
 ## 附录 D：需裁决与核对项
 
