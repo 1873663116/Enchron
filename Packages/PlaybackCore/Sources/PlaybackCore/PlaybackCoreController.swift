@@ -289,6 +289,10 @@ public final class PlaybackCoreController {
         activeSession.setMuted(muted)
     }
 
+    public func hush() {
+        activeSession?.hush()
+    }
+
     public func clearDisplayedVideoImage(forMediaSessionID mediaSessionID: String) async {
         guard let activeSession, activeSession.traceID == mediaSessionID else { return }
         await activeSession.clearDisplayedVideoImage()
@@ -806,6 +810,7 @@ public final class PlaybackCoreController {
             setStatus(.idle)
             return
         }
+        session.interruptSourceReadsForClose()
         beginPendingCleanup(for: session)
     }
 
@@ -833,6 +838,7 @@ public final class PlaybackCoreController {
             await waitForReplacementRetirements()
             return
         }
+        session.interruptSourceReadsForClose()
         if let activeSeekTask {
             activeSeekTask.cancel()
             _ = try? await activeSeekTask.value

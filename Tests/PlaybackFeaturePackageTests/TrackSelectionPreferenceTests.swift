@@ -18,6 +18,24 @@ struct TrackSelectionPreferenceTests {
 
         #expect(format == .standard)
         #expect(format.usesDolbyVisionFallback == false)
+
+    @Test("network retry stops when its launch generation becomes stale")
+    func staleGenerationStopsNetworkRetry() {
+        #expect(PlaybackLaunchCoordinator.retryAttemptIsCurrent(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            isCancelled: false
+        ))
+        #expect(!PlaybackLaunchCoordinator.retryAttemptIsCurrent(
+            expectedGeneration: 7,
+            currentGeneration: 8,
+            isCancelled: false
+        ))
+        #expect(!PlaybackLaunchCoordinator.retryAttemptIsCurrent(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            isCancelled: true
+        ))
     }
 
     @Test("playback mode persists independently from Media Format")

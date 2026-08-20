@@ -1665,6 +1665,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         departingTechnicalSessionController = nil
         let preparedController = preparedTechnicalSessionReplacement?.controller
         preparedTechnicalSessionReplacement = nil
+        controller.hush()
+        departingController?.hush()
+        preparedController?.hush()
         activatedTechnicalSessionCutover = nil
         technicalSessionReplacementIsInFlight = false
         presentationConversionReusesMediaSession = false

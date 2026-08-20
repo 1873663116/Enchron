@@ -773,9 +773,24 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         generation: Int
     ) async -> Bool {
         for attempt in 1...3 {
-            guard self.generation == generation, !Task.isCancelled else { return false }
+            guard Self.retryAttemptIsCurrent(
+                expectedGeneration: generation,
+                currentGeneration: self.generation,
+                isCancelled: Task.isCancelled
+            ) else { return false }
             try? await Task.sleep(for: .seconds(1 << attempt))
-            guard await networkMonitor.waitForConnection(timeout: .seconds(10)) else { continue }
+            guard Self.retryAttemptIsCurrent(
+                expectedGeneration: generation,
+                currentGeneration: self.generation,
+                isCancelled: Task.isCancelled
+            ) else { return false }
+            let isConnected = await networkMonitor.waitForConnection(timeout: .seconds(10))
+            guard Self.retryAttemptIsCurrent(
+                expectedGeneration: generation,
+                currentGeneration: self.generation,
+                isCancelled: Task.isCancelled
+            ) else { return false }
+            guard isConnected else { continue }
             do {
                 let initialSpeed = PlaybackModel.PlaybackSpeed(
                     preferencesProvider.loadPlaybackPreferences().defaultSpeed
@@ -802,6 +817,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             }
         }
         return false
+    }
+
+    static func retryAttemptIsCurrent(
+        expectedGeneration: Int,
+        currentGeneration: Int,
+        isCancelled: Bool
+    ) -> Bool {
+        expectedGeneration == currentGeneration && !isCancelled
     }
 
     private func applyLaunchConfiguration(

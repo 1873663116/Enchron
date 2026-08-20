@@ -30,6 +30,8 @@ extension SampleBufferPlaybackSession {
         isClosing = true
         closeLock.unlock()
 
+        hush()
+        interruptSourceReadsForClose()
         stopRendererFailureMonitoring()
         cancelFirstVideoFrameDeadline()
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByClose)
@@ -53,7 +55,6 @@ extension SampleBufferPlaybackSession {
         stopVideoDelivery()
         stopAudioDelivery()
         discardPendingVideoSample()
-        setTimelineStopped(reason: .close)
         deliveryQueue.sync {
             isClosed = true
             provider.cancel()
@@ -85,6 +86,14 @@ extension SampleBufferPlaybackSession {
             await rendererSink.flush(removingDisplayedImage: true)
             finishCloseAfterFlush()
         }
+    }
+
+    func hush() {
+        setTimelineStopped(reason: .close)
+    }
+
+    func interruptSourceReadsForClose() {
+        demuxSession?.interrupt()
     }
 
     func finishCloseAfterFlush() {

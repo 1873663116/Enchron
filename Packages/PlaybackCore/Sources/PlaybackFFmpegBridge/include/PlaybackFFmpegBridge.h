@@ -70,6 +70,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     char *errorBuffer,
     size_t errorBufferSize
 );
+void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source);
 void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source);
 PBFFmpegMediaSourceInformation *PBFFmpegDemuxSourceCopyInformation(
     PBFFmpegDemuxSource *source,
