@@ -923,26 +923,53 @@ static bool subtitle_stream_is_supported(const AVStream *stream) {
     }
 }
 
-static AudioFormatID compressed_audio_format_id(const AVCodecParameters *parameters) {
+typedef enum {
+    PBCompressedAudioCodecNone = 0,
+    PBCompressedAudioCodecAC3,
+    PBCompressedAudioCodecEAC3,
+    PBCompressedAudioCodecAppleAPAC,
+} PBCompressedAudioCodec;
+
+static PBCompressedAudioCodec compressed_audio_codec(
+    const AVCodecParameters *parameters
+) {
+    if (!parameters) return PBCompressedAudioCodecNone;
     switch (parameters->codec_id) {
-        case AV_CODEC_ID_AC3: return kAudioFormatAC3;
-        case AV_CODEC_ID_EAC3: return kAudioFormatEnhancedAC3;
-        default: return 0;
+        case AV_CODEC_ID_AC3: return PBCompressedAudioCodecAC3;
+        case AV_CODEC_ID_EAC3: return PBCompressedAudioCodecEAC3;
+        case AV_CODEC_ID_APAC:
+            return parameters->codec_tag == MKTAG('a', 'p', 'a', 'c')
+                ? PBCompressedAudioCodecAppleAPAC
+                : PBCompressedAudioCodecNone;
+        default: return PBCompressedAudioCodecNone;
     }
 }
 
-static bool audio_codec_uses_compressed_passthrough(enum AVCodecID codecID) {
-    return codecID == AV_CODEC_ID_AC3 || codecID == AV_CODEC_ID_EAC3;
+static AudioFormatID compressed_audio_format_id(
+    PBCompressedAudioCodec codec
+) {
+    switch (codec) {
+        case PBCompressedAudioCodecAC3: return kAudioFormatAC3;
+        case PBCompressedAudioCodecEAC3: return kAudioFormatEnhancedAC3;
+        case PBCompressedAudioCodecAppleAPAC: return kAudioFormatAPAC;
+        case PBCompressedAudioCodecNone: return 0;
+    }
 }
 
-static bool audio_codec_is_supported(enum AVCodecID codecID) {
-    return audio_codec_uses_compressed_passthrough(codecID) ||
-        avcodec_find_decoder(codecID) != NULL;
+static bool audio_codec_uses_compressed_passthrough(
+    const AVCodecParameters *parameters
+) {
+    return compressed_audio_codec(parameters) != PBCompressedAudioCodecNone;
+}
+
+static bool audio_codec_is_supported(const AVCodecParameters *parameters) {
+    return audio_codec_uses_compressed_passthrough(parameters) ||
+        (parameters && avcodec_find_decoder(parameters->codec_id) != NULL);
 }
 
 static bool audio_stream_is_supported(const AVStream *stream) {
     if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) return false;
-    return audio_codec_is_supported(stream->codecpar->codec_id) &&
+    return audio_codec_is_supported(stream->codecpar) &&
         stream->codecpar->sample_rate > 0 &&
         stream->codecpar->ch_layout.nb_channels > 0;
 }
@@ -951,7 +978,7 @@ static void set_error(char *buffer, size_t size, const char *message);
 
 static bool audio_stream_needs_more_probe(const AVStream *stream) {
     if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) return false;
-    return audio_codec_is_supported(stream->codecpar->codec_id) &&
+    return audio_codec_is_supported(stream->codecpar) &&
         (stream->codecpar->sample_rate <= 0 ||
          stream->codecpar->ch_layout.nb_channels <= 0);
 }
@@ -962,7 +989,7 @@ static bool is_audio_stream(const AVStream *stream) {
 
 static bool audio_stream_has_supported_codec(const AVStream *stream) {
     return is_audio_stream(stream) &&
-        audio_codec_is_supported(stream->codecpar->codec_id);
+        audio_codec_is_supported(stream->codecpar);
 }
 
 static const int aac_sample_rates[] = {
@@ -1040,7 +1067,7 @@ static void set_audio_stream_selection_error(
         hasAudioStream = hasAudioStream || is_audio_stream(stream);
         hasSupportedCodec = hasSupportedCodec || audio_stream_has_supported_codec(stream);
         if (is_audio_stream(stream) &&
-            !audio_codec_is_supported(stream->codecpar->codec_id) &&
+            !audio_codec_is_supported(stream->codecpar) &&
             unsupportedCodec == AV_CODEC_ID_NONE) {
             unsupportedCodec = stream->codecpar->codec_id;
         }
@@ -1077,16 +1104,9 @@ static void set_av_error(char *buffer, size_t size, const char *operation, int c
     snprintf(buffer, size, "%s: %s (%d)", operation, detail, code);
 }
 
-// Apple Positional Audio Codec reaches this bridge under two different FFmpeg
-// codec IDs depending on version. 8.0.1 exposed the sample entry and the
-// packets but left the public ID unresolved, so it arrived as
-// AV_CODEC_ID_NONE. 9.0 added AV_CODEC_ID_APPLE_APAC and the mov demuxer now
-// resolves it. AV_CODEC_ID_APAC is a third, unrelated codec that FFmpeg names
-// almost identically, and it is the ID the rest of this bridge already keys on
-// to reach kAudioFormatAPAC, the magic cookie and the 1024-sample frame size.
-// Collapsing onto it keeps one branch downstream. The 'apac' sample entry tag
-// is what actually establishes the stream is Apple's, so it gates the rewrite.
-// Apple decodes it either way; FFmpeg only carries the packets.
+// The bridge has historically exposed Apple's 'apac' MOV sample entry as
+// AV_CODEC_ID_APAC. FFmpeg uses that ID for the unrelated Marian's A-pac codec,
+// so every Apple-specific decision must also require the MOV sample-entry tag.
 static void normalize_mov_codec_ids(AVFormatContext *context) {
     if (!context) return;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
@@ -4647,7 +4667,7 @@ static bool configure_audio_reader(
             return false;
         }
         AVStream *preferredStream = reader->formatContext->streams[preferredStreamIndex];
-        if (!audio_codec_is_supported(preferredStream->codecpar->codec_id)) {
+        if (!audio_codec_is_supported(preferredStream->codecpar)) {
             char message[160];
             snprintf(
                 message,
@@ -4718,9 +4738,7 @@ static bool configure_audio_reader(
         return false;
     }
     reader->packet = av_packet_alloc();
-    reader->outputsPCM = !audio_codec_uses_compressed_passthrough(
-        stream->codecpar->codec_id
-    );
+    reader->outputsPCM = !audio_codec_uses_compressed_passthrough(stream->codecpar);
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
     reader->nextPCMSample = 0;
@@ -5127,11 +5145,64 @@ static int reserve_pending_decoded_audio_capacity(
 
 static UInt32 audio_frames_per_packet(const AVCodecParameters *parameters) {
     if (parameters->frame_size > 0) return (UInt32)parameters->frame_size;
-    switch (parameters->codec_id) {
-        case AV_CODEC_ID_AC3:
-        case AV_CODEC_ID_EAC3: return 1536;
+    switch (compressed_audio_codec(parameters)) {
+        case PBCompressedAudioCodecAC3:
+        case PBCompressedAudioCodecEAC3: return 1536;
         default: return 0;
     }
+}
+
+static bool apple_apac_magic_cookie_is_valid(
+    const uint8_t *cookie,
+    size_t cookieSize
+) {
+    if (!cookie || cookieSize < 8 || cookieSize > UINT32_MAX) return false;
+    uint32_t declaredSize =
+        ((uint32_t)cookie[0] << 24) |
+        ((uint32_t)cookie[1] << 16) |
+        ((uint32_t)cookie[2] << 8) |
+        (uint32_t)cookie[3];
+    return declaredSize == cookieSize &&
+        cookie[4] == 'd' && cookie[5] == 'a' &&
+        cookie[6] == 'p' && cookie[7] == 'a';
+}
+
+static int complete_apple_apac_asbd(
+    AudioStreamBasicDescription *asbd,
+    const void *cookie,
+    size_t cookieSize,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!apple_apac_magic_cookie_is_valid(cookie, cookieSize)) {
+        set_error(errorBuffer, errorBufferSize, "Apple APAC dapa magic cookie is unavailable or invalid");
+        return AVERROR_INVALIDDATA;
+    }
+    UInt32 asbdSize = sizeof(*asbd);
+    OSStatus status = AudioFormatGetProperty(
+        kAudioFormatProperty_FormatInfo,
+        (UInt32)cookieSize,
+        cookie,
+        &asbdSize,
+        asbd
+    );
+    if (status != noErr ||
+        asbdSize != sizeof(*asbd) ||
+        asbd->mFormatID != kAudioFormatAPAC ||
+        asbd->mSampleRate <= 0 ||
+        asbd->mChannelsPerFrame == 0 ||
+        asbd->mFramesPerPacket == 0) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Derive Apple APAC stream format from dapa failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return AVERROR_INVALIDDATA;
+    }
+    return 0;
 }
 
 static AudioChannelLabel audio_channel_label(enum AVChannel channel) {
@@ -5229,7 +5300,8 @@ static int ensure_compressed_audio_format(
     size_t errorBufferSize
 ) {
     if (reader->formatDescription) return 0;
-    AudioFormatID formatID = compressed_audio_format_id(parameters);
+    PBCompressedAudioCodec codec = compressed_audio_codec(parameters);
+    AudioFormatID formatID = compressed_audio_format_id(codec);
     if (formatID == 0) {
         set_error(errorBuffer, errorBufferSize, "The selected compressed audio codec is not supported");
         return AVERROR(ENOSYS);
@@ -5258,6 +5330,17 @@ static int ensure_compressed_audio_format(
     size_t cookieSize = parameters->extradata_size > 0
         ? (size_t)parameters->extradata_size
         : 0;
+    if (codec == PBCompressedAudioCodecAppleAPAC &&
+        complete_apple_apac_asbd(
+            &asbd,
+            cookie,
+            cookieSize,
+            errorBuffer,
+            errorBufferSize
+        ) < 0) {
+        free(channelLayout);
+        return AVERROR_INVALIDDATA;
+    }
     OSStatus status = CMAudioFormatDescriptionCreate(
         kCFAllocatorDefault,
         &asbd,
@@ -5389,12 +5472,17 @@ static PBFFmpegReadResult create_audio_sample(
         status = CMBlockBufferReplaceDataBytes(packet->data, block, 0, byteCount);
     }
     CMItemCount sampleCount = 1;
-    UInt32 framesPerPacket = audio_frames_per_packet(parameters);
+    const AudioStreamBasicDescription *asbd =
+        CMAudioFormatDescriptionGetStreamBasicDescription(reader->formatDescription);
+    UInt32 framesPerPacket = asbd ? asbd->mFramesPerPacket : 0;
+    int32_t sampleRate = asbd && asbd->mSampleRate > 0 && asbd->mSampleRate <= INT32_MAX
+        ? (int32_t)asbd->mSampleRate
+        : 0;
     CMTime packetDuration = cm_time(packet->duration, reader->timeBase);
     CMTime duration = packet->duration > 0
         ? packetDuration
-        : framesPerPacket > 0 && parameters->sample_rate > 0
-        ? CMTimeMake(framesPerPacket, parameters->sample_rate)
+        : framesPerPacket > 0 && sampleRate > 0
+        ? CMTimeMake(framesPerPacket, sampleRate)
         : kCMTimeInvalid;
     CMSampleTimingInfo timing = {
         .duration = duration,
