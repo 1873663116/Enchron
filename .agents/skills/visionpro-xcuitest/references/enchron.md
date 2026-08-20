@@ -67,7 +67,7 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 播放中 chrome 自动隐藏快于两次控制器往返，`PlayerUI-InfoBar-button-back` 等按钮会报 exists 但 isHittable 为假。格式编辑器一次开合也活不过两次往返：用 `tapSequence` 把 `PlayerUI-TopAction-videoFormat`、投影项、`PlayerUI-VideoFormat-apply` 连发，或直接读 `tap` 自己返回的层级而不是再发一次 snapshot。
 
-对 Emby 滚动视图发 `swipeUp` 导致 runner 死亡（TEST EXECUTE FAILED、设备进程表无 Enchron、无崩溃报告），halt 后重建即恢复；未定性。范围不限首页：2026-08-16 在剧集详情页复现，一次即死。Emby 界面一律不发合成滑动。
+合成滑动一律带 `--identifier`。省略 identifier 时滑动目标退化为 Application 元素，而 visionOS 的 Application 元素不归属任何单一 Scene，合成事件取不到目标 Scene，三次重试全败后失败记到常驻测试方法上，方法结束并拆除 App——表现为 TEST EXECUTE FAILED、设备进程表无 Enchron，但两端进程都没有崩溃，那是正常拆除。与页面无关：Emby 从未打开时同样必死。带 identifier 的滑动在 Emby 各页与整窗具名元素上均正常。定性证据见 docs/plans/04-regression-journeys/emby-poster-wall-scroll.md。
 
 Emby 不滑动时的播放入口（2026-08-16 真机验证）：首页"接下来看"横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内有 `Emby-Detail-Resume` 与 `Emby-Detail-PlayFromBeginning`。系列详情页的剧集条在窗口折叠线以下不可达，顶部 label 为 "Play button on a TV, filled" 的无 identifier 图标点按无可观察效果。海报横条只有可视区内的卡可点，靠右的卡 tap 返回 False。
 

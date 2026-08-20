@@ -1067,7 +1067,12 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                     .sample(holdingSample),
                     .end,
                 ],
-                seekPrepareDelay: .milliseconds(150),
+                // The three seeks are issued 20ms apart and must all still be
+                // in flight when the newest arrives. Under parallel-suite load
+                // a 20ms sleep overruns far past 150ms, letting the first seek
+                // finish preparing and claim a stream epoch of its own, so the
+                // window carries an order of magnitude of margin.
+                seekPrepareDelay: .seconds(2),
                 seekPrepareIgnoresCancellation: true
             ),
             rendererSink: FakeRendererInputSink()

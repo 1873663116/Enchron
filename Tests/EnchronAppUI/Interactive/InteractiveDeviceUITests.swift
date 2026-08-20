@@ -231,7 +231,16 @@ private final class InteractiveDeviceUIChannel {
         case .swipeUp, .swipeDown, .swipeLeft, .swipeRight:
             let surface: XCUIElement
             if command.identifier == nil {
-                surface = app
+                // The Application element belongs to no single visionOS Scene,
+                // so synthesizing against it fails Scene lookup and the failure
+                // ends this long-lived test method, tearing the app down. Fail
+                // the command instead of taking the session with it.
+                return (
+                    false,
+                    "A swipe requires --identifier or --label:"
+                        + " swiping the application element kills the session"
+                        + " on visionOS."
+                )
             } else if let element = element(for: command) {
                 surface = element
             } else {

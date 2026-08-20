@@ -1044,8 +1044,31 @@ def explain_failure(arguments, response: dict) -> dict:
     return response
 
 
+SWIPE_ACTIONS = ("swipeUp", "swipeDown", "swipeLeft", "swipeRight")
+
+
 def main() -> int:
     arguments = parse_arguments()
+    if arguments.action in SWIPE_ACTIONS and not (
+        arguments.identifier or arguments.label
+    ):
+        # Without a target the runner swipes the Application element, which
+        # belongs to no visionOS Scene; the resulting failure ends the
+        # long-lived test method and tears the session down.
+        print(
+            json.dumps(
+                {
+                    "success": False,
+                    "error": (
+                        f"{arguments.action} requires --identifier or --label."
+                        " Swiping the application element kills the session"
+                        " on visionOS."
+                    ),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 2
     started_at = time.monotonic()
     try:
         if arguments.action == "halt":

@@ -44,7 +44,7 @@ C tap --identifier Emby-Detail-PlayFromBeginning
 
 ## Gotchas
 
-- 对 Emby 滚动视图发 `swipeUp` 会杀死 runner（TEST EXECUTE FAILED、进程表无 Enchron、无崩溃报告），halt 后重建恢复；未定性。范围不限首页，剧集详情页同样一次即死。
+- Emby 滚动视图接受带 `--identifier` 的合成滑动（`Emby-library-list`、`Emby-Home`、`Emby-Detail-<id>` 均已实证）。此前记为「Emby 滑动杀 runner」是误归因：杀会话的是省略 identifier 的滑动，与 Emby 无关，Emby 只是恰好在屏。规则见 references/enchron.md。
 - 海报横条只有可视区内的卡可点，靠右的卡 tap 返回 False。
 - 系列详情页顶部 label 为 `Play button on a TV, filled` 的图标按钮没有 identifier，点按无可观察效果，疑似产品缺陷待根因。
 - Emby 服务器地址会漂移。`Tests/EmbyServerCredentials.local.json` 与 `.env` 里的值使用前先探活。
