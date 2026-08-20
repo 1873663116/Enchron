@@ -3,12 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="9.0.1"
-CONFIGURATION_REVISION="decoded-audio-pcm-v1-ffmpeg-$VERSION"
+CONFIGURATION_REVISION="apac-passthrough-v1-ffmpeg-$VERSION"
 BUILD_ROOT="$ROOT_DIR/.build/ffmpeg"
 ARCHIVE="$BUILD_ROOT/ffmpeg-$VERSION.tar.xz"
-SOURCE="$BUILD_ROOT/ffmpeg-$VERSION"
+ARCHIVE_SHA256="cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635"
+SOURCE="$BUILD_ROOT/source-$CONFIGURATION_REVISION"
+SOURCE_STAMP="$SOURCE/.enchron-source-ready"
 VENDOR_DIR="$ROOT_DIR/Vendor/FFmpeg"
 OUTPUT="$VENDOR_DIR/PlaybackFFmpeg.xcframework"
+PATCH="$VENDOR_DIR/Patches/0001-mov-preserve-apple-apac-dapa.patch"
 
 mkdir -p "$BUILD_ROOT" "$VENDOR_DIR"
 
@@ -16,9 +19,23 @@ if [[ ! -f "$ARCHIVE" ]]; then
   curl -L --fail --output "$ARCHIVE" "https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.xz"
 fi
 
-if [[ ! -d "$SOURCE" ]]; then
-  tar -xf "$ARCHIVE" -C "$BUILD_ROOT"
-  perl -0pi -e 's/#if TARGET_OS_IPHONE\n    CFDictionarySetValue\(buffer_attributes, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue\);\n#else\n    CFDictionarySetValue\(buffer_attributes, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue\);\n#endif/#if TARGET_OS_IPHONE \&\& !TARGET_OS_VISION\n    CFDictionarySetValue(buffer_attributes, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);\n#elif !TARGET_OS_VISION\n    CFDictionarySetValue(buffer_attributes, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);\n#endif/' "$SOURCE/libavcodec/videotoolbox.c"
+actual_archive_sha256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
+if [[ "$actual_archive_sha256" != "$ARCHIVE_SHA256" ]]; then
+  echo "FFmpeg archive checksum mismatch" >&2
+  exit 1
+fi
+
+if [[ ! -f "$SOURCE_STAMP" ]]; then
+  if [[ -e "$SOURCE" ]]; then
+    echo "Incomplete FFmpeg source tree at $SOURCE" >&2
+    exit 1
+  fi
+  source_staging="$(mktemp -d "$BUILD_ROOT/source-$CONFIGURATION_REVISION.XXXXXX")"
+  tar -xf "$ARCHIVE" -C "$source_staging" --strip-components=1
+  perl -0pi -e 's/#if TARGET_OS_IPHONE\n    CFDictionarySetValue\(buffer_attributes, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue\);\n#else\n    CFDictionarySetValue\(buffer_attributes, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue\);\n#endif/#if TARGET_OS_IPHONE \&\& !TARGET_OS_VISION\n    CFDictionarySetValue(buffer_attributes, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanTrue);\n#elif !TARGET_OS_VISION\n    CFDictionarySetValue(buffer_attributes, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey, kCFBooleanTrue);\n#endif/' "$source_staging/libavcodec/videotoolbox.c"
+  patch -d "$source_staging" -p1 < "$PATCH"
+  touch "$source_staging/.enchron-source-ready"
+  mv "$source_staging" "$SOURCE"
 fi
 
 build_slice() {
