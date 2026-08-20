@@ -39,11 +39,17 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     private let session: URLSession
     private let credentialStore: CredentialStoring?
+    private let failureDiagnoser: RemoteConnectionFailureDiagnoser
     private let filter = FileBrowsingDomain.FileFilter.playable
 
-    init(credentialStore: CredentialStoring? = nil, session: URLSession? = nil) {
+    init(
+        credentialStore: CredentialStoring? = nil,
+        session: URLSession? = nil,
+        failureDiagnoser: RemoteConnectionFailureDiagnoser = .live
+    ) {
         self.credentialStore = credentialStore
         self.session = session ?? MediaSourceNetwork.shared.session
+        self.failureDiagnoser = failureDiagnoser
     }
 
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
@@ -52,10 +58,20 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         do {
             let rootURL = try buildBaseURL(from: info)
             authHeader = try buildAuthHeader(info: info)
-            let validatedURL = try await MediaSourceNetwork.shared.withConnectionApproval(
-                to: rootURL
-            ) { [self] in
-                try await validateConnection(startingAt: rootURL)
+            let validatedURL: URL
+            do {
+                validatedURL = try await MediaSourceNetwork.shared.withConnectionApproval(
+                    to: rootURL
+                ) { [self] in
+                    try await validateConnection(startingAt: rootURL)
+                }
+            } catch {
+                switch await failureDiagnoser.diagnose(error, attemptedURL: rootURL) {
+                case .requiresHTTPS:
+                    throw RemoteConnectionError.requiresHTTPS
+                case .unclassified:
+                    throw error
+                }
             }
 
             baseURL = validatedURL

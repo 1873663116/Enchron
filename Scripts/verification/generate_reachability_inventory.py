@@ -775,6 +775,7 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-confirm",
             "-dismiss",
             "-reset",
+            "-trust",
             "-automatic",
             "-customangle",
             "-hdrfallback",

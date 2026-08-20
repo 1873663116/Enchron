@@ -281,9 +281,11 @@ public struct MainView: View {
             Button("信任", role: .destructive) {
                 certificateTrustPrompt.resolve(approved: true)
             }
+            .accessibilityIdentifier("FileBrowsing-CertificateTrust-trust")
             Button("取消", role: .cancel) {
                 certificateTrustPrompt.resolve(approved: false)
             }
+            .accessibilityIdentifier("FileBrowsing-CertificateTrust-cancel")
         } message: {
             if let certificate = certificateTrustPrompt.certificate {
                 Text(Self.certificateDescription(certificate))

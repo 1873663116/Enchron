@@ -1001,6 +1001,16 @@
       "context": "portal",
       "operation": "accessibility:PlayerUI-menu-speed",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CertificateTrust-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CertificateTrust-trust",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

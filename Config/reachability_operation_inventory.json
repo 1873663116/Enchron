@@ -717,7 +717,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 440,
+          "line": 442,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -730,7 +730,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1425,
+          "line": 1427,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -947,7 +947,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 741,
+          "line": 750,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -958,13 +958,39 @@
       "template": "FileBrowsing-Breadcrumb-current"
     },
     {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 288,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "FileBrowsing-CertificateTrust-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 284,
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "FileBrowsing-CertificateTrust-trust"
+    },
+    {
       "action": null,
       "family": "FileBrowsing",
       "role": "observation",
       "scope": "product",
       "sources": [
         {
-          "line": 191,
+          "line": 190,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -977,7 +1003,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 648,
+          "line": 657,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -990,7 +1016,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 842,
+          "line": 851,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1003,7 +1029,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 944,
+          "line": 953,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1016,7 +1042,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 632,
+          "line": 641,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1029,7 +1055,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 683,
+          "line": 692,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1042,7 +1068,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 660,
+          "line": 669,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1059,7 +1085,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 660,
+          "line": 669,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1076,7 +1102,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 709,
+          "line": 718,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1089,7 +1115,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 658,
+          "line": 667,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1102,7 +1128,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 697,
+          "line": 706,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1119,7 +1145,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 692,
+          "line": 701,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1176,7 +1202,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 411,
+          "line": 418,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1189,7 +1215,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 794,
+          "line": 803,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1246,7 +1272,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 245,
+          "line": 251,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1259,11 +1285,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 170,
+          "line": 199,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1276,11 +1302,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 297,
+          "line": 326,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1293,11 +1319,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 304,
+          "line": 333,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1310,15 +1336,15 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 251,
+          "line": 280,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 258,
+          "line": 287,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1331,7 +1357,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 247,
+          "line": 253,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1344,11 +1370,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 164,
+          "line": 193,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1361,11 +1387,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 193,
+          "line": 222,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1378,11 +1404,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 265,
+          "line": 294,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1395,11 +1421,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 238,
+          "line": 244,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 183,
+          "line": 212,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1412,7 +1438,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 246,
+          "line": 252,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1425,11 +1451,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 170,
+          "line": 199,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1442,11 +1468,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 297,
+          "line": 326,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1459,11 +1485,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 304,
+          "line": 333,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1476,15 +1502,15 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 251,
+          "line": 280,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 258,
+          "line": 287,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1497,11 +1523,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 164,
+          "line": 193,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1514,11 +1540,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 193,
+          "line": 222,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1531,11 +1557,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 265,
+          "line": 294,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1548,11 +1574,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 239,
+          "line": 245,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 183,
+          "line": 212,
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         }
       ],
@@ -1565,7 +1591,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 412,
+          "line": 419,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1578,7 +1604,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1595,7 +1621,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1612,7 +1638,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1629,7 +1655,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1646,7 +1672,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1663,7 +1689,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1680,7 +1706,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1697,7 +1723,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1714,7 +1740,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1731,7 +1757,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 408,
+          "line": 415,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1748,7 +1774,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 375,
+          "line": 382,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1761,7 +1787,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 366,
+          "line": 373,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1778,7 +1804,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 366,
+          "line": 373,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1795,7 +1821,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 863,
+          "line": 872,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1808,7 +1834,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 877,
+          "line": 886,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1821,7 +1847,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 729,
+          "line": 738,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
@@ -1838,7 +1864,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 753,
+          "line": 762,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1851,7 +1877,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 759,
+          "line": 768,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1864,7 +1890,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 765,
+          "line": 774,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1877,7 +1903,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 772,
+          "line": 781,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1890,7 +1916,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 781,
+          "line": 790,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1903,7 +1929,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 335,
+          "line": 342,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1916,7 +1942,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 802,
+          "line": 811,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1929,7 +1955,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 826,
+          "line": 835,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1942,7 +1968,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 832,
+          "line": 841,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1955,7 +1981,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 817,
+          "line": 826,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1968,7 +1994,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 285,
+          "line": 292,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1981,7 +2007,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 278,
+          "line": 285,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -1994,7 +2020,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 307,
+          "line": 314,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -2007,7 +2033,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 298,
+          "line": 305,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -2020,7 +2046,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 396,
+          "line": 403,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -2033,7 +2059,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 901,
+          "line": 910,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -2046,7 +2072,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 916,
+          "line": 925,
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         }
       ],
@@ -2059,7 +2085,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 455,
+          "line": 457,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2072,7 +2098,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 416,
+          "line": 418,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2085,7 +2111,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 446,
+          "line": 448,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2869,7 +2895,7 @@
       "scope": "debug-diagnostic",
       "sources": [
         {
-          "line": 636,
+          "line": 638,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2882,7 +2908,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1479,
+          "line": 1481,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2895,7 +2921,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1489,
+          "line": 1491,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2908,7 +2934,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 645,
+          "line": 647,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2973,7 +2999,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 970,
+          "line": 972,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2986,7 +3012,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1501,
+          "line": 1503,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -2999,7 +3025,7 @@
         "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
-            "line": 1481,
+            "line": 1483,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -3012,7 +3038,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1481,
+          "line": 1483,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3025,7 +3051,7 @@
         "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
-            "line": 1481,
+            "line": 1483,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -3038,7 +3064,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1491,
+          "line": 1493,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3051,7 +3077,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1419,
+          "line": 1421,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3064,7 +3090,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1500,
+          "line": 1502,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3116,7 +3142,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1124,
+          "line": 1126,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3129,7 +3155,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1480,
+          "line": 1482,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3142,7 +3168,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1490,
+          "line": 1492,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3155,7 +3181,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1499,
+          "line": 1501,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3168,7 +3194,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 568,
+          "line": 570,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3194,7 +3220,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 565,
+          "line": 567,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3207,7 +3233,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 657,
+          "line": 659,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3272,7 +3298,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 115,
+          "line": 121,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3285,7 +3311,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 56,
+          "line": 58,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3298,7 +3324,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 111,
+          "line": 117,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3311,7 +3337,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 64,
+          "line": 66,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3324,7 +3350,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 104,
+          "line": 110,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3337,7 +3363,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 113,
+          "line": 119,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3350,7 +3376,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 52,
+          "line": 54,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         },
         {
@@ -3383,7 +3409,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3402,7 +3428,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3421,7 +3447,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3440,7 +3466,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3459,7 +3485,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3487,7 +3513,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3506,7 +3532,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3525,7 +3551,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3544,7 +3570,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3563,7 +3589,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3582,7 +3608,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3601,7 +3627,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3629,7 +3655,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3657,7 +3683,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3676,7 +3702,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3695,7 +3721,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 419,
+            "line": 421,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3803,7 +3829,45 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-CertificateTrust-cancel",
+      "identifierTemplate": "FileBrowsing-CertificateTrust-cancel",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 415,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-CertificateTrust-trust",
+      "identifierTemplate": "FileBrowsing-CertificateTrust-trust",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3822,7 +3886,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3841,7 +3905,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3860,7 +3924,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3879,7 +3943,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3908,7 +3972,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3927,7 +3991,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3946,7 +4010,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3965,7 +4029,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -3984,7 +4048,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4003,7 +4067,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4022,7 +4086,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4041,7 +4105,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4060,7 +4124,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4079,7 +4143,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4098,7 +4162,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4117,7 +4181,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4136,7 +4200,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4155,7 +4219,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4174,7 +4238,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4193,7 +4257,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4222,7 +4286,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4251,7 +4315,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4280,7 +4344,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4309,7 +4373,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4338,7 +4402,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4367,7 +4431,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4396,7 +4460,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4415,7 +4479,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4434,7 +4498,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4453,7 +4517,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4472,7 +4536,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4491,7 +4555,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4510,7 +4574,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4538,7 +4602,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4567,7 +4631,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4596,7 +4660,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4625,7 +4689,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4654,7 +4718,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4683,7 +4747,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4702,7 +4766,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4721,7 +4785,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4740,7 +4804,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4768,7 +4832,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4787,7 +4851,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4806,7 +4870,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4825,7 +4889,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4844,7 +4908,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4863,7 +4927,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4882,7 +4946,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4901,7 +4965,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 413,
+            "line": 415,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4920,7 +4984,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 410,
+            "line": 412,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4939,7 +5003,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 410,
+            "line": 412,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -4958,7 +5022,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 410,
+            "line": 412,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -5500,7 +5564,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5594,7 +5658,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5627,7 +5691,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5651,7 +5715,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5675,7 +5739,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5699,7 +5763,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5723,7 +5787,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5747,7 +5811,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 551,
+            "line": 553,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5771,7 +5835,7 @@
         "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
-            "line": 1479,
+            "line": 1481,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5795,7 +5859,7 @@
         "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
-            "line": 1479,
+            "line": 1481,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5951,7 +6015,7 @@
         "host": "playbackIssuePresentationSites",
         "sources": [
           {
-            "line": 1353,
+            "line": 1355,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -5981,7 +6045,7 @@
         "host": "browserWindowPlaybackIssue",
         "sources": [
           {
-            "line": 1500,
+            "line": 1502,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -6000,7 +6064,7 @@
         "host": "browserWindowResumeDecision",
         "sources": [
           {
-            "line": 371,
+            "line": 373,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -6019,7 +6083,7 @@
         "host": "browserWindowResumeDecision",
         "sources": [
           {
-            "line": 371,
+            "line": 373,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -6038,7 +6102,7 @@
         "host": "immersivePlaybackIssueActions",
         "sources": [
           {
-            "line": 1480,
+            "line": 1482,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6062,7 +6126,7 @@
         "host": "immersivePlaybackIssueActions",
         "sources": [
           {
-            "line": 1480,
+            "line": 1482,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6086,7 +6150,7 @@
         "host": "playbackIssuePresentationSites",
         "sources": [
           {
-            "line": 1353,
+            "line": 1355,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6116,7 +6180,7 @@
         "host": "browserWindowSurface",
         "sources": [
           {
-            "line": 443,
+            "line": 445,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]

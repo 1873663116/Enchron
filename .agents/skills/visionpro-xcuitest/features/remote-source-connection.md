@@ -34,6 +34,11 @@ WebDAV 使用同一后缀集合与 `FileBrowsing-SourceConnection-webDAV-` 前�
 `FileBrowsing-SourceConnection-smb-guest`；两种表单均有 `name`、`address`、
 `username`、`password`、`connect` 与 `cancel`。
 
+证书信任询问出现前，连接表单应先从层级中消失。询问按钮为
+`FileBrowsing-CertificateTrust-trust` 与 `FileBrowsing-CertificateTrust-cancel`。
+点信任后连接继续；点取消后连接终止。再次打开同类型表单时，名称、地址、用户名和
+SMB 访客开关保留，密码为空。
+
 `typeText` 必须带 `--identifier`，runner 自己先点再输。首次凭据连接后系统弹"保存密码?"，`tap --label '以后'` 可合成关掉。
 
 浏览用 `tap --label '<名字>, folder'` 逐层进入；远程网格卡片的标识前缀是 `FileBrowsing-grid-video-<文件名>`，本地库是 `MediaLibrary-grid-video-<文件名>`，两者不同族。
@@ -46,7 +51,9 @@ Emby 侧见 [emby-library.md](emby-library.md)。
 |---|---|---|
 | 结构 | 适配器把浏览所报大小只用于显示与排序，取字节时以服务端当场回答为准；SMB 一台服务器一条连接，播放不新建第二条 | 模拟器单测（SMBDataSourceAdapterTests 等） |
 | 结构 | 播放入口只接受 `PlaybackAddress`，裸网络地址编译不过 | 类型系统 + `verify_media_byte_stream.py` |
+| 结构 | 证书询问等待已有 sheet 完成收起；表单退出只清除密码；明文连接仅在 ATS 明确拦截或同一端点 TLS 握手成功时提示添加 `https://` | `CertificateTrustPromptTests`、`SourceConnectionDraftTests`、`RemoteConnectionFailureDiagnoserTests`、`WebDAVDataSourceAdapterTests`、`EmbyClientTests` |
 | 物理 | 侧栏出现该来源、目录列出内容、卡片打开后诊断串 `lifecycle=Playing` 且截图非纯色 | 真机，本文的控制器序列 |
+| 物理 | 证书询问前连接表单已消失，信任与取消按钮可按 identifier 命中；取消后重开表单只缺密码 | 真机，本文的控制器序列 |
 | 感知 | 不适用 | |
 
 ## 证明的终态
@@ -58,4 +65,4 @@ Emby 侧见 [emby-library.md](emby-library.md)。
 - 侧栏源条目的删除按钮、图标与文本共享同一 identifier，`tap --identifier` 命中删除按钮；选中来源要按 label 或 `--index`。
 - 从播放器退出后浏览位置回到 Media Library 根，不回到进入播放前的目录，重进远程目录要从侧栏重走。
 - `smbutil view -N`（匿名）在这台服务器上返回 Authentication error，不代表 SMB 不可用；带凭据枚举正常。判断服务端可用性不要用匿名探测。
-- 证书信任提示 `CertificateTrustPrompt` 目前没有 accessibility identifier，合成驱动无法命中，见 [能力边界](../references/enchron.md)。
+- TLS 探测只证明同一 `host:port` 能建立握手。DNS、TCP、代理、HTTP 状态码、认证失败、TLS 握手失败和超时仍保留原始错误。

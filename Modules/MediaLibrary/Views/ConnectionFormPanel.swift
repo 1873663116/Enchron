@@ -35,6 +35,36 @@ public enum SourceConnectionOutcome: Sendable, Equatable {
     case timedOut(message: String)
 }
 
+public struct SourceConnectionDraft: Sendable, Equatable {
+    public var name: String
+    public var address: String
+    public var username: String
+    public var password: String
+    public var connectsAsGuest: Bool
+
+    public init(
+        name: String = "",
+        address: String = "",
+        username: String = "",
+        password: String = "",
+        connectsAsGuest: Bool = false
+    ) {
+        self.name = name
+        self.address = address
+        self.username = username
+        self.password = password
+        self.connectsAsGuest = connectsAsGuest
+    }
+
+    public mutating func clearAfterDismissal() {
+        password = ""
+    }
+
+    public mutating func clearAfterSuccessfulConnection() {
+        self = SourceConnectionDraft()
+    }
+}
+
 public struct ConnectionFormPanel: View {
     public typealias ConnectAction = @MainActor (
         SourceConnectionRequest
@@ -103,7 +133,6 @@ public struct ConnectionFormPanel: View {
         .animation(DesignTokens.AnimationToken.selection, value: showsCredentials)
         .animation(DesignTokens.AnimationToken.selection, value: phase)
         .interactiveDismissDisabled(isBusy)
-        .onDisappear { connectTask?.cancel() }
     }
 
     private var showsCredentials: Bool {
