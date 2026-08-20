@@ -138,23 +138,34 @@ struct WindowPlaybackPageGeometryTests {
         #expect(BrowserWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_017))
     }
 
-    @Test("Portal shares the window's aspect lock and owns no sizing rule")
-    func portalWindowSharesTheAspectLock() {
+    @Test("Portal locks the chrome window to the fallback aspect, not the video's")
+    func portalWindowLocksToTheFallbackAspect() {
+        // In Portal the window carries chrome while the video lives in the
+        // portal, so window geometry must not follow the video's aspect.
         let videoLayout = WindowPlaybackLayout(aspectRatio: 1)
 
         #expect(
             WindowPlaybackGeometryPolicy(
                 presentation: .portal,
                 videoLayout: videoLayout
-            ) == .aspectLocked(videoLayout)
+            ) == .aspectLocked(.fallback)
         )
         #expect(
             WindowPlaybackGeometryPolicy(
                 presentation: .portal,
                 videoLayout: videoLayout
-            ) == WindowPlaybackGeometryPolicy(
+            ) != WindowPlaybackGeometryPolicy(
                 presentation: .window,
                 videoLayout: videoLayout
+            )
+        )
+        #expect(
+            WindowPlaybackGeometryPolicy(
+                presentation: .portal,
+                videoLayout: .fallback
+            ) == WindowPlaybackGeometryPolicy(
+                presentation: .window,
+                videoLayout: .fallback
             )
         )
     }
