@@ -682,7 +682,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Breadcrumb-current",
       "unit": "library.new-folder",
-      "step": 6,
+      "step": 9,
       "drive": "real",
       "expect": "Grid returns to the library root."
     },
@@ -760,9 +760,17 @@
     },
     {
       "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-cancel",
+      "unit": "library.new-folder",
+      "step": 3,
+      "drive": "real",
+      "expect": "Sheet closes and no folder is created."
+    },
+    {
+      "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-NewFolder-create",
       "unit": "library.new-folder",
-      "step": 4,
+      "step": 7,
       "drive": "real",
       "expect": "Sheet closes and the folder is on the grid."
     },
@@ -770,15 +778,23 @@
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-NewFolder-name",
       "unit": "library.new-folder",
-      "step": 3,
+      "step": 6,
       "drive": "real",
       "expect": "Field holds the typed name. SwiftUI drops the identifier from a TextField inside an alert, so the label is the handle that resolves."
     },
     {
       "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-cancel",
+      "unit": "library.rename-folder",
+      "step": 1,
+      "drive": "real",
+      "expect": "Sheet closes and the folder keeps its name."
+    },
+    {
+      "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
       "unit": "library.rename-folder",
-      "step": 2,
+      "step": 4,
       "drive": "real",
       "expect": "Grid shows the new name."
     },
@@ -786,7 +802,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-RenameFolder-name",
       "unit": "library.rename-folder",
-      "step": 1,
+      "step": 3,
       "drive": "real",
       "expect": "Field holds the new name. The alert focuses the field on appearance, and its identifier does not survive the alert, so the label is the handle that resolves."
     },
@@ -802,7 +818,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
       "unit": "library.new-folder",
-      "step": 5,
+      "step": 8,
       "drive": "real",
       "expect": "Grid shows the folder contents."
     },

@@ -339,6 +339,21 @@ UNITS: tuple[Unit, ...] = (
                 expect="Naming sheet appears.",
             ),
             real(
+                "tap",
+                "MediaLibrary-NewFolder-cancel",
+                expect="Sheet closes and no folder is created.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-Manage-button",
+                expect="Manage menu opens again.",
+            ),
+            real(
+                "tap",
+                "MediaLibrary-Manage-newFolder",
+                expect="Naming sheet appears again.",
+            ),
+            real(
                 "type",
                 "MediaLibrary-NewFolder-name",
                 label="Folder name",
@@ -372,6 +387,16 @@ UNITS: tuple[Unit, ...] = (
         proves="Rename reaches persistence and the grid follows.",
         needs=("library.new-folder",),
         steps=(
+            real(
+                "tap",
+                "MediaLibrary-RenameFolder-cancel",
+                expect="Sheet closes and the folder keeps its name.",
+            ),
+            real(
+                "tap",
+                "MediaLibrary-grid-folder-Unit Folder",
+                expect="Rename is reopened from the folder's own menu.",
+            ),
             real(
                 "type",
                 "MediaLibrary-RenameFolder-name",
