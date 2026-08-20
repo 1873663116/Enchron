@@ -5,6 +5,7 @@ $(SRCROOT)/Apps/Enchron/DebugProbeJournal.swift
 $(SRCROOT)/Apps/Enchron/EnchronApp.swift
 $(SRCROOT)/Apps/Enchron/EnchronApplication.swift
 $(SRCROOT)/Apps/Enchron/MainView.swift
+$(SRCROOT)/Apps/Enchron/PlaybackSwitchStateRing.swift
 $(SRCROOT)/Apps/Enchron/Screens/FilesScreen.swift
 $(SRCROOT)/Apps/Enchron/Screens/SettingsScreen.swift
 $(SRCROOT)/Apps/Enchron/Settings/PreferencesStore.swift

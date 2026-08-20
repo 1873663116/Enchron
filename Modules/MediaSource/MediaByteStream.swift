@@ -1,7 +1,7 @@
 import Foundation
 import Network
 #if DEBUG
-import Synchronization
+import os
 #endif
 
 #if DEBUG
@@ -15,6 +15,11 @@ public struct MediaByteStreamDebugCounters: Sendable, Equatable {
         self.acceptedConnectionCount = acceptedConnectionCount
         self.requestCount = requestCount
     }
+}
+
+private struct MediaByteStreamDebugCounterState: Sendable {
+    var acceptedConnectionCount: UInt64 = 0
+    var requestCount: UInt64 = 0
 }
 #endif
 
@@ -415,8 +420,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     private var transferTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     private var statistics = Statistics()
     #if DEBUG
-        private let debugAcceptedConnectionCount = Atomic<UInt64>(0)
-        private let debugRequestCount = Atomic<UInt64>(0)
+        private let debugCounterState = OSAllocatedUnfairLock(
+            uncheckedState: MediaByteStreamDebugCounterState()
+        )
     #endif
 
     public init(readChunkSize: Int64 = 1_048_576) {
@@ -444,11 +450,13 @@ public final class MediaByteStreamServer: @unchecked Sendable {
 
     #if DEBUG
         fileprivate func debugCounters() -> MediaByteStreamDebugCounters {
-            MediaByteStreamDebugCounters(
-                scope: UInt64(UInt(bitPattern: ObjectIdentifier(self))),
-                acceptedConnectionCount: debugAcceptedConnectionCount.load(ordering: .relaxed),
-                requestCount: debugRequestCount.load(ordering: .relaxed)
-            )
+            debugCounterState.withLock { counters in
+                MediaByteStreamDebugCounters(
+                    scope: UInt64(UInt(bitPattern: ObjectIdentifier(self))),
+                    acceptedConnectionCount: counters.acceptedConnectionCount,
+                    requestCount: counters.requestCount
+                )
+            }
         }
     #endif
 
@@ -551,7 +559,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             statistics.acceptedConnectionCount += 1
         }
         #if DEBUG
-            debugAcceptedConnectionCount.wrappingAdd(1, ordering: .relaxed)
+            debugCounterState.withLock { counters in
+                counters.acceptedConnectionCount &+= 1
+            }
         #endif
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             if case .failed = state { self?.connectionDidEnd(id, connection: connection) }
@@ -712,7 +722,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 statistics.largestRequest = max(statistics.largestRequest, responseLength)
             }
             #if DEBUG
-                debugRequestCount.wrappingAdd(1, ordering: .relaxed)
+                debugCounterState.withLock { counters in
+                    counters.requestCount &+= 1
+                }
             #endif
             var response = "HTTP/1.1 \(request.isPartial ? "206 Partial Content" : "200 OK")\r\n"
             response += "Accept-Ranges: bytes\r\nContent-Type: application/octet-stream\r\n"
