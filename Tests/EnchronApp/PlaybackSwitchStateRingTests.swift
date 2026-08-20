@@ -72,6 +72,56 @@ nonisolated final class PlaybackSwitchStateRingTests: XCTestCase {
         XCTAssertEqual(metrics.byteStreamRequestDelta, 2)
     }
 
+    func testOverwrittenHistoryLeftCensorsAStillRetainedSwitch() throws {
+        let ring = PlaybackSwitchStateRing(capacity: 4)
+        _ = ring.arm(context: context())
+        ring.record(rendererSample(at: 0))
+        _ = ring.beginSwitch(
+            kind: .presentation,
+            targetPresentation: .portal,
+            at: 10
+        )
+        ring.record(rendererSample(at: 20))
+        ring.record(rendererSample(
+            at: 30,
+            technicalSessionID: "technical-new",
+            rendererIdentity: 200,
+            graphRevision: 1,
+            displayed: 1
+        ))
+        ring.record(rendererSample(
+            at: 40,
+            technicalSessionID: "technical-new",
+            rendererIdentity: 200,
+            graphRevision: 1,
+            displayed: 2
+        ))
+
+        let metrics = try XCTUnwrap(
+            PlaybackSwitchStateAnalysis.derive(from: ring.snapshot()).switches.first
+        )
+        XCTAssertTrue(metrics.isLeftCensored)
+        XCTAssertFalse(metrics.isRightCensored)
+    }
+
+    func testMissingNewGraphDisplayProgressRightCensorsSwitch() throws {
+        let ring = PlaybackSwitchStateRing(capacity: 4)
+        _ = ring.arm(context: context())
+        ring.record(rendererSample(at: 0))
+        _ = ring.beginSwitch(
+            kind: .presentation,
+            targetPresentation: .portal,
+            at: 10
+        )
+        ring.record(rendererSample(at: 20))
+
+        let metrics = try XCTUnwrap(
+            PlaybackSwitchStateAnalysis.derive(from: ring.snapshot()).switches.first
+        )
+        XCTAssertFalse(metrics.isLeftCensored)
+        XCTAssertTrue(metrics.isRightCensored)
+    }
+
     private func capturedSwitchMetrics() -> PlaybackSwitchDerivedMetrics? {
         let ring = PlaybackSwitchStateRing(capacity: 16)
         let generation = ring.arm(

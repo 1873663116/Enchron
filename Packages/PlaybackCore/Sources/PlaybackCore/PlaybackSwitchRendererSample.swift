@@ -12,6 +12,7 @@ public enum PlaybackSwitchSampleTrigger: String, Codable, Equatable, Sendable {
     case graphChanged
     case lifecycleChanged
     case firstInputAccepted
+    case inputAccepted
 }
 
 public struct PlaybackSwitchRendererSample: Codable, Equatable, Sendable {

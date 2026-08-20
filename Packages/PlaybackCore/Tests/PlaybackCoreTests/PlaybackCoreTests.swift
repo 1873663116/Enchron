@@ -1238,6 +1238,61 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
 }
 
+#if DEBUG
+@Test func armedPlaybackSwitchSamplingRecordsEveryAcceptedVideoInput() async throws {
+    let acceptedInputCount = 4
+    let samples = try (0..<acceptedInputCount).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) / 30
+        )
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "playback-switch-sampling-armed",
+        provider: FakeVideoSampleProvider(
+            events: samples.map(VideoSampleProviderEvent.sample) + [.end]
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    let sampleSink = PlaybackSwitchRendererSampleSpy()
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/fake.mov"))
+    session.setPlaybackSwitchRendererSampleSink(sampleSink)
+    try session.start()
+    try await waitForAcceptedRendererInputCount(UInt64(acceptedInputCount), in: session)
+
+    let acceptedInputSamples = sampleSink.samples.filter { sample in
+        switch sample.trigger {
+        case .firstInputAccepted, .inputAccepted:
+            true
+        case .periodic, .graphChanged, .lifecycleChanged:
+            false
+        }
+    }
+    #expect(acceptedInputSamples.map(\.acceptedInputCount) == [1, 2, 3, 4])
+}
+
+@Test func disarmedPlaybackSwitchSamplingRecordsNoAcceptedVideoInputs() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "playback-switch-sampling-disarmed",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(try makeCompressedH264Sample()), .end]
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    let sampleSink = PlaybackSwitchRendererSampleSpy()
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/fake.mov"))
+    session.setPlaybackSwitchRendererSampleSink(sampleSink)
+    session.setPlaybackSwitchRendererSampleSink(nil)
+    try session.start()
+    try await waitForAcceptedRendererInputCount(1, in: session)
+
+    #expect(sampleSink.samples.isEmpty)
+}
+#endif
+
 @Test func seekPrerollRequiresTargetVideoAndPointTwoSecondsOfAudio() {
     let target = CMTime(seconds: 12, preferredTimescale: 60_000)
 
@@ -4103,6 +4158,24 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
     }
 
 }
+
+#if DEBUG
+private final class PlaybackSwitchRendererSampleSpy:
+    PlaybackSwitchRendererSampleSink,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var recordedSamples: [PlaybackSwitchRendererSample] = []
+
+    var samples: [PlaybackSwitchRendererSample] {
+        lock.withLock { recordedSamples }
+    }
+
+    func recordPlaybackSwitchRendererSample(_ sample: PlaybackSwitchRendererSample) {
+        lock.withLock { recordedSamples.append(sample) }
+    }
+}
+#endif
 
 private final class FakeRendererFailureMonitor: RendererFailureMonitoring, @unchecked Sendable {
     private let lock = NSLock()
