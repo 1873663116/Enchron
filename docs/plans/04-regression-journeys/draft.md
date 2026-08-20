@@ -75,19 +75,21 @@
 
 ## J01 本地媒体：从导入到卡片留影（完整详述）
 
-覆盖：media-import、clean-state-playback、cache-and-artwork（Artwork 侧）。
-内容条件：sdr-bframe-multiaudio-avsync-30s.mp4（双 AAC 轨，880/440Hz 脉冲）。
+覆盖：media-import、clean-state-playback、track-selection（音轨与字幕轨连续切换）、cache-and-artwork（Artwork 侧）。
+内容条件：sdr-bframe-multiaudio-subtitles-30s.mkv（双 AAC 轨 880/440Hz 脉冲；三条字幕轨互异可辨：SubRip 中文纯文本、ASS 英文带样式、DVB 英文位图）。
 
 1. P0；P1(files 页签)。
-2. P2(sdr-bframe-multiaudio-avsync-30s.mp4, "Journey Fixture")。网格出现 MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-30s.mp4。
+2. P2(sdr-bframe-multiaudio-subtitles-30s.mkv, "Journey Fixture")。网格出现对应卡片。
 3. P3(该卡片, window)。机械层：lifecycle=Playing、videoVisible=true。判断层：P8(SDR 真实内容)。
 4. P9(880Hz 主导、非静音)——音画皆在解码，判断层收口。
 5. 轮询诊断串至 position≥10 秒。
-6. P4(PlayerUI-InfoBar-button-back) 退出播放 → 回到网格，无错误浮层。
-7. 采网格卡片区域截图，Agent 判读卡片画面是否为退出前后的画面内容【判断层·此前无人看守，本步建立看守】。
-8. P11(库中恰一条引用；无 userVisibleIssue)。
+6. 音轨连续切换三次：P5(more 菜单, audio 家族) 依次选 轨2→轨1→轨2。每次切换后双重验证，全部通过才算一次切换成功：机械层=重新 listMenuItems 断言目标轨 isSelected=true，且 lifecycle 保持 Playing、position 持续推进；判断层=P9 主导频率翻转到目标轨独特频率（440↔880Hz）。任一次验证不通过即本步失败（连续切换可行性是本步的证明目标，不允许「三次里过一次」）。
+7. 字幕轨连续切换三次：P5(more 菜单, subtitles 家族) 依次选 SubRip→ASS→DVB。每次切换后双重验证：机械层=重新 listMenuItems 断言目标轨 isSelected=true，lifecycle 保持 Playing；判断层=截图判读字幕呈现与目标轨一致（中文纯文本／英文带样式／英文位图三者互斥可辨），且画面仍在正常推进。
+8. P4(PlayerUI-InfoBar-button-back) 退出播放 → 回到网格，无错误浮层。
+9. 采网格卡片区域截图，Agent 判读卡片画面是否为退出前后的画面内容【判断层·此前无人看守，本步建立看守】。
+10. P11(库中恰一条引用；无 userVisibleIssue)。
 
-不证明：Files 选择器与相册两条系统面导入入口（人工层，佩戴者场次各走一遍即终身有效）；画质主观。
+不证明：Files 选择器与相册两条系统面导入入口（人工层，佩戴者场次各走一遍即终身有效）；画质主观；逐格式解码覆盖（归解码矩阵旅程，等支持范围清单与 FATE 样片到位后展开）。
 
 ## J02 WebDAV：从连接到续播（完整详述）
 
@@ -165,7 +167,8 @@
 | emby-library | J04 |
 | clean-state-playback | J01 |
 | picture-interpretation | J05、J06 |
-| track-selection | J08 |
+| track-selection | J01（内嵌轨连续切换）、J08 |
+| decode-matrix | 解码矩阵旅程（待支持范围清单与 FATE 样片到位后展开；仅解码相关代码或样片库变更时重跑） |
 | viewing-state | J02、J04、J10 |
 | network-resilience | J09 |
 | mode-transitions | J07 |

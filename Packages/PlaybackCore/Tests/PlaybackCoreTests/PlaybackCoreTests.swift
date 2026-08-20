@@ -3524,8 +3524,12 @@ func terminalRendererFailurePublishesFailedOnce(
 
     monitor.send(fact)
 
+    // Retirement publishes hasAudio before the failure and renderer-state
+    // records land in the store; synchronize on the last store write the
+    // assertions below read, not on the intermediate flag.
     let deadline = ContinuousClock.now + .seconds(2)
-    while ContinuousClock.now < deadline, session.hasAudio {
+    while ContinuousClock.now < deadline,
+        session.debugSnapshot().audioRendererState?.error != fact.message {
         try await Task.sleep(for: .milliseconds(10))
     }
     try await waitForSampleCount(UInt64(samplesBeforeFailure + 1), in: session)
