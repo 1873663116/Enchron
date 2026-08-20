@@ -3,6 +3,8 @@ import CryptoKit
 import Emby
 import Foundation
 import MediaLibrary
+import MediaSource
+import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 #if os(visionOS)
@@ -29,6 +31,10 @@ final class TestCommandChannel {
         let detail: String?
         let payload: [String]?
         var menuItems: [MenuItem]? = nil
+        #if DEBUG
+            var transitionTraceSnapshot: PlaybackSwitchStateSnapshot? = nil
+            var transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil
+        #endif
     }
 
     private struct CommandError: LocalizedError {
@@ -40,6 +46,9 @@ final class TestCommandChannel {
     private let mediaLibrary: MediaLibraryViewModel
     private let appModel: AppModel
     private let playbackRuntime: PlaybackRuntime
+    #if DEBUG
+        private var playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
+    #endif
     private let embySession: EmbySessionViewModel
     private let fileManager: FileManager
     private let defaults: UserDefaults
@@ -123,6 +132,12 @@ final class TestCommandChannel {
             }
         }
     }
+
+    #if DEBUG
+        func usePlaybackSwitchStateRing(_ ring: PlaybackSwitchStateRing) {
+            playbackSwitchStateRing = ring
+        }
+    #endif
 
     private func processRequestIfPresent() {
         do {
@@ -212,6 +227,18 @@ final class TestCommandChannel {
     }
 
 #if DEBUG
+    nonisolated private static func switchCounters(
+        _ counters: MediaByteStreamDebugCounters?
+    ) -> PlaybackSwitchByteStreamCounters? {
+        counters.map {
+            PlaybackSwitchByteStreamCounters(
+                scope: $0.scope,
+                acceptedConnectionCount: $0.acceptedConnectionCount,
+                requestCount: $0.requestCount
+            )
+        }
+    }
+
     private func prepareEvidenceSession(
         for request: Request,
         requestURL: URL
@@ -266,6 +293,64 @@ final class TestCommandChannel {
                     "evidenceOverflowed=\(status.evidenceOverflowed)",
                     "writeFailed=\(status.writeFailed)"
                 ]
+            )
+        case "armTransitionTrace":
+            guard let logicalSessionID = playbackRuntime.activeSessionID else {
+                throw CommandError(message: "armTransitionTrace requires active playback.")
+            }
+            let generation = playbackSwitchStateRing.arm(
+                context: PlaybackSwitchTraceContext(
+                    logicalSessionID: logicalSessionID,
+                    settledPresentation: appModel.playbackPresentation,
+                    targetPresentation: appModel.presentationTransition?.targetPresentation
+                ),
+                byteStreamCounters: Self.switchCounters(
+                    playbackRuntime.debugCurrentByteStreamCounters()
+                )
+            )
+            playbackRuntime.debugSetPlaybackSwitchSampleHandler {
+                [weak playbackSwitchStateRing] sample, counters in
+                playbackSwitchStateRing?.record(
+                    sample,
+                    byteStreamCounters: Self.switchCounters(counters)
+                )
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "generation=\(generation)",
+                    "capacity=\(playbackSwitchStateRing.snapshot().capacity)"
+                ]
+            )
+        case "disarmTransitionTrace":
+            let currentGeneration = playbackSwitchStateRing.snapshot().generation
+            let requestedGeneration = request.args["generation"].flatMap(UInt64.init)
+                ?? currentGeneration
+            let disarmed = playbackSwitchStateRing.disarm(generation: requestedGeneration)
+            if disarmed {
+                playbackRuntime.debugSetPlaybackSwitchSampleHandler(nil)
+            }
+            return Response(
+                id: request.id,
+                ok: disarmed,
+                detail: disarmed ? nil : "The transition trace generation did not match.",
+                payload: ["generation=\(requestedGeneration)"]
+            )
+        case "fetchTransitionTraceSnapshot":
+            let snapshot = playbackSwitchStateRing.snapshot()
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "generation=\(snapshot.generation)",
+                    "records=\(snapshot.records.count)",
+                    "overwritten=\(snapshot.overwrittenRecordCount)"
+                ],
+                transitionTraceSnapshot: snapshot,
+                transitionTraceAnalysis: .derive(from: snapshot)
             )
         case "embyServerIdentityDigest":
             guard let server = embySession.server else {
@@ -853,6 +938,9 @@ private enum TestCommandChannelBootstrap {
                 playbackRuntime: application.playbackRuntime,
                 embySession: application.embySessionViewModel
             )
+            #if DEBUG
+                channel.usePlaybackSwitchStateRing(application.playbackSwitchStateRing)
+            #endif
             activeChannel = channel
             channel.start()
         } catch {
