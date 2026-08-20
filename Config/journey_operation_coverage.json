@@ -1,0 +1,1208 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "reachability_matrix_baseline.json",
+  "cells": [
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-card",
+      "journey": "J07",
+      "step": "5a"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-carousel",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-exit-spatial",
+      "journey": "J07",
+      "step": 7
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-settings",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "journey": "J07",
+      "step": 6
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-audio",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-episodes",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-more",
+      "journey": "J07",
+      "step": 6
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-speed",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-subtitles",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-progress",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-{identifier}-slider",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "journey": "J12",
+      "step": 5
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-spatialFailure-primary",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "command:listMenuItems",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "docked",
+      "operation": "command:seekNormalized",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "docked",
+      "operation": "command:selectMenuItem",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "docked",
+      "operation": "command:setDockedPlacement",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "docked",
+      "operation": "command:toggleControls",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "docked",
+      "operation": "environmentVolume:open-interact-close",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "docked",
+      "operation": "negative:immersive-resident-window",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Address",
+      "journey": "J04",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Connect",
+      "journey": "J04",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Password",
+      "journey": "J04",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Username",
+      "journey": "J04",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-Overview-Expand",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-Version",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
+      "journey": "J04",
+      "step": 4
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Library-Sort",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Navigation-Tab",
+      "primitive": "P1"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
+      "journey": "J04",
+      "step": 4
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Search-Field",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Season-Picker",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-SignOut",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
+      "journey": "J04",
+      "step": 4
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CertificateTrust-cancel",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CertificateTrust-trust",
+      "journey": "J02",
+      "step": "4b"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-search",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Manage-button",
+      "journey": "J11",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "journey": "J03",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "journey": "J02",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "journey": "J02",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "journey": "J02",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "journey": "J02",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "journey": "J02",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "journey": "J02",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "status": "manual",
+      "reason": "系统面板，人工层每场次各走一遍"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "status": "manual",
+      "reason": "系统面板，人工层每场次各走一遍"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "status": "manual",
+      "reason": "系统面板，人工层每场次各走一遍"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "journey": "J03",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "journey": "J02",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "journey": "J02",
+      "step": 6
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "journey": "J02",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
+      "journey": "J02",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
+      "journey": "J02",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addFiles",
+      "status": "manual",
+      "reason": "系统面板，人工层每场次各走一遍"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addFolder",
+      "status": "manual",
+      "reason": "系统面板，人工层每场次各走一遍"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
+      "status": "manual",
+      "reason": "系统面板，人工层每场次各走一遍"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-newFolder",
+      "journey": "J11",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
+      "journey": "J11",
+      "step": 5
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
+      "journey": "J11",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
+      "journey": "J11",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-done",
+      "journey": "J11",
+      "step": 5
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-move",
+      "journey": "J11",
+      "step": 5
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-create",
+      "journey": "J11",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-name",
+      "journey": "J11",
+      "step": 2
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
+      "journey": "J11",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-name",
+      "journey": "J11",
+      "step": 3
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-error-dismiss",
+      "journey": "J12",
+      "step": 5
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
+      "journey": "J11",
+      "step": 4
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
+      "journey": "J11",
+      "step": 4
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-environment",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-files",
+      "primitive": "P1"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-settings",
+      "primitive": "P1"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-resumeDecision-primary",
+      "journey": "J10",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
+      "journey": "J10",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-category-{item.id}",
+      "journey": "J10",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "command:listMenuItems",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "command:selectMenuItem",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:controls-auto-hide",
+      "journey": "J10",
+      "step": 10
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:default-scenic-environment",
+      "journey": "J10",
+      "step": 11
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:default-speed",
+      "journey": "J10",
+      "step": 9
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:end-behavior",
+      "journey": "J10",
+      "step": 12
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:resume-strategy",
+      "journey": "J10",
+      "step": 7
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "scroll:emby",
+      "journey": "J04",
+      "step": 4
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "scroll:file-list",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-exit-spatial",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-audio",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-episodes",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-more",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-speed",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-subtitles",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-progress",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "journey": "J12",
+      "step": 5
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-spatialFailure-primary",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:listMenuItems",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:seekNormalized",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:selectMenuItem",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:toggleControls",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "panorama",
+      "operation": "negative:immersive-resident-window",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-progress",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-InfoBar-button-back",
+      "journey": "J01",
+      "step": 11
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-more",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
+      "primitive": "P7"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-loadFailure-primary",
+      "journey": "J09",
+      "step": 3
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-loadFailure-secondary",
+      "journey": "J09",
+      "step": 3
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-audio",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-episodes",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-speed",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-subtitles",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "journey": "J12",
+      "step": 5
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "portal",
+      "operation": "command:listMenuItems",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "portal",
+      "operation": "command:seekNormalized",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "portal",
+      "operation": "command:selectMenuItem",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "portal",
+      "operation": "command:setWindowSize",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "portal",
+      "operation": "command:toggleControls",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-card",
+      "journey": "J07",
+      "step": "5a"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-carousel",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-progress",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-DockMenu-skybox",
+      "primitive": "P6"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
+      "primitive": "P6"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-InfoBar-button-back",
+      "journey": "J01",
+      "step": 11
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-dock",
+      "primitive": "P6"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-more",
+      "journey": "J07",
+      "step": 3
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
+      "journey": "J07",
+      "step": 4
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "journey": "J06",
+      "step": 5
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "journey": "J05",
+      "step": 2
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "journey": "J07",
+      "step": 4
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "journey": "J07",
+      "step": 4
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "primitive": "P7"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-loadFailure-primary",
+      "journey": "J09",
+      "step": 3
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-loadFailure-secondary",
+      "journey": "J09",
+      "step": 3
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-audio",
+      "primitive": "P12"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-episodes",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-speed",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-subtitles",
+      "primitive": "P12"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "journey": "J12",
+      "step": 5
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    },
+    {
+      "context": "window",
+      "operation": "command:listMenuItems",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "window",
+      "operation": "command:seekNormalized",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "window",
+      "operation": "command:selectMenuItem",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "window",
+      "operation": "command:toggleControls",
+      "status": "harness",
+      "reason": "取证通道动词，不是产品操作"
+    },
+    {
+      "context": "window",
+      "operation": "environmentVolume:open-interact-close",
+      "status": "gap",
+      "reason": "可送达，但没有任何旅程步骤检查它做了什么"
+    }
+  ]
+}
