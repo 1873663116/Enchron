@@ -73,9 +73,19 @@ the gradient sweep and the frame counter, with `formatReady=true`,
 
 ## Open
 
-The physical reachability baseline does not cover the current inventory, because
-the inventory gained five operations today. Accepting it needs a matrix run with
-`reachability_matrix.py --accept-baseline`.
+**The gate is red on `reachability-inventory`, and that blocks the merge.** The
+physical baseline holds 202 cells while the inventory now needs 213, because the
+inventory gained operations today: `PlayerUI-window-playback-surface`,
+`Emby-Sidebar-Toggle`, `PlayerPanel-media-information`, `Settings-action-{id}`,
+`Settings-menu-{id}`, and the two alert cancel buttons. Every one of those is a
+real control that was previously outside the system.
+
+Clearing it needs `reachability_matrix.py --accept-baseline`, which only writes a
+baseline when the run reaches `status == "complete"` with no regressions. That is
+a full physical pass over all 213 cells, not a patch for the eleven new ones, and
+it is a multi-hour device run. Do not hand-edit the baseline: it is device
+evidence, and three of the new cells were driven for real on 2026-08-21 while the
+rest have never been measured.
 
 The runtime hierarchy contains interactive elements with no identifier, and
 nothing currently notices. A static scan cannot answer this because DesignSystem
