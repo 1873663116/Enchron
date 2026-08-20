@@ -1,5 +1,6 @@
 import DesignSystem
 import OSLog
+import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
@@ -33,28 +34,30 @@ struct PlayerInfoBarView: View {
             .keyboardShortcut("[", modifiers: .command)
             .accessibilityHint("Stops playback and returns to browser")
         } spatialActions: {
-            PlaybackTopActions(
-                initialPresentedMenu: initialPresentedMenu,
-                controlsVisible: controlsVisible,
-                immersiveEntryTarget: playbackRuntime.canEnterSpatialPresentation
-                    ? appModel.playbackPresentation.enterImmersiveTarget
-                    : nil,
-                canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
-                mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
-                sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
-                projection: playbackRuntime.effectiveProjectionType,
-                horizontalFieldOfViewDegrees:
-                    playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
-                stereoLayout: playbackRuntime.effectiveStereoLayout,
-                usesDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsEnabled,
-                showsDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsAvailable,
-                defaultScenicEnvironment: appModel.defaultScenicEnvironment,
-                onEnterImmersive: enterImmersive,
-                onApplyFormat: applyFormat,
-                onRestoreAutomaticFormat: restoreAutomaticFormat,
-                onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange,
-                onReachabilityAction: recordReachability
-            )
+            if playbackRuntime.mediaKind != .audioOnly {
+                PlaybackTopActions(
+                    initialPresentedMenu: initialPresentedMenu,
+                    controlsVisible: controlsVisible,
+                    immersiveEntryTarget: playbackRuntime.canEnterSpatialPresentation
+                        ? appModel.playbackPresentation.enterImmersiveTarget
+                        : nil,
+                    canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
+                    mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
+                    sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
+                    projection: playbackRuntime.effectiveProjectionType,
+                    horizontalFieldOfViewDegrees:
+                        playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
+                    stereoLayout: playbackRuntime.effectiveStereoLayout,
+                    usesDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsEnabled,
+                    showsDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsAvailable,
+                    defaultScenicEnvironment: appModel.defaultScenicEnvironment,
+                    onEnterImmersive: enterImmersive,
+                    onApplyFormat: applyFormat,
+                    onRestoreAutomaticFormat: restoreAutomaticFormat,
+                    onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange,
+                    onReachabilityAction: recordReachability
+                )
+            }
         } moreControl: {
             ProductionPlaybackMoreMenu()
         }

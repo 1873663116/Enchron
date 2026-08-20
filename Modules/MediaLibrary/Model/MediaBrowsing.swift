@@ -67,7 +67,8 @@ nonisolated extension FileBrowsingDomain {
 
         public static let mediaFiles = MediaDiscoveryAdmissionPolicy(
             allowedExtensions: [
-                "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso"
+                "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso",
+                "m4a", "mp3", "flac", "wav", "ogg", "opus", "aiff"
             ]
         )
     }

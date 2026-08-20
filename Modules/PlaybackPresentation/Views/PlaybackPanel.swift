@@ -61,6 +61,7 @@ struct FusedPlayerPanelLive {
     ) -> Void
     var onRestoreAutomaticFormat: () -> Void
     var onReachabilityAction: (String) -> Void = { _ in }
+    var subtitlesEnabled: Bool = true
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -1144,6 +1145,7 @@ struct FusedPlayerPanel: View {
                     liveMenuItems(live.subtitleItems, category: "subtitle")
                 }
                 .accessibilityIdentifier("PlayerPanel-menu-subtitles")
+                .disabled(!live.subtitlesEnabled)
             }
             if !live.audioItems.isEmpty {
                 Menu("Audio Track") {

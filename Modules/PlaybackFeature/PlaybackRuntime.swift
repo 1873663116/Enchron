@@ -22,6 +22,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case hidden
         case placeholder
         case videoVisible
+        case audioVisible
     }
 
     public enum SessionLifecycleEvent: Equatable, Sendable {
@@ -53,6 +54,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case presentationDidNotSettle(PlaybackPresentation)
         case spatialPlaybackTransportUnavailable(ProductPlaybackLifecycle)
         case rendererGraphPlaybackDidNotAdvance(RendererGraphPlaybackContinuity)
+        case audioOnlyRequiresWindowPresentation
 
         public var errorDescription: String? {
             switch self {
@@ -76,6 +78,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "Playback cannot be paused or resumed while it is \(String(describing: lifecycle))."
             case .rendererGraphPlaybackDidNotAdvance(let condition):
                 "The video renderer did not prove continuous playback: \(condition.rawValue)."
+            case .audioOnlyRequiresWindowPresentation:
+                "Audio-only playback is available in the window presentation only."
             }
         }
     }
@@ -100,6 +104,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var actualPlaybackSeconds: Double = 0
     public private(set) var didEndNaturally = false
     public private(set) var mediaFormatIsKnown = false
+    public private(set) var mediaKind: PlaybackMediaKind = .video
+    public private(set) var audioSpectrumFrame: AudioSpectrumFrame = .silent
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
     /// The first RealityView presentation that received the active technical
@@ -156,6 +162,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var canEnterSpatialPresentation: Bool {
         guard currentLaunchRequest != nil,
               activeSessionID != nil,
+              mediaKind == .video,
               renderer != nil,
               attachedPresentation != nil,
               presentationState == .videoVisible,
@@ -390,6 +397,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         controller.onSubtitleFrameChange = { [weak self] frame in
             self?.activeSubtitleFrame = frame
         }
+        controller.onAudioSpectrumFrameChange = { [weak self] frame in
+            guard let self, self.mediaKind == .audioOnly else { return }
+            audioSpectrumFrame = frame
+        }
     }
 
     private func unbindControllerCallbacks(from controller: PlaybackCoreController) {
@@ -398,6 +409,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         controller.onAcceptedVideoFormatRevisionChange = nil
         controller.onSubtitleCuesChange = nil
         controller.onSubtitleFrameChange = nil
+        controller.onAudioSpectrumFrameChange = nil
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
@@ -433,6 +445,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         sourceMediaFormatIsCaptured = false
         usesSourceFormat = true
         mediaFormatIsKnown = false
+        mediaKind = .video
+        audioSpectrumFrame = .silent
         videoComponentRevision = 0
         boundVideoComponentRevision = nil
         rendererPixelVideoComponentRevision = nil
@@ -531,6 +545,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 return
             }
             session = newSession
+            mediaKind = newSession.mediaKind
             updateActiveSessionID(newSession.traceID)
             activeTechnicalSessionID = newSession.traceID
             publishSourceMediaFormat(from: sourceSnapshot)
@@ -572,7 +587,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 return
             }
             recordAudioSessionFact()
-            renderer = newSession.renderer
+            renderer = mediaKind == .video ? newSession.renderer : nil
             rendererEpoch &+= 1
             AppModel.recordProbe(
                 "rendererOwnership.open stage=rendererPublished"
@@ -581,6 +596,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     + "/\(Self.probeEntity(rendererConsumerEntityID))"
             )
             logger.info("session prepared id=\(newSession.traceID, privacy: .public)")
+            if mediaKind == .audioOnly {
+                try controller.audioOnlyPresentationDidBecomeReady(session: newSession)
+                try controller.start()
+                startsWhenAttached = false
+                presentationState = .audioVisible
+            }
         } catch {
             guard generation == openGeneration else {
                 releaseSourceAccessIfUnowned(request.sourceAccess)
@@ -876,6 +897,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 throw RuntimeError.mediaSessionChanged
             }
             recordAudioSessionFact()
+            if mediaKind == .audioOnly {
+                try controller.play()
+                PlaybackTrace.event("runtime.resume.completed kind=audioOnly")
+                return
+            }
             let continuity = try await controller.playAndVerifyRendererGraphContinuity()
             guard continuity.explicitPlayMayContinue else {
                 try? controller.pause()
@@ -901,6 +927,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func beginPlaybackForPresentationSettlement(
         mediaSessionID: String
     ) async throws {
+        guard mediaKind == .video else {
+            throw RuntimeError.audioOnlyRequiresWindowPresentation
+        }
         guard activeSessionID == mediaSessionID else {
             throw RuntimeError.mediaSessionChanged
         }
@@ -1162,8 +1191,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    public func frameStepForward() { frameStep(direction: 1) }
-    public func frameStepBackward() { frameStep(direction: -1) }
+    public func frameStepForward() {
+        guard mediaKind == .video else { return }
+        frameStep(direction: 1)
+    }
+    public func frameStepBackward() {
+        guard mediaKind == .video else { return }
+        frameStep(direction: -1)
+    }
 
     public func setFormat(
         projection: PlaybackModel.ProjectionType,
@@ -1171,6 +1206,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         stereo: PlaybackModel.StereoLayout,
         usesDolbyVisionFallback: Bool = false
     ) async throws {
+        guard mediaKind == .video else {
+            throw RuntimeError.audioOnlyRequiresWindowPresentation
+        }
         let resolvedHorizontalFieldOfViewDegrees = projection == .customAngle
             ? PanoramaHorizontalCoverage.normalized(
                 horizontalFieldOfViewDegrees
@@ -1192,6 +1230,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func useSourceFormat() async throws {
+        guard mediaKind == .video else {
+            throw RuntimeError.audioOnlyRequiresWindowPresentation
+        }
         publishSourceFormat()
         technicalSessionFormatReplacementIsPending =
             technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
@@ -1199,6 +1240,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func prepareTechnicalSessionForPresentationConversion() async throws {
+        guard mediaKind == .video else {
+            throw RuntimeError.audioOnlyRequiresWindowPresentation
+        }
         let interval = signposter.beginInterval("ReplaceTechnicalPlaybackSession")
         defer { signposter.endInterval("ReplaceTechnicalPlaybackSession", interval) }
         guard technicalSessionReplacementIsInFlight == false else {
@@ -1711,6 +1755,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = nil
         activeSubtitleCues = []
         activeSubtitleFrame = nil
+        mediaKind = .video
+        audioSpectrumFrame = .silent
         playbackPosition = .init(seconds: 0, duration: 0)
         selectedProjectionType = .flat
         selectedHorizontalFieldOfViewDegrees = nil

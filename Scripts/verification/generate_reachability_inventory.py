@@ -104,6 +104,21 @@ DEBUG_MENU_EQUIVALENTS: dict[str, dict[str, object]] = {
         "families": ["subtitles"],
         "parentOperation": "accessibility:PlayerUI-TopAction-more",
     },
+    "accessibility:PlayerUI-menu-audio": {
+        "host": "playerUI",
+        "families": ["audio"],
+        "parentOperation": "accessibility:PlayerUI-TopAction-more",
+    },
+    "accessibility:PlayerUI-menu-speed": {
+        "host": "playerUI",
+        "families": ["speed"],
+        "parentOperation": "accessibility:PlayerUI-TopAction-more",
+    },
+    "accessibility:PlayerUI-menu-episodes": {
+        "host": "playerUI",
+        "families": ["episodes"],
+        "parentOperation": "accessibility:PlayerUI-TopAction-more",
+    },
     "accessibility:PlayerUI-VideoFormat-CustomAngle": {
         "host": "playerUI",
         "families": ["customAngle"],
@@ -1021,7 +1036,13 @@ def presentation_derivation(
                 "host": "portalPlaybackPanoramaEntryTopActions",
                 "sources": [asdict(host_source), asdict(condition_source)],
             }
-        if template in {"PlayerUI-TopAction-more", "PlayerUI-menu-subtitles"}:
+        if template in {
+            "PlayerUI-TopAction-more",
+            "PlayerUI-menu-subtitles",
+            "PlayerUI-menu-audio",
+            "PlayerUI-menu-speed",
+            "PlayerUI-menu-episodes",
+        }:
             source = required_source_location(
                 documents,
                 "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
@@ -1041,6 +1062,16 @@ def presentation_derivation(
             )
             return main_window_presentations, {
                 "host": "windowPlaybackTopChrome",
+                "sources": [asdict(source), asdict(main_window_source)],
+            }
+        if template == "PlayerUI-audio-spectrum":
+            source = required_source_location(
+                documents,
+                "Apps/Enchron/MainView.swift",
+                "AudioSpectrumSurface(frame:",
+            )
+            return ["window"], {
+                "host": "windowAudioOnlyPlaybackSurface",
                 "sources": [asdict(source), asdict(main_window_source)],
             }
         if template.startswith("PlayerUI-resumeDecision-"):

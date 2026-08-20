@@ -25,11 +25,19 @@ DEFAULT_SCRATCH = Path(
 )
 RANGE_SERVER = REPOSITORY_ROOT / "Scripts/fixtures/range-http-server.py"
 PROBE_PRODUCT = "PlaybackCoreRemoteMediaProbe"
-STAGES = (
+VIDEO_STAGES = (
     ("streams", "tracks"),
     ("open", "video-reader"),
     ("firstFrame", "decode"),
 )
+AUDIO_ONLY_STAGES = (
+    ("streams", "tracks"),
+    ("open", "audio-reader"),
+)
+
+
+def stages_for(media_kind: str) -> tuple[tuple[str, str], ...]:
+    return AUDIO_ONLY_STAGES if media_kind == "audioOnly" else VIDEO_STAGES
 
 
 @dataclass(frozen=True)
@@ -116,6 +124,8 @@ def stage_record(stage: str, result: ProbeResult) -> dict[str, object]:
             "video_stream": fields["video_stream"],
             "duration": "positive",
         }
+    elif stage == "audio-reader":
+        record["expectation"] = {"audio_stream": fields["audio_stream"]}
     elif stage == "decode":
         decoded_frames = int(fields["decoded_frames"])
         record["expectation"] = {
@@ -128,14 +138,19 @@ def stage_record(stage: str, result: ProbeResult) -> dict[str, object]:
     return record
 
 
-def playback_outcome(stages: dict[str, dict[str, object]]) -> str:
+def playback_outcome(
+    media_kind: str,
+    stages: dict[str, dict[str, object]],
+) -> str:
     streams = stages["streams"]
     opened = stages["open"]
-    first_frame = stages["firstFrame"]
     if streams["exitCode"] != 0:
         return "stream-information-rejected"
     if opened["exitCode"] != 0:
-        return "video-open-rejected"
+        return "audio-open-rejected" if media_kind == "audioOnly" else "video-open-rejected"
+    if media_kind == "audioOnly":
+        return "audio-open"
+    first_frame = stages["firstFrame"]
     if first_frame["exitCode"] != 0:
         return "first-frame-rejected"
     fields = parse_fields(str(first_frame["stdout"]))
@@ -146,16 +161,17 @@ def capture_transport(
     probe: Path,
     source: str,
     source_scope: str,
+    media_kind: str,
     timeout: int,
 ) -> dict[str, object]:
     stages = {
         label: stage_record(stage, run_probe(probe, stage, source, timeout))
-        for label, stage in STAGES
+        for label, stage in stages_for(media_kind)
     }
     return {
         "evidence": "proven",
         "sourceScope": source_scope,
-        "playbackOutcome": playback_outcome(stages),
+        "playbackOutcome": playback_outcome(media_kind, stages),
         "stages": stages,
     }
 
@@ -235,11 +251,12 @@ def validate_matrix(
     suffixes: frozenset[str],
     test_media_root: Path,
 ) -> list[str]:
-    if not isinstance(matrix, dict) or matrix.get("version") != 1:
-        return ["matrix version must be 1"]
+    if not isinstance(matrix, dict) or matrix.get("version") != 2:
+        return ["matrix version must be 2"]
     if matrix.get("probe") != {
         "product": PROBE_PRODUCT,
-        "stages": ["tracks", "video-reader", "decode --seconds 1"],
+        "videoStages": ["tracks", "video-reader", "decode --seconds 1"],
+        "audioOnlyStages": ["tracks", "audio-reader"],
     }:
         return ["matrix probe contract differs from the verifier"]
     containers = matrix.get("containers")
@@ -259,6 +276,10 @@ def validate_matrix(
 
     for entry in containers:
         extension = entry["extension"]
+        media_kind = entry.get("mediaKind", "video")
+        if media_kind not in {"video", "audioOnly"}:
+            failures.append(f"{extension}: mediaKind must be video or audioOnly")
+            continue
         fixture = entry.get("fixture")
         transports = entry.get("transports")
         if not isinstance(transports, dict) or set(transports) != {"local", "http"}:
@@ -299,11 +320,12 @@ def validate_matrix(
                     f"{extension}/{transport}: sourceScope must be {expected_scope}"
                 )
             stages = evidence.get("stages")
-            if not isinstance(stages, dict) or set(stages) != {label for label, _ in STAGES}:
-                failures.append(f"{extension}/{transport}: all three stages must be recorded")
+            expected_stage_labels = {label for label, _ in stages_for(media_kind)}
+            if not isinstance(stages, dict) or set(stages) != expected_stage_labels:
+                failures.append(f"{extension}/{transport}: required stages must be recorded")
                 continue
             try:
-                recorded_outcome = playback_outcome(stages)
+                recorded_outcome = playback_outcome(media_kind, stages)
             except (KeyError, TypeError, ValueError):
                 failures.append(f"{extension}/{transport}: recorded stages are malformed")
                 continue
@@ -357,6 +379,11 @@ def compare_stage(
         if not duration > 0:
             failures.append(f"{prefix}: duration_seconds is not positive")
         return failures
+    if stage == "audio-reader":
+        return [] if fields.get("audio_stream") == expectation.get("audio_stream") else [
+            f"{prefix}: audio_stream={fields.get('audio_stream')!r}, "
+            f"expected {expectation.get('audio_stream')!r}"
+        ]
     if stage == "decode":
         failures = []
         for key in ("codec", "decode"):
@@ -380,10 +407,11 @@ def replay_transport(
     recorded: dict[str, object],
     probe: Path,
     source: str,
+    media_kind: str,
     timeout: int,
 ) -> list[str]:
     failures: list[str] = []
-    for label, stage in STAGES:
+    for label, stage in stages_for(media_kind):
         actual = run_probe(probe, stage, source, timeout)
         failures.extend(
             compare_stage(
@@ -403,9 +431,13 @@ def capture_matrix(
     test_media_root: Path,
     probe: Path,
     timeout: int,
+    selected_extensions: frozenset[str],
 ) -> None:
     for entry in matrix["containers"]:
         extension = entry["extension"]
+        if selected_extensions and extension not in selected_extensions:
+            continue
+        media_kind = entry.get("mediaKind", "video")
         fixture = entry.get("fixture")
         if fixture is None:
             reason = f"TestMedia contains no .{extension} fixture."
@@ -423,6 +455,7 @@ def capture_matrix(
             probe,
             str(path),
             expected_source_scope(extension, "local"),
+            media_kind,
             timeout,
         )
         with RangeServer(path.parent) as server:
@@ -430,6 +463,7 @@ def capture_matrix(
                 probe,
                 server.url_for(path.name),
                 expected_source_scope(extension, "http"),
+                media_kind,
                 timeout,
             )
         print(
@@ -451,6 +485,7 @@ def replay_matrix(
         if fixture is None:
             continue
         extension = entry["extension"]
+        media_kind = entry.get("mediaKind", "video")
         path = test_media_root / fixture["path"]
         print(f"replaying .{extension} local", flush=True)
         failures.extend(
@@ -460,6 +495,7 @@ def replay_matrix(
                 entry["transports"]["local"],
                 probe,
                 str(path),
+                media_kind,
                 timeout,
             )
         )
@@ -472,6 +508,7 @@ def replay_matrix(
                     entry["transports"]["http"],
                     probe,
                     server.url_for(path.name),
+                    media_kind,
                     timeout,
                 )
             )
@@ -487,6 +524,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--test-media-root", type=Path, default=DEFAULT_TEST_MEDIA)
     parser.add_argument("--scratch-path", type=Path, default=DEFAULT_SCRATCH)
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--extension", action="append", default=[])
     arguments = parser.parse_args(argv)
     if arguments.timeout < 1:
         parser.error("--timeout must be positive")
@@ -500,7 +538,13 @@ def main(argv: list[str] | None = None) -> int:
         suffixes = canonical_suffixes(production_arrays(REPOSITORY_ROOT))
         if arguments.capture:
             probe = probe_binary(arguments.scratch_path)
-            capture_matrix(matrix, arguments.test_media_root, probe, arguments.timeout)
+            capture_matrix(
+                matrix,
+                arguments.test_media_root,
+                probe,
+                arguments.timeout,
+                frozenset(arguments.extension),
+            )
             failures = validate_matrix(matrix, suffixes, arguments.test_media_root)
             if failures:
                 for failure in failures:

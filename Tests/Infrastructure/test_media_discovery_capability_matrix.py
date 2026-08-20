@@ -8,6 +8,12 @@ import verify_media_discovery_capability_matrix as capability
 
 
 class MediaDiscoveryCapabilityMatrixTests(unittest.TestCase):
+    def test_audio_only_entries_use_audio_reader_stages(self) -> None:
+        self.assertEqual(
+            capability.stages_for("audioOnly"),
+            (("streams", "tracks"), ("open", "audio-reader")),
+        )
+
     def test_first_frame_expectation_uses_a_minimum_not_an_exact_count(self) -> None:
         recorded = {
             "exitCode": 0,

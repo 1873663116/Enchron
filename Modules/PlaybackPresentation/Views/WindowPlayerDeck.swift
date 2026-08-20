@@ -73,7 +73,7 @@ struct WindowPlayerDeckView: View {
             isPlaying: transport.primaryAction == .pause,
             showsReplay: transport.primaryAction == .replay,
             canSkipForward: transport.canSkipForward,
-            canStepForward: transport.canStepForward,
+            canStepForward: transport.canStepForward && playbackRuntime.mediaKind == .video,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
             elapsedLabel: PlaybackTimeFormatter.clock(position.seconds),
             durationLabel: PlaybackTimeFormatter.clock(duration),
@@ -191,6 +191,7 @@ struct WindowPlayerDeckView: View {
                 )
 #endif
             },
+            subtitlesEnabled: playbackRuntime.mediaKind != .audioOnly,
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -404,13 +405,26 @@ struct ProductionPlaybackMoreMenu: View {
                             }
                     }
                     .accessibilityIdentifier("PlayerUI-menu-subtitles")
+                    .disabled(playbackRuntime.mediaKind == .audioOnly)
                 }
                 if !audioItems.isEmpty {
-                    menuSection("Audio Track", items: audioItems)
+                    menuSection(
+                        "Audio Track",
+                        items: audioItems,
+                        accessibilityIdentifier: "PlayerUI-menu-audio"
+                    )
                 }
-                menuSection("Playback Speed", items: speedItems)
+                menuSection(
+                    "Playback Speed",
+                    items: speedItems,
+                    accessibilityIdentifier: "PlayerUI-menu-speed"
+                )
                 if !episodeItems.isEmpty {
-                    menuSection("Episodes", items: episodeItems)
+                    menuSection(
+                        "Episodes",
+                        items: episodeItems,
+                        accessibilityIdentifier: "PlayerUI-menu-episodes"
+                    )
                 }
             }
             .onAppear {
@@ -431,10 +445,15 @@ struct ProductionPlaybackMoreMenu: View {
     }
 
     @ViewBuilder
-    private func menuSection(_ title: String, items: [DeckMenuItem]) -> some View {
+    private func menuSection(
+        _ title: String,
+        items: [DeckMenuItem],
+        accessibilityIdentifier: String
+    ) -> some View {
         Menu(title) {
             selectableMenuItems(items)
         }
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     @ViewBuilder

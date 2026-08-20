@@ -5,13 +5,14 @@ nonisolated final class MediaDiscoveryAdmissionPolicyTests: XCTestCase {
     func testMediaFileAdmissionHasTheDeclaredDiscoveryScope() {
         let expected = Set([
             "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso",
+            "m4a", "mp3", "flac", "wav", "ogg", "opus", "aiff"
         ])
 
         XCTAssertEqual(
             FileBrowsingDomain.MediaDiscoveryAdmissionPolicy.mediaFiles.allowedExtensions,
             expected
         )
-        XCTAssertEqual(expected.count, 10)
+        XCTAssertEqual(expected.count, 17)
     }
 
     func testAdmissionExtensionsAreNormalizedToLowercase() {

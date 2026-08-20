@@ -34,6 +34,7 @@ public final class PlaybackCoreController {
     public var onSessionChange: ((SampleBufferPlaybackSession?) -> Void)?
     public var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
     public var onSubtitleFrameChange: ((PlaybackSubtitleFrame?) -> Void)?
+    public var onAudioSpectrumFrameChange: ((AudioSpectrumFrame) -> Void)?
 
     public var debugDirectoryURL: URL? {
         debugRecorder?.directoryURL
@@ -228,6 +229,20 @@ public final class PlaybackCoreController {
         let snapshot = session.debugSnapshot()
         guard snapshot.realityKitBinding?.active == true,
               snapshot.presentationBinding?.entityAttached == true else {
+            throw PlaybackControlError.presentationNotAttached
+        }
+        if status == .loading {
+            setStatus(.ready)
+        }
+    }
+
+    public func audioOnlyPresentationDidBecomeReady(
+        session: SampleBufferPlaybackSession
+    ) throws {
+        guard activeSession === session else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        guard session.mediaKind == .audioOnly else {
             throw PlaybackControlError.presentationNotAttached
         }
         if status == .loading {
@@ -985,6 +1000,12 @@ public final class PlaybackCoreController {
                     return
                 }
                 self.onSubtitleFrameChange?(frame)
+            }
+        }
+        session.onAudioSpectrumFrameChange = { [weak self, weak session] frame in
+            Task { @MainActor in
+                guard let self, let session, self.activeSession === session else { return }
+                self.onAudioSpectrumFrameChange?(frame)
             }
         }
     }

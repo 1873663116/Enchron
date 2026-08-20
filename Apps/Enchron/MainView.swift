@@ -83,6 +83,7 @@ enum WindowPlaybackLoadingVisibility {
     ) -> Bool {
         hasPlaybackError == false
             && presentationState != .videoVisible
+            && presentationState != .audioVisible
             && isPresentationTransitionActive == false
     }
 }
@@ -312,6 +313,7 @@ public struct MainView: View {
                     || (
                         appModel.showControls
                             && (playbackRuntime.presentationState == .videoVisible
+                                || playbackRuntime.presentationState == .audioVisible
                                 || isLeavingWindowPresentation)
                             && windowPlaybackIssue?.interruptsPlayback != true
                     )
@@ -593,16 +595,20 @@ public struct MainView: View {
         )
 
         return ZStack {
-            PlaybackVideoSurface(
-                presentation: hostedPlaybackPresentation,
-                isActive: windowSurfaceIsActive,
-                viewportRefreshRevision: spatialPlatformEffectCoordinator
-                    .mainWindowPlaybackSurfaceRefreshRevision,
-                onViewportRefreshApplied: {
-                    spatialPlatformEffectCoordinator
-                        .recordMainWindowPlaybackSurfaceRefreshApplied($0)
-                }
-            )
+            if playbackRuntime.mediaKind == .audioOnly {
+                AudioSpectrumSurface(frame: playbackRuntime.audioSpectrumFrame)
+            } else {
+                PlaybackVideoSurface(
+                    presentation: hostedPlaybackPresentation,
+                    isActive: windowSurfaceIsActive,
+                    viewportRefreshRevision: spatialPlatformEffectCoordinator
+                        .mainWindowPlaybackSurfaceRefreshRevision,
+                    onViewportRefreshApplied: {
+                        spatialPlatformEffectCoordinator
+                            .recordMainWindowPlaybackSurfaceRefreshApplied($0)
+                    }
+                )
+            }
 
             if let lastFrame = appModel.portalExitLastFrame,
                SpatialPlatformImmersiveExitWindowRevealPolicy
@@ -747,7 +753,10 @@ public struct MainView: View {
             "chrome=\(showsPlaybackChrome ? "on" : "off")",
             "windowOpacityTarget=\(windowPlaybackOpacity)",
             "windowInteractive=\(windowPlaybackAcceptsInput)",
+            "mediaKind=\(playbackRuntime.mediaKind.rawValue)",
             "videoVisible=\(playbackRuntime.presentationState == .videoVisible)",
+            "audioVisible=\(playbackRuntime.presentationState == .audioVisible)",
+            "spectrumActive=\(playbackRuntime.audioSpectrumFrame.bands.contains(where: { $0 > 0.01 }))",
             "projection=\(playbackRuntime.effectiveProjectionType.rawValue)",
             "formatProvenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)",
             "sourceContentKind=\(playbackRuntime.sourceVideoContentKind.rawValue)",
@@ -915,7 +924,10 @@ public struct MainView: View {
     }
 
     private var windowPlaybackGeometryPolicy: WindowPlaybackGeometryPolicy {
-        WindowPlaybackGeometryPolicy(
+        if playbackRuntime.mediaKind == .audioOnly {
+            return .audioOnly
+        }
+        return WindowPlaybackGeometryPolicy(
             presentation: hostedPlaybackPresentation,
             videoLayout: windowPlaybackLayout
         )

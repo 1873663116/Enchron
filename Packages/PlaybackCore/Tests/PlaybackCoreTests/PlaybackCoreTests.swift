@@ -14,6 +14,45 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .appendingPathComponent("TestMedia")
 
+@Test func mediaSourceKindComesFromTheCompleteStreamCatalog() {
+    func information(_ categories: [MediaSourceStreamCategory]) -> MediaSourceInformation {
+        MediaSourceInformation(
+            containerFormat: "fixture",
+            durationSeconds: 1,
+            streams: categories.enumerated().map { index, category in
+                MediaSourceStreamInformation(
+                    streamIndex: index,
+                    category: category,
+                    codecID: 0,
+                    codecName: "fixture",
+                    codecTag: 0,
+                    language: nil,
+                    title: nil,
+                    disposition: 0,
+                    video: nil,
+                    audio: nil
+                )
+            }
+        )
+    }
+
+    #expect(information([.audio]).playbackMediaKind == .audioOnly)
+    #expect(information([.audio, .video]).playbackMediaKind == .video)
+    #expect(information([.subtitle]).playbackMediaKind == .unsupported)
+}
+
+@Test func audioSpectrumAnalyzerDistinguishesSignalFromSilence() {
+    let silence = AudioSpectrumAnalyzer.analyze(Array(repeating: 0, count: 256))
+    let sine = (0..<256).map { index in
+        Float(sin(2 * Double.pi * 0.08 * Double(index)))
+    }
+    let signal = AudioSpectrumAnalyzer.analyze(sine)
+
+    #expect(silence.allSatisfy { $0 == 0 })
+    #expect(signal.max() ?? 0 > 0.25)
+    #expect(signal.count == AudioSpectrumAnalyzer.bandCount)
+}
+
 @MainActor
 @Test func audioRendererAllowsMonoStereoAndMultichannelSpatialization() {
     let session = SampleBufferPlaybackSession(
@@ -123,6 +162,47 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(videoProvider.sourceInformationReceived == information)
     #expect(audioProvider.sourceInformationReceived == information)
     #expect(subtitleProvider.sourceInformationReceived == information)
+}
+
+@Test func audioOnlySessionNeverPreparesOrStartsTheVideoProvider() async throws {
+    let information = MediaSourceInformation(
+        containerFormat: "mp3",
+        durationSeconds: 0.25,
+        streams: [
+            MediaSourceStreamInformation(
+                streamIndex: 0,
+                category: .audio,
+                codecID: 86_017,
+                codecName: "mp3",
+                codecTag: 0,
+                language: nil,
+                title: nil,
+                disposition: 1,
+                video: nil,
+                audio: .init(sampleRate: 48_000, channelCount: 2)
+            ),
+        ]
+    )
+    let videoProvider = FakeVideoSampleProvider(events: [.end])
+    let audioSample = try makeAudioSample(durationSeconds: 0.25)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-only",
+        provider: videoProvider,
+        audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
+        mediaSourceInformationLoader: FixedMediaSourceInformationLoader(information),
+        rendererSink: FakeRendererInputSink(),
+        audioRendererSink: FakeAudioRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/song.mp3"))
+    try session.start()
+    try await waitForAudioSampleCount(1, in: session)
+
+    #expect(session.mediaKind == .audioOnly)
+    #expect(videoProvider.sourceInformationReceived == nil)
+    #expect(videoProvider.startCount == 0)
+    #expect(session.debugSnapshot().rendererState?.timelineConfigured == true)
 }
 
 @MainActor
