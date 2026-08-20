@@ -4,6 +4,7 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import RealityKit
+import RealityKitContent
 import RealityKitScripting
 import SwiftUI
 import UIKit
@@ -11,7 +12,7 @@ import simd
 
 @MainActor
 enum EnvironmentSceneAppearanceApplier {
-    static let skyboxName = "skybox"
+    static let skyboxName = "SkyDome"
     static let scenicPlaceholderName = "EnchronScenicPlaceholder"
     static let lightSkyboxOpacity: Float = 1
     static let darkSkyboxOpacity: Float = 0.35
@@ -962,7 +963,14 @@ public struct ImmersiveSpaceView: View {
             return
         }
         guard presentation != .docked || world.playbackSurfaceAnchor != nil else {
-            appModel.recordSpatialPlaybackSurfacePreparationStage("waitingForDockedAnchor")
+            let stage = if world.hasFailed {
+                "worldLoadFailed"
+            } else if world.isLoading {
+                "loadingWorld"
+            } else {
+                "waitingForDockedAnchor"
+            }
+            appModel.recordSpatialPlaybackSurfacePreparationStage(stage)
             return
         }
 
@@ -1057,7 +1065,7 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: playbackRuntime.videoComponentRevision,
             entity: videoEntity,
             entityIsInRealityView: content.entities.contains { $0 === videoEntity },
-            emit: appModel.recordSurfaceInputProbe
+            emit: { appModel.recordSurfaceInputProbe($0) }
         )
         let videoComponentRevision = playbackRuntime.videoComponentRevision
         guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
@@ -1140,7 +1148,10 @@ public struct ImmersiveSpaceView: View {
             return
         } catch {
             appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerFailed")
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            logger.error(
+                "renderer consumer claim failed error=\(error.localizedDescription, privacy: .public)"
+            )
             logSpatialSurfaceReadiness(reason: "rendererConsumerFailed")
             return
         }
@@ -1241,7 +1252,7 @@ public struct ImmersiveSpaceView: View {
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
             frame: playbackRuntime.activeSubtitleFrame,
-            emitEnablementWrite: appModel.recordSurfaceInputProbe
+            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         attachSpatialSurfaceIfReady()
     }
@@ -1343,7 +1354,10 @@ public struct ImmersiveSpaceView: View {
             recordSpatialPresentationState()
         } catch {
             appModel.recordSpatialPlaybackSurfacePreparationStage("surfaceAttachFailed")
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            logger.error(
+                "spatial surface attach failed error=\(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -1702,8 +1716,18 @@ public struct ImmersiveSpaceView: View {
         appModel.recordSpatialPlaybackSurfacePreparationStage("loadingWorld")
         defer { world.isLoading = false }
         logger.notice("world load started")
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "worldLoad event=started"
+                + " resource=\(EnvironmentSceneMapping.worldSceneName)"
+                + " bundle=RealityKitContent"
+        )
+#endif
         do {
-            let entity = try await Entity(named: "world")
+            let entity = try await Entity(
+                named: EnvironmentSceneMapping.worldSceneName,
+                in: realityKitContentBundle
+            )
             try Task.checkCancellation()
             let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
             let anchorWorldTransform = anchor.transformMatrix(relativeTo: nil)
@@ -1723,6 +1747,13 @@ public struct ImmersiveSpaceView: View {
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldReady")
             recordSkyboxActivity(in: entity)
             logger.notice("world load completed")
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "worldLoad event=completed"
+                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)",
+                retention: .evidence
+            )
+#endif
             update(
                 content,
                 revision: surfaceRefreshTick,
@@ -1731,11 +1762,21 @@ public struct ImmersiveSpaceView: View {
             )
         } catch is CancellationError {
             logger.notice("world load cancelled")
+#if DEBUG
+            appModel.recordSurfaceInputProbe("worldLoad event=cancelled")
+#endif
         } catch {
             world.hasFailed = true
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldLoadFailed")
             logger.error("world load failed error=\(error.localizedDescription, privacy: .public)")
-            playbackRuntime.lastErrorMessage = "Failed to load the selected environment: \(error.localizedDescription)"
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "worldLoad event=failed"
+                    + " errorType=\(String(reflecting: type(of: error)))"
+                    + " error=\(error.localizedDescription)"
+            )
+#endif
+            playbackRuntime.setUserVisibleIssue(.environmentLoadingFailed)
         }
     }
 
@@ -1745,7 +1786,7 @@ public struct ImmersiveSpaceView: View {
         guard let environment = requestedEnvironmentContext.environment else {
             EnvironmentSceneAppearanceApplier.clear(
                 in: entity,
-                emitEnablementWrite: appModel.recordSurfaceInputProbe
+                emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
             )
             world.appliedEnvironment = nil
             world.appliedEnvironmentEffect = nil
@@ -1762,7 +1803,7 @@ public struct ImmersiveSpaceView: View {
             environment: environment,
             effect: effect,
             to: entity,
-            emitEnablementWrite: appModel.recordSurfaceInputProbe
+            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         ) else {
             return false
         }
@@ -1807,7 +1848,9 @@ public struct ImmersiveSpaceView: View {
     private func releaseSpatialSurface() {
         let presentation = playbackRuntime.rendererConsumerPresentation
             ?? playbackRuntime.attachedPresentation
-        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
+        subtitleSurface.remove {
+            appModel.recordSurfaceInputProbe($0)
+        }
         surfaceActivation.cancel()
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
@@ -1849,7 +1892,9 @@ public struct ImmersiveSpaceView: View {
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
         displayLinkProbe.reset()
-        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
+        subtitleSurface.remove {
+            appModel.recordSurfaceInputProbe($0)
+        }
         guard let sourcePresentation,
               playbackRuntime.rendererConsumerEntityID
                 == entityID(for: sourcePresentation) else {
@@ -1882,7 +1927,7 @@ public struct ImmersiveSpaceView: View {
             entityIsInRealityView: entityIsInRealityView,
             targetIsAvailable: rendererTargetObservation.targetIsAvailable,
             isExplicitFirstFrameWaitSample: isExplicitFirstFrameWaitSample,
-            emit: appModel.recordSurfaceInputProbe
+            emit: { appModel.recordSurfaceInputProbe($0) }
         )
     }
 

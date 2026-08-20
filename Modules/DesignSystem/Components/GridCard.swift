@@ -3,7 +3,13 @@ import SwiftUI
 public struct GridCard: View {
     /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
     private enum Variant {
-        case video(fileSize: String, duration: String, badges: [String], watchedProgress: Double?)
+        case video(
+            artworkURL: URL?,
+            fileSize: String,
+            duration: String,
+            badges: [String],
+            watchedProgress: Double?
+        )
         case folder(count: Int?)
         case poster(PosterState)
         case episode(EpisodeState)
@@ -99,6 +105,7 @@ public struct GridCard: View {
 
     public static func video(
         title: String,
+        artworkURL: URL? = nil,
         fileSize: String,
         duration: String,
         badges: [String] = [],
@@ -112,6 +119,7 @@ public struct GridCard: View {
         GridCard(
             title: title,
             variant: .video(
+                artworkURL: artworkURL,
                 fileSize: fileSize,
                 duration: duration,
                 badges: badges,
@@ -199,7 +207,13 @@ public struct GridCard: View {
     public static func skeleton(_ variant: SkeletonVariant) -> GridCard {
         let cardVariant: Variant = switch variant {
         case .video:
-            .video(fileSize: "0 GB", duration: "0:00:00", badges: [], watchedProgress: nil)
+            .video(
+                artworkURL: nil,
+                fileSize: "0 GB",
+                duration: "0:00:00",
+                badges: [],
+                watchedProgress: nil
+            )
         case .folder:
             .folder(count: 0)
         case .poster:
@@ -339,6 +353,7 @@ public struct GridCard: View {
         }
         .frame(width: cardWidth)
         .clipShape(shape)
+        .contentShape(.contextMenuPreview, shape)
         .contentShape(shape)
         .background {
             if selectionEnabled && isSelected {
@@ -415,12 +430,11 @@ public struct GridCard: View {
             shape.fill(DesignTokens.Surface.elevated)
         } else {
             switch variant {
-            case let .video(fileSize, duration, badges, watchedProgress):
-                // 缩略图占位 — 真实 app 中为视频帧/海报
-                shape.fill(DesignTokens.Surface.elevated)
-                    .overlay(alignment: .center) {
-                        thumbnailPlaceholderIcon("film")
-                    }
+            case let .video(artworkURL, fileSize, duration, badges, watchedProgress):
+                AsyncArtworkImage(url: artworkURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .background(DesignTokens.Surface.elevated)
                     .overlay {
                         videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
                     }
@@ -732,7 +746,55 @@ private struct GridCardFamilyPreview: View {
     }
 }
 
+private struct GridCardSpacingComparisonPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+            comparisonRow(
+                "Before · 20 pt",
+                spacing: DesignTokens.Spacing.lg
+            )
+            comparisonRow(
+                "After · 16 pt",
+                spacing: DesignTokens.Card.gridSpacing
+            )
+        }
+        .padding(DesignTokens.Spacing.xl)
+    }
+
+    private func comparisonRow(
+        _ title: String,
+        spacing: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: spacing) {
+                GridCard.folder(title: "Movies", count: 24)
+                GridCard.video(
+                    title: "Interstellar",
+                    fileSize: "8.2 GB",
+                    duration: "2:49:00",
+                    badges: ["HDR10+"]
+                )
+                GridCard.video(
+                    title: "Blade Runner 2049",
+                    fileSize: "45.6 GB",
+                    duration: "2:29:55",
+                    badges: ["HDR"],
+                    watchedProgress: 0.42
+                )
+            }
+        }
+    }
+}
+
 #Preview("GridCard family") {
     GridCardFamilyPreview()
+}
+
+#Preview("GridCard spacing comparison") {
+    GridCardSpacingComparisonPreview()
 }
 #endif

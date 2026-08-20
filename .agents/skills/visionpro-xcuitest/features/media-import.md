@@ -24,6 +24,15 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
   --output-directory <dir> app-command --verb importMedia --arg file=<名字>
 ```
 
+## 证据
+
+| 种类 | 判据 | 谁守 |
+|---|---|---|
+| 结构 | 所有入口汇于 `mediaLibrary.addFiles(urls)`；引用正确入库并持久化 | 模拟器单测 |
+| 物理 | 注入路径：`importMedia` 应答 ok 且网格出现卡片 | 真机通道 |
+| 物理 | Files 选择器路径（跨进程，含权限门） | **待建**，需佩戴者场次 |
+| 感知 | 不适用 | |
+
 ## 证明的终态
 
 `importMedia` 响应 `ok: true` 且 payload 含该名字；`listLibrary` 复核；网格出现 `MediaLibrary-grid-video-<名字>` 卡片。

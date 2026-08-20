@@ -5,6 +5,48 @@ import Testing
 
 @Suite(.serialized)
 struct EmbyClientTests {
+    @Test("zero byte counts remain unknown until the byte source reports its length")
+    func zeroByteCountsAreUnknown() async throws {
+        MockURLProtocol.setHandler { request in
+            switch request.url?.path {
+            case "/emby/Users/user-1/Items/movie-1":
+                return try response(
+                    request,
+                    status: 200,
+                    json: """
+                    {"Id":"movie-1","Name":"Feature","Type":"Movie","Size":0}
+                    """
+                )
+            case "/emby/Items/movie-1/PlaybackInfo":
+                return try response(
+                    request,
+                    status: 200,
+                    json: """
+                    {
+                      "PlaySessionId":"session",
+                      "MediaSources":[{
+                        "Id":"source","Container":"mkv","Size":0,
+                        "SupportsDirectPlay":true,"MediaStreams":[]
+                      }]
+                    }
+                    """
+                )
+            default:
+                return try response(request, status: 404, json: "missing")
+            }
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let client = makeClient()
+        let item = try await client.item(
+            withID: EmbyItemID(rawValue: "movie-1"),
+            on: server
+        )
+        let playback = try await client.playbackInfo(for: item, on: server)
+
+        #expect(item.metadata.sizeInBytes == nil)
+        #expect(playback.mediaSources.first?.sizeInBytes == nil)
+    }
+
     @Test("authentication uses the name endpoint and returns a complete server identity")
     func authentication() async throws {
         let recorder = RequestRecorder()

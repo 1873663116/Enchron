@@ -19,6 +19,89 @@ protocol RendererFailureMonitoring: AnyObject {
     func stop()
 }
 
+struct PlaybackPrerollRequirement: Equatable {
+    let timelineStart: CMTime
+    let videoEnd: CMTime
+    let audioEnd: CMTime
+}
+
+enum PlaybackBufferingPolicy {
+    /// MPV's 0.2-second audio output buffer is the starting point for seek startup.
+    /// TrueHD on Vision Pro arrives in 0.1-second buffers, so this admits two buffers.
+    static let seekAudioLeadSeconds = 0.2
+
+    /// The 2026-08-17 Vision Pro baseline recovered bounded delivery at 0.527–0.873
+    /// seconds late. Keep the 0.5-second trigger that arrested unbounded lag.
+    static let deliveryLagRecoveryTriggerSeconds = 0.5
+
+    /// MPV's one-second underrun recovery reference is the starting point. The
+    /// 2026-08-17 Vision Pro baseline showed that a five-second target caused
+    /// 6.8–13.1-second pauses on remote 4K HEVC with TrueHD.
+    static let deliveryLagRecoveryLeadSeconds = 1.0
+
+    /// Vision Pro may opportunistically queue compressed samples while playback
+    /// keeps pace. This is a ceiling, not a startup or recovery requirement.
+    #if os(visionOS)
+        static let opportunisticRendererMaximumLeadSeconds = 6.0
+    #else
+        static let opportunisticRendererMaximumLeadSeconds = 1.0
+    #endif
+
+    /// Five seconds bounds provider or renderer failure; it is not buffered-media
+    /// policy. The 5-millisecond poll keeps activation responsive within that bound.
+    static let audioPrerollTimeout: Duration = .seconds(5)
+    static let audioPrerollPollInterval: Duration = .milliseconds(5)
+
+    /// Seek coordination already used a five-second failure bound. Name it so it
+    /// cannot be confused with the removed five-second media reserve.
+    static let seekTargetCoordinationTimeout: Duration = .seconds(5)
+
+    static func seekRequirement(
+        target: CMTime,
+        durationSeconds: Double
+    ) -> PlaybackPrerollRequirement {
+        PlaybackPrerollRequirement(
+            timelineStart: target,
+            videoEnd: target,
+            audioEnd: clampedEnd(
+                from: target,
+                leadSeconds: seekAudioLeadSeconds,
+                durationSeconds: durationSeconds
+            )
+        )
+    }
+
+    static func deliveryLagRecoveryRequirement(
+        timelineTime: CMTime,
+        durationSeconds: Double
+    ) -> PlaybackPrerollRequirement {
+        let end = clampedEnd(
+            from: timelineTime,
+            leadSeconds: deliveryLagRecoveryLeadSeconds,
+            durationSeconds: durationSeconds
+        )
+        return PlaybackPrerollRequirement(
+            timelineStart: timelineTime,
+            videoEnd: end,
+            audioEnd: end
+        )
+    }
+
+    private static func clampedEnd(
+        from start: CMTime,
+        leadSeconds: Double,
+        durationSeconds: Double
+    ) -> CMTime {
+        let unboundedEnd = start.seconds + leadSeconds
+        let endSeconds = if durationSeconds.isFinite, durationSeconds > 0 {
+            min(unboundedEnd, durationSeconds)
+        } else {
+            unboundedEnd
+        }
+        return CMTime(seconds: endSeconds, preferredTimescale: 60_000)
+    }
+}
+
 /// Exposes one media session's renderer, read-only facts, and consumer binding evidence.
 public final class SampleBufferPlaybackSession: @unchecked Sendable {
     struct EndState {
@@ -162,6 +245,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var decoderBootstrapTargetSeconds: Double?
     var decoderBootstrapLastDecodeTimeSeconds: Double?
     var decoderBootstrapImmediateEnqueueCount: UInt64 = 0
+    let prerollRequirementLock = NSLock()
+    var prerollRequirement: PlaybackPrerollRequirement?
     let endStateLock = NSLock()
     var endState = EndState()
     var hasStartedTimeline = false
@@ -198,6 +283,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var lastDisplayedFrameIdentity: UInt64?
     var stereoLayoutOverride: VideoStereoLayout?
     var projectionOverride: VideoProjectionOverride?
+    var dynamicRangeOverride: VideoDynamicRangeOverride?
     var hasRequestedVideoData = false
     var hasAudio = false
     var audioSampleBufferCount: UInt64 = 0
@@ -332,6 +418,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
+        sourceIsRemote: Bool = false,
         provenance: String = "appOpen",
         accessRequirement: String = "appAdapterManaged"
     ) async throws {
@@ -349,6 +436,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             : preferredPlaybackRate
         sourceURL = url
         sourceAsset = asset
+        try demuxSession?.configureSource(isRemote: sourceIsRemote)
         let sourceInformation: MediaSourceInformation?
         if let mediaSourceInformationLoader {
             sourceInformation = if demuxSession != nil {
@@ -435,7 +523,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             details: ["source": url.lastPathComponent]
         )
         do {
-            try await provider.prepare(url: url, asset: asset, startTime: startTime)
+            try await provider.prepare(
+                url: url,
+                asset: asset,
+                sourceInformation: sourceInformation,
+                startTime: startTime
+            )
         } catch {
             recordFailure(error, node: .providerOpen, kind: "provider.openFailed")
             throw error
@@ -494,10 +587,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         diagnostics.nominalFrameRate = provider.info.nominalFrameRate
         diagnostics.codecName = provider.info.codecName
         diagnostics.isMVHEVC = provider.info.isMVHEVC
-        diagnostics.dolbyVisionProfile = provider.info.dolbyVisionProfile
+        diagnostics.dolbyVisionProfile = sourceInformation?.dolbyVisionProfile ?? 0
         diagnostics.dolbyVisionCrossCompatibilityID =
-            provider.info.dolbyVisionCrossCompatibilityID
-        diagnostics.dolbyVisionHasEnhancementLayer = provider.info.dolbyVisionHasEnhancementLayer
+            sourceInformation?.dolbyVisionCrossCompatibilityID ?? 0
+        diagnostics.dolbyVisionHasEnhancementLayer =
+            sourceInformation?.dolbyVisionHasEnhancementLayer ?? false
         diagnostics.trackFormatHasMasteringDisplayMetadata = provider.info.trackFormatHasMasteringDisplayMetadata
         diagnostics.trackFormatHasContentLightLevelMetadata = provider.info.trackFormatHasContentLightLevelMetadata
         let openSnapshot = ProviderOpenSnapshot(

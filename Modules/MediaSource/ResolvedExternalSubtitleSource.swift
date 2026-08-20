@@ -6,19 +6,22 @@ public struct ResolvedExternalSubtitleSource: @unchecked Sendable, Equatable, Id
     public let displayName: String
     public let versionedIdentity: VersionedMediaIdentity?
     public let accessLease: MediaAccessLease?
+    public let byteStreamHandle: MediaByteStreamHandle?
 
     public init(
         id: String,
         url: URL,
         displayName: String,
         versionedIdentity: VersionedMediaIdentity? = nil,
-        accessLease: MediaAccessLease? = nil
+        accessLease: MediaAccessLease? = nil,
+        byteStreamHandle: MediaByteStreamHandle? = nil
     ) {
         self.id = id
         self.url = url
         self.displayName = displayName
         self.versionedIdentity = versionedIdentity
         self.accessLease = accessLease
+        self.byteStreamHandle = byteStreamHandle
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {

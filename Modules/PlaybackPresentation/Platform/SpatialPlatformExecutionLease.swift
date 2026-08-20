@@ -14,6 +14,15 @@ struct SpatialPlatformExecutionClaim<Capability> {
     let capability: Capability
 }
 
+enum SpatialPlatformExecutionDrainPolicy {
+    static func shouldDrainAfterFinish(
+        executedRequestID: UUID,
+        pendingRequestID: UUID?
+    ) -> Bool {
+        pendingRequestID != nil && pendingRequestID != executedRequestID
+    }
+}
+
 struct SpatialPlatformExecutionLeaseRegistry<Capability> {
     private struct CapabilityEntry {
         let generation: UInt64
@@ -54,8 +63,17 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
         id: UUID,
         makePreferred: Bool = false
     ) -> SpatialPlatformExecutionLease? {
-        let invalidatedLease =
-            activeLease?.capabilityID == id ? invalidateActiveExecution() : nil
+        if let activeLease, activeLease.capabilityID == id {
+            retiredCapabilityIDs.remove(id)
+            capabilities[id] = CapabilityEntry(
+                generation: activeLease.capabilityGeneration,
+                capability: capability
+            )
+            if preferredCapabilityID == nil || makePreferred {
+                preferredCapabilityID = id
+            }
+            return nil
+        }
         retiredCapabilityIDs.remove(id)
         capabilities[id] = CapabilityEntry(
             generation: nextCapabilityGeneration,
@@ -65,7 +83,7 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
         if preferredCapabilityID == nil || makePreferred {
             preferredCapabilityID = id
         }
-        return invalidatedLease
+        return nil
     }
 
     @discardableResult

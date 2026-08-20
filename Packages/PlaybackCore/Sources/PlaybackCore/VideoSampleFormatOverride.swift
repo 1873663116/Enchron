@@ -1,5 +1,6 @@
 import CoreMedia
 import Foundation
+import PlaybackFFmpegBridge
 
 public enum VideoStereoLayout: String, CaseIterable, Codable, Sendable {
     case mono
@@ -23,11 +24,16 @@ public enum VideoProjectionOverride: Hashable, Codable, Sendable {
     }
 }
 
+public enum VideoDynamicRangeOverride: String, Codable, Sendable {
+    case dolbyVisionFallback
+}
+
 public enum VideoSampleFormatOverrideError: Error, Equatable, Sendable {
     case missingFormatDescription
     case nonVideoFormat
     case missingCompressedData
     case dataNotReady
+    case dolbyVisionFallbackUnavailable(compatibilityID: Int?)
     case formatDescriptionCreationFailed(OSStatus)
     case timingReadFailed(OSStatus)
     case sampleSizeReadFailed(OSStatus)
@@ -39,6 +45,7 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
         let sourceIdentity: ObjectIdentifier
         let stereoLayout: VideoStereoLayout?
         let projection: VideoProjectionOverride?
+        let dynamicRange: VideoDynamicRangeOverride?
     }
 
     private struct CachedFormat {
@@ -61,7 +68,8 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
     public func rewrite(
         _ sampleBuffer: CMSampleBuffer,
         stereoLayout: VideoStereoLayout?,
-        projection: VideoProjectionOverride?
+        projection: VideoProjectionOverride?,
+        dynamicRange: VideoDynamicRangeOverride? = nil
     ) throws -> CMSampleBuffer {
         guard let sourceFormat = CMSampleBufferGetFormatDescription(sampleBuffer) else {
             throw VideoSampleFormatOverrideError.missingFormatDescription
@@ -79,7 +87,8 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
         let targetFormat = try rewrittenFormat(
             from: sourceFormat,
             stereoLayout: stereoLayout,
-            projection: projection
+            projection: projection,
+            dynamicRange: dynamicRange
         )
         let timings = try sampleTimings(of: sampleBuffer)
         let sampleSizes = try sampleSizes(of: sampleBuffer)
@@ -218,12 +227,14 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
     private func rewrittenFormat(
         from source: CMFormatDescription,
         stereoLayout: VideoStereoLayout?,
-        projection: VideoProjectionOverride?
+        projection: VideoProjectionOverride?,
+        dynamicRange: VideoDynamicRangeOverride?
     ) throws -> CMFormatDescription {
         let key = CacheKey(
             sourceIdentity: ObjectIdentifier(source),
             stereoLayout: stereoLayout,
-            projection: projection
+            projection: projection,
+            dynamicRange: dynamicRange
         )
         cacheLock.lock()
         if let cached = formatCache[key] {
@@ -287,24 +298,68 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
             )
         }
 
-        let dimensions = CMVideoFormatDescriptionGetDimensions(source)
-        var target: CMFormatDescription?
-        let status = CMVideoFormatDescriptionCreate(
-            allocator: kCFAllocatorDefault,
-            codecType: CMFormatDescriptionGetMediaSubType(source),
-            width: dimensions.width,
-            height: dimensions.height,
-            extensions: extensions as CFDictionary,
-            formatDescriptionOut: &target
+        if dynamicRange == .dolbyVisionFallback {
+            try applyDolbyVisionFallback(to: &extensions)
+        }
+
+        var target: Unmanaged<CMVideoFormatDescription>?
+        let status = PBFFmpegVideoFormatDescriptionCreate(
+            nil,
+            source,
+            nil,
+            extensions as CFDictionary,
+            &target
         )
         guard status == noErr, let target else {
             throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(status)
         }
+        let rewritten = target.takeRetainedValue()
 
         cacheLock.lock()
-        formatCache[key] = CachedFormat(source: source, rewritten: target)
+        formatCache[key] = CachedFormat(source: source, rewritten: rewritten)
         cacheLock.unlock()
-        return target
+        return rewritten
+    }
+
+    private func applyDolbyVisionFallback(
+        to extensions: inout [String: Any]
+    ) throws {
+        let atomsKey =
+            kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+        var atoms = extensions[atomsKey] as? [String: Data] ?? [:]
+        let configuration = atoms["dvvC"] ?? atoms["dvcC"]
+        let compatibilityID = configuration.flatMap { data in
+            data.count > 4 ? Int(data[4] >> 4) : nil
+        }
+        guard let compatibilityID, compatibilityID != 0 else {
+            throw VideoSampleFormatOverrideError.dolbyVisionFallbackUnavailable(
+                compatibilityID: compatibilityID
+            )
+        }
+        atoms.removeValue(forKey: "dvcC")
+        atoms.removeValue(forKey: "dvvC")
+        extensions[atomsKey] = atoms
+
+        switch compatibilityID {
+        case 1, 6:
+            extensions[kCMFormatDescriptionExtension_ColorPrimaries as String]
+                = kCMFormatDescriptionColorPrimaries_ITU_R_2020
+            extensions[kCMFormatDescriptionExtension_TransferFunction as String]
+                = kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+            extensions[kCMFormatDescriptionExtension_YCbCrMatrix as String]
+                = kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
+            extensions[kCMFormatDescriptionExtension_FullRangeVideo as String] = false
+        case 4:
+            extensions[kCMFormatDescriptionExtension_ColorPrimaries as String]
+                = kCMFormatDescriptionColorPrimaries_ITU_R_2020
+            extensions[kCMFormatDescriptionExtension_TransferFunction as String]
+                = kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG
+            extensions[kCMFormatDescriptionExtension_YCbCrMatrix as String]
+                = kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
+            extensions[kCMFormatDescriptionExtension_FullRangeVideo as String] = false
+        default:
+            break
+        }
     }
 
     private func sampleTimings(of sampleBuffer: CMSampleBuffer) throws -> [CMSampleTimingInfo] {

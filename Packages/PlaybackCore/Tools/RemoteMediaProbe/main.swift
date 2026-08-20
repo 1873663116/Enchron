@@ -20,6 +20,7 @@ enum ProbeStage: String {
     case audioReader = "audio-reader"
     case playback
     case session
+    case format
     case decode
 }
 
@@ -136,7 +137,7 @@ func openAudioReader(source: String, monitor: OpaquePointer) throws -> String {
 func openSharedSession(source: String, monitor: OpaquePointer) throws -> String {
     var error = [CChar](repeating: 0, count: 512)
     let demuxSource = source.withCString {
-        PBFFmpegDemuxSourceCreate($0, monitor, &error, error.count)
+        PBFFmpegDemuxSourceCreate($0, false, monitor, &error, error.count)
     }
     guard let demuxSource else {
         throw ProbeFailure.operation(
@@ -189,6 +190,42 @@ func openSharedSession(source: String, monitor: OpaquePointer) throws -> String 
         + "audio_stream=\(PBFFmpegAudioReaderGetStreamIndex(audioReader))"
 }
 
+/// Reads the exact compressed format PlaybackCore would hand to its renderer,
+/// without requiring the host machine to provide a decoder for that codec.
+func inspectFormat(source: String, monitor: OpaquePointer) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
+    guard let videoReader = PBFFmpegReaderAllocate() else {
+        throw ProbeFailure.operation("reader allocation failed")
+    }
+    defer { PBFFmpegReaderDestroy(videoReader) }
+    PBFFmpegReaderSetSourceReadMonitor(videoReader, monitor)
+    let opened = source.withCString {
+        PBFFmpegReaderOpen(videoReader, $0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    guard opened else {
+        throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
+    }
+    var formatOut: Unmanaged<CMVideoFormatDescription>?
+    let status = PBFFmpegVideoFormatDescriptionCreate(
+        videoReader,
+        nil,
+        nil,
+        nil,
+        &formatOut
+    )
+    guard status == noErr, let format = formatOut?.takeRetainedValue() else {
+        throw ProbeFailure.operation(
+            "compressed format description unavailable: \(errorMessage(error))"
+        )
+    }
+    let subType = CMFormatDescriptionGetMediaSubType(format)
+    let codec = String(
+        bytes: [24, 16, 8, 0].map { UInt8((subType >> $0) & 0xff) },
+        encoding: .ascii
+    ) ?? "????"
+    return "codec=\(codec) \(formatColorFacts(format))"
+}
+
 final class DecodeTally: @unchecked Sendable {
     private let lock = NSLock()
     private var decoded = 0
@@ -232,8 +269,14 @@ func decodeSamples(
         throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
     }
     var formatOut: Unmanaged<CMVideoFormatDescription>?
-    guard PBFFmpegReaderCopyCompressedFormatDescription(videoReader, &formatOut),
-          let format = formatOut?.takeRetainedValue() else {
+    let formatStatus = PBFFmpegVideoFormatDescriptionCreate(
+        videoReader,
+        nil,
+        nil,
+        nil,
+        &formatOut
+    )
+    guard formatStatus == noErr, let format = formatOut?.takeRetainedValue() else {
         throw ProbeFailure.operation("compressed format description unavailable")
     }
     let subType = CMFormatDescriptionGetMediaSubType(format)
@@ -241,6 +284,7 @@ func decodeSamples(
         bytes: [24, 16, 8, 0].map { UInt8((subType >> $0) & 0xff) },
         encoding: .ascii
     ) ?? "????"
+    let colorFacts = formatColorFacts(format)
 
     var session: VTDecompressionSession?
     let sessionStatus = VTDecompressionSessionCreate(
@@ -253,7 +297,7 @@ func decodeSamples(
     )
     guard sessionStatus == noErr, let session else {
         return "codec=\(codec) session_status=\(sessionStatus) decoded_frames=0 "
-            + "sample_bytes=0 decode=session_rejected"
+            + "sample_bytes=0 \(colorFacts) decode=session_rejected"
     }
     defer { VTDecompressionSessionInvalidate(session) }
 
@@ -310,7 +354,33 @@ func decodeSamples(
         + "sample_bytes=\(sampleBytes) decoded_frames=\(decodedFrames) "
         + "submit_failures=\(failedFrames) callback_failures=\(callbackFailures) "
         + "first_decode_status=\(firstDecodeStatus == noErr ? firstCallbackStatus : firstDecodeStatus) "
-        + "decode=\(verdict)"
+        + "\(colorFacts) decode=\(verdict)"
+}
+
+// The color interpretation the renderer will receive, read back from the one
+// format description PlaybackCore constructs. `none` means the extension is
+// absent, which the decoder resolves by guessing.
+func formatColorFacts(_ format: CMVideoFormatDescription) -> String {
+    let extensions = (CMFormatDescriptionGetExtensions(format) as? [String: Any]) ?? [:]
+    func value(_ key: CFString) -> String {
+        guard let raw = extensions[key as String] else { return "none" }
+        return String(describing: raw).replacingOccurrences(of: " ", with: "_")
+    }
+    let atoms = extensions[
+        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+    ] as? [String: Any]
+    let atomKeys = atoms?.keys.sorted().joined(separator: "+") ?? "none"
+    let mastering = extensions[
+        kCMFormatDescriptionExtension_MasteringDisplayColorVolume as String
+    ] != nil
+    let lightLevel = extensions[
+        kCMFormatDescriptionExtension_ContentLightLevelInfo as String
+    ] != nil
+    return "color_primaries=\(value(kCMFormatDescriptionExtension_ColorPrimaries)) "
+        + "transfer=\(value(kCMFormatDescriptionExtension_TransferFunction)) "
+        + "matrix=\(value(kCMFormatDescriptionExtension_YCbCrMatrix)) "
+        + "full_range=\(value(kCMFormatDescriptionExtension_FullRangeVideo)) "
+        + "atoms=\(atomKeys) mastering=\(mastering ? 1 : 0) light_level=\(lightLevel ? 1 : 0)"
 }
 
 func demuxSourceHasAudio(_ demuxSource: OpaquePointer) throws -> Bool {
@@ -349,7 +419,7 @@ func measurePlayback(
     }
     var error = [CChar](repeating: 0, count: 512)
     let demuxSource = source.withCString {
-        PBFFmpegDemuxSourceCreate($0, monitor, &error, error.count)
+        PBFFmpegDemuxSourceCreate($0, false, monitor, &error, error.count)
     }
     guard let demuxSource else {
         throw ProbeFailure.operation(
@@ -498,7 +568,7 @@ func run() throws {
           let stage = ProbeStage(rawValue: arguments[1]),
           arguments[2] == "--url" else {
         throw ProbeFailure.usage(
-            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session --url URL [--seconds N]"
+            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session|format|decode --url URL [--seconds N]"
         )
     }
     guard let monitor = PBFFmpegSourceReadMonitorCreate() else {
@@ -523,6 +593,8 @@ func run() throws {
             )
         case .session:
             try openSharedSession(source: arguments[3], monitor: monitor)
+        case .format:
+            try inspectFormat(source: arguments[3], monitor: monitor)
         case .decode:
             try decodeSamples(
                 source: arguments[3],

@@ -43,7 +43,7 @@ public struct GlassSearchField: View {
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(width: DesignTokens.Card.gridMin, height: DesignTokens.Interactive.regular)
         .clipShape(Capsule())
-        .enchronGlassBackground(in: Capsule())
+        .background(DesignTokens.Surface.elevated, in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .contentShape(Capsule())
@@ -63,7 +63,6 @@ public struct GlassSearchField: View {
             }
         }
         .onSubmit(deactivateInput)
-        .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(placeholder)
     }
 
@@ -120,7 +119,6 @@ public struct GlassToggle: View {
         }
         .buttonStyle(.plain)
         .clipShape(Capsule())
-        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
@@ -167,7 +165,6 @@ public struct BoundGlassToggle: View {
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.42)
         .clipShape(Capsule())
-        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic, isEnabled: isEnabled)
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
@@ -210,8 +207,8 @@ private extension VerticalAlignment {
 /// and the timeline zoom slider (leading-origin, continuous). It draws only the
 /// capsule track, accent lit fill, and white knob; the caller computes the
 /// knob/lit geometry and attaches the drag gesture, so both sliders render
-/// identically. The accent capsule carries its own `glassBackgroundEffect` so
-/// the glass rim follows the lit shape rather than reading as flat paint.
+/// identically. The track and accent fill use existing surface tokens so this
+/// control does not introduce another glass boundary inside a window.
 public struct GlassSliderRail: View {
     let trackWidth: CGFloat
     let trackHeight: CGFloat
@@ -253,7 +250,6 @@ public struct GlassSliderRail: View {
                 Capsule()
                     .fill(DesignTokens.Theme.accent)
                     .frame(width: max(litWidth, 0), height: trackHeight)
-                    .enchronGlassBackground(in: Capsule())
                     .offset(x: litCenterX)
                     .opacity(litVisible ? 1 : 0)
             }
@@ -265,7 +261,6 @@ public struct GlassSliderRail: View {
                     .offset(x: knobOffsetX)
             }
             .clipShape(Capsule())
-            .enchronGlassBackground(in: Capsule())
             .enchronHoverContentShape(Capsule())
             .enchronHoverEffect(.highlight)
     }

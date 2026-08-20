@@ -43,19 +43,42 @@ public struct AsyncArtworkImage: View {
     }
 }
 
+public enum ArtworkNetworkConfiguration {
+    public typealias ImageProvider = @Sendable (URL) -> CGImage?
+    public typealias ImageStorer = @Sendable (URL, CGImage) throws -> Void
+
+    nonisolated(unsafe) private static var configuredSession: URLSession = makeDefaultSession()
+    nonisolated(unsafe) private static var configuredImageProvider: ImageProvider?
+    nonisolated(unsafe) private static var configuredImageStorer: ImageStorer?
+
+    public static func use(
+        session: URLSession,
+        imageProvider: ImageProvider? = nil,
+        imageStorer: ImageStorer? = nil
+    ) {
+        configuredSession = session
+        configuredImageProvider = imageProvider
+        configuredImageStorer = imageStorer
+    }
+
+    fileprivate static var session: URLSession { configuredSession }
+    fileprivate static var imageProvider: ImageProvider? { configuredImageProvider }
+    fileprivate static var imageStorer: ImageStorer? { configuredImageStorer }
+
+    private static func makeDefaultSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = URLCache.shared
+        configuration.requestCachePolicy = .useProtocolCachePolicy
+        return URLSession(configuration: configuration)
+    }
+}
+
 private struct LoadedImage {
     let url: URL
     let image: CGImage
 }
 
 private enum ArtworkImageLoader {
-    static let session: URLSession = {
-        let configuration = URLSessionConfiguration.default
-        configuration.urlCache = URLCache.shared
-        configuration.requestCachePolicy = .useProtocolCachePolicy
-        return URLSession(configuration: configuration)
-    }()
-
     /// Decoded bitmaps, keyed by URL. `URLCache` already keeps the compressed bytes on disk; what
     /// repeats on every reappearance is the decode, and its result can only live in memory. Emby
     /// puts the image's content tag in the URL, so a changed artwork is a different key.
@@ -67,12 +90,13 @@ private enum ArtworkImageLoader {
     }()
 
     static func image(at url: URL) async throws -> CGImage {
+        if let persisted = ArtworkNetworkConfiguration.imageProvider?(url) { return persisted }
         if let cached = decoded.object(forKey: url as NSURL) { return cached }
         let request = URLRequest(
             url: url,
             cachePolicy: .useProtocolCachePolicy
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await ArtworkNetworkConfiguration.session.data(for: request)
         try Task.checkCancellation()
 
         guard let response = response as? HTTPURLResponse,
@@ -83,6 +107,7 @@ private enum ArtworkImageLoader {
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw LoadError.invalidImage
         }
+        try ArtworkNetworkConfiguration.imageStorer?(url, image)
         decoded.setObject(image, forKey: url as NSURL, cost: image.bytesPerRow * image.height)
         return image
     }

@@ -116,6 +116,7 @@ public enum PlaybackTimelineControlReason: String, Codable, Equatable, Sendable 
     case close
     case decoderBootstrap
     case decoderBootstrapPreActivation
+    case deliveryLagRecovery
     case firstSample
     case initialTimelineAnchor
     case pause
@@ -345,11 +346,16 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         currentSnapshot.lastControlRejection = record
     }
 
-    public func recordFailure(_ record: PlaybackFailureRecord) {
+    public func recordFailure(
+        _ record: PlaybackFailureRecord,
+        recordsLastError: Bool = true
+    ) {
         lock.lock()
         defer { lock.unlock() }
         currentSnapshot.lastFailure = record
-        currentSnapshot.lastError = record.message
+        if recordsLastError {
+            currentSnapshot.lastError = record.message
+        }
     }
 
     public func recordOperation(_ record: PlaybackOperationRecord) {

@@ -64,9 +64,52 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     }
 }
 
+/// The address admitted by the playback boundary. Remote callers must first
+/// register a byte source, so an arbitrary network URL cannot bypass MediaSource.
+public nonisolated struct PlaybackAddress: @unchecked Sendable, Equatable {
+    public enum AddressError: LocalizedError {
+        case notLocalFile
+
+        public var errorDescription: String? {
+            "Only local file URLs can enter playback without a MediaSource byte-stream handle."
+        }
+    }
+
+    public let url: URL
+    public let byteStreamHandle: MediaByteStreamHandle?
+    private let remote: Bool
+
+    public init(localFileURL: URL) throws {
+        guard localFileURL.isFileURL else { throw AddressError.notLocalFile }
+        url = localFileURL
+        byteStreamHandle = nil
+        remote = false
+    }
+
+    public init(byteStreamHandle: MediaByteStreamHandle) {
+        url = byteStreamHandle.url
+        self.byteStreamHandle = byteStreamHandle
+        remote = true
+    }
+
+    @_spi(Testing)
+    public init(testingURL: URL) {
+        url = testingURL
+        byteStreamHandle = nil
+        remote = testingURL.isFileURL == false
+    }
+
+    public var isRemote: Bool { remote }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.url == rhs.url
+    }
+}
+
 public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable, Identifiable {
     public let id: URL
-    public let url: URL
+    public let source: PlaybackAddress
+    public var url: URL { source.url }
     public let displayName: String
     public let fileIdentifier: PlaybackFileIdentifier?
     public let initialMetadata: PlaybackMediaMetadata?
@@ -74,11 +117,40 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let versionedIdentity: VersionedMediaIdentity?
     public let sourceAccess: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
-    public let externalSubtitleErrorMessage: String?
+    public let externalSubtitleResolutionFailed: Bool
     public let viewingStateAuthority: ViewingStateAuthority
     public let startPositionSeconds: Double?
     public let sessionReporter: (any PlaybackSessionReporting)?
 
+    public init(
+        source: PlaybackAddress,
+        displayName: String,
+        fileIdentifier: PlaybackFileIdentifier? = nil,
+        initialMetadata: PlaybackMediaMetadata? = nil,
+        collectionOrigin: PlaybackCollectionOrigin = .standalone,
+        versionedIdentity: VersionedMediaIdentity? = nil,
+        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+        externalSubtitleResolutionFailed: Bool = false,
+        viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
+        startPositionSeconds: Double? = nil,
+        sessionReporter: (any PlaybackSessionReporting)? = nil
+    ) {
+        self.id = source.url
+        self.source = source
+        self.displayName = displayName
+        self.fileIdentifier = fileIdentifier
+        self.initialMetadata = initialMetadata
+        self.collectionOrigin = collectionOrigin
+        self.versionedIdentity = versionedIdentity
+        self.sourceAccess = nil
+        self.externalSubtitleSources = externalSubtitleSources
+        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
+        self.viewingStateAuthority = viewingStateAuthority
+        self.startPositionSeconds = startPositionSeconds
+        self.sessionReporter = sessionReporter
+    }
+
+    @_spi(Testing)
     public init(
         url: URL,
         displayName: String,
@@ -87,26 +159,56 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
+        externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
-        self.id = url
-        self.url = url
+        self.init(
+            source: PlaybackAddress(testingURL: url),
+            displayName: displayName,
+            fileIdentifier: fileIdentifier,
+            initialMetadata: initialMetadata,
+            collectionOrigin: collectionOrigin,
+            versionedIdentity: versionedIdentity,
+            externalSubtitleSources: externalSubtitleSources,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            viewingStateAuthority: viewingStateAuthority,
+            startPositionSeconds: startPositionSeconds,
+            sessionReporter: sessionReporter
+        )
+    }
+
+    public init(
+        source: PlaybackAddress,
+        displayName: String,
+        fileIdentifier: PlaybackFileIdentifier? = nil,
+        initialMetadata: PlaybackMediaMetadata? = nil,
+        collectionOrigin: PlaybackCollectionOrigin = .standalone,
+        versionedIdentity: VersionedMediaIdentity? = nil,
+        sourceAccess: MediaAccessLease?,
+        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+        externalSubtitleResolutionFailed: Bool = false,
+        viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
+        startPositionSeconds: Double? = nil,
+        sessionReporter: (any PlaybackSessionReporting)? = nil
+    ) {
+        self.id = source.url
+        self.source = source
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
-        self.sourceAccess = nil
+        self.sourceAccess = sourceAccess
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
         self.sessionReporter = sessionReporter
     }
 
+    @_spi(Testing)
     public init(
         url: URL,
         displayName: String,
@@ -116,29 +218,30 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         versionedIdentity: VersionedMediaIdentity? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil,
+        externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
-        self.id = url
-        self.url = url
-        self.displayName = displayName
-        self.fileIdentifier = fileIdentifier
-        self.initialMetadata = initialMetadata
-        self.collectionOrigin = collectionOrigin
-        self.versionedIdentity = versionedIdentity
-        self.sourceAccess = sourceAccess
-        self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
-        self.viewingStateAuthority = viewingStateAuthority
-        self.startPositionSeconds = startPositionSeconds
-        self.sessionReporter = sessionReporter
+        self.init(
+            source: PlaybackAddress(testingURL: url),
+            displayName: displayName,
+            fileIdentifier: fileIdentifier,
+            initialMetadata: initialMetadata,
+            collectionOrigin: collectionOrigin,
+            versionedIdentity: versionedIdentity,
+            sourceAccess: sourceAccess,
+            externalSubtitleSources: externalSubtitleSources,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            viewingStateAuthority: viewingStateAuthority,
+            startPositionSeconds: startPositionSeconds,
+            sessionReporter: sessionReporter
+        )
     }
 
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
         PlaybackLaunchRequest(
-            url: url,
+            source: source,
             displayName: displayName,
             fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
@@ -146,7 +249,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             sessionReporter: sessionReporter
@@ -162,7 +265,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.collectionOrigin == rhs.collectionOrigin &&
             lhs.versionedIdentity == rhs.versionedIdentity &&
             lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
-            lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage &&
+            lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed &&
             lhs.viewingStateAuthority == rhs.viewingStateAuthority &&
             lhs.startPositionSeconds == rhs.startPositionSeconds
     }

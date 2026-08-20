@@ -21,7 +21,7 @@
 - 模块依赖单向，见 [ADR 0018](../../adr/0018-one-way-target-dependencies-and-media-source-ownership.md)。PlaybackCore 是独立包，看不到 MediaSource 的类型，因此它继续只接收地址；类型上的闸设在 PlaybackFeature。
 - 本地文件不经回环端点。
 - Emby 的目录内容与观看进度不落盘；服务器是权威。Emby 图片按其 image tag 作键落盘。
-- 回归判据是 PlaybackCore 单测基线 8 失败 13 issue，逐条比对失败名。
+- 回归判据是 PlaybackCore 单测基线逐条比对失败名。本分支当前基线 3 失败 4 issue：`appleMVHEVCFixtureIsDistinguishedFromOrdinaryHEVC`、`appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat`、`controllerRejectsSecondOpenAndRecordsTheRejection`，三者由主工作树在途的 pause-after-seek 工作负责。`acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim` 是已记录的负载 flake，以干净重跑裁决。
 
 ## 总表
 

@@ -33,6 +33,9 @@ let package = Package(
             dependencies: ["PlaybackFFmpeg", "PlaybackSubtitleRenderer"],
             path: "Sources/PlaybackFFmpegBridge",
             publicHeadersPath: "include",
+            cSettings: [
+                .unsafeFlags(["-O2"], .when(configuration: .debug)),
+            ],
             linkerSettings: [
                 .linkedFramework("AudioToolbox"),
                 .linkedFramework("CoreMedia"),

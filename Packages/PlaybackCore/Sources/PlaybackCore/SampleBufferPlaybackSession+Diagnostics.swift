@@ -6,6 +6,17 @@ import OSLog
 import VideoToolbox
 
 extension SampleBufferPlaybackSession {
+    public func displayedArtworkImage() -> CGImage? {
+        guard let pixelBuffer = renderer.displayedPixelBuffer() else { return nil }
+        var image: CGImage?
+        guard VTCreateCGImageFromCVPixelBuffer(
+            pixelBuffer,
+            options: nil,
+            imageOut: &image
+        ) == noErr else { return nil }
+        return image
+    }
+
     func updatePresentationStatus(at time: CMTime) {
         recordSubtitleState(at: time)
         publishSubtitleCues(at: time)
@@ -703,15 +714,24 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func recordAudioRetirement(_ error: Error, node: PlaybackNode, kind: String) {
+    func recordAudioRetirement(
+        _ error: Error,
+        node: PlaybackNode,
+        kind: String,
+        rendererFailure: RendererFailureFact? = nil
+    ) {
         debugStore.recordFailure(PlaybackFailureRecord(
             mediaSessionID: traceID,
             node: node,
             stage: kind,
-            errorType: String(reflecting: type(of: error)),
+            errorType: rendererFailure?.errorType
+                ?? String(reflecting: type(of: error)),
             message: error.localizedDescription,
-            recoverability: "audioRetiredVideoContinues"
-        ))
+            recoverability: "audioRetiredVideoContinues",
+            rendererKind: rendererFailure?.rendererKind.rawValue,
+            requiresFlushToResumeDecoding:
+                rendererFailure?.requiresFlushToResumeDecoding
+        ), recordsLastError: false)
         debugStore.emit(
             mediaSessionID: traceID,
             node: node,
@@ -725,6 +745,19 @@ extension SampleBufferPlaybackSession {
     }
 
     func publishRendererFailure(_ fact: RendererFailureFact) {
+        if fact.rendererKind == .audio {
+            guard hasAudio else { return }
+            retireAudio(
+                after: AudioRendererRetirementError(message: fact.message),
+                node: .rendererInputCoordination,
+                kind: "audioRenderer.failed.videoContinues",
+                rendererFailure: fact
+            )
+            logger.error(
+                "Audio renderer retired error=\(fact.message, privacy: .public)"
+            )
+            return
+        }
         guard claimRendererFailure() else { return }
         rendererFailureMonitor?.stop()
         closeEndState()
@@ -737,16 +770,11 @@ extension SampleBufferPlaybackSession {
             audioProvider.cancel()
         }
 
-        switch fact.rendererKind {
-        case .video:
-            setVideoRendererState(status: "failed", error: fact.message)
-            diagnostics.rendererFailedToDecode = true
-            diagnostics.rendererStatus = "failed"
-            diagnostics.rendererError = fact.message
-            onDiagnosticsChange?(diagnostics)
-        case .audio:
-            setAudioRendererError(fact.message)
-        }
+        setVideoRendererState(status: "failed", error: fact.message)
+        diagnostics.rendererFailedToDecode = true
+        diagnostics.rendererStatus = "failed"
+        diagnostics.rendererError = fact.message
+        onDiagnosticsChange?(diagnostics)
         updateLifecycle(.failed)
         let stage = PlaybackArtifactEventName.renderer(
             fact.rendererKind,

@@ -23,13 +23,15 @@ APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
 DEVICE_PROCESS_MARKER = "Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
+DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
 APP_RESPONSE_ROOT = "Documents/test-responses"
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-# A process belongs to this repository's automation scope only when its command
-# line carries one of these alongside the repository root. Matching a bare tool
-# name would reach an unrelated project's build on the same machine.
-SCOPE_MARKERS = ("Enchron.xcodeproj", Path(__file__).name)
+CONTROLLER_PROCESS_MARKER = Path(__file__).name
+RUNNER_PROCESS_MARKERS = (
+    "xcodebuild test-without-building",
+    "InteractiveDeviceUITests/testInteractiveDeviceSession",
+)
 # A stop is an ordinary command round trip, and those were measured at a 2.6
 # second median with the device busy. Five seconds sat close enough to that to
 # expire on a session that was merely playing, which then skipped the graceful
@@ -46,6 +48,7 @@ TERMINATION_DEADLINE_SECONDS = 5.0
 RESULT_BUNDLE_WRITE_DEADLINE_SECONDS = 180.0
 TIMINGS_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.json"
 TIMING_SAMPLE_LIMIT = 20
+DEVICECTL_CALL_COUNT = 0
 
 
 def record_timing(action: str, seconds: float) -> None:
@@ -75,6 +78,8 @@ def record_timing(action: str, seconds: float) -> None:
 
 
 def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.CompletedProcess[str]:
+    global DEVICECTL_CALL_COUNT
+    DEVICECTL_CALL_COUNT += 1
     command = ["xcrun", "devicectl", *arguments]
     try:
         return subprocess.run(
@@ -274,7 +279,11 @@ def scoped_processes() -> list[tuple[int, str]]:
     for pid, _, command in rows:
         if pid in lineage:
             continue
-        if not any(marker in command for marker in SCOPE_MARKERS):
+        is_controller = CONTROLLER_PROCESS_MARKER in command
+        is_interactive_runner = all(
+            marker in command for marker in RUNNER_PROCESS_MARKERS
+        )
+        if not is_controller and not is_interactive_runner:
             continue
         if f"{root}/" in command or working_directory(pid) == root:
             scoped.append((pid, command))
@@ -495,6 +504,38 @@ def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object
     return observations
 
 
+def resolve_command_text(arguments: argparse.Namespace) -> str | None:
+    text_file = getattr(arguments, "text_file", None)
+    if text_file is None:
+        return getattr(arguments, "text", None)
+
+    path = Path(text_file).expanduser().resolve()
+    value = path.read_text(encoding="utf-8")
+    key = getattr(arguments, "text_json_key", None)
+    if key is None:
+        return value
+
+    document = json.loads(value)
+    if not isinstance(document, dict) or not isinstance(document.get(key), str):
+        raise ValueError(f"{path} has no string field {key!r}.")
+    return document[key]
+
+
+def redact_command_text(value: object, text: str) -> object:
+    if not text:
+        return value
+    if isinstance(value, str):
+        return value.replace(text, "<redacted-input>")
+    if isinstance(value, list):
+        return [redact_command_text(item, text) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: redact_command_text(item, text)
+            for key, item in value.items()
+        }
+    return value
+
+
 def send_command(arguments: argparse.Namespace) -> dict[str, object]:
     ready = read_ready_state(arguments)
     command_id = str(uuid.uuid4())
@@ -509,7 +550,6 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "identifiers",
         "label",
         "index",
-        "text",
         "duration",
         "normalizedX",
         "normalizedY",
@@ -517,6 +557,9 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         value = getattr(arguments, key)
         if value is not None:
             command[key] = value
+    text = resolve_command_text(arguments)
+    if text is not None:
+        command["text"] = text
 
     with tempfile.TemporaryDirectory(prefix="enchron-interactive-command-") as directory:
         directory_path = Path(directory)
@@ -552,6 +595,8 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
                 "observations": timeout_observations(arguments),
             }
         response = json.loads(response_path.read_text(encoding="utf-8"))
+        if getattr(arguments, "redact_response_text", False):
+            response = redact_command_text(response, text or "")
         annotate_response(arguments, str(ready["sessionID"]), response)
         screenshot_relative_path = response.get("screenshotRelativePath")
         if screenshot_relative_path:
@@ -602,8 +647,24 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
             device=arguments.device,
             runner_bundle_id=APP_BUNDLE_ID,
             local_path=command_path,
-            remote_path=APP_COMMAND_PATH,
+            remote_path=(
+                f"{DEFERRED_APP_COMMAND_ROOT}/{command_id}.json"
+                if arguments.defer_response
+                else APP_COMMAND_PATH
+            ),
         )
+        if arguments.defer_response:
+            # The app polls this single request slot every 500 ms. Give it one
+            # full poll interval before a later command may replace the file;
+            # the segment retrieves and validates every UUID-named response in
+            # one directory copy after all actions finish.
+            time.sleep(0.75)
+            return {
+                "success": True,
+                "deferred": True,
+                "id": command_id,
+                "verb": arguments.verb,
+            }
 
         deadline = time.monotonic() + arguments.timeout_seconds
         while not copy_from_device(
@@ -859,6 +920,7 @@ def parse_arguments() -> argparse.Namespace:
             "doubleTap",
             "press",
             "typeText",
+            "replaceText",
             "swipeUp",
             "swipeDown",
             "swipeLeft",
@@ -901,20 +963,32 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--identifiers", nargs="+")
     parser.add_argument("--label")
     parser.add_argument("--index", type=int)
-    parser.add_argument("--text")
+    text_source = parser.add_mutually_exclusive_group()
+    text_source.add_argument("--text")
+    text_source.add_argument("--text-file", dest="text_file", type=Path)
+    parser.add_argument("--text-json-key", dest="text_json_key")
+    parser.add_argument(
+        "--redact-response-text",
+        dest="redact_response_text",
+        action="store_true",
+    )
     parser.add_argument("--duration", type=float)
     parser.add_argument("--normalized-x", dest="normalizedX", type=float)
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
     parser.add_argument("--no-screenshot", action="store_true")
     parser.add_argument("--verb")
     parser.add_argument("--arg", dest="app_arguments", action="append", default=[])
+    parser.add_argument("--defer-response", action="store_true")
     parser.add_argument(
         "--timeout-seconds",
         dest="timeout_seconds",
         type=float,
         default=30.0,
     )
-    return parser.parse_args()
+    arguments = parser.parse_args()
+    if arguments.text_json_key is not None and arguments.text_file is None:
+        parser.error("--text-json-key requires --text-file")
+    return arguments
 
 
 AUTO_HIDING_PREFIXES = (
@@ -987,6 +1061,7 @@ def main() -> int:
         return 1
     if response.get("success"):
         record_timing(arguments.action, time.monotonic() - started_at)
+    response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if response.get("success") else 2
 

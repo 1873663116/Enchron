@@ -4,11 +4,62 @@ import Foundation
 public nonisolated enum FileBrowsingDomain {}
 
 nonisolated extension FileBrowsingDomain {
-    public enum SourceType: String, Sendable, CaseIterable, Codable {
+    public enum SourceType: String, Sendable, CaseIterable, Codable, Identifiable {
         case local
         case photoLibrary
         case smb
         case webDAV
+
+        public enum Presentation: Sendable {
+            case fileImporter
+            case photoPicker
+            case serverConnection
+        }
+
+        public var id: String { rawValue }
+        public var presentation: Presentation {
+            switch self {
+            case .local: .fileImporter
+            case .photoLibrary: .photoPicker
+            case .smb, .webDAV: .serverConnection
+            }
+        }
+        public var title: String {
+            switch self {
+            case .local: "Local Files"
+            case .photoLibrary: "Photos"
+            case .smb: "SMB"
+            case .webDAV: "WebDAV"
+            }
+        }
+        public var sidebarIcon: String {
+            switch self {
+            case .local: "externaldrive.fill"
+            case .photoLibrary: "photo.on.rectangle"
+            case .smb: "server.rack"
+            case .webDAV: "cloud.fill"
+            }
+        }
+        public var connectionIcon: String {
+            switch self {
+            case .smb: "externaldrive.connected.to.line.below"
+            case .webDAV: "network"
+            case .local, .photoLibrary: "folder"
+            }
+        }
+        public var connectionSubtitle: String {
+            switch self {
+            case .smb: "Local network share · Host name or IP address"
+            case .webDAV: "HTTP(S) server · Full server address"
+            case .local, .photoLibrary: ""
+            }
+        }
+        public var addressLabel: String { self == .smb ? "Address" : "Server Address" }
+        public var addressPlaceholder: String {
+            self == .smb ? "192.168.1.20" : "https://server.example/dav/"
+        }
+        public var allowsGuestAccess: Bool { self == .smb }
+        public var alwaysShowsCredentials: Bool { self == .webDAV }
     }
 }
 

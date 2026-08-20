@@ -6,6 +6,38 @@ import Testing
 @testable import Emby
 
 struct EmbyPlaybackBridgeTests {
+    @Test("an unsupported declared video codec is rejected before playback starts")
+    func unsupportedVideoCodec() async throws {
+        let item = movie(id: "movie", resumeTicks: 0)
+        let source = mediaSource(
+            id: "source",
+            container: "mkv",
+            streams: [
+                mediaStream(index: 0, kind: .video, external: false, codec: "vc1")
+            ]
+        )
+        let client = FakeEmbyClient(
+            items: [item.metadata.id: item],
+            playback: [item.metadata.id: EmbyPlaybackSession(
+                id: EmbyPlaySessionID(rawValue: "session"),
+                mediaSources: [source]
+            )]
+        )
+        let bridge = EmbyPlaybackBridge(client: client, server: server)
+
+        await #expect(throws: EmbyError.unsupportedVideoCodec("vc1")) {
+            try await bridge.request(for: EmbyPlaybackSelection(
+                item: item,
+                mediaSourceID: source.id,
+                startAction: .fromBeginning
+            ))
+        }
+        #expect(
+            EmbyError.unsupportedVideoCodec("vc1").localizedDescription
+                == "This video uses VC-1 video, which Enchron does not support."
+        )
+    }
+
     @Test("playback requests use fresh server state and the selected direct-play source")
     func requestConstruction() async throws {
         let item = movie(id: "movie", resumeTicks: 50_000_000)
@@ -41,13 +73,15 @@ struct EmbyPlaybackBridgeTests {
         #expect(resumed.viewingStateAuthority == .mediaServer)
         #expect(resumed.startPositionSeconds == 5)
         #expect(restarted.startPositionSeconds == 0)
-        #expect(resumed.url == selectedSource.directPlayURL)
+        #expect(resumed.url.scheme == "http")
+        #expect(resumed.url.host == "127.0.0.1")
+        #expect(resumed.source.byteStreamHandle != nil)
+        #expect(resumed.url != selectedSource.directPlayURL)
         #expect(resumed.versionedIdentity == selectedSource.versionedIdentity)
         #expect(resumed.collectionOrigin == .standalone)
         #expect(resumed.externalSubtitleSources.map(\.id) == ["emby.subtitle.4"])
-        #expect(resumed.externalSubtitleSources.map(\.url) == [
-            URL(string: "http://example.test/emby/subtitle/4?api_key=token")!,
-        ])
+        #expect(resumed.externalSubtitleSources.map(\.url.host) == ["127.0.0.1"])
+        #expect(resumed.externalSubtitleSources.allSatisfy { $0.byteStreamHandle != nil })
     }
 
     @Test("the reporter preserves callback order and maps runtime track IDs")
@@ -302,12 +336,13 @@ private func mediaStream(
     index: Int,
     kind: EmbyMediaStreamKind,
     external: Bool,
-    deliveryURL: String? = nil
+    deliveryURL: String? = nil,
+    codec: String = "srt"
 ) -> EmbyMediaStream {
     EmbyMediaStream(
         index: index,
         kind: kind,
-        codec: "srt",
+        codec: codec,
         language: "eng",
         displayTitle: "English",
         channels: nil,

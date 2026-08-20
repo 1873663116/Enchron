@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "playbackCoreExpectedFailures": [
+    "appleMVHEVCFixtureIsDistinguishedFromOrdinaryHEVC",
+    "appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat",
+    "controllerRejectsSecondOpenAndRecordsTheRejection"
+  ],
+  "playbackCoreIntermittentTimeout": {
+    "test": "acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim",
+    "markers": [
+      "Timed out",
+      "time limit"
+    ]
+  },
+  "sourceParityKnownStatuses": [
+    {
+      "name": "Samples/DynamicRange/DolbyVision/Profile20/Apple-Historic-Planet-HLS/DoVi_P20_09180_t1080p/fileSequence0.mp4",
+      "decode": "no_frames"
+    },
+    {
+      "name": "Samples/DynamicRange/HLG/LG_Cymatic_Jazz_HLG_Astra_teststream.ts",
+      "decode": "partial"
+    },
+    {
+      "name": "Samples/Professional/ProRes/ProRes RAW HQ 4.2K 23.976 HDR PQ 10.23.2021 Sample Footage.mov",
+      "decode": "probe_failed"
+    }
+  ]
+}

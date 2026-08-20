@@ -110,7 +110,7 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
         }
         return AudioSampleProviderInfo(
             providerKind: PBFFmpegAudioReaderOutputsPCM(reader.pointer)
-                ? "FFmpegSourcePCM"
+                ? "FFmpegDecodedPCM"
                 : "FFmpegCompressedAudio",
             streamIndex: Int(PBFFmpegAudioReaderGetStreamIndex(reader.pointer)),
             codecName: String(cString: PBFFmpegAudioReaderGetCodecName(reader.pointer)),
@@ -219,7 +219,8 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         demuxSession: FFmpegDemuxSession? = nil,
         operations: (any FFmpegAudioReaderOperations)? = nil,
         readerQueue: DispatchQueue = DispatchQueue(
-            label: "com.enchron.playbackcore.ffmpeg-audio-reader"
+            label: "com.enchron.playbackcore.ffmpeg-audio-reader",
+            qos: .userInitiated
         )
     ) {
         self.sourceReadMeter = sourceReadMeter

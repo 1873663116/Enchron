@@ -1,0 +1,6751 @@
+#!/usr/bin/env python3
+"""Drive Enchron's physical-device reachability matrix and preserve raw evidence.
+
+The inventory defines the axes. This runner never promotes XCTest's action return
+value to delivery evidence: delivery requires an application probe, diagnostic
+state transition, or an app-command response produced after the product handler.
+"""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+from typing import Any
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+
+
+ROOT = Path(__file__).resolve().parents[2]
+CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
+INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
+BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
+DEFAULT_EVIDENCE = Path(
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round11-20260818"
+)
+ROUND13_DOCKED_CONTENT_RESULTS = Path(
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
+    "reachability-round13-20260819/segments/docked-02-content/results.json"
+)
+DEFAULT_DERIVED_DATA = Path(
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach11-20260818"
+)
+DEVICE = "00008142-001871A11491401C"
+CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
+DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"
+APP_BUNDLE = "com.xiongzhipeng.XrPlayer"
+PRESENTATIONS = ("window", "portal", "panorama", "docked")
+MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
+PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
+SEGMENT_SCENARIO_NAMES = {
+    "browser-core",
+    "breadcrumbs",
+    "docked-content-round11",
+    "docked",
+    "docked-environment",
+    "docked-exit-command-round11",
+    "docked-exit",
+    "docked-main-window-issues",
+    "docked-menus",
+    "docked-placement",
+    "docked-resident-window",
+    "docked-spatial-secondary-issue",
+    "docked-transport-issues",
+    "emby-version-season",
+    "emby-content-round11",
+    "emby-session-recovery",
+    "file-browser-errors",
+    "library-conditions",
+    "library-editing-round11",
+    "library-reference-move",
+    "manage-add",
+    "panorama",
+    "panorama-content-round11",
+    "panorama-exit-command-round11",
+    "panorama-immersive-issues",
+    "panorama-panel-exit",
+    "panorama-resident-window",
+    "panorama-spatial-secondary-issue",
+    "playback-failures",
+    "player-ui-candidates",
+    "player-panel-portal-menus",
+    "portal",
+    "portal-dv-round11",
+    "portal-issues-round11",
+    "portal-routes-round11",
+    "remote-browser-round11",
+    "resume-decision",
+    "settings-category-round13",
+    "settings-menus",
+    "source-connection-smb",
+    "source-connection-webdav",
+    "source-sidebar",
+    "window-playback",
+    "window-dv-format-round11",
+    "window-hdr-fallback-round12",
+    "window-media-information-round12",
+    "window-top-menu-round12",
+    "window-environment-round11",
+    "window-issues-round11",
+    "window-menus-round11",
+}
+PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
+CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
+APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
+PROBE_COPY_LIMIT_BYTES = 600_000
+REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
+FIXTURE_SOURCE_ROOT = Path(
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
+    "reachability-round2-20260818/recovery/TestMediaInbox"
+)
+SCENARIO_FIXTURES = {
+    "docked-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
+    "panorama-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
+    "portal-dv-round11": ("furyroad-with-dv.mkv",),
+    "window-dv-format-round11": ("furyroad-with-dv.mkv",),
+    "window-menus-round11": ("furyroad-with-dv.mkv",),
+}
+DEFERRED_MENU_TARGETS = {
+    ("playerPanel", "audio"): "__firstUnselected",
+    ("playerPanel", "episodes"): "__firstAvailable",
+    ("emby", "season"): "__firstUnselected",
+    ("emby", "version"): "__firstUnselected",
+    ("settings", "resume-strategy"): "Ask Every Time",
+    ("settings", "end-behavior"): "Stop",
+    ("settings", "default-scenic-environment"): "Scenic Environment 1",
+    ("settings", "default-speed"): "0.5×",
+    ("settings", "controls-auto-hide"): "8 Seconds",
+}
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def redact_sensitive_values(value: object, values: tuple[str, ...]) -> object:
+    secrets = tuple(sorted((item for item in values if item), key=len, reverse=True))
+    if isinstance(value, str):
+        for secret in secrets:
+            value = value.replace(secret, "<redacted-credential>")
+        return value
+    if isinstance(value, list):
+        return [redact_sensitive_values(item, secrets) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: redact_sensitive_values(item, secrets)
+            for key, item in value.items()
+        }
+    return value
+
+
+def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "checkedAt": utc_now(),
+        "credentialFieldsNonempty": False,
+        "publicStatus": None,
+        "authenticationStatus": None,
+        "accessTokenPresent": False,
+        "serverIdentityDigest": None,
+        "passed": False,
+    }
+    try:
+        credentials = json.loads(path.read_text(encoding="utf-8"))
+        address = str(credentials.get("address", "")).strip()
+        username = str(credentials.get("username", ""))
+        password = str(credentials.get("password", ""))
+        result["credentialFieldsNonempty"] = all((address, username, password))
+        if result["credentialFieldsNonempty"] is not True:
+            result["failure"] = "credential-fields-empty"
+            return result
+
+        base = address.rstrip("/") + "/"
+        public_request = urllib.request.Request(
+            urllib.parse.urljoin(base, "System/Info/Public"),
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(public_request, timeout=15) as response:
+            result["publicStatus"] = response.status
+            public_info = json.load(response)
+
+        authorization = (
+            'MediaBrowser Client="Enchron Reachability", '
+            'Device="Mac", DeviceId="reachability-round12", Version="1"'
+        )
+        auth_request = urllib.request.Request(
+            urllib.parse.urljoin(base, "Users/AuthenticateByName"),
+            data=json.dumps({"Username": username, "Pw": password}).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Emby-Authorization": authorization,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(auth_request, timeout=15) as response:
+            result["authenticationStatus"] = response.status
+            authentication = json.load(response)
+
+        server_id = public_info.get("Id") if isinstance(public_info, dict) else None
+        token = (
+            authentication.get("AccessToken")
+            if isinstance(authentication, dict)
+            else None
+        )
+        result["accessTokenPresent"] = isinstance(token, str) and bool(token)
+        if isinstance(server_id, str) and server_id:
+            result["serverIdentityDigest"] = hashlib.sha256(
+                server_id.encode("utf-8")
+            ).hexdigest()
+        result["passed"] = (
+            result["publicStatus"] == 200
+            and result["authenticationStatus"] == 200
+            and result["accessTokenPresent"] is True
+            and isinstance(result["serverIdentityDigest"], str)
+        )
+        if result["passed"] is not True:
+            result["failure"] = "server-response-incomplete"
+    except urllib.error.HTTPError as error:
+        result["failure"] = "http-error"
+        result["httpStatus"] = error.code
+    except (OSError, ValueError, json.JSONDecodeError, urllib.error.URLError):
+        result["failure"] = "credential-check-failed"
+    return result
+
+
+def parse_probe_line(line: str) -> tuple[datetime, str] | None:
+    timestamp, separator, detail = line.partition(" ")
+    if not separator:
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed, detail
+
+
+PROBE_SEQUENCE_PATTERN = re.compile(r"(?:^| )probeSequence=(\d+)(?: |$)")
+
+
+def parse_probe_sequence(detail: str) -> int | None:
+    match = PROBE_SEQUENCE_PATTERN.search(detail)
+    return int(match.group(1)) if match is not None else None
+
+
+def load_batched_app_responses(
+    directory: Path, *, expected_ids: set[str]
+) -> dict[str, dict[str, Any]]:
+    responses: dict[str, dict[str, Any]] = {}
+    if not directory.is_dir():
+        return responses
+    for path in sorted(directory.rglob("*.json")):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(document, dict):
+            continue
+        response_id = document.get("id")
+        if not isinstance(response_id, str) or response_id not in expected_ids:
+            continue
+        if response_id in responses:
+            raise ValueError(f"duplicate app-command response {response_id}")
+        responses[response_id] = document
+    return responses
+
+
+def device_file_size(document: Any, remote_path: str) -> int | None:
+    basename = Path(remote_path).name
+
+    def visit(value: Any) -> int | None:
+        if isinstance(value, list):
+            for item in value:
+                found = visit(item)
+                if found is not None:
+                    return found
+            return None
+        if not isinstance(value, dict):
+            return None
+
+        path_values = {
+            str(value.get(key))
+            for key in ("path", "relativePath", "name", "fileName")
+            if value.get(key) is not None
+        }
+        matches = remote_path in path_values or basename in path_values
+        if matches:
+            metadata = value.get("metadata")
+            containers = [value]
+            if isinstance(metadata, dict):
+                containers.append(metadata)
+            for container in containers:
+                for key in ("size", "fileSize", "byteCount"):
+                    size = container.get(key)
+                    if isinstance(size, int) and not isinstance(size, bool):
+                        return size
+                    if isinstance(size, str) and size.isdecimal():
+                        return int(size)
+        for child in value.values():
+            found = visit(child)
+            if found is not None:
+                return found
+        return None
+
+    return visit(document)
+
+
+def parse_probe_status_response(document: dict[str, Any]) -> dict[str, Any]:
+    values: dict[str, str] = {}
+    for item in document.get("payload", []):
+        if not isinstance(item, str) or "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        values[key] = value
+
+    def integer(key: str) -> int | None:
+        value = values.get(key)
+        return int(value) if value is not None and value.isdecimal() else None
+
+    def boolean(key: str) -> bool | None:
+        value = values.get(key)
+        if value == "true":
+            return True
+        if value == "false":
+            return False
+        return None
+
+    byte_limit = integer("byteLimit")
+    file_bytes = integer("fileBytes")
+    peak_file_bytes = integer("peakFileBytes")
+    compaction_count = integer("compactionCount")
+    evidence_overflowed = boolean("evidenceOverflowed")
+    write_failed = boolean("writeFailed")
+    passed = (
+        document.get("success") is True
+        and document.get("ok") is True
+        and byte_limit is not None
+        and byte_limit > 0
+        and file_bytes is not None
+        and file_bytes <= byte_limit
+        and peak_file_bytes is not None
+        and peak_file_bytes <= byte_limit
+        and compaction_count is not None
+        and evidence_overflowed is False
+        and write_failed is False
+    )
+    return {
+        "passed": passed,
+        "byteLimit": byte_limit,
+        "fileBytes": file_bytes,
+        "peakFileBytes": peak_file_bytes,
+        "compactionCount": compaction_count,
+        "evidenceOverflowed": evidence_overflowed,
+        "writeFailed": write_failed,
+    }
+
+
+def replay_deferred_evidence(
+    *,
+    cells: dict[tuple[str, str], dict[str, Any]],
+    deliveries: list[dict[str, Any]],
+    probe_lines: list[str],
+    responses: dict[str, dict[str, Any]],
+    session_id: str,
+    started_at: str,
+    ended_at: str,
+    evidence: str,
+) -> dict[str, Any]:
+    start = datetime.fromisoformat(
+        started_at.replace("Z", "+00:00")
+    ).replace(microsecond=0)
+    end = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+    records = [
+        record for line in probe_lines
+        if (record := parse_probe_line(line)) is not None
+        and start <= record[0] <= end
+    ]
+    sequences = [parse_probe_sequence(detail) for _, detail in records]
+    sequence_ordered = (
+        bool(sequences)
+        and all(sequence is not None for sequence in sequences)
+        and all(
+            previous < current
+            for previous, current in zip(sequences, sequences[1:])
+            if previous is not None and current is not None
+        )
+    )
+    session_marker = f"reachability evidence session={session_id}"
+    session_aligned = any(session_marker in detail for _, detail in records)
+    failures: list[dict[str, Any]] = []
+
+    for delivery in deliveries:
+        context = str(delivery["context"])
+        operation = str(delivery["operation"])
+        key = (context, operation)
+        command_ids = [str(value) for value in delivery.get("commandIDs", [])]
+        command_responses_pass = all(
+            isinstance(responses.get(command_id), dict)
+            and responses[command_id].get("id") == command_id
+            and responses[command_id].get("ok") is True
+            for command_id in command_ids
+        )
+
+        requirement_results: list[bool] = []
+        for requirement in delivery.get("probeRequirements", []):
+            after_text = str(requirement.get("after", started_at))
+            after = datetime.fromisoformat(
+                after_text.replace("Z", "+00:00")
+            ).replace(microsecond=0)
+            needles = [str(value) for value in requirement.get("needles", [])]
+            requirement_results.append(any(
+                timestamp >= after and all(needle in detail for needle in needles)
+                for timestamp, detail in records
+            ))
+        probe_passes = all(requirement_results)
+        passed = (
+            session_aligned
+            and sequence_ordered
+            and command_responses_pass
+            and probe_passes
+        )
+        if not passed:
+            failures.append({
+                "context": context,
+                "operation": operation,
+                "sessionAligned": session_aligned,
+                "sequenceOrdered": sequence_ordered,
+                "commandResponsesPassed": command_responses_pass,
+                "probeRequirementsPassed": probe_passes,
+            })
+            continue
+
+        cell = cells[key]
+        cell["applicationReceived"] = True
+        if evidence not in cell["evidence"]:
+            cell["evidence"].append(evidence)
+        if reachability_evidence_is_complete(cell):
+            cell["verdict"] = "reachable"
+
+    return {
+        "passed": session_aligned and sequence_ordered and not failures,
+        "sessionAligned": session_aligned,
+        "sequenceOrdered": sequence_ordered,
+        "deliveryCount": len(deliveries),
+        "verifiedDeliveryCount": len(deliveries) - len(failures),
+        "failures": failures,
+    }
+
+
+def deferred_replay_failure_reason(replay: dict[str, Any]) -> str | None:
+    if replay.get("sessionAligned") is not True:
+        return "The segment probe has no matching session marker."
+    if replay.get("sequenceOrdered") is not True:
+        return "The segment probe records are missing sequence metadata or out of order."
+    if replay.get("passed") is not True:
+        failed = max(
+            0,
+            int(replay.get("deliveryCount", 0))
+            - int(replay.get("verifiedDeliveryCount", 0)),
+        )
+        return f"Deferred evidence replay left {failed} delivery facts unverified."
+    return None
+
+
+class DeferredProbeLine:
+    def __init__(self, requirement: dict[str, Any]) -> None:
+        self.requirement = requirement
+
+    def __contains__(self, needle: object) -> bool:
+        text = str(needle)
+        if text not in self.requirement["needles"]:
+            self.requirement["needles"].append(text)
+        return True
+
+
+class DeferredProbeSlice:
+    def __init__(self, run: "ReachabilityRun", after_marker: int) -> None:
+        self.run = run
+        self.after_marker = after_marker
+
+    def __iter__(self):
+        requirement = {
+            "after": self.run.probe_markers.get(
+                self.after_marker, self.run.probe_markers[0]
+            ),
+            "needles": [],
+        }
+        self.run.deferred_probe_requirements.append(requirement)
+        yield DeferredProbeLine(requirement)
+
+
+class DeferredProbeView:
+    def __init__(self, run: "ReachabilityRun", marker: int) -> None:
+        self.run = run
+        self.marker = marker
+
+    def __len__(self) -> int:
+        return self.marker
+
+    def __iter__(self):
+        return iter(DeferredProbeSlice(self.run, 0))
+
+    def __getitem__(self, index: slice | int):
+        if isinstance(index, slice):
+            return DeferredProbeSlice(self.run, int(index.start or 0))
+        raise IndexError(index)
+
+
+def template_pattern(template: str) -> re.Pattern[str]:
+    parts: list[str] = []
+    cursor = 0
+    depth = 0
+    start = -1
+    for index, character in enumerate(template):
+        if character == "{" and depth == 0:
+            parts.append(re.escape(template[cursor:index]))
+            start = index
+            depth = 1
+        elif character == "{" and depth:
+            depth += 1
+        elif character == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                parts.append(".+?")
+                cursor = index + 1
+    if depth:
+        return re.compile("^" + re.escape(template) + "$")
+    parts.append(re.escape(template[cursor:]))
+    return re.compile("^" + "".join(parts) + "$")
+
+
+def product_proof_contexts(operation: dict[str, Any]) -> tuple[str, ...]:
+    explicit = operation.get("proofContexts")
+    if not isinstance(explicit, list):
+        raise ValueError(
+            f"operation {operation.get('id', '<unknown>')} has no proofContexts"
+        )
+    contexts = tuple(str(value) for value in explicit)
+    unknown = set(contexts) - set(PROOF_CONTEXTS)
+    if unknown:
+        raise ValueError(
+            f"operation {operation.get('id', '<unknown>')} has unknown proof contexts "
+            f"{sorted(unknown)}"
+        )
+    return contexts
+
+
+def reachability_evidence_is_complete(cell: dict[str, Any]) -> bool:
+    if cell.get("identifierTemplate") is None:
+        return cell.get("applicationReceived") is True
+    return all(
+        cell.get(key) is True
+        for key in (
+            "existsInHierarchy",
+            "reportsHittable",
+            "applicationReceived",
+        )
+    )
+
+
+def menu_selection_target(
+    listing: dict[str, Any],
+    *,
+    preferred: tuple[str, ...] = (),
+) -> str | None:
+    payload = listing.get("payload")
+    available = [str(value) for value in payload] if isinstance(payload, list) else []
+    for target in preferred:
+        if target in available:
+            return target
+
+    menu_items = listing.get("menuItems")
+    if isinstance(menu_items, list):
+        for item in menu_items:
+            if (
+                isinstance(item, dict)
+                and item.get("isSelected") is False
+                and str(item.get("id")) in available
+            ):
+                return str(item["id"])
+    return available[0] if available else None
+
+
+def menu_delivery_probe_needle(target: str) -> str:
+    prefix = "reachability playerPanel delivered action=menu.item."
+    if target in {"__firstUnselected", "__firstAvailable"}:
+        return prefix
+    return prefix + target
+
+
+def should_open_player_panel_system_menu(presentation: str) -> bool:
+    return presentation in {"window", "portal"}
+
+
+def validated_reachable_cell(
+    document: dict[str, Any],
+    *,
+    context: str,
+    operation: str,
+) -> dict[str, Any] | None:
+    if not (
+        document.get("status") == "complete"
+        and (document.get("channelContinuity") or {}).get("passed") is True
+        and (document.get("probeJournal") or {}).get("passed") is True
+    ):
+        return None
+    for cell in document.get("cells", []):
+        if (
+            isinstance(cell, dict)
+            and cell.get("context") == context
+            and cell.get("operation") == operation
+            and cell.get("existsInHierarchy") is True
+            and cell.get("reportsHittable") is True
+            and cell.get("verdict") == "reachable"
+        ):
+            return cell
+    return None
+
+
+def video_format_open_was_delivered(
+    probe: list[str], *, offset: int
+) -> bool:
+    return any(
+        "reachability " in line
+        and " delivered action=videoFormat.open" in line
+        for line in probe[offset:]
+    )
+
+
+def merge_selected_cells_into_baseline(
+    baseline_cells: list[dict[str, Any]],
+    current_cells: list[dict[str, Any]],
+    *,
+    selected: set[str],
+) -> list[dict[str, Any]]:
+    baseline_by_key = {
+        (cell.get("context"), cell.get("operation")): cell
+        for cell in baseline_cells
+    }
+    merged: list[dict[str, Any]] = []
+    for cell in current_cells:
+        key = (cell["context"], cell["operation"])
+        accepted = (
+            cell
+            if cell["context"] in selected
+            else baseline_by_key.get(key, cell)
+        )
+        merged.append({
+            "context": accepted["context"],
+            "operation": accepted["operation"],
+            "verdict": accepted["verdict"],
+        })
+    return merged
+
+
+def merge_segment_delivery(
+    baseline_cells: list[dict[str, Any]],
+    segment_results: list[dict[str, Any]],
+    *,
+    require_baseline_coverage: bool = False,
+    no_regression_cells: set[tuple[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Merge only cells driven by complete, channel-continuous segments."""
+    static_coverage = set(no_regression_cells or ())
+    candidate_by_key = {
+        (str(cell["context"]), str(cell["operation"])): dict(cell)
+        for cell in baseline_cells
+    }
+    accepted_segments: list[str] = []
+    rejected_segments: list[str] = []
+    driven_keys: set[tuple[str, str]] = set()
+    observed_verdicts: dict[tuple[str, str], set[str]] = {}
+    observed_defect_evidence: set[tuple[str, str]] = set()
+    unassessed_legacy_driven_cells: list[dict[str, str]] = []
+
+    for segment in segment_results:
+        name = str(segment.get("segment", "unnamed"))
+        session_id = segment.get("sessionID")
+        health = segment.get("channelHealth")
+        before = health.get("before", {}) if isinstance(health, dict) else {}
+        after = health.get("after", {}) if isinstance(health, dict) else {}
+        channel_continuous = (
+            segment.get("status") == "complete"
+            and isinstance(session_id, str)
+            and bool(session_id)
+            and before.get("passed") is True
+            and after.get("passed") is True
+            and before.get("sessionID") == session_id
+            and after.get("sessionID") == session_id
+            and (
+                not isinstance(segment.get("channelContinuity"), dict)
+                or segment["channelContinuity"].get("passed") is True
+            )
+        )
+        if not channel_continuous:
+            rejected_segments.append(name)
+            continue
+
+        accepted_segments.append(name)
+        cells = {
+            (str(cell.get("context")), str(cell.get("operation"))): cell
+            for cell in segment.get("cells", [])
+            if isinstance(cell, dict)
+        }
+        raw_driven_by_key = {
+            (str(driven.get("context")), str(driven.get("operation"))): driven
+            for driven in segment.get("drivenCells", [])
+            if isinstance(driven, dict)
+        }
+        if segment.get("deliveryAssessmentModel") == "explicit-v1":
+            for key, cell in cells.items():
+                if reachability_evidence_is_complete(cell):
+                    raw_driven_by_key.setdefault(
+                        key,
+                        {"context": key[0], "operation": key[1]},
+                    )
+        raw_driven = list(raw_driven_by_key.values())
+        assessed_keys: set[tuple[str, str]] | None = None
+        if (
+            segment.get("deliveryAssessmentModel") != "explicit-v1"
+            and int(segment.get("schemaVersion", 0) or 0) >= 3
+            and isinstance(segment.get("deferredEvidence"), dict)
+        ):
+            assessed_keys = {
+                (str(delivery.get("context")), str(delivery.get("operation")))
+                for delivery in segment["deferredEvidence"].get("deliveries", [])
+                if isinstance(delivery, dict)
+            }
+            assessed_keys.update(
+                key for key, cell in cells.items()
+                if cell.get("applicationReceived") is True
+            )
+            for driven in raw_driven:
+                key = (
+                    str(driven.get("context")),
+                    str(driven.get("operation")),
+                )
+                if key not in assessed_keys:
+                    unassessed_legacy_driven_cells.append({
+                        "segment": name,
+                        "context": key[0],
+                        "operation": key[1],
+                    })
+
+        for driven in raw_driven:
+            if not isinstance(driven, dict):
+                continue
+            key = (
+                str(driven.get("context")),
+                str(driven.get("operation")),
+            )
+            if assessed_keys is not None and key not in assessed_keys:
+                continue
+            if key not in candidate_by_key:
+                continue
+            driven_keys.add(key)
+            observed = cells.get(key)
+            verdict = (
+                str(observed.get("verdict"))
+                if isinstance(observed, dict)
+                else "known-defect"
+            )
+            observed_verdicts.setdefault(key, set()).add(verdict)
+            if (
+                verdict != "reachable"
+                and isinstance(observed, dict)
+                and bool(observed.get("evidence"))
+            ):
+                observed_defect_evidence.add(key)
+
+    for key, verdicts in observed_verdicts.items():
+        candidate_by_key[key]["verdict"] = (
+            "reachable" if "reachable" in verdicts else "known-defect"
+        )
+
+    failures: list[dict[str, str]] = []
+    baseline_by_key = {
+        (str(cell["context"]), str(cell["operation"])): cell
+        for cell in baseline_cells
+    }
+    unknown_static_coverage = static_coverage - set(baseline_by_key)
+    if unknown_static_coverage:
+        raise ValueError(
+            "No-regression evidence names unknown baseline cells: "
+            + ", ".join(
+                f"{context}:{operation}"
+                for context, operation in sorted(unknown_static_coverage)
+            )
+        )
+    non_reachable_static_coverage = {
+        key for key in static_coverage
+        if baseline_by_key[key].get("verdict") != "reachable"
+    }
+    if non_reachable_static_coverage:
+        raise ValueError(
+            "No-regression evidence may cover only reachable baseline cells: "
+            + ", ".join(
+                f"{context}:{operation}"
+                for context, operation in sorted(non_reachable_static_coverage)
+            )
+        )
+    static_conflicts = static_coverage & observed_defect_evidence
+    for key in static_coverage - static_conflicts:
+        candidate_by_key[key]["verdict"] = "reachable"
+    for key in sorted(driven_keys):
+        if (
+            baseline_by_key[key].get("verdict") == "reachable"
+            and candidate_by_key[key].get("verdict") != "reachable"
+        ):
+            failures.append({
+                "context": key[0],
+                "operation": key[1],
+                "reason": "driven-old-reachable-not-reproved",
+            })
+    failures.extend({
+        "context": context,
+        "operation": operation,
+        "reason": "no-regression-evidence-conflicts-with-device-evidence",
+    } for context, operation in sorted(static_conflicts))
+
+    covered_keys = driven_keys | static_coverage
+    uncovered_reachable_cells = [
+        {
+            "context": str(cell["context"]),
+            "operation": str(cell["operation"]),
+        }
+        for cell in baseline_cells
+        if cell.get("verdict") == "reachable"
+        and (str(cell["context"]), str(cell["operation"])) not in covered_keys
+    ]
+    if require_baseline_coverage:
+        failures.extend({
+            "context": cell["context"],
+            "operation": cell["operation"],
+            "reason": "old-reachable-not-driven",
+        } for cell in uncovered_reachable_cells)
+
+    return {
+        "accepted": bool(accepted_segments) and not failures,
+        "acceptedSegments": accepted_segments,
+        "rejectedSegments": rejected_segments,
+        "drivenCells": [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(driven_keys)
+        ],
+        "noRegressionCoveredCells": [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(static_coverage)
+        ],
+        "failures": failures,
+        "uncoveredReachableCells": uncovered_reachable_cells,
+        "unassessedLegacyDrivenCells": unassessed_legacy_driven_cells,
+        "candidateCells": [
+            candidate_by_key[(str(cell["context"]), str(cell["operation"]))]
+            for cell in baseline_cells
+        ],
+    }
+
+
+def validate_segment_plan(
+    plan: dict[str, Any],
+    *,
+    operation_contexts: dict[str, set[str]],
+    scenario_names: set[str],
+) -> list[str]:
+    errors: list[str] = []
+    seen: set[str] = set()
+    segments = plan.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return ["segment plan must contain a nonempty segments array"]
+    for segment in segments:
+        if not isinstance(segment, dict):
+            errors.append("segment plan contains a non-object segment")
+            continue
+        name = str(segment.get("id", ""))
+        if not name:
+            errors.append("segment is missing id")
+        elif name in seen:
+            errors.append(f"segment {name} is duplicated")
+        seen.add(name)
+        context = str(segment.get("context", ""))
+        if context not in PROOF_CONTEXTS:
+            errors.append(
+                f"segment {name or '<missing>'} has unknown proof context {context}"
+            )
+        expected_maximum_steps = segment.get("expectedMaximumSteps")
+        if (
+            not isinstance(expected_maximum_steps, int)
+            or isinstance(expected_maximum_steps, bool)
+            or not 1 <= expected_maximum_steps <= 100
+        ):
+            errors.append(
+                f"segment {name or '<missing>'} expectedMaximumSteps must be between 1 and 100"
+            )
+        scenarios = segment.get("scenarios")
+        if not isinstance(scenarios, list) or not scenarios:
+            errors.append(f"segment {name or '<missing>'} has no scenarios")
+        else:
+            for scenario in scenarios:
+                if str(scenario) not in scenario_names:
+                    errors.append(
+                        f"segment {name or '<missing>'} has unknown scenario {scenario}"
+                    )
+        decisions = segment.get("decisions")
+        if not isinstance(decisions, list) or not decisions:
+            errors.append(f"segment {name or '<missing>'} has no decisions")
+        else:
+            for decision in decisions:
+                if not isinstance(decision, dict):
+                    errors.append(
+                        f"segment {name or '<missing>'} contains a non-object decision"
+                    )
+                    continue
+                decision_context = str(decision.get("context", ""))
+                operation = str(decision.get("operation", ""))
+                if decision_context not in PROOF_CONTEXTS:
+                    errors.append(
+                        f"segment {name or '<missing>'} decision has unknown proof "
+                        f"context {decision_context}"
+                    )
+                if operation not in operation_contexts:
+                    errors.append(
+                        f"segment {name or '<missing>'} has unknown operation {operation}"
+                    )
+                elif decision_context not in operation_contexts[operation]:
+                    errors.append(
+                        f"segment {name or '<missing>'} operation {operation} is not "
+                        f"derived for proof context {decision_context}"
+                    )
+    return errors
+
+
+def immersive_resident_window_is_hidden(
+    *,
+    toggle: dict[str, Any],
+    cleanup: dict[str, Any],
+    no_named_node: bool,
+    no_new_identifier: bool,
+) -> bool:
+    cleanup_proves_intermediate_state = (
+        cleanup.get("success") is True
+        and cleanup.get("ok") is True
+        and cleanup.get("payload") == ["false"]
+    )
+    mechanism_was_open = (
+        toggle.get("success") is True or cleanup_proves_intermediate_state
+    )
+    return mechanism_was_open and no_named_node and no_new_identifier
+
+
+def product_accessibility_identifiers(document: dict[str, Any]) -> set[str]:
+    """Return addressable product identifiers, excluding system scene identities."""
+    hierarchy = str(document.get("hierarchy", ""))
+    identifiers = set(re.findall(r"identifier: '([^']+)'", hierarchy))
+    system_scene_prefix = f"{APP_BUNDLE}:SFBSystemService-"
+    return {
+        identifier
+        for identifier in identifiers
+        if not identifier.startswith(system_scene_prefix)
+    }
+
+
+class ReachabilityRun:
+    def __init__(self, arguments: argparse.Namespace) -> None:
+        self.arguments = arguments
+        self.output = arguments.output_directory.resolve()
+        self.controller_output = self.output / "controller"
+        self.raw = self.output / "raw"
+        self.output.mkdir(parents=True, exist_ok=True)
+        self.controller_output.mkdir(parents=True, exist_ok=True)
+        self.raw.mkdir(parents=True, exist_ok=True)
+        self.inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
+        self.operations = {
+            str(item["id"]): item for item in self.inventory["operations"]
+        }
+        self.cells: dict[tuple[str, str], dict[str, Any]] = {}
+        self.events: list[dict[str, Any]] = []
+        self.driven_cells: set[tuple[str, str]] = set()
+        self.tapped_cells: set[tuple[str, str]] = set()
+        self.session_id: str | None = None
+        self.channel_health: dict[str, dict[str, Any]] = {}
+        self.channel_failures: list[dict[str, Any]] = []
+        self.segment: dict[str, Any] | None = getattr(arguments, "segment_spec", None)
+        self.sequence = 0
+        self.probe_offset = 0
+        self.deferred_deliveries: list[dict[str, Any]] = []
+        self.deferred_command_ids: set[str] = set()
+        self.last_deferred_command_id: str | None = None
+        self.deferred_probe_requirements: list[dict[str, Any]] = []
+        self.probe_markers: dict[int, str] = {0: utc_now()}
+        self.next_probe_marker = 1
+        self.last_controller_document: dict[str, Any] = {}
+        self.direct_devicectl_calls = 0
+        self.segment_evidence_started = False
+        self.evidence_retrieval_devicectl_calls = 0
+        self.probe_retrieval_count = 0
+        self.probe_status: dict[str, Any] = {}
+        self.sensitive_values: tuple[str, ...] = ()
+        plan_document = getattr(arguments, "segment_plan_document", None)
+        if self.segment is not None and isinstance(plan_document, dict):
+            (self.output / "segment-plan.json").write_text(
+                json.dumps(
+                    plan_document, ensure_ascii=False, indent=2, sort_keys=True
+                ) + "\n",
+                encoding="utf-8",
+            )
+        for operation_id, operation in self.operations.items():
+            for context in product_proof_contexts(operation):
+                self.cells[(context, operation_id)] = {
+                    "context": context,
+                    "operation": operation_id,
+                    "kind": operation["kind"],
+                    "identifierTemplate": operation.get("identifierTemplate"),
+                    "existsInHierarchy": False,
+                    "reportsHittable": False,
+                    "applicationReceived": False,
+                    "verdict": "known-defect",
+                    "reason": "The first-run fixture has not produced delivery evidence.",
+                    "evidence": [],
+                }
+
+    def controller(self, action: str, *extra: str, timeout: float = 180.0) -> dict[str, Any]:
+        if self.segment is not None and self.channel_failures and action != "halt":
+            document = {
+                "success": False,
+                "error": "segment channel continuity already failed",
+            }
+            self.sequence += 1
+            name = f"{self.sequence:03d}-{action}.json"
+            (self.raw / name).write_text(
+                json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            self.events.append({
+                "at": utc_now(),
+                "action": action,
+                "arguments": list(extra),
+                "success": False,
+                "evidence": f"raw/{name}",
+                "elapsedSeconds": 0.0,
+            })
+            self.last_controller_document = document
+            return document
+        command = [
+            sys.executable,
+            str(CONTROLLER),
+            "--device",
+            DEVICE,
+            "--output-directory",
+            str(self.controller_output),
+            "--developer-dir",
+            DEVELOPER_DIR,
+            "--derived-data-path",
+            str(self.arguments.derived_data_path),
+            action,
+            *extra,
+        ]
+        effective_timeout = min(timeout, 120.0) if self.segment is not None else timeout
+        started = time.monotonic()
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=effective_timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            document = {
+                "success": False,
+                "error": f"controller {action} exceeded {effective_timeout:.1f} seconds",
+            }
+        else:
+            try:
+                document = json.loads(completed.stdout)
+            except json.JSONDecodeError:
+                document = {
+                    "success": False,
+                    "error": "controller returned non-JSON output",
+                    "stdout": completed.stdout[-1000:],
+                    "stderr": completed.stderr[-1000:],
+                }
+        document = redact_sensitive_values(
+            document, getattr(self, "sensitive_values", ())
+        )
+        self.sequence += 1
+        name = f"{self.sequence:03d}-{action}.json"
+        (self.raw / name).write_text(
+            json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append(
+            {
+                "at": utc_now(),
+                "action": action,
+                "arguments": list(extra),
+                "success": document.get("success"),
+                "evidence": f"raw/{name}",
+                "elapsedSeconds": round(time.monotonic() - started, 3),
+                "devicectlCallCount": document.get("devicectlCallCount", 0),
+            }
+        )
+        error = str(document.get("error", ""))
+        if (
+            self.segment is not None
+            and (
+                "exceeded" in error
+                or "runner is not ready" in error
+            )
+        ):
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": action,
+                "error": error,
+                "evidence": f"raw/{name}",
+            })
+        self.last_controller_document = document
+        return document
+
+    def app_command(
+        self,
+        verb: str,
+        *,
+        defer_response: bool = True,
+        track_reachability: bool = True,
+        **arguments: str,
+    ) -> dict[str, Any]:
+        operation_id = f"command:{verb}"
+        context = self.active_context
+        if (
+            track_reachability
+            and operation_id in self.operations
+            and context is not None
+            and (context, operation_id) in self.cells
+        ):
+            self.mark_driven(context, operation_id)
+        extra = ["--verb", verb, "--no-screenshot"]
+        if getattr(self, "segment", None) is not None and defer_response:
+            extra.append("--defer-response")
+        if getattr(self, "segment", None) is not None:
+            if self.session_id is not None:
+                extra.extend(("--arg", f"evidenceSession={self.session_id}"))
+        for key, value in arguments.items():
+            extra.extend(("--arg", f"{key}={value}"))
+        response = self.controller("app-command", *extra)
+        if self.segment is not None and defer_response:
+            command_id = response.get("id")
+            if isinstance(command_id, str):
+                self.deferred_command_ids.add(command_id)
+                self.last_deferred_command_id = command_id
+        return response
+
+    @property
+    def active_context(self) -> str | None:
+        if self.segment is not None:
+            return str(self.segment["context"])
+        selected = list(getattr(self.arguments, "contexts", []))
+        return selected[0] if len(selected) == 1 else None
+
+    def mark_driven(self, context: str, operation_id: str) -> None:
+        if operation_id in self.operations:
+            if (context, operation_id) not in self.cells:
+                raise ValueError(
+                    f"operation {operation_id} has no proof context {context}"
+                )
+            self.driven_cells.add((context, operation_id))
+
+    def channel_health_probe(self, phase: str) -> dict[str, Any]:
+        session_id = self.session_id
+        payload = (
+            f"reachability-channel-health phase={phase} session={session_id} "
+            f"nonce={uuid.uuid4()}\n"
+        ).encode("utf-8")
+        source = self.raw / f"channel-health-{phase}-source.txt"
+        returned = self.raw / f"channel-health-{phase}-returned.txt"
+        empty = self.raw / "channel-health-empty.txt"
+        source.write_bytes(payload)
+        empty.write_bytes(b"")
+        commands = (
+            (
+                "to",
+                "--source", str(source),
+                "--destination", CHANNEL_HEALTH_REMOTE_PATH,
+            ),
+            (
+                "from",
+                "--source", CHANNEL_HEALTH_REMOTE_PATH,
+                "--destination", str(returned),
+            ),
+            (
+                "to",
+                "--source", str(empty),
+                "--destination", CHANNEL_HEALTH_REMOTE_PATH,
+            ),
+        )
+        transfers: list[dict[str, Any]] = []
+        for direction, *copy_arguments in commands:
+            started = time.monotonic()
+            self.direct_devicectl_calls += 1
+            try:
+                completed = subprocess.run(
+                    [
+                        "xcrun", "devicectl", "device", "copy", direction,
+                        "--device", CORE_DEVICE,
+                        "--domain-type", "appDataContainer",
+                        "--domain-identifier", APP_BUNDLE,
+                        *copy_arguments,
+                    ],
+                    cwd=ROOT,
+                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                transfers.append({
+                    "direction": direction,
+                    "passed": completed.returncode == 0,
+                    "elapsedSeconds": round(time.monotonic() - started, 3),
+                    "detail": (completed.stderr or completed.stdout)[-1000:],
+                })
+            except subprocess.TimeoutExpired:
+                transfers.append({
+                    "direction": direction,
+                    "passed": False,
+                    "elapsedSeconds": round(time.monotonic() - started, 3),
+                    "detail": "The 30-second channel-health transfer deadline expired.",
+                })
+                break
+        returned_bytes = returned.read_bytes() if returned.is_file() else b""
+        digest = hashlib.sha256(payload).hexdigest()
+        returned_digest = hashlib.sha256(returned_bytes).hexdigest()
+        passed = (
+            len(transfers) == 3
+            and all(transfer["passed"] for transfer in transfers)
+            and returned_bytes == payload
+            and isinstance(session_id, str)
+            and bool(session_id)
+        )
+        result = {
+            "phase": phase,
+            "sessionID": session_id,
+            "passed": passed,
+            "byteCount": len(payload),
+            "sha256": digest,
+            "returnedSha256": returned_digest,
+            "transfers": transfers,
+            "source": f"raw/{source.name}",
+            "returned": f"raw/{returned.name}",
+        }
+        health_path = self.raw / f"channel-health-{phase}.json"
+        health_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "channelHealth",
+            "phase": phase,
+            "success": passed,
+            "evidence": f"raw/{health_path.name}",
+        })
+        self.channel_health[phase] = result
+        return result
+
+    def copy_probe(
+        self, label: str, *, timeout: float = 120
+    ) -> list[str] | DeferredProbeView:
+        if self.segment is not None:
+            self.deferred_probe_requirements.clear()
+            marker = self.next_probe_marker
+            self.next_probe_marker += 1
+            self.probe_markers[marker] = utc_now()
+            self.events.append({
+                "at": self.probe_markers[marker],
+                "action": "deferProbeRead",
+                "label": label,
+                "success": True,
+                "marker": marker,
+                "evidence": "raw/deferred-evidence-replay.json",
+            })
+            return DeferredProbeView(self, marker)
+        if (
+            self.segment is not None
+            and self.channel_failures
+            and label != "segment-after-surface"
+        ):
+            self.events.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "success": False,
+                "detail": "Skipped after segment channel continuity failed.",
+            })
+            return []
+        destination = self.raw / f"{self.sequence + 1:03d}-{label}-probe.log"
+        try:
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", PROBE_REMOTE_PATH,
+                    "--destination", str(destination),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            if self.segment is not None and timeout >= 120:
+                self.channel_failures.append({
+                    "at": utc_now(),
+                    "action": "copyProbe",
+                    "error": f"Device probe copy exceeded {timeout:.1f} seconds.",
+                })
+            self.events.append({
+                "at": utc_now(), "action": "copyProbe", "success": False,
+                "detail": f"Device probe copy exceeded {timeout:.1f} seconds.",
+            })
+            return []
+        if completed.returncode != 0 or not destination.is_file():
+            self.events.append({
+                "at": utc_now(), "action": "copyProbe", "success": False,
+                "detail": (completed.stderr or completed.stdout)[-1000:],
+            })
+            return []
+        lines = destination.read_text(encoding="utf-8", errors="replace").splitlines()
+        self.events.append({
+            "at": utc_now(), "action": "copyProbe", "success": True,
+            "evidence": f"raw/{destination.name}", "lineCount": len(lines),
+        })
+        return lines
+
+    def retrieve_bounded_probe(
+        self,
+        label: str,
+        *,
+        byte_limit: int,
+        timeout: float = 120,
+    ) -> list[str]:
+        destination = self.raw / f"{label}-probe.log"
+        self.direct_devicectl_calls += 1
+        self.evidence_retrieval_devicectl_calls += 1
+        self.probe_retrieval_count += 1
+        try:
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", PROBE_REMOTE_PATH,
+                    "--destination", str(destination),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            completed = None
+        byte_count = destination.stat().st_size if destination.is_file() else None
+        passed = (
+            completed is not None
+            and completed.returncode == 0
+            and byte_count is not None
+            and byte_count <= byte_limit
+        )
+        detail = None
+        if not passed:
+            detail = (
+                f"Bounded probe copy exceeded {timeout:.1f} seconds."
+                if completed is None
+                else (completed.stderr or completed.stdout)[-1000:]
+            )
+            if byte_count is not None and byte_count > byte_limit:
+                detail = (
+                    f"Copied probe has {byte_count} bytes, above the product "
+                    f"limit of {byte_limit} bytes."
+                )
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "retrieveBoundedProbe",
+                "error": detail,
+            })
+        lines = (
+            destination.read_text(encoding="utf-8", errors="replace").splitlines()
+            if passed else []
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "retrieveBoundedProbe",
+            "success": passed,
+            "evidence": f"raw/{destination.name}" if passed else None,
+            "byteCount": byte_count,
+            "byteLimit": byte_limit,
+            "lineCount": len(lines),
+            "detail": detail,
+        })
+        return lines
+
+    def query_probe_size(
+        self, label: str, *, timeout: float = 120
+    ) -> int | None:
+        listing_path = self.raw / f"{label}-size-files.json"
+        self.direct_devicectl_calls += 1
+        if getattr(self, "segment_evidence_started", False):
+            self.evidence_retrieval_devicectl_calls += 1
+        try:
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "info", "files",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--subdirectory", "Documents",
+                    "--filter", "Name = 'surface-tap-probe.log'",
+                    "--no-recurse",
+                    "--json-output", str(listing_path),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            completed = None
+        if completed is None or completed.returncode != 0:
+            detail = (
+                f"Probe size query exceeded {timeout:.1f} seconds."
+                if completed is None
+                else (completed.stderr or completed.stdout)[-1000:]
+            )
+            self.channel_failures.append({
+                "at": utc_now(), "action": "probeSize", "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(), "action": "probeSize", "success": False,
+                "detail": detail,
+            })
+            return None
+        try:
+            listing = json.loads(listing_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            listing = {}
+        size = device_file_size(listing, PROBE_REMOTE_PATH)
+        self.events.append({
+            "at": utc_now(),
+            "action": "probeSize",
+            "success": size is not None,
+            "byteCount": size,
+            "evidence": f"raw/{listing_path.name}",
+        })
+        if size is None:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "probeSize",
+                "error": "The probe listing did not contain a byte size.",
+            })
+        return size
+
+    def archive_probe_chunk(
+        self,
+        label: str,
+        *,
+        clear_after: bool = False,
+        timeout: float = 120,
+    ) -> list[str]:
+        listing_path = self.raw / f"{label}-files.json"
+        destination = self.raw / f"{label}-probe.log"
+        started = time.monotonic()
+        try:
+            self.direct_devicectl_calls += 1
+            if getattr(self, "segment_evidence_started", False):
+                self.evidence_retrieval_devicectl_calls += 1
+            listed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "info", "files",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--subdirectory", "Documents",
+                    "--filter", "Name = 'surface-tap-probe.log'",
+                    "--no-recurse",
+                    "--json-output", str(listing_path),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "error": f"Device probe copy exceeded {timeout:.1f} seconds.",
+            })
+            self.events.append({
+                "at": utc_now(),
+                "action": "archiveProbe",
+                "success": False,
+                "detail": f"Device probe listing exceeded {timeout:.1f} seconds.",
+            })
+            return []
+
+        try:
+            listing = json.loads(listing_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            listing = {}
+        size = device_file_size(listing, PROBE_REMOTE_PATH)
+        if listed.returncode != 0 or size is None:
+            detail = (listed.stderr or listed.stdout)[-1000:]
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "error": detail or "The device probe size could not be read.",
+            })
+            self.events.append({
+                "at": utc_now(),
+                "action": "archiveProbe",
+                "success": False,
+                "detail": detail,
+            })
+            return []
+        if size >= PROBE_COPY_LIMIT_BYTES:
+            detail = (
+                f"Device probe size {size} bytes reached the "
+                f"{PROBE_COPY_LIMIT_BYTES}-byte safe copy limit."
+            )
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyProbe",
+                "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(),
+                "action": "archiveProbe",
+                "success": False,
+                "byteCount": size,
+                "detail": detail,
+            })
+            return []
+
+        remaining = max(1.0, timeout - (time.monotonic() - started))
+        try:
+            self.direct_devicectl_calls += 1
+            if getattr(self, "segment_evidence_started", False):
+                self.evidence_retrieval_devicectl_calls += 1
+            copied = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", PROBE_REMOTE_PATH,
+                    "--destination", str(destination),
+                    "--timeout", str(int(remaining)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=remaining,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            copied = None
+        if copied is None or copied.returncode != 0 or not destination.is_file():
+            detail = (
+                f"Device probe copy exceeded {timeout:.1f} seconds."
+                if copied is None
+                else (copied.stderr or copied.stdout)[-1000:]
+            )
+            self.channel_failures.append({
+                "at": utc_now(), "action": "copyProbe", "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(), "action": "archiveProbe", "success": False,
+                "detail": detail,
+            })
+            return []
+
+        lines = destination.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        cleared = self.clear_probe_after_archive() if clear_after else None
+        self.events.append({
+            "at": utc_now(),
+            "action": "archiveProbe",
+            "success": cleared is not False,
+            "evidence": f"raw/{destination.name}",
+            "byteCount": size,
+            "lineCount": len(lines),
+            "cleared": cleared,
+        })
+        return lines
+
+    def copy_batched_app_responses(
+        self, *, timeout: float = 120
+    ) -> dict[str, dict[str, Any]]:
+        destination = self.raw / "test-responses-batch"
+        try:
+            self.direct_devicectl_calls += 1
+            if getattr(self, "segment_evidence_started", False):
+                self.evidence_retrieval_devicectl_calls += 1
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "from",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", APP_RESPONSE_REMOTE_PATH,
+                    "--destination", str(destination),
+                    "--timeout", str(int(timeout)),
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            completed = None
+        if completed is None or completed.returncode != 0:
+            detail = (
+                f"App response directory copy exceeded {timeout:.1f} seconds."
+                if completed is None
+                else (completed.stderr or completed.stdout)[-1000:]
+            )
+            self.channel_failures.append({
+                "at": utc_now(), "action": "copyAppResponses", "error": detail,
+            })
+            self.events.append({
+                "at": utc_now(), "action": "copyAppResponses", "success": False,
+                "detail": detail,
+            })
+            return {}
+
+        responses = load_batched_app_responses(
+            destination, expected_ids=self.deferred_command_ids
+        )
+        missing = sorted(self.deferred_command_ids - set(responses))
+        if missing:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "copyAppResponses",
+                "error": f"The batch is missing {len(missing)} command responses.",
+                "missingResponseIDs": missing,
+            })
+        self.events.append({
+            "at": utc_now(),
+            "action": "copyAppResponses",
+            "success": not missing,
+            "evidence": f"raw/{destination.name}",
+            "expectedCount": len(self.deferred_command_ids),
+            "responseCount": len(responses),
+            "missingResponseIDs": missing,
+        })
+        return responses
+
+    def wait_for_probe(
+        self,
+        label: str,
+        offset: int,
+        needle: str,
+        *,
+        timeout: float = 20.0,
+    ) -> list[str]:
+        deadline = time.monotonic() + timeout
+        probe: list[str] = []
+        attempt = 0
+        while time.monotonic() < deadline:
+            remaining = max(1.0, deadline - time.monotonic())
+            probe = self.copy_probe(
+                f"{label}-{attempt}",
+                timeout=min(3.0, remaining),
+            )
+            if any(needle in line for line in probe[offset:]):
+                return probe
+            attempt += 1
+            time.sleep(0.5)
+        return probe
+
+    def clear_probe_after_archive(self) -> bool:
+        empty = self.raw / "probe-empty.log"
+        timeout = 120 if self.segment is not None else 150
+        deadline = time.monotonic() + timeout
+        attempts: list[str] = []
+        completed: subprocess.CompletedProcess[str] | None = None
+        for attempt in range(2):
+            empty.write_text("", encoding="utf-8")
+            remaining = max(1.0, deadline - time.monotonic())
+            self.direct_devicectl_calls += 1
+            try:
+                completed = subprocess.run(
+                    [
+                        "xcrun", "devicectl", "device", "copy", "to",
+                        "--device", CORE_DEVICE,
+                        "--domain-type", "appDataContainer",
+                        "--domain-identifier", APP_BUNDLE,
+                        "--source", str(empty),
+                        "--destination", PROBE_REMOTE_PATH,
+                        "--timeout", str(int(remaining)),
+                    ],
+                    cwd=ROOT,
+                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                    capture_output=True,
+                    text=True,
+                    timeout=remaining,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                completed = None
+                break
+            detail = (completed.stderr or completed.stdout)[-1000:]
+            attempts.append(detail)
+            if completed.returncode == 0:
+                break
+            if attempt == 0 and "error 17" in detail:
+                continue
+            break
+        if completed is None:
+            self.events.append({
+                "at": utc_now(),
+                "action": "clearProbeAfterArchive",
+                "success": False,
+                "detail": f"Probe clear exceeded {timeout} seconds.",
+            })
+            if self.segment is not None:
+                self.channel_failures.append({
+                    "at": utc_now(),
+                    "action": "clearProbeAfterArchive",
+                    "error": f"Probe clear exceeded {timeout} seconds.",
+                })
+            return False
+        self.events.append({
+            "at": utc_now(),
+            "action": "clearProbeAfterArchive",
+            "success": completed.returncode == 0,
+            "attemptCount": len(attempts),
+            "detail": attempts[-1] if attempts else "",
+        })
+        return completed.returncode == 0
+
+    def stage_fixture(self, file_name: str) -> bool:
+        source = FIXTURE_SOURCE_ROOT / file_name
+        if not source.is_file():
+            self.events.append({
+                "at": utc_now(),
+                "action": "stageFixture",
+                "success": False,
+                "detail": f"Fixture is missing: {source}",
+            })
+            return False
+        existing = self.app_command("importMedia", file=file_name)
+        if existing.get("success") is True:
+            self.events.append({
+                "at": utc_now(),
+                "action": "stageFixture",
+                "fixture": file_name,
+                "success": True,
+                "detail": (
+                    "Reused the existing harness-owned TestMediaInbox file; "
+                    "resetState will remove the temporary library reference."
+                ),
+                "evidence": self.events[-1]["evidence"],
+            })
+            return True
+        missing_message = f"TestMediaInbox does not contain {file_name}."
+        if missing_message not in json.dumps(existing, ensure_ascii=False):
+            self.events.append({
+                "at": utc_now(),
+                "action": "stageFixture",
+                "fixture": file_name,
+                "success": False,
+                "detail": (
+                    "The staged-file check failed outside the product's "
+                    "missing-file condition; the fixture was not recopied."
+                ),
+                "evidence": self.events[-1]["evidence"],
+            })
+            return False
+        try:
+            self.direct_devicectl_calls += 1
+            completed = subprocess.run(
+                [
+                    "xcrun", "devicectl", "device", "copy", "to",
+                    "--device", CORE_DEVICE,
+                    "--domain-type", "appDataContainer",
+                    "--domain-identifier", APP_BUNDLE,
+                    "--source", str(source),
+                    "--destination", f"Documents/TestMediaInbox/{file_name}",
+                ],
+                cwd=ROOT,
+                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            self.events.append({
+                "at": utc_now(),
+                "action": "stageFixture",
+                "fixture": file_name,
+                "success": False,
+                "detail": "Fixture copy exceeded the 300-second transport deadline.",
+            })
+            return False
+        self.events.append({
+            "at": utc_now(),
+            "action": "stageFixture",
+            "fixture": file_name,
+            "success": completed.returncode == 0,
+            "detail": (completed.stderr or completed.stdout)[-1000:],
+        })
+        return completed.returncode == 0
+
+    def mark_observation(
+        self,
+        presentation: str,
+        operation_id: str,
+        *,
+        exists: bool | None = None,
+        hittable: bool | None = None,
+        received: bool | None = None,
+        evidence: str,
+        reason: str,
+    ) -> None:
+        key = (presentation, operation_id)
+        if key not in self.cells:
+            raise ValueError(
+                f"operation {operation_id} has no proof context {presentation}"
+            )
+        cell = self.cells[key]
+        if exists is not None:
+            cell["existsInHierarchy"] = bool(cell["existsInHierarchy"] or exists)
+        if hittable is not None:
+            cell["reportsHittable"] = bool(cell["reportsHittable"] or hittable)
+        if received is not None:
+            should_defer = (
+                self.segment is not None
+                and received is True
+                and (
+                    bool(self.deferred_probe_requirements)
+                    or self.last_deferred_command_id is not None
+                )
+            )
+            if should_defer:
+                self.deferred_deliveries.append({
+                    "context": presentation,
+                    "operation": operation_id,
+                    "probeRequirements": list(self.deferred_probe_requirements),
+                    "commandIDs": (
+                        [self.last_deferred_command_id]
+                        if self.last_deferred_command_id is not None
+                        else []
+                    ),
+                })
+                self.deferred_probe_requirements.clear()
+                self.last_deferred_command_id = None
+            else:
+                cell["applicationReceived"] = bool(
+                    cell["applicationReceived"] or received
+                )
+        cell["evidence"].append(evidence)
+        cell["reason"] = reason
+        if reachability_evidence_is_complete(cell):
+            cell["verdict"] = "reachable"
+            self.mark_driven(presentation, operation_id)
+        elif cell["existsInHierarchy"] is True and cell["reportsHittable"] is False:
+            cell["verdict"] = "known-defect"
+
+    @staticmethod
+    def hierarchy_identifiers(document: dict[str, Any]) -> set[str]:
+        hierarchy = document.get("hierarchy")
+        if not isinstance(hierarchy, str):
+            return set()
+        return set(re.findall(r"identifier: '([^']+)'", hierarchy))
+
+    def observe(self, presentation: str, label: str) -> dict[str, Any]:
+        latest = getattr(self, "last_controller_document", {})
+        document = (
+            latest
+            if self.segment is not None and isinstance(latest.get("hierarchy"), str)
+            else self.controller("snapshot", "--no-screenshot")
+        )
+        hierarchy_identifiers = sorted(
+            identifier for identifier in self.hierarchy_identifiers(document)
+            if identifier.partition("-")[0] in self.inventory["identifierFamilies"]
+        )
+        evidence = self.events[-1]["evidence"]
+        for operation_id, operation in self.operations.items():
+            template = operation.get("identifierTemplate")
+            if not isinstance(template, str):
+                continue
+            exists = any(
+                template_pattern(template).match(identifier)
+                for identifier in hierarchy_identifiers
+            )
+            if exists:
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    exists=True,
+                    evidence=evidence,
+                    reason=(
+                        f"Observed during {label}; hittability requires an actual action "
+                        "response and delivery requires product evidence."
+                    ),
+                )
+        return document
+
+    def tap(
+        self,
+        presentation: str,
+        identifier: str,
+        *,
+        operation_id: str | None = None,
+        index: int | None = None,
+    ) -> dict[str, Any]:
+        operation_id = operation_id or f"accessibility:{identifier}"
+        if operation_id in self.operations:
+            self.tapped_cells.add((presentation, operation_id))
+        target_arguments = ["--identifier", identifier]
+        if index is not None:
+            target_arguments.extend(("--index", str(index)))
+        document = self.controller(
+            "tap", *target_arguments,
+            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+        )
+        matched = document.get("matchedElement")
+        if operation_id in self.operations and isinstance(matched, dict):
+            self.mark_observation(
+                presentation,
+                operation_id,
+                exists=True,
+                hittable=matched.get("isHittable") is True,
+                evidence=self.events[-1]["evidence"],
+                reason="XCTest located the target; product delivery is judged separately.",
+            )
+        return document
+
+    def tap_label(
+        self,
+        presentation: str,
+        label: str,
+        *,
+        operation_id: str | None = None,
+    ) -> dict[str, Any]:
+        if operation_id in self.operations:
+            self.tapped_cells.add((presentation, operation_id))
+        document = self.controller(
+            "tap", "--label", label,
+            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+        )
+        matched = document.get("matchedElement")
+        if operation_id in self.operations and isinstance(matched, dict):
+            self.mark_observation(
+                presentation,
+                operation_id,
+                exists=True,
+                hittable=matched.get("isHittable") is True,
+                evidence=self.events[-1]["evidence"],
+                reason="XCTest located the target; product delivery is judged separately.",
+            )
+        return document
+
+    def delivered(
+        self,
+        presentation: str,
+        operation_id: str,
+        evidence: str,
+        reason: str,
+        *,
+        has_accessibility_target: bool = True,
+    ) -> None:
+        self.mark_driven(presentation, operation_id)
+        self.mark_observation(
+            presentation,
+            operation_id,
+            exists=True if has_accessibility_target else None,
+            hittable=True if has_accessibility_target else None,
+            received=True,
+            evidence=evidence,
+            reason=reason,
+        )
+
+    def delivered_by_debug_menu_selection(
+        self,
+        presentation: str,
+        operation_id: str,
+        parent_operation_id: str,
+        evidence: str,
+        reason: str,
+    ) -> bool:
+        parent = self.cells[(presentation, parent_operation_id)]
+        if not (
+            parent["existsInHierarchy"] is True
+            and parent["reportsHittable"] is True
+        ):
+            return False
+        self.mark_observation(
+            presentation,
+            operation_id,
+            exists=True,
+            hittable=True,
+            received=True,
+            evidence=evidence,
+            reason=reason,
+        )
+        return True
+
+    def select_debug_menu_item(
+        self,
+        *,
+        presentation: str,
+        host: str,
+        family: str,
+        preferred: tuple[str, ...] = (),
+        driven_operations: tuple[str, ...] = (),
+    ) -> tuple[str | None, dict[str, Any], dict[str, Any]]:
+        listing = self.app_command(
+            "listMenuItems",
+            host=host,
+            family=family,
+        )
+        if listing.get("success") is not True and "file node" in str(
+            listing.get("error", "")
+        ):
+            time.sleep(0.5)
+            listing = self.app_command(
+                "listMenuItems",
+                host=host,
+                family=family,
+            )
+        if listing.get("success") is not True:
+            return None, listing, {"success": False}
+        self.delivered(
+            presentation,
+            "command:listMenuItems",
+            self.events[-1]["evidence"],
+            "The visible product host enumerated its current menu items.",
+            has_accessibility_target=False,
+        )
+        target = menu_selection_target(listing, preferred=preferred)
+        if target is None and self.segment is not None:
+            target = (
+                preferred[0]
+                if preferred
+                else DEFERRED_MENU_TARGETS.get((host, family))
+            )
+        if target is None:
+            return None, listing, {"success": False}
+        for operation_id in driven_operations:
+            self.mark_driven(presentation, operation_id)
+        selected = self.app_command(
+            "selectMenuItem",
+            host=host,
+            family=family,
+            target=target,
+        )
+        if selected.get("success") is True:
+            self.delivered(
+                presentation,
+                "command:selectMenuItem",
+                self.events[-1]["evidence"],
+                "The visible product host invoked its shared menu selection handler.",
+                has_accessibility_target=False,
+            )
+        return target, listing, selected
+
+    def set_file_browser_alert_field(
+        self,
+        *,
+        presentation: str,
+        operation: str,
+        field: str,
+        value: str,
+        evidence_label: str,
+    ) -> tuple[dict[str, Any], list[str] | DeferredProbeView]:
+        before = self.copy_probe(f"{evidence_label}-before")
+        offset = len(before)
+        self.mark_driven(presentation, operation)
+        response = self.app_command(
+            "setFileBrowserAlertField",
+            field=field,
+            value=value,
+        )
+        probe = self.copy_probe(evidence_label)
+        action = (
+            "newFolder.name"
+            if field == "newFolderName"
+            else "renameFolder.name"
+        )
+        if response.get("success") is True and any(
+            f"reachability files delivered action={action}" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                operation,
+                self.events[-1]["evidence"],
+                "The DEBUG command wrote the same Binding used by the visible "
+                "SwiftUI alert field. The visionOS system alert bridge does not "
+                "export that field's product accessibility identifier.",
+                has_accessibility_target=False,
+            )
+        return response, probe
+
+    def wait_for_identifier(
+        self, identifier: str, *, timeout: float = 40.0
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout
+        latest: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            latest = self.controller(
+                "snapshot", "--identifier", identifier, "--no-screenshot"
+            )
+            if isinstance(latest.get("matchedElement"), dict):
+                return latest
+            time.sleep(1)
+        return latest
+
+    def wait_for_identifier_value(
+        self,
+        identifier: str,
+        required_facts: tuple[str, ...],
+        *,
+        timeout: float = 40.0,
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout
+        latest: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            latest = self.controller(
+                "snapshot", "--identifier", identifier, "--no-screenshot"
+            )
+            matched = latest.get("matchedElement")
+            value = str(matched.get("value", "")) if isinstance(matched, dict) else ""
+            if all(fact in value for fact in required_facts):
+                return latest
+            time.sleep(1)
+        return latest
+
+    def wait_for_any_identifier(
+        self, identifiers: tuple[str, ...], *, timeout: float = 40.0
+    ) -> tuple[str | None, dict[str, Any]]:
+        deadline = time.monotonic() + timeout
+        latest: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            latest = self.controller("snapshot", "--no-screenshot")
+            visible = self.hierarchy_identifiers(latest)
+            for identifier in identifiers:
+                if identifier in visible:
+                    return identifier, latest
+            time.sleep(1)
+        return None, latest
+
+    def relaunch(self) -> None:
+        self.controller("relaunch", "--no-screenshot", timeout=180)
+        time.sleep(1)
+
+    def ensure_session(self) -> bool:
+        ready = self.controller(
+            "ensure-session",
+            "--destination-id",
+            DEVICE,
+            "--no-screenshot",
+            timeout=420,
+        )
+        session_id = ready.get("sessionID")
+        if ready.get("success") is True and isinstance(session_id, str):
+            self.session_id = session_id
+            return True
+        return False
+
+    def show_controls(self, presentation: str | None = None) -> dict[str, Any]:
+        result = self.app_command("toggleControls", visible="true")
+        if result.get("success") is not True and "file node" in str(
+            result.get("error", "")
+        ):
+            time.sleep(0.5)
+            result = self.app_command("toggleControls", visible="true")
+        context = presentation or self.active_context
+        if (
+            result.get("success") is True
+            and context is not None
+            and (context, "command:toggleControls") in self.cells
+        ):
+            self.delivered(
+                context,
+                "command:toggleControls",
+                self.events[-1]["evidence"],
+                "The DEBUG command reached the product control-visibility handler and returned success.",
+                has_accessibility_target=False,
+            )
+        return result
+
+    def tap_control(
+        self,
+        presentation: str,
+        identifier: str,
+        *,
+        operation_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.show_controls(presentation)
+        return self.tap(presentation, identifier, operation_id=operation_id)
+
+    def tap_with_fresh_controls(
+        self,
+        presentation: str,
+        identifier: str,
+        *,
+        probe_label: str,
+    ) -> tuple[dict[str, Any], list[str]]:
+        before = self.copy_probe(probe_label)
+        self.show_controls(presentation)
+        return self.tap(presentation, identifier), before
+
+    def reset_reachability_state(self) -> dict[str, Any]:
+        return self.app_command(
+            "resetState",
+            libraryFolder=REACHABILITY_LIBRARY_FOLDER,
+        )
+
+    def browser_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.observe(presentation, "browser launch")
+        before = self.copy_probe("browser-before")
+        self.probe_offset = len(before)
+
+        for identifier, tab in (
+            ("Navigation-Ornament-tab-settings", "settings"),
+            ("Navigation-Ornament-tab-files", "files"),
+            ("Emby-Navigation-Tab", "emby"),
+        ):
+            response = self.tap(presentation, identifier)
+            time.sleep(0.5)
+            probe = self.copy_probe(f"navigation-{tab}")
+            if response.get("success") is True and any(
+                f"navigation tab delivered tab={tab}" in line
+                for line in probe[self.probe_offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier}",
+                    self.events[-1]["evidence"],
+                    "The navigation handler appended its tab-specific application probe.",
+                )
+            self.probe_offset = len(probe)
+
+            if tab == "settings":
+                before = self.copy_probe("settings-category-before")
+                offset = len(before)
+                category = self.tap(
+                    presentation, "Settings-category-storagePrivacy"
+                )
+                probe = self.copy_probe("settings-category-selected")
+                if category.get("success") is True and any(
+                    "reachability settings delivered action=category.storagePrivacy"
+                    in line for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:Settings-category-{item.id}",
+                        self.events[-1]["evidence"],
+                        "The Settings category row changed the product selection and appended its category probe.",
+                    )
+                self.probe_offset = len(probe)
+
+        self.observe(presentation, "Emby home")
+        emby = self.app_command("scrollEmby", page="home", direction="forward")
+        if emby.get("success") is True:
+            self.delivered(
+                presentation, "scroll:emby", self.events[-1]["evidence"],
+                "The visible Emby page accepted the request and reported the handled page.",
+                has_accessibility_target=False,
+            )
+        self.observe(presentation, "Emby after forward pagination")
+
+        environment = self.tap(
+            presentation, "Navigation-Ornament-tab-environment"
+        )
+        opened_probe = self.copy_probe("environment-open")
+        if any(
+            "navigation tab delivered tab=environment" in line
+            for line in opened_probe[self.probe_offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Navigation-Ornament-tab-environment",
+                self.events[-1]["evidence"],
+                "The navigation handler appended the environment-tab application probe.",
+            )
+        self.probe_offset = len(opened_probe)
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot")
+        effect_ids = sorted(
+            identifier for identifier in self.hierarchy_identifiers(volume)
+            if identifier.startswith("EnvironmentCard-effect-")
+        )
+        effect_delivered = False
+        if effect_ids:
+            self.tap("window", effect_ids[0], operation_id=(
+                "accessibility:EnvironmentCard-effect-"
+                "{environment.environment.rawValue}"
+            ))
+            time.sleep(0.5)
+            probe = self.copy_probe("environment-effect")
+            effect_delivered = any(
+                "environmentCard effect delivered" in line
+                for line in probe[self.probe_offset:]
+            )
+            self.probe_offset = len(probe)
+            if effect_delivered:
+                self.delivered(
+                    "window",
+                    "accessibility:EnvironmentCard-effect-"
+                    "{environment.environment.rawValue}",
+                    self.events[-1]["evidence"],
+                    "The Environment Card handler appended the selected effect probe.",
+                )
+        dismiss = self.app_command("dismissEnvironmentCard")
+        closed = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=8)
+        if (
+            environment.get("success") is True
+            and isinstance(volume.get("matchedElement"), dict)
+            and effect_delivered
+            and dismiss.get("success") is True
+            and not isinstance(closed.get("matchedElement"), dict)
+        ):
+            self.delivered(
+                "window",
+                "environmentVolume:open-interact-close",
+                self.events[-1]["evidence"],
+                "Open, effect interaction, and application-driven close each produced device evidence.",
+                has_accessibility_target=False,
+            )
+        probe = self.copy_probe("environment-close")
+        self.probe_offset = len(probe)
+
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("browser-folder-before")
+        offset = len(before)
+        folder = self.tap(
+            presentation,
+            f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
+            operation_id="accessibility:MediaLibrary-grid-folder-{folder.name}",
+        )
+        if folder.get("success") is not True:
+            folder = self.tap(
+                presentation,
+                f"FileBrowsing-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
+                operation_id="accessibility:FileBrowsing-grid-folder-{folder.name}",
+            )
+        probe = self.copy_probe("browser-folder-open")
+        if folder.get("success") is True:
+            if any(
+                "reachability files delivered action=library.folder" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:MediaLibrary-grid-folder-{folder.name}",
+                    self.events[-1]["evidence"],
+                    "The Media Library card ran its folder navigation handler.",
+                )
+            elif any(
+                "reachability files delivered action=remote.folder" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-grid-folder-{folder.name}",
+                    self.events[-1]["evidence"],
+                    "The remote browser card ran its folder navigation handler.",
+                )
+        self.probe_offset = len(probe)
+        self.observe(presentation, "file folder")
+        scroll = self.controller(
+            "swipeUp", "--identifier", "FileBrowsing-FilesScreen-list",
+            "--no-screenshot", timeout=90,
+        )
+        time.sleep(0.5)
+        probe = self.copy_probe("file-scroll")
+        if scroll.get("success") is True and any(
+            "reachability fileScroll" in line for line in probe[self.probe_offset:]
+        ):
+            self.delivered(
+                presentation, "scroll:file-list", self.events[-1]["evidence"],
+                "The Files scroll geometry callback appended an offset probe.",
+                has_accessibility_target=False,
+            )
+
+    def prove_navigation_tab(self, tab: str) -> bool:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        identifiers = {
+            "files": "Navigation-Ornament-tab-files",
+            "settings": "Navigation-Ornament-tab-settings",
+        }
+        identifier = identifiers[tab]
+        self.relaunch()
+        before = self.copy_probe(f"segment-navigation-{tab}-before")
+        offset = len(before)
+        response = self.tap(presentation, identifier)
+        probe = self.copy_probe(f"segment-navigation-{tab}")
+        delivered = response.get("success") is True and any(
+            f"navigation tab delivered tab={tab}" in line
+            for line in probe[offset:]
+        )
+        if delivered:
+            self.delivered(
+                presentation,
+                f"accessibility:{identifier}",
+                self.events[-1]["evidence"],
+                "The segment prerequisite navigation reached its product handler and appended the tab probe.",
+            )
+        return delivered
+
+    def open_source_connection(
+        self, source: str
+    ) -> tuple[dict[str, Any], list[str]]:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        before = self.copy_probe(f"source-connection-{source}-open-before")
+        offset = len(before)
+        parent = self.tap(
+            presentation, "FileBrowsing-SourcesSidebar-sourceMore"
+        )
+        source_value = "smb" if source == "SMB" else "webDAV"
+        _, _, opened = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="sourceAdd",
+            preferred=(source_value,),
+            driven_operations=(
+                f"accessibility:FileBrowsing-SourcesSidebar-add{source}",
+            ),
+        )
+        probe = self.copy_probe(f"source-connection-{source}-opened")
+        recent = probe[offset:]
+        if parent.get("success") is True and opened.get("success") is True and any(
+            "reachability files delivered action=sourceSidebar.sourceMore" in line
+            for line in recent
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+                self.events[-1]["evidence"],
+                "Opening the source menu constructed its product-owned actions and appended a probe.",
+            )
+        if parent.get("success") is True and opened.get("success") is True and any(
+            f"reachability files delivered action=sidebar.add.{source_value}" in line
+            for line in recent
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                f"accessibility:FileBrowsing-SourcesSidebar-add{source}",
+                "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+                self.events[-1]["evidence"],
+                "The named source menu was hittable; the DEBUG equivalent ran the "
+                "source-type product action and presented its connection form.",
+            )
+        return opened, probe
+
+    def type_source_connection_field(
+        self, source: str, field: str, value: str, probe: list[str]
+    ) -> list[str]:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.mark_driven(
+            presentation,
+            f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
+        )
+        offset = len(probe)
+        typed = self.controller(
+            "typeText",
+            "--identifier",
+            f"FileBrowsing-SourceConnection-{source}-{field}",
+            "--text",
+            value,
+            "--no-screenshot",
+            timeout=90,
+        )
+        updated = self.wait_for_probe(
+            f"source-connection-{source}-{field}",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.{field}",
+        )
+        if typed.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.{field}"
+            in line for line in updated[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
+                self.events[-1]["evidence"],
+                "Typing changed the source-specific form binding and appended its field probe.",
+            )
+        return updated
+
+    def source_connection_scenario(self, source: str) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        opened, probe = self.open_source_connection(
+            "SMB" if source == "smb" else "WebDAV"
+        )
+        if opened.get("success") is not True:
+            return
+        if not isinstance(
+            self.wait_for_identifier(
+                f"FileBrowsing-SourceConnection-{source}-address", timeout=10
+            ).get("matchedElement"),
+            dict,
+        ):
+            return
+
+        for field, value in (
+            ("name", f"Reachability {source}"),
+            ("address", "127.0.0.1"),
+            ("username", "reachability"),
+            ("password", "not-a-secret"),
+        ):
+            probe = self.type_source_connection_field(
+                source, field, value, probe
+            )
+
+        if source == "smb":
+            offset = len(probe)
+            guest = self.tap(
+                presentation, "FileBrowsing-SourceConnection-smb-guest"
+            )
+            probe = self.wait_for_probe(
+                "source-connection-smb-guest",
+                offset,
+                "reachability files delivered action=sourceConnection.smb.guest",
+            )
+            if guest.get("success") is True and any(
+                "reachability files delivered action=sourceConnection.smb.guest"
+                in line for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-SourceConnection-smb-guest",
+                    self.events[-1]["evidence"],
+                    "The guest toggle changed the SMB form binding and appended its probe.",
+                )
+
+            # Leaving the password field can expose the system-owned save-password
+            # alert. Dismiss it before addressing the product Connect button.
+            self.controller(
+                "tap", "--label", "以后", "--no-screenshot", timeout=90
+            )
+
+        offset = len(probe)
+        connected = self.tap(
+            presentation,
+            f"FileBrowsing-SourceConnection-{source}-connect",
+        )
+        probe = self.wait_for_probe(
+            f"source-connection-{source}-connect",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.connect",
+        )
+        if connected.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.connect"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-connect",
+                self.events[-1]["evidence"],
+                "Connect delivered the source-specific request to FilesScreen before network resolution.",
+            )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        opened, probe = self.open_source_connection(
+            "SMB" if source == "smb" else "WebDAV"
+        )
+        if opened.get("success") is not True:
+            return
+        offset = len(probe)
+        cancelled = self.tap(
+            presentation,
+            f"FileBrowsing-SourceConnection-{source}-cancel",
+        )
+        probe = self.wait_for_probe(
+            f"source-connection-{source}-cancel",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.cancel",
+        )
+        if cancelled.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.cancel"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-cancel",
+                self.events[-1]["evidence"],
+                "Cancel ran the source-specific dismissal closure and appended its probe.",
+            )
+
+    def source_sidebar_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        for identifier, family, target, expected_action in (
+            ("addFiles", "sourceAdd", "local", "sidebar.add.local"),
+            ("addFolder", "sourceAdd", "folder", "sidebar.addFolder"),
+            ("addPhotos", "sourceAdd", "photoLibrary", "sidebar.add.photoLibrary"),
+            ("refresh", "sourceAction", "refresh", "sidebar.refresh"),
+            ("delete", "sourceAction", "delete", "sourceSidebar.delete"),
+        ):
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+            before = self.copy_probe(f"source-sidebar-{identifier}-before")
+            offset = len(before)
+            parent = self.tap(
+                presentation, "FileBrowsing-SourcesSidebar-sourceMore"
+            )
+            _, _, response = self.select_debug_menu_item(
+                presentation=presentation,
+                host="files",
+                family=family,
+                preferred=(target,),
+                driven_operations=(
+                    f"accessibility:FileBrowsing-SourcesSidebar-{identifier}",
+                ),
+            )
+            probe = self.copy_probe(f"source-sidebar-{identifier}")
+            if parent.get("success") is True and response.get("success") is True and any(
+                f"reachability files delivered action={expected_action}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    f"accessibility:FileBrowsing-SourcesSidebar-{identifier}",
+                    "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+                    self.events[-1]["evidence"],
+                    "The named source menu was hittable; the DEBUG equivalent reached "
+                    "the FilesScreen handler and appended its product action probe.",
+                )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("source-sidebar-row-before")
+        offset = len(before)
+        selected = self.tap(
+            presentation,
+            "FileBrowsing-SourcesSidebar-source-media-library",
+            operation_id=(
+                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
+            ),
+        )
+        probe = self.copy_probe("source-sidebar-row-selected")
+        if selected.get("success") is True and any(
+            "reachability files delivered action=sidebar.select.media-library" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+                self.events[-1]["evidence"],
+                "The source row ran the product source-selection handler and appended its item probe.",
+            )
+
+    def file_browser_error_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+
+        for action in ("primary", "secondary"):
+            before = self.copy_probe(f"file-browser-error-{action}-before")
+            offset = len(before)
+            shown = self.app_command(
+                "showFileBrowserError",
+                message=f"Reachability verification error: {action}",
+            )
+            if shown.get("success") is not True:
+                return
+            identifier = f"FileBrowsing-error-{action}"
+            visible = self.wait_for_identifier(identifier, timeout=10)
+            if not isinstance(visible.get("matchedElement"), dict):
+                return
+            tapped = self.tap(presentation, identifier)
+            probe = self.wait_for_probe(
+                f"file-browser-error-{action}",
+                offset,
+                f"reachability files delivered action=fileBrowserError.{action}",
+            )
+            if tapped.get("success") is True and any(
+                f"reachability files delivered action=fileBrowserError.{action}"
+                in line for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier}",
+                    self.events[-1]["evidence"],
+                    "The error-dialog action reached its FilesScreen handler and appended an action probe.",
+                )
+
+    def browser_condition_scenario(
+        self, *, include_source_scenarios: bool = True
+    ) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        if include_source_scenarios:
+            self.source_connection_scenario("smb")
+            self.source_connection_scenario("webDAV")
+            self.source_sidebar_scenario()
+            self.file_browser_error_scenario()
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        reference = self.wait_for_identifier(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv", timeout=5
+        )
+        if not isinstance(reference.get("matchedElement"), dict):
+            self.app_command("importMedia", file="furyroad-stripped.mkv")
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+
+        before = self.copy_probe("browser-conditions-before")
+        offset = len(before)
+        sidebar = self.tap(presentation, "FileBrowsing-FilesScreen-sidebarToggle")
+        probe = self.copy_probe("browser-sidebar-toggle")
+        if sidebar.get("success") is True and any(
+            "reachability files delivered action=files.sidebarToggle" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
+                self.events[-1]["evidence"],
+                "The sidebar binding changed and appended its application probe.",
+            )
+        self.tap(presentation, "FileBrowsing-FilesScreen-sidebarToggle")
+
+        before = self.copy_probe("browser-view-mode-before")
+        offset = len(before)
+        view_mode = self.tap(presentation, "FileBrowsing-FilesScreen-viewMode")
+        probe = self.copy_probe("browser-view-mode")
+        if view_mode.get("success") is True and any(
+            "reachability files delivered action=files.viewMode" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:FileBrowsing-FilesScreen-viewMode",
+                self.events[-1]["evidence"],
+                "The view-mode gesture changed the screen-local product binding.",
+            )
+
+        before = self.copy_probe("browser-sort-before")
+        offset = len(before)
+        parent = self.tap(presentation, "FileBrowsing-FilesScreen-sort")
+        target, _, sort = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="sortKey",
+            preferred=("size", "modifiedDate", "name"),
+        )
+        probe = self.copy_probe("browser-sort-selected")
+        if parent.get("success") is True and sort.get("success") is True and any(
+            "reachability files delivered action=files.sort" in line
+            for line in probe[offset:]
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:FileBrowsing-FilesScreen-sort",
+                "accessibility:FileBrowsing-FilesScreen-sort",
+                self.events[-1]["evidence"],
+                "The named sort parent was hittable; the DEBUG equivalent selected "
+                f"target={target} through the Picker binding and its product onChange probe.",
+            )
+        if target is not None:
+            self.controller("tap", "--label", "Size", "--no-screenshot")
+
+        before = self.copy_probe("browser-search-before")
+        offset = len(before)
+        search = self.controller(
+            "typeText", "--identifier", "FileBrowsing-FilesScreen-search",
+            "--text", "fury", "--no-screenshot", timeout=90,
+        )
+        probe = self.copy_probe("browser-search-typed")
+        if search.get("success") is True and any(
+            "reachability files delivered action=files.search" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:FileBrowsing-FilesScreen-search",
+                self.events[-1]["evidence"],
+                "Typing changed the browser search binding and appended a probe.",
+            )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("browser-new-folder-before")
+        offset = len(before)
+        parent = self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, opened = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("newFolder",),
+            driven_operations=(
+                "accessibility:MediaLibrary-Manage-newFolder",
+            ),
+        )
+        probe = self.copy_probe("browser-new-folder-open")
+        recent = probe[offset:]
+        if parent.get("success") is True and any(
+            "reachability files delivered action=manage.open" in line
+            for line in recent
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-Manage-button",
+                self.events[-1]["evidence"],
+                "The named Manage menu was hittable and constructed its product actions.",
+            )
+        if opened.get("success") is True and any(
+            "reachability files delivered action=manage.newFolder" in line
+            for line in recent
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:MediaLibrary-Manage-newFolder",
+                "accessibility:FileBrowsing-Manage-button",
+                self.events[-1]["evidence"],
+                "The named Manage parent was hittable; the DEBUG equivalent entered "
+                "the product new-folder action and its probe confirmed delivery.",
+            )
+        _, probe = self.set_file_browser_alert_field(
+            presentation=presentation,
+            operation="accessibility:MediaLibrary-NewFolder-name",
+            field="newFolderName",
+            value="Reachability Round 2",
+            evidence_label="browser-new-folder-name",
+        )
+        before = probe
+        offset = len(before)
+        created = self.tap(presentation, "MediaLibrary-NewFolder-create")
+        probe = self.copy_probe("browser-new-folder-created")
+        if created.get("success") is True and any(
+            "reachability files delivered action=newFolder.create" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:MediaLibrary-NewFolder-create",
+                self.events[-1]["evidence"],
+                "The confirmation invoked MediaLibrary.createFolder and appended a probe.",
+            )
+
+        error = self.wait_for_identifier("MediaLibrary-error-dismiss", timeout=5)
+        if isinstance(error.get("matchedElement"), dict):
+            before = self.copy_probe("browser-error-before")
+            offset = len(before)
+            dismissed = self.tap(presentation, "MediaLibrary-error-dismiss")
+            probe = self.copy_probe("browser-error-dismissed")
+            if dismissed.get("success") is True and any(
+                "reachability files delivered action=mediaLibraryError.dismiss" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation, "accessibility:MediaLibrary-error-dismiss",
+                    self.events[-1]["evidence"],
+                    "The failed folder creation exposed the product error panel, whose dismiss closure appended a probe.",
+                )
+        else:
+            before = probe
+            offset = len(before)
+            folder = self.tap(
+                presentation, "MediaLibrary-grid-folder-Reachability Round 2",
+                operation_id="accessibility:MediaLibrary-grid-folder-{folder.name}",
+            )
+            probe = self.copy_probe("browser-library-folder-open")
+            if folder.get("success") is True and any(
+                "reachability files delivered action=library.folder" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation, "accessibility:MediaLibrary-grid-folder-{folder.name}",
+                    self.events[-1]["evidence"],
+                    "Opening the created folder ran the Media Library navigation handler.",
+                )
+
+            for direction in ("back", "forward"):
+                before = probe
+                offset = len(before)
+                navigation = self.tap(
+                    presentation,
+                    f"FileBrowsing-FilesScreen-navBackForward-{direction}",
+                )
+                probe = self.copy_probe(f"browser-navigation-{direction}")
+                if navigation.get("success") is True and any(
+                    f"reachability files delivered action=files.nav.{direction}"
+                    in line for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:FileBrowsing-FilesScreen-"
+                        f"navBackForward-{direction}",
+                        self.events[-1]["evidence"],
+                        "The navigation button reached the corresponding browser history handler.",
+                    )
+
+            # Return through the product breadcrumb before exercising root-only
+            # multi-selection controls. The named parent supplies structural
+            # evidence; the equivalent selection enters the same callback as the
+            # system Picker item.
+            before = probe
+            offset = len(before)
+            parent = self.tap(
+                presentation, "MediaLibrary-Breadcrumb-current"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="mediaLibrary",
+                family="breadcrumb",
+                preferred=("0",),
+                driven_operations=(
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                ),
+            )
+            probe = self.copy_probe("browser-library-breadcrumb-root")
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    "reachability files delivered "
+                    "action=breadcrumb.mediaLibrary" in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    self.events[-1]["evidence"],
+                    "The named breadcrumb was hittable; the DEBUG equivalent "
+                    "entered its product navigation callback and the callback "
+                    "probe confirmed delivery.",
+                )
+            self.controller(
+                "tap", "--label", "Media Library", "--no-screenshot",
+                timeout=90,
+            )
+
+        before = self.copy_probe("browser-multiselect-before")
+        offset = len(before)
+        parent = self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, selection = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("selectMultiple",),
+            driven_operations=(
+                "accessibility:MediaLibrary-Manage-selectMultiple",
+            ),
+        )
+        probe = self.copy_probe("browser-multiselect-open")
+        if parent.get("success") is True and selection.get("success") is True and any(
+            "reachability files delivered action=manage.selectMultiple" in line
+            for line in probe[offset:]
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:MediaLibrary-Manage-selectMultiple",
+                "accessibility:FileBrowsing-Manage-button",
+                self.events[-1]["evidence"],
+                "The named Manage parent was hittable; the DEBUG equivalent entered "
+                "the product multi-selection action and its probe confirmed delivery.",
+            )
+        before = probe
+        offset = len(before)
+        reference = self.tap(
+            presentation, "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+        )
+        probe = self.copy_probe("browser-reference-selected")
+        if reference.get("success") is True and any(
+            "reachability files delivered action=library.video" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:MediaLibrary-grid-video-{reference.name}",
+                self.events[-1]["evidence"],
+                "The library card ran its selection-aware activation handler.",
+            )
+        before = probe
+        offset = len(before)
+        done = self.tap(presentation, "MediaLibrary-MultiSelect-done")
+        probe = self.copy_probe("browser-multiselect-done")
+        if done.get("success") is True and any(
+            "reachability files delivered action=multiSelect.done" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:MediaLibrary-MultiSelect-done",
+                self.events[-1]["evidence"],
+                "Done exited the product multi-selection state and appended a probe.",
+            )
+
+        # Re-enter selection so the system-owned Move To menu can keep its own
+        # three-tier evidence without sacrificing the Done regression cell.
+        self.tap(presentation, "FileBrowsing-Manage-button")
+        self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("selectMultiple",),
+            driven_operations=(
+                "accessibility:MediaLibrary-Manage-selectMultiple",
+            ),
+        )
+        self.tap(
+            presentation,
+            "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+        )
+        before = self.copy_probe("browser-move-selection-before")
+        offset = len(before)
+        move_parent = self.tap(
+            presentation, "MediaLibrary-MultiSelect-move"
+        )
+        _, _, moved = self.select_debug_menu_item(
+            presentation=presentation,
+            host="mediaLibrary",
+            family="moveDestination",
+            preferred=("root",),
+        )
+        probe = self.copy_probe("browser-move-selection")
+        if (
+            move_parent.get("success") is True
+            and moved.get("success") is True
+            and any(
+                "reachability files delivered action=multiSelect.move" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:MediaLibrary-MultiSelect-move",
+                "accessibility:MediaLibrary-MultiSelect-move",
+                self.events[-1]["evidence"],
+                "The named Move To parent was hittable; the DEBUG equivalent "
+                "entered the shared move handler and its product probe confirmed "
+                "delivery.",
+            )
+
+    def manage_add_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        for target, expected_action in (
+            ("addFiles", "manage.addFiles"),
+            ("addFolder", "manage.addFolder"),
+            ("addPhotos", "manage.addPhotos"),
+        ):
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+            before = self.copy_probe(f"manage-{target}-before")
+            offset = len(before)
+            parent = self.tap(presentation, "FileBrowsing-Manage-button")
+            self.mark_driven(
+                presentation, f"accessibility:MediaLibrary-Manage-{target}"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="files",
+                family="manage",
+                preferred=(target,),
+            )
+            probe = self.copy_probe(f"manage-{target}-selected")
+            if parent.get("success") is True and any(
+                "reachability files delivered action=manage.open" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-Manage-button",
+                    self.events[-1]["evidence"],
+                    "The named Manage button constructed its product menu and appended the open probe.",
+                )
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    f"reachability files delivered action={expected_action}" in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    f"accessibility:MediaLibrary-Manage-{target}",
+                    "accessibility:FileBrowsing-Manage-button",
+                    self.events[-1]["evidence"],
+                    "The named Manage parent was hittable; the DEBUG equivalent "
+                    f"entered the {target} product handler and its probe confirmed delivery.",
+                )
+
+    def library_editing_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        if self.app_command(
+            "importMedia", file="furyroad-stripped.mkv"
+        ).get("success") is not True:
+            return
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+
+        self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, opened = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("newFolder",),
+        )
+        if opened.get("success") is True:
+            self.set_file_browser_alert_field(
+                presentation=presentation,
+                operation="accessibility:MediaLibrary-NewFolder-name",
+                field="newFolderName",
+                value="Round 13 draft",
+                evidence_label="round13-new-folder-name",
+            )
+            self.controller("tap", "--label", "Cancel", "--no-screenshot")
+
+        folder_identifier = (
+            f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}"
+        )
+        pressed = self.controller(
+            "press", "--identifier", folder_identifier,
+            "--duration", "1.2", "--no-screenshot", timeout=90,
+        )
+        rename_menu = self.controller(
+            "tap", "--label", "Rename", "--no-screenshot", timeout=90,
+        )
+        rename_opened = (
+            pressed.get("success") is True
+            and rename_menu.get("success") is True
+        )
+        if rename_opened:
+            self.set_file_browser_alert_field(
+                presentation=presentation,
+                operation="accessibility:MediaLibrary-RenameFolder-name",
+                field="renameFolderName",
+                value=f"{REACHABILITY_LIBRARY_FOLDER} Round 13",
+                evidence_label="round13-rename-name",
+            )
+
+        if rename_opened:
+            before = self.copy_probe("round11-rename-confirm-before")
+            offset = len(before)
+            renamed = self.tap(
+                presentation, "MediaLibrary-RenameFolder-confirm"
+            )
+            probe = self.copy_probe("round11-rename-confirm")
+            if renamed.get("success") is True and any(
+                "reachability files delivered action=renameFolder.confirm" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:MediaLibrary-RenameFolder-confirm",
+                    self.events[-1]["evidence"],
+                    "Rename reached MediaLibrary.rename through the product alert action.",
+                )
+
+        self.tap(presentation, "FileBrowsing-Manage-button")
+        _, _, selection = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("selectMultiple",),
+        )
+        if selection.get("success") is not True:
+            return
+        selected = self.tap(
+            presentation,
+            "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+        )
+        if selected.get("success") is not True:
+            return
+        before = self.copy_probe("round11-multiselect-delete-before")
+        offset = len(before)
+        deleted = self.tap(presentation, "MediaLibrary-MultiSelect-delete")
+        probe = self.copy_probe("round11-multiselect-delete")
+        if deleted.get("success") is True and any(
+            "reachability files delivered action=multiSelect.delete" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:MediaLibrary-MultiSelect-delete",
+                self.events[-1]["evidence"],
+                "Delete opened the product batch-removal confirmation.",
+            )
+        before = probe
+        offset = len(before)
+        confirmed = self.tap(
+            presentation, "MediaLibrary-MultiSelect-confirmDelete"
+        )
+        probe = self.copy_probe("round11-multiselect-confirm")
+        if confirmed.get("success") is True and any(
+            "reachability files delivered action=multiSelect.confirmDelete" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:MediaLibrary-MultiSelect-confirmDelete",
+                self.events[-1]["evidence"],
+                "Delete Selected reached the product removal handler; the original media was unchanged.",
+            )
+
+    def settings_menu_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        for family in (
+            "resume-strategy",
+            "end-behavior",
+            "default-scenic-environment",
+            "default-speed",
+            "controls-auto-hide",
+        ):
+            operation_id = f"menu:settings:{family}"
+            before = self.copy_probe(f"settings-{family}-before")
+            offset = len(before)
+            target, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="settings",
+                family=family,
+                driven_operations=(operation_id,),
+            )
+            probe = self.copy_probe(f"settings-{family}-selected")
+            if selected.get("success") is True and target is not None and any(
+                f"reachability settings delivered action=menu.{family}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    operation_id,
+                    self.events[-1]["evidence"],
+                    "The visible Settings host invoked its shared menu binding and appended the family probe.",
+                    has_accessibility_target=False,
+                )
+        self.select_settings_category()
+
+    def settings_category_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        self.select_settings_category()
+
+    def select_settings_category(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        before = self.copy_probe("round13-settings-category-before")
+        offset = len(before)
+        category = self.tap(
+            presentation,
+            "Settings-category-storagePrivacy",
+            operation_id="accessibility:Settings-category-{item.id}",
+            index=2,
+        )
+        probe = self.copy_probe("round13-settings-category-selected")
+        if category.get("success") is True and any(
+            "reachability settings delivered action=category.storagePrivacy" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Settings-category-{item.id}",
+                self.events[-1]["evidence"],
+                "Storage & Privacy changed the product Settings selection.",
+            )
+
+    def library_reference_move_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        imported = self.app_command("importMedia", file="furyroad-stripped.mkv")
+        if imported.get("success") is True:
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("library-reference-move-before")
+        offset = len(before)
+        target, _, moved = self.select_debug_menu_item(
+            presentation=presentation,
+            host="mediaLibrary",
+            family="referenceMoveDestination",
+        )
+        probe = self.copy_probe("library-reference-move-selected")
+        if moved.get("success") is True and target is not None and any(
+            "reachability files delivered action=libraryReference.move" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "command:selectMenuItem",
+                self.events[-1]["evidence"],
+                "The visible library reference host invoked the shared move handler and appended its product probe.",
+                has_accessibility_target=False,
+            )
+
+    def breadcrumb_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        folder_before = self.copy_probe("media-library-folder-before")
+        folder_offset = len(folder_before)
+        folder = self.tap(
+            presentation,
+            f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
+            operation_id="accessibility:MediaLibrary-grid-folder-{folder.name}",
+        )
+        folder_probe = self.wait_for_probe(
+            "media-library-folder-open",
+            folder_offset,
+            "reachability files delivered action=library.folder",
+        )
+        if folder.get("success") is True and any(
+            "reachability files delivered action=library.folder" in line
+            for line in folder_probe[folder_offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:MediaLibrary-grid-folder-{folder.name}",
+                self.events[-1]["evidence"],
+                "The Media Library folder card reached its navigation handler before the breadcrumb was exercised.",
+            )
+        if folder.get("success") is True:
+            before = self.copy_probe("media-library-breadcrumb-before")
+            offset = len(before)
+            parent = self.tap(presentation, "MediaLibrary-Breadcrumb-current")
+            self.mark_driven(
+                presentation, "accessibility:MediaLibrary-Breadcrumb-current"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="mediaLibrary",
+                family="breadcrumb",
+                preferred=("0",),
+            )
+            probe = self.copy_probe("media-library-breadcrumb-selected")
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    "reachability files delivered action=breadcrumb.mediaLibrary"
+                    in line for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    "accessibility:MediaLibrary-Breadcrumb-current",
+                    self.events[-1]["evidence"],
+                    "The named Media Library breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+                )
+
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        sources = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(sources)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        if not source_identifiers:
+            return
+        if not self.select_browseable_remote_source(
+            presentation,
+            source_identifiers,
+            evidence_prefix="files-breadcrumb",
+        ):
+            return
+        visible = self.wait_for_identifier(
+            "FileBrowsing-Breadcrumb-current", timeout=10
+        )
+        if not isinstance(visible.get("matchedElement"), dict):
+            return
+        before = self.copy_probe("files-breadcrumb-before")
+        offset = len(before)
+        parent = self.tap(presentation, "FileBrowsing-Breadcrumb-current")
+        self.mark_driven(
+            presentation, "accessibility:FileBrowsing-Breadcrumb-current"
+        )
+        _, _, selected = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="breadcrumb",
+            preferred=("0",),
+        )
+        probe = self.copy_probe("files-breadcrumb-selected")
+        if (
+            parent.get("success") is True
+            and selected.get("success") is True
+            and any(
+                "reachability files delivered action=breadcrumb.files" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:FileBrowsing-Breadcrumb-current",
+                "accessibility:FileBrowsing-Breadcrumb-current",
+                self.events[-1]["evidence"],
+                    "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+                )
+
+    def select_browseable_remote_source(
+        self,
+        presentation: str,
+        source_identifiers: list[str],
+        *,
+        evidence_prefix: str,
+    ) -> bool:
+        operation_id = "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
+        for source_identifier in source_identifiers:
+            for index in (1, 2):
+                before = self.copy_probe(f"{evidence_prefix}-source-before")
+                offset = len(before)
+                self.mark_driven(presentation, operation_id)
+                selected = self.controller(
+                    "tap",
+                    "--identifier", source_identifier,
+                    "--index", str(index),
+                    "--no-screenshot",
+                    timeout=90,
+                )
+                matched = selected.get("matchedElement")
+                if isinstance(matched, dict):
+                    self.mark_observation(
+                        presentation,
+                        operation_id,
+                        exists=True,
+                        hittable=matched.get("isHittable") is True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The non-delete child of the existing source row was addressable.",
+                    )
+                probe = self.copy_probe(f"{evidence_prefix}-source-selected")
+                if selected.get("success") is True and any(
+                    "reachability files delivered action=sidebar.select." in line
+                    for line in probe[offset:]
+                ):
+                    self.mark_observation(
+                        presentation,
+                        operation_id,
+                        received=True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The existing source row reached FilesScreen.select without activating its delete control.",
+                    )
+                    has_browseable_content = False
+                    remote_identifiers: set[str] = set()
+                    for _ in range(4):
+                        remote_state = self.controller("snapshot", "--no-screenshot")
+                        remote_identifiers = self.hierarchy_identifiers(remote_state)
+                        has_browseable_content = any(
+                            identifier.startswith(
+                                (
+                                    "FileBrowsing-grid-folder-",
+                                    "FileBrowsing-grid-video-",
+                                )
+                            )
+                            for identifier in remote_identifiers
+                        )
+                        if (
+                            has_browseable_content
+                            or "FileBrowsing-FilesScreen-loadingState"
+                            not in remote_identifiers
+                        ):
+                            break
+                    if "FileBrowsing-error-secondary" in remote_identifiers:
+                        self.tap(presentation, "FileBrowsing-error-secondary")
+                        continue
+                    if has_browseable_content:
+                        return True
+                    break
+        return False
+
+    def remote_browser_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(snapshot)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        if not source_identifiers or not self.select_browseable_remote_source(
+            presentation,
+            source_identifiers,
+            evidence_prefix="round11-remote",
+        ):
+            return
+
+        remote = self.controller("snapshot", "--no-screenshot")
+        folder_identifier = next(
+            (
+                identifier for identifier in sorted(self.hierarchy_identifiers(remote))
+                if identifier.startswith("FileBrowsing-grid-folder-")
+            ),
+            None,
+        )
+        if folder_identifier is not None:
+            before = self.copy_probe("round11-remote-folder-before")
+            offset = len(before)
+            folder = self.tap(
+                presentation,
+                folder_identifier,
+                operation_id="accessibility:FileBrowsing-grid-folder-{folder.name}",
+            )
+            probe = self.copy_probe("round11-remote-folder-open")
+            if folder.get("success") is True and any(
+                "reachability files delivered action=remote.folder" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-grid-folder-{folder.name}",
+                    self.events[-1]["evidence"],
+                    "The live remote folder card reached the navigation handler.",
+                )
+            for direction in ("back", "forward", "back"):
+                before = probe
+                offset = len(before)
+                button = self.tap(
+                    presentation,
+                    f"FileBrowsing-FilesScreen-navBackForward-{direction}",
+                )
+                probe = self.copy_probe(f"round11-remote-nav-{direction}")
+                if button.get("success") is True and any(
+                    f"reachability files delivered action=files.nav.{direction}" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:FileBrowsing-FilesScreen-"
+                        f"navBackForward-{direction}",
+                        self.events[-1]["evidence"],
+                        "The remote history button reached its product handler.",
+                    )
+
+        scroll_state = self.controller("snapshot", "--no-screenshot")
+        scroll_identifier = next(
+            (
+                identifier
+                for identifier in sorted(self.hierarchy_identifiers(scroll_state))
+                if identifier.startswith(
+                    ("FileBrowsing-grid-folder-", "FileBrowsing-grid-video-")
+                )
+            ),
+            None,
+        )
+        if scroll_identifier is None:
+            return
+        self.controller("activate", "--no-screenshot")
+        before = self.copy_probe("round11-remote-scroll-before")
+        offset = len(before)
+        scroll = self.controller(
+            "swipeUp",
+            "--identifier", scroll_identifier,
+            "--no-screenshot",
+            timeout=90,
+        )
+        probe = self.copy_probe("round11-remote-scroll")
+        if scroll.get("success") is True and any(
+            "reachability fileScroll kind=grid" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "scroll:file-list",
+                self.events[-1]["evidence"],
+                "The live remote file surface appended a scroll geometry probe.",
+                has_accessibility_target=False,
+            )
+
+        remote = self.controller("snapshot", "--no-screenshot")
+        video_identifier = next(
+            (
+                identifier for identifier in sorted(self.hierarchy_identifiers(remote))
+                if identifier.startswith("FileBrowsing-grid-video-")
+            ),
+            None,
+        )
+        if video_identifier is not None:
+            before = self.copy_probe("round11-remote-video-before")
+            offset = len(before)
+            video = self.tap(
+                presentation,
+                video_identifier,
+                operation_id="accessibility:FileBrowsing-grid-video-{file.name}",
+            )
+            probe = self.copy_probe("round11-remote-video-open")
+            if video.get("success") is True and any(
+                "reachability files delivered action=remote.video" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:FileBrowsing-grid-video-{file.name}",
+                    self.events[-1]["evidence"],
+                    "The live remote video card reached the playback handler.",
+                )
+
+    def emby_version_season_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        found_families: set[str] = set()
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        home = self.controller("snapshot", "--no-screenshot")
+        candidate_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(home)
+            if identifier.startswith(
+                ("Emby-PosterCard-", "Emby-StillCard-")
+            )
+        )
+        for card_identifier in candidate_identifiers:
+            if found_families == {"version", "season"}:
+                break
+            self.relaunch()
+            self.tap(presentation, "Emby-Navigation-Tab")
+            opened = self.tap(presentation, card_identifier)
+            if opened.get("success") is not True:
+                continue
+            detail = self.controller("snapshot", "--no-screenshot")
+            detail_identifiers = self.hierarchy_identifiers(detail)
+            for family, parent_identifier, operation_ids in (
+                (
+                    "version",
+                    "Emby-Detail-Version",
+                    ("accessibility:Emby-Detail-Version",),
+                ),
+                (
+                    "season",
+                    "Emby-Season-Picker",
+                    (
+                        "accessibility:Emby-Season-Picker",
+                        "accessibility:Emby-Season-{season.metadata.id.rawValue}",
+                    ),
+                ),
+            ):
+                if family in found_families or parent_identifier not in detail_identifiers:
+                    continue
+                before = self.copy_probe(f"emby-{family}-before")
+                offset = len(before)
+                parent = self.tap(presentation, parent_identifier)
+                for operation_id in operation_ids:
+                    self.mark_driven(presentation, operation_id)
+                target, _, selected = self.select_debug_menu_item(
+                    presentation=presentation,
+                    host="emby",
+                    family=family,
+                    driven_operations=operation_ids,
+                )
+                probe = self.copy_probe(f"emby-{family}-selected")
+                command_completed = any(
+                    "testcmd selectMenuItem ok" in line
+                    for line in probe[offset:]
+                )
+                if (
+                    parent.get("success") is True
+                    and selected.get("success") is True
+                    and target is not None
+                    and command_completed
+                ):
+                    for operation_id in operation_ids:
+                        self.delivered_by_debug_menu_selection(
+                            presentation,
+                            operation_id,
+                            operation_ids[0],
+                            self.events[-1]["evidence"],
+                            f"The visible Emby {family} host invoked its product selection binding and the completed command probe followed it.",
+                        )
+                    found_families.add(family)
+
+    def emby_session_recovery_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        credentials_path = self.arguments.emby_credentials
+        if credentials_path is None:
+            return
+        credential_document = json.loads(credentials_path.read_text(encoding="utf-8"))
+        self.sensitive_values = tuple(
+            str(credential_document.get(key, ""))
+            for key in ("address", "username", "password")
+        )
+
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        current_identity = self.controller(
+            "app-command",
+            "--verb", "embyServerIdentityDigest",
+            "--no-screenshot",
+            timeout=120,
+        )
+        readiness = verify_emby_recovery_credentials(credentials_path)
+        readiness_path = self.raw / "emby-recovery-readiness.json"
+        device_payload = current_identity.get("payload")
+        device_digest = (
+            device_payload[0]
+            if isinstance(device_payload, list)
+            and len(device_payload) == 1
+            and isinstance(device_payload[0], str)
+            else None
+        )
+        readiness["deviceIdentityDigest"] = device_digest
+        readiness["sameServer"] = (
+            readiness.get("serverIdentityDigest") == device_digest
+            and isinstance(device_digest, str)
+        )
+        readiness["passed"] = bool(
+            readiness.get("passed") is True
+            and readiness["sameServer"] is True
+            and current_identity.get("success") is True
+        )
+        readiness_path.write_text(
+            json.dumps(readiness, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "verifyEmbyRecoveryCredentials",
+            "success": readiness["passed"],
+            "evidence": f"raw/{readiness_path.name}",
+        })
+        if readiness["passed"] is not True:
+            return
+
+        before = self.copy_probe("emby-signout-before")
+        offset = len(before)
+        sign_out_operation = "accessibility:Emby-SignOut"
+        self.tapped_cells.add((presentation, sign_out_operation))
+        signed_out = self.controller(
+            "tap",
+            "--identifier", "Emby-SignOut",
+            "--index", "1",
+            "--no-screenshot",
+            "--timeout-seconds", "90",
+            timeout=120,
+        )
+        matched = signed_out.get("matchedElement")
+        if isinstance(matched, dict):
+            self.mark_observation(
+                presentation,
+                sign_out_operation,
+                exists=True,
+                hittable=matched.get("isHittable") is True,
+                evidence=self.events[-1]["evidence"],
+                reason=(
+                    "XCTest selected the non-delete child of the shared sidebar row; "
+                    "product delivery is judged separately."
+                ),
+            )
+        connection = self.wait_for_identifier("Emby-Connection-Address", timeout=20)
+        probe = self.copy_probe("emby-signout")
+        if (
+            signed_out.get("success") is True
+            and isinstance(connection.get("matchedElement"), dict)
+            and any(
+                "reachability emby delivered action=signOut" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Emby-SignOut",
+                self.events[-1]["evidence"],
+                "Sign Out reached the session handler and exposed the connection form.",
+            )
+
+        for field, key in (
+            ("Address", "address"),
+            ("Username", "username"),
+            ("Password", "password"),
+        ):
+            before = probe
+            offset = len(before)
+            typed = self.controller(
+                "replaceText",
+                "--identifier", f"Emby-Connection-{field}",
+                "--text-file", str(credentials_path),
+                "--text-json-key", key,
+                "--redact-response-text",
+                "--no-screenshot",
+                timeout=120,
+            )
+            probe = self.copy_probe(f"emby-connection-{key}")
+            if typed.get("success") is True and any(
+                f"reachability emby delivered action=connection.{key}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:Emby-Connection-{field}",
+                    self.events[-1]["evidence"],
+                    "The connection field binding changed through the ordinary product form.",
+                )
+
+        before = probe
+        offset = len(before)
+        connected = self.tap(presentation, "Emby-Connection-Connect")
+        self.controller(
+            "tap", "--label", "以后", "--no-screenshot", timeout=120
+        )
+        authenticated = self.wait_for_identifier("Emby-SignOut", timeout=35)
+        probe = self.copy_probe("emby-reconnected")
+        reconnected_identity = self.controller(
+            "app-command",
+            "--verb", "embyServerIdentityDigest",
+            "--no-screenshot",
+            timeout=120,
+        )
+        reconnect_payload = reconnected_identity.get("payload")
+        reconnected_digest = (
+            reconnect_payload[0]
+            if isinstance(reconnect_payload, list)
+            and len(reconnect_payload) == 1
+            and isinstance(reconnect_payload[0], str)
+            else None
+        )
+        if (
+            connected.get("success") is True
+            and reconnected_identity.get("success") is True
+            and reconnected_digest == device_digest
+            and any(
+                "reachability emby delivered action=connection.connect" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Emby-Connection-Connect",
+                self.events[-1]["evidence"],
+                "Connect reached the product handler and restored the same authenticated server identity.",
+            )
+
+    def emby_content_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+
+        def emby_home_snapshot() -> dict[str, Any]:
+            self.relaunch()
+            self.tap(presentation, "Emby-Navigation-Tab")
+            return self.controller("snapshot", "--no-screenshot")
+
+        def open_card(prefix: str, operation_id: str) -> tuple[str | None, dict[str, Any]]:
+            home = emby_home_snapshot()
+            identifier = next(
+                (
+                    value for value in sorted(self.hierarchy_identifiers(home))
+                    if value.startswith(prefix)
+                ),
+                None,
+            )
+            if identifier is None:
+                return None, home
+            before = self.copy_probe(f"round11-{prefix}-before")
+            offset = len(before)
+            opened = self.tap(
+                presentation, identifier, operation_id=operation_id
+            )
+            detail = self.wait_for_identifier("Emby-Detail-list", timeout=20)
+            probe = self.copy_probe(f"round11-{prefix}-opened")
+            needle = (
+                "reachability emby delivered action=posterCard.select."
+                if prefix == "Emby-PosterCard-"
+                else "reachability emby delivered action=stillCard.select."
+            )
+            if (
+                opened.get("success") is True
+                and any(needle in line for line in probe[offset:])
+            ):
+                self.delivered(
+                    presentation,
+                    operation_id,
+                    self.events[-1]["evidence"],
+                    "The existing Emby card reached the shared detail navigation handler.",
+                )
+            return identifier, detail
+
+        poster_identifier, detail = open_card(
+            "Emby-PosterCard-",
+            "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
+        )
+        if poster_identifier is not None:
+            identifiers = self.hierarchy_identifiers(detail)
+            if "Emby-Detail-Overview-Expand" in identifiers:
+                before = self.copy_probe("round11-emby-overview-before")
+                offset = len(before)
+                expanded = self.tap(
+                    presentation, "Emby-Detail-Overview-Expand"
+                )
+                probe = self.copy_probe("round11-emby-overview")
+                if expanded.get("success") is True and any(
+                    "reachability emby delivered action=detail.overview.toggle" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:Emby-Detail-Overview-Expand",
+                        self.events[-1]["evidence"],
+                        "More changed the product overview expansion state.",
+                    )
+
+        still_identifier, still_detail = open_card(
+            "Emby-StillCard-",
+            "accessibility:Emby-StillCard-{metadata.id.rawValue}",
+        )
+        playback_detail = still_detail if still_identifier is not None else detail
+        action_identifier = next(
+            (
+                value for value in (
+                    "Emby-Detail-Resume",
+                    "Emby-Detail-PlayFromBeginning",
+                )
+                if value in self.hierarchy_identifiers(playback_detail)
+            ),
+            None,
+        )
+        if action_identifier is not None:
+            before = self.copy_probe("round11-emby-play-before")
+            offset = len(before)
+            played = self.tap(
+                presentation,
+                action_identifier,
+                operation_id=(
+                    "accessibility:Emby-Detail-"
+                    "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}"
+                ),
+            )
+            control = self.wait_for_identifier(
+                "PlayerUI-window-control-plane", timeout=30
+            )
+            probe = self.copy_probe("round11-emby-play")
+            if (
+                played.get("success") is True
+                and isinstance(control.get("matchedElement"), dict)
+                and any(
+                    "reachability emby delivered action=detail.play." in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:Emby-Detail-"
+                    "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+                    self.events[-1]["evidence"],
+                    "The existing Emby title reached its playback selection handler.",
+                )
+
+        home = emby_home_snapshot()
+        preferred = "Emby-PosterCard-177"
+        card_identifiers = [
+            value for value in sorted(self.hierarchy_identifiers(home))
+            if value.startswith(("Emby-PosterCard-", "Emby-StillCard-"))
+        ]
+        if preferred in card_identifiers:
+            card_identifiers.remove(preferred)
+            card_identifiers.insert(0, preferred)
+        for card_identifier in card_identifiers:
+            self.relaunch()
+            self.tap(presentation, "Emby-Navigation-Tab")
+            if self.tap(presentation, card_identifier).get("success") is not True:
+                continue
+            detail = self.controller("snapshot", "--no-screenshot")
+            episode_identifier = next(
+                (
+                    value for value in sorted(self.hierarchy_identifiers(detail))
+                    if value.startswith("Emby-Episode-")
+                ),
+                None,
+            )
+            if episode_identifier is None:
+                continue
+            before = self.copy_probe("round11-emby-episode-before")
+            offset = len(before)
+            episode = self.tap(
+                presentation,
+                episode_identifier,
+                operation_id="accessibility:Emby-Episode-{metadata.id.rawValue}",
+            )
+            control = self.wait_for_identifier(
+                "PlayerUI-window-control-plane", timeout=30
+            )
+            probe = self.copy_probe("round11-emby-episode")
+            if (
+                episode.get("success") is True
+                and isinstance(control.get("matchedElement"), dict)
+                and any(
+                    "reachability emby delivered action=episode.select." in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:Emby-Episode-{metadata.id.rawValue}",
+                    self.events[-1]["evidence"],
+                    "The existing episode card reached the Emby playback selection handler.",
+                )
+            break
+
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        self.controller("tap", "--label", "Search", "--no-screenshot")
+        search = self.wait_for_identifier("Emby-Search-Field", timeout=15)
+        if isinstance(search.get("matchedElement"), dict):
+            before = self.copy_probe("round11-emby-search-before")
+            offset = len(before)
+            typed = self.controller(
+                "typeText", "--identifier", "Emby-Search-Field",
+                "--text", "a", "--no-screenshot", timeout=90,
+            )
+            probe = self.copy_probe("round11-emby-search")
+            if typed.get("success") is True and any(
+                "reachability emby delivered action=search.query" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:Emby-Search-Field",
+                    self.events[-1]["evidence"],
+                    "Typing changed the product Emby search binding.",
+                )
+
+        self.relaunch()
+        self.tap(presentation, "Emby-Navigation-Tab")
+        sidebar = self.controller("snapshot", "--no-screenshot")
+        library_identifier = next(
+            (
+                value for value in sorted(self.hierarchy_identifiers(sidebar))
+                if value.startswith("Emby-Sidebar-library-")
+            ),
+            None,
+        )
+        if library_identifier is not None:
+            self.controller(
+                "tap", "--identifier", library_identifier,
+                "--index", "2", "--no-screenshot", timeout=90,
+            )
+            sort = self.wait_for_identifier("Emby-Library-Sort", timeout=20)
+            matched = sort.get("matchedElement")
+            self.mark_driven(presentation, "accessibility:Emby-Library-Sort")
+            if isinstance(matched, dict):
+                self.mark_observation(
+                    presentation,
+                    "accessibility:Emby-Library-Sort",
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="The existing Emby library exposed its segmented sort control.",
+                )
+                before = self.copy_probe("round11-emby-sort-before")
+                offset = len(before)
+                changed = self.controller(
+                    "tap", "--label", "Alphabetical", "--no-screenshot", timeout=90,
+                )
+                probe = self.copy_probe("round11-emby-sort")
+                if changed.get("success") is True and any(
+                    "reachability emby delivered action=library.sort." in line
+                    for line in probe[offset:]
+                ):
+                    self.mark_observation(
+                        presentation,
+                        "accessibility:Emby-Library-Sort",
+                        received=True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="Alphabetical changed the product library sort binding.",
+                    )
+
+    def player_panel_portal_menu_scenario(self) -> None:
+        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        if opened.get("success") is not True:
+            return
+        if not self.ensure_window_projection("180°"):
+            return
+        portal = self.wait_for_identifier(
+            "PlayerUI-window-control-plane", timeout=45
+        )
+        value = str((portal.get("matchedElement") or {}).get("value", ""))
+        if "presentation=portal" not in value:
+            return
+        self.player_panel_menu_scenario("portal")
+
+    def open_media(self, identifier: str) -> dict[str, Any]:
+        self.relaunch()
+        self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("open-media-before")
+        offset = len(before)
+        file_name = identifier.removeprefix("MediaLibrary-grid-video-")
+        media_label = f"{Path(file_name).stem}, video"
+        operation_id = "accessibility:MediaLibrary-grid-video-{reference.name}"
+
+        def command_with_file_node_retry(
+            verb: str, **arguments: str
+        ) -> dict[str, Any]:
+            result = self.app_command(verb, **arguments)
+            if result.get("success") is not True and "file node" in str(
+                result.get("error", "")
+            ):
+                time.sleep(0.5)
+                result = self.app_command(verb, **arguments)
+            return result
+
+        if getattr(self, "segment", None) is not None:
+            imported = command_with_file_node_retry("importMedia", file=file_name)
+            if imported.get("success") is not True:
+                return imported
+        else:
+            listing = command_with_file_node_retry("listLibrary")
+            library_names = listing.get("payload")
+            if not isinstance(library_names, list) or file_name not in library_names:
+                imported = command_with_file_node_retry(
+                    "importMedia", file=file_name
+                )
+                if imported.get("success") is not True:
+                    return imported
+                listing = command_with_file_node_retry("listLibrary")
+                library_names = listing.get("payload")
+                if not isinstance(library_names, list) or file_name not in library_names:
+                    return {
+                        "success": False,
+                        "error": f"listLibrary did not report imported media {file_name}",
+                    }
+                self.relaunch()
+                self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
+
+        self.controller("activate", "--no-screenshot")
+        card = self.wait_for_identifier(identifier, timeout=20)
+        if not isinstance(card.get("matchedElement"), dict):
+            return {
+                "success": False,
+                "error": f"Media card did not appear after product import: {identifier}",
+            }
+        result = self.tap_label(
+            MAIN_WINDOW_BROWSER_CONTEXT,
+            media_label,
+            operation_id=operation_id,
+        )
+        probe = self.wait_for_probe(
+            "open-media-selected",
+            offset,
+            "reachability files delivered action=library.video",
+            timeout=15,
+        )
+        if result.get("success") is True and any(
+            "reachability files delivered action=library.video" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                MAIN_WINDOW_BROWSER_CONTEXT,
+                "accessibility:MediaLibrary-grid-video-{reference.name}",
+                self.events[-1]["evidence"],
+                "The Media Library video card ran its playback activation handler.",
+            )
+        time.sleep(2)
+        return result
+
+    def open_local_media(self, file_name: str) -> dict[str, Any]:
+        return self.open_media(f"MediaLibrary-grid-video-{file_name}")
+
+    def video_format_editor_scenario(
+        self,
+        presentation: str,
+        identifier_prefix: str,
+        probe_prefix: str,
+    ) -> None:
+        open_identifier = (
+            "PlayerUI-TopAction-videoFormat"
+            if identifier_prefix == "PlayerUI-VideoFormat"
+            else "PlayerPanel-button-settings"
+        )
+
+        def cancel_editor() -> None:
+            before = self.copy_probe(f"{identifier_prefix}-cancel-before")
+            offset = len(before)
+            cancelled = self.tap(
+                presentation, f"{identifier_prefix}-cancel"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-cancel",
+                offset,
+                f"{probe_prefix}videoFormat.cancel",
+            )
+            if cancelled.get("success") is True and any(
+                f"{probe_prefix}videoFormat.cancel" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-cancel",
+                    self.events[-1]["evidence"],
+                    "Cancel ran the format editor's discard handler and appended its probe.",
+                )
+
+        def open_editor() -> bool:
+            if self.channel_failures:
+                return False
+            opened, before = self.tap_with_fresh_controls(
+                presentation,
+                open_identifier,
+                probe_label=f"{identifier_prefix}-open-before",
+            )
+            if self.channel_failures:
+                return False
+            offset = len(before)
+            visible = self.wait_for_identifier(
+                f"{identifier_prefix}-cancel", timeout=10
+            )
+            probe = self.copy_probe(f"{identifier_prefix}-opened")
+            delivered = opened.get("success") is True and isinstance(
+                visible.get("matchedElement"), dict
+            ) and video_format_open_was_delivered(probe, offset=offset)
+            if delivered:
+                self.delivered(
+                    presentation,
+                    f"accessibility:{open_identifier}",
+                    self.events[-1]["evidence"],
+                    "The visible format host ran its open handler and appended the product open probe.",
+                )
+            return delivered
+
+        if open_editor():
+            before = self.copy_probe(
+                f"{identifier_prefix}-option-before"
+            )
+            offset = len(before)
+            option = self.tap(
+                presentation,
+                f"{identifier_prefix}-Stereo Layout-Side-by-Side",
+                operation_id=(
+                    f"accessibility:{identifier_prefix}-"
+                    "{title}-{label(option)}"
+                ),
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-option",
+                offset,
+                f"{probe_prefix}videoFormat.option.Stereo Layout.Side-by-Side",
+            )
+            if option.get("success") is True and any(
+                f"{probe_prefix}videoFormat.option.Stereo Layout.Side-by-Side"
+                in line for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-"
+                    "{title}-{label(option)}",
+                    self.events[-1]["evidence"],
+                    "The format option changed the editor selection and appended its option probe.",
+                )
+
+            cancel_editor()
+
+        if open_editor():
+            before = self.copy_probe(
+                f"{identifier_prefix}-custom-angle-before"
+            )
+            offset = len(before)
+            picker = self.tap(
+                presentation, f"{identifier_prefix}-CustomAngle"
+            )
+            host = (
+                "playerUI"
+                if identifier_prefix == "PlayerUI-VideoFormat"
+                else "playerPanel"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host=host,
+                family="customAngle",
+                preferred=("180",),
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-custom-angle",
+                offset,
+                f"{probe_prefix}videoFormat.customAngle",
+            )
+            if (
+                picker.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    f"{probe_prefix}videoFormat.customAngle" in line
+                    for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-CustomAngle",
+                    f"accessibility:{identifier_prefix}-CustomAngle",
+                    self.events[-1]["evidence"],
+                    "The named custom-angle Picker was hittable; the DEBUG "
+                    "equivalent changed the same editor binding and its existing "
+                    "product probe confirmed delivery.",
+                )
+            self.controller(
+                "tap", "--label", "180°", "--no-screenshot", timeout=90
+            )
+            cancel_editor()
+
+        if open_editor():
+            fallback = self.wait_for_identifier(
+                f"{identifier_prefix}-HDRFallback", timeout=3
+            )
+            if isinstance(fallback.get("matchedElement"), dict):
+                before = self.copy_probe(
+                    f"{identifier_prefix}-hdr-fallback-before"
+                )
+                offset = len(before)
+                toggled = self.tap(
+                    presentation, f"{identifier_prefix}-HDRFallback"
+                )
+                probe = self.wait_for_probe(
+                    f"{identifier_prefix}-hdr-fallback",
+                    offset,
+                    f"{probe_prefix}videoFormat.hdrFallback",
+                )
+                if toggled.get("success") is True and any(
+                    f"{probe_prefix}videoFormat.hdrFallback" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        f"accessibility:{identifier_prefix}-HDRFallback",
+                        self.events[-1]["evidence"],
+                        "The HDR fallback toggle changed its editor binding and appended a probe.",
+                    )
+            cancel_editor()
+
+        if open_editor():
+            self.tap(presentation, f"{identifier_prefix}-Projection-Flat")
+            before = self.copy_probe(f"{identifier_prefix}-apply-before")
+            offset = len(before)
+            applied = self.tap(
+                presentation, f"{identifier_prefix}-apply"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-apply",
+                offset,
+                f"{probe_prefix}videoFormat.apply",
+            )
+            if applied.get("success") is True and any(
+                f"{probe_prefix}videoFormat.apply" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-apply",
+                    self.events[-1]["evidence"],
+                    "Apply ran the format editor's commit handler and appended its probe.",
+                )
+
+        if open_editor():
+            before = self.copy_probe(f"{identifier_prefix}-automatic-before")
+            offset = len(before)
+            automatic = self.tap(
+                presentation, f"{identifier_prefix}-automatic"
+            )
+            probe = self.wait_for_probe(
+                f"{identifier_prefix}-automatic",
+                offset,
+                f"{probe_prefix}videoFormat.automatic",
+            )
+            if automatic.get("success") is True and any(
+                f"{probe_prefix}videoFormat.automatic" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    f"accessibility:{identifier_prefix}-automatic",
+                    self.events[-1]["evidence"],
+                    "Automatic ran the format restoration handler and appended its probe.",
+                )
+
+    def ensure_window_projection(self, projection: str) -> bool:
+        control_plane = self.wait_for_identifier("PlayerUI-window-control-plane")
+        value = str((control_plane.get("matchedElement") or {}).get("value", ""))
+        source_presentation = next(
+            (
+                candidate for candidate in PRESENTATIONS
+                if f"presentation={candidate}" in value
+            ),
+            "window",
+        )
+        expected = {
+            "Flat": "presentation=window",
+            "180°": "presentation=portal",
+        }[projection]
+        if expected in value:
+            return True
+        self.show_controls()
+        conversion = self.controller(
+            "tapSequence",
+            "--identifiers",
+            "PlayerUI-TopAction-videoFormat",
+            f"PlayerUI-VideoFormat-Projection-{projection}",
+            "PlayerUI-VideoFormat-apply",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+        if conversion.get("success") is not True:
+            return False
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=30)
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        delivered = expected in value and "transition=none" in value
+        if delivered:
+            self.delivered(
+                source_presentation,
+                "accessibility:PlayerUI-TopAction-videoFormat",
+                self.events[-1]["evidence"],
+                "The projection menu completed its product transition and the diagnostic control plane reported the settled presentation.",
+            )
+        return delivered
+
+    def window_scenario(self) -> None:
+        presentation = "window"
+        opened = self.open_media(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+        )
+        if opened.get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
+            self.delivered(
+                presentation, "command:toggleControls", self.events[-1]["evidence"],
+                "The command changed product control visibility and the controls entered the hierarchy.",
+                has_accessibility_target=False,
+            )
+        self.video_format_editor_scenario(
+            presentation,
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+        self.video_format_editor_scenario(
+            presentation,
+            "PlayerPanel-VideoFormat",
+            "reachability playerPanel delivered action=",
+        )
+        self.observe(presentation, "Window playback controls")
+        self.seek_scenario(presentation, "0.35")
+        self.transport_scenario(presentation)
+        self.top_menu_scenario(presentation)
+        self.resume_decision_scenario()
+
+    def window_issue_scenario(self) -> None:
+        if self.open_local_media("furyroad-stripped.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        for category, identifier, action in (
+            ("playbackControlFailed", "PlayerUI-playbackIssue-confirm", "confirm"),
+            ("capabilityUnavailable", "PlayerUI-unmetCapability-dismiss", "confirm"),
+        ):
+            self.exercise_playback_issue(
+                "window",
+                category=category,
+                identifier=identifier,
+                action=action,
+            )
+
+    def window_dv_format_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        self.video_format_editor_scenario(
+            "window",
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+
+    def window_hdr_fallback_scenario(self) -> None:
+        presentation = "window"
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+
+        opened, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerUI-TopAction-videoFormat",
+            probe_label="window-hdr-open-before",
+        )
+        offset = len(before)
+        fallback = self.wait_for_identifier(
+            "PlayerUI-VideoFormat-HDRFallback", timeout=10
+        )
+        probe = self.copy_probe("window-hdr-opened")
+        if (
+            opened.get("success") is True
+            and isinstance(fallback.get("matchedElement"), dict)
+            and video_format_open_was_delivered(probe, offset=offset)
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerUI-TopAction-videoFormat",
+                self.events[-1]["evidence"],
+                "The Window format host ran its open handler and exposed HDR Fallback.",
+            )
+
+        before = probe
+        offset = len(before)
+        toggled = self.tap(
+            presentation, "PlayerUI-VideoFormat-HDRFallback"
+        )
+        probe = self.wait_for_probe(
+            "window-hdr-fallback",
+            offset,
+            "reachability top actions delivered action=videoFormat.hdrFallback",
+        )
+        if toggled.get("success") is True and any(
+            "reachability top actions delivered action=videoFormat.hdrFallback"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerUI-VideoFormat-HDRFallback",
+                self.events[-1]["evidence"],
+                "The HDR fallback toggle changed its editor binding and appended a probe.",
+            )
+
+    def window_menu_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        self.player_panel_media_information_scenario("window")
+        self.top_menu_scenario("window")
+
+    def window_media_information_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if self.ensure_window_projection("Flat"):
+            self.player_panel_media_information_scenario("window")
+
+    def window_top_menu_scenario(self) -> None:
+        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
+            return
+        if self.ensure_window_projection("Flat"):
+            self.top_menu_scenario("window")
+
+    def window_environment_scenario(self) -> None:
+        presentation = "window"
+        self.relaunch()
+        before = self.copy_probe("window-environment-before")
+        offset = len(before)
+        opened = self.tap(
+            MAIN_WINDOW_BROWSER_CONTEXT,
+            "Navigation-Ornament-tab-environment",
+        )
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=20)
+        identifiers = self.hierarchy_identifiers(volume)
+        environment_identifier = next(
+            (
+                value for value in sorted(identifiers)
+                if value.startswith("EnvironmentCard-button-environment-")
+            ),
+            None,
+        )
+        effect_identifier = next(
+            (
+                value for value in sorted(identifiers)
+                if value.startswith("EnvironmentCard-effect-")
+            ),
+            None,
+        )
+        if opened.get("success") is not True or effect_identifier is None:
+            return
+        for identifier, operation_id in (
+            ("EnvironmentCard-card", "accessibility:EnvironmentCard-card"),
+            ("EnvironmentCard-carousel", "accessibility:EnvironmentCard-carousel"),
+        ):
+            self.tap(presentation, identifier, operation_id=operation_id)
+        changed = self.tap(
+            presentation,
+            effect_identifier,
+            operation_id=(
+                "accessibility:EnvironmentCard-effect-"
+                "{environment.environment.rawValue}"
+            ),
+        )
+        probe = self.copy_probe("window-environment-effect")
+        effect_delivered = changed.get("success") is True and any(
+            "environmentCard effect delivered" in line
+            for line in probe[offset:]
+        )
+        if effect_delivered:
+            for operation_id in (
+                "accessibility:EnvironmentCard-card",
+                "accessibility:EnvironmentCard-carousel",
+            ):
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    received=True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="A contained Environment Card effect reached its product handler.",
+                )
+        if environment_identifier is not None:
+            toggle_offset = len(probe)
+            toggled = self.tap(
+                presentation,
+                environment_identifier,
+                operation_id=(
+                    "accessibility:EnvironmentCard-button-environment-"
+                    "{environment.environment.rawValue}"
+                ),
+            )
+            probe = self.copy_probe("window-environment-toggle")
+            if toggled.get("success") is True and any(
+                "environmentCard toggle delivered" in line
+                for line in probe[toggle_offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:EnvironmentCard-button-environment-"
+                    "{environment.environment.rawValue}",
+                    self.events[-1]["evidence"],
+                    "The visible environment button reached the product toggle handler.",
+                )
+        self.app_command("dismissEnvironmentCard")
+
+    def player_ui_candidate_scenario(self) -> None:
+        presentation = "window"
+        opened = self.open_media(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+        )
+        if opened.get("success") is not True:
+            return
+        if not self.ensure_window_projection("Flat"):
+            return
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(
+            visible.get("matchedElement"), dict
+        ):
+            self.delivered(
+                presentation,
+                "command:toggleControls",
+                self.events[-1]["evidence"],
+                "The command changed product control visibility and the controls entered the hierarchy.",
+                has_accessibility_target=False,
+            )
+        self.video_format_editor_scenario(
+            presentation,
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+        if self.channel_failures:
+            return
+        self.seek_scenario(presentation, "0.35")
+        before = self.copy_probe("window-forward-before")
+        offset = len(before)
+        forwarded = self.tap_control(
+            presentation, "PlayerPanel-button-forward"
+        )
+        probe = self.wait_for_probe(
+            "window-forward",
+            offset,
+            "playback control delivered action=forward",
+        )
+        if forwarded.get("success") is True and any(
+            "playback control delivered action=forward" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-button-forward",
+                self.events[-1]["evidence"],
+                "The forward control closure appended its action-specific application probe after the deterministic pre-seek.",
+            )
+        self.top_menu_scenario(presentation)
+
+    def transport_scenario(self, presentation: str) -> None:
+        before = self.copy_probe(f"{presentation}-transport-before")
+        offset = len(before)
+        for identifier, fact in (
+            ("PlayerPanel-button-rewind", "rewind"),
+            ("PlayerPanel-button-forward", "forward"),
+            ("PlayerPanel-button-play", "playPause"),
+        ):
+            response = self.tap_control(presentation, identifier)
+            probe = self.copy_probe(f"{presentation}-{fact}")
+            if response.get("success") is True and any(
+                f"playback control delivered action={fact}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation, f"accessibility:{identifier}",
+                    self.events[-1]["evidence"],
+                    "The control closure appended its action-specific application probe.",
+                )
+            offset = len(probe)
+
+    def seek_scenario(self, presentation: str, position: str) -> None:
+        seek = self.app_command("seekNormalized", position=position)
+        if seek.get("success") is not True:
+            return
+        evidence = self.events[-1]["evidence"]
+        self.delivered(
+            presentation, "command:seekNormalized", evidence,
+            "The DEBUG verb reached PlaybackRuntime.seek and returned the computed target.",
+            has_accessibility_target=False,
+        )
+        for operation_id in (
+            "accessibility:PlayerPanel-progress",
+            "accessibility:PlayerPanel-precision-timeline",
+        ):
+            self.delivered(
+                presentation, operation_id, evidence,
+                "The DEBUG verb reached the same PlaybackRuntime seek pipeline.",
+            )
+
+    def top_menu_scenario(self, presentation: str) -> None:
+        opened, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerUI-TopAction-more",
+            probe_label=f"{presentation}-top-menu-before",
+        )
+        offset = len(before)
+        probe = self.copy_probe(f"{presentation}-top-menu-open")
+        if opened.get("success") is True and any(
+            "reachability top actions delivered action=menu.more" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:PlayerUI-TopAction-more",
+                self.events[-1]["evidence"],
+                "Opening the system Menu caused its product-owned content to append a probe.",
+            )
+
+        # System Menu removes item identifiers. The named top-level parent still
+        # supplies the hierarchy and hittability evidence; the DEBUG verb invokes
+        # the same Picker binding setter and its existing product probe proves
+        # delivery beyond XCTest.
+        item_offset = len(probe)
+        target, _, selected = self.select_debug_menu_item(
+            presentation=presentation,
+            host="playerUI",
+            family="subtitles",
+            preferred=("off",),
+            driven_operations=("accessibility:PlayerUI-menu-subtitles",),
+        )
+        probe = self.copy_probe(f"{presentation}-top-subtitles-selected")
+        if selected.get("success") is True and target is not None and any(
+            "reachability top actions delivered action=menu.item."
+            + target in line
+            for line in probe[item_offset:]
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:PlayerUI-menu-subtitles",
+                "accessibility:PlayerUI-TopAction-more",
+                self.events[-1]["evidence"],
+                "The named More parent supplied hierarchy and hittability evidence; "
+                "the DEBUG equivalent entered the subtitle Picker binding and its "
+                "menu.item product probe confirmed delivery.",
+            )
+
+        # The equivalent action does not dismiss the system-owned menu. A label
+        # action is cleanup only and never contributes delivery evidence.
+        speed = self.controller(
+            "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+        )
+        if speed.get("success") is True:
+            self.controller(
+                "tap", "--label", "1.25×", "--no-screenshot", timeout=90,
+            )
+
+    def stop_playback(self, presentation: str) -> bool:
+        stopped, before = self.tap_with_fresh_controls(
+            presentation,
+            "PlayerUI-InfoBar-button-back",
+            probe_label=f"{presentation}-back-before",
+        )
+        offset = len(before)
+        probe = self.copy_probe(f"{presentation}-back")
+        delivered = stopped.get("success") is True and any(
+            "reachability top actions delivered action=back" in line
+            for line in probe[offset:]
+        )
+        if delivered:
+            self.delivered(
+                presentation, "accessibility:PlayerUI-InfoBar-button-back",
+                self.events[-1]["evidence"],
+                "The Back control stopped playback through PlaybackLaunchCoordinator and appended its product probe.",
+            )
+        return delivered
+
+    def resume_decision_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        playback_context = "window"
+        active = self.wait_for_identifier(
+            "PlayerUI-window-control-plane", timeout=3
+        )
+        if isinstance(active.get("matchedElement"), dict):
+            if not self.stop_playback(playback_context):
+                return
+            self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
+
+        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        settings = self.controller("snapshot", "--no-screenshot")
+        hierarchy = str(settings.get("hierarchy", ""))
+        current_policy = next(
+            (
+                title for title in (
+                    "Ask Every Time",
+                    "Always Resume",
+                    "Always Start Over",
+                )
+                if f"label: '{title}'" in hierarchy
+            ),
+            None,
+        )
+        if current_policy is None:
+            return
+        if current_policy == "Ask Every Time":
+            selected = {"success": True}
+        else:
+            opened = self.controller(
+                "tap", "--label", current_policy, "--no-screenshot", timeout=90,
+            )
+            if opened.get("success") is not True:
+                return
+            selected = self.controller(
+                "tap", "--label", "Ask Every Time", "--no-screenshot", timeout=90,
+            )
+        if selected.get("success") is not True:
+            return
+
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        resume_media = "MediaLibrary-grid-video-reachability-resume-16m.mp4"
+        available = self.wait_for_identifier(resume_media, timeout=5)
+        if not isinstance(available.get("matchedElement"), dict):
+            imported = self.app_command(
+                "importMedia", file="reachability-resume-16m.mp4"
+            )
+            if imported.get("success") is not True:
+                return
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
+        started = self.tap(
+            presentation, resume_media,
+            operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+        )
+        if started.get("success") is not True:
+            return
+        if not isinstance(
+            self.wait_for_identifier(
+                "PlayerUI-window-control-plane", timeout=20
+            ).get("matchedElement"),
+            dict,
+        ):
+            return
+        time.sleep(16)
+        seek = self.app_command(
+            "seekNormalized",
+            position="0.25",
+            track_reachability=False,
+        )
+        if seek.get("success") is not True:
+            return
+        if not self.stop_playback(playback_context):
+            return
+        self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
+
+        for identifier, fact in (
+            ("PlayerUI-resumeDecision-primary", "resume"),
+            ("PlayerUI-resumeDecision-secondary", "startOver"),
+        ):
+            opened = self.tap(
+                presentation, resume_media,
+                operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
+            )
+            if opened.get("success") is not True:
+                return
+            decision = self.wait_for_identifier(identifier, timeout=15)
+            if not isinstance(decision.get("matchedElement"), dict):
+                return
+            before = self.copy_probe(f"resume-{fact}-before")
+            offset = len(before)
+            chosen = self.tap(presentation, identifier)
+            probe = self.wait_for_probe(
+                f"resume-{fact}",
+                offset,
+                f"reachability resume decision delivered action={fact}",
+            )
+            if chosen.get("success") is True and any(
+                f"reachability resume decision delivered action={fact}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation, f"accessibility:{identifier}",
+                    self.events[-1]["evidence"],
+                    "The visible resume decision ran its product-owned playback choice and appended an action probe.",
+                )
+            self.wait_for_identifier("PlayerUI-window-control-plane", timeout=15)
+            if not self.stop_playback(playback_context):
+                return
+            self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
+
+    def playback_failure_scenario(self) -> None:
+        presentation = "window"
+        opened = self.open_media(
+            "MediaLibrary-grid-video-broken-clip.mp4"
+        )
+        if opened.get("success") is not True:
+            return
+
+        primary, _ = self.wait_for_any_identifier(
+            (
+                "PlayerUI-loadFailure-primary",
+                "PlayerUI-playbackIssue-primary",
+            ),
+            timeout=20,
+        )
+        if primary is not None:
+            before = self.copy_probe("playback-failure-primary-before")
+            offset = len(before)
+            retried = self.tap(presentation, primary)
+            probe = self.copy_probe("playback-failure-primary")
+            if retried.get("success") is True and any(
+                "reachability playback issue delivered" in line
+                and "action=retry" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation, f"accessibility:{primary}",
+                    self.events[-1]["evidence"],
+                    "The negative media exposed the product failure alert and Retry ran its application handler.",
+                )
+
+        secondary, _ = self.wait_for_any_identifier(
+            (
+                "PlayerUI-loadFailure-secondary",
+                "PlayerUI-playbackIssue-secondary",
+                "PlayerUI-playbackIssue-confirm",
+            ),
+            timeout=20,
+        )
+        if secondary is None:
+            return
+        before = self.copy_probe("playback-failure-secondary-before")
+        offset = len(before)
+        closed = self.tap(presentation, secondary)
+        probe = self.copy_probe("playback-failure-secondary")
+        expected_action = "confirm" if secondary.endswith("confirm") else "close"
+        if closed.get("success") is True and any(
+            "reachability playback issue delivered" in line
+            and f"action={expected_action}" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, f"accessibility:{secondary}",
+                self.events[-1]["evidence"],
+                "The visible product failure alert ran its terminal action and appended a probe.",
+            )
+
+    def player_panel_menu_scenario(self, presentation: str) -> None:
+        opens_system_menu = should_open_player_panel_system_menu(presentation)
+        if opens_system_menu:
+            opened, before = self.tap_with_fresh_controls(
+                presentation,
+                "PlayerPanel-menu-more",
+                probe_label=f"{presentation}-panel-menu-before",
+            )
+            offset = len(before)
+            probe = self.copy_probe(f"{presentation}-panel-menu-open")
+            if opened.get("success") is True and any(
+                "reachability playerPanel delivered action=menu.more" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:PlayerPanel-menu-more",
+                    self.events[-1]["evidence"],
+                    "The named PlayerPanel More menu was hittable and constructed its product content.",
+                )
+        else:
+            self.show_controls()
+            if presentation == "docked":
+                self.reuse_docked_menu_parent_observation()
+            else:
+                observed = self.wait_for_identifier("PlayerPanel-menu-more", timeout=10)
+                matched = observed.get("matchedElement")
+                if isinstance(matched, dict):
+                    self.mark_observation(
+                        presentation,
+                        "accessibility:PlayerPanel-menu-more",
+                        exists=True,
+                        hittable=matched.get("isHittable") is True,
+                        evidence=self.events[-1]["evidence"],
+                        reason=(
+                            "The immersive attachment exposed the named More parent. "
+                            "The system-owned Menu is not synthesized in this scene."
+                        ),
+                    )
+            probe = self.copy_probe(f"{presentation}-panel-menu-observed")
+
+        family_operations = (
+            ("speed", "accessibility:PlayerPanel-menu-speed", ("1.25",)),
+            ("subtitles", "accessibility:PlayerPanel-menu-subtitles", ("off",)),
+            ("audio", "accessibility:PlayerPanel-menu-audio", ()),
+            ("episodes", "accessibility:PlayerPanel-menu-episodes", ()),
+        )
+        segment = getattr(self, "segment", None)
+        if segment is not None:
+            planned = {
+                (str(value["context"]), str(value["operation"]))
+                for value in segment["decisions"]
+            }
+            family_operations = tuple(
+                entry for entry in family_operations
+                if (presentation, entry[1]) in planned
+            )
+        for family, operation_id, preferred in family_operations:
+            if not opens_system_menu:
+                self.show_controls()
+            item_offset = len(probe)
+            target, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="playerPanel",
+                family=family,
+                preferred=preferred,
+                driven_operations=(
+                    operation_id,
+                    "accessibility:PlayerPanel-menu-{category}-{item.id}",
+                ),
+            )
+            probe = self.copy_probe(
+                f"{presentation}-panel-{family}-selected"
+            )
+            if selected.get("success") is True and target is not None and any(
+                menu_delivery_probe_needle(target) in line
+                for line in probe[item_offset:]
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    operation_id,
+                    "accessibility:PlayerPanel-menu-more",
+                    self.events[-1]["evidence"],
+                    "The named More parent supplied hierarchy and hittability evidence; "
+                    f"the DEBUG equivalent entered the {family} item handler and its "
+                    "menu.item product probe confirmed delivery.",
+                )
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:PlayerPanel-menu-{category}-{item.id}",
+                    "accessibility:PlayerPanel-menu-more",
+                    self.events[-1]["evidence"],
+                    "The named More parent supplied hierarchy and hittability evidence; "
+                    "the DEBUG equivalent entered the exact item action and its product "
+                    "probe confirmed delivery.",
+                )
+
+        # The equivalent action does not dismiss the system-owned menu. These
+        # label actions are cleanup only and never contribute delivery evidence.
+        if opens_system_menu:
+            self.controller(
+                "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+            )
+            self.controller(
+                "tap", "--label", "1×", "--no-screenshot", timeout=90,
+            )
+
+    def reuse_docked_menu_parent_observation(self) -> bool:
+        try:
+            document = json.loads(
+                ROUND13_DOCKED_CONTENT_RESULTS.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            return False
+        operation = "accessibility:PlayerPanel-menu-more"
+        cell = validated_reachable_cell(
+            document,
+            context="docked",
+            operation=operation,
+        )
+        if cell is None:
+            return False
+        evidence = "raw/docked-menu-more-round13.json"
+        (self.output / evidence).write_text(
+            json.dumps(
+                {
+                    "source": str(ROUND13_DOCKED_CONTENT_RESULTS),
+                    "cell": cell,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        self.mark_observation(
+            "docked",
+            operation,
+            exists=True,
+            hittable=True,
+            evidence=evidence,
+            reason=(
+                "Round 13's complete, channel-healthy segment proved the unchanged "
+                "Docked More parent exists and is hittable."
+            ),
+        )
+        return True
+
+    def docked_settings_scenario(self) -> None:
+        presentation = "docked"
+        self.show_controls()
+        before = self.copy_probe("docked-settings-before")
+        offset = len(before)
+        opened = self.tap(presentation, "PlayerPanel-button-settings")
+        probe = self.copy_probe("docked-settings-open")
+        if opened.get("success") is True and any(
+            "reachability playerPanel delivered action=settings.open" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:PlayerPanel-button-settings",
+                self.events[-1]["evidence"],
+                "The settings button expanded the Docked placement controls and appended a probe.",
+            )
+        before = probe
+        offset = len(before)
+        reset = self.tap(presentation, "PlayerPanel-DockedPlacement-reset")
+        probe = self.copy_probe("docked-placement-reset")
+        if reset.get("success") is True and any(
+            "reachability playerPanel delivered action=dockedPlacement.reset" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:PlayerPanel-DockedPlacement-reset",
+                self.events[-1]["evidence"],
+                "Restore Defaults reached the shared Docked placement reset handler.",
+            )
+
+
+    def enter_panorama_playback(
+        self, file_name: str = "furyroad-stripped.mkv"
+    ) -> bool:
+        presentation = "panorama"
+        opened = self.open_local_media(file_name)
+        if opened.get("success") is not True:
+            return False
+        if not self.ensure_window_projection("180°"):
+            return False
+        self.show_controls()
+        before = self.copy_probe("panorama-transition-before")
+        offset = len(before)
+        entered = self.controller(
+            "tapSequence",
+            "--identifiers",
+            "PlayerUI-TopAction-resumePanorama",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+        if entered.get("success") is not True:
+            return False
+        spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
+        if not isinstance(spatial.get("matchedElement"), dict):
+            return False
+        probe = self.copy_probe("panorama-transition-settled")
+        if any(
+            "reachability topActions delivered action=enterPanorama" in line
+            for line in probe[offset:]
+        ):
+            self.mark_observation(
+                "portal",
+                "accessibility:PlayerUI-TopAction-resumePanorama",
+                exists=True,
+                hittable=True,
+                received=True,
+                evidence=self.events[-1]["evidence"],
+                reason="The visible Panorama entry action appended its product probe and the immersive state became addressable.",
+            )
+        self.observe(presentation, "Panorama playback")
+        return True
+
+    def panorama_scenario(self) -> bool:
+        presentation = "panorama"
+        if not self.enter_panorama_playback():
+            return False
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
+            self.delivered(
+                presentation, "command:toggleControls", self.events[-1]["evidence"],
+                "The immersive attachment controls entered the hierarchy after the product command.",
+                has_accessibility_target=False,
+            )
+        self.transport_scenario(presentation)
+        self.seek_scenario(presentation, "0.45")
+        self.player_panel_menu_scenario(presentation)
+        return True
+
+    def panorama_content_scenario(self) -> None:
+        if not self.enter_panorama_playback(
+            "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        ):
+            return
+        self.player_panel_media_information_scenario("panorama")
+        self.player_panel_menu_scenario("panorama")
+
+    def portal_scenario(self) -> None:
+        presentation = "portal"
+        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        if opened.get("success") is not True:
+            return
+        if not self.ensure_window_projection("180°"):
+            return
+        portal = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        value = str((portal.get("matchedElement") or {}).get("value", ""))
+        if "presentation=portal" not in value:
+            return
+        self.observe(presentation, "Portal playback")
+        size = self.app_command("setWindowSize", width="1180", height="720")
+        time.sleep(1)
+        probe = self.copy_probe("portal-window-size")
+        if size.get("success") is True and any(
+            "setWindowSize observed=" in line for line in probe
+        ):
+            self.delivered(
+                presentation, "command:setWindowSize", self.events[-1]["evidence"],
+                "The geometry request pipeline recorded the observed applied size.",
+                has_accessibility_target=False,
+            )
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
+            self.delivered(
+                presentation, "command:toggleControls", self.events[-1]["evidence"],
+                "The Portal controls entered the hierarchy after the product command.",
+                has_accessibility_target=False,
+            )
+        self.transport_scenario(presentation)
+        self.seek_scenario(presentation, "0.4")
+        self.top_menu_scenario(presentation)
+
+    def enter_portal_playback(
+        self, file_name: str = "furyroad-stripped.mkv"
+    ) -> bool:
+        if self.open_local_media(file_name).get("success") is not True:
+            return False
+        if not self.ensure_window_projection("180°"):
+            return False
+        control_plane = self.wait_for_identifier(
+            "PlayerUI-window-control-plane", timeout=45
+        )
+        value = str((control_plane.get("matchedElement") or {}).get("value", ""))
+        return "presentation=portal" in value and "transition=none" in value
+
+    def portal_dv_scenario(self) -> None:
+        if not self.enter_portal_playback("furyroad-with-dv.mkv"):
+            return
+        self.video_format_editor_scenario(
+            "portal",
+            "PlayerUI-VideoFormat",
+            "reachability top actions delivered action=",
+        )
+        self.player_panel_media_information_scenario("portal")
+
+    def portal_issue_scenario(self) -> None:
+        cases = (
+            ("mediaOpeningFailed", "PlayerUI-loadFailure-primary", "retry"),
+            ("mediaOpeningFailed", "PlayerUI-loadFailure-secondary", "close"),
+            ("playbackControlFailed", "PlayerUI-playbackIssue-confirm", "confirm"),
+            ("capabilityUnavailable", "PlayerUI-unmetCapability-dismiss", "confirm"),
+        )
+        for category, identifier, action in cases:
+            if not self.enter_portal_playback():
+                return
+            self.exercise_playback_issue(
+                "portal",
+                category=category,
+                identifier=identifier,
+                action=action,
+            )
+
+    def portal_route_scenario(self) -> None:
+        if not self.enter_portal_playback():
+            return
+        self.stop_playback("portal")
+        self.enter_panorama_playback()
+
+    def enter_docked_playback(
+        self,
+        *,
+        dock_choice: str = "skybox",
+        file_name: str = "furyroad-stripped.mkv",
+        record_route: bool = False,
+    ) -> bool:
+        presentation = "docked"
+        opened = self.open_local_media(file_name)
+        if opened.get("success") is not True:
+            return False
+        if not self.ensure_window_projection("Flat"):
+            return False
+
+        if record_route:
+            self.show_controls()
+            before = self.copy_probe("docked-video-format-before")
+            offset = len(before)
+            changed = self.controller(
+                "tapSequence",
+                "--identifiers",
+                "PlayerUI-TopAction-videoFormat",
+                "PlayerUI-VideoFormat-Projection-Flat",
+                "PlayerUI-VideoFormat-apply",
+                "--no-screenshot",
+                "--timeout-seconds",
+                "90",
+                timeout=120,
+            )
+            probe = self.copy_probe("docked-video-format-applied")
+            if changed.get("success") is True and all(
+                any(f"action={action}" in line for line in probe[offset:])
+                for action in ("videoFormat.open", "videoFormat.apply")
+            ):
+                self.delivered(
+                    "window",
+                    "accessibility:PlayerUI-TopAction-videoFormat",
+                    self.events[-1]["evidence"],
+                    "The Docked route opened and applied the product Video Format editor, with both DEBUG probes present.",
+                )
+
+        self.show_controls()
+        before = self.copy_probe(f"docked-{dock_choice}-transition-before")
+        offset = len(before)
+        transition = self.controller(
+            "tapSequence",
+            "--identifiers",
+            "PlayerUI-TopAction-dock",
+            f"PlayerUI-DockMenu-{dock_choice}",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+        spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
+        value = str((spatial.get("matchedElement") or {}).get("value", ""))
+        probe = self.copy_probe(f"docked-{dock_choice}-settled")
+        settled = all(
+            fact in value
+            for fact in (
+                "presentation=docked",
+                "transition=none",
+                "surfacePreparation=surfaceAttached",
+                "lifecycle=Playing",
+                "attached=docked",
+                "rendererConsumer=docked",
+                "displayedPixel=true",
+                "surfaceRenderingReady=true",
+                "surfaceSettled=true",
+            )
+        )
+        delivered_probe = any(
+            "reachability topActions delivered action=dock.open" in line
+            for line in probe[offset:]
+        ) and any(
+            "reachability topActions delivered action=dock.select" in line
+            and f"effect={'none' if dock_choice == 'skybox' else dock_choice}" in line
+            for line in probe[offset:]
+        ) and any(
+            "worldLoad event=completed anchor=PlaybackSurfaceAnchor" in line
+            for line in probe[offset:]
+        )
+        if transition.get("success") is not True or not settled or not delivered_probe:
+            return False
+
+        route_operations = ["accessibility:PlayerUI-TopAction-dock"]
+        if dock_choice == "skybox":
+            route_operations.append("accessibility:PlayerUI-DockMenu-skybox")
+        else:
+            route_operations.append("accessibility:PlayerUI-DockMenu-{$0.rawValue}")
+        for operation_id in route_operations:
+            self.mark_observation(
+                "window",
+                operation_id,
+                exists=True,
+                hittable=True,
+                evidence=self.events[-3]["evidence"],
+                reason="XCTest completed the Docked menu route.",
+            )
+            self.mark_observation(
+                "window",
+                operation_id,
+                evidence=self.events[-2]["evidence"],
+                reason="The spatial diagnostic reached settled Docked playback with displayed pixels.",
+            )
+            self.mark_observation(
+                "window",
+                operation_id,
+                received=True,
+                evidence=self.events[-1]["evidence"],
+                reason="The top-action probe, Dock target probe, world anchor probe, and settled diagnostic all agree.",
+            )
+        for operation_id in (
+            "accessibility:PlayerUI-TopAction-dock",
+            "accessibility:PlayerUI-DockMenu-skybox",
+        ):
+            if operation_id in route_operations:
+                self.delivered(
+                    "window",
+                    operation_id,
+                    self.events[-1]["evidence"],
+                    "The presentation entered settled Docked playback after the menu sequence.",
+                )
+        return True
+
+    def docked_environment_card_scenario(self) -> None:
+        presentation = "docked"
+        before = self.copy_probe("docked-environment-card-before")
+        offset = len(before)
+        opened = self.app_command("openEnvironmentCard")
+        self.controller("activate", "--no-screenshot")
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=25)
+        identifiers = self.hierarchy_identifiers(volume)
+        effect_identifier = next(
+            (value for value in sorted(identifiers)
+             if value.startswith("EnvironmentCard-effect-")),
+            None,
+        )
+        environment_identifier = next(
+            (value for value in sorted(identifiers)
+             if value.startswith("EnvironmentCard-button-environment-")),
+            None,
+        )
+        if opened.get("success") is not True or effect_identifier is None:
+            self.controller(
+                "snapshot",
+                "--identifier",
+                "PlayerUI-spatial-state",
+                "--no-screenshot",
+            )
+            return
+
+        changed = self.tap(presentation, effect_identifier, operation_id=(
+            "accessibility:EnvironmentCard-effect-"
+            "{environment.environment.rawValue}"
+        ))
+        probe = self.copy_probe("docked-environment-card-effect")
+        effect_delivered = changed.get("success") is True and any(
+            "environmentCard effect delivered" in line
+            for line in probe[offset:]
+        )
+        if effect_delivered:
+            evidence = self.events[-1]["evidence"]
+            for operation_id in (
+                "accessibility:EnvironmentCard-effect-"
+                "{environment.environment.rawValue}",
+                "accessibility:EnvironmentCard-card",
+                "accessibility:EnvironmentCard-carousel",
+            ):
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    exists=True,
+                    hittable=True,
+                    evidence=self.events[-2]["evidence"],
+                    reason="The Environment volume exposed the product card structure.",
+                )
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    received=True,
+                    evidence=evidence,
+                    reason="The DEBUG open verb reached its terminal state and the card's effect handler appended a product probe.",
+                )
+
+        if environment_identifier is not None:
+            toggle_offset = len(probe)
+            toggled = self.tap(
+                presentation,
+                environment_identifier,
+                operation_id=(
+                    "accessibility:EnvironmentCard-button-environment-"
+                    "{environment.environment.rawValue}"
+                ),
+            )
+            probe = self.copy_probe("docked-environment-card-toggle")
+            if toggled.get("success") is True and any(
+                "environmentCard toggle delivered" in line
+                for line in probe[toggle_offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    "accessibility:EnvironmentCard-button-environment-"
+                    "{environment.environment.rawValue}",
+                    self.events[-1]["evidence"],
+                    "The visible environment button reached the product toggle handler and appended its probe.",
+                )
+
+        dismissed = self.app_command("dismissEnvironmentCard")
+        closed = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=10)
+        if (
+            effect_delivered
+            and dismissed.get("success") is True
+            and not isinstance(closed.get("matchedElement"), dict)
+        ):
+            self.delivered(
+                presentation,
+                "environmentVolume:open-interact-close",
+                self.events[-1]["evidence"],
+                "The DEBUG open and dismiss verbs bracketed a probed product interaction and the volume disappeared.",
+                has_accessibility_target=False,
+            )
+
+    def player_panel_media_information_scenario(self, presentation: str) -> None:
+        self.show_controls()
+        before = self.copy_probe("docked-media-information-before")
+        offset = len(before)
+        opened = self.tap(presentation, "PlayerPanel-media-information")
+        close = self.wait_for_identifier(
+            "PlayerPanel-media-information-close", timeout=10
+        )
+        if opened.get("success") is not True or not isinstance(
+            close.get("matchedElement"), dict
+        ):
+            return
+        closed = self.tap(
+            presentation, "PlayerPanel-media-information-close"
+        )
+        probe = self.copy_probe("docked-media-information-close")
+        if closed.get("success") is True and any(
+            "reachability playerPanel delivered action=mediaInformation.close"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-media-information-close",
+                self.events[-1]["evidence"],
+                "The expanded media information close button reached its product handler and appended a probe.",
+            )
+
+    def docked_media_information_scenario(self) -> None:
+        self.player_panel_media_information_scenario("docked")
+
+    def exercise_playback_issue(
+        self,
+        presentation: str,
+        *,
+        category: str,
+        identifier: str,
+        action: str,
+    ) -> bool:
+        before = self.copy_probe(f"{presentation}-{identifier}-before")
+        offset = len(before)
+        shown = self.app_command("showPlaybackIssue", category=category)
+        visible = self.wait_for_identifier(identifier, timeout=10)
+        tapped = self.tap(presentation, identifier)
+        probe = self.wait_for_probe(
+            f"{presentation}-{identifier}",
+            offset,
+            f"reachability playback issue delivered",
+            timeout=15,
+        )
+        delivered = (
+            shown.get("success") is True
+            and isinstance(visible.get("matchedElement"), dict)
+            and any(
+                "reachability playback issue delivered" in line
+                and f"action={action}" in line
+                for line in probe[offset:]
+            )
+        )
+        if delivered:
+            self.mark_observation(
+                presentation,
+                f"accessibility:{identifier}",
+                exists=True,
+                hittable=tapped.get("success") is True,
+                evidence=self.events[-3]["evidence"],
+                reason="The DEBUG issue verb exposed the expected product action.",
+            )
+            self.mark_observation(
+                presentation,
+                f"accessibility:{identifier}",
+                received=True,
+                evidence=self.events[-1]["evidence"],
+                reason="The product alert action appended its location and action probe.",
+            )
+        return delivered
+
+    def immersive_issue_scenario(self, presentation: str) -> None:
+        for category, identifier, action in (
+            ("environmentLoadingFailed", "PlayerUI-spatialFailure-primary", "retry"),
+            ("playbackControlFailed", "PlayerUI-playbackIssue-confirm", "confirm"),
+            ("capabilityUnavailable", "PlayerUI-unmetCapability-dismiss", "confirm"),
+        ):
+            self.exercise_playback_issue(
+                presentation,
+                category=category,
+                identifier=identifier,
+                action=action,
+            )
+
+    def docked_issue_scenario(self) -> None:
+        self.immersive_issue_scenario("docked")
+
+    def docked_content_scenario(self) -> None:
+        if not self.enter_docked_playback(
+            file_name="sdr-bframe-multiaudio-subtitles-30s.mkv"
+        ):
+            return
+        self.player_panel_menu_scenario("docked")
+        self.player_panel_media_information_scenario("docked")
+
+    def exit_spatial_with_product_command(
+        self, presentation: str, expected_presentation: str
+    ) -> None:
+        operation_id = "accessibility:PlayerPanel-button-exit-spatial"
+        controls = self.show_controls()
+        state = self.wait_for_identifier_value(
+            "PlayerUI-spatial-state",
+            (
+                f"presentation={presentation}",
+                "transition=none",
+                "controls=shown",
+                "controlsInteractive=true",
+            ),
+            timeout=15,
+        )
+        state_value = str((state.get("matchedElement") or {}).get("value", ""))
+        if controls.get("success") is not True or not all(
+            fact in state_value
+            for fact in (
+                f"presentation={presentation}",
+                "transition=none",
+                "controls=shown",
+                "controlsInteractive=true",
+            )
+        ):
+            return
+        visible = self.wait_for_identifier(
+            "PlayerPanel-button-exit-spatial", timeout=15
+        )
+        matched = visible.get("matchedElement")
+        self.mark_driven(presentation, operation_id)
+        if not isinstance(matched, dict):
+            return
+        self.mark_observation(
+            presentation,
+            operation_id,
+            exists=True,
+            hittable=matched.get("isHittable") is True,
+            evidence=self.events[-1]["evidence"],
+            reason="The immersive attachment exposed the product exit button.",
+        )
+        before = self.copy_probe(f"{presentation}-exit-command-before")
+        offset = len(before)
+        exited = self.app_command("exitSpatial")
+        self.controller("activate", "--no-screenshot")
+        settled = self.wait_for_identifier_value(
+            "PlayerUI-window-control-plane",
+            (
+                f"presentation={expected_presentation}",
+                "transition=none",
+                "pendingSpatialEffect=none",
+                f"attached={expected_presentation}",
+            ),
+            timeout=45,
+        )
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        probe = self.copy_probe(f"{presentation}-exit-command-settled")
+        if (
+            exited.get("success") is True
+            and f"presentation={expected_presentation}" in value
+            and "transition=none" in value
+            and "pendingSpatialEffect=none" in value
+            and f"attached={expected_presentation}" in value
+            and any(
+                "testcmd exitSpatial delivered" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.mark_observation(
+                presentation,
+                operation_id,
+                received=True,
+                evidence=self.events[-1]["evidence"],
+                reason="The DEBUG equivalent called requestPlaybackPresentation, the same product handler used by the button, and the control plane settled at the exit target.",
+            )
+
+    def panorama_exit_command_scenario(self) -> None:
+        if self.enter_panorama_playback():
+            self.exit_spatial_with_product_command("panorama", "portal")
+
+    def docked_exit_command_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.exit_spatial_with_product_command("docked", "window")
+
+    def docked_main_window_issue_scenario(self) -> None:
+        presentation = "docked"
+        for identifier, action in (
+            ("PlayerUI-loadFailure-primary", "retry"),
+            ("PlayerUI-loadFailure-secondary", "close"),
+        ):
+            opened = self.open_media(
+                "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            )
+            if opened.get("success") is not True:
+                return
+            self.exercise_playback_issue(
+                presentation,
+                category="mediaOpeningFailed",
+                identifier=identifier,
+                action=action,
+            )
+
+    def docked_exit_scenario(self) -> None:
+        presentation = "docked"
+        self.show_controls()
+        before = self.copy_probe("docked-exit-before")
+        offset = len(before)
+        exited = self.tap(presentation, "PlayerPanel-button-exit-spatial")
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        probe = self.copy_probe("docked-exit-settled")
+        if (
+            exited.get("success") is True
+            and "presentation=window" in value
+            and "transition=none" in value
+            and any(
+                "reachability playerPanel delivered action=exitSpatial" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-button-exit-spatial",
+                self.events[-1]["evidence"],
+                "The Docked exit button appended its product probe and the control plane settled in Window.",
+            )
+
+        self.show_controls()
+        before = probe
+        offset = len(before)
+        stopped = self.tap("window", "PlayerUI-InfoBar-button-back")
+        probe = self.copy_probe("docked-route-back")
+        if stopped.get("success") is True and any(
+            "reachability top actions delivered action=back" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                "window",
+                "accessibility:PlayerUI-InfoBar-button-back",
+                self.events[-1]["evidence"],
+                "The post-Docked Window route stopped playback through the product coordinator and appended its probe.",
+            )
+
+        self.exercise_playback_issue(
+            MAIN_WINDOW_BROWSER_CONTEXT,
+            category="presentationConversionFailed",
+            identifier="PlayerUI-presentation-conversion-dismiss",
+            action="confirm",
+        )
+
+    def docked_placement_segment_scenario(self) -> None:
+        presentation = "docked"
+        if not self.enter_docked_playback():
+            return
+        for axis, value in (
+            ("screenSize", "1.4"),
+            ("distance", "3.0"),
+            ("elevation", "5.0"),
+        ):
+            result = self.app_command(
+                "setDockedPlacement", axis=axis, value=value
+            )
+            if result.get("success") is True:
+                evidence = self.events[-1]["evidence"]
+                self.delivered(
+                    presentation,
+                    "command:setDockedPlacement",
+                    evidence,
+                    "The requested Docked placement value reached the shared product setter immediately after the settled transition.",
+                    has_accessibility_target=False,
+                )
+                self.delivered(
+                    presentation,
+                    "accessibility:PlayerPanel-{identifier}-slider",
+                    evidence,
+                    "The DEBUG verb reached the same setter used by the placement slider.",
+                )
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(
+            visible.get("matchedElement"), dict
+        ):
+            self.delivered(
+                presentation,
+                "command:toggleControls",
+                self.events[-1]["evidence"],
+                "The Docked attachment controls entered the hierarchy.",
+                has_accessibility_target=False,
+            )
+        self.docked_settings_scenario()
+        self.docked_media_information_scenario()
+        self.observe(presentation, "Docked placement and panel")
+
+    def docked_environment_segment_scenario(self) -> None:
+        if self.enter_docked_playback(dock_choice="dark"):
+            self.docked_environment_card_scenario()
+
+    def docked_menu_segment_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.player_panel_menu_scenario("docked")
+
+    def docked_transport_issue_segment_scenario(self) -> None:
+        if not self.enter_docked_playback():
+            return
+        self.transport_scenario("docked")
+        self.seek_scenario("docked", "0.3")
+        self.docked_issue_scenario()
+
+    def immersive_resident_window_scenario(self, presentation: str) -> None:
+        before = self.observe(presentation, "before resident-window negative")
+        toggle = self.app_command("toggleBlackoutProbeWindow")
+        after = self.controller("snapshot", "--no-screenshot")
+        before_hierarchy = str(before.get("hierarchy", ""))
+        after_hierarchy = str(after.get("hierarchy", ""))
+        before_identifiers = product_accessibility_identifiers(before)
+        after_identifiers = product_accessibility_identifiers(after)
+        no_named_node = "Blackout Probe" not in after_hierarchy
+        no_new_identifier = after_identifiers <= before_identifiers
+        hierarchy_evidence = self.events[-1]["evidence"]
+        cleanup = self.app_command("toggleBlackoutProbeWindow")
+        cleanup_evidence = self.events[-1]["evidence"]
+        if immersive_resident_window_is_hidden(
+            toggle=toggle,
+            cleanup=cleanup,
+            no_named_node=no_named_node,
+            no_new_identifier=no_new_identifier,
+        ):
+            self.delivered(
+                presentation,
+                "negative:immersive-resident-window",
+                hierarchy_evidence,
+                "Opening the mechanism added no named or identifier-addressable Accessibility target.",
+                has_accessibility_target=False,
+            )
+            if toggle.get("success") is not True:
+                self.cells[
+                    (presentation, "negative:immersive-resident-window")
+                ]["evidence"].append(cleanup_evidence)
+            return
+        cell = self.cells[(presentation, "negative:immersive-resident-window")]
+        cell["evidence"].extend((hierarchy_evidence, cleanup_evidence))
+        if no_named_node and no_new_identifier:
+            cell["reason"] = (
+                "The Accessibility hierarchy remained hidden, but neither command "
+                "response proved that the mechanism window was open."
+            )
+        else:
+            cell["reason"] = (
+                "The mechanism exposed a named or identifier-addressable Accessibility target "
+                f"(newIdentifiers={sorted(after_identifiers - before_identifiers)}, "
+                f"named={not no_named_node})."
+            )
+
+    def docked_resident_window_segment_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.immersive_resident_window_scenario("docked")
+
+    def docked_exit_segment_scenario(self) -> None:
+        if self.enter_docked_playback():
+            self.docked_exit_scenario()
+
+    def docked_spatial_secondary_issue_segment_scenario(self) -> None:
+        if not self.enter_docked_playback():
+            return
+        self.exercise_playback_issue(
+            "docked",
+            category="environmentLoadingFailed",
+            identifier="PlayerUI-spatialFailure-secondary",
+            action="close",
+        )
+
+    def panorama_panel_exit_segment_scenario(self) -> None:
+        presentation = "panorama"
+        if not self.enter_panorama_playback():
+            return
+        self.player_panel_media_information_scenario(presentation)
+        self.show_controls()
+        before = self.copy_probe("panorama-exit-before")
+        offset = len(before)
+        exited = self.tap(presentation, "PlayerPanel-button-exit-spatial")
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        probe = self.copy_probe("panorama-exit-settled")
+        if (
+            exited.get("success") is True
+            and "presentation=portal" in value
+            and "transition=none" in value
+            and any(
+                "reachability playerPanel delivered action=exitSpatial" in line
+                for line in probe[offset:]
+            )
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-button-exit-spatial",
+                self.events[-1]["evidence"],
+                "The Panorama exit button appended its product probe and the control plane settled in Portal.",
+            )
+
+    def panorama_immersive_issue_segment_scenario(self) -> None:
+        if self.enter_panorama_playback():
+            self.immersive_issue_scenario("panorama")
+
+    def panorama_resident_window_segment_scenario(self) -> None:
+        if self.enter_panorama_playback():
+            self.immersive_resident_window_scenario("panorama")
+
+    def panorama_spatial_secondary_issue_segment_scenario(self) -> None:
+        if not self.enter_panorama_playback():
+            return
+        self.exercise_playback_issue(
+            "panorama",
+            category="environmentLoadingFailed",
+            identifier="PlayerUI-spatialFailure-secondary",
+            action="close",
+        )
+
+    def docked_scenario(self) -> None:
+        presentation = "docked"
+        self.docked_main_window_issue_scenario()
+
+        opened = self.open_media(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+        )
+        if opened.get("success") is not True:
+            return
+        self.top_menu_scenario(presentation)
+
+        if not self.enter_docked_playback(record_route=True):
+            return
+        for axis, value in (
+            ("screenSize", "1.4"),
+            ("distance", "3.0"),
+            ("elevation", "5.0"),
+        ):
+            result = self.app_command(
+                "setDockedPlacement", axis=axis, value=value
+            )
+            if result.get("success") is True:
+                evidence = self.events[-1]["evidence"]
+                self.delivered(
+                    presentation,
+                    "command:setDockedPlacement",
+                    evidence,
+                    "The requested Docked placement value reached the shared product setter immediately after the settled transition.",
+                    has_accessibility_target=False,
+                )
+                self.delivered(
+                    presentation,
+                    "accessibility:PlayerPanel-{identifier}-slider",
+                    evidence,
+                    "The DEBUG verb reached the same setter used by the placement slider.",
+                )
+        controls = self.show_controls()
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
+            self.delivered(
+                presentation, "command:toggleControls", self.events[-1]["evidence"],
+                "The Docked attachment controls entered the hierarchy.",
+                has_accessibility_target=False,
+            )
+        self.docked_settings_scenario()
+        self.docked_media_information_scenario()
+        self.observe(presentation, "Docked playback")
+
+        if not self.enter_docked_playback(dock_choice="dark"):
+            return
+        self.docked_environment_card_scenario()
+
+        if not self.enter_docked_playback():
+            return
+        self.player_panel_menu_scenario(presentation)
+
+        if not self.enter_docked_playback():
+            return
+        self.transport_scenario(presentation)
+        self.seek_scenario(presentation, "0.3")
+        self.docked_issue_scenario()
+
+        before = self.observe(presentation, "before resident-window negative")
+        toggle = self.app_command("toggleBlackoutProbeWindow")
+        after = self.controller("snapshot", "--no-screenshot")
+        before_hierarchy = str(before.get("hierarchy", ""))
+        after_hierarchy = str(after.get("hierarchy", ""))
+        before_identifiers = product_accessibility_identifiers(before)
+        after_identifiers = product_accessibility_identifiers(after)
+        no_named_node = "Blackout Probe" not in after_hierarchy
+        no_new_identifier = after_identifiers <= before_identifiers
+        hierarchy_evidence = self.events[-1]["evidence"]
+        cleanup = self.app_command("toggleBlackoutProbeWindow")
+        cleanup_evidence = self.events[-1]["evidence"]
+        if immersive_resident_window_is_hidden(
+            toggle=toggle,
+            cleanup=cleanup,
+            no_named_node=no_named_node,
+            no_new_identifier=no_new_identifier,
+        ):
+            self.delivered(
+                presentation, "negative:immersive-resident-window",
+                hierarchy_evidence,
+                "Opening the mechanism added no named or identifier-addressable Accessibility target.",
+                has_accessibility_target=False,
+            )
+            if toggle.get("success") is not True:
+                self.cells[
+                    (presentation, "negative:immersive-resident-window")
+                ]["evidence"].append(cleanup_evidence)
+        else:
+            cell = self.cells[(presentation, "negative:immersive-resident-window")]
+            cell["evidence"].extend((hierarchy_evidence, cleanup_evidence))
+            if no_named_node and no_new_identifier:
+                cell["reason"] = (
+                    "The Accessibility hierarchy remained hidden, but neither command "
+                    "response proved that the mechanism window was open."
+                )
+            else:
+                cell["reason"] = (
+                    "The mechanism exposed a named or identifier-addressable Accessibility target "
+                    f"(newIdentifiers={sorted(after_identifiers - before_identifiers)}, "
+                    f"named={not no_named_node})."
+                )
+
+        if not self.enter_docked_playback():
+            return
+        self.docked_exit_scenario()
+
+        if not self.enter_docked_playback():
+            return
+        self.exercise_playback_issue(
+            presentation,
+            category="environmentLoadingFailed",
+            identifier="PlayerUI-spatialFailure-secondary",
+            action="close",
+        )
+
+    def run_named_segment_scenario(self, name: str) -> None:
+        scenarios = {
+            "browser-core": self.browser_scenario,
+            "breadcrumbs": self.breadcrumb_scenario,
+            "docked": self.docked_scenario,
+            "docked-environment": self.docked_environment_segment_scenario,
+            "docked-content-round11": self.docked_content_scenario,
+            "docked-exit-command-round11": self.docked_exit_command_scenario,
+            "docked-exit": self.docked_exit_segment_scenario,
+            "docked-main-window-issues": self.docked_main_window_issue_scenario,
+            "docked-menus": self.docked_menu_segment_scenario,
+            "docked-placement": self.docked_placement_segment_scenario,
+            "docked-resident-window": self.docked_resident_window_segment_scenario,
+            "docked-spatial-secondary-issue": (
+                self.docked_spatial_secondary_issue_segment_scenario
+            ),
+            "docked-transport-issues": self.docked_transport_issue_segment_scenario,
+            "emby-version-season": self.emby_version_season_scenario,
+            "emby-content-round11": self.emby_content_scenario,
+            "emby-session-recovery": self.emby_session_recovery_scenario,
+            "file-browser-errors": self.file_browser_error_scenario,
+            "library-conditions": lambda: self.browser_condition_scenario(
+                include_source_scenarios=False
+            ),
+            "library-editing-round11": self.library_editing_scenario,
+            "library-reference-move": self.library_reference_move_scenario,
+            "manage-add": self.manage_add_scenario,
+            "panorama": self.panorama_scenario,
+            "panorama-content-round11": self.panorama_content_scenario,
+            "panorama-exit-command-round11": self.panorama_exit_command_scenario,
+            "panorama-immersive-issues": (
+                self.panorama_immersive_issue_segment_scenario
+            ),
+            "panorama-panel-exit": self.panorama_panel_exit_segment_scenario,
+            "panorama-resident-window": (
+                self.panorama_resident_window_segment_scenario
+            ),
+            "panorama-spatial-secondary-issue": (
+                self.panorama_spatial_secondary_issue_segment_scenario
+            ),
+            "playback-failures": self.playback_failure_scenario,
+            "player-ui-candidates": self.player_ui_candidate_scenario,
+            "player-panel-portal-menus": self.player_panel_portal_menu_scenario,
+            "portal": self.portal_scenario,
+            "portal-dv-round11": self.portal_dv_scenario,
+            "portal-issues-round11": self.portal_issue_scenario,
+            "portal-routes-round11": self.portal_route_scenario,
+            "remote-browser-round11": self.remote_browser_scenario,
+            "resume-decision": self.resume_decision_scenario,
+            "settings-category-round13": self.settings_category_scenario,
+            "settings-menus": self.settings_menu_scenario,
+            "source-connection-smb": lambda: self.source_connection_scenario("smb"),
+            "source-connection-webdav": lambda: self.source_connection_scenario("webDAV"),
+            "source-sidebar": self.source_sidebar_scenario,
+            "window-playback": self.window_scenario,
+            "window-dv-format-round11": self.window_dv_format_scenario,
+            "window-hdr-fallback-round12": self.window_hdr_fallback_scenario,
+            "window-media-information-round12": self.window_media_information_scenario,
+            "window-top-menu-round12": self.window_top_menu_scenario,
+            "window-environment-round11": self.window_environment_scenario,
+            "window-issues-round11": self.window_issue_scenario,
+            "window-menus-round11": self.window_menu_scenario,
+        }
+        scenarios[name]()
+
+    def record_segment_health_context(
+        self,
+        phase: str,
+        *,
+        probe_status_passed: bool | None = None,
+        probe_retrieval_passed: bool | None = None,
+    ) -> dict[str, Any]:
+        health = self.channel_health_probe(phase)
+        health["probeStatusPassed"] = probe_status_passed
+        health["probeRetrievalPassed"] = probe_retrieval_passed
+        if probe_status_passed is not None:
+            health["passed"] = health["passed"] and probe_status_passed
+        if probe_retrieval_passed is not None:
+            health["passed"] = health["passed"] and probe_retrieval_passed
+        health_path = self.raw / f"channel-health-{phase}.json"
+        health_path.write_text(
+            json.dumps(health, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.channel_health[phase] = health
+        return health
+
+    def run_segment(self) -> int:
+        assert self.segment is not None
+        if getattr(self.arguments, "reuse_session", False):
+            raise ValueError("Segmented runs require an independent XCTest session.")
+        if not self.ensure_session():
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("session-failed")
+
+        before_health = self.record_segment_health_context("before")
+        if before_health["passed"] is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("channel-health-failed")
+        self.probe_offset = 0
+        segment_started_at = utc_now()
+        self.probe_markers = {0: segment_started_at}
+        self.next_probe_marker = 1
+        self.segment_evidence_started = True
+
+        fixture_scenarios = {
+            "breadcrumbs",
+            "docked",
+            "library-conditions",
+            "library-reference-move",
+            "panorama",
+            "playback-failures",
+            "player-ui-candidates",
+            "player-panel-portal-menus",
+            "portal",
+            "resume-decision",
+            "window-playback",
+            "docked-exit-command-round11",
+            "library-editing-round11",
+            "panorama-exit-command-round11",
+            "portal-issues-round11",
+            "portal-routes-round11",
+            "window-issues-round11",
+        }
+        planned_scenarios = {str(value) for value in self.segment["scenarios"]}
+        fixture_files: set[str] = set()
+        if planned_scenarios & fixture_scenarios:
+            fixture_files.add("furyroad-stripped.mkv")
+        for scenario in planned_scenarios:
+            fixture_files.update(SCENARIO_FIXTURES.get(scenario, ()))
+        for fixture_file in sorted(fixture_files):
+            if self.stage_fixture(fixture_file):
+                continue
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("drive-error")
+
+        reset = self.reset_reachability_state()
+        if reset.get("success") is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("drive-error")
+        self.relaunch()
+        if planned_scenarios.isdisjoint(
+            {"settings-category-round13", "settings-menus"}
+        ):
+            self.prove_navigation_tab("files")
+        if "settings-menus" in planned_scenarios:
+            self.prove_navigation_tab("settings")
+        for scenario in self.segment["scenarios"]:
+            self.run_named_segment_scenario(str(scenario))
+            if self.channel_failures:
+                break
+
+        status_document = self.app_command(
+            "probeStatus",
+            defer_response=False,
+        )
+        self.probe_status = parse_probe_status_response(status_document)
+        status_path = self.raw / "probe-status.json"
+        status_path.write_text(
+            json.dumps(
+                self.probe_status,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "probeStatus",
+            "success": self.probe_status["passed"],
+            "evidence": f"raw/{status_path.name}",
+        })
+        if self.probe_status["passed"] is not True:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "probeStatus",
+                "error": "The product DEBUG probe journal reported an unhealthy state.",
+                "evidence": f"raw/{status_path.name}",
+            })
+        byte_limit = self.probe_status.get("byteLimit")
+        final_probe = (
+            self.retrieve_bounded_probe(
+                "segment-after-surface",
+                byte_limit=int(byte_limit),
+            )
+            if isinstance(byte_limit, int) and byte_limit > 0 else []
+        )
+        final_copied = (
+            self.events[-1].get("action") == "retrieveBoundedProbe"
+            and self.events[-1].get("success") is True
+        )
+        responses = self.copy_batched_app_responses()
+        self.segment_evidence_started = False
+        segment_ended_at = utc_now()
+        replay = replay_deferred_evidence(
+            cells=self.cells,
+            deliveries=self.deferred_deliveries,
+            probe_lines=final_probe,
+            responses=responses,
+            session_id=str(self.session_id),
+            started_at=segment_started_at,
+            ended_at=segment_ended_at,
+            evidence="raw/segment-after-surface-probe.log",
+        )
+        replay_path = self.raw / "deferred-evidence-replay.json"
+        replay_path.write_text(
+            json.dumps(replay, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "replayDeferredEvidence",
+            "success": replay["passed"],
+            "evidence": f"raw/{replay_path.name}",
+            "deliveryCount": replay["deliveryCount"],
+            "verifiedDeliveryCount": replay["verifiedDeliveryCount"],
+        })
+        replay_failure = deferred_replay_failure_reason(replay)
+        if replay_failure is not None:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "replayDeferredEvidence",
+                "error": replay_failure,
+                "evidence": f"raw/{replay_path.name}",
+            })
+        after_health = self.record_segment_health_context(
+            "after",
+            probe_status_passed=self.probe_status["passed"] is True,
+            probe_retrieval_passed=final_copied,
+        )
+        if self.channel_failures:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("channel-continuity-failed")
+        if after_health["passed"] is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("channel-health-failed")
+        stopped = self.controller("stop", "--no-screenshot", timeout=240)
+        if stopped.get("success") is not True:
+            self.controller("halt", "--no-screenshot", timeout=240)
+            return self.finish_segment("stop-failed")
+        return self.finish_segment("complete")
+
+    def finish_segment(self, status: str) -> int:
+        assert self.segment is not None
+        ordered_cells = [
+            self.cells[(context, operation_id)]
+            for context in PROOF_CONTEXTS
+            for operation_id in sorted(self.operations)
+            if (context, operation_id) in self.cells
+        ]
+        planned = {
+            (str(value["context"]), str(value["operation"]))
+            for value in self.segment["decisions"]
+        }
+        self.driven_cells.update(
+            key
+            for key, cell in self.cells.items()
+            if reachability_evidence_is_complete(cell)
+        )
+        driven = [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(self.driven_cells)
+        ]
+        tapped = [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(self.tapped_cells)
+        ]
+        controller_devicectl_calls = sum(
+            int(event.get("devicectlCallCount", 0) or 0)
+            for event in self.events
+        )
+        deferred_probe_reads = sum(
+            event.get("action") == "deferProbeRead" for event in self.events
+        )
+        prior_evidence_retrieval_lower_bound = (
+            deferred_probe_reads + len(self.deferred_command_ids)
+        )
+        current_evidence_retrieval_calls = self.evidence_retrieval_devicectl_calls
+        result = {
+            "schemaVersion": 3,
+            "deliveryAssessmentModel": "explicit-v1",
+            "generatedAt": utc_now(),
+            "status": status,
+            "segment": str(self.segment["id"]),
+            "segmentPlan": self.segment,
+            "sessionID": self.session_id,
+            "channelHealth": self.channel_health,
+            "channelContinuity": {
+                "passed": not self.channel_failures,
+                "failures": self.channel_failures,
+            },
+            "deferredEvidence": {
+                "commandIDs": sorted(self.deferred_command_ids),
+                "deliveries": self.deferred_deliveries,
+            },
+            "probeJournal": self.probe_status,
+            "channelExposure": {
+                "controllerDevicectlCalls": controller_devicectl_calls,
+                "directDevicectlCalls": self.direct_devicectl_calls,
+                "totalDevicectlCalls": (
+                    controller_devicectl_calls + self.direct_devicectl_calls
+                ),
+                "deferredProbeReads": deferred_probe_reads,
+                "deferredCommandResponses": len(self.deferred_command_ids),
+                "priorPerActionEvidenceRetrievalLowerBound": (
+                    prior_evidence_retrieval_lower_bound
+                ),
+                "currentEndOfSegmentEvidenceRetrievalCalls": (
+                    current_evidence_retrieval_calls
+                ),
+                "probeRetrievalCount": self.probe_retrieval_count,
+                "evidenceRetrievalReductionFactorLowerBound": round(
+                    prior_evidence_retrieval_lower_bound
+                    / max(1, current_evidence_retrieval_calls),
+                    2,
+                ),
+            },
+            "device": DEVICE,
+            "coreDevice": CORE_DEVICE,
+            "inventory": str(INVENTORY.relative_to(ROOT)),
+            "plannedDecisions": [
+                {"context": context, "operation": operation}
+                for context, operation in sorted(planned)
+            ],
+            "drivenCells": driven,
+            "tappedCells": tapped,
+            "unassessedTappedCells": [
+                cell for cell in tapped
+                if (cell["context"], cell["operation"]) not in self.driven_cells
+            ],
+            "unplannedDrivenCells": [
+                cell
+                for cell in driven
+                if (cell["context"], cell["operation"]) not in planned
+            ],
+            "stepCount": len(self.events),
+            "cells": ordered_cells,
+            "events": self.events,
+        }
+        results_path = self.output / "results.json"
+        results_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({
+            "results": str(results_path),
+            "segment": result["segment"],
+            "sessionID": self.session_id,
+            "status": status,
+            "stepCount": result["stepCount"],
+            "drivenCellCount": len(driven),
+        }, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if status == "complete" else 2
+
+    def run(self) -> int:
+        if self.segment is not None:
+            return self.run_segment()
+        selected = set(self.arguments.contexts)
+        state_reset = False
+        browser_scenario = (
+            self.resume_decision_scenario if self.arguments.window_resume_only else
+            lambda: (
+                self.browser_condition_scenario(),
+                self.browser_scenario(),
+            )
+        )
+        window_scenario = lambda: (
+                self.window_scenario(),
+                self.playback_failure_scenario(),
+            )
+        scenarios = {
+            MAIN_WINDOW_BROWSER_CONTEXT: browser_scenario,
+            "window": window_scenario,
+            "portal": self.portal_scenario,
+            "panorama": self.panorama_scenario,
+            "docked": self.docked_scenario,
+        }
+        for context in PROOF_CONTEXTS:
+            if context not in selected:
+                continue
+            if not self.arguments.reuse_session and not self.ensure_session():
+                self.controller("halt", "--no-screenshot", timeout=240)
+                self.finish("drive-error")
+                return 2
+            if context == "docked" and not self.stage_fixture(
+                "furyroad-stripped.mkv"
+            ):
+                if not self.arguments.reuse_session:
+                    self.controller("halt", "--no-screenshot", timeout=240)
+                self.finish("drive-error")
+                return 2
+            if not state_reset:
+                reset = self.reset_reachability_state()
+                if reset.get("success") is not True:
+                    if not self.arguments.reuse_session:
+                        self.controller("halt", "--no-screenshot", timeout=240)
+                    self.finish("drive-error")
+                    return 2
+                self.relaunch()
+                state_reset = True
+            initial = self.copy_probe(f"{context}-initial")
+            if initial and self.clear_probe_after_archive():
+                self.probe_offset = 0
+            else:
+                self.probe_offset = len(initial)
+            scenarios[context]()
+        if not self.arguments.reuse_session:
+            self.controller("stop", "--no-screenshot", timeout=240)
+        return self.finish("complete")
+
+    def finish(self, status: str) -> int:
+        ordered_cells = [
+            self.cells[(context, operation_id)]
+            for context in PROOF_CONTEXTS
+            for operation_id in sorted(self.operations)
+            if (context, operation_id) in self.cells
+        ]
+        prior_events: list[dict[str, Any]] = []
+        results_path = self.output / "results.json"
+        selected = set(self.arguments.contexts)
+        if selected != set(PROOF_CONTEXTS) and results_path.is_file():
+            prior = json.loads(results_path.read_text(encoding="utf-8"))
+            prior_cells = {
+                (cell["context"], cell["operation"]): cell
+                for cell in prior.get("cells", [])
+                if isinstance(cell, dict)
+            }
+            ordered_cells = [
+                prior_cells.get((cell["context"], cell["operation"]), cell)
+                if cell["context"] not in selected else cell
+                for cell in ordered_cells
+            ]
+            prior_events = list(prior.get("events", []))
+        summary = {
+            verdict: sum(cell["verdict"] == verdict for cell in ordered_cells)
+            for verdict in ("reachable", "known-defect")
+        }
+        result = {
+            "schemaVersion": 3,
+            "generatedAt": utc_now(),
+            "status": status,
+            "device": DEVICE,
+            "coreDevice": CORE_DEVICE,
+            "inventory": str(INVENTORY.relative_to(ROOT)),
+            "proofContexts": list(PROOF_CONTEXTS),
+            "summary": summary,
+            "cells": ordered_cells,
+            "events": prior_events + self.events,
+        }
+        results_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        regression_failures: list[dict[str, str]] = []
+        if BASELINE.is_file():
+            baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+            current = {
+                (cell["context"], cell["operation"]): cell
+                for cell in ordered_cells
+            }
+            for old in baseline.get("cells", []):
+                key = (old.get("context"), old.get("operation"))
+                if key[0] not in selected:
+                    continue
+                if (
+                    key[0] == "window"
+                    and key[1] in {
+                        "accessibility:PlayerUI-TopAction-dock",
+                        "accessibility:PlayerUI-DockMenu-skybox",
+                    }
+                    and "docked" not in selected
+                ):
+                    continue
+                if (
+                    self.arguments.window_resume_only
+                    and key[0] == MAIN_WINDOW_BROWSER_CONTEXT
+                    and key[1] not in {
+                        "accessibility:MediaLibrary-grid-video-{reference.name}",
+                        "accessibility:Navigation-Ornament-tab-files",
+                        "accessibility:Navigation-Ornament-tab-settings",
+                        "accessibility:PlayerUI-resumeDecision-primary",
+                        "accessibility:PlayerUI-resumeDecision-secondary",
+                    }
+                ):
+                    continue
+                if old.get("verdict") == "reachable" and (
+                    key not in current or current[key].get("verdict") != "reachable"
+                ):
+                    regression_failures.append({
+                        "context": str(key[0]),
+                        "operation": str(key[1]),
+                    })
+        if (
+            self.arguments.accept_baseline
+            and status == "complete"
+            and not regression_failures
+        ):
+            existing_baseline_cells: list[dict[str, Any]] = []
+            if BASELINE.is_file():
+                existing_baseline_cells = json.loads(
+                    BASELINE.read_text(encoding="utf-8")
+                ).get("cells", [])
+            baseline = {
+                "schemaVersion": 2,
+                "coordinateSystem": "proof-context-v1",
+                "acceptedFrom": str(results_path),
+                "acceptedAt": utc_now(),
+                "cells": merge_selected_cells_into_baseline(
+                    existing_baseline_cells,
+                    ordered_cells,
+                    selected=selected,
+                ),
+            }
+            BASELINE.write_text(
+                json.dumps(baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        regression_path = self.output / "regression.json"
+        regression_path.write_text(
+            json.dumps(
+                {"failures": regression_failures, "passed": not regression_failures},
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({
+            "results": str(results_path),
+            "summary": summary,
+            "regressionFailures": regression_failures,
+        }, ensure_ascii=False, indent=2, sort_keys=True))
+        if regression_failures:
+            return 1
+        if self.arguments.require_complete and summary["known-defect"]:
+            return 1
+        return 0
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-directory", type=Path, default=DEFAULT_EVIDENCE)
+    parser.add_argument("--derived-data-path", type=Path, default=DEFAULT_DERIVED_DATA)
+    parser.add_argument("--reuse-session", action="store_true")
+    parser.add_argument("--accept-baseline", action="store_true")
+    parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--require-baseline-coverage", action="store_true")
+    parser.add_argument("--baseline-no-regression-evidence", type=Path)
+    parser.add_argument("--window-resume-only", action="store_true")
+    parser.add_argument("--emby-credentials", type=Path)
+    parser.add_argument("--segment-plan", type=Path)
+    parser.add_argument("--segment")
+    parser.add_argument(
+        "--merge-segments", nargs="+", type=Path, metavar="RESULTS_JSON"
+    )
+    parser.add_argument(
+        "--contexts", nargs="+", choices=PROOF_CONTEXTS,
+        default=list(PROOF_CONTEXTS),
+    )
+    return parser.parse_args()
+
+
+def merge_segment_result_files(arguments: argparse.Namespace) -> int:
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    segment_results = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in arguments.merge_segments
+    ]
+    no_regression_cells: set[tuple[str, str]] = set()
+    no_regression_evidence: dict[str, Any] | None = None
+    if arguments.baseline_no_regression_evidence is not None:
+        no_regression_evidence = json.loads(
+            arguments.baseline_no_regression_evidence.read_text(encoding="utf-8")
+        )
+        if no_regression_evidence.get("status") != "passed":
+            raise SystemExit("Baseline no-regression evidence did not pass.")
+        cells = no_regression_evidence.get("cells")
+        if not isinstance(cells, list) or not cells:
+            raise SystemExit("Baseline no-regression evidence has no cells.")
+        no_regression_cells = {
+            (str(cell.get("context")), str(cell.get("operation")))
+            for cell in cells
+            if isinstance(cell, dict)
+            and cell.get("context")
+            and cell.get("operation")
+        }
+        if len(no_regression_cells) != len(cells):
+            raise SystemExit(
+                "Baseline no-regression evidence contains invalid or duplicate cells."
+            )
+    delivery = merge_segment_delivery(
+        baseline.get("cells", []),
+        segment_results,
+        require_baseline_coverage=arguments.require_baseline_coverage,
+        no_regression_cells=no_regression_cells,
+    )
+    delivery.update({
+        "schemaVersion": 2,
+        "generatedAt": utc_now(),
+        "baseline": str(BASELINE.relative_to(ROOT)),
+        "segmentResults": [str(path.resolve()) for path in arguments.merge_segments],
+        "baselineNoRegressionEvidence": (
+            str(arguments.baseline_no_regression_evidence.resolve())
+            if arguments.baseline_no_regression_evidence is not None
+            else None
+        ),
+    })
+    delivery["summary"] = {
+        verdict: sum(
+            cell.get("verdict") == verdict
+            for cell in delivery["candidateCells"]
+        )
+        for verdict in ("reachable", "known-defect")
+    }
+    arguments.output_directory.mkdir(parents=True, exist_ok=True)
+    delivery_path = arguments.output_directory / "delivery.json"
+    delivery_path.write_text(
+        json.dumps(delivery, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    if arguments.accept_baseline and delivery["accepted"]:
+        accepted = {
+            "schemaVersion": 2,
+            "coordinateSystem": "proof-context-v1",
+            "acceptedFrom": str(delivery_path.resolve()),
+            "acceptedAt": utc_now(),
+            "cells": [
+                {
+                    "context": cell["context"],
+                    "operation": cell["operation"],
+                    "verdict": cell["verdict"],
+                }
+                for cell in delivery["candidateCells"]
+            ],
+        }
+        BASELINE.write_text(
+            json.dumps(accepted, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    print(json.dumps({
+        "accepted": delivery["accepted"],
+        "acceptedSegments": delivery["acceptedSegments"],
+        "rejectedSegments": delivery["rejectedSegments"],
+        "failures": delivery["failures"],
+        "summary": delivery["summary"],
+        "delivery": str(delivery_path),
+    }, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if delivery["accepted"] else 1
+
+
+def configure_segment(arguments: argparse.Namespace) -> None:
+    if arguments.segment_plan is None or arguments.segment is None:
+        raise SystemExit("--segment-plan and --segment must be supplied together")
+    plan = json.loads(arguments.segment_plan.read_text(encoding="utf-8"))
+    inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    errors = validate_segment_plan(
+        plan,
+        operation_contexts={
+            str(item["id"]): {
+                str(context) for context in product_proof_contexts(item)
+            }
+            for item in inventory["operations"]
+        },
+        scenario_names=SEGMENT_SCENARIO_NAMES,
+    )
+    if errors:
+        raise SystemExit("Invalid segment plan:\n" + "\n".join(errors))
+    matching = [
+        segment for segment in plan["segments"]
+        if str(segment["id"]) == arguments.segment
+    ]
+    if not matching:
+        raise SystemExit(f"Segment plan has no segment named {arguments.segment}")
+    arguments.segment_spec = matching[0]
+    arguments.segment_plan_document = plan
+    arguments.contexts = [str(matching[0]["context"])]
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    if arguments.merge_segments:
+        if arguments.segment_plan is not None or arguments.segment is not None:
+            raise SystemExit("--merge-segments cannot be combined with --segment")
+        return merge_segment_result_files(arguments)
+    if arguments.segment_plan is not None or arguments.segment is not None:
+        configure_segment(arguments)
+    return ReachabilityRun(arguments).run()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

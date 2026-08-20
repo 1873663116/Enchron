@@ -164,7 +164,7 @@ struct PlaybackControlsPreview: View {
                 screenDistance = PlaybackDockedPlacement.defaultDistance
                 screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
             },
-            onApplyFormat: { selectedProjection, horizontalFieldOfView, stereo in
+            onApplyFormat: { selectedProjection, horizontalFieldOfView, stereo, _ in
                 projection = selectedProjection
                 if let horizontalFieldOfView {
                     horizontalFieldOfViewDegrees = horizontalFieldOfView
@@ -701,6 +701,7 @@ struct ConnectionFormFixture: View {
             password: $password,
             connectsAsGuest: $connectsAsGuest,
             accessibilityIdentifierPrefix: "DesignPreview-connection-\(kind.rawValue)",
+            guestAccessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-guest",
             onConnect: mockConnect,
             onCancel: onDismiss,
             onConnected: onDismiss

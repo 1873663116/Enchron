@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "purpose": "Known incomplete playback UI and presentation contracts. New names or occurrences fail the structure check; remove entries when product work closes a gap.",
+  "knownGaps": [
+    {
+      "name": "window camera is missing",
+      "count": 1
+    },
+    {
+      "name": "a full-window transparent hit plane can intercept Window chrome gaze",
+      "count": 1
+    },
+    {
+      "name": "camera target does not follow presentation",
+      "count": 1
+    },
+    {
+      "name": "window media facts do not overlay the video plane",
+      "count": 1
+    },
+    {
+      "name": "window info bar is missing",
+      "count": 1
+    },
+    {
+      "name": "the shared window playback root does not own the system uniform resize contract",
+      "count": 1
+    },
+    {
+      "name": "the RealityView and its 3D reader are not constrained to the window plane",
+      "count": 1
+    },
+    {
+      "name": "Panorama can commit without device settlement",
+      "count": 1
+    },
+    {
+      "name": "already-closed collapse can wait for source fade or issue immersive scene actions",
+      "count": 1
+    },
+    {
+      "name": "the attached controls retain a legacy Window Scene operation",
+      "count": 1
+    },
+    {
+      "name": "the Portal collapse path does not invalidate a laid-out retained viewport",
+      "count": 1
+    },
+    {
+      "name": "Environment Card Scene lifecycle does not report residency facts to the owner",
+      "count": 1
+    },
+    {
+      "name": "PlaybackRuntime state can bypass PlaybackCore callbacks or production assembly",
+      "count": 1
+    },
+    {
+      "name": "decoder bootstrap can deadlock before the crossing sample reaches the renderer",
+      "count": 1
+    },
+    {
+      "name": "ARCHITECTURE still contradicts retryable execution-attempt identity",
+      "count": 1
+    },
+    {
+      "name": "session cleanup is not serialized before normalizing Window and immersion",
+      "count": 1
+    },
+    {
+      "name": "immersive entry replacement order is not prepare, activate, target binding, rebase, restore, settle",
+      "count": 1
+    },
+    {
+      "name": "immersive exit omits or reorders the shared technical-session conversion sequence",
+      "count": 1
+    },
+    {
+      "name": "execution.actions.openWindow is not immediately protected by the execution lease",
+      "count": 1
+    },
+    {
+      "name": "execution.actions.dismissWindow is not immediately protected by the execution lease",
+      "count": 1
+    },
+    {
+      "name": "immersive residency is not re-read inside the serialized lane before open",
+      "count": 1
+    },
+    {
+      "name": "immersive action and Scene lifecycle facts do not refresh retry residency",
+      "count": 1
+    },
+    {
+      "name": "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift bypasses the platform executor",
+      "count": 4
+    },
+    {
+      "name": "immersive teardown leaves the video component attached",
+      "count": 1
+    }
+  ]
+}

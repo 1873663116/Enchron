@@ -680,5 +680,43 @@ public enum EmbyError: Error, Equatable, Sendable {
     case directPlayUnavailable(EmbyItemID)
     case externalSubtitleUnavailable(Int)
     case mediaSourceUnavailable(EmbyItemID, EmbyMediaSourceID)
+    case unsupportedVideoCodec(String)
     case notAuthenticated
+}
+
+extension EmbyError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidBaseAddress:
+            "The Emby server address is invalid."
+        case .invalidImageSize:
+            "The requested Emby image size is invalid."
+        case .invalidResponse:
+            "The Emby server returned an invalid response."
+        case let .httpStatus(status):
+            "The Emby server returned HTTP status \(status)."
+        case let .missingRequiredField(field):
+            "The Emby response is missing \(field)."
+        case .childrenUnavailable:
+            "The requested Emby collection is unavailable."
+        case .directPlayUnavailable:
+            "Emby did not provide a direct-play media source."
+        case let .externalSubtitleUnavailable(index):
+            "Emby did not provide external subtitle track \(index)."
+        case .mediaSourceUnavailable:
+            "The selected Emby media source is unavailable."
+        case let .unsupportedVideoCodec(codec):
+            "This video uses \(Self.videoCodecDisplayName(codec)), which Enchron does not support."
+        case .notAuthenticated:
+            "Sign in to the Emby server before playing this item."
+        }
+    }
+
+    private static func videoCodecDisplayName(_ codec: String) -> String {
+        switch codec.lowercased() {
+        case "vc1": "VC-1 video"
+        case "mpeg2video": "MPEG-2 video"
+        default: "\(codec.uppercased()) video"
+        }
+    }
 }

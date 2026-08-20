@@ -2,6 +2,44 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
+#if DEBUG
+@MainActor
+public final class EmbyReachabilityScrollRequest {
+    public enum Direction: String {
+        case forward
+        case backward
+    }
+
+    public let page: String
+    public let direction: Direction
+    public private(set) var handledPage: String?
+    private let recordDelivery: @MainActor (String) -> Void
+
+    public init(
+        page: String,
+        direction: Direction,
+        recordDelivery: @escaping @MainActor (String) -> Void
+    ) {
+        self.page = page
+        self.direction = direction
+        self.recordDelivery = recordDelivery
+    }
+
+    public func handle(on page: String, scroll: () -> Void) {
+        guard self.page == page, handledPage == nil else { return }
+        scroll()
+        handledPage = page
+        recordDelivery(page)
+    }
+}
+
+public extension Notification.Name {
+    static let embyReachabilityScroll = Notification.Name(
+        "app.enchron.debug.emby-reachability-scroll"
+    )
+}
+#endif
+
 /// Height of a page's header row. The toggle, the page title and the page's own control all sit on
 /// this one line, and the page's content scrolls underneath it, so nothing is cut by a row above.
 private let embyHeaderHeight = DesignTokens.Interactive.large + DesignTokens.Spacing.xl + DesignTokens.Spacing.lg
@@ -81,7 +119,9 @@ private struct EmbyPageHeader<Trailing: View>: View {
 }
 
 public struct EmbyScreen: View {
-    public typealias PlayHandler = @MainActor (EmbyPlaybackSelection) async throws -> Void
+    public typealias PlayHandler = @MainActor (
+        Result<EmbyPlaybackSelection, EmbyError>
+    ) async -> Void
 
     @Environment(EmbySessionViewModel.self) private var session
     @Environment(EmbyHomeViewModel.self) private var home
@@ -216,7 +256,12 @@ public struct EmbyScreen: View {
                 rowOffset: 0,
                 allowsReordering: false,
                 allowsSwipe: false,
-                onTap: { Task { await session.signOut() } }
+                onTap: {
+#if DEBUG
+                    session.recordReachability("signOut")
+#endif
+                    Task { await session.signOut() }
+                }
             )
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
             .accessibilityIdentifier("Emby-SignOut")
@@ -225,7 +270,6 @@ public struct EmbyScreen: View {
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .enchronSidebarSurface()
-        .accessibilityIdentifier("Emby-Sidebar")
     }
 
     /// The same row the Media Library sidebar uses, with reordering and swipe-to-delete switched off.
@@ -311,6 +355,7 @@ private enum SidebarDestination: Hashable {
 
 private struct EmbyConnectionScreen: View {
     @Environment(EmbyConnectionViewModel.self) private var viewModel
+    @Environment(EmbySessionViewModel.self) private var session
 
     var body: some View {
         @Bindable var viewModel = viewModel
@@ -339,6 +384,9 @@ private struct EmbyConnectionScreen: View {
             }
 
             Button {
+#if DEBUG
+                session.recordReachability("connection.connect")
+#endif
                 Task { await viewModel.connect() }
             } label: {
                 if viewModel.isConnecting {
@@ -356,6 +404,17 @@ private struct EmbyConnectionScreen: View {
         .frame(width: 520)
         .background(.regularMaterial, in: DesignTokens.ShapeToken.panel)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+#if DEBUG
+        .onChange(of: viewModel.address) { _, _ in
+            session.recordReachability("connection.address")
+        }
+        .onChange(of: viewModel.username) { _, _ in
+            session.recordReachability("connection.username")
+        }
+        .onChange(of: viewModel.password) { _, _ in
+            session.recordReachability("connection.password")
+        }
+#endif
     }
 }
 
@@ -364,6 +423,7 @@ private struct EmbyHomeScreen: View {
     @Environment(EmbySessionViewModel.self) private var session
     let sidebarIsVisible: Binding<Bool>?
     let onSelect: (EmbyLibraryItem) -> Void
+    @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
 
     var body: some View {
         ScrollView(.vertical) {
@@ -389,6 +449,22 @@ private struct EmbyHomeScreen: View {
             }
             .padding(.bottom, DesignTokens.Spacing.xxl)
         }
+        .scrollPosition($reachabilityScrollPosition)
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .embyReachabilityScroll)
+        ) { notification in
+            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+                return
+            }
+            request.handle(on: "home") {
+                switch request.direction {
+                case .forward: reachabilityScrollPosition.scrollTo(edge: .bottom)
+                case .backward: reachabilityScrollPosition.scrollTo(edge: .top)
+                }
+            }
+        }
+#endif
         .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
         .embyPageBounds()
         .overlay(alignment: .top) {
@@ -417,7 +493,12 @@ private struct EmbyLibraryScreen: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        EmbyPosterGrid(items: viewModel.items, session: session, onSelect: onSelect)
+        EmbyPosterGrid(
+            items: viewModel.items,
+            session: session,
+            reachabilityPage: "library",
+            onSelect: onSelect
+        )
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
@@ -427,6 +508,9 @@ private struct EmbyLibraryScreen: View {
                         // The indicator moves with the tap. Only the reload waits on the server.
                         set: { value in
                             guard viewModel.sort != value else { return }
+#if DEBUG
+                            session.recordReachability("library.sort.\(value)")
+#endif
                             withAnimation(DesignTokens.AnimationToken.selection) {
                                 viewModel.setSort(value)
                             }
@@ -443,9 +527,8 @@ private struct EmbyLibraryScreen: View {
                     .enchronGlassControl()
                     .accessibilityIdentifier("Emby-Library-Sort")
                 }
-            }
+        }
         .task { await viewModel.refresh() }
-        .accessibilityIdentifier("Emby-Library-\(viewModel.library.id.rawValue)")
     }
 }
 
@@ -457,7 +540,12 @@ private struct EmbySearchScreen: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        EmbyPosterGrid(items: viewModel.results, session: session, onSelect: onSelect)
+        EmbyPosterGrid(
+            items: viewModel.results,
+            session: session,
+            reachabilityPage: "search",
+            onSelect: onSelect
+        )
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
@@ -481,14 +569,20 @@ private struct EmbySearchScreen: View {
             guard Task.isCancelled == false else { return }
             await viewModel.refresh()
         }
-        .accessibilityIdentifier("Emby-Search")
+#if DEBUG
+        .onChange(of: viewModel.query) { _, _ in
+            session.recordReachability("search.query")
+        }
+#endif
     }
 }
 
 private struct EmbyPosterGrid: View {
     let items: [EmbyLibraryItem]
     let session: EmbySessionViewModel
+    let reachabilityPage: String
     let onSelect: (EmbyLibraryItem) -> Void
+    @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
 
     var body: some View {
         ScrollView {
@@ -503,6 +597,23 @@ private struct EmbyPosterGrid: View {
             }
             .padding(DesignTokens.Spacing.xxl)
         }
+        .scrollPosition($reachabilityScrollPosition)
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .embyReachabilityScroll)
+        ) { notification in
+            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+                return
+            }
+            request.handle(on: reachabilityPage) {
+                switch request.direction {
+                case .forward: reachabilityScrollPosition.scrollTo(edge: .bottom)
+                case .backward: reachabilityScrollPosition.scrollTo(edge: .top)
+                }
+            }
+        }
+#endif
+        .accessibilityIdentifier("Emby-\(reachabilityPage)-list")
     }
 }
 
@@ -510,7 +621,6 @@ private struct EmbyDetailScreen: View {
     @Environment(EmbySessionViewModel.self) private var session
     @State private var viewModel: EmbyDetailViewModel
     @State private var overviewIsExpanded = false
-    @State private var playbackError: String?
     @State private var scrollOffset: CGFloat = 0
     /// Set once the wearer has taken hold of this page, which is what lets it start settling to one
     /// of its two positions. Each detail page carries its own, so arriving at one always starts over.
@@ -628,6 +738,22 @@ private struct EmbyDetailScreen: View {
         .onScrollPhaseChange { _, phase in
             if phase == .interacting { hasBeenScrolled = true }
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .embyReachabilityScroll)
+        ) { notification in
+            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+                return
+            }
+            request.handle(on: "detail") {
+                switch request.direction {
+                case .forward: scrollPosition.scrollTo(edge: .bottom)
+                case .backward: scrollPosition.scrollTo(edge: .top)
+                }
+            }
+        }
+#endif
+        .accessibilityIdentifier("Emby-Detail-list")
 #if DEBUG
         // Drives the page from the same offset the product does, so what a screenshot shows is a
         // position the page can actually come to rest in.
@@ -793,6 +919,9 @@ private struct EmbyDetailScreen: View {
                     .frame(maxWidth: DesignTokens.EmbyDetail.overviewMaxWidth, alignment: .leading)
                 if overview.count > 140 {
                     Button(overviewIsExpanded ? "Less" : "More") {
+#if DEBUG
+                        session.recordReachability("detail.overview.toggle")
+#endif
                         overviewIsExpanded.toggle()
                     }
                     .buttonStyle(.plain)
@@ -839,10 +968,7 @@ private struct EmbyDetailScreen: View {
                 }
 
                 if item.metadata.mediaSources.count > 1 {
-                    Picker("Version", selection: Binding(
-                        get: { viewModel.selectedMediaSourceID },
-                        set: { viewModel.selectedMediaSourceID = $0 }
-                    )) {
+                    Picker("Version", selection: mediaSourceSelection) {
                         ForEach(item.metadata.mediaSources) { source in
                             Text(versionSummary(source)).tag(Optional(source.id))
                         }
@@ -854,12 +980,42 @@ private struct EmbyDetailScreen: View {
                     .accessibilityIdentifier("Emby-Detail-Version")
                 }
             }
-            if let playbackError {
-                Text(playbackError)
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("Emby-Playback-Error")
-            }
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  item.metadata.mediaSources.count > 1,
+                  request.family == .version else {
+                return
+            }
+            request.handle(
+                host: .emby,
+                family: .version,
+                items: item.metadata.mediaSources.map { source in
+                    DebugMenuSelectionItem(
+                        id: source.id.rawValue,
+                        title: versionSummary(source),
+                        isSelected: viewModel.selectedMediaSourceID == source.id,
+                        select: { mediaSourceSelection.wrappedValue = source.id }
+                    )
+                }
+            )
+        }
+#endif
+    }
+
+    private var mediaSourceSelection: Binding<EmbyMediaSourceID?> {
+        Binding(
+            get: { viewModel.selectedMediaSourceID },
+            set: {
+#if DEBUG
+                session.recordReachability("detail.version.select")
+#endif
+                viewModel.selectedMediaSourceID = $0
+            }
+        )
     }
 
     private func isPlayable(_ item: EmbyLibraryItem) -> Bool {
@@ -923,12 +1079,16 @@ private struct EmbyDetailScreen: View {
         action: EmbyPlaybackStartAction
     ) -> some View {
         Button {
+#if DEBUG
+            session.recordReachability("detail.play.\(action)")
+#endif
             Task {
                 do {
-                    try await onPlay(viewModel.playbackSelection(startAction: action))
-                    playbackError = nil
+                    await onPlay(.success(try viewModel.playbackSelection(startAction: action)))
+                } catch let error as EmbyError {
+                    await onPlay(.failure(error))
                 } catch {
-                    playbackError = error.localizedDescription
+                    await onPlay(.failure(.invalidResponse))
                 }
             }
         } label: {
@@ -1000,6 +1160,30 @@ private struct EmbyDetailScreen: View {
         .menuStyle(.button)
         .buttonStyle(.plain)
         .accessibilityIdentifier("Emby-Season-Picker")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  request.family == .season else {
+                return
+            }
+            request.handle(
+                host: .emby,
+                family: .season,
+                items: seasons.map { season in
+                    DebugMenuSelectionItem(
+                        id: season.metadata.id.rawValue,
+                        title: season.metadata.name,
+                        isSelected: season.metadata.id == selected,
+                        select: {
+                            seasonSelection(selected).wrappedValue = season.metadata.id
+                        }
+                    )
+                }
+            )
+        }
+#endif
     }
 
     private func seasonSelection(_ selected: EmbyItemID?) -> Binding<EmbyItemID?> {
@@ -1007,6 +1191,9 @@ private struct EmbyDetailScreen: View {
             get: { selected },
             set: { value in
                 guard let value, value != selected else { return }
+#if DEBUG
+                session.recordReachability("season.select.\(value.rawValue)")
+#endif
                 Task { await viewModel.selectSeason(value) }
             }
         )
@@ -1034,13 +1221,11 @@ private struct EmbyDetailScreen: View {
             watchedProgress: watchedProgress(metadata),
             accessibilityIdentifier: "Emby-Episode-\(metadata.id.rawValue)",
             action: {
+#if DEBUG
+                session.recordReachability("episode.select.\(metadata.id.rawValue)")
+#endif
                 Task {
-                    do {
-                        try await onPlay(viewModel.playbackSelection(for: episode))
-                        playbackError = nil
-                    } catch {
-                        playbackError = error.localizedDescription
-                    }
+                    await onPlay(.success(viewModel.playbackSelection(for: episode)))
                 }
             }
         )
@@ -1190,7 +1375,12 @@ private func posterCard(
         watchedProgress: watchedProgress(metadata),
         unplayedCount: metadata.userData?.unplayedItemCount,
         accessibilityIdentifier: "Emby-PosterCard-\(metadata.id.rawValue)",
-        action: { onSelect(item) }
+        action: {
+#if DEBUG
+            session.recordReachability("posterCard.select.\(metadata.id.rawValue)")
+#endif
+            onSelect(item)
+        }
     )
 }
 
@@ -1210,7 +1400,12 @@ private func stillCard(
         artworkURL: thumbURL(for: metadata, session: session),
         watchedProgress: watchedProgress(metadata),
         accessibilityIdentifier: "Emby-StillCard-\(metadata.id.rawValue)",
-        action: { onSelect(item) }
+        action: {
+#if DEBUG
+            session.recordReachability("stillCard.select.\(metadata.id.rawValue)")
+#endif
+            onSelect(item)
+        }
     )
 }
 

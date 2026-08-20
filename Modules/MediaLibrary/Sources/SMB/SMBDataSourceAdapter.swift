@@ -35,7 +35,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
-    private var smbManager: SMB2Manager?
+    private var serverConnection: SMBServerConnection?
     /// Stable DataSource ID for folder identity pass-through.
     public var ownerDataSourceID: UUID = UUID()
     public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
@@ -58,15 +58,16 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         connectionStatus = .connecting
 
         do {
-            let smb = try makeManager(for: info)
+            let connection = try SMBConnectionPool.shared.connection(for: info) {
+                try self.makeManager(for: info)
+            }
+            _ = try await connection.listShares()
 
-            _ = try await smb.listShares()
-
-            smbManager = smb
+            serverConnection = connection
             connectionInfo = info
             connectionStatus = .connected
         } catch {
-            smbManager = nil
+            serverConnection = nil
             connectionInfo = nil
             connectedShareName = nil
             let mappedError = Self.classify(error)
@@ -78,10 +79,10 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     /// List available shares on the connected server.
     /// Must be called after `connect(with:)` succeeds.
     public func listShares() async throws -> [String] {
-        guard let smb = smbManager else {
+        guard let connection = serverConnection else {
             throw SMBError.notConnected
         }
-        let shares = try await smb.listShares()
+        let shares = try await connection.listShares()
         // Filter out administrative/hidden shares (ending with $)
         return shares
             .map(\.name)
@@ -91,25 +92,16 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
 
     /// Connect to a share while preserving the server as the source root.
     public func selectShare(_ shareName: String) async throws {
-        guard let smb = smbManager else {
+        guard let connection = serverConnection else {
             throw SMBError.notConnected
         }
-
-        if connectedShareName != nil {
-            try? await smb.disconnectShare()
-        }
-
-        try await smb.connectShare(name: shareName)
+        try await connection.connectShare(name: shareName)
         connectedShareName = shareName
 
     }
 
     public func disconnect() {
-        let manager = smbManager
-        Task {
-            try? await manager?.disconnectShare()
-        }
-        smbManager = nil
+        serverConnection = nil
         connectionInfo = nil
         connectedShareName = nil
         connectionStatus = .disconnected
@@ -127,30 +119,26 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         at path: String,
         matching fileFilter: FileBrowsingDomain.FileFilter
     ) async throws -> [FileBrowsingDomain.MediaFile] {
-        guard let smb = smbManager else {
+        guard let connection = serverConnection else {
             throw SMBError.notConnected
         }
         guard Self.normalizeAbsolutePath(path) != "/" else { return [] }
 
         let smbPath = try await prepareShare(for: path)
-        let items = try await smb.contentsOfDirectory(atPath: smbPath)
+        let items = try await connection.directoryItems(atPath: smbPath)
 
         return items.compactMap { item -> FileBrowsingDomain.MediaFile? in
-            let name = item[URLResourceKey.nameKey] as? String ?? ""
-            let isDirectory = (item[URLResourceKey.fileResourceTypeKey] as? URLFileResourceType) == .directory
-            guard !isDirectory else { return nil }
+            let name = item.name
+            guard item.isDirectory == false else { return nil }
 
             let fullPath = Self.childPath(named: name, in: path)
             let fileURL = URL(string: "smb://placeholder\(fullPath)") ?? URL(fileURLWithPath: fullPath)
             guard fileFilter.matches(fileURL: fileURL) else { return nil }
 
-            let size = item[URLResourceKey.fileSizeKey] as? Int64 ?? 0
-            let modified = item[URLResourceKey.contentModificationDateKey] as? Date ?? .distantPast
-
             return FileBrowsingDomain.MediaFile(
                 name: name,
-                sizeInBytes: size,
-                modifiedAt: modified,
+                sizeInBytes: item.sizeInBytes,
+                modifiedAt: item.modifiedAt,
                 fileExtension: (name as NSString).pathExtension,
                 url: fileURL
             )
@@ -158,7 +146,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     }
 
     public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {
-        guard let smb = smbManager, connectionInfo != nil else {
+        guard let connection = serverConnection, connectionInfo != nil else {
             throw SMBError.notConnected
         }
         if Self.normalizeAbsolutePath(path) == "/" {
@@ -175,12 +163,11 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         }
 
         let smbPath = try await prepareShare(for: path)
-        let items = try await smb.contentsOfDirectory(atPath: smbPath)
+        let items = try await connection.directoryItems(atPath: smbPath)
 
         return items.compactMap { item -> FileBrowsingDomain.MediaFolder? in
-            let name = item[URLResourceKey.nameKey] as? String ?? ""
-            let isDirectory = (item[URLResourceKey.fileResourceTypeKey] as? URLFileResourceType) == .directory
-            guard isDirectory else { return nil }
+            let name = item.name
+            guard item.isDirectory else { return nil }
             guard name != "." && name != ".." else { return nil }
 
             let folderPath = Self.childPath(named: name, in: path)
@@ -210,32 +197,26 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> ResolvedMediaSource {
-        guard smbManager != nil, let info = connectionInfo else {
+        guard let connection = serverConnection, connectionInfo != nil else {
             throw SMBError.notConnected
         }
         guard let (shareName, remotePath) = Self.shareAndRelativePath(for: file.url.path) else {
             throw SMBError.noShareSelected
         }
-        guard file.sizeInBytes > 0 else {
-            throw SMBError.streamingFailed("The server did not report the remote file size.")
-        }
-        let playbackManager = try makeManager(for: info)
         do {
-            try await playbackManager.connectShare(name: shareName)
+            try await connection.connectShare(name: shareName)
             let source = SMBByteRangeSource(
-                manager: playbackManager,
+                connection: connection,
+                shareName: shareName,
                 path: remotePath,
-                contentLength: file.sizeInBytes
+                reportedContentLength: file.sizeInBytes
             )
-            let server = HTTPRangeStreamingServer(source: source, filename: file.name)
-            let url = try await server.start()
-            let resources = SMBPlaybackResources(manager: playbackManager, server: server)
-            return ResolvedMediaSource(
-                url: url,
-                accessLease: MediaAccessLease { resources.stop() }
+            let handle = try await MediaByteStreamServer.shared.register(
+                source: source,
+                filename: file.name
             )
+            return ResolvedMediaSource(byteStreamHandle: handle)
         } catch {
-            Task { try? await playbackManager.disconnectShare() }
             throw SMBError.streamingFailed(error.localizedDescription)
         }
     }
@@ -310,9 +291,8 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         guard let (shareName, relativePath) = Self.shareAndRelativePath(for: path) else {
             throw SMBError.noShareSelected
         }
-        if connectedShareName != shareName {
-            try await selectShare(shareName)
-        }
+        // `connectShare` verifies the pooled connection and reconnects when needed.
+        try await selectShare(shareName)
         return relativePath
     }
 
@@ -361,50 +341,137 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
 
 }
 
-private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
-    let contentLength: Int64
-    private let manager: SMB2Manager
+private nonisolated final class SMBByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
+    private let connection: SMBServerConnection
+    private let shareName: String
     private let path: String
+    private let lock = NSLock()
+    private var currentContentLength: Int64?
 
-    init(manager: SMB2Manager, path: String, contentLength: Int64) {
-        self.manager = manager
+    init(
+        connection: SMBServerConnection,
+        shareName: String,
+        path: String,
+        reportedContentLength: Int64
+    ) {
+        self.connection = connection
+        self.shareName = shareName
         self.path = path
-        self.contentLength = contentLength
+        currentContentLength = nil
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: reportedContentLength > 0 ? reportedContentLength : nil,
+            supportsSeeking: true,
+            isLive: false,
+            preferredBufferDepth: .automatic
+        )
     }
 
-    func read(in range: Range<Int64>) async throws -> Data {
-        try await manager.contents(
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        let length: Int64
+        if let cached = lock.withLock({ currentContentLength }) {
+            length = cached
+        } else {
+            let size = try await connection.contentLength(
+                shareName: shareName,
+                path: path
+            )
+            guard size >= 0 else {
+                throw SMBError.streamingFailed("The server did not report the current file size.")
+            }
+            lock.withLock { currentContentLength = size }
+            length = size
+        }
+        let upper = min(range.upperBound, length)
+        guard range.lowerBound < upper else {
+            return MediaByteRangeRead(data: Data(), contentLength: length, supportsSeeking: true)
+        }
+        let data = try await connection.contents(
+            shareName: shareName,
             atPath: path,
-            range: UInt64(range.lowerBound)..<UInt64(range.upperBound)
+            range: UInt64(range.lowerBound)..<UInt64(upper)
+        )
+        return MediaByteRangeRead(
+            data: data,
+            contentLength: length,
+            supportsSeeking: true
         )
     }
 }
 
-private nonisolated final class SMBPlaybackResources: @unchecked Sendable {
+private nonisolated final class SMBConnectionPool: @unchecked Sendable {
+    static let shared = SMBConnectionPool()
+
     private let lock = NSLock()
+    private var connections: [String: SMBServerConnection] = [:]
+
+    func connection(
+        for info: FileBrowsingDomain.ConnectionInfo,
+        makeManager: () throws -> SMB2Manager
+    ) throws -> SMBServerConnection {
+        let key = "\((info.host ?? "").lowercased()):\(info.port ?? 445)"
+        if let existing = lock.withLock({ connections[key] }) { return existing }
+        let connection = SMBServerConnection(manager: try makeManager())
+        return lock.withLock {
+            if let existing = connections[key] { return existing }
+            connections[key] = connection
+            return connection
+        }
+    }
+}
+
+private actor SMBServerConnection {
+    struct DirectoryItem: Sendable {
+        let name: String
+        let isDirectory: Bool
+        let sizeInBytes: Int64
+        let modifiedAt: Date
+    }
+
     private let manager: SMB2Manager
-    private let server: HTTPRangeStreamingServer
-    private var isStopped = false
 
-    init(manager: SMB2Manager, server: HTTPRangeStreamingServer) {
+    init(manager: SMB2Manager) {
         self.manager = manager
-        self.server = server
     }
 
-    func stop() {
-        let shouldStop = lock.withLock {
-            guard isStopped == false else { return false }
-            isStopped = true
-            return true
-        }
-        guard shouldStop else { return }
-        Task { [self] in
-            await server.stopAndWait()
-            try? await manager.disconnectShare()
+    func listShares() async throws -> [(name: String, comment: String)] {
+        try await manager.listShares()
+    }
+
+    func connectShare(name: String) async throws {
+        try await manager.connectShare(name: name)
+    }
+
+    func directoryItems(atPath path: String) async throws -> [DirectoryItem] {
+        try await manager.contentsOfDirectory(atPath: path).map { item in
+            DirectoryItem(
+                name: item[.nameKey] as? String ?? "",
+                isDirectory: (item[.fileResourceTypeKey] as? URLFileResourceType) == .directory,
+                sizeInBytes: item[.fileSizeKey] as? Int64
+                    ?? (item[.fileSizeKey] as? Int).map(Int64.init)
+                    ?? 0,
+                modifiedAt: item[.contentModificationDateKey] as? Date ?? .distantPast
+            )
         }
     }
 
-    deinit {
-        stop()
+    func contentLength(
+        shareName: String,
+        path: String
+    ) async throws -> Int64 {
+        try await manager.connectShare(name: shareName)
+        let attributes = try await manager.attributesOfItem(atPath: path)
+        return attributes[.fileSizeKey] as? Int64
+            ?? (attributes[.fileSizeKey] as? Int).map(Int64.init)
+            ?? -1
+    }
+
+    func contents(
+        shareName: String,
+        atPath path: String,
+        range: Range<UInt64>
+    ) async throws -> Data {
+        try await manager.connectShare(name: shareName)
+        return try await manager.contents(atPath: path, range: range)
     }
 }

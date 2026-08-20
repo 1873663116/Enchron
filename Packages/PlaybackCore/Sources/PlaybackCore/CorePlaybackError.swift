@@ -1,5 +1,11 @@
 import Foundation
 
+struct AudioRendererRetirementError: LocalizedError {
+    let message: String
+
+    var errorDescription: String? { message }
+}
+
 enum CorePlaybackError: LocalizedError {
     case audioPrerollTimedOut(Double)
     case firstVideoFrameTimedOut(Double, rendererError: String?)

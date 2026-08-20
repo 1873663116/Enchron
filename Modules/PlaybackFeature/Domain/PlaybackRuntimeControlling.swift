@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
@@ -39,6 +40,8 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var displayMediaProfile: PlaybackModel.MediaProfile? { get }
     var displayFileSizeInBytes: Int64? { get }
     var activeMediaFormatProvenance: MediaFormatProvenance { get }
+    var dolbyVisionFallbackIsAvailable: Bool { get }
+    var dolbyVisionFallbackIsEnabled: Bool { get }
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation { get }
     var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind { get }
     var sourceMediaFormatSummary: String { get }
@@ -52,7 +55,7 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var currentAudioTrackID: String? { get }
     var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] { get }
     var currentSubtitleTrackID: String? { get }
-    var lastErrorMessage: String? { get set }
+    var userVisibleIssue: PlaybackUserVisibleIssue? { get }
     var observationGeneration: UInt64 { get }
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)? { get set }
     var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)? { get set }
@@ -68,18 +71,36 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool
     ) async throws
     func useSourceFormat() async throws
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
     func setSpeed(_ speed: PlaybackModel.PlaybackSpeed)
     func replay()
+    func displayedArtworkImage() -> CGImage?
     func stop(releasingSourceAccess: Bool)
     func stopAndWait(releasingSourceAccess: Bool) async
+    func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?)
 }
 
 public extension PlaybackRuntimeControlling {
+    func displayedArtworkImage() -> CGImage? { nil }
+
+    func setFormat(
+        projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int?,
+        stereo: PlaybackModel.StereoLayout
+    ) async throws {
+        try await setFormat(
+            projection: projection,
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+            stereo: stereo,
+            usesDolbyVisionFallback: false
+        )
+    }
+
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         stereo: PlaybackModel.StereoLayout
@@ -87,7 +108,8 @@ public extension PlaybackRuntimeControlling {
         try await setFormat(
             projection: projection,
             horizontalFieldOfViewDegrees: nil,
-            stereo: stereo
+            stereo: stereo,
+            usesDolbyVisionFallback: false
         )
     }
 }

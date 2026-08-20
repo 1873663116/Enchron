@@ -26,6 +26,7 @@ public final class PlaybackCoreController {
     public private(set) var selectedAsset: PlaybackAsset?
     public private(set) var selectedStereoLayout: VideoStereoLayout?
     public private(set) var selectedProjectionOverride: VideoProjectionOverride?
+    public private(set) var selectedDynamicRangeOverride: VideoDynamicRangeOverride?
 
     public var onStatusChange: ((PlaybackStatus) -> Void)?
     public var onDiagnosticsChange: ((PlaybackDiagnostics) -> Void)?
@@ -76,6 +77,7 @@ public final class PlaybackCoreController {
     private var seekGeneration: UInt64 = 0
     private var subtitleSelectionGeneration: UInt64 = 0
     private var formatOverrideGeneration: UInt64 = 0
+    private var selectedSourceIsRemote = false
 
     public init() {
         sessionFactory = { sessionID in
@@ -106,8 +108,10 @@ public final class PlaybackCoreController {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
+        sourceIsRemote: Bool = false,
         initialStereoLayout: VideoStereoLayout? = nil,
         initialProjectionOverride: VideoProjectionOverride? = nil,
+        initialDynamicRangeOverride: VideoDynamicRangeOverride? = nil,
         provenance: String = "appOpen",
         accessRequirement: String = "appAdapterManaged"
     ) async throws -> SampleBufferPlaybackSession {
@@ -142,13 +146,16 @@ public final class PlaybackCoreController {
 
         selectedURL = url
         selectedAsset = asset
+        selectedSourceIsRemote = sourceIsRemote
         setStatus(.loading)
         let session = sessionFactory(sessionID)
-        if let initialStereoLayout {
-            _ = try await session.setStereoLayout(initialStereoLayout)
-        }
-        if let initialProjectionOverride {
-            _ = try await session.setProjectionOverride(initialProjectionOverride)
+        if initialStereoLayout != nil || initialProjectionOverride != nil
+            || initialDynamicRangeOverride != nil {
+            _ = try await session.setFormatOverrides(
+                stereoLayout: initialStereoLayout,
+                projection: initialProjectionOverride,
+                dynamicRange: initialDynamicRangeOverride
+            )
         }
         activeSession = session
         if debugRecorderMode == .enabled {
@@ -184,6 +191,7 @@ public final class PlaybackCoreController {
                 startTime: startTime,
                 startsPaused: startsPaused,
                 initialRate: initialRate,
+                sourceIsRemote: sourceIsRemote,
                 provenance: provenance,
                 accessRequirement: accessRequirement
             )
@@ -192,6 +200,7 @@ public final class PlaybackCoreController {
             }
             selectedStereoLayout = initialStereoLayout
             selectedProjectionOverride = initialProjectionOverride
+            selectedDynamicRangeOverride = initialDynamicRangeOverride
             return session
         } catch {
             guard activeSession === session else { throw error }
@@ -417,7 +426,8 @@ public final class PlaybackCoreController {
     @discardableResult
     public func setFormatOverrides(
         stereoLayout: VideoStereoLayout?,
-        projection: VideoProjectionOverride?
+        projection: VideoProjectionOverride?,
+        dynamicRange: VideoDynamicRangeOverride? = nil
     ) async throws -> UInt64 {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
@@ -431,7 +441,8 @@ public final class PlaybackCoreController {
         let task = Task {
             try await session.setFormatOverrides(
                 stereoLayout: stereoLayout,
-                projection: projection
+                projection: projection,
+                dynamicRange: dynamicRange
             )
         }
         activeFormatOverrideTask = task
@@ -446,6 +457,7 @@ public final class PlaybackCoreController {
             }
             selectedStereoLayout = stereoLayout
             selectedProjectionOverride = projection
+            selectedDynamicRangeOverride = dynamicRange
             return revision
         } catch {
             if formatOverrideGeneration == generation {
@@ -757,14 +769,17 @@ public final class PlaybackCoreController {
         }
         let stereoLayout = selectedStereoLayout
         let projectionOverride = selectedProjectionOverride
+        let dynamicRangeOverride = selectedDynamicRangeOverride
         let accessRequirement = mediaSlot.current?.source.accessRequirement
             ?? "appAdapterManaged"
         await closeAndWait(clearSource: false)
         return try await open(
             url,
             asset: selectedAsset,
+            sourceIsRemote: selectedSourceIsRemote,
             initialStereoLayout: stereoLayout,
             initialProjectionOverride: projectionOverride,
+            initialDynamicRangeOverride: dynamicRangeOverride,
             provenance: "reopen",
             accessRequirement: accessRequirement
         )
@@ -776,6 +791,7 @@ public final class PlaybackCoreController {
         if clearSource {
             selectedURL = nil
             selectedAsset = nil
+            selectedSourceIsRemote = false
         }
         formatOverrideGeneration &+= 1
         activeFormatOverrideTask?.cancel()
@@ -799,6 +815,7 @@ public final class PlaybackCoreController {
         if clearSource {
             selectedURL = nil
             selectedAsset = nil
+            selectedSourceIsRemote = false
         }
         formatOverrideGeneration &+= 1
         subtitleSelectionGeneration &+= 1

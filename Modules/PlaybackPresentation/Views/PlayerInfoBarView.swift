@@ -1,4 +1,5 @@
 import DesignSystem
+import OSLog
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
@@ -6,6 +7,7 @@ import SwiftUI
 /// Window playback chrome. Navigation and presentation actions stay over the
 /// video while media information belongs to the bottom Player Controls ornament.
 struct PlayerInfoBarView: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlayerInfoBar")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
@@ -18,6 +20,12 @@ struct PlayerInfoBarView: View {
             GlassCircleIconButton.back(
                 accessibilityLabel: "Back",
                 action: {
+#if DEBUG
+                    appModel.recordSurfaceInputProbe(
+                        "reachability top actions delivered action=back",
+                        retention: .evidence
+                    )
+#endif
                     launcher.stopPlayback()
                 },
                 accessibilityIdentifier: "PlayerUI-InfoBar-button-back"
@@ -38,15 +46,27 @@ struct PlayerInfoBarView: View {
                 horizontalFieldOfViewDegrees:
                     playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
                 stereoLayout: playbackRuntime.effectiveStereoLayout,
+                usesDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsEnabled,
+                showsDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsAvailable,
                 defaultScenicEnvironment: appModel.defaultScenicEnvironment,
                 onEnterImmersive: enterImmersive,
                 onApplyFormat: applyFormat,
                 onRestoreAutomaticFormat: restoreAutomaticFormat,
-                onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange
+                onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange,
+                onReachabilityAction: recordReachability
             )
         } moreControl: {
             ProductionPlaybackMoreMenu()
         }
+    }
+
+    private func recordReachability(_ action: String) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability top actions delivered action=\(action)",
+            retention: .evidence
+        )
+#endif
     }
 
     private var initialPresentedMenu: PlaybackTopSecondaryMenu? {
@@ -72,14 +92,18 @@ struct PlayerInfoBarView: View {
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            logger.error(
+                "presentation request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+            playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
         }
     }
 
     private func applyFormat(
         _ projection: PlaybackModel.ProjectionType,
         _ horizontalFieldOfViewDegrees: Int?,
-        _ stereo: PlaybackModel.StereoLayout
+        _ stereo: PlaybackModel.StereoLayout,
+        _ usesDolbyVisionFallback: Bool
     ) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         Task {
@@ -87,10 +111,14 @@ struct PlayerInfoBarView: View {
                 try await launcher.applyFormat(
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                    stereo: stereo
+                    stereo: stereo,
+                    usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "format change failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }
@@ -101,7 +129,10 @@ struct PlayerInfoBarView: View {
             do {
                 try await launcher.resetFormat()
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "source format restoration failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }

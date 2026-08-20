@@ -43,6 +43,7 @@ struct SourceSidebar: View {
     var onImportFolder: (() -> Void)?
     var onRefresh: (() -> Void)?
     var onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)?
+    var onReachabilityAction: ((String) -> Void)?
     var showsStorageMeter = false
 
     @State private var isSelectingSidebarItems = false
@@ -75,6 +76,16 @@ struct SourceSidebar: View {
         .enchronSidebarSurface()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(containerIdentifier)
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest else {
+                return
+            }
+            handleDebugMenuSelection(request)
+        }
+#endif
     }
 
     private var sourcesSection: some View {
@@ -196,62 +207,158 @@ struct SourceSidebar: View {
             accessibilityIdentifier: "\(identifierPrefix)-sourceMore",
             iconColor: .secondary
         ) {
-            Menu {
-                Button {
-                    onAddSource?(.local)
-                } label: {
-                    Label("Files", systemImage: "folder")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addFiles")
-                if let onImportFolder {
-                    Button(action: onImportFolder) {
-                        Label("Folder", systemImage: "folder.badge.plus")
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix)-addFolder")
-                }
-                Button {
-                    onAddSource?(.photoLibrary)
-                } label: {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addPhotos")
-                Button {
-                    onAddSource?(.webDAV)
-                } label: {
-                    Label("WebDAV", systemImage: "cloud.fill")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
-                Button {
-                    onAddSource?(.smb)
-                } label: {
-                    Label("SMB", systemImage: "server.rack")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-addSMB")
-                if onAddSource == nil {
+            Group {
+                Menu {
                     Button {
-                        addDebugSource()
+                        performAddSource(.local)
                     } label: {
-                        Label("Add One", systemImage: "plus.circle")
+                        Label("Files", systemImage: "folder")
                     }
-                    .accessibilityIdentifier("\(identifierPrefix)-addDebug")
+                    .accessibilityIdentifier("\(identifierPrefix)-addFiles")
+                    if onImportFolder != nil {
+                        Button(action: performImportFolder) {
+                            Label("Folder", systemImage: "folder.badge.plus")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix)-addFolder")
+                    }
+                    Button {
+                        performAddSource(.photoLibrary)
+                    } label: {
+                        Label("Photos", systemImage: "photo.on.rectangle")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addPhotos")
+                    Button {
+                        performAddSource(.webDAV)
+                    } label: {
+                        Label("WebDAV", systemImage: "cloud.fill")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
+                    Button {
+                        performAddSource(.smb)
+                    } label: {
+                        Label("SMB", systemImage: "server.rack")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addSMB")
+                    if onAddSource == nil {
+                        Button {
+                            addDebugSource()
+                        } label: {
+                            Label("Add One", systemImage: "plus.circle")
+                        }
+                        .accessibilityIdentifier("DesignPreview-SourcesSidebar-addDebug")
+                    }
+                } label: {
+                    Label("Add", systemImage: "plus")
                 }
-            } label: {
-                Label("Add", systemImage: "plus")
+                Button {
+                    performRefresh()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-refresh")
+                Button {
+                    performDeleteSelection()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(!hasDeletableSources)
+                .accessibilityIdentifier("\(identifierPrefix)-delete")
             }
-            Button {
-                onRefresh?()
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .accessibilityIdentifier("\(identifierPrefix)-refresh")
-            Button {
-                enterSidebarDeleteSelectionMode()
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            .disabled(!hasDeletableSources)
+            .onAppear { onReachabilityAction?("sourceMore") }
         }
     }
+
+    private func performAddSource(_ type: FileBrowsingDomain.SourceType) {
+        onAddSource?(type)
+    }
+
+    private func performImportFolder() {
+        onImportFolder?()
+    }
+
+    private func performRefresh() {
+        onRefresh?()
+    }
+
+    private func performDeleteSelection() {
+        onReachabilityAction?("delete")
+        enterSidebarDeleteSelectionMode()
+    }
+
+#if DEBUG
+    private func handleDebugMenuSelection(
+        _ request: DebugMenuSelectionRequest
+    ) {
+        guard request.host == .files else { return }
+        switch request.family {
+        case .sourceAdd:
+            var items = [
+                DebugMenuSelectionItem(
+                    id: "local",
+                    title: "Files",
+                    isSelected: false,
+                    select: { performAddSource(.local) }
+                ),
+                DebugMenuSelectionItem(
+                    id: "photoLibrary",
+                    title: "Photos",
+                    isSelected: false,
+                    select: { performAddSource(.photoLibrary) }
+                ),
+                DebugMenuSelectionItem(
+                    id: "webDAV",
+                    title: "WebDAV",
+                    isSelected: false,
+                    select: { performAddSource(.webDAV) }
+                ),
+                DebugMenuSelectionItem(
+                    id: "smb",
+                    title: "SMB",
+                    isSelected: false,
+                    select: { performAddSource(.smb) }
+                ),
+            ]
+            if onImportFolder != nil {
+                items.insert(
+                    DebugMenuSelectionItem(
+                        id: "folder",
+                        title: "Folder",
+                        isSelected: false,
+                        select: { performImportFolder() }
+                    ),
+                    at: 1
+                )
+            }
+            request.handle(host: .files, family: .sourceAdd, items: items)
+        case .sourceAction:
+            var items = [
+                DebugMenuSelectionItem(
+                    id: "refresh",
+                    title: "Refresh",
+                    isSelected: false,
+                    select: { performRefresh() }
+                ),
+            ]
+            if hasDeletableSources {
+                items.append(
+                    DebugMenuSelectionItem(
+                        id: "delete",
+                        title: "Delete",
+                        isSelected: isSelectingSidebarItems,
+                        select: { performDeleteSelection() }
+                    )
+                )
+            }
+            request.handle(
+                host: .files,
+                family: .sourceAction,
+                items: items
+            )
+        default:
+            return
+        }
+    }
+#endif
 
     private var sidebarSelectionActions: some View {
         let selectedCount = selectedSourceIDs.count

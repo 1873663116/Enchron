@@ -2,9 +2,11 @@
 #include "PlaybackFFmpegBridgeInternal.h"
 
 #include <AudioToolbox/AudioToolbox.h>
+#include <errno.h>
 #include <libavcodec/avcodec.h>
 #include <libavcodec/bsf.h>
 #include <libavformat/avformat.h>
+#include <libavutil/audio_fifo.h>
 #include <libavutil/avutil.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/mastering_display_metadata.h>
@@ -13,6 +15,7 @@
 #include <libavutil/pixdesc.h>
 #include <libavutil/spherical.h>
 #include <libavutil/stereo3d.h>
+#include <libswresample/swresample.h>
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
@@ -22,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 struct PBFFmpegSourceReadMonitor {
     atomic_uint_fast64_t totalBytesRead;
@@ -35,15 +39,30 @@ typedef struct {
 } PBFFmpegSourceReadContext;
 
 typedef struct PBFFmpegPacketNode {
-    AVPacket *packet;
+    AVPacket packet;
+    int64_t timestampMicroseconds;
+    int64_t durationMicroseconds;
     struct PBFFmpegPacketNode *next;
 } PBFFmpegPacketNode;
+
+enum { PB_PACKET_NODE_POOL_CHUNK_SIZE = 256 };
+enum { PB_AUDIO_PACKET_BATCH_LIMIT = 256 };
+enum { PB_TRUEHD_DECODER_PACKET_BATCH_LIMIT = 120 };
+static const int64_t PB_AUDIO_PACKET_BATCH_DURATION_MICROSECONDS =
+    AV_TIME_BASE / 4;
+
+typedef struct PBFFmpegPacketNodePoolChunk {
+    PBFFmpegPacketNode nodes[PB_PACKET_NODE_POOL_CHUNK_SIZE];
+    struct PBFFmpegPacketNodePoolChunk *next;
+} PBFFmpegPacketNodePoolChunk;
 
 typedef struct {
     PBFFmpegPacketNode *head;
     PBFFmpegPacketNode *tail;
     unsigned int subscribers;
     unsigned int waiters;
+    int64_t summedDurationMicroseconds;
+    int64_t bufferedDurationMicroseconds;
 } PBFFmpegPacketQueue;
 
 struct PBFFmpegDemuxSource {
@@ -62,7 +81,24 @@ struct PBFFmpegDemuxSource {
     int videoStreamIndex;
     char *path;
     bool prebuffersAudio;
+    bool isRemote;
+    int64_t knownByteLength;
+    int64_t *lastQueuedTimestamps;
+    int64_t *replayThroughTimestamps;
+    bool *replayCaughtUp;
+    PBFFmpegPacketNode *freePacketNodes;
+    PBFFmpegPacketNodePoolChunk *packetNodePoolChunks;
+    unsigned int reconnectAttemptCount;
 };
+
+// Six seconds covers the complete 1.75-second retry schedule plus two equal
+// budgets for reopening, seeking, and refilling. REPORT.md records the fixture
+// throughput and fault-injection measurements behind this value.
+static const int64_t PB_DEMUX_PREFETCH_DURATION_MICROSECONDS = 6LL * AV_TIME_BASE;
+static const long PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[] = {250, 500, 1000};
+static const unsigned int PB_DEMUX_RECONNECT_ATTEMPT_LIMIT =
+    sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS) /
+    sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[0]);
 
 typedef struct {
     bool movFamily;
@@ -73,6 +109,11 @@ static int read_stream_information(
     AVFormatContext *context,
     PBFFmpegSourceReadContext *sourceReadContext,
     PBStreamInformationRead *readOut
+);
+static int open_media_source(
+    AVFormatContext **context,
+    const char *path,
+    PBFFmpegSourceReadContext *sourceReadContext
 );
 
 typedef struct {
@@ -90,6 +131,11 @@ typedef struct {
 struct PBFFmpegMediaSourceInformation {
     char containerFormat[64];
     double durationSeconds;
+    bool containerSupportsSourceFormatDescription;
+    int dolbyVisionProfile;
+    int dolbyVisionCrossCompatibilityID;
+    bool dolbyVisionHasEnhancementLayer;
+    bool hasStereoVideoEnhancementLayer;
     int streamCount;
     PBFFmpegMediaStreamStorage *streams;
 };
@@ -144,23 +190,39 @@ struct PBFFmpegAudioReader {
     PBFFmpegSourceReadContext sourceReadContext;
     AVFormatContext *formatContext;
     PBFFmpegDemuxSource *demuxSource;
+    PBFFmpegPacketNode *demuxPacketBatch;
+    PBFFmpegPacketNode *consumedDemuxPacketBatch;
     AVPacket *packet;
-    AVPacket *filteredPacket;
-    AVBSFContext *bitstreamFilter;
+    AVPacket *decoderBatchPacket;
+    AVCodecContext *decoder;
+    AVFrame *decodedFrame;
+    SwrContext *resampler;
+    AVChannelLayout outputChannelLayout;
     int audioStreamIndex;
     AVRational timeBase;
     int64_t startTimestamp;
     int sampleRate;
     int channelCount;
     bool inputEnded;
-    bool filterDrained;
+    int inputReadResult;
+    bool decoderDrained;
     bool outputsPCM;
-    CFDataRef codecMagicCookie;
-    int64_t pendingOriginalPTS;
-    int64_t pendingOriginalDTS;
-    int64_t pendingOriginalDuration;
+    int64_t nextPCMSample;
+    uint8_t *pendingPCMData;
+    size_t pendingPCMByteCount;
+    size_t pendingPCMCapacity;
+    int pendingPCMFrameCount;
+    int64_t pendingPCMStartSample;
+    PBFFmpegAudioSampleMetadata pendingPCMMetadata;
+    AVAudioFifo *decodedAudioFifo;
+    uint8_t **decodedBatchData;
+    int decodedBatchCapacity;
+    enum AVSampleFormat decodedInputFormat;
+    int64_t decodedFifoStartSample;
+    int64_t decodedFifoStartTimestamp;
     CMAudioFormatDescriptionRef formatDescription;
     char codecName[64];
+    AVCodecParameters *codecParameters;
 };
 
 static void publish_source_bytes(PBFFmpegSourceReadContext *context) {
@@ -245,24 +307,217 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
         : 0;
 }
 
-static void clear_packet_queue(PBFFmpegPacketQueue *queue) {
+static PBFFmpegPacketNode *take_packet_node(PBFFmpegDemuxSource *source) {
+    if (!source) return NULL;
+    if (!source->freePacketNodes) {
+        PBFFmpegPacketNodePoolChunk *chunk = calloc(1, sizeof(*chunk));
+        if (!chunk) return NULL;
+        chunk->next = source->packetNodePoolChunks;
+        source->packetNodePoolChunks = chunk;
+        for (size_t index = 0; index < PB_PACKET_NODE_POOL_CHUNK_SIZE; index++) {
+            chunk->nodes[index].next = source->freePacketNodes;
+            source->freePacketNodes = &chunk->nodes[index];
+        }
+    }
+    PBFFmpegPacketNode *node = source->freePacketNodes;
+    source->freePacketNodes = node->next;
+    node->next = NULL;
+    node->timestampMicroseconds = AV_NOPTS_VALUE;
+    node->durationMicroseconds = 0;
+    return node;
+}
+
+static void return_packet_node(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketNode *node
+) {
+    if (!source || !node) return;
+    av_packet_unref(&node->packet);
+    node->next = source->freePacketNodes;
+    source->freePacketNodes = node;
+}
+
+static void clear_packet_queue(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue
+) {
     if (!queue) return;
     PBFFmpegPacketNode *node = queue->head;
     while (node) {
         PBFFmpegPacketNode *next = node->next;
-        av_packet_free(&node->packet);
-        free(node);
+        return_packet_node(source, node);
         node = next;
     }
     queue->head = NULL;
     queue->tail = NULL;
+    queue->summedDurationMicroseconds = 0;
+    queue->bufferedDurationMicroseconds = 0;
 }
 
-static bool demux_source_has_waiter(const PBFFmpegDemuxSource *source) {
+static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
+    if (!queue || !queue->head || !queue->tail) {
+        if (queue) queue->bufferedDurationMicroseconds = 0;
+        return;
+    }
+    int64_t timestampSpan = 0;
+    if (queue->head->timestampMicroseconds != AV_NOPTS_VALUE &&
+        queue->tail->timestampMicroseconds != AV_NOPTS_VALUE &&
+        queue->tail->timestampMicroseconds >= queue->head->timestampMicroseconds) {
+        timestampSpan = queue->tail->timestampMicroseconds -
+            queue->head->timestampMicroseconds +
+            queue->tail->durationMicroseconds;
+    }
+    queue->bufferedDurationMicroseconds = FFMAX(
+        queue->summedDurationMicroseconds,
+        timestampSpan
+    );
+}
+
+static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     for (unsigned int index = 0; index < source->queueCount; index++) {
-        if (source->queues[index].waiters > 0) return true;
+        const PBFFmpegPacketQueue *queue = &source->queues[index];
+        if (queue->subscribers > 0 &&
+            queue->bufferedDurationMicroseconds <
+                PB_DEMUX_PREFETCH_DURATION_MICROSECONDS) return true;
     }
     return false;
+}
+
+static int64_t packet_timestamp_microseconds(
+    const PBFFmpegDemuxSource *source,
+    const AVPacket *packet
+) {
+    if (!source || !source->formatContext || !packet || packet->stream_index < 0 ||
+        (unsigned int)packet->stream_index >= source->formatContext->nb_streams) {
+        return AV_NOPTS_VALUE;
+    }
+    int64_t timestamp = packet->dts != AV_NOPTS_VALUE ? packet->dts : packet->pts;
+    if (timestamp == AV_NOPTS_VALUE) return AV_NOPTS_VALUE;
+    return av_rescale_q(
+        timestamp,
+        source->formatContext->streams[packet->stream_index]->time_base,
+        AV_TIME_BASE_Q
+    );
+}
+
+static int64_t packet_duration_microseconds(
+    const PBFFmpegDemuxSource *source,
+    const AVPacket *packet
+) {
+    if (!source || !source->formatContext || !packet || packet->duration <= 0 ||
+        packet->stream_index < 0 ||
+        (unsigned int)packet->stream_index >= source->formatContext->nb_streams) return 0;
+    return av_rescale_q(
+        packet->duration,
+        source->formatContext->streams[packet->stream_index]->time_base,
+        AV_TIME_BASE_Q
+    );
+}
+
+static bool demux_source_reached_known_end(const PBFFmpegDemuxSource *source) {
+    if (!source || source->knownByteLength <= 0 || !source->formatContext ||
+        !source->formatContext->pb) return false;
+    // A demuxer can finish before the last container byte, so byte position is
+    // not an end test. A declared total length plus EOF with no AVIO transport
+    // error distinguishes normal container completion from a short response.
+    return source->formatContext->pb->error >= 0;
+}
+
+static bool wait_for_reconnect_backoff(
+    PBFFmpegDemuxSource *source,
+    long milliseconds
+) {
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += milliseconds / 1000;
+    deadline.tv_nsec += (milliseconds % 1000) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec++;
+        deadline.tv_nsec -= 1000000000L;
+    }
+    pthread_mutex_lock(&source->lock);
+    while (!source->stopsReadThread) {
+        int result = pthread_cond_timedwait(&source->changed, &source->lock, &deadline);
+        if (result == ETIMEDOUT) break;
+    }
+    bool continues = !source->stopsReadThread;
+    pthread_mutex_unlock(&source->lock);
+    return continues;
+}
+
+static int64_t demux_source_resume_timestamp(
+    const PBFFmpegDemuxSource *source
+) {
+    int64_t resume = AV_NOPTS_VALUE;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        int64_t timestamp = source->lastQueuedTimestamps[index];
+        if (timestamp != AV_NOPTS_VALUE &&
+            (resume == AV_NOPTS_VALUE || timestamp < resume)) resume = timestamp;
+    }
+    return resume;
+}
+
+static int reopen_demux_source(PBFFmpegDemuxSource *source) {
+    int64_t resumeTimestamp = demux_source_resume_timestamp(source);
+    PBFFmpegSourceReadContext replacementReadContext = {
+        .monitor = source->sourceReadContext.monitor,
+    };
+    AVFormatContext *replacement = allocate_format_context(
+        &source->interrupted,
+        &replacementReadContext
+    );
+    if (!replacement) return AVERROR(ENOMEM);
+    int result = open_media_source(
+        &replacement,
+        source->path,
+        &replacementReadContext
+    );
+    if (result >= 0) {
+        result = read_stream_information(
+            replacement,
+            &replacementReadContext,
+            NULL
+        );
+    }
+    if (result >= 0 && replacement->nb_streams != source->queueCount) {
+        result = AVERROR_INVALIDDATA;
+    }
+    int64_t knownByteLength = source->knownByteLength;
+    if (result >= 0) {
+        int64_t length = replacement->pb
+            ? avio_size(replacement->pb)
+            : AVERROR(ENOSYS);
+        if (length > 0) knownByteLength = length;
+    }
+    if (result >= 0 && resumeTimestamp != AV_NOPTS_VALUE) {
+        result = avformat_seek_file(
+            replacement,
+            -1,
+            INT64_MIN,
+            resumeTimestamp,
+            INT64_MAX,
+            AVSEEK_FLAG_BACKWARD
+        );
+        publish_source_bytes(&replacementReadContext);
+    }
+    if (result < 0) {
+        close_media_source(&replacement, &replacementReadContext);
+        return result;
+    }
+    pthread_mutex_lock(&source->lock);
+    AVFormatContext *previous = source->formatContext;
+    PBFFmpegSourceReadContext previousReadContext = source->sourceReadContext;
+    source->formatContext = replacement;
+    source->sourceReadContext = replacementReadContext;
+    source->knownByteLength = knownByteLength;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        source->replayThroughTimestamps[index] = source->lastQueuedTimestamps[index];
+        source->replayCaughtUp[index] =
+            source->replayThroughTimestamps[index] == AV_NOPTS_VALUE;
+    }
+    pthread_mutex_unlock(&source->lock);
+    close_media_source(&previous, &previousReadContext);
+    return 0;
 }
 
 static void *demux_source_read_loop(void *opaque) {
@@ -276,11 +531,12 @@ static void *demux_source_read_loop(void *opaque) {
         pthread_mutex_unlock(&source->lock);
         return NULL;
     }
+    unsigned int consecutiveReconnectAttempts = 0;
     while (true) {
         pthread_mutex_lock(&source->lock);
         while (!source->stopsReadThread &&
                !source->reachedEnd &&
-               !demux_source_has_waiter(source)) {
+               !demux_source_needs_more_data(source)) {
             pthread_cond_wait(&source->changed, &source->lock);
         }
         bool stop = source->stopsReadThread || source->reachedEnd;
@@ -298,7 +554,41 @@ static void *demux_source_read_loop(void *opaque) {
             break;
         }
         if (result < 0) {
-            source->readResult = result;
+            bool reachedEnd = result == AVERROR_EOF &&
+                demux_source_reached_known_end(source);
+            bool retries = source->isRemote && !reachedEnd;
+            pthread_mutex_unlock(&source->lock);
+            if (retries) {
+                bool reconnected = false;
+                while (consecutiveReconnectAttempts <
+                       PB_DEMUX_RECONNECT_ATTEMPT_LIMIT) {
+                    long backoff = PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[
+                        consecutiveReconnectAttempts
+                    ];
+                    consecutiveReconnectAttempts++;
+                    pthread_mutex_lock(&source->lock);
+                    source->reconnectAttemptCount++;
+                    pthread_mutex_unlock(&source->lock);
+                    if (!wait_for_reconnect_backoff(source, backoff)) break;
+                    int reconnectResult = reopen_demux_source(source);
+                    if (reconnectResult >= 0) {
+                        reconnected = true;
+                        break;
+                    }
+                    result = reconnectResult;
+                }
+                if (reconnected) continue;
+                pthread_mutex_lock(&source->lock);
+                if (source->stopsReadThread) {
+                    pthread_mutex_unlock(&source->lock);
+                    break;
+                }
+                pthread_mutex_unlock(&source->lock);
+            }
+            pthread_mutex_lock(&source->lock);
+            source->readResult = reachedEnd
+                ? AVERROR_EOF
+                : (result == AVERROR_EOF ? AVERROR(EIO) : result);
             source->reachedEnd = true;
             pthread_cond_broadcast(&source->changed);
             pthread_mutex_unlock(&source->lock);
@@ -306,6 +596,19 @@ static void *demux_source_read_loop(void *opaque) {
         }
         if (packet->stream_index >= 0 &&
             (unsigned int)packet->stream_index < source->queueCount) {
+            int64_t timestamp = packet_timestamp_microseconds(source, packet);
+            unsigned int streamIndex = (unsigned int)packet->stream_index;
+            if (!source->replayCaughtUp[streamIndex]) {
+                int64_t replayThrough = source->replayThroughTimestamps[streamIndex];
+                if (timestamp != AV_NOPTS_VALUE && timestamp <= replayThrough) {
+                    av_packet_unref(packet);
+                    pthread_cond_broadcast(&source->changed);
+                    pthread_mutex_unlock(&source->lock);
+                    continue;
+                }
+                source->replayCaughtUp[streamIndex] = true;
+            }
+            consecutiveReconnectAttempts = 0;
             PBFFmpegPacketQueue *queue = &source->queues[packet->stream_index];
             bool prebuffersAudio = source->prebuffersAudio &&
                 source->formatContext->streams[packet->stream_index]
@@ -314,20 +617,25 @@ static void *demux_source_read_loop(void *opaque) {
                 ->streams[packet->stream_index]->codecpar->codec_type ==
                     AVMEDIA_TYPE_SUBTITLE;
             if (queue->subscribers > 0 || prebuffersAudio || prebuffersSubtitle) {
-                PBFFmpegPacketNode *node = calloc(1, sizeof(*node));
-                if (node) node->packet = av_packet_alloc();
-                if (!node || !node->packet) {
-                    if (node) free(node);
+                PBFFmpegPacketNode *node = take_packet_node(source);
+                if (!node) {
                     source->readResult = AVERROR(ENOMEM);
                     source->reachedEnd = true;
                 } else {
-                    av_packet_move_ref(node->packet, packet);
+                    node->timestampMicroseconds = timestamp;
+                    node->durationMicroseconds =
+                        packet_duration_microseconds(source, packet);
+                    av_packet_move_ref(&node->packet, packet);
                     if (queue->tail) {
                         queue->tail->next = node;
                     } else {
                         queue->head = node;
                     }
                     queue->tail = node;
+                    queue->summedDurationMicroseconds +=
+                        node->durationMicroseconds;
+                    update_packet_queue_buffered_duration(queue);
+                    source->lastQueuedTimestamps[streamIndex] = timestamp;
                 }
             }
         }
@@ -380,6 +688,15 @@ static bool subscribe_to_demux_stream(
     return subscribed;
 }
 
+static bool begin_demux_source_prefetch(PBFFmpegDemuxSource *source) {
+    if (!source) return false;
+    pthread_mutex_lock(&source->lock);
+    bool started = start_demux_source_read_thread(source);
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+    return started;
+}
+
 static void unsubscribe_from_demux_stream(
     PBFFmpegDemuxSource *source,
     int streamIndex
@@ -389,7 +706,10 @@ static void unsubscribe_from_demux_stream(
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     queue->subscribers = 0;
-    clear_packet_queue(queue);
+    clear_packet_queue(source, queue);
+    source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
+    source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
+    source->replayCaughtUp[streamIndex] = true;
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
 }
@@ -428,10 +748,114 @@ static int copy_next_demux_packet(
     PBFFmpegPacketNode *node = queue->head;
     queue->head = node->next;
     if (!queue->head) queue->tail = NULL;
-    av_packet_move_ref(packet, node->packet);
-    av_packet_free(&node->packet);
-    free(node);
+    queue->summedDurationMicroseconds -= node->durationMicroseconds;
+    if (queue->summedDurationMicroseconds < 0) {
+        queue->summedDurationMicroseconds = 0;
+    }
+    update_packet_queue_buffered_duration(queue);
+    av_packet_move_ref(packet, &node->packet);
+    return_packet_node(source, node);
+    pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
+    return 0;
+}
+
+static void return_packet_node_list(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketNode **nodes
+) {
+    if (!source || !nodes || !*nodes) return;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketNode *node = *nodes;
+    *nodes = NULL;
+    while (node) {
+        PBFFmpegPacketNode *next = node->next;
+        return_packet_node(source, node);
+        node = next;
+    }
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+}
+
+static int copy_next_demux_packet_batch(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    atomic_bool *cancelled,
+    PBFFmpegPacketNode **availableNodes,
+    PBFFmpegPacketNode **consumedNodes,
+    AVPacket *packet
+) {
+    if (!source || !packet || !availableNodes || !consumedNodes ||
+        streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) {
+        return AVERROR(EINVAL);
+    }
+    if (cancellation_requested(cancelled)) return AVERROR_EXIT;
+
+    if (!*availableNodes) {
+        pthread_mutex_lock(&source->lock);
+        PBFFmpegPacketNode *consumedNode = *consumedNodes;
+        *consumedNodes = NULL;
+        while (consumedNode) {
+            PBFFmpegPacketNode *next = consumedNode->next;
+            return_packet_node(source, consumedNode);
+            consumedNode = next;
+        }
+
+        PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+        queue->waiters++;
+        if (!start_demux_source_read_thread(source)) {
+            queue->waiters--;
+            pthread_mutex_unlock(&source->lock);
+            return AVERROR(ENOMEM);
+        }
+        pthread_cond_broadcast(&source->changed);
+        while (!queue->head && !source->reachedEnd &&
+               !cancellation_requested(cancelled)) {
+            pthread_cond_wait(&source->changed, &source->lock);
+        }
+        queue->waiters--;
+        if (cancellation_requested(cancelled)) {
+            pthread_mutex_unlock(&source->lock);
+            return AVERROR_EXIT;
+        }
+        if (!queue->head) {
+            int result = source->readResult < 0
+                ? source->readResult
+                : AVERROR_EOF;
+            pthread_mutex_unlock(&source->lock);
+            return result;
+        }
+
+        PBFFmpegPacketNode *batchHead = queue->head;
+        PBFFmpegPacketNode *batchTail = batchHead;
+        unsigned int batchCount = 1;
+        int64_t batchDurationMicroseconds = batchHead->durationMicroseconds;
+        while (batchTail->next && batchCount < PB_AUDIO_PACKET_BATCH_LIMIT &&
+               batchDurationMicroseconds <
+                   PB_AUDIO_PACKET_BATCH_DURATION_MICROSECONDS) {
+            batchTail = batchTail->next;
+            batchCount++;
+            batchDurationMicroseconds += batchTail->durationMicroseconds;
+        }
+        queue->head = batchTail->next;
+        batchTail->next = NULL;
+        if (!queue->head) queue->tail = NULL;
+        queue->summedDurationMicroseconds -= batchDurationMicroseconds;
+        if (queue->summedDurationMicroseconds < 0) {
+            queue->summedDurationMicroseconds = 0;
+        }
+        update_packet_queue_buffered_duration(queue);
+        *availableNodes = batchHead;
+        pthread_cond_broadcast(&source->changed);
+        pthread_mutex_unlock(&source->lock);
+    }
+
+    PBFFmpegPacketNode *node = *availableNodes;
+    *availableNodes = node->next;
+    av_packet_move_ref(packet, &node->packet);
+    node->next = *consumedNodes;
+    *consumedNodes = node;
     return 0;
 }
 
@@ -492,148 +916,21 @@ static bool subtitle_stream_is_supported(const AVStream *stream) {
     }
 }
 
-static int aac_audio_object_type(const AVCodecParameters *parameters) {
-    if (!parameters || parameters->codec_id != AV_CODEC_ID_AAC) return 0;
-    if (parameters->profile == AV_PROFILE_AAC_USAC) return 42;
-    if (!parameters->extradata || parameters->extradata_size < 2) return 0;
-    int objectType = parameters->extradata[0] >> 3;
-    if (objectType == 31) {
-        objectType = 32 +
-            ((parameters->extradata[0] & 0x07) << 3) +
-            (parameters->extradata[1] >> 5);
-    }
-    return objectType;
-}
-
-static bool aac_is_usac(const AVCodecParameters *parameters) {
-    return aac_audio_object_type(parameters) == 42;
-}
-
 static AudioFormatID compressed_audio_format_id(const AVCodecParameters *parameters) {
     switch (parameters->codec_id) {
-        case AV_CODEC_ID_AAC:
-            if (aac_is_usac(parameters)) {
-                return kAudioFormatMPEGD_USAC;
-            }
-            if (parameters->profile == AV_PROFILE_AAC_HE) {
-                return kAudioFormatMPEG4AAC_HE;
-            }
-            if (parameters->profile == AV_PROFILE_AAC_HE_V2) {
-                return kAudioFormatMPEG4AAC_HE_V2;
-            }
-            return kAudioFormatMPEG4AAC;
         case AV_CODEC_ID_AC3: return kAudioFormatAC3;
         case AV_CODEC_ID_EAC3: return kAudioFormatEnhancedAC3;
-        case AV_CODEC_ID_MP2: return kAudioFormatMPEGLayer2;
-        case AV_CODEC_ID_MP3: return kAudioFormatMPEGLayer3;
-        case AV_CODEC_ID_ALAC: return kAudioFormatAppleLossless;
-        case AV_CODEC_ID_OPUS: return kAudioFormatOpus;
-        case AV_CODEC_ID_FLAC: return kAudioFormatFLAC;
-        case AV_CODEC_ID_APAC: return kAudioFormatAPAC;
         default: return 0;
     }
 }
 
-typedef struct SourcePCMFormat {
-    UInt32 bytesPerSample;
-    UInt32 bitsPerChannel;
-    AudioFormatFlags flags;
-} SourcePCMFormat;
-
-static bool source_pcm_format(enum AVCodecID codecID, SourcePCMFormat *formatOut) {
-    SourcePCMFormat format = {0};
-    switch (codecID) {
-        case AV_CODEC_ID_PCM_S8:
-            format = (SourcePCMFormat){1, 8, kAudioFormatFlagIsSignedInteger};
-            break;
-        case AV_CODEC_ID_PCM_U8:
-            format = (SourcePCMFormat){1, 8, 0};
-            break;
-        case AV_CODEC_ID_PCM_S16LE:
-            format = (SourcePCMFormat){2, 16, kAudioFormatFlagIsSignedInteger};
-            break;
-        case AV_CODEC_ID_PCM_S16BE:
-            format = (SourcePCMFormat){
-                2, 16, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian
-            };
-            break;
-        case AV_CODEC_ID_PCM_U16LE:
-            format = (SourcePCMFormat){2, 16, 0};
-            break;
-        case AV_CODEC_ID_PCM_U16BE:
-            format = (SourcePCMFormat){2, 16, kAudioFormatFlagIsBigEndian};
-            break;
-        case AV_CODEC_ID_PCM_S24LE:
-            format = (SourcePCMFormat){3, 24, kAudioFormatFlagIsSignedInteger};
-            break;
-        case AV_CODEC_ID_PCM_S24BE:
-            format = (SourcePCMFormat){
-                3, 24, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian
-            };
-            break;
-        case AV_CODEC_ID_PCM_U24LE:
-            format = (SourcePCMFormat){3, 24, 0};
-            break;
-        case AV_CODEC_ID_PCM_U24BE:
-            format = (SourcePCMFormat){3, 24, kAudioFormatFlagIsBigEndian};
-            break;
-        case AV_CODEC_ID_PCM_S32LE:
-            format = (SourcePCMFormat){4, 32, kAudioFormatFlagIsSignedInteger};
-            break;
-        case AV_CODEC_ID_PCM_S32BE:
-            format = (SourcePCMFormat){
-                4, 32, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian
-            };
-            break;
-        case AV_CODEC_ID_PCM_U32LE:
-            format = (SourcePCMFormat){4, 32, 0};
-            break;
-        case AV_CODEC_ID_PCM_U32BE:
-            format = (SourcePCMFormat){4, 32, kAudioFormatFlagIsBigEndian};
-            break;
-        case AV_CODEC_ID_PCM_F32LE:
-            format = (SourcePCMFormat){4, 32, kAudioFormatFlagIsFloat};
-            break;
-        case AV_CODEC_ID_PCM_F32BE:
-            format = (SourcePCMFormat){
-                4, 32, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian
-            };
-            break;
-        case AV_CODEC_ID_PCM_F64LE:
-            format = (SourcePCMFormat){8, 64, kAudioFormatFlagIsFloat};
-            break;
-        case AV_CODEC_ID_PCM_F64BE:
-            format = (SourcePCMFormat){
-                8, 64, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian
-            };
-            break;
-        default:
-            return false;
-    }
-    format.flags |= kAudioFormatFlagIsPacked;
-    if (formatOut) *formatOut = format;
-    return true;
-}
-
-static bool audio_codec_is_source_pcm(enum AVCodecID codecID) {
-    return source_pcm_format(codecID, NULL);
+static bool audio_codec_uses_compressed_passthrough(enum AVCodecID codecID) {
+    return codecID == AV_CODEC_ID_AC3 || codecID == AV_CODEC_ID_EAC3;
 }
 
 static bool audio_codec_is_supported(enum AVCodecID codecID) {
-    switch (codecID) {
-        case AV_CODEC_ID_AAC:
-        case AV_CODEC_ID_AC3:
-        case AV_CODEC_ID_EAC3:
-        case AV_CODEC_ID_MP2:
-        case AV_CODEC_ID_MP3:
-        case AV_CODEC_ID_ALAC:
-        case AV_CODEC_ID_OPUS:
-        case AV_CODEC_ID_FLAC:
-        case AV_CODEC_ID_APAC:
-            return true;
-        default:
-            return audio_codec_is_source_pcm(codecID);
-    }
+    return audio_codec_uses_compressed_passthrough(codecID) ||
+        avcodec_find_decoder(codecID) != NULL;
 }
 
 static bool audio_stream_is_supported(const AVStream *stream) {
@@ -730,15 +1027,28 @@ static void set_audio_stream_selection_error(
 ) {
     bool hasAudioStream = false;
     bool hasSupportedCodec = false;
+    enum AVCodecID unsupportedCodec = AV_CODEC_ID_NONE;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVStream *stream = context->streams[index];
         hasAudioStream = hasAudioStream || is_audio_stream(stream);
         hasSupportedCodec = hasSupportedCodec || audio_stream_has_supported_codec(stream);
+        if (is_audio_stream(stream) &&
+            !audio_codec_is_supported(stream->codecpar->codec_id) &&
+            unsupportedCodec == AV_CODEC_ID_NONE) {
+            unsupportedCodec = stream->codecpar->codec_id;
+        }
     }
     if (!hasAudioStream) {
         set_error(errorBuffer, errorBufferSize, "The selected source has no audio stream");
     } else if (!hasSupportedCodec) {
-        set_error(errorBuffer, errorBufferSize, "The selected audio codec is not supported by PlaybackCore");
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Audio codec %s is unsupported because FFmpeg has no decoder",
+            avcodec_get_name(unsupportedCodec)
+        );
+        set_error(errorBuffer, errorBufferSize, message);
     } else {
         set_error(
             errorBuffer,
@@ -770,7 +1080,7 @@ static void set_av_error(char *buffer, size_t size, const char *operation, int c
 // Collapsing onto it keeps one branch downstream. The 'apac' sample entry tag
 // is what actually establishes the stream is Apple's, so it gates the rewrite.
 // Apple decodes it either way; FFmpeg only carries the packets.
-static void normalize_mov_apac_codec_id(AVFormatContext *context) {
+static void normalize_mov_codec_ids(AVFormatContext *context) {
     if (!context) return;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVCodecParameters *parameters = context->streams[index]->codecpar;
@@ -780,7 +1090,27 @@ static void normalize_mov_apac_codec_id(AVFormatContext *context) {
             parameters->codec_tag == MKTAG('a', 'p', 'a', 'c')) {
             parameters->codec_id = AV_CODEC_ID_APAC;
         }
+        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
+            parameters->codec_id == AV_CODEC_ID_NONE &&
+            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
+            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
+            // Dolby Vision configuration but does not classify the track as AV1.
+            parameters->codec_id = AV_CODEC_ID_AV1;
+        }
     }
+}
+
+static int finalize_stream_information(
+    AVFormatContext *context,
+    PBFFmpegSourceReadContext *sourceReadContext,
+    bool probesStreamInformation
+) {
+    int result = probesStreamInformation
+        ? avformat_find_stream_info(context, NULL)
+        : 0;
+    if (probesStreamInformation) publish_source_bytes(sourceReadContext);
+    normalize_mov_codec_ids(context);
+    return result;
 }
 
 /// A disc image carries no header a probe can read, because its first bytes are
@@ -811,55 +1141,14 @@ static const AVInputFormat *disc_image_input_format(const char *path) {
     return isUDF ? av_find_input_format("mpegts") : NULL;
 }
 
-static bool path_is_http(const char *path) {
-    return path &&
-        (strncmp(path, "http://", 7) == 0 || strncmp(path, "https://", 8) == 0);
-}
-
-/// Opens `path`, naming the demuxer and setting its options where the source needs
-/// it. A disc image and an HTTP source each need one, and both follow from a fact
-/// about the source, so one function owns what opening a path means here.
+/// Opens `path`, naming the demuxer only when the media itself requires one.
 static int open_media_source(
     AVFormatContext **context,
     const char *path,
     PBFFmpegSourceReadContext *sourceReadContext
 ) {
     AVDictionary *options = NULL;
-    AVDictionary *ioOptions = NULL;
-    AVIOContext *openedIO = NULL;
     int result = 0;
-    if (path_is_http(path)) {
-        // The first response to an authenticated source is the 401 challenge and
-        // carries no Content-Range, which makes FFmpeg give up its seekable state
-        // before the authenticated 206 arrives. Declaring the source seekable keeps
-        // the tail-header seek on the byte-range path instead of a blind re-read.
-        result = av_dict_set_int(&ioOptions, "seekable", 1, 0);
-        if (result < 0) goto finish;
-        // Reuse one socket across the ranges a single open needs.
-        result = av_dict_set_int(&ioOptions, "multiple_requests", 1, 0);
-        if (result < 0) goto finish;
-        result = avio_open2(
-            &openedIO,
-            path,
-            AVIO_FLAG_READ,
-            *context ? &(*context)->interrupt_callback : NULL,
-            &ioOptions
-        );
-        if (result < 0) goto finish;
-        int64_t length = avio_size(openedIO);
-        if (length > 0) {
-            // HTTP uses end_offset as its effective EOF, so only this response's
-            // length can bound later ranges without silently truncating the tail.
-            result = av_opt_set_int(
-                openedIO,
-                "end_offset",
-                length,
-                AV_OPT_SEARCH_CHILDREN
-            );
-            if (result < 0) goto finish;
-        }
-        (*context)->pb = openedIO;
-    }
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
         // The stream sits behind the disc's filesystem metadata, and the demuxer
@@ -872,18 +1161,6 @@ static int open_media_source(
         av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
     }
     result = avformat_open_input(context, path, format, &options);
-    if (result >= 0 && openedIO) {
-        // avformat_open_input marks caller-supplied IO as custom; ownership moves
-        // here so the existing avformat_close_input paths still close the socket.
-        (*context)->flags &= ~AVFMT_FLAG_CUSTOM_IO;
-        openedIO = NULL;
-    }
-finish:
-    if (result < 0 && *context && (*context)->pb == openedIO) {
-        (*context)->pb = NULL;
-    }
-    if (openedIO) avio_closep(&openedIO);
-    av_dict_free(&ioOptions);
     av_dict_free(&options);
     if (sourceReadContext) {
         sourceReadContext->formatContext = result >= 0 ? *context : NULL;
@@ -908,7 +1185,6 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         context,
@@ -920,8 +1196,6 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
-
     bool needsMoreProbe = false;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         if (audio_stream_needs_more_probe(context->streams[index])) {
@@ -936,8 +1210,11 @@ static int open_media_source_for_audio(
 
     if (informationRead.movFamily) {
         if (informationRead.skippedProbe) {
-            result = avformat_find_stream_info(context, NULL);
-            publish_source_bytes(sourceReadContext);
+            result = finalize_stream_information(
+                context,
+                sourceReadContext,
+                true
+            );
             if (result < 0) {
                 set_av_error(
                     errorBuffer,
@@ -948,7 +1225,6 @@ static int open_media_source_for_audio(
                 close_media_source(&context, sourceReadContext);
                 return result;
             }
-            normalize_mov_apac_codec_id(context);
         }
         probe_delayed_audio_parameters(context);
         publish_source_bytes(sourceReadContext);
@@ -975,14 +1251,12 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
     result = read_stream_information(context, sourceReadContext, NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read extended audio stream information", result);
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
     probe_delayed_audio_parameters(context);
     publish_source_bytes(sourceReadContext);
     if (cancellation_requested(cancelled)) {
@@ -991,99 +1265,6 @@ static int open_media_source_for_audio(
     }
     *contextOut = context;
     return 0;
-}
-
-static CFDataRef copy_audio_file_magic_cookie(const char *path) {
-    if (!path) return NULL;
-    CFURLRef url = CFURLCreateFromFileSystemRepresentation(
-        kCFAllocatorDefault,
-        (const UInt8 *)path,
-        (CFIndex)strlen(path),
-        false
-    );
-    if (!url) return NULL;
-    AudioFileID file = NULL;
-    OSStatus status = AudioFileOpenURL(url, kAudioFileReadPermission, 0, &file);
-    CFRelease(url);
-    if (status != noErr || !file) return NULL;
-
-    UInt32 byteCount = 0;
-    UInt32 writable = 0;
-    status = AudioFileGetPropertyInfo(
-        file,
-        kAudioFilePropertyMagicCookieData,
-        &byteCount,
-        &writable
-    );
-    if (status != noErr || byteCount == 0) {
-        AudioFileClose(file);
-        return NULL;
-    }
-    uint8_t *bytes = malloc(byteCount);
-    if (!bytes) {
-        AudioFileClose(file);
-        return NULL;
-    }
-    status = AudioFileGetProperty(
-        file,
-        kAudioFilePropertyMagicCookieData,
-        &byteCount,
-        bytes
-    );
-    AudioFileClose(file);
-    CFDataRef result = status == noErr
-        ? CFDataCreate(kCFAllocatorDefault, bytes, byteCount)
-        : NULL;
-    free(bytes);
-    return result;
-}
-
-static char *copy_local_hls_initialization_segment_path(const char *playlistPath) {
-    if (!playlistPath) return NULL;
-    const char *extension = strrchr(playlistPath, '.');
-    if (!extension || strcasecmp(extension, ".m3u8") != 0) return NULL;
-    FILE *playlist = fopen(playlistPath, "r");
-    if (!playlist) return NULL;
-
-    char *line = NULL;
-    size_t lineCapacity = 0;
-    char *result = NULL;
-    while (getline(&line, &lineCapacity, playlist) >= 0) {
-        const char *marker = strstr(line, "#EXT-X-MAP:URI=\"");
-        if (!marker) continue;
-        const char *uriStart = marker + strlen("#EXT-X-MAP:URI=\"");
-        const char *uriEnd = strchr(uriStart, '"');
-        if (!uriEnd || uriEnd == uriStart) break;
-        size_t uriLength = (size_t)(uriEnd - uriStart);
-        if (uriStart[0] == '/') {
-            result = strndup(uriStart, uriLength);
-            break;
-        }
-        const char *separator = strrchr(playlistPath, '/');
-        size_t directoryLength = separator
-            ? (size_t)(separator - playlistPath + 1)
-            : 0;
-        if (directoryLength > SIZE_MAX - uriLength - 1) break;
-        result = malloc(directoryLength + uriLength + 1);
-        if (!result) break;
-        memcpy(result, playlistPath, directoryLength);
-        memcpy(result + directoryLength, uriStart, uriLength);
-        result[directoryLength + uriLength] = '\0';
-        break;
-    }
-    free(line);
-    fclose(playlist);
-    return result;
-}
-
-static CFDataRef copy_apac_magic_cookie(const char *path) {
-    CFDataRef directCookie = copy_audio_file_magic_cookie(path);
-    if (directCookie) return directCookie;
-    char *initializationSegment = copy_local_hls_initialization_segment_path(path);
-    if (!initializationSegment) return NULL;
-    CFDataRef result = copy_audio_file_magic_cookie(initializationSegment);
-    free(initializationSegment);
-    return result;
 }
 
 static CMTime cm_time(int64_t value, AVRational timeBase) {
@@ -1111,7 +1292,16 @@ static OSType prores_codec_type(uint32_t codecTag) {
     }
 }
 
-static const AVDOVIDecoderConfigurationRecord *dovi_configuration(
+typedef enum {
+    PBDOVIDeclarationAbsent,
+    PBDOVIDeclarationHEVCNative,
+    PBDOVIDeclarationHEVCBackwardCompatible,
+    PBDOVIDeclarationHEVCDualLayer,
+    PBDOVIDeclarationAV1,
+    PBDOVIDeclarationUnknown,
+} PBDOVIDeclarationShape;
+
+static PBDOVIDeclarationShape dovi_declaration_shape(
     const AVCodecParameters *parameters
 ) {
     const AVPacketSideData *sideData = av_packet_side_data_get(
@@ -1119,38 +1309,91 @@ static const AVDOVIDecoderConfigurationRecord *dovi_configuration(
         parameters->nb_coded_side_data,
         AV_PKT_DATA_DOVI_CONF
     );
-    if (!sideData || sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
-        return NULL;
+    if (!sideData) return PBDOVIDeclarationAbsent;
+    if (sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
+        return PBDOVIDeclarationUnknown;
     }
-    return (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    const AVDOVIDecoderConfigurationRecord *record =
+        (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    if (record->rpu_present_flag == 0 || record->bl_present_flag == 0) {
+        return PBDOVIDeclarationUnknown;
+    }
+    if (parameters->codec_id == AV_CODEC_ID_HEVC) {
+        if (record->el_present_flag != 0) {
+            return record->dv_profile == 7 &&
+                    record->dv_bl_signal_compatibility_id != 0
+                ? PBDOVIDeclarationHEVCDualLayer
+                : PBDOVIDeclarationUnknown;
+        }
+        return record->dv_bl_signal_compatibility_id == 0
+            ? PBDOVIDeclarationHEVCNative
+            : PBDOVIDeclarationHEVCBackwardCompatible;
+    }
+    if (parameters->codec_id == AV_CODEC_ID_AV1 &&
+        record->dv_profile == 10 &&
+        record->el_present_flag == 0) {
+        return PBDOVIDeclarationAV1;
+    }
+    return PBDOVIDeclarationUnknown;
+}
+
+static void describe_dovi_declaration(
+    const AVCodecParameters *parameters,
+    char *buffer,
+    size_t bufferSize
+) {
+    const AVPacketSideData *sideData = av_packet_side_data_get(
+        parameters->coded_side_data,
+        parameters->nb_coded_side_data,
+        AV_PKT_DATA_DOVI_CONF
+    );
+    if (!sideData) {
+        snprintf(buffer, bufferSize, "dovi=absent");
+        return;
+    }
+    if (sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
+        snprintf(buffer, bufferSize, "dovi_size=%zu", sideData->size);
+        return;
+    }
+    const AVDOVIDecoderConfigurationRecord *record =
+        (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    snprintf(
+        buffer,
+        bufferSize,
+        "dovi_version=%u.%u profile=%u level=%u rpu=%u el=%u bl=%u compatibility_id=%u md_compression=%u",
+        record->dv_version_major,
+        record->dv_version_minor,
+        record->dv_profile,
+        record->dv_level,
+        record->rpu_present_flag,
+        record->el_present_flag,
+        record->bl_present_flag,
+        record->dv_bl_signal_compatibility_id,
+        record->dv_md_compression
+    );
 }
 
 /// A dual-layer source is not declared as Dolby Vision. A format description carrying
 /// its Profile 7 dvcC can be created, but VideoToolbox rejects the format before a
 /// decompression session exists. The split path below sends only its HDR10 base layer.
 static bool has_usable_dovi_configuration(const AVCodecParameters *parameters) {
-    const AVDOVIDecoderConfigurationRecord *record = dovi_configuration(parameters);
-    if (!record) return false;
-    return record->el_present_flag == 0;
+    PBDOVIDeclarationShape shape = dovi_declaration_shape(parameters);
+    return shape == PBDOVIDeclarationHEVCNative ||
+        shape == PBDOVIDeclarationHEVCBackwardCompatible ||
+        shape == PBDOVIDeclarationAV1;
 }
 
 static bool requires_dolby_vision_base_layer_split(
     const AVCodecParameters *parameters
 ) {
-    const AVDOVIDecoderConfigurationRecord *record = dovi_configuration(parameters);
-    return record &&
-        record->dv_profile == 7 &&
-        record->bl_present_flag != 0 &&
-        record->el_present_flag != 0;
+    return dovi_declaration_shape(parameters) == PBDOVIDeclarationHEVCDualLayer;
 }
 
 static OSType codec_type(const AVCodecParameters *parameters) {
     switch (parameters->codec_id) {
         case AV_CODEC_ID_H264: return kCMVideoCodecType_H264;
         case AV_CODEC_ID_HEVC:
-            if ((parameters->codec_tag == MKTAG('d', 'v', 'h', '1') ||
-                 parameters->codec_tag == MKTAG('d', 'v', 'h', 'e')) &&
-                has_usable_dovi_configuration(parameters)) {
+            if (dovi_declaration_shape(parameters) == PBDOVIDeclarationHEVCNative) {
                 return kCMVideoCodecType_DolbyVisionHEVC;
             }
             return kCMVideoCodecType_HEVC;
@@ -1192,10 +1435,12 @@ static bool add_dovi_configuration_atom(
     );
     CFDataRef data = CFDataCreate(kCFAllocatorDefault, bytes, sizeof(bytes));
     if (!data) return false;
-    bool dolbyVisionSampleEntry =
-        parameters->codec_tag == MKTAG('d', 'v', 'h', '1') ||
-        parameters->codec_tag == MKTAG('d', 'v', 'h', 'e');
-    CFDictionarySetValue(atoms, dolbyVisionSampleEntry ? CFSTR("dvcC") : CFSTR("dvvC"), data);
+    PBDOVIDeclarationShape shape = dovi_declaration_shape(parameters);
+    CFDictionarySetValue(
+        atoms,
+        shape == PBDOVIDeclarationHEVCNative ? CFSTR("dvcC") : CFSTR("dvvC"),
+        data
+    );
     CFRelease(data);
     return true;
 }
@@ -1293,6 +1538,11 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
     }
 }
 
+static const AVPacketSideData *codec_side_data(
+    const AVCodecParameters *parameters,
+    enum AVPacketSideDataType type
+);
+
 /// Dolby Vision Profile 7 stores its picture across two video streams, and the
 /// configuration record sits on the enhancement stream rather than on the base layer
 /// that gets decoded. Scanning every video stream is therefore the only way to learn
@@ -1300,9 +1550,35 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
 /// reports a plain HDR10 track and the claim disappears. What separates a Dolby Vision
 /// picture from a base layer standing in for one is the enhancement layer flag, which
 /// reads the same wherever the record was found.
-static void detect_dolby_vision(PBFFmpegReader *reader) {
-    for (unsigned index = 0; index < reader->formatContext->nb_streams; index++) {
-        AVStream *candidate = reader->formatContext->streams[index];
+typedef struct {
+    int dolbyVisionProfile;
+    int dolbyVisionCrossCompatibilityID;
+    bool dolbyVisionHasEnhancementLayer;
+    bool hasStereoVideoEnhancementLayer;
+} PBVideoSourceFacts;
+
+static PBVideoSourceFacts video_source_facts(
+    const AVFormatContext *context,
+    int decodedStreamIndex
+) {
+    PBVideoSourceFacts facts = {0};
+    if (!context || decodedStreamIndex < 0 ||
+        decodedStreamIndex >= (int)context->nb_streams) {
+        return facts;
+    }
+    const AVCodecParameters *decodedParameters =
+        context->streams[decodedStreamIndex]->codecpar;
+    const AVPacketSideData *stereoData = codec_side_data(
+        decodedParameters,
+        AV_PKT_DATA_STEREO3D
+    );
+    if (stereoData && stereoData->size >= sizeof(AVStereo3D)) {
+        const AVStereo3D *stereo = (const AVStereo3D *)stereoData->data;
+        facts.hasStereoVideoEnhancementLayer =
+            stereo->view == AV_STEREO3D_VIEW_PACKED;
+    }
+    for (unsigned index = 0; index < context->nb_streams; index++) {
+        AVStream *candidate = context->streams[index];
         if (candidate->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) continue;
         const AVPacketSideData *entry = av_packet_side_data_get(
             candidate->codecpar->coded_side_data,
@@ -1312,7 +1588,7 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
         if (!entry || entry->size < sizeof(AVDOVIDecoderConfigurationRecord)) continue;
         const AVDOVIDecoderConfigurationRecord *record =
             (const AVDOVIDecoderConfigurationRecord *)entry->data;
-        bool onDecodedStream = (int)index == reader->videoStreamIndex;
+        bool onDecodedStream = (int)index == decodedStreamIndex;
         if (!onDecodedStream) {
             // Believed only when it describes a pure enhancement layer, because such a
             // layer cannot stand alone and so belongs to the stream being decoded. A
@@ -1321,13 +1597,27 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
             if (record->bl_present_flag != 0) continue;
             // The decoded stream's own record outranks this one, so a record already
             // taken from anywhere is left in place until that stream is reached.
-            if (reader->dolbyVisionProfile != 0) continue;
+            if (facts.dolbyVisionProfile != 0) continue;
         }
-        reader->dolbyVisionProfile = record->dv_profile;
-        reader->dolbyVisionCrossCompatibilityID = record->dv_bl_signal_compatibility_id;
-        reader->dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
-        if (onDecodedStream) return;
+        facts.dolbyVisionProfile = record->dv_profile;
+        facts.dolbyVisionCrossCompatibilityID =
+            record->dv_bl_signal_compatibility_id;
+        facts.dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
+        if (onDecodedStream) return facts;
     }
+    return facts;
+}
+
+static void detect_dolby_vision(PBFFmpegReader *reader) {
+    PBVideoSourceFacts facts = video_source_facts(
+        reader->formatContext,
+        reader->videoStreamIndex
+    );
+    reader->dolbyVisionProfile = facts.dolbyVisionProfile;
+    reader->dolbyVisionCrossCompatibilityID =
+        facts.dolbyVisionCrossCompatibilityID;
+    reader->dolbyVisionHasEnhancementLayer =
+        facts.dolbyVisionHasEnhancementLayer;
 }
 
 static bool context_uses_mov_demuxer(const AVFormatContext *context);
@@ -1386,6 +1676,7 @@ static int configure_dolby_vision_base_layer_split(
 static CFStringRef transfer_function(enum AVColorTransferCharacteristic value) {
     switch (value) {
         case AVCOL_TRC_BT709: return kCMFormatDescriptionTransferFunction_ITU_R_709_2;
+        case AVCOL_TRC_IEC61966_2_1: return kCMFormatDescriptionTransferFunction_sRGB;
         case AVCOL_TRC_SMPTE2084: return kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ;
         case AVCOL_TRC_ARIB_STD_B67: return kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG;
         default: return NULL;
@@ -1398,7 +1689,98 @@ static CFStringRef ycbcr_matrix(enum AVColorSpace value) {
         case AVCOL_SPC_BT2020_NCL:
         case AVCOL_SPC_BT2020_CL:
             return kCMFormatDescriptionYCbCrMatrix_ITU_R_2020;
+        case AVCOL_SPC_IPT_C2:
+            // CoreMedia publishes this value in Dolby Vision format descriptions,
+            // but does not expose a named SDK constant for it.
+            return CFSTR("IPT_C2");
         default: return NULL;
+    }
+}
+
+static void add_color_extensions(
+    const AVCodecParameters *parameters,
+    CFMutableDictionaryRef extensions
+) {
+    const AVDOVIDecoderConfigurationRecord *dovi =
+        has_usable_dovi_configuration(parameters)
+            ? (const AVDOVIDecoderConfigurationRecord *)codec_side_data(
+                parameters,
+                AV_PKT_DATA_DOVI_CONF
+            )->data
+            : NULL;
+    bool usesProfileFiveColorConstants = dovi && dovi->dv_profile == 5;
+    CFStringRef primaries = usesProfileFiveColorConstants
+        ? kCMFormatDescriptionColorPrimaries_ITU_R_2020
+        : color_primaries(parameters->color_primaries);
+    CFStringRef transfer = usesProfileFiveColorConstants
+        ? kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+        : transfer_function(parameters->color_trc);
+    CFStringRef matrix = usesProfileFiveColorConstants
+        ? NULL
+        : ycbcr_matrix(parameters->color_space);
+    if (dovi && !usesProfileFiveColorConstants) {
+        if (!primaries && dovi->dv_bl_signal_compatibility_id == 0) {
+            primaries = kCMFormatDescriptionColorPrimaries_ITU_R_2020;
+        }
+        if (!transfer && dovi->dv_bl_signal_compatibility_id == 0) {
+            transfer = kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ;
+        }
+        if (!primaries &&
+            (dovi->dv_bl_signal_compatibility_id == 1 ||
+             dovi->dv_bl_signal_compatibility_id == 4)) {
+            primaries = kCMFormatDescriptionColorPrimaries_ITU_R_2020;
+        }
+        if (!transfer && dovi->dv_bl_signal_compatibility_id == 1) {
+            transfer = kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ;
+        } else if (!transfer && dovi->dv_bl_signal_compatibility_id == 4) {
+            transfer = kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG;
+        }
+        if (!matrix &&
+            (dovi->dv_bl_signal_compatibility_id == 1 ||
+             dovi->dv_bl_signal_compatibility_id == 4)) {
+            matrix = kCMFormatDescriptionYCbCrMatrix_ITU_R_2020;
+        }
+    }
+    if (primaries) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_ColorPrimaries,
+            primaries
+        );
+    }
+    if (transfer) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_TransferFunction,
+            transfer
+        );
+    }
+    if (matrix) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_YCbCrMatrix,
+            matrix
+        );
+    }
+    if (usesProfileFiveColorConstants ||
+        parameters->color_range == AVCOL_RANGE_JPEG ||
+        (dovi &&
+         parameters->color_range == AVCOL_RANGE_UNSPECIFIED &&
+         dovi->dv_bl_signal_compatibility_id == 0)) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_FullRangeVideo,
+            kCFBooleanTrue
+        );
+    } else if (parameters->color_range == AVCOL_RANGE_MPEG ||
+               (dovi &&
+                (dovi->dv_bl_signal_compatibility_id == 1 ||
+                 dovi->dv_bl_signal_compatibility_id == 4))) {
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_FullRangeVideo,
+            kCFBooleanFalse
+        );
     }
 }
 
@@ -1669,18 +2051,20 @@ static void add_pixel_aspect_ratio_extension(
     if (horizontal) CFRelease(horizontal);
 }
 
-static OSStatus create_format_by_adding_pixel_aspect_ratio(
+static void merge_format_extension(
+    const void *key,
+    const void *value,
+    void *context
+) {
+    CFDictionarySetValue((CFMutableDictionaryRef)context, key, value);
+}
+
+static OSStatus create_format_by_adding_extensions(
     CMVideoFormatDescriptionRef source,
     CFDictionaryRef additions,
     CMVideoFormatDescriptionRef *formatOut
 ) {
-    CFTypeRef pixelAspectRatio = additions
-        ? CFDictionaryGetValue(
-            additions,
-            kCMFormatDescriptionExtension_PixelAspectRatio
-        )
-        : NULL;
-    if (!pixelAspectRatio) {
+    if (!additions || CFDictionaryGetCount(additions) == 0) {
         CFRetain(source);
         *formatOut = source;
         return noErr;
@@ -1695,10 +2079,10 @@ static OSStatus create_format_by_adding_pixel_aspect_ratio(
             &kCFTypeDictionaryValueCallBacks
         );
     if (!merged) return kCMFormatDescriptionError_AllocationFailed;
-    CFDictionarySetValue(
-        merged,
-        kCMFormatDescriptionExtension_PixelAspectRatio,
-        pixelAspectRatio
+    CFDictionaryApplyFunction(
+        additions,
+        merge_format_extension,
+        merged
     );
     CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(source);
     OSStatus status = CMVideoFormatDescriptionCreate(
@@ -1710,6 +2094,119 @@ static OSStatus create_format_by_adding_pixel_aspect_ratio(
         formatOut
     );
     CFRelease(merged);
+    return status;
+}
+
+static CFDictionaryRef decoder_configuration_atoms(
+    CMVideoFormatDescriptionRef format
+) {
+    if (!format) return NULL;
+    CFTypeRef atoms = CMFormatDescriptionGetExtension(
+        format,
+        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms
+    );
+    return atoms && CFGetTypeID(atoms) == CFDictionaryGetTypeID()
+        ? (CFDictionaryRef)atoms
+        : NULL;
+}
+
+static OSStatus create_format_from_source(
+    CMVideoFormatDescriptionRef sourceFormat,
+    CMVideoFormatDescriptionRef bridgeFormat,
+    CFDictionaryRef replacementExtensions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    if (!formatOut) return kCMFormatDescriptionError_InvalidParameter;
+    *formatOut = NULL;
+    if ((bridgeFormat != NULL) == (replacementExtensions != NULL)) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    if (!sourceFormat ||
+        CMFormatDescriptionGetMediaType(sourceFormat) != kCMMediaType_Video) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    if (bridgeFormat &&
+        CMFormatDescriptionGetMediaType(bridgeFormat) != kCMMediaType_Video) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+
+    FourCharCode sourceType = CMFormatDescriptionGetMediaSubType(sourceFormat);
+    FourCharCode targetType = bridgeFormat
+        ? CMFormatDescriptionGetMediaSubType(bridgeFormat)
+        : sourceType;
+
+    CFDictionaryRef sourceExtensions = CMFormatDescriptionGetExtensions(sourceFormat);
+    CFMutableDictionaryRef extensions = replacementExtensions && !bridgeFormat
+        ? CFDictionaryCreateMutableCopy(
+            kCFAllocatorDefault,
+            0,
+            replacementExtensions
+        )
+        : (sourceExtensions
+            ? CFDictionaryCreateMutableCopy(
+                kCFAllocatorDefault,
+                0,
+                sourceExtensions
+            )
+            : CFDictionaryCreateMutable(
+                kCFAllocatorDefault,
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks
+            ));
+    if (!extensions) return kCMFormatDescriptionError_AllocationFailed;
+
+    if (bridgeFormat) {
+        CFDictionaryRef sourceAtoms = decoder_configuration_atoms(sourceFormat);
+        CFDictionaryRef bridgeAtoms = decoder_configuration_atoms(bridgeFormat);
+        CFMutableDictionaryRef mergedAtoms = sourceAtoms
+            ? CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, sourceAtoms)
+            : CFDictionaryCreateMutable(
+                kCFAllocatorDefault,
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks
+            );
+        if (!mergedAtoms) {
+            CFRelease(extensions);
+            return kCMFormatDescriptionError_AllocationFailed;
+        }
+        const CFStringRef configurationAtoms[] = {
+            CFSTR("avcC"), CFSTR("hvcC"), CFSTR("lhvC"),
+            CFSTR("dvcC"), CFSTR("dvvC"), CFSTR("av1C"),
+        };
+        if (bridgeAtoms) {
+            for (size_t index = 0;
+                 index < sizeof(configurationAtoms) / sizeof(configurationAtoms[0]);
+                 index++) {
+                CFStringRef atom = configurationAtoms[index];
+                if (CFDictionaryContainsKey(mergedAtoms, atom)) continue;
+                CFTypeRef value = CFDictionaryGetValue(bridgeAtoms, atom);
+                if (value) CFDictionarySetValue(mergedAtoms, atom, value);
+            }
+        }
+        if (CFDictionaryGetCount(mergedAtoms) > 0) {
+            CFDictionarySetValue(
+                extensions,
+                kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms,
+                mergedAtoms
+            );
+        }
+        CFRelease(mergedAtoms);
+    }
+
+    CMVideoDimensions dimensions = bridgeFormat
+        ? CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+        : CMVideoFormatDescriptionGetDimensions(sourceFormat);
+    OSStatus status = CMVideoFormatDescriptionCreate(
+        kCFAllocatorDefault,
+        targetType,
+        dimensions.width,
+        dimensions.height,
+        extensions,
+        formatOut
+    );
+    CFRelease(extensions);
     return status;
 }
 
@@ -1822,11 +2319,16 @@ static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
         const AVCodecParameters *parameters = context->streams[index]->codecpar;
         if (parameters->codec_type != AVMEDIA_TYPE_VIDEO) continue;
         hasVideo = true;
-        if (parameters->codec_id == AV_CODEC_ID_NONE ||
+        enum AVCodecID codecID = parameters->codec_id;
+        if (codecID == AV_CODEC_ID_NONE &&
+            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
+            codecID = AV_CODEC_ID_AV1;
+        }
+        if (codecID == AV_CODEC_ID_NONE ||
             parameters->width <= 0 || parameters->height <= 0) {
             return false;
         }
-        switch (parameters->codec_id) {
+        switch (codecID) {
             case AV_CODEC_ID_H264:
             case AV_CODEC_ID_HEVC:
                 if (!video_codec_configuration_is_usable(parameters)) return false;
@@ -1884,14 +2386,14 @@ static int read_stream_information(
         .movFamily = context_uses_mov_demuxer(context),
         .skippedProbe = false,
     };
+    int result;
     if (read.movFamily && mov_stream_table_is_qualified(context)) {
+        result = finalize_stream_information(context, sourceReadContext, false);
         fill_video_color_from_codec_configuration(context);
         read.skippedProbe = true;
-        if (readOut) *readOut = read;
-        return 0;
+    } else {
+        result = finalize_stream_information(context, sourceReadContext, true);
     }
-    int result = avformat_find_stream_info(context, NULL);
-    publish_source_bytes(sourceReadContext);
     if (readOut) *readOut = read;
     return result;
 }
@@ -2307,7 +2809,77 @@ static OSStatus create_annexb_format(
         kCFAllocatorDefault, required, sets, sizes, 4, &baseFormat
     );
     if (status != noErr || !baseFormat) return status;
-    status = create_format_by_adding_pixel_aspect_ratio(
+    status = create_format_by_adding_extensions(
+        baseFormat,
+        extensions,
+        formatOut
+    );
+    CFRelease(baseFormat);
+    return status;
+}
+
+static OSStatus create_h264_format_from_avcc(
+    const AVCodecParameters *parameters,
+    CFDictionaryRef extensions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    if (!parameters->extradata || parameters->extradata_size < 7 ||
+        parameters->extradata[0] != 1) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    const uint8_t *configuration = parameters->extradata;
+    size_t configurationSize = (size_t)parameters->extradata_size;
+    const uint8_t *sets[31 + 255] = {0};
+    size_t sizes[31 + 255] = {0};
+    size_t setCount = 0;
+    size_t offset = 6;
+    size_t spsCount = configuration[5] & 0x1f;
+    if (spsCount == 0) return kCMFormatDescriptionError_InvalidParameter;
+    for (size_t index = 0; index < spsCount; index++) {
+        if (offset > configurationSize - 2) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        size_t size = ((size_t)configuration[offset] << 8) |
+            configuration[offset + 1];
+        offset += 2;
+        if (size == 0 || size > configurationSize - offset) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        sets[setCount] = configuration + offset;
+        sizes[setCount++] = size;
+        offset += size;
+    }
+    if (offset >= configurationSize) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    size_t ppsCount = configuration[offset++];
+    if (ppsCount == 0) return kCMFormatDescriptionError_InvalidParameter;
+    for (size_t index = 0; index < ppsCount; index++) {
+        if (offset > configurationSize - 2) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        size_t size = ((size_t)configuration[offset] << 8) |
+            configuration[offset + 1];
+        offset += 2;
+        if (size == 0 || size > configurationSize - offset) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        sets[setCount] = configuration + offset;
+        sizes[setCount++] = size;
+        offset += size;
+    }
+
+    CMVideoFormatDescriptionRef baseFormat = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
+        kCFAllocatorDefault,
+        setCount,
+        sets,
+        sizes,
+        (int)(configuration[4] & 0x03) + 1,
+        &baseFormat
+    );
+    if (status != noErr || !baseFormat) return status;
+    status = create_format_by_adding_extensions(
         baseFormat,
         extensions,
         formatOut
@@ -2398,17 +2970,7 @@ static OSStatus create_compressed_format(
         return kCMFormatDescriptionError_AllocationFailed;
     }
 
-    CFStringRef primaries = color_primaries(parameters->color_primaries);
-    CFStringRef transfer = transfer_function(parameters->color_trc);
-    CFStringRef matrix = ycbcr_matrix(parameters->color_space);
-    if (primaries) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_ColorPrimaries, primaries);
-    if (transfer) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_TransferFunction, transfer);
-    if (matrix) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_YCbCrMatrix, matrix);
-    if (parameters->color_range == AVCOL_RANGE_JPEG) {
-        CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanTrue);
-    } else if (parameters->color_range == AVCOL_RANGE_MPEG) {
-        CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanFalse);
-    }
+    add_color_extensions(parameters, extensions);
     add_static_hdr_extensions(parameters, extensions);
     add_projected_media_extensions(parameters, extensions);
     add_pixel_aspect_ratio_extension(sampleAspectRatio, extensions);
@@ -2448,11 +3010,17 @@ static OSStatus create_compressed_format(
         }
         CFDictionarySetValue(atoms, atom, configuration);
         CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, atoms);
-        if (type == kCMVideoCodecType_DolbyVisionHEVC) {
+        if (parameters->codec_id == AV_CODEC_ID_H264) {
+            status = create_h264_format_from_avcc(
+                parameters,
+                extensions,
+                formatOut
+            );
+        } else if (type == kCMVideoCodecType_DolbyVisionHEVC) {
             CMVideoFormatDescriptionRef baseFormat = NULL;
             status = create_dolby_vision_format(parameters, atoms, &baseFormat);
             if (status == noErr && baseFormat) {
-                status = create_format_by_adding_pixel_aspect_ratio(
+                status = create_format_by_adding_extensions(
                     baseFormat,
                     extensions,
                     formatOut
@@ -2477,6 +3045,50 @@ static OSStatus create_compressed_format(
     return status;
 }
 
+OSStatus PBFFmpegVideoFormatDescriptionCreate(
+    PBFFmpegReader *reader,
+    CMVideoFormatDescriptionRef sourceFormat,
+    CMVideoFormatDescriptionRef bridgeFormat,
+    CFDictionaryRef replacementExtensions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    if (!formatOut) return kCMFormatDescriptionError_InvalidParameter;
+    *formatOut = NULL;
+    if (reader) {
+        if (sourceFormat || bridgeFormat || replacementExtensions) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        if (reader->compressedFormat) {
+            *formatOut = (CMVideoFormatDescriptionRef)CFRetain(
+                reader->compressedFormat
+            );
+            return noErr;
+        }
+        if (!reader->formatContext || reader->videoStreamIndex < 0 ||
+            reader->videoStreamIndex >= (int)reader->formatContext->nb_streams) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        AVStream *stream = reader->formatContext->streams[reader->videoStreamIndex];
+        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
+            reader->formatContext,
+            stream,
+            NULL
+        );
+        return create_compressed_format(
+            stream->codecpar,
+            sampleAspectRatio,
+            formatOut,
+            &reader->convertsAnnexB
+        );
+    }
+    return create_format_from_source(
+        sourceFormat,
+        bridgeFormat,
+        replacementExtensions,
+        formatOut
+    );
+}
+
 PBFFmpegReader *PBFFmpegReaderAllocate(void) {
     PBFFmpegReader *reader = calloc(1, sizeof(PBFFmpegReader));
     if (reader) atomic_init(&reader->cancelled, false);
@@ -2488,21 +3100,6 @@ void PBFFmpegReaderSetSourceReadMonitor(
     PBFFmpegSourceReadMonitor *monitor
 ) {
     if (reader) reader->sourceReadContext.monitor = monitor;
-}
-
-static void normalize_mov_dolby_vision_av1_codec_id(AVFormatContext *context) {
-    if (!context) return;
-    for (unsigned int index = 0; index < context->nb_streams; index++) {
-        AVCodecParameters *parameters = context->streams[index]->codecpar;
-        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
-            parameters->codec_id == AV_CODEC_ID_NONE &&
-            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
-            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
-            // Dolby Vision configuration but does not classify the track as AV1.
-            // Normalize only that incomplete MOV result before stream probing.
-            parameters->codec_id = AV_CODEC_ID_AV1;
-        }
-    }
 }
 
 static PBFFmpegMediaStreamCategory media_stream_category(enum AVMediaType type) {
@@ -2670,6 +3267,24 @@ static PBFFmpegMediaSourceInformation *copy_media_source_information(
         context->iformat && context->iformat->name ? context->iformat->name : "unknown"
     );
     information->durationSeconds = media_source_duration_seconds(context);
+    information->containerSupportsSourceFormatDescription =
+        context_uses_mov_demuxer(context);
+    int videoStreamIndex = av_find_best_stream(
+        context,
+        AVMEDIA_TYPE_VIDEO,
+        -1,
+        -1,
+        NULL,
+        0
+    );
+    PBVideoSourceFacts facts = video_source_facts(context, videoStreamIndex);
+    information->dolbyVisionProfile = facts.dolbyVisionProfile;
+    information->dolbyVisionCrossCompatibilityID =
+        facts.dolbyVisionCrossCompatibilityID;
+    information->dolbyVisionHasEnhancementLayer =
+        facts.dolbyVisionHasEnhancementLayer;
+    information->hasStereoVideoEnhancementLayer =
+        facts.hasStereoVideoEnhancementLayer;
     for (int index = 0; index < information->streamCount; index++) {
         fill_media_stream_storage(&information->streams[index], context->streams[index]);
     }
@@ -2711,8 +3326,6 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         close_media_source(&context, &sourceReadContext);
         return NULL;
     }
-    normalize_mov_apac_codec_id(context);
-    normalize_mov_dolby_vision_av1_codec_id(context);
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         context,
@@ -2733,14 +3346,12 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         }
     }
     if (needsAudioProbe && informationRead.skippedProbe) {
-        result = avformat_find_stream_info(context, NULL);
-        publish_source_bytes(&sourceReadContext);
+        result = finalize_stream_information(context, &sourceReadContext, true);
         if (result < 0) {
             set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
             close_media_source(&context, &sourceReadContext);
             return NULL;
         }
-        normalize_mov_apac_codec_id(context);
     }
     if (needsAudioProbe) {
         probe_delayed_audio_parameters(context);
@@ -2758,6 +3369,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
 
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
+    bool isRemote,
     PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
@@ -2771,6 +3383,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg demux source");
         return NULL;
     }
+    source->isRemote = isRemote;
     atomic_init(&source->interrupted, false);
     if (pthread_mutex_init(&source->lock, NULL) != 0) {
         set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
@@ -2804,8 +3417,6 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         PBFFmpegDemuxSourceDestroy(source);
         return NULL;
     }
-    normalize_mov_apac_codec_id(source->formatContext);
-    normalize_mov_dolby_vision_av1_codec_id(source->formatContext);
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         source->formatContext,
@@ -2825,14 +3436,16 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         }
     }
     if (needsAudioProbe && informationRead.skippedProbe) {
-        result = avformat_find_stream_info(source->formatContext, NULL);
-        publish_source_bytes(&source->sourceReadContext);
+        result = finalize_stream_information(
+            source->formatContext,
+            &source->sourceReadContext,
+            true
+        );
         if (result < 0) {
             set_av_error(errorBuffer, errorBufferSize, "Read demux audio information", result);
             PBFFmpegDemuxSourceDestroy(source);
             return NULL;
         }
-        normalize_mov_apac_codec_id(source->formatContext);
     }
     if (needsAudioProbe) {
         probe_delayed_audio_parameters(source->formatContext);
@@ -2854,11 +3467,32 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     source->queueCount = source->formatContext->nb_streams;
     if (source->queueCount > 0) {
         source->queues = calloc(source->queueCount, sizeof(*source->queues));
+        source->lastQueuedTimestamps = malloc(
+            source->queueCount * sizeof(*source->lastQueuedTimestamps)
+        );
+        source->replayThroughTimestamps = malloc(
+            source->queueCount * sizeof(*source->replayThroughTimestamps)
+        );
+        source->replayCaughtUp = calloc(
+            source->queueCount,
+            sizeof(*source->replayCaughtUp)
+        );
     }
-    if (source->queueCount > 0 && !source->queues) {
+    if (source->queueCount > 0 &&
+        (!source->queues || !source->lastQueuedTimestamps ||
+         !source->replayThroughTimestamps || !source->replayCaughtUp)) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg packet queues");
         PBFFmpegDemuxSourceDestroy(source);
         return NULL;
+    }
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayCaughtUp[index] = true;
+    }
+    if (source->formatContext->pb) {
+        int64_t length = avio_size(source->formatContext->pb);
+        if (length > 0) source->knownByteLength = length;
     }
     source->videoStreamIndex = av_find_best_stream(
         source->formatContext,
@@ -2876,9 +3510,18 @@ void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
     if (!source) return;
     stop_demux_source_read_thread(source);
     for (unsigned int index = 0; index < source->queueCount; index++) {
-        clear_packet_queue(&source->queues[index]);
+        clear_packet_queue(source, &source->queues[index]);
+    }
+    PBFFmpegPacketNodePoolChunk *chunk = source->packetNodePoolChunks;
+    while (chunk) {
+        PBFFmpegPacketNodePoolChunk *next = chunk->next;
+        free(chunk);
+        chunk = next;
     }
     free(source->queues);
+    free(source->lastQueuedTimestamps);
+    free(source->replayThroughTimestamps);
+    free(source->replayCaughtUp);
     close_media_source(&source->formatContext, &source->sourceReadContext);
     av_free(source->path);
     pthread_cond_destroy(&source->changed);
@@ -2915,7 +3558,10 @@ bool PBFFmpegDemuxSourceSeek(
     stop_demux_source_read_thread(source);
     pthread_mutex_lock(&source->lock);
     for (unsigned int index = 0; index < source->queueCount; index++) {
-        clear_packet_queue(&source->queues[index]);
+        clear_packet_queue(source, &source->queues[index]);
+        source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayCaughtUp[index] = true;
     }
     source->reachedEnd = false;
     source->readResult = 0;
@@ -2938,6 +3584,39 @@ bool PBFFmpegDemuxSourceSeek(
     return true;
 }
 
+double PBFFmpegDemuxSourceGetBufferedDurationSeconds(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t shortest = INT64_MAX;
+    bool found = false;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        const PBFFmpegPacketQueue *queue = &source->queues[index];
+        if (queue->subscribers == 0) continue;
+        if (queue->bufferedDurationMicroseconds < shortest) {
+            shortest = queue->bufferedDurationMicroseconds;
+        }
+        found = true;
+    }
+    pthread_mutex_unlock(&source->lock);
+    return found ? (double)shortest / AV_TIME_BASE : 0;
+}
+
+double PBFFmpegDemuxSourceGetPrefetchDurationSeconds(void) {
+    return (double)PB_DEMUX_PREFETCH_DURATION_MICROSECONDS / AV_TIME_BASE;
+}
+
+unsigned int PBFFmpegDemuxSourceGetReconnectAttemptCount(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    unsigned int count = source->reconnectAttemptCount;
+    pthread_mutex_unlock(&source->lock);
+    return count;
+}
+
 void PBFFmpegMediaSourceInformationDestroy(
     PBFFmpegMediaSourceInformation *information
 ) {
@@ -2956,6 +3635,38 @@ double PBFFmpegMediaSourceInformationGetDurationSeconds(
     const PBFFmpegMediaSourceInformation *information
 ) {
     return information ? information->durationSeconds : 0;
+}
+
+bool PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information
+        ? information->containerSupportsSourceFormatDescription
+        : false;
+}
+
+int PBFFmpegMediaSourceInformationGetDolbyVisionProfile(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->dolbyVisionProfile : 0;
+}
+
+int PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->dolbyVisionCrossCompatibilityID : 0;
+}
+
+bool PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->dolbyVisionHasEnhancementLayer : false;
+}
+
+bool PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->hasStereoVideoEnhancementLayer : false;
 }
 
 int PBFFmpegMediaSourceInformationGetStreamCount(
@@ -3110,6 +3821,29 @@ static bool configure_video_reader(
     );
 
     if (mode == PBFFmpegModeCompressed) {
+        if (dovi_declaration_shape(stream->codecpar) == PBDOVIDeclarationUnknown) {
+            char declaration[256];
+            char message[512];
+            describe_dovi_declaration(
+                stream->codecpar,
+                declaration,
+                sizeof(declaration)
+            );
+            snprintf(
+                message,
+                sizeof(message),
+                "Unknown Dolby Vision declaration shape; codec=%s tag=%s color_primaries=%s transfer=%s matrix=%s range=%s %s",
+                avcodec_get_name(stream->codecpar->codec_id),
+                reader->codecTag[0] ? reader->codecTag : "unknown",
+                reader->colorPrimaries,
+                reader->transferFunction,
+                reader->yCbCrMatrix,
+                reader->colorRange,
+                declaration
+            );
+            set_error(errorBuffer, errorBufferSize, message);
+            return false;
+        }
         OSType compressedType = codec_type(stream->codecpar);
         if (!compressed_codec_is_renderable(compressedType)) {
             char message[256];
@@ -3137,32 +3871,35 @@ static bool configure_video_reader(
         );
         if (result < 0) return false;
         if (cancellation_requested(&reader->cancelled)) return false;
-        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
-            reader->formatContext,
-            stream,
-            NULL
-        );
-        OSStatus status = create_compressed_format(
-            stream->codecpar,
-            sampleAspectRatio,
-            &reader->compressedFormat,
-            &reader->convertsAnnexB
+        OSStatus status = PBFFmpegVideoFormatDescriptionCreate(
+            reader,
+            NULL,
+            NULL,
+            NULL,
+            &reader->compressedFormat
         );
         if (status != noErr) {
-            const AVPacketSideData *doviConfiguration = codec_side_data(
-                stream->codecpar, AV_PKT_DATA_DOVI_CONF
+            char declaration[256];
+            describe_dovi_declaration(
+                stream->codecpar,
+                declaration,
+                sizeof(declaration)
             );
-            char message[256];
+            char message[512];
             snprintf(
                 message,
                 sizeof(message),
-                "Create compressed CMVideoFormatDescription failed (%d); codec=%s tag=%s extradata=%d dovi=%s bootstrapPackets=%zu",
+                "Create compressed CMVideoFormatDescription failed (%d); codec=%s tag=%s extradata=%d bootstrapPackets=%zu color_primaries=%s transfer=%s matrix=%s range=%s %s",
                 (int)status,
                 avcodec_get_name(stream->codecpar->codec_id),
                 reader->codecTag[0] ? reader->codecTag : "unknown",
                 stream->codecpar->extradata_size,
-                doviConfiguration ? "yes" : "no",
-                reader->bootstrapPacketCount
+                reader->bootstrapPacketCount,
+                reader->colorPrimaries,
+                reader->transferFunction,
+                reader->yCbCrMatrix,
+                reader->colorRange,
+                declaration
             );
             set_error(errorBuffer, errorBufferSize, message);
             return false;
@@ -3258,7 +3995,6 @@ bool PBFFmpegReaderOpen(
         set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
         return false;
     }
-    normalize_mov_dolby_vision_av1_codec_id(reader->formatContext);
     result = read_stream_information(
         reader->formatContext,
         &reader->sourceReadContext,
@@ -3299,9 +4035,10 @@ bool PBFFmpegReaderOpenWithDemuxSource(
         errorBuffer,
         errorBufferSize
     );
-    pthread_mutex_lock(&source->lock);
-    source->prebuffersAudio = false;
-    pthread_mutex_unlock(&source->lock);
+    if (opened && !begin_demux_source_prefetch(source)) {
+        set_error(errorBuffer, errorBufferSize, "Unable to start FFmpeg demux prefetch");
+        return false;
+    }
     return opened;
 }
 
@@ -3360,15 +4097,26 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     free(reader);
 }
 
-bool PBFFmpegReaderCopyCompressedFormatDescription(
-    const PBFFmpegReader *reader,
-    CMVideoFormatDescriptionRef *formatOut
+PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
+    const PBFFmpegReader *reader
 ) {
-    if (!formatOut) return false;
-    *formatOut = NULL;
-    if (!reader || !reader->compressedFormat) return false;
-    *formatOut = (CMVideoFormatDescriptionRef)CFRetain(reader->compressedFormat);
-    return true;
+    if (!reader) return NULL;
+    if (reader->demuxSource) {
+        pthread_mutex_lock(&reader->demuxSource->lock);
+        PBFFmpegMediaSourceInformation *information =
+            reader->demuxSource->formatContext
+                ? copy_media_source_information(
+                    reader->demuxSource->formatContext,
+                    NULL,
+                    0
+                )
+                : NULL;
+        pthread_mutex_unlock(&reader->demuxSource->lock);
+        return information;
+    }
+    return reader->formatContext
+        ? copy_media_source_information(reader->formatContext, NULL, 0)
+        : NULL;
 }
 
 static bool reader_format_has_atom(const PBFFmpegReader *reader, CFStringRef atom) {
@@ -3662,7 +4410,15 @@ static PBFFmpegReadResult copy_compressed_sample(
                 || atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
                 return PBFFmpegReadResultCancelled;
             }
-            if (readResult != AVERROR_EOF) return PBFFmpegReadResultError;
+            if (readResult != AVERROR_EOF) {
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Read demuxed video packet",
+                    readResult
+                );
+                return PBFFmpegReadResultError;
+            }
             return PBFFmpegReadResultEnd;
         }
 
@@ -3800,19 +4556,6 @@ const char *PBFFmpegReaderGetTransferFunction(const PBFFmpegReader *reader) {
     return reader ? reader->transferFunction : "unknown";
 }
 
-int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionProfile : 0;
-}
-
-int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionCrossCompatibilityID : 0;
-}
-
-bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionHasEnhancementLayer : false;
-}
-
-
 const char *PBFFmpegReaderGetYCbCrMatrix(const PBFFmpegReader *reader) {
     return reader ? reader->yCbCrMatrix : "unknown";
 }
@@ -3864,7 +4607,6 @@ void PBFFmpegAudioReaderSetSourceReadMonitor(
 
 static bool configure_audio_reader(
     PBFFmpegAudioReader *reader,
-    const char *path,
     double startSeconds,
     int preferredStreamIndex,
     bool seeksContext,
@@ -3880,13 +4622,32 @@ static bool configure_audio_reader(
     int result = 0;
 
     if (preferredStreamIndex >= 0) {
-        if (preferredStreamIndex < (int)reader->formatContext->nb_streams &&
-            audio_stream_is_supported(reader->formatContext->streams[preferredStreamIndex])) {
-            reader->audioStreamIndex = preferredStreamIndex;
-        } else {
-            set_error(errorBuffer, errorBufferSize, "The selected audio stream codec is not supported by PlaybackCore");
+        if (preferredStreamIndex >= (int)reader->formatContext->nb_streams ||
+            !is_audio_stream(reader->formatContext->streams[preferredStreamIndex])) {
+            set_error(errorBuffer, errorBufferSize, "The selected audio stream is unavailable");
             return false;
         }
+        AVStream *preferredStream = reader->formatContext->streams[preferredStreamIndex];
+        if (!audio_codec_is_supported(preferredStream->codecpar->codec_id)) {
+            char message[160];
+            snprintf(
+                message,
+                sizeof(message),
+                "Audio codec %s is unsupported because FFmpeg has no decoder",
+                avcodec_get_name(preferredStream->codecpar->codec_id)
+            );
+            set_error(errorBuffer, errorBufferSize, message);
+            return false;
+        }
+        if (!audio_stream_is_supported(preferredStream)) {
+            set_error(
+                errorBuffer,
+                errorBufferSize,
+                "Audio stream parameters are unavailable after extended probe"
+            );
+            return false;
+        }
+        reader->audioStreamIndex = preferredStreamIndex;
     } else {
         reader->audioStreamIndex = av_find_best_stream(
             reader->formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0
@@ -3919,58 +4680,74 @@ static bool configure_audio_reader(
     }
 
     AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
+    reader->codecParameters = avcodec_parameters_alloc();
+    if (!reader->codecParameters ||
+        avcodec_parameters_copy(reader->codecParameters, stream->codecpar) < 0) {
+        set_error(errorBuffer, errorBufferSize, "Unable to copy audio codec parameters");
+        return false;
+    }
     reader->sampleRate = stream->codecpar->sample_rate;
     reader->channelCount = stream->codecpar->ch_layout.nb_channels;
+    snprintf(
+        reader->codecName,
+        sizeof(reader->codecName),
+        "%s",
+        avcodec_get_name(stream->codecpar->codec_id)
+    );
     if (reader->sampleRate <= 0 || reader->channelCount <= 0) {
         set_error(errorBuffer, errorBufferSize, "Audio stream has invalid sample rate or channel layout");
         return false;
     }
-    if (stream->codecpar->codec_id == AV_CODEC_ID_APAC) {
-        reader->codecMagicCookie = copy_apac_magic_cookie(path);
-        if (!reader->codecMagicCookie) {
-            set_error(
-                errorBuffer,
-                errorBufferSize,
-                "Apple Positional Audio dapa codec configuration is unavailable"
-            );
-            return false;
-        }
-    }
     reader->packet = av_packet_alloc();
-    reader->filteredPacket = av_packet_alloc();
-    reader->outputsPCM = audio_codec_is_source_pcm(stream->codecpar->codec_id);
+    reader->outputsPCM = !audio_codec_uses_compressed_passthrough(
+        stream->codecpar->codec_id
+    );
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
-    snprintf(reader->codecName, sizeof(reader->codecName), "%s", avcodec_get_name(stream->codecpar->codec_id));
-    if (reader->packet == NULL || reader->filteredPacket == NULL) {
+    reader->nextPCMSample = 0;
+    reader->decodedInputFormat = AV_SAMPLE_FMT_NONE;
+    reader->decodedFifoStartTimestamp = AV_NOPTS_VALUE;
+    if (reader->packet == NULL) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio packet");
         return false;
     }
 
-    if (stream->codecpar->codec_id == AV_CODEC_ID_AAC) {
-        const AVBitStreamFilter *filter = av_bsf_get_by_name("aac_adtstoasc");
-        if (filter == NULL || av_bsf_alloc(filter, &reader->bitstreamFilter) < 0) {
-            set_error(errorBuffer, errorBufferSize, "Unable to create AAC compressed-audio filter");
+    if (reader->outputsPCM) {
+        const AVCodec *decoder = avcodec_find_decoder(stream->codecpar->codec_id);
+        if (!decoder) {
+            char message[160];
+            snprintf(
+                message,
+                sizeof(message),
+                "Audio codec %s is unsupported because FFmpeg has no decoder",
+                reader->codecName
+            );
+            set_error(errorBuffer, errorBufferSize, message);
             return false;
         }
-        result = avcodec_parameters_copy(reader->bitstreamFilter->par_in, stream->codecpar);
+        reader->decoder = avcodec_alloc_context3(decoder);
+        reader->decodedFrame = av_frame_alloc();
+        reader->decoderBatchPacket = av_packet_alloc();
+        if (!reader->decoder || !reader->decodedFrame ||
+            !reader->decoderBatchPacket) {
+            set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio decoder");
+            return false;
+        }
+        result = avcodec_parameters_to_context(reader->decoder, stream->codecpar);
         if (result >= 0) {
-            reader->bitstreamFilter->time_base_in = stream->time_base;
-            result = av_bsf_init(reader->bitstreamFilter);
+            reader->decoder->pkt_timebase = stream->time_base;
+            result = avcodec_open2(reader->decoder, decoder, NULL);
         }
         if (result < 0) {
-            set_av_error(errorBuffer, errorBufferSize, "Initialize AAC compressed-audio filter", result);
+            set_av_error(errorBuffer, errorBufferSize, "Open FFmpeg audio decoder", result);
             return false;
         }
-        if (reader->bitstreamFilter->time_base_out.num > 0 &&
-            reader->bitstreamFilter->time_base_out.den > 0 &&
-            av_cmp_q(reader->timeBase, reader->bitstreamFilter->time_base_out) != 0) {
-            reader->startTimestamp = av_rescale_q(
-                reader->startTimestamp,
-                reader->timeBase,
-                reader->bitstreamFilter->time_base_out
-            );
-            reader->timeBase = reader->bitstreamFilter->time_base_out;
+        if (av_channel_layout_copy(
+                &reader->outputChannelLayout,
+                &stream->codecpar->ch_layout
+            ) < 0) {
+            set_error(errorBuffer, errorBufferSize, "Unable to copy decoded audio channel layout");
+            return false;
         }
     }
 
@@ -3991,7 +4768,7 @@ static bool configure_audio_reader(
             return false;
         }
         if (cancellation_requested(&reader->cancelled)) return false;
-        if (reader->bitstreamFilter) av_bsf_flush(reader->bitstreamFilter);
+        if (reader->decoder) avcodec_flush_buffers(reader->decoder);
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     return true;
@@ -4020,7 +4797,6 @@ bool PBFFmpegAudioReaderOpen(
     if (result < 0) return false;
     return configure_audio_reader(
         reader,
-        path,
         startSeconds,
         preferredStreamIndex,
         true,
@@ -4042,15 +4818,24 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     }
     reader->demuxSource = source;
     reader->formatContext = source->formatContext;
-    return configure_audio_reader(
+    bool opened = configure_audio_reader(
         reader,
-        source->path,
         0,
         preferredStreamIndex,
         false,
         errorBuffer,
         errorBufferSize
     );
+    if (opened) {
+        pthread_mutex_lock(&source->lock);
+        source->prebuffersAudio = false;
+        pthread_mutex_unlock(&source->lock);
+    }
+    if (opened && !begin_demux_source_prefetch(source)) {
+        set_error(errorBuffer, errorBufferSize, "Unable to start FFmpeg demux prefetch");
+        return false;
+    }
+    return opened;
 }
 
 PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
@@ -4088,11 +4873,25 @@ void PBFFmpegAudioReaderCancel(PBFFmpegAudioReader *reader) {
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     if (reader == NULL) return;
     if (reader->formatDescription) CFRelease(reader->formatDescription);
-    if (reader->codecMagicCookie) CFRelease(reader->codecMagicCookie);
-    av_bsf_free(&reader->bitstreamFilter);
-    av_packet_free(&reader->filteredPacket);
+    free(reader->pendingPCMData);
+    av_audio_fifo_free(reader->decodedAudioFifo);
+    if (reader->decodedBatchData) {
+        av_freep(&reader->decodedBatchData[0]);
+        av_freep(&reader->decodedBatchData);
+    }
+    swr_free(&reader->resampler);
+    av_channel_layout_uninit(&reader->outputChannelLayout);
+    av_frame_free(&reader->decodedFrame);
+    avcodec_free_context(&reader->decoder);
+    avcodec_parameters_free(&reader->codecParameters);
+    av_packet_free(&reader->decoderBatchPacket);
     av_packet_free(&reader->packet);
     if (reader->demuxSource) {
+        return_packet_node_list(reader->demuxSource, &reader->demuxPacketBatch);
+        return_packet_node_list(
+            reader->demuxSource,
+            &reader->consumedDemuxPacketBatch
+        );
         unsubscribe_from_demux_stream(reader->demuxSource, reader->audioStreamIndex);
     } else {
         close_media_source(&reader->formatContext, &reader->sourceReadContext);
@@ -4100,141 +4899,220 @@ void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     free(reader);
 }
 
-static UInt32 audio_frames_per_packet(const AVCodecParameters *parameters) {
-    if (aac_is_usac(parameters)) return 2048;
-    if (parameters->frame_size > 0) return (UInt32)parameters->frame_size;
-    switch (parameters->codec_id) {
-        case AV_CODEC_ID_AAC: return 1024;
-        case AV_CODEC_ID_AC3:
-        case AV_CODEC_ID_EAC3: return 1536;
-        case AV_CODEC_ID_MP2:
-        case AV_CODEC_ID_MP3: return 1152;
-        // Opus packets may represent 2.5 through 120 ms. The packet timestamp
-        // duration below is authoritative, so the ASBD must not claim a fixed
-        // number of PCM frames for every packet.
-        case AV_CODEC_ID_OPUS: return 0;
-        case AV_CODEC_ID_APAC: return 1024;
-        case AV_CODEC_ID_FLAC:
-            if (parameters->extradata && parameters->extradata_size >= 4) {
-                return (UInt32)(
-                    ((uint16_t)parameters->extradata[2] << 8) |
-                    parameters->extradata[3]
-                );
-            }
-            return 0;
-        default: return 0;
-    }
+static int decoded_audio_minimum_buffer_frames(const PBFFmpegAudioReader *reader) {
+    if (!reader || reader->sampleRate <= 0) return 1;
+    int frames = reader->codecParameters &&
+            reader->codecParameters->codec_id == AV_CODEC_ID_TRUEHD
+        ? reader->sampleRate / 10
+        : reader->sampleRate / 50;
+    return frames > 0 ? frames : 1;
 }
 
-static AudioFormatFlags audio_format_flags(const AVCodecParameters *parameters) {
-    if (parameters->codec_id != AV_CODEC_ID_ALAC &&
-        parameters->codec_id != AV_CODEC_ID_FLAC) return 0;
-    switch (parameters->bits_per_raw_sample) {
-        case 20: return kAppleLosslessFormatFlag_20BitSourceData;
-        case 24: return kAppleLosslessFormatFlag_24BitSourceData;
-        case 32: return kAppleLosslessFormatFlag_32BitSourceData;
-        default: return kAppleLosslessFormatFlag_16BitSourceData;
-    }
-}
-
-static CFDataRef create_flac_magic_cookie(const AVCodecParameters *parameters) {
-    if (!parameters->extradata || parameters->extradata_size != 34) return NULL;
-    size_t cookieSize = 16 + (size_t)parameters->extradata_size;
-    uint8_t *cookie = calloc(1, cookieSize);
-    if (!cookie) return NULL;
-    write_be32(cookie, (uint32_t)cookieSize);
-    memcpy(cookie + 4, "dfLa", 4);
-    cookie[12] = 0x80;
-    cookie[13] = (uint8_t)(parameters->extradata_size >> 16);
-    cookie[14] = (uint8_t)(parameters->extradata_size >> 8);
-    cookie[15] = (uint8_t)parameters->extradata_size;
-    memcpy(cookie + 16, parameters->extradata, (size_t)parameters->extradata_size);
-    CFDataRef result = CFDataCreate(kCFAllocatorDefault, cookie, cookieSize);
-    free(cookie);
+static int read_next_audio_packet(
+    PBFFmpegAudioReader *reader,
+    AVPacket *packet
+) {
+    int result = reader->demuxSource
+        ? copy_next_demux_packet_batch(
+            reader->demuxSource,
+            reader->audioStreamIndex,
+            &reader->cancelled,
+            &reader->demuxPacketBatch,
+            &reader->consumedDemuxPacketBatch,
+            packet
+        )
+        : av_read_frame(reader->formatContext, packet);
+    if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
     return result;
 }
 
-static int aac_sample_rate_index(int sampleRate) {
-    for (int index = 0; index < 13; index++) {
-        if (aac_sample_rates[index] == sampleRate) return index;
+static int aggregate_truehd_decoder_packet(PBFFmpegAudioReader *reader) {
+    if (!reader || !reader->packet || !reader->decoderBatchPacket ||
+        !reader->codecParameters ||
+        reader->codecParameters->codec_id != AV_CODEC_ID_TRUEHD) {
+        return 0;
     }
-    return -1;
-}
-
-static size_t audio_descriptor_length_size(size_t value) {
-    size_t length = 1;
-    while (value >= 0x80) {
-        value >>= 7;
-        length++;
-    }
-    return length;
-}
-
-static uint8_t *write_audio_descriptor_length(uint8_t *destination, size_t value) {
-    size_t length = audio_descriptor_length_size(value);
-    for (size_t index = length; index > 0; index--) {
-        unsigned shift = (unsigned)((index - 1) * 7);
-        *destination++ = (uint8_t)((value >> shift) & 0x7f) |
-            (index > 1 ? 0x80 : 0);
-    }
-    return destination;
-}
-
-static CFDataRef create_aac_magic_cookie(
-    const AVCodecParameters *parameters,
-    const void *configuration,
-    size_t configurationSize
-) {
-    if (configurationSize == 0 || configuration == NULL) return NULL;
-
-    size_t decoderSpecificSize =
-        1 + audio_descriptor_length_size(configurationSize) + configurationSize;
-    size_t decoderConfigPayloadSize = 13 + decoderSpecificSize;
-    size_t decoderConfigSize =
-        1 + audio_descriptor_length_size(decoderConfigPayloadSize) +
-        decoderConfigPayloadSize;
-    size_t slConfigSize = 1 + 1 + 1;
-    size_t esPayloadSize = 3 + decoderConfigSize + slConfigSize;
-    size_t totalSize = 1 + audio_descriptor_length_size(esPayloadSize) + esPayloadSize;
-    uint8_t *bytes = calloc(1, totalSize);
-    if (!bytes) return NULL;
-
-    uint8_t *cursor = bytes;
-    *cursor++ = 0x03;
-    cursor = write_audio_descriptor_length(cursor, esPayloadSize);
-    *cursor++ = 0;
-    *cursor++ = 0;
-    *cursor++ = 0;
-    *cursor++ = 0x04;
-    cursor = write_audio_descriptor_length(cursor, decoderConfigPayloadSize);
-    *cursor++ = 0x40;
-    *cursor++ = 0x15;
-    *cursor++ = 0;
-    *cursor++ = 6;
-    *cursor++ = 0;
-    uint32_t bitrate = parameters->bit_rate > 0 &&
-            parameters->bit_rate <= UINT32_MAX
-        ? (uint32_t)parameters->bit_rate
-        : 0;
-    write_be32(cursor, bitrate);
-    cursor += 4;
-    write_be32(cursor, bitrate);
-    cursor += 4;
-    *cursor++ = 0x05;
-    cursor = write_audio_descriptor_length(cursor, configurationSize);
-    memcpy(cursor, configuration, configurationSize);
-    cursor += configurationSize;
-    *cursor++ = 0x06;
-    *cursor++ = 1;
-    *cursor++ = 2;
-
-    CFDataRef cookie = CFDataCreate(
-        kCFAllocatorDefault,
-        bytes,
-        (CFIndex)(cursor - bytes)
+    int64_t targetDuration = av_rescale_q(
+        decoded_audio_minimum_buffer_frames(reader),
+        (AVRational){1, reader->sampleRate},
+        reader->timeBase
     );
-    free(bytes);
-    return cookie;
+    int64_t accumulatedDuration = FFMAX(reader->packet->duration, 0);
+    unsigned int packetCount = 1;
+    while (accumulatedDuration < targetDuration &&
+           packetCount < PB_TRUEHD_DECODER_PACKET_BATCH_LIMIT) {
+        int result = read_next_audio_packet(reader, reader->decoderBatchPacket);
+        if (result < 0) {
+            reader->inputEnded = true;
+            reader->inputReadResult = result;
+            return result == AVERROR_EOF ? 0 : result;
+        }
+        if (reader->decoderBatchPacket->stream_index != reader->audioStreamIndex) {
+            av_packet_unref(reader->decoderBatchPacket);
+            continue;
+        }
+        int packetSize = reader->packet->size;
+        result = av_grow_packet(
+            reader->packet,
+            reader->decoderBatchPacket->size
+        );
+        if (result < 0) {
+            av_packet_unref(reader->decoderBatchPacket);
+            return result;
+        }
+        memcpy(
+            reader->packet->data + packetSize,
+            reader->decoderBatchPacket->data,
+            reader->decoderBatchPacket->size
+        );
+        reader->packet->duration += reader->decoderBatchPacket->duration;
+        accumulatedDuration += FFMAX(reader->decoderBatchPacket->duration, 0);
+        packetCount++;
+        av_packet_unref(reader->decoderBatchPacket);
+    }
+    return 0;
+}
+
+static PBFFmpegReadResult emit_pending_decoded_audio_sample(
+    PBFFmpegAudioReader *reader,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (reader->pendingPCMFrameCount <= 0) return PBFFmpegReadResultEnd;
+    if (!reader->formatDescription || !reader->pendingPCMData) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation state is incomplete");
+        return PBFFmpegReadResultError;
+    }
+
+    size_t bytesPerFrame = (size_t)reader->channelCount * sizeof(float);
+    size_t expectedByteCount = (size_t)reader->pendingPCMFrameCount * bytesPerFrame;
+    if (expectedByteCount != reader->pendingPCMByteCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation size is inconsistent");
+        return PBFFmpegReadResultError;
+    }
+
+    CMBlockBufferRef block = NULL;
+    OSStatus status = CMBlockBufferCreateWithMemoryBlock(
+        kCFAllocatorDefault,
+        NULL,
+        reader->pendingPCMByteCount,
+        kCFAllocatorDefault,
+        NULL,
+        0,
+        reader->pendingPCMByteCount,
+        0,
+        &block
+    );
+    if (status == noErr) {
+        status = CMBlockBufferReplaceDataBytes(
+            reader->pendingPCMData,
+            block,
+            0,
+            reader->pendingPCMByteCount
+        );
+    }
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, reader->sampleRate),
+        .presentationTimeStamp = CMTimeMake(
+            reader->pendingPCMStartSample,
+            reader->sampleRate
+        ),
+        .decodeTimeStamp = kCMTimeInvalid,
+    };
+    CMItemCount sampleCount = reader->pendingPCMFrameCount;
+    if (status == noErr) {
+        status = CMSampleBufferCreateReady(
+            kCFAllocatorDefault,
+            block,
+            reader->formatDescription,
+            sampleCount,
+            1,
+            &timing,
+            1,
+            &bytesPerFrame,
+            sampleOut
+        );
+    }
+    if (block) CFRelease(block);
+    if (status != noErr) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Create aggregated PCM CMSampleBuffer failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return PBFFmpegReadResultError;
+    }
+
+    if (metadataOut) {
+        *metadataOut = reader->pendingPCMMetadata;
+        metadataOut->packetDuration = av_rescale_q(
+            reader->pendingPCMFrameCount,
+            (AVRational){1, reader->sampleRate},
+            reader->timeBase
+        );
+        metadataOut->payloadByteCount = reader->pendingPCMByteCount;
+    }
+    reader->pendingPCMByteCount = 0;
+    reader->pendingPCMFrameCount = 0;
+    memset(&reader->pendingPCMMetadata, 0, sizeof(reader->pendingPCMMetadata));
+    return PBFFmpegReadResultSample;
+}
+
+static int reserve_pending_decoded_audio_capacity(
+    PBFFmpegAudioReader *reader,
+    int additionalFrameCapacity,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (additionalFrameCapacity <= 0 || reader->channelCount <= 0) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation received no capacity");
+        return AVERROR_INVALIDDATA;
+    }
+    size_t bytesPerFrame = (size_t)reader->channelCount * sizeof(float);
+    if ((size_t)additionalFrameCapacity > SIZE_MAX / bytesPerFrame) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation size overflowed");
+        return AVERROR(EOVERFLOW);
+    }
+    size_t byteCount = (size_t)additionalFrameCapacity * bytesPerFrame;
+    if (reader->pendingPCMByteCount > SIZE_MAX - byteCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation capacity overflowed");
+        return AVERROR(EOVERFLOW);
+    }
+    size_t requiredCapacity = reader->pendingPCMByteCount + byteCount;
+    if (requiredCapacity > reader->pendingPCMCapacity) {
+        size_t newCapacity = reader->pendingPCMCapacity > 0
+            ? reader->pendingPCMCapacity
+            : requiredCapacity;
+        while (newCapacity < requiredCapacity) {
+            if (newCapacity > SIZE_MAX / 2) {
+                newCapacity = requiredCapacity;
+                break;
+            }
+            newCapacity *= 2;
+        }
+        uint8_t *newData = realloc(reader->pendingPCMData, newCapacity);
+        if (!newData) {
+            set_error(errorBuffer, errorBufferSize, "Unable to grow decoded PCM aggregation storage");
+            return AVERROR(ENOMEM);
+        }
+        reader->pendingPCMData = newData;
+        reader->pendingPCMCapacity = newCapacity;
+    }
+    return 0;
+}
+
+static UInt32 audio_frames_per_packet(const AVCodecParameters *parameters) {
+    if (parameters->frame_size > 0) return (UInt32)parameters->frame_size;
+    switch (parameters->codec_id) {
+        case AV_CODEC_ID_AC3:
+        case AV_CODEC_ID_EAC3: return 1536;
+        default: return 0;
+    }
 }
 
 static AudioChannelLabel audio_channel_label(enum AVChannel channel) {
@@ -4271,6 +5149,28 @@ static AudioChannelLabel audio_channel_label(enum AVChannel channel) {
     }
 }
 
+static AudioChannelLayoutTag audio_channel_layout_tag(
+    const AVChannelLayout *source
+) {
+    if (!source || source->nb_channels <= 0) return 0;
+    if (source->nb_channels == 1) return kAudioChannelLayoutTag_Mono;
+    if (source->nb_channels == 2) return kAudioChannelLayoutTag_Stereo;
+
+    AVChannelLayout fivePointOne = AV_CHANNEL_LAYOUT_5POINT1;
+    AVChannelLayout fivePointOneBack = AV_CHANNEL_LAYOUT_5POINT1_BACK;
+    AVChannelLayout sevenPointOne = AV_CHANNEL_LAYOUT_7POINT1;
+    if (av_channel_layout_compare(source, &fivePointOne) == 0) {
+        return kAudioChannelLayoutTag_WAVE_5_1_A;
+    }
+    if (av_channel_layout_compare(source, &fivePointOneBack) == 0) {
+        return kAudioChannelLayoutTag_WAVE_5_1_B;
+    }
+    if (av_channel_layout_compare(source, &sevenPointOne) == 0) {
+        return kAudioChannelLayoutTag_WAVE_7_1;
+    }
+    return 0;
+}
+
 static AudioChannelLayout *copy_audio_channel_layout(
     const AVChannelLayout *source,
     size_t *layoutSizeOut
@@ -4279,18 +5179,13 @@ static AudioChannelLayout *copy_audio_channel_layout(
     UInt32 channelCount = (UInt32)source->nb_channels;
     size_t layoutSize = sizeof(AudioChannelLayout);
     AudioChannelLayout *layout = NULL;
-    if (channelCount == 1 || channelCount == 2 ||
-        source->order == AV_CHANNEL_ORDER_UNSPEC) {
+    AudioChannelLayoutTag standardTag = audio_channel_layout_tag(source);
+    if (standardTag != 0 || source->order == AV_CHANNEL_ORDER_UNSPEC) {
         layout = calloc(1, layoutSize);
         if (!layout) return NULL;
-        if (channelCount == 1) {
-            layout->mChannelLayoutTag = kAudioChannelLayoutTag_Mono;
-        } else if (channelCount == 2) {
-            layout->mChannelLayoutTag = kAudioChannelLayoutTag_Stereo;
-        } else {
-            layout->mChannelLayoutTag =
-                kAudioChannelLayoutTag_DiscreteInOrder | channelCount;
-        }
+        layout->mChannelLayoutTag = standardTag != 0
+            ? standardTag
+            : kAudioChannelLayoutTag_DiscreteInOrder | channelCount;
     } else {
         layoutSize = offsetof(AudioChannelLayout, mChannelDescriptions) +
             channelCount * sizeof(AudioChannelDescription);
@@ -4323,7 +5218,7 @@ static int ensure_compressed_audio_format(
     AudioStreamBasicDescription asbd = {
         .mSampleRate = parameters->sample_rate,
         .mFormatID = formatID,
-        .mFormatFlags = audio_format_flags(parameters),
+        .mFormatFlags = 0,
         .mBytesPerPacket = 0,
         .mFramesPerPacket = audio_frames_per_packet(parameters),
         .mBytesPerFrame = 0,
@@ -4340,57 +5235,10 @@ static int ensure_compressed_audio_format(
         set_error(errorBuffer, errorBufferSize, "Audio channel layout is unavailable");
         return AVERROR_INVALIDDATA;
     }
-    uint8_t synthesizedAACCookie[2] = {0};
-    CFDataRef synthesizedAACMagicCookie = NULL;
-    CFDataRef synthesizedFLACMagicCookie = NULL;
     const void *cookie = parameters->extradata_size > 0 ? parameters->extradata : NULL;
     size_t cookieSize = parameters->extradata_size > 0
         ? (size_t)parameters->extradata_size
         : 0;
-    if (parameters->codec_id == AV_CODEC_ID_APAC && reader->codecMagicCookie) {
-        cookie = CFDataGetBytePtr(reader->codecMagicCookie);
-        cookieSize = (size_t)CFDataGetLength(reader->codecMagicCookie);
-    }
-    if (parameters->codec_id == AV_CODEC_ID_AAC && cookieSize == 0) {
-        int sampleRateIndex = aac_sample_rate_index(parameters->sample_rate);
-        int channelConfiguration = parameters->ch_layout.nb_channels;
-        int profile = parameters->profile == AV_PROFILE_UNKNOWN
-            ? AV_PROFILE_AAC_LOW
-            : parameters->profile;
-        if (sampleRateIndex < 0 || channelConfiguration < 1 || channelConfiguration > 7 ||
-            profile < AV_PROFILE_AAC_MAIN || profile > AV_PROFILE_AAC_LTP) {
-            free(channelLayout);
-            set_error(errorBuffer, errorBufferSize, "Compressed AAC codec configuration is unavailable");
-            return AVERROR_INVALIDDATA;
-        }
-        int audioObjectType = profile + 1;
-        synthesizedAACCookie[0] = (uint8_t)((audioObjectType << 3) | (sampleRateIndex >> 1));
-        synthesizedAACCookie[1] = (uint8_t)(((sampleRateIndex & 1) << 7) | (channelConfiguration << 3));
-        cookie = synthesizedAACCookie;
-        cookieSize = sizeof(synthesizedAACCookie);
-    }
-    if (parameters->codec_id == AV_CODEC_ID_AAC && cookieSize > 0) {
-        synthesizedAACMagicCookie = create_aac_magic_cookie(
-            parameters,
-            cookie,
-            cookieSize
-        );
-        if (synthesizedAACMagicCookie) {
-            cookie = CFDataGetBytePtr(synthesizedAACMagicCookie);
-            cookieSize = (size_t)CFDataGetLength(synthesizedAACMagicCookie);
-        }
-    }
-    if (parameters->codec_id == AV_CODEC_ID_FLAC) {
-        synthesizedFLACMagicCookie = create_flac_magic_cookie(parameters);
-        if (!synthesizedFLACMagicCookie) {
-            free(channelLayout);
-            if (synthesizedAACMagicCookie) CFRelease(synthesizedAACMagicCookie);
-            set_error(errorBuffer, errorBufferSize, "Compressed FLAC STREAMINFO is unavailable");
-            return AVERROR_INVALIDDATA;
-        }
-        cookie = CFDataGetBytePtr(synthesizedFLACMagicCookie);
-        cookieSize = (size_t)CFDataGetLength(synthesizedFLACMagicCookie);
-    }
     OSStatus status = CMAudioFormatDescriptionCreate(
         kCFAllocatorDefault,
         &asbd,
@@ -4402,8 +5250,6 @@ static int ensure_compressed_audio_format(
         &reader->formatDescription
     );
     free(channelLayout);
-    if (synthesizedAACMagicCookie) CFRelease(synthesizedAACMagicCookie);
-    if (synthesizedFLACMagicCookie) CFRelease(synthesizedFLACMagicCookie);
     if (status != noErr) {
         char message[160];
         snprintf(
@@ -4418,74 +5264,72 @@ static int ensure_compressed_audio_format(
     return 0;
 }
 
-static int ensure_source_pcm_audio_format(
-    PBFFmpegAudioReader *reader,
-    const AVCodecParameters *parameters,
-    char *errorBuffer,
-    size_t errorBufferSize
-) {
-    if (reader->formatDescription) return 0;
-    SourcePCMFormat sourceFormat;
-    if (!source_pcm_format(parameters->codec_id, &sourceFormat)) {
-        set_error(errorBuffer, errorBufferSize, "The selected source PCM representation is not supported");
-        return AVERROR(ENOSYS);
-    }
-    UInt32 channelCount = (UInt32)parameters->ch_layout.nb_channels;
-    UInt32 bytesPerFrame = channelCount * sourceFormat.bytesPerSample;
-    AudioStreamBasicDescription asbd = {
-        .mSampleRate = parameters->sample_rate,
-        .mFormatID = kAudioFormatLinearPCM,
-        .mFormatFlags = sourceFormat.flags,
-        .mBytesPerPacket = bytesPerFrame,
-        .mFramesPerPacket = 1,
-        .mBytesPerFrame = bytesPerFrame,
-        .mChannelsPerFrame = channelCount,
-        .mBitsPerChannel = sourceFormat.bitsPerChannel,
-        .mReserved = 0,
-    };
-    size_t channelLayoutSize = 0;
-    AudioChannelLayout *channelLayout = copy_audio_channel_layout(
-        &parameters->ch_layout,
-        &channelLayoutSize
-    );
-    if (!channelLayout) {
-        set_error(errorBuffer, errorBufferSize, "Source PCM channel layout is unavailable");
-        return AVERROR_INVALIDDATA;
-    }
-    OSStatus status = CMAudioFormatDescriptionCreate(
-        kCFAllocatorDefault,
-        &asbd,
-        channelLayoutSize,
-        channelLayout,
-        0,
-        NULL,
-        NULL,
-        &reader->formatDescription
-    );
-    free(channelLayout);
-    if (status != noErr) {
-        char message[160];
-        snprintf(
-            message,
-            sizeof(message),
-            "Create source PCM audio format description failed (%d)",
-            (int)status
-        );
-        set_error(errorBuffer, errorBufferSize, message);
-        return AVERROR_INVALIDDATA;
-    }
-    return 0;
-}
-
 static int ensure_audio_format(
     PBFFmpegAudioReader *reader,
     const AVCodecParameters *parameters,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
-    return audio_codec_is_source_pcm(parameters->codec_id)
-        ? ensure_source_pcm_audio_format(reader, parameters, errorBuffer, errorBufferSize)
-        : ensure_compressed_audio_format(reader, parameters, errorBuffer, errorBufferSize);
+    return ensure_compressed_audio_format(
+        reader,
+        parameters,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+static int ensure_decoded_pcm_audio_format(
+    PBFFmpegAudioReader *reader,
+    const AVChannelLayout *channelLayout,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (reader->formatDescription) return 0;
+    UInt32 channelCount = (UInt32)channelLayout->nb_channels;
+    UInt32 bytesPerFrame = channelCount * sizeof(float);
+    AudioStreamBasicDescription asbd = {
+        .mSampleRate = reader->sampleRate,
+        .mFormatID = kAudioFormatLinearPCM,
+        .mFormatFlags = kAudioFormatFlagsNativeFloatPacked,
+        .mBytesPerPacket = bytesPerFrame,
+        .mFramesPerPacket = 1,
+        .mBytesPerFrame = bytesPerFrame,
+        .mChannelsPerFrame = channelCount,
+        .mBitsPerChannel = 32,
+        .mReserved = 0,
+    };
+    size_t layoutSize = 0;
+    AudioChannelLayout *layout = copy_audio_channel_layout(
+        channelLayout,
+        &layoutSize
+    );
+    if (!layout) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM channel layout is unavailable");
+        return AVERROR_INVALIDDATA;
+    }
+    OSStatus status = CMAudioFormatDescriptionCreate(
+        kCFAllocatorDefault,
+        &asbd,
+        layoutSize,
+        layout,
+        0,
+        NULL,
+        NULL,
+        &reader->formatDescription
+    );
+    free(layout);
+    if (status != noErr) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Create decoded PCM audio format description failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return AVERROR_INVALIDDATA;
+    }
+    return 0;
 }
 
 static PBFFmpegReadResult create_audio_sample(
@@ -4525,28 +5369,10 @@ static PBFFmpegReadResult create_audio_sample(
     if (status == noErr) {
         status = CMBlockBufferReplaceDataBytes(packet->data, block, 0, byteCount);
     }
-    bool isSourcePCM = audio_codec_is_source_pcm(parameters->codec_id);
-    SourcePCMFormat sourcePCMFormat = {0};
-    if (isSourcePCM) {
-        source_pcm_format(parameters->codec_id, &sourcePCMFormat);
-    }
-    size_t bytesPerPCMFrame = isSourcePCM
-        ? (size_t)parameters->ch_layout.nb_channels * sourcePCMFormat.bytesPerSample
-        : 0;
-    if (isSourcePCM &&
-        (bytesPerPCMFrame == 0 || byteCount % bytesPerPCMFrame != 0)) {
-        if (block) CFRelease(block);
-        set_error(errorBuffer, errorBufferSize, "Source PCM packet does not contain whole audio frames");
-        return PBFFmpegReadResultError;
-    }
-    CMItemCount sampleCount = isSourcePCM
-        ? (CMItemCount)(byteCount / bytesPerPCMFrame)
-        : 1;
+    CMItemCount sampleCount = 1;
     UInt32 framesPerPacket = audio_frames_per_packet(parameters);
     CMTime packetDuration = cm_time(packet->duration, reader->timeBase);
-    CMTime duration = isSourcePCM
-        ? CMTimeMake(1, parameters->sample_rate)
-        : packet->duration > 0
+    CMTime duration = packet->duration > 0
         ? packetDuration
         : framesPerPacket > 0 && parameters->sample_rate > 0
         ? CMTimeMake(framesPerPacket, parameters->sample_rate)
@@ -4566,7 +5392,7 @@ static PBFFmpegReadResult create_audio_sample(
             reader->timeBase
         ),
     };
-    size_t sampleSize = isSourcePCM ? bytesPerPCMFrame : byteCount;
+    size_t sampleSize = byteCount;
     if (status == noErr) {
         status = CMSampleBufferCreateReady(
             kCFAllocatorDefault,
@@ -4594,11 +5420,319 @@ static PBFFmpegReadResult create_audio_sample(
         metadataOut->timeBaseNumerator = reader->timeBase.num;
         metadataOut->timeBaseDenominator = reader->timeBase.den;
         metadataOut->payloadByteCount = byteCount;
-        metadataOut->cookieSource = isSourcePCM
-            ? PBFFmpegAudioCookieSourceUnavailable
-            : cookieSource;
+        metadataOut->cookieSource = cookieSource;
     }
     return PBFFmpegReadResultSample;
+}
+
+static void clear_decoded_audio_conversion(PBFFmpegAudioReader *reader) {
+    av_audio_fifo_free(reader->decodedAudioFifo);
+    reader->decodedAudioFifo = NULL;
+    if (reader->decodedBatchData) {
+        av_freep(&reader->decodedBatchData[0]);
+        av_freep(&reader->decodedBatchData);
+    }
+    reader->decodedBatchCapacity = 0;
+    reader->decodedInputFormat = AV_SAMPLE_FMT_NONE;
+    swr_free(&reader->resampler);
+    av_channel_layout_uninit(&reader->outputChannelLayout);
+    if (reader->formatDescription) {
+        CFRelease(reader->formatDescription);
+        reader->formatDescription = NULL;
+    }
+}
+
+static int configure_decoded_audio_conversion(
+    PBFFmpegAudioReader *reader,
+    const AVChannelLayout *inputLayout,
+    enum AVSampleFormat inputFormat,
+    int inputSampleRate,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    clear_decoded_audio_conversion(reader);
+    if (av_channel_layout_copy(&reader->outputChannelLayout, inputLayout) < 0) {
+        set_error(errorBuffer, errorBufferSize, "Unable to preserve decoded audio channel layout");
+        return AVERROR(ENOMEM);
+    }
+    reader->channelCount = inputLayout->nb_channels;
+    reader->decodedInputFormat = inputFormat;
+    int batchCapacity = decoded_audio_minimum_buffer_frames(reader);
+    reader->decodedAudioFifo = av_audio_fifo_alloc(
+        inputFormat,
+        reader->channelCount,
+        batchCapacity
+    );
+    if (!reader->decodedAudioFifo) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate decoded audio aggregation storage");
+        clear_decoded_audio_conversion(reader);
+        return AVERROR(ENOMEM);
+    }
+    int lineSize = 0;
+    int result = av_samples_alloc_array_and_samples(
+        &reader->decodedBatchData,
+        &lineSize,
+        reader->channelCount,
+        batchCapacity,
+        inputFormat,
+        0
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Allocate decoded audio batch storage", result);
+        clear_decoded_audio_conversion(reader);
+        return result;
+    }
+    reader->decodedBatchCapacity = batchCapacity;
+    result = swr_alloc_set_opts2(
+        &reader->resampler,
+        &reader->outputChannelLayout,
+        AV_SAMPLE_FMT_FLT,
+        reader->sampleRate,
+        inputLayout,
+        inputFormat,
+        inputSampleRate,
+        0,
+        NULL
+    );
+    if (result >= 0) result = swr_init(reader->resampler);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Configure decoded audio conversion", result);
+        clear_decoded_audio_conversion(reader);
+        return result;
+    }
+    if (ensure_decoded_pcm_audio_format(
+            reader,
+            &reader->outputChannelLayout,
+            errorBuffer,
+            errorBufferSize
+        ) < 0) {
+        clear_decoded_audio_conversion(reader);
+        return AVERROR_INVALIDDATA;
+    }
+    reader->decodedFifoStartTimestamp = AV_NOPTS_VALUE;
+    return 0;
+}
+
+static PBFFmpegReadResult convert_decoded_audio_fifo(
+    PBFFmpegAudioReader *reader,
+    int frameCount,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader->decodedAudioFifo || !reader->resampler ||
+        frameCount <= 0 ||
+        frameCount > av_audio_fifo_size(reader->decodedAudioFifo)) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio aggregation state is inconsistent");
+        return PBFFmpegReadResultError;
+    }
+    if (frameCount > reader->decodedBatchCapacity) {
+        av_freep(&reader->decodedBatchData[0]);
+        av_freep(&reader->decodedBatchData);
+        int lineSize = 0;
+        int allocationResult = av_samples_alloc_array_and_samples(
+            &reader->decodedBatchData,
+            &lineSize,
+            reader->channelCount,
+            frameCount,
+            reader->decodedInputFormat,
+            0
+        );
+        if (allocationResult < 0) {
+            set_av_error(
+                errorBuffer,
+                errorBufferSize,
+                "Grow decoded audio batch storage",
+                allocationResult
+            );
+            return PBFFmpegReadResultError;
+        }
+        reader->decodedBatchCapacity = frameCount;
+    }
+    int outputCapacity = swr_get_out_samples(reader->resampler, frameCount);
+    if (outputCapacity <= 0 ||
+        reserve_pending_decoded_audio_capacity(
+            reader,
+            outputCapacity,
+            errorBuffer,
+            errorBufferSize
+        ) < 0) {
+        if (outputCapacity <= 0) {
+            set_error(errorBuffer, errorBufferSize, "Decoded audio conversion produced no capacity");
+        }
+        return PBFFmpegReadResultError;
+    }
+    int readSamples = av_audio_fifo_read(
+        reader->decodedAudioFifo,
+        (void **)reader->decodedBatchData,
+        frameCount
+    );
+    if (readSamples != frameCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio aggregation could not read a complete batch");
+        return PBFFmpegReadResultError;
+    }
+    uint8_t *outputData[1] = {
+        reader->pendingPCMData + reader->pendingPCMByteCount,
+    };
+    int convertedSamples = swr_convert(
+        reader->resampler,
+        outputData,
+        outputCapacity,
+        (const uint8_t **)reader->decodedBatchData,
+        readSamples
+    );
+    if (convertedSamples <= 0) {
+        if (convertedSamples < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Convert decoded audio to interleaved PCM", convertedSamples);
+        } else {
+            set_error(errorBuffer, errorBufferSize, "Decoded audio conversion produced no samples");
+        }
+        return PBFFmpegReadResultError;
+    }
+    reader->pendingPCMStartSample = reader->decodedFifoStartSample;
+    reader->pendingPCMMetadata.packetPTS = reader->decodedFifoStartTimestamp;
+    reader->pendingPCMMetadata.packetDTS = AV_NOPTS_VALUE;
+    reader->pendingPCMMetadata.timeBaseNumerator = reader->timeBase.num;
+    reader->pendingPCMMetadata.timeBaseDenominator = reader->timeBase.den;
+    reader->pendingPCMMetadata.cookieSource = PBFFmpegAudioCookieSourceUnavailable;
+    reader->pendingPCMByteCount =
+        (size_t)convertedSamples * (size_t)reader->channelCount * sizeof(float);
+    reader->pendingPCMFrameCount = convertedSamples;
+    reader->decodedFifoStartSample += convertedSamples;
+    if (reader->decodedFifoStartTimestamp != AV_NOPTS_VALUE) {
+        reader->decodedFifoStartTimestamp += av_rescale_q(
+            convertedSamples,
+            (AVRational){1, reader->sampleRate},
+            reader->timeBase
+        );
+    }
+    return emit_pending_decoded_audio_sample(
+        reader,
+        sampleOut,
+        metadataOut,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+static PBFFmpegReadResult create_decoded_audio_sample(
+    PBFFmpegAudioReader *reader,
+    AVFrame *frame,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    const AVChannelLayout *inputLayout = frame->ch_layout.nb_channels > 0
+        ? &frame->ch_layout
+        : reader->decoder->ch_layout.nb_channels > 0
+        ? &reader->decoder->ch_layout
+        : &reader->outputChannelLayout;
+    int inputSampleRate = frame->sample_rate > 0
+        ? frame->sample_rate
+        : reader->decoder->sample_rate > 0
+        ? reader->decoder->sample_rate
+        : reader->sampleRate;
+    enum AVSampleFormat inputFormat = (enum AVSampleFormat)frame->format;
+    if (inputLayout->nb_channels <= 0 || inputSampleRate <= 0 ||
+        inputFormat == AV_SAMPLE_FMT_NONE || frame->nb_samples <= 0) {
+        char message[192];
+        snprintf(
+            message,
+            sizeof(message),
+            "Decoded audio codec %s frame has invalid parameters (%d Hz, %d channels, %d samples)",
+            reader->codecName,
+            inputSampleRate,
+            inputLayout->nb_channels,
+            frame->nb_samples
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return PBFFmpegReadResultError;
+    }
+    if (inputSampleRate != reader->sampleRate) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio changed the declared sample rate");
+        return PBFFmpegReadResultError;
+    }
+
+    CMSampleBufferRef completedPreviousFormatSample = NULL;
+    PBFFmpegAudioSampleMetadata completedPreviousFormatMetadata = {0};
+    bool needsConfiguration = !reader->decodedAudioFifo ||
+        reader->decodedInputFormat != inputFormat ||
+        av_channel_layout_compare(inputLayout, &reader->outputChannelLayout) != 0;
+    if (needsConfiguration && reader->decodedAudioFifo &&
+        av_audio_fifo_size(reader->decodedAudioFifo) > 0) {
+        PBFFmpegReadResult flushResult = convert_decoded_audio_fifo(
+            reader,
+            av_audio_fifo_size(reader->decodedAudioFifo),
+            &completedPreviousFormatSample,
+            &completedPreviousFormatMetadata,
+            errorBuffer,
+            errorBufferSize
+        );
+        if (flushResult != PBFFmpegReadResultSample) return flushResult;
+    }
+    if (needsConfiguration && configure_decoded_audio_conversion(
+            reader,
+            inputLayout,
+            inputFormat,
+            inputSampleRate,
+            errorBuffer,
+            errorBufferSize
+        ) < 0) {
+        if (completedPreviousFormatSample) CFRelease(completedPreviousFormatSample);
+        return PBFFmpegReadResultError;
+    }
+
+    int64_t frameTimestamp = frame->pts != AV_NOPTS_VALUE
+        ? frame->pts
+        : frame->best_effort_timestamp;
+    int64_t startSample = reader->nextPCMSample;
+    if (frameTimestamp != AV_NOPTS_VALUE) {
+        startSample = av_rescale_q(
+            frameTimestamp - reader->startTimestamp,
+            reader->timeBase,
+            (AVRational){1, reader->sampleRate}
+        );
+        if (startSample < reader->nextPCMSample) startSample = reader->nextPCMSample;
+    }
+    if (av_audio_fifo_size(reader->decodedAudioFifo) == 0) {
+        reader->decodedFifoStartSample = startSample;
+        reader->decodedFifoStartTimestamp = frameTimestamp;
+    }
+    int writtenSamples = av_audio_fifo_write(
+        reader->decodedAudioFifo,
+        (void * const *)frame->extended_data,
+        frame->nb_samples
+    );
+    if (writtenSamples != frame->nb_samples) {
+        if (completedPreviousFormatSample) CFRelease(completedPreviousFormatSample);
+        set_error(errorBuffer, errorBufferSize, "Decoded audio aggregation could not append a complete frame");
+        return PBFFmpegReadResultError;
+    }
+    reader->nextPCMSample = startSample + writtenSamples;
+    if (completedPreviousFormatSample) {
+        *sampleOut = completedPreviousFormatSample;
+        if (metadataOut) *metadataOut = completedPreviousFormatMetadata;
+        return PBFFmpegReadResultSample;
+    }
+    int minimumFrames = decoded_audio_minimum_buffer_frames(reader);
+    int availableFrames = av_audio_fifo_size(reader->decodedAudioFifo);
+    if (availableFrames < minimumFrames) {
+        return PBFFmpegReadResultEnd;
+    }
+    int conversionFrames = frame->nb_samples >= minimumFrames &&
+            availableFrames == frame->nb_samples
+        ? frame->nb_samples
+        : minimumFrames;
+    return convert_decoded_audio_fifo(
+        reader,
+        conversionFrames,
+        sampleOut,
+        metadataOut,
+        errorBuffer,
+        errorBufferSize
+    );
 }
 
 PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
@@ -4617,46 +5751,96 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
     if (cancellation_requested(&reader->cancelled)) {
         return PBFFmpegReadResultCancelled;
     }
-    AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
     while (true) {
         if (cancellation_requested(&reader->cancelled)) {
             return PBFFmpegReadResultCancelled;
         }
-        if (reader->bitstreamFilter) {
-            int result = av_bsf_receive_packet(reader->bitstreamFilter, reader->filteredPacket);
-            if (result == 0) {
-                PBFFmpegReadResult readResult = create_audio_sample(
+        if (reader->decoder) {
+            if (reader->decodedAudioFifo &&
+                av_audio_fifo_size(reader->decodedAudioFifo) >=
+                    decoded_audio_minimum_buffer_frames(reader)) {
+                return convert_decoded_audio_fifo(
                     reader,
-                    reader->filteredPacket,
-                    reader->bitstreamFilter->par_out,
-                    PBFFmpegAudioCookieSourceFilterOutput,
-                    reader->pendingOriginalPTS,
-                    reader->pendingOriginalDTS,
-                    reader->pendingOriginalDuration,
+                    decoded_audio_minimum_buffer_frames(reader),
                     sampleOut,
                     metadataOut,
                     errorBuffer,
                     errorBufferSize
                 );
-                av_packet_unref(reader->filteredPacket);
+            }
+            if (reader->pendingPCMFrameCount >= decoded_audio_minimum_buffer_frames(reader)) {
+                return emit_pending_decoded_audio_sample(
+                    reader,
+                    sampleOut,
+                    metadataOut,
+                    errorBuffer,
+                    errorBufferSize
+                );
+            }
+            int result = avcodec_receive_frame(reader->decoder, reader->decodedFrame);
+            if (result == 0) {
+                if (reader->decodedFrame->nb_samples <= 0) {
+                    av_frame_unref(reader->decodedFrame);
+                    continue;
+                }
+                PBFFmpegReadResult readResult = create_decoded_audio_sample(
+                    reader,
+                    reader->decodedFrame,
+                    sampleOut,
+                    metadataOut,
+                    errorBuffer,
+                    errorBufferSize
+                );
+                av_frame_unref(reader->decodedFrame);
+                if (readResult == PBFFmpegReadResultEnd) continue;
                 return readResult;
             }
-            if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
-            if (result == AVERROR_INVALIDDATA) {
-                av_packet_unref(reader->filteredPacket);
-                av_bsf_flush(reader->bitstreamFilter);
-                continue;
+            if (result == AVERROR_EOF) {
+                if (reader->decodedAudioFifo &&
+                    av_audio_fifo_size(reader->decodedAudioFifo) > 0) {
+                    return convert_decoded_audio_fifo(
+                        reader,
+                        FFMIN(
+                            av_audio_fifo_size(reader->decodedAudioFifo),
+                            reader->decodedBatchCapacity
+                        ),
+                        sampleOut,
+                        metadataOut,
+                        errorBuffer,
+                        errorBufferSize
+                    );
+                }
+                if (reader->pendingPCMFrameCount > 0) {
+                    return emit_pending_decoded_audio_sample(
+                        reader,
+                        sampleOut,
+                        metadataOut,
+                        errorBuffer,
+                        errorBufferSize
+                    );
+                }
+                if (reader->inputReadResult < 0 &&
+                    reader->inputReadResult != AVERROR_EOF) {
+                    set_av_error(
+                        errorBuffer,
+                        errorBufferSize,
+                        "Read demuxed audio packet",
+                        reader->inputReadResult
+                    );
+                    return PBFFmpegReadResultError;
+                }
+                return PBFFmpegReadResultEnd;
             }
             if (result != AVERROR(EAGAIN)) {
-                set_av_error(errorBuffer, errorBufferSize, "Read filtered compressed audio packet", result);
+                set_av_error(errorBuffer, errorBufferSize, "Decode audio frame", result);
                 return PBFFmpegReadResultError;
             }
             if (reader->inputEnded) {
-                if (!reader->filterDrained) {
-                    result = av_bsf_send_packet(reader->bitstreamFilter, NULL);
-                    reader->filterDrained = true;
+                if (!reader->decoderDrained) {
+                    result = avcodec_send_packet(reader->decoder, NULL);
+                    reader->decoderDrained = true;
                     if (result < 0 && result != AVERROR_EOF) {
-                        set_av_error(errorBuffer, errorBufferSize, "Finish compressed audio filter", result);
+                        set_av_error(errorBuffer, errorBufferSize, "Finish FFmpeg audio decoder", result);
                         return PBFFmpegReadResultError;
                     }
                     continue;
@@ -4664,60 +5848,72 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 return PBFFmpegReadResultEnd;
             }
         }
-
-        int result = reader->demuxSource
-            ? copy_next_demux_packet(
-                reader->demuxSource,
-                reader->audioStreamIndex,
-                &reader->cancelled,
-                reader->packet
-            )
-            : av_read_frame(reader->formatContext, reader->packet);
-        if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
+        int result = read_next_audio_packet(reader, reader->packet);
         if (result < 0) {
             if (result == AVERROR_EXIT || cancellation_requested(&reader->cancelled)) {
                 return PBFFmpegReadResultCancelled;
             }
             reader->inputEnded = true;
-            if (reader->bitstreamFilter) continue;
-            return PBFFmpegReadResultEnd;
+            reader->inputReadResult = result;
+            if (reader->decoder) continue;
+            if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
+            set_av_error(errorBuffer, errorBufferSize, "Read demuxed audio packet", result);
+            return PBFFmpegReadResultError;
         }
         if (reader->packet->stream_index != reader->audioStreamIndex) {
             av_packet_unref(reader->packet);
             continue;
         }
-        if (!reader->bitstreamFilter) {
-            PBFFmpegReadResult readResult = create_audio_sample(
-                reader,
-                reader->packet,
-                stream->codecpar,
-                stream->codecpar->extradata_size > 0
-                    ? PBFFmpegAudioCookieSourceExtradata
-                    : PBFFmpegAudioCookieSourceSynthesized,
-                reader->packet->pts,
-                reader->packet->dts,
-                reader->packet->duration,
-                sampleOut,
-                metadataOut,
-                errorBuffer,
-                errorBufferSize
-            );
-            av_packet_unref(reader->packet);
-            return readResult;
-        }
-        reader->pendingOriginalPTS = reader->packet->pts;
-        reader->pendingOriginalDTS = reader->packet->dts;
-        reader->pendingOriginalDuration = reader->packet->duration;
-        result = av_bsf_send_packet(reader->bitstreamFilter, reader->packet);
-        av_packet_unref(reader->packet);
-        if (result < 0) {
-            if (result == AVERROR_INVALIDDATA) {
-                av_bsf_flush(reader->bitstreamFilter);
-                continue;
+        if (reader->decoder) {
+            result = aggregate_truehd_decoder_packet(reader);
+            if (result == AVERROR_EXIT ||
+                cancellation_requested(&reader->cancelled)) {
+                av_packet_unref(reader->packet);
+                return PBFFmpegReadResultCancelled;
             }
-            set_av_error(errorBuffer, errorBufferSize, "Filter compressed audio packet", result);
-            return PBFFmpegReadResultError;
+            if (result < 0) {
+                av_packet_unref(reader->packet);
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Aggregate FFmpeg TrueHD decoder packet",
+                    result
+                );
+                return PBFFmpegReadResultError;
+            }
+            result = avcodec_send_packet(reader->decoder, reader->packet);
+            av_packet_unref(reader->packet);
+            if (result == AVERROR_INVALIDDATA) continue;
+            if (result < 0) {
+                char operation[128];
+                snprintf(
+                    operation,
+                    sizeof(operation),
+                    "Send packet to FFmpeg audio codec %s decoder",
+                    reader->codecName
+                );
+                set_av_error(errorBuffer, errorBufferSize, operation, result);
+                return PBFFmpegReadResultError;
+            }
+            continue;
         }
+        PBFFmpegReadResult readResult = create_audio_sample(
+            reader,
+            reader->packet,
+            reader->codecParameters,
+            reader->codecParameters->extradata_size > 0
+                ? PBFFmpegAudioCookieSourceExtradata
+                : PBFFmpegAudioCookieSourceSynthesized,
+            reader->packet->pts,
+            reader->packet->dts,
+            reader->packet->duration,
+            sampleOut,
+            metadataOut,
+            errorBuffer,
+            errorBufferSize
+        );
+        av_packet_unref(reader->packet);
+        return readResult;
     }
 }
 
@@ -4879,6 +6075,11 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
+    if (!begin_demux_source_prefetch(source)) {
+        set_error(errorBuffer, errorBufferSize, "Unable to start FFmpeg demux prefetch");
+        PBFFmpegSubtitleReaderDestroy(reader);
+        return NULL;
+    }
     return reader;
 }
 
@@ -5036,5 +6237,14 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
         return PBFFmpegReadResultSample;
     }
     if (packetResult == AVERROR_EXIT) return PBFFmpegReadResultCancelled;
+    if (packetResult != AVERROR_EOF) {
+        set_av_error(
+            errorBuffer,
+            errorBufferSize,
+            "Read demuxed subtitle packet",
+            packetResult
+        );
+        return PBFFmpegReadResultError;
+    }
     return PBFFmpegReadResultEnd;
 }

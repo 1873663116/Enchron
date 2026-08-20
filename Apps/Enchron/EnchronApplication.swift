@@ -1,8 +1,10 @@
 import Foundation
+import DesignSystem
 import Emby
 import MediaLibrary
 import MediaSource
 import Observation
+import OSLog
 import PlaybackFeature
 import PlaybackPresentation
 import PlaybackCore
@@ -37,6 +39,7 @@ enum EffectiveMediaFormatPresentationResolver {
 @MainActor
 @Observable
 final class EnchronApplication {
+    private static let logger = Logger(subsystem: "app.enchron", category: "Application")
     let appModel: AppModel
     let playbackRuntime: PlaybackRuntime
     let playbackVideoEntityStore: PlaybackVideoEntityStore
@@ -49,7 +52,7 @@ final class EnchronApplication {
     let mediaLibraryUIState: MediaLibraryUIState
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
-    let thumbnailService: ThumbnailService
+    let certificateTrustPrompt: CertificateTrustPrompt
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -133,6 +136,19 @@ final class EnchronApplication {
             )
         )
         let playbackRuntime = PlaybackRuntime()
+        ArtworkNetworkConfiguration.use(
+            session: MediaSourceNetwork.shared.session,
+            imageProvider: {
+                ArtworkStore.shared.image(for: ArtworkKey(remoteImageURL: $0))
+            },
+            imageStorer: {
+                try ArtworkStore.shared.store($1, for: ArtworkKey(remoteImageURL: $0))
+            }
+        )
+        let certificateTrustPrompt = CertificateTrustPrompt()
+        ServerTrustPolicy.shared.approvalHandler = { [weak certificateTrustPrompt] certificate in
+            await certificateTrustPrompt?.requestApproval(for: certificate) ?? false
+        }
         let playbackVideoEntityStore = PlaybackVideoEntityStore()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: playbackRuntime,
@@ -148,6 +164,11 @@ final class EnchronApplication {
             deviceID: UIDevice.current.identifierForVendor?.uuidString ?? "Enchron-visionOS"
         ))
         let embySession = EmbySessionViewModel(client: embyClient)
+#if DEBUG
+        embySession.diagnosticProbe = {
+            AppModel.recordProbe($0, retention: .evidence)
+        }
+#endif
         let embyConnection = EmbyConnectionViewModel(session: embySession)
         let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)
         let embySearch = EmbySearchViewModel(client: embyClient, session: embySession)
@@ -200,11 +221,9 @@ final class EnchronApplication {
                                     + " lifecycle=\(playbackRuntime.productLifecycle)"
                                     + " error=\(error)"
                             )
-                            appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
-                                "转换失败，已返回媒体资料库。"
-                            )
                             await playbackRuntime.stopAndWait()
                             appModel.requestStoppedPlaybackCleanup()
+                            playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
                         }
                     }
                 case .switchToPortal:
@@ -223,7 +242,10 @@ final class EnchronApplication {
             } catch {
                 // The core format already succeeded. Report only the distinct
                 // presentation failure and keep that effective interpretation.
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                Self.logger.error(
+                    "format presentation resolution failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
             }
         }
         playbackVideoEntityStore.onRealityKitContentTypeChanged = nil
@@ -333,7 +355,7 @@ final class EnchronApplication {
         mediaLibraryUIState = mediaLibraryFeature.uiState
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
-        thumbnailService = .shared
+        self.certificateTrustPrompt = certificateTrustPrompt
     }
 
     static func mediaStateSuiteName(
@@ -381,8 +403,18 @@ private extension MediaPlaybackItem {
         case .mediaLibrary: .mediaLibrary
         case .sourceDirectory: .sourceDirectory
         }
+        let playbackAddress: PlaybackAddress
+        if let byteStreamHandle {
+            playbackAddress = PlaybackAddress(byteStreamHandle: byteStreamHandle)
+        } else {
+            do {
+                playbackAddress = try PlaybackAddress(localFileURL: url)
+            } catch {
+                preconditionFailure("A remote media item reached playback without a byte-stream handle.")
+            }
+        }
         return PlaybackLaunchRequest(
-            url: url,
+            source: playbackAddress,
             displayName: displayName,
             fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
@@ -390,7 +422,7 @@ private extension MediaPlaybackItem {
             versionedIdentity: versionedIdentity,
             sourceAccess: accessLease,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed
         )
     }
 }
@@ -418,6 +450,6 @@ extension View {
             .environment(application.mediaLibraryUIState)
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
-            .environment(application.thumbnailService)
+            .environment(application.certificateTrustPrompt)
     }
 }

@@ -23,7 +23,6 @@ struct SenseZoneVolumeRoot: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")
         .accessibilityLabel("SenseZone environments")
-        .background { SpatialPlatformEffectExecutor() }
         .animation(revealAnimation, value: revealCompleted)
         .onAppear {
             appModel.receiveSpatialPlatformResult(.environmentCardAppeared)
@@ -84,6 +83,13 @@ struct SenseZoneVolumeRoot: View {
         _ featured: FeaturedEnvironment,
         effect: SpatialSceneDomain.EnvironmentEffect
     ) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentCard effect delivered environment=\(featured.environment.rawValue)"
+                + " effect=\(effect.rawValue)",
+            retention: .evidence
+        )
+#endif
         guard appModel.environmentContext.environment == featured.environment else {
             return
         }
@@ -95,6 +101,13 @@ struct SenseZoneVolumeRoot: View {
         effect: SpatialSceneDomain.EnvironmentEffect
     ) {
         do {
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "environmentCard toggle delivered environment=\(featured.environment.rawValue)"
+                    + " effect=\(effect.rawValue)",
+                retention: .evidence
+            )
+#endif
             if appModel.environmentContext.environment == featured.environment {
                 try appModel.requestEnvironmentPreviewDismissal()
             } else {

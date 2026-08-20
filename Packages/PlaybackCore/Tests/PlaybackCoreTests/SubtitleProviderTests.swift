@@ -648,7 +648,12 @@ private final class SubtitleTestVideoProvider: VideoSampleProvider {
         dimensions: "160x90"
     )
 
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {}
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?,
+        startTime: CMTime
+    ) async throws {}
     func start() throws {}
     func nextEvent() async throws -> VideoSampleProviderEvent { .end }
     func cancel() {}

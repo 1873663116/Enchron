@@ -1,14 +1,15 @@
 import DesignSystem
+import OSLog
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
 
 struct WindowPlayerDeckView: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlayerDeck")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @State private var dismissedBlockingCapabilityToken: String?
     var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
 
@@ -30,31 +31,6 @@ struct WindowPlayerDeckView: View {
                 )
                 .onHover { appModel.setControlsFocused($0) }
             }
-        }
-        .alert(
-            "Subtitle Error",
-            isPresented: Binding(
-                get: { playbackRuntime.subtitleErrorMessage != nil },
-                set: { if !$0 { playbackRuntime.subtitleErrorMessage = nil } }
-            )
-        ) {
-            Button("OK") { playbackRuntime.subtitleErrorMessage = nil }
-        } message: {
-            Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
-        }
-        .alert(
-            "Unable to Play",
-            isPresented: blockingCapabilityIsPresented
-        ) {
-            Button("OK") {
-                dismissedBlockingCapabilityToken = blockingCapabilityToken
-            }
-            .accessibilityIdentifier("PlayerUI-unmetCapability-dismiss")
-        } message: {
-            Text(
-                blockingCapability?.reason
-                    ?? "This file cannot play on this device."
-            )
         }
     }
 
@@ -85,6 +61,8 @@ struct WindowPlayerDeckView: View {
             projection: playbackRuntime.effectiveProjectionType,
             horizontalFieldOfViewDegrees: playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
             stereoLayout: playbackRuntime.effectiveStereoLayout,
+            usesDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsEnabled,
+            showsDolbyVisionFallback: playbackRuntime.dolbyVisionFallbackIsAvailable,
             mediaFormatSummary: playbackRuntime.activeMediaFormatProvenance == .source
                 ? playbackRuntime.sourceMediaFormatSummary
                 : nil,
@@ -101,9 +79,36 @@ struct WindowPlayerDeckView: View {
             durationLabel: PlaybackTimeFormatter.clock(duration),
             duration: duration,
             framesPerSecond: playbackRuntime.displayMediaProfile?.frameRate ?? 0,
-            onPlayPause: { self.register(); self.togglePlayPause() },
-            onSkipBackward: { self.register(); self.playbackRuntime.skip(by: -15) },
-            onSkipForward: { self.register(); self.playbackRuntime.skip(by: 15) },
+            onPlayPause: {
+                self.register()
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "playback control delivered action=playPause",
+                    retention: .evidence
+                )
+#endif
+                self.togglePlayPause()
+            },
+            onSkipBackward: {
+                self.register()
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "playback control delivered action=rewind",
+                    retention: .evidence
+                )
+#endif
+                self.playbackRuntime.skip(by: -15)
+            },
+            onSkipForward: {
+                self.register()
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "playback control delivered action=forward",
+                    retention: .evidence
+                )
+#endif
+                self.playbackRuntime.skip(by: 15)
+            },
             onSeek: { p in
                 self.register()
                 self.playbackRuntime.seek(
@@ -126,8 +131,24 @@ struct WindowPlayerDeckView: View {
                     self.playbackRuntime.frameStepForward()
                 }
             },
-            onEnterImmersive: { self.enterImmersive() },
-            onExitSpatial: { self.exitImmersive() },
+            onEnterImmersive: {
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability playerPanel delivered action=enterSpatial",
+                    retention: .evidence
+                )
+#endif
+                self.enterImmersive()
+            },
+            onExitSpatial: {
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability playerPanel delivered action=exitSpatial",
+                    retention: .evidence
+                )
+#endif
+                self.exitImmersive()
+            },
             onExitPlayback: {
                 if let onExitPlayback = self.onExitPlayback {
                     onExitPlayback()
@@ -151,44 +172,29 @@ struct WindowPlayerDeckView: View {
                 self.register()
                 self.appModel.resetDockedPlacement()
             },
-            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo in
+            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo, fallback in
                 self.applyFormat(
                     projection,
                     horizontalFieldOfViewDegrees,
-                    stereo
+                    stereo,
+                    fallback
                 )
             },
             onRestoreAutomaticFormat: {
                 self.restoreAutomaticFormat()
             },
+            onReachabilityAction: { action in
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability playerPanel delivered action=\(action)",
+                    retention: .evidence
+                )
+#endif
+            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
             episodeItems: episodeItems
-        )
-    }
-
-    private var blockingCapability: UnmetCapability? {
-        playbackRuntime.unmetCapabilities.first(where: \.preventsPlayback)
-    }
-
-    private var blockingCapabilityToken: String? {
-        blockingCapability.map {
-            "\(playbackRuntime.observationGeneration)|\($0.id)"
-        }
-    }
-
-    private var blockingCapabilityIsPresented: Binding<Bool> {
-        Binding(
-            get: {
-                guard let token = blockingCapabilityToken else { return false }
-                return token != dismissedBlockingCapabilityToken
-            },
-            set: { presented in
-                if presented == false {
-                    dismissedBlockingCapabilityToken = blockingCapabilityToken
-                }
-            }
         )
     }
 
@@ -220,7 +226,10 @@ struct WindowPlayerDeckView: View {
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            logger.error(
+                "presentation request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+            playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
         }
     }
 
@@ -237,7 +246,8 @@ struct WindowPlayerDeckView: View {
     private func applyFormat(
         _ projection: PlaybackModel.ProjectionType,
         _ horizontalFieldOfViewDegrees: Int?,
-        _ stereo: PlaybackModel.StereoLayout
+        _ stereo: PlaybackModel.StereoLayout,
+        _ usesDolbyVisionFallback: Bool
     ) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         register()
@@ -246,10 +256,14 @@ struct WindowPlayerDeckView: View {
                 try await playbackLauncher.applyFormat(
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                    stereo: stereo
+                    stereo: stereo,
+                    usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "format change failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }
@@ -261,7 +275,10 @@ struct WindowPlayerDeckView: View {
             do {
                 try await playbackLauncher.resetFormat()
             } catch {
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "source format restoration failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                playbackRuntime.setUserVisibleIssue(.mediaFormatChangeFailed)
             }
         }
     }
@@ -286,7 +303,10 @@ struct WindowPlayerDeckView: View {
                     do {
                         try await self.playbackLauncher.selectSubtitleTrack(track)
                     } catch {
-                        self.playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        self.logger.error(
+                            "subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -298,7 +318,10 @@ struct WindowPlayerDeckView: View {
                     do {
                         try await self.playbackLauncher.selectSubtitleTrack(nil)
                     } catch {
-                        self.playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        self.logger.error(
+                            "subtitle disable failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -315,7 +338,10 @@ struct WindowPlayerDeckView: View {
                     do {
                         try await self.playbackLauncher.selectAudioTrack(track)
                     } catch {
-                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
+                        self.logger.error(
+                            "audio selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        self.playbackRuntime.setUserVisibleIssue(.audioTrackSelectionFailed)
                     }
                 }
             }
@@ -359,6 +385,7 @@ struct WindowPlayerDeckView: View {
 /// Production More menu shared by the window chrome. Its label uses the
 /// DesignSystem circle control while the menu contents remain feature-owned.
 struct ProductionPlaybackMoreMenu: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlaybackMoreMenu")
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -368,32 +395,39 @@ struct ProductionPlaybackMoreMenu: View {
             accessibilityLabel: "More",
             accessibilityIdentifier: "PlayerUI-TopAction-more"
         ) {
-            if !subtitleItems.isEmpty {
-                Menu("Subtitles") {
-                    selectableMenuItems(subtitleItems)
+            Group {
+                if !subtitleItems.isEmpty {
+                    Menu("Subtitles") {
+                        selectableMenuItems(subtitleItems)
+                            .onAppear {
+                                recordReachability("menu.subtitles")
+                            }
+                    }
+                    .accessibilityIdentifier("PlayerUI-menu-subtitles")
                 }
-                .accessibilityIdentifier("PlayerUI-menu-subtitles")
+                if !audioItems.isEmpty {
+                    menuSection("Audio Track", items: audioItems)
+                }
+                menuSection("Playback Speed", items: speedItems)
+                if !episodeItems.isEmpty {
+                    menuSection("Episodes", items: episodeItems)
+                }
             }
-            if !audioItems.isEmpty {
-                menuSection("Audio Track", items: audioItems)
-            }
-            menuSection("Playback Speed", items: speedItems)
-            if !episodeItems.isEmpty {
-                menuSection("Episodes", items: episodeItems)
+            .onAppear {
+                recordReachability("menu.more")
             }
         }
         .accessibilityLabel("More playback settings")
-        .alert(
-            "Subtitle Error",
-            isPresented: Binding(
-                get: { playbackRuntime.subtitleErrorMessage != nil },
-                set: { if !$0 { playbackRuntime.subtitleErrorMessage = nil } }
-            )
-        ) {
-            Button("OK") { playbackRuntime.subtitleErrorMessage = nil }
-        } message: {
-            Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest else {
+                return
+            }
+            handleDebugMenuSelection(request)
         }
+#endif
     }
 
     @ViewBuilder
@@ -418,12 +452,59 @@ struct ProductionPlaybackMoreMenu: View {
     private func selection(_ items: [DeckMenuItem]) -> Binding<String> {
         Binding(
             get: { items.first(where: \.isSelected)?.id ?? "" },
-            set: { id in items.first(where: { $0.id == id })?.action() }
+            set: { id in
+                recordReachability("menu.item.\(id)")
+                items.first(where: { $0.id == id })?.action()
+            }
         )
     }
 
+#if DEBUG
+    private func handleDebugMenuSelection(
+        _ request: DebugMenuSelectionRequest
+    ) {
+        let items: [DeckMenuItem]
+        switch request.family {
+        case .subtitles:
+            items = subtitleItems
+        case .audio:
+            items = audioItems
+        case .speed:
+            items = speedItems
+        case .episodes:
+            items = episodeItems
+        default:
+            return
+        }
+        guard items.isEmpty == false else { return }
+        request.handle(
+            host: .playerUI,
+            family: request.family,
+            items: items.map { item in
+                DebugMenuSelectionItem(
+                    id: item.id,
+                    title: item.title,
+                    isSelected: item.isSelected,
+                    select: {
+                        selection(items).wrappedValue = item.id
+                    }
+                )
+            }
+        )
+    }
+#endif
+
     private func register() {
         appModel.registerControlsInteraction()
+    }
+
+    private func recordReachability(_ action: String) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability top actions delivered action=\(action)",
+            retention: .evidence
+        )
+#endif
     }
 
     private var subtitleItems: [DeckMenuItem] {
@@ -439,7 +520,10 @@ struct ProductionPlaybackMoreMenu: View {
                     do {
                         try await playbackLauncher.selectSubtitleTrack(track)
                     } catch {
-                        playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        logger.error(
+                            "subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -451,7 +535,10 @@ struct ProductionPlaybackMoreMenu: View {
                     do {
                         try await playbackLauncher.selectSubtitleTrack(nil)
                     } catch {
-                        playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                        logger.error(
+                            "subtitle disable failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
                     }
                 }
             }
@@ -472,7 +559,10 @@ struct ProductionPlaybackMoreMenu: View {
                     do {
                         try await playbackLauncher.selectAudioTrack(track)
                     } catch {
-                        playbackRuntime.lastErrorMessage = error.localizedDescription
+                        logger.error(
+                            "audio selection failed error=\(error.localizedDescription, privacy: .public)"
+                        )
+                        playbackRuntime.setUserVisibleIssue(.audioTrackSelectionFailed)
                     }
                 }
             }
@@ -562,7 +652,7 @@ struct ResumeDecisionCard: View {
             }
             .padding(DesignTokens.Spacing.xxxl)
             .frame(maxWidth: DesignTokens.ProgressBar.previewWidth)
-            .glassBackgroundEffect(in: DesignTokens.ShapeToken.panel)
+            .enchronListGroupSurface(in: DesignTokens.ShapeToken.panel)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-resumeDecision-panel")

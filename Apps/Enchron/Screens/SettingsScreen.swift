@@ -1,5 +1,6 @@
 import DesignSystem
 import MediaLibrary
+import MediaSource
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
@@ -10,7 +11,8 @@ struct SettingsScreen: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SettingsViewModel.self) private var viewModel
     @State private var selectedCategoryID: String = Category.playback.rawValue
-    @State private var cacheUsageInBytes: Int64 = 0
+    @State private var artworkUsageInBytes: Int64 = 0
+    @State private var containerIndexUsageInBytes: Int64 = 0
     @State private var showsLicenses = false
 
     private enum Category: String, CaseIterable {
@@ -61,6 +63,14 @@ struct SettingsScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
         .task { await refreshCacheUsage() }
+        .onChange(of: selectedCategoryID) { _, category in
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "reachability settings delivered action=category.\(category)",
+                retention: .evidence
+            )
+#endif
+        }
         .sheet(isPresented: $showsLicenses) {
             OpenSourceLicensesView()
         }
@@ -153,6 +163,7 @@ struct SettingsScreen: View {
                     options: PlaybackModel.PlaybackSpeed.allCases.map { speed in
                         SettingListGroup.MenuOption(speedTitle(speed.value)) {
                             viewModel.update { $0.defaultPlaybackSpeed = speed.value }
+                            recordMenuReachability("default-speed")
                         }
                     }
                 )
@@ -176,14 +187,28 @@ struct SettingsScreen: View {
     private var storagePrivacyItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
-                id: "clear-cache",
-                title: "Thumbnail Cache",
+                id: "clear-artwork-cache",
+                title: "Artwork Cache",
                 systemName: "photo.stack",
                 accessory: .valueAction(
-                    value: ByteCountFormatter.string(fromByteCount: cacheUsageInBytes, countStyle: .file),
+                    value: ByteCountFormatter.string(fromByteCount: artworkUsageInBytes, countStyle: .file),
                     actionTitle: "Clear",
                     feedback: "Cleared",
-                    action: clearCache
+                    action: clearArtworkCache
+                )
+            ),
+            SettingListGroup.Item(
+                id: "clear-container-index-cache",
+                title: "Container Index Cache",
+                systemName: "shippingbox",
+                accessory: .valueAction(
+                    value: ByteCountFormatter.string(
+                        fromByteCount: containerIndexUsageInBytes,
+                        countStyle: .file
+                    ),
+                    actionTitle: "Clear",
+                    feedback: "Cleared",
+                    action: clearContainerIndexCache
                 )
             ),
             SettingListGroup.Item(
@@ -245,11 +270,20 @@ struct SettingsScreen: View {
 
     // MARK: - Value mappings
 
-    private func setResume(_ value: ResumePolicy) { viewModel.update { $0.resumePolicy = value } }
-    private func setEnd(_ value: PlaybackEndBehavior) { viewModel.update { $0.playbackEndBehavior = value } }
+    private func setResume(_ value: ResumePolicy) {
+        viewModel.update { $0.resumePolicy = value }
+        recordMenuReachability("resume-strategy")
+    }
+
+    private func setEnd(_ value: PlaybackEndBehavior) {
+        viewModel.update { $0.playbackEndBehavior = value }
+        recordMenuReachability("end-behavior")
+    }
+
     private func setAutoHide(_ seconds: Int) {
         viewModel.update { $0.controlsAutoHideSeconds = seconds }
         appModel.controlsAutoHideSeconds = seconds
+        recordMenuReachability("controls-auto-hide")
     }
 
     private func setDefaultScenicEnvironment(
@@ -258,6 +292,16 @@ struct SettingsScreen: View {
         guard environment.isScenic else { return }
         viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
         appModel.configureDefaultEnvironment(environment)
+        recordMenuReachability("default-scenic-environment")
+    }
+
+    private func recordMenuReachability(_ family: String) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability settings delivered action=menu.\(family)",
+            retention: .evidence
+        )
+#endif
     }
 
     private var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
@@ -306,12 +350,22 @@ struct SettingsScreen: View {
     }
 
     private func refreshCacheUsage() async {
-        cacheUsageInBytes = await ThumbnailService.shared.cacheUsageInBytes()
+        async let artwork = ArtworkStore.shared.diskUsageInBytes()
+        async let containerIndex = ContainerIndexCache.shared.diskUsageInBytes()
+        artworkUsageInBytes = await artwork
+        containerIndexUsageInBytes = await containerIndex
     }
 
-    private func clearCache() {
+    private func clearArtworkCache() {
         Task {
-            await ThumbnailService.shared.clearCache()
+            await ArtworkStore.shared.clear()
+            await refreshCacheUsage()
+        }
+    }
+
+    private func clearContainerIndexCache() {
+        Task {
+            await ContainerIndexCache.shared.clear()
             await refreshCacheUsage()
         }
     }

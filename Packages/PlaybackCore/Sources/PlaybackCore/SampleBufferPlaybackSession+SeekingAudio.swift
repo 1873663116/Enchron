@@ -118,12 +118,23 @@ extension SampleBufferPlaybackSession {
             try Task.checkCancellation()
             try provider.start()
             if hasAudio {
-                try await audioProvider.prepare(
-                    url: sourceURL,
-                    asset: sourceAsset,
-                    startTime: CMTime(seconds: target, preferredTimescale: 60_000),
-                    streamIndex: selectedAudioStreamIndex
-                )
+                do {
+                    try await audioProvider.prepare(
+                        url: sourceURL,
+                        asset: sourceAsset,
+                        startTime: CMTime(seconds: target, preferredTimescale: 60_000),
+                        streamIndex: selectedAudioStreamIndex
+                    )
+                } catch {
+                    if error is CancellationError || Task.isCancelled {
+                        throw error
+                    }
+                    retireAudio(
+                        after: error,
+                        node: .providerOpen,
+                        kind: "audioProvider.seekOpenFailed.videoContinues"
+                    )
+                }
             }
         } catch {
             deliveryQueue.sync { isResetting = false }
@@ -156,12 +167,22 @@ extension SampleBufferPlaybackSession {
             didRecordFormat = false
             isResetting = false
         }
+        prerollRequirementLock.withLock {
+            prerollRequirement = preservedRate > 0
+                ? PlaybackBufferingPolicy.seekRequirement(
+                    target: requestedTimelineStart,
+                    durationSeconds: diagnostics.durationSeconds
+                )
+                : nil
+        }
         recordTimelineControlState()
         startVideoDelivery()
 
         let expectedEpoch = streamEpoch
         let expectedAudioEpoch = audioStreamEpoch
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now
+            + PlaybackBufferingPolicy.seekTargetCoordinationTimeout
+        var videoReachedTarget = false
         do {
             while ContinuousClock.now < deadline {
                 try Task.checkCancellation()
@@ -197,6 +218,9 @@ extension SampleBufferPlaybackSession {
                             CMTime(seconds: target, preferredTimescale: 60_000)
                         ) >= 0
                     } == true
+                videoReachedTarget = videoReachedTarget
+                    || latestSampleReachedTarget
+                    || maximumPresentationTimeReachedTarget
                 if (latestSampleReachedTarget || maximumPresentationTimeReachedTarget),
                    audioReady {
                     debugStore.emit(
@@ -243,7 +267,9 @@ extension SampleBufferPlaybackSession {
                     onStatusChange?(.failed(error.localizedDescription))
                     throw error
                 }
-                if let error = snapshot.lastError {
+                if let error = snapshot.lastError,
+                   snapshot.lastFailure?.recoverability
+                    != "audioRetiredVideoContinues" {
                     throw PlaybackProviderError.ffmpeg(error)
                 }
                 try await Task.sleep(for: .milliseconds(10))
@@ -260,6 +286,29 @@ extension SampleBufferPlaybackSession {
                 throw CorePlaybackError.seekSuperseded(target)
             }
             throw error
+        }
+        if videoReachedTarget, requiresAudioTarget, hasAudio {
+            let error = CorePlaybackError.audioPrerollTimedOut(target)
+            retireAudio(
+                after: error,
+                node: .rendererInputCoordination,
+                kind: "audioRenderer.seekPrerollFailed.videoContinues"
+            )
+            debugStore.emit(
+                mediaSessionID: traceID,
+                kind: "control.seek.completed",
+                outcome: .succeeded,
+                details: [
+                    "targetSeconds": String(target),
+                    "streamEpoch": String(expectedEpoch),
+                    "audioStreamEpoch": String(expectedAudioEpoch),
+                    "subtitleStreamEpoch": String(subtitleSeekEpoch),
+                    "audioRetired": "true",
+                ]
+            )
+            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+            finishActiveOperation(.completed)
+            return
         }
         let error = CorePlaybackError.seekTimedOut(target)
         recordFailure(error, node: .rendererInputCoordination, kind: "control.seek.failed")
@@ -396,18 +445,20 @@ extension SampleBufferPlaybackSession {
                 selectedAudioStreamIndex = nil
                 resetAudioEndState(requiresAudio: false)
                 debugStore.recordAudioTrack(nil)
+                retireAudio(
+                    after: error,
+                    node: .rendererInputCoordination,
+                    kind: "control.audioTrack.rollbackFailed.videoContinues"
+                )
                 setTimelineRateForDiscontinuity(
                     rate,
                     at: time,
                     reason: .audioTrackRollbackFailure
                 )
-                recordFailure(
-                    error,
-                    node: .rendererInputCoordination,
-                    kind: "control.audioTrack.rollbackFailed"
-                )
-                onStatusChange?(.failed(error.localizedDescription))
-                throw error
+                if demuxSession != nil {
+                    startVideoDelivery()
+                }
+                return
             }
             hasAudio = previouslyHadAudio
             resetAudioEndState(requiresAudio: previouslyHadAudio)

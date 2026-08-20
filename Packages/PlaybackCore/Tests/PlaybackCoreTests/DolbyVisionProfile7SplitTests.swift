@@ -49,13 +49,23 @@ private func verifyProfile7Source(_ relativePath: String) throws {
     )
     var error = [CChar](repeating: 0, count: 512)
     let source = fixture.path.withCString {
-        PBFFmpegDemuxSourceCreate($0, nil, &error, error.count)
+        PBFFmpegDemuxSourceCreate($0, false, nil, &error, error.count)
     }
     let activeSource = try #require(
         source,
         Comment(rawValue: profile7ErrorString(error))
     )
     defer { PBFFmpegDemuxSourceDestroy(activeSource) }
+    let information = try #require(
+        PBFFmpegDemuxSourceCopyInformation(activeSource, &error, error.count),
+        Comment(rawValue: profile7ErrorString(error))
+    )
+    defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    #expect(PBFFmpegMediaSourceInformationGetDolbyVisionProfile(information) == 7)
+    #expect(
+        PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(information) == 6
+    )
+    #expect(PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(information))
     let activeReader = try #require(PBFFmpegReaderAllocate())
     defer { PBFFmpegReaderDestroy(activeReader) }
     try #require(PBFFmpegReaderOpenWithDemuxSource(
@@ -66,17 +76,19 @@ private func verifyProfile7Source(_ relativePath: String) throws {
         error.count
     ), Comment(rawValue: profile7ErrorString(error)))
 
-    #expect(PBFFmpegReaderGetDolbyVisionProfile(activeReader) == 7)
-    #expect(PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(activeReader) == 6)
-    #expect(PBFFmpegReaderDolbyVisionHasEnhancementLayer(activeReader))
     #expect(PBFFmpegReaderFormatHasHvcC(activeReader))
     #expect(!PBFFmpegReaderFormatHasDvcC(activeReader))
     #expect(!PBFFmpegReaderFormatHasDvvC(activeReader))
 
     var formatReference: Unmanaged<CMVideoFormatDescription>?
-    try #require(
-        PBFFmpegReaderCopyCompressedFormatDescription(activeReader, &formatReference)
+    let formatStatus = PBFFmpegVideoFormatDescriptionCreate(
+        activeReader,
+        nil,
+        nil,
+        nil,
+        &formatReference
     )
+    #expect(formatStatus == noErr)
     let activeFormat = try #require(formatReference?.takeRetainedValue())
     #expect(CMFormatDescriptionGetMediaSubType(activeFormat) == kCMVideoCodecType_HEVC)
 

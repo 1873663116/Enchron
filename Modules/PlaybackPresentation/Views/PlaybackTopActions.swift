@@ -24,6 +24,19 @@ struct PlaybackVideoFormatSelection: Equatable {
     let projection: PlaybackModel.ProjectionType
     let horizontalFieldOfViewDegrees: Int?
     let stereoLayout: PlaybackModel.StereoLayout
+    let usesDolbyVisionFallback: Bool
+
+    init(
+        projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int?,
+        stereoLayout: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false
+    ) {
+        self.projection = projection
+        self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
+        self.stereoLayout = stereoLayout
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
+    }
 }
 
 enum PlaybackVideoFormatEditingDecision {
@@ -35,6 +48,7 @@ struct PlaybackVideoFormatEditingState {
     var projection: PlaybackModel.ProjectionType
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
+    var usesDolbyVisionFallback: Bool
 
     private var selectionBeforeEditing: PlaybackVideoFormatSelection
     private var isEditing: Bool
@@ -43,15 +57,18 @@ struct PlaybackVideoFormatEditingState {
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono,
+        usesDolbyVisionFallback: Bool = false,
         beginsEditing: Bool = false
     ) {
         self.projection = projection
         self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.stereoLayout = stereoLayout
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
         self.selectionBeforeEditing = PlaybackVideoFormatSelection(
             projection: projection,
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereoLayout: stereoLayout
+            stereoLayout: stereoLayout,
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
         self.isEditing = beginsEditing
     }
@@ -75,6 +92,7 @@ struct PlaybackVideoFormatEditingState {
         horizontalFieldOfViewDegrees = selectionBeforeEditing.horizontalFieldOfViewDegrees
             ?? PanoramaHorizontalCoverage.defaultCustomAngle
         stereoLayout = selectionBeforeEditing.stereoLayout
+        usesDolbyVisionFallback = selectionBeforeEditing.usesDolbyVisionFallback
         isEditing = false
     }
 
@@ -86,6 +104,7 @@ struct PlaybackVideoFormatEditingState {
         horizontalFieldOfViewDegrees = selection.horizontalFieldOfViewDegrees
             ?? PanoramaHorizontalCoverage.defaultCustomAngle
         stereoLayout = selection.stereoLayout
+        usesDolbyVisionFallback = selection.usesDolbyVisionFallback
         selectionBeforeEditing = selection
     }
 
@@ -95,7 +114,8 @@ struct PlaybackVideoFormatEditingState {
             horizontalFieldOfViewDegrees: projection == .customAngle
                 ? horizontalFieldOfViewDegrees
                 : nil,
-            stereoLayout: stereoLayout
+            stereoLayout: stereoLayout,
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
     }
 }
@@ -117,6 +137,10 @@ struct PlaybackTopActionsState {
         get { videoFormatEditing.stereoLayout }
         set { videoFormatEditing.stereoLayout = newValue }
     }
+    var usesDolbyVisionFallback: Bool {
+        get { videoFormatEditing.usesDolbyVisionFallback }
+        set { videoFormatEditing.usesDolbyVisionFallback = newValue }
+    }
 
     private var videoFormatEditing: PlaybackVideoFormatEditingState
 
@@ -126,7 +150,8 @@ struct PlaybackTopActionsState {
         selectedEffect: SpatialSceneDomain.EnvironmentEffect? = .dark,
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
-        stereoLayout: PlaybackModel.StereoLayout = .mono
+        stereoLayout: PlaybackModel.StereoLayout = .mono,
+        usesDolbyVisionFallback: Bool = false
     ) {
         self.presentedMenu = presentedMenu
         self.selectedDockEnvironment = selectedDockEnvironment
@@ -135,6 +160,7 @@ struct PlaybackTopActionsState {
             projection: projection,
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
             stereoLayout: stereoLayout,
+            usesDolbyVisionFallback: usesDolbyVisionFallback,
             beginsEditing: presentedMenu == .videoFormat
         )
     }
@@ -203,20 +229,26 @@ struct PlaybackVideoFormatEditor: View {
     @Binding var projection: PlaybackModel.ProjectionType
     @Binding var horizontalFieldOfViewDegrees: Int
     @Binding var stereoLayout: PlaybackModel.StereoLayout
+    @Binding var usesDolbyVisionFallback: Bool
 
     let canApplyFormat: Bool
     let mediaFormatProvenance: MediaFormatProvenance
     let sourceMediaFormatSummary: String
+    let showsDolbyVisionFallback: Bool
     let identifierPrefix: String
     let onCancel: () -> Void
     let onApply: () -> Void
     let onRestoreAutomaticFormat: () -> Void
+    let onReachabilityAction: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             menuHeading("Video Format", supporting: "Choose how the video is presented")
 
-            Button(action: onRestoreAutomaticFormat) {
+            Button {
+                onReachabilityAction("automatic")
+                onRestoreAutomaticFormat()
+            } label: {
                 HStack(spacing: DesignTokens.Spacing.md) {
                     Image(systemName: mediaFormatProvenance == .source
                         ? "checkmark.circle.fill"
@@ -270,15 +302,65 @@ struct PlaybackVideoFormatEditor: View {
                 label: stereoTitle
             )
 
+            if showsDolbyVisionFallback {
+                Divider()
+
+                Toggle(isOn: dolbyVisionFallbackSelection) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                        Text("HDR Fallback")
+                            .font(DesignTokens.Typography.selectionHeader)
+                        Text("Ignore Dolby Vision and use its compatible HDR10 or HLG interpretation")
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-HDRFallback")
+            }
+
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel)
+                Button("Cancel") {
+                    onReachabilityAction("cancel")
+                    onCancel()
+                }
                     .accessibilityIdentifier("\(identifierPrefix)-cancel")
-                Button("Apply", action: onApply)
+                Button("Apply") {
+                    onReachabilityAction("apply")
+                    onApply()
+                }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("\(identifierPrefix)-apply")
             }
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  request.family == .customAngle else {
+                return
+            }
+            let host: DebugMenuSelectionHost
+            switch identifierPrefix {
+            case "PlayerUI-VideoFormat": host = .playerUI
+            case "PlayerPanel-VideoFormat": host = .playerPanel
+            default: return
+            }
+            request.handle(
+                host: host,
+                family: .customAngle,
+                items: PanoramaHorizontalCoverage.selectableAngles.map { degrees in
+                    DebugMenuSelectionItem(
+                        id: String(degrees),
+                        title: "\(degrees)°",
+                        isSelected: projection == .customAngle
+                            && horizontalFieldOfViewDegrees == degrees,
+                        select: { customAngleSelection.wrappedValue = degrees }
+                    )
+                }
+            )
+        }
+#endif
     }
 
     private func menuHeading(_ title: String, supporting: String) -> some View {
@@ -298,6 +380,7 @@ struct PlaybackVideoFormatEditor: View {
             get: { projection == .customAngle ? horizontalFieldOfViewDegrees : nil },
             set: { value in
                 guard let value else { return }
+                onReachabilityAction("customAngle")
                 projection = .customAngle
                 horizontalFieldOfViewDegrees = value
             }
@@ -314,17 +397,34 @@ struct PlaybackVideoFormatEditor: View {
             Text(title)
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
-            Picker(title, selection: selection) {
+            HStack(spacing: .zero) {
                 ForEach(options, id: \.self) { option in
-                    Text(label(option))
-                        .tag(option)
-                        .accessibilityIdentifier(
-                            "\(identifierPrefix)-\(title)-\(label(option))"
-                        )
+                    let isSelected = selection.wrappedValue == option
+                    Button {
+                        onReachabilityAction("option.\(title).\(label(option))")
+                        selection.wrappedValue = option
+                    } label: {
+                        Text(label(option))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(DesignTokens.Surface.selected)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(
+                        "\(identifierPrefix)-\(title)-\(label(option))"
+                    )
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityValue(isSelected ? "Selected" : "Not selected")
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            .frame(height: DesignTokens.Interactive.regular)
+            .enchronGlassControl()
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(title)
         }
     }
@@ -346,6 +446,16 @@ struct PlaybackVideoFormatEditor: View {
         case .topBottom: "Top-Bottom"
         }
     }
+
+    private var dolbyVisionFallbackSelection: Binding<Bool> {
+        Binding(
+            get: { usesDolbyVisionFallback },
+            set: { value in
+                onReachabilityAction("hdrFallback")
+                usesDolbyVisionFallback = value
+            }
+        )
+    }
 }
 
 struct PlaybackTopActions: View {
@@ -357,11 +467,14 @@ struct PlaybackTopActions: View {
     private let committedProjection: PlaybackModel.ProjectionType
     private let committedHorizontalFieldOfViewDegrees: Int
     private let committedStereoLayout: PlaybackModel.StereoLayout
+    private let committedDolbyVisionFallback: Bool
+    private let showsDolbyVisionFallback: Bool
     private let defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment
     private let onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
-    private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)?
+    private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout, Bool) -> Void)?
     private let onRestoreAutomaticFormat: (() -> Void)?
     private let onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
+    private let onReachabilityAction: (String) -> Void
 
     @State private var state: PlaybackTopActionsState
 
@@ -375,11 +488,14 @@ struct PlaybackTopActions: View {
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono,
+        usesDolbyVisionFallback: Bool = false,
+        showsDolbyVisionFallback: Bool = false,
         defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
         onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
-        onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)? = nil,
+        onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout, Bool) -> Void)? = nil,
         onRestoreAutomaticFormat: (() -> Void)? = nil,
-        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
+        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil,
+        onReachabilityAction: @escaping (String) -> Void = { _ in }
     ) {
         self.controlsVisible = controlsVisible
         self.immersiveEntryTarget = immersiveEntryTarget
@@ -389,6 +505,8 @@ struct PlaybackTopActions: View {
         self.committedProjection = projection
         self.committedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.committedStereoLayout = stereoLayout
+        self.committedDolbyVisionFallback = usesDolbyVisionFallback
+        self.showsDolbyVisionFallback = showsDolbyVisionFallback
         self.defaultScenicEnvironment = defaultScenicEnvironment.isScenic
             ? defaultScenicEnvironment
             : .defaultScenic
@@ -396,13 +514,15 @@ struct PlaybackTopActions: View {
         self.onApplyFormat = onApplyFormat
         self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
         self.onSecondaryMenuVisibilityChange = onSecondaryMenuVisibilityChange
+        self.onReachabilityAction = onReachabilityAction
         _state = State(
                 initialValue: PlaybackTopActionsState(
                     presentedMenu: initialPresentedMenu,
                     selectedDockEnvironment: defaultScenicEnvironment,
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                    stereoLayout: stereoLayout
+                    stereoLayout: stereoLayout,
+                    usesDolbyVisionFallback: usesDolbyVisionFallback
                 )
         )
     }
@@ -458,14 +578,30 @@ struct PlaybackTopActions: View {
             if topActionsComposition.showsPanoramaEntry {
                 GlassCircleIconButton.expandVertically(
                     accessibilityLabel: "Enter Panorama",
-                    action: { onEnterImmersive?(nil, nil) },
+                    action: {
+#if DEBUG
+                        AppModel.recordProbe(
+                            "reachability topActions delivered action=enterPanorama",
+                            retention: .evidence
+                        )
+#endif
+                        onEnterImmersive?(nil, nil)
+                    },
                     accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
                 )
             } else if topActionsComposition.showsDock {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "mountain.2.fill",
                     accessibilityLabel: "Dock",
-                    action: { toggle(.dock) },
+                    action: {
+#if DEBUG
+                        AppModel.recordProbe(
+                            "reachability topActions delivered action=dock.open",
+                            retention: .evidence
+                        )
+#endif
+                        toggle(.dock)
+                    },
                     accessibilityIdentifier: "PlayerUI-TopAction-dock",
                     iconTier: .compact
                 )
@@ -475,7 +611,15 @@ struct PlaybackTopActions: View {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "gear",
                     accessibilityLabel: "Video Format",
-                    action: { toggle(.videoFormat) },
+                    action: {
+#if DEBUG
+                        AppModel.recordProbe(
+                            "reachability topActions delivered action=videoFormat.open",
+                            retention: .evidence
+                        )
+#endif
+                        toggle(.videoFormat)
+                    },
                     accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
                 )
                 .disabled(!canApplyFormat)
@@ -523,8 +667,7 @@ struct PlaybackTopActions: View {
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(shape)
-        .clipShape(shape)
-        .enchronGlassBackground(in: shape)
+        .enchronListGroupSurface(in: shape)
         .background {
             secondaryMenuInteractionShield(shape)
         }
@@ -551,6 +694,14 @@ struct PlaybackTopActions: View {
         )
 
         return Button {
+#if DEBUG
+            AppModel.recordProbe(
+                "reachability topActions delivered action=dock.select"
+                    + " environment=\(environment.rawValue)"
+                    + " effect=\(effect?.rawValue ?? "none")",
+                retention: .evidence
+            )
+#endif
             let requested = state.selectDockTarget(
                 environment: environment,
                 effect: effect
@@ -625,13 +776,20 @@ struct PlaybackTopActions: View {
 
     private func applyVideoFormat() {
         guard let selection = state.finishVideoFormatEditing(.apply) else { return }
+#if DEBUG
+        AppModel.recordProbe(
+            "reachability topActions delivered action=videoFormat.apply",
+            retention: .evidence
+        )
+#endif
         // The runtime remains authoritative until the async core operation
         // succeeds. This also restores the visible committed value if it fails.
         state.synchronizeCommittedVideoFormat(committedVideoFormatSelection)
         onApplyFormat?(
             selection.projection,
             selection.horizontalFieldOfViewDegrees,
-            selection.stereoLayout
+            selection.stereoLayout,
+            selection.usesDolbyVisionFallback
         )
     }
 
@@ -646,7 +804,8 @@ struct PlaybackTopActions: View {
             horizontalFieldOfViewDegrees: committedProjection == .customAngle
                 ? committedHorizontalFieldOfViewDegrees
                 : nil,
-            stereoLayout: committedStereoLayout
+            stereoLayout: committedStereoLayout,
+            usesDolbyVisionFallback: committedDolbyVisionFallback
         )
     }
 
@@ -660,20 +819,24 @@ struct PlaybackTopActions: View {
             projection: $state.projection,
             horizontalFieldOfViewDegrees: $state.horizontalFieldOfViewDegrees,
             stereoLayout: $state.stereoLayout,
+            usesDolbyVisionFallback: $state.usesDolbyVisionFallback,
             canApplyFormat: canApplyFormat,
             mediaFormatProvenance: mediaFormatProvenance,
             sourceMediaFormatSummary: sourceMediaFormatSummary,
+            showsDolbyVisionFallback: showsDolbyVisionFallback,
             identifierPrefix: "PlayerUI-VideoFormat",
             onCancel: cancelVideoFormat,
             onApply: applyVideoFormat,
-            onRestoreAutomaticFormat: restoreAutomaticFormat
+            onRestoreAutomaticFormat: restoreAutomaticFormat,
+            onReachabilityAction: { action in
+                onReachabilityAction("videoFormat.\(action)")
+            }
         )
         .padding(DesignTokens.Spacing.lg)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(shape)
-        .clipShape(shape)
-        .enchronGlassBackground(in: shape)
+        .enchronListGroupSurface(in: shape)
         .background {
             secondaryMenuInteractionShield(shape)
         }
@@ -690,9 +853,9 @@ struct PlaybackTopActions: View {
 
 }
 
-/// Opens an inline panel in the same SwiftUI tree. The glass label owns hover
-/// feedback, while the outer button remains plain so inserting the panel does
-/// not interrupt an in-flight scale animation on the label's glass layer.
+/// Opens an inline panel in the same SwiftUI tree. The label owns hover feedback,
+/// while the outer button remains plain so inserting the panel does not interrupt
+/// an in-flight scale animation on the label.
 private struct PlaybackTopSecondaryPanelButton: View {
     let systemName: String
     let accessibilityLabel: String

@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreMedia
+import CoreGraphics
 import Foundation
 import MediaSource
 import Observation
@@ -94,7 +95,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var currentSubtitleTrackID: String?
     public private(set) var activeSubtitleCues: [PlaybackSubtitleCue] = []
     public private(set) var activeSubtitleFrame: PlaybackSubtitleFrame?
-    public var subtitleErrorMessage: String?
     public private(set) var activeSessionID: String?
     public private(set) var activeTechnicalSessionID: String?
     public private(set) var actualPlaybackSeconds: Double = 0
@@ -117,7 +117,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var technicalSessionReplacementStage =
         TechnicalSessionReplacementStage.inactive
     public private(set) var seekIsInProgress = false
-    public var lastErrorMessage: String?
+    public private(set) var userVisibleIssue: PlaybackUserVisibleIssue?
     public var liveTechnicalSessionCount: Int {
         controller.liveTechnicalSessionCount
             + (departingTechnicalSessionController?.liveTechnicalSessionCount ?? 0)
@@ -159,7 +159,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
               renderer != nil,
               attachedPresentation != nil,
               presentationState == .videoVisible,
-              lastErrorMessage == nil else { return false }
+              userVisibleIssue?.interruptsPlayback != true else { return false }
         switch lifecycle {
         case .ready, .playing, .paused, .ended:
             return true
@@ -187,6 +187,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var activeMediaFormatProvenance: MediaFormatProvenance {
         usesSourceFormat ? .source : .userOverride
     }
+    public var dolbyVisionFallbackIsEnabled: Bool {
+        usesDolbyVisionFallback
+    }
+    public var dolbyVisionFallbackIsAvailable: Bool {
+        guard let dolbyVision = displayMediaProfile?.dolbyVision else { return false }
+        return dolbyVision.offersUserSelectableFallback
+    }
     /// The projection description accepted by the current renderer input.
     /// User overrides must prove this boundary before RealityKit mode changes
     /// can be treated as adoption of the override.
@@ -209,7 +216,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             : MediaFormat(
                 projection: Self.mediaProjection(from: selectedProjectionType),
                 horizontalFieldOfViewDegrees: selectedHorizontalFieldOfViewDegrees,
-                stereoLayout: Self.mediaStereoLayout(from: selectedStereoLayout)
+                stereoLayout: Self.mediaStereoLayout(from: selectedStereoLayout),
+                usesDolbyVisionFallback: usesDolbyVisionFallback
             )
         return MediaFormatInterpretationResolver.resolve(
             source: source,
@@ -246,6 +254,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var selectedProjectionType: PlaybackModel.ProjectionType = .flat
     private var selectedHorizontalFieldOfViewDegrees: Int?
     private var selectedStereoLayout: PlaybackModel.StereoLayout = .mono
+    private var usesDolbyVisionFallback = false
     private var sourceStereoLayout: PlaybackModel.StereoLayout = .mono
     private var sourceMediaFormatIsCaptured = false
     private var usesSourceFormat = true
@@ -406,8 +415,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         playbackPosition = .init(seconds: 0, duration: 0)
         currentPlaybackSpeed = .default
         presentationState = .placeholder
-        lastErrorMessage = nil
-        subtitleErrorMessage = request.externalSubtitleErrorMessage
+        setUserVisibleIssue(
+            request.externalSubtitleResolutionFailed ? .externalSubtitleFailed : nil
+        )
         lastResolvedProfile = nil
         startsWhenAttached = true
         actualPlaybackSeconds = 0
@@ -416,6 +426,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedProjectionType = .flat
         selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = .mono
+        usesDolbyVisionFallback = false
         sourceVideoContentKind = .rectilinear
         sourceStereoLayout = .mono
         sourceMediaFormatIsCaptured = false
@@ -463,7 +474,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             publishFormat(
                 projection: Self.playbackProjection(from: initialFormat.projection),
                 horizontalFieldOfViewDegrees: initialFormat.horizontalFieldOfViewDegrees,
-                stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout)
+                stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout),
+                usesDolbyVisionFallback: initialFormat.usesDolbyVisionFallback
             )
         }
         logger.info("open requested source=\(request.displayName, privacy: .public)")
@@ -474,24 +486,38 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             guard request.sourceAccess?.ensureActive() != false else {
                 throw RuntimeError.sourceAccessUnavailable
             }
-            let newSession = try await controller.open(
-                request.url,
-                startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
-                initialRate: Float(initialSpeed.value),
-                initialStereoLayout: initialFormat.flatMap {
-                    Self.coreStereoLayout(
-                        for: Self.playbackStereoLayout(from: $0.stereoLayout)
-                    )
-                },
-                initialProjectionOverride: initialFormat.map {
-                    Self.coreProjectionOverride(
-                        for: Self.playbackProjection(from: $0.projection),
-                        horizontalFieldOfViewDegrees: $0.horizontalFieldOfViewDegrees
-                    )
-                },
-                provenance: "Enchron",
-                accessRequirement: request.url.isFileURL ? "securityScopedFile" : "networkSource"
+            request.source.byteStreamHandle?.useContainerIndex(
+                for: request.versionedIdentity?.contentRevision
             )
+            let newSession: SampleBufferPlaybackSession
+            do {
+                newSession = try await controller.open(
+                    request.url,
+                    startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
+                    initialRate: Float(initialSpeed.value),
+                    sourceIsRemote: request.source.isRemote,
+                    initialStereoLayout: initialFormat.flatMap {
+                        Self.coreStereoLayout(
+                            for: Self.playbackStereoLayout(from: $0.stereoLayout)
+                        )
+                    },
+                    initialProjectionOverride: initialFormat.map {
+                        Self.coreProjectionOverride(
+                            for: Self.playbackProjection(from: $0.projection),
+                            horizontalFieldOfViewDegrees: $0.horizontalFieldOfViewDegrees
+                        )
+                    },
+                    initialDynamicRangeOverride: initialFormat?.usesDolbyVisionFallback == true
+                        ? .dolbyVisionFallback
+                        : nil,
+                    provenance: "Enchron",
+                    accessRequirement: request.source.isRemote ? "networkSource" : "securityScopedFile"
+                )
+                request.source.byteStreamHandle?.finishContainerIndex()
+            } catch {
+                request.source.byteStreamHandle?.discardContainerIndex()
+                throw error
+            }
             let sourceSnapshot = newSession.debugSnapshot()
             let sourceFormat = Self.sourceMediaFormat(from: sourceSnapshot)
             if sourceFormat.contentKind == .appleImmersiveVideo {
@@ -559,7 +585,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 releaseSourceAccessIfUnowned(request.sourceAccess)
                 return
             }
-            fail(error)
+            let issue: PlaybackUserVisibleIssue
+            if let runtimeError = error as? RuntimeError,
+               case .sourceAccessUnavailable = runtimeError {
+                issue = .sourceAccessUnavailable
+            } else {
+                issue = .mediaOpeningFailed
+            }
+            fail(error, issue: issue)
             throw error
         }
     }
@@ -1026,7 +1059,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         mediaSessionID: String,
         openGeneration: Int
     ) async {
-        var failures: [String] = []
+        var encounteredFailure = false
         for source in sources {
             guard generation == openGeneration,
                   activeSessionID == mediaSessionID else {
@@ -1034,7 +1067,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 continue
             }
             guard source.accessLease?.ensureActive() != false else {
-                failures.append("\(source.displayName): source access is unavailable")
+                encounteredFailure = true
+                logger.error(
+                    "external subtitle source access unavailable source=\(source.displayName, privacy: .public)"
+                )
                 source.accessLease?.release()
                 continue
             }
@@ -1067,7 +1103,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 externalSubtitleSourceIDByURL[normalizedURL] = source.id
             } catch {
                 source.accessLease?.release()
-                failures.append("\(source.displayName): \(error.localizedDescription)")
+                encounteredFailure = true
+                logger.error(
+                    "external subtitle load failed source=\(source.displayName, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
             }
         }
         guard generation == openGeneration,
@@ -1076,9 +1115,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = controller.selectedSubtitleTrackID
         activeSubtitleCues = controller.activeSubtitleCues
         activeSubtitleFrame = controller.activeSubtitleFrame
-        if !failures.isEmpty {
-            subtitleErrorMessage = ([subtitleErrorMessage].compactMap { $0 } + failures)
-                .joined(separator: "\n")
+        if encounteredFailure {
+            setUserVisibleIssue(.externalSubtitleFailed)
         }
     }
 
@@ -1129,7 +1167,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int? = nil,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false
     ) async throws {
         let resolvedHorizontalFieldOfViewDegrees = projection == .customAngle
             ? PanoramaHorizontalCoverage.normalized(
@@ -1140,7 +1179,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         publishFormat(
             projection: projection,
             horizontalFieldOfViewDegrees: resolvedHorizontalFieldOfViewDegrees,
-            stereo: stereo
+            stereo: stereo,
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
         technicalSessionFormatReplacementIsPending =
             technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
@@ -1196,6 +1236,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 for: selectedProjectionType,
                 horizontalFieldOfViewDegrees: selectedHorizontalFieldOfViewDegrees
             )
+        let initialDynamicRangeOverride = usesDolbyVisionFallback
+            ? VideoDynamicRangeOverride.dolbyVisionFallback
+            : nil
 
         let replacementController = PlaybackCoreController()
         openingTechnicalSessionReplacementController = replacementController
@@ -1213,8 +1256,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 ),
                 startsPaused: true,
                 initialRate: Float(speed.value),
+                sourceIsRemote: request.source.isRemote,
                 initialStereoLayout: initialStereoLayout,
                 initialProjectionOverride: initialProjectionOverride,
+                initialDynamicRangeOverride: initialDynamicRangeOverride,
                 provenance: "presentationConversionPrepared",
                 accessRequirement: request.url.isFileURL
                     ? "securityScopedFile"
@@ -1494,11 +1539,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func publishFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool
     ) {
         selectedProjectionType = projection
         selectedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         selectedStereoLayout = stereo
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
         usesSourceFormat = false
         mediaFormatIsKnown = true
     }
@@ -1515,7 +1562,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         publishFormat(
             projection: Self.playbackProjection(from: initialFormat.projection),
             horizontalFieldOfViewDegrees: initialFormat.horizontalFieldOfViewDegrees,
-            stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout)
+            stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout),
+            usesDolbyVisionFallback: initialFormat.usesDolbyVisionFallback
         )
     }
 
@@ -1523,6 +1571,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedProjectionType = Self.projectionType(for: sourceVideoContentKind)
         selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = sourceStereoLayout
+        usesDolbyVisionFallback = false
         usesSourceFormat = true
         mediaFormatIsKnown = sourceMediaFormatIsCaptured
     }
@@ -1561,6 +1610,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func stopAndWait(releasingSourceAccess: Bool = true) async {
         let closeTask = beginStop(releasingSourceAccess: releasingSourceAccess)
         await closeTask?.value
+    }
+
+    public func displayedArtworkImage() -> CGImage? {
+        session?.displayedArtworkImage()
     }
 
     @discardableResult
@@ -1612,7 +1665,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func clearPresentationForTeardown() {
         presentationState = .hidden
-        lastErrorMessage = nil
     }
 
     public func clearPresentation() {
@@ -1630,11 +1682,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = nil
         activeSubtitleCues = []
         activeSubtitleFrame = nil
-        subtitleErrorMessage = nil
         playbackPosition = .init(seconds: 0, duration: 0)
         selectedProjectionType = .flat
         selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = .mono
+        usesDolbyVisionFallback = false
         sourceVideoContentKind = .rectilinear
         sourceStereoLayout = .mono
         sourceMediaFormatIsCaptured = false
@@ -2218,10 +2270,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 guard activeSessionID == failedSessionID else { return }
                 recordAudioSessionFact()
             }
-            lastErrorMessage = Self.userFacingPlaybackFailureMessage(
-                coreMessage: message,
-                unmetCapabilities: unmetCapabilities
-            )
+            if unmetCapabilities.contains(where: \.preventsPlayback) {
+                setUserVisibleIssue(.capabilityUnavailable(.videoDecoderUnavailable))
+            } else {
+                setUserVisibleIssue(.playbackFailed)
+            }
             logger.error("playback failed message=\(message, privacy: .public)")
         }
     }
@@ -2244,15 +2297,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    static func userFacingPlaybackFailureMessage(
-        coreMessage: String,
-        unmetCapabilities: [UnmetCapability]
-    ) -> String? {
-        unmetCapabilities.contains(where: \.preventsPlayback)
-            ? nil
-            : coreMessage
-    }
-
     private static func coreAfterSeekBehavior(
         for intent: PlaybackAfterSeekIntent
     ) -> PlaybackAfterSeekBehavior {
@@ -2272,10 +2316,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func clearFailureIfPlaybackIsUsable() {
-        guard lastErrorMessage != nil else { return }
+        guard userVisibleIssue?.category == .playbackFailed else { return }
         switch lifecycle {
         case .ready, .playing, .paused:
-            lastErrorMessage = nil
+            setUserVisibleIssue(nil)
         case .idle, .loading, .ended, .failed:
             break
         }
@@ -2593,7 +2637,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    func fail(_ error: Error) {
+    func fail(
+        _ error: Error,
+        issue: PlaybackUserVisibleIssue = .playbackControlFailed
+    ) {
         if case PlaybackControlError.timelineNotReady = error {
             switch lifecycle {
             case .ready, .playing, .paused:
@@ -2605,8 +2652,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 break
             }
         }
-        lastErrorMessage = error.localizedDescription
+        setUserVisibleIssue(issue)
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
+    }
+
+    public func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {
+        userVisibleIssue = issue
     }
 
     private func releaseSourceAccessIfUnowned(_ sourceAccess: MediaAccessLease?) {

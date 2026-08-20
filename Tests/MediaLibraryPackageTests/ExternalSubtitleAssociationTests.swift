@@ -180,7 +180,7 @@ struct ExternalSubtitleAssociationTests {
 
         #expect(playbackItem.url == video.url)
         #expect(playbackItem.externalSubtitleSources.isEmpty)
-        #expect(playbackItem.externalSubtitleErrorMessage?.contains("directory unavailable") == true)
+        #expect(playbackItem.externalSubtitleResolutionFailed)
     }
 }
 

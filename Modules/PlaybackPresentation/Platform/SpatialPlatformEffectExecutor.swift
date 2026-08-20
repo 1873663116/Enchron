@@ -130,10 +130,7 @@ final class SpatialPlatformEffectCoordinator {
     private enum GuardedTransportResult {
         case succeeded
         case invalidated
-        case failed(
-            reason: SpatialPlaybackTransportFailureReason,
-            message: String
-        )
+        case failed(reason: SpatialPlaybackTransportFailureReason)
     }
 
     private let appModel: AppModel
@@ -451,6 +448,12 @@ final class SpatialPlatformEffectCoordinator {
 
     private func finishExecution(_ lease: SpatialPlatformExecutionLease) {
         lastExecutionCheckpoint = "execution-finish-entered"
+        let pendingRequestBeforeFinish = appModel.pendingSpatialPlatformEffect?.id
+        let nextRequestIsReady = SpatialPlatformExecutionDrainPolicy
+            .shouldDrainAfterFinish(
+                executedRequestID: lease.requestID,
+                pendingRequestID: pendingRequestBeforeFinish
+            )
         if appModel.isSpatialPlatformEffectCurrent(
             lease.requestID,
             executionID: lease.executionID
@@ -467,7 +470,9 @@ final class SpatialPlatformEffectCoordinator {
             activeTask = nil
         }
         executionProgress[lease.executionID] = nil
-        requestDrain()
+        if nextRequestIsReady {
+            requestDrain()
+        }
         lastExecutionCheckpoint = "execution-finished"
     }
 
@@ -519,8 +524,8 @@ final class SpatialPlatformEffectCoordinator {
                 break
             case .invalidated:
                 return
-            case .failed(let reason, let message):
-                guard setRuntimeError(message, execution: execution) else { return }
+            case .failed(let reason):
+                guard setRuntimeIssue(.playbackControlFailed, execution: execution) else { return }
                 if reason == .mediaSessionChanged {
                     invalidateExecutionForMediaSessionChange(execution.lease)
                 } else {
@@ -624,8 +629,8 @@ final class SpatialPlatformEffectCoordinator {
             _ = try? await replacementTask.value
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             await recoverFromFailedResidentWindowPush(execution: execution)
-            guard setRuntimeError(
-                "The resident playback Window could not become usable.",
+            guard setRuntimeIssue(
+                .presentationConversionFailed,
                 execution: execution
             ) else { return }
             _ = await complete(
@@ -660,8 +665,8 @@ final class SpatialPlatformEffectCoordinator {
             try await replacementTask.value
         } catch {
             guard executionIsLive(execution),
-                  setRuntimeError(
-                    "The \(presentation.rawValue.capitalized) RealityView could not assemble its replacement playback session: \(error.localizedDescription)",
+                  setRuntimeIssue(
+                    .presentationConversionFailed,
                     execution: execution
                   ) else {
                 return
@@ -690,8 +695,8 @@ final class SpatialPlatformEffectCoordinator {
         } catch {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             guard executionIsLive(execution),
-                  setRuntimeError(
-                    "The \(presentation.rawValue.capitalized) RealityView could not activate its replacement playback session: \(error.localizedDescription)",
+                  setRuntimeIssue(
+                    .presentationConversionFailed,
                     execution: execution
                   ) else { return }
             _ = await restoreMainWindow(
@@ -717,8 +722,8 @@ final class SpatialPlatformEffectCoordinator {
             )
         } catch {
             guard executionIsLive(execution),
-                  setRuntimeError(
-                    "The \(presentation.rawValue.capitalized) RealityView could not rebase its replacement playback session: \(error.localizedDescription)",
+                  setRuntimeIssue(
+                    .presentationConversionFailed,
                     execution: execution
                   ) else { return }
             _ = await restoreMainWindow(
@@ -755,8 +760,8 @@ final class SpatialPlatformEffectCoordinator {
                     return
                 }
             }
-            guard setRuntimeError(
-                "The spatial playback surface could not attach to PlaybackCore.",
+            guard setRuntimeIssue(
+                .surfaceAttachmentFailed,
                 execution: execution
             ) else { return }
             _ = await restoreMainWindow(
@@ -809,8 +814,8 @@ final class SpatialPlatformEffectCoordinator {
             try await replacementTask.value
         } catch {
             guard executionIsLive(execution),
-                  setRuntimeError(
-                    "The Window could not assemble its replacement playback session: \(error.localizedDescription)",
+                  setRuntimeIssue(
+                    .presentationConversionFailed,
                     execution: execution
                   ) else { return }
             _ = await complete(
@@ -852,8 +857,8 @@ final class SpatialPlatformEffectCoordinator {
         guard rendererReleased else {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             lastPlatformOperation = "renderer-release-failed"
-            guard setRuntimeError(
-                "The spatial playback surface could not release the video renderer.",
+            guard setRuntimeIssue(
+                .presentationConversionFailed,
                 execution: execution
             ) else { return }
             _ = await complete(
@@ -880,8 +885,8 @@ final class SpatialPlatformEffectCoordinator {
                 execution: execution
             )
             guard executionIsLive(execution),
-                  setRuntimeError(
-                    "The Window could not activate its replacement playback session: \(error.localizedDescription)",
+                  setRuntimeIssue(
+                    .presentationConversionFailed,
                     execution: execution
                   ) else { return }
             _ = await complete(
@@ -921,8 +926,8 @@ final class SpatialPlatformEffectCoordinator {
             if case .openedMainWindow = restoration.method {
                 _ = dismissWindow(id: "main", execution: execution)
             }
-            guard setRuntimeError(
-                "The Main Window could not become usable.",
+            guard setRuntimeIssue(
+                .presentationConversionFailed,
                 execution: execution
             ) else { return }
             _ = await complete(
@@ -935,8 +940,8 @@ final class SpatialPlatformEffectCoordinator {
             try await rebaseTask.value
         } catch {
             guard executionIsLive(execution),
-                  setRuntimeError(
-                    "The Window could not rebase its replacement playback session: \(error.localizedDescription)",
+                  setRuntimeIssue(
+                    .presentationConversionFailed,
                     execution: execution
                   ) else { return }
             _ = await complete(
@@ -961,8 +966,8 @@ final class SpatialPlatformEffectCoordinator {
                     return
                 }
             }
-            guard setRuntimeError(
-                "The window playback surface could not become ready.",
+            guard setRuntimeIssue(
+                .surfaceAttachmentFailed,
                 execution: execution
             ) else { return }
             _ = await complete(
@@ -993,8 +998,8 @@ final class SpatialPlatformEffectCoordinator {
                 execution: execution
             ) else {
                 guard executionIsLive(execution),
-                      setRuntimeError(
-                        "The Portal viewport could not apply its foreground refresh.",
+                      setRuntimeIssue(
+                        .surfaceAttachmentFailed,
                         execution: execution
                       ) else { return }
                 _ = await complete(
@@ -1030,8 +1035,8 @@ final class SpatialPlatformEffectCoordinator {
                 to: presentation
             )
         } catch {
-            guard setRuntimeError(
-                "The Window could not assemble its replacement playback session: \(error.localizedDescription)",
+            guard setRuntimeIssue(
+                .presentationConversionFailed,
                 execution: execution
             ) else { return }
             _ = await complete(
@@ -1472,8 +1477,8 @@ final class SpatialPlatformEffectCoordinator {
         }
         guard executionIsLive(execution) else { return false }
         guard appModel.environmentCardResidency == .closed else {
-            guard setRuntimeError(
-                "The Environment Card could not close before spatial playback.",
+            guard setRuntimeIssue(
+                .presentationConversionFailed,
                 execution: execution
             ) else { return false }
             _ = await complete(
@@ -1492,13 +1497,13 @@ final class SpatialPlatformEffectCoordinator {
         return true
     }
 
-    private func setRuntimeError(
-        _ message: String,
+    private func setRuntimeIssue(
+        _ issue: PlaybackUserVisibleIssue,
         execution: Execution,
         phase: ExecutionPhase = .currentRequest
     ) -> Bool {
         guard executionIsLive(execution, phase: phase) else { return false }
-        playbackRuntime.lastErrorMessage = message
+        playbackRuntime.setUserVisibleIssue(issue)
         return true
     }
 
@@ -1834,10 +1839,10 @@ final class SpatialPlatformEffectCoordinator {
                 playbackRuntime.activeSessionID == intent.mediaSessionID
                     ? .operationRejected
                     : .mediaSessionChanged
-            return .failed(
-                reason: reason,
-                message: error.localizedDescription
+            logger.error(
+                "spatial playback transport failed error=\(error.localizedDescription, privacy: .public)"
             )
+            return .failed(reason: reason)
         }
     }
 
@@ -1869,8 +1874,8 @@ final class SpatialPlatformEffectCoordinator {
                 lastExecutionCheckpoint = "target-playback-intent-restored"
                 return true
             } catch {
-                guard setRuntimeError(
-                    error.localizedDescription,
+                guard setRuntimeIssue(
+                    .playbackControlFailed,
                     execution: execution
                 ) else {
                     return false
@@ -1895,8 +1900,8 @@ final class SpatialPlatformEffectCoordinator {
             return true
         case .invalidated:
             return false
-        case .failed(_, let message):
-            guard setRuntimeError(message, execution: execution) else {
+        case .failed:
+            guard setRuntimeIssue(.playbackControlFailed, execution: execution) else {
                 return false
             }
             if restoresMainWindowOnFailure {
@@ -1929,7 +1934,7 @@ final class SpatialPlatformEffectCoordinator {
                 "operation=\(lastPlatformOperation)",
                 "checkpoint=\(lastExecutionCheckpoint)",
                 "lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
-                "runtime=\(playbackRuntime.lastErrorMessage ?? "none")"
+                "runtime=\(playbackRuntime.userVisibleIssue?.category.rawValue ?? "none")"
             ].joined(separator: ",")
             appModel.recordPresentationConversionDiagnostic(diagnostic)
             logger.error(
@@ -1940,11 +1945,9 @@ final class SpatialPlatformEffectCoordinator {
                  .exitImmersivePlayback,
                  .collapseImmersivePlayback,
                  .swapWindowPlaybackProjection:
-                appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
-                    "无法切换播放显示方式，已返回媒体资料库。"
-                )
                 await stopPlaybackForFailedPresentationTransfer()
                 appModel.requestStoppedPlaybackCleanup()
+                playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
                 lastExecutionResolution =
                     "\(String(describing: outcome))-playback-stopped"
                 lastExecutionCheckpoint = "presentation-conversion-failed"
@@ -2016,10 +2019,10 @@ final class SpatialPlatformEffectCoordinator {
         ) {
         case .succeeded, .invalidated:
             break
-        case .failed(let reason, let message):
+        case .failed(let reason):
             guard reason != .mediaSessionChanged,
-                  setRuntimeError(
-                    message,
+                  setRuntimeIssue(
+                    .playbackControlFailed,
                     execution: execution,
                     phase: .settledRequest
                   ) else {
@@ -2080,5 +2083,15 @@ struct SpatialPlatformEffectExecutor: View {
             .onChange(of: appModel.pendingSpatialPlatformEffect?.id, initial: true) { _, _ in
                 coordinator.requestDrain()
             }
+#if DEBUG
+            .onChange(of: appModel.environmentCardDismissalRequestRevision) { _, revision in
+                guard windowIdentity == .main, revision > 0 else { return }
+                dismissWindow(id: AppModel.senseZoneVolumeID)
+                appModel.recordSurfaceInputProbe(
+                    "testcmd dismissEnvironmentCard delivered revision=\(revision)",
+                    retention: .evidence
+                )
+            }
+#endif
     }
 }

@@ -23,6 +23,8 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         }
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
+        app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         app.launch()
         let channel = try InteractiveDeviceUIChannel(app: app)
         try channel.publishReadyState()
@@ -115,7 +117,8 @@ private final class InteractiveDeviceUIChannel {
             try publish(
                 responseFor: command,
                 success: false,
-                message: "The command belongs to a previous interactive UI session."
+                message: "The command belongs to a previous interactive UI session.",
+                matchedElement: nil
             )
             return nil
         }
@@ -123,11 +126,18 @@ private final class InteractiveDeviceUIChannel {
     }
 
     func executeAndPublish(_ command: InteractiveDeviceUICommand) throws -> Bool {
+        let observationBeforeAction = command.action == .snapshot
+            ? nil
+            : matchedElementObservation(for: command)
         let result = execute(command)
+        let observation = command.action == .snapshot
+            ? matchedElementObservation(for: command)
+            : observationBeforeAction
         try publish(
             responseFor: command,
             success: result.success,
-            message: result.message
+            message: result.message,
+            matchedElement: observation
         )
         return command.action == .stop
     }
@@ -199,19 +209,25 @@ private final class InteractiveDeviceUIChannel {
             }
             element.press(forDuration: duration)
             return (true, "Element pressed.")
-        case .typeText:
+        case .typeText, .replaceText:
             guard let text = command.text else {
                 return (false, "typeText requires text.")
             }
-            guard let element = element(for: command) else {
+            guard let element = textInputElement(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
             guard element.isHittable else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             element.tap()
+            if command.action == .replaceText {
+                element.typeKey(XCUIKeyboardKey(rawValue: "a"), modifierFlags: .command)
+            }
             element.typeText(text)
-            return (true, "Text entered.")
+            return (
+                true,
+                command.action == .replaceText ? "Text replaced." : "Text entered."
+            )
         case .swipeUp, .swipeDown, .swipeLeft, .swipeRight:
             let surface: XCUIElement
             if command.identifier == nil {
@@ -286,6 +302,22 @@ private final class InteractiveDeviceUIChannel {
         return element.exists ? element : nil
     }
 
+    private func textInputElement(
+        for command: InteractiveDeviceUICommand
+    ) -> XCUIElement? {
+        guard let identifier = command.identifier,
+              identifier.isEmpty == false else { return nil }
+        let index = command.index ?? 0
+        for query in [
+            app.textFields.matching(identifier: identifier),
+            app.secureTextFields.matching(identifier: identifier)
+        ] {
+            let element = query.element(boundBy: index)
+            if element.exists { return element }
+        }
+        return nil
+    }
+
     /// `XCUIScreen.main` answers with a 1x1 image on this visionOS build, which reads
     /// as a black frame rather than a capture failure. The application element still
     /// captures, so a degenerate screen image falls back to it.
@@ -300,7 +332,8 @@ private final class InteractiveDeviceUIChannel {
     private func publish(
         responseFor command: InteractiveDeviceUICommand,
         success: Bool,
-        message: String
+        message: String,
+        matchedElement: InteractiveDeviceUIElementObservation?
     ) throws {
         let screenshotName: String?
         if command.includeScreenshot == false {
@@ -319,7 +352,7 @@ private final class InteractiveDeviceUIChannel {
             message: message,
             appState: appStateDescription,
             hierarchy: app.debugDescription,
-            matchedElement: matchedElementObservation(for: command),
+            matchedElement: matchedElement,
             screenshotRelativePath: screenshotName
         )
         let responseURL = responsesURL.appending(
@@ -395,6 +428,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case doubleTap
         case press
         case typeText
+        case replaceText
         case swipeUp
         case swipeDown
         case swipeLeft

@@ -11,6 +11,31 @@ private let playbackVideoSurfaceLogger = Logger(
     category: "PlaybackVideoSurface"
 )
 
+enum PlaybackSettlementProbeSignature {
+    private static let fastChangingFieldPrefixes = [
+        "synchronizerTime=",
+        "timebaseSourceTime=",
+        "timebaseUltimateSourceTime=",
+        "lastVideoPTS=",
+        "lastVideoDTS=",
+        "lastAudioPTS=",
+        "enqueuedSampleCount=",
+        "acceptedRendererInputCount=",
+        "backpressureCount=",
+        "audioSampleBufferCount=",
+        "audioRendererEnqueuedSampleBufferCount=",
+        "displayedFrameObservationCount="
+    ]
+
+    static func make(fields: [String]) -> String {
+        fields
+            .filter { field in
+                !fastChangingFieldPrefixes.contains { field.hasPrefix($0) }
+            }
+            .joined(separator: ",")
+    }
+}
+
 @MainActor
 private final class PlaybackVideoComponentObservation {
     private var entityID: ObjectIdentifier?
@@ -23,6 +48,7 @@ private final class PlaybackVideoComponentObservation {
     // the attach probe fired every frame and flooded the probe file.
     private var lastAttachSignature: String?
     private var lastPhaseSignature: String?
+    private var lastPhaseEmission: Date?
     private let modeRequestRetry = PlaybackModeRequestRetry()
 
     func observe<Content: RealityViewContentProtocol>(
@@ -120,9 +146,18 @@ private final class PlaybackVideoComponentObservation {
         return true
     }
 
-    func shouldLogPhase(_ signature: String) -> Bool {
-        guard lastPhaseSignature != signature else { return false }
+    func shouldLogPhase(
+        _ signature: String,
+        heartbeat: TimeInterval,
+        now: Date = Date()
+    ) -> Bool {
+        let changed = lastPhaseSignature != signature
+        let heartbeatDue = lastPhaseEmission.map {
+            now.timeIntervalSince($0) >= heartbeat
+        } ?? true
+        guard changed || heartbeatDue else { return false }
         lastPhaseSignature = signature
+        lastPhaseEmission = now
         return true
     }
 
@@ -377,7 +412,10 @@ struct PlaybackVideoSurface: View {
         } catch PlaybackRuntime.RuntimeError.rendererTransferPending {
             return false
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            playbackVideoSurfaceLogger.error(
+                "renderer consumer claim failed presentation=\(presentation.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             releaseSurface(from: content)
             return false
         }
@@ -453,7 +491,7 @@ struct PlaybackVideoSurface: View {
                 ? Self.subtitleControlSafeAreaFraction
                 : 0,
             frame: playbackRuntime.activeSubtitleFrame,
-            emitEnablementWrite: appModel.recordSurfaceInputProbe
+            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         if needsInsertion {
             logComponentState(reason: "entityAdded")
@@ -633,7 +671,7 @@ struct PlaybackVideoSurface: View {
             }
             logSurfaceFacts(reason: "attachCompleted")
         } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
             let failureSignature = [
                 "attachFailed",
                 error.localizedDescription,
@@ -749,7 +787,7 @@ struct PlaybackVideoSurface: View {
             && immersiveViewingModeIsSettled
             && viewingModeIsSettled
             && hasPixels
-        let breakdown = [
+        let settlementFields = [
             "settled=\(isSettled)",
             "ready=\(renderingIsReady)",
             "immersiveViewingMode=\(immersiveViewingModeIsSettled)",
@@ -806,8 +844,15 @@ struct PlaybackVideoSurface: View {
             "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
             "panoramic=\(playbackRuntime.effectiveContentIsPanoramic)",
             "lifecycle=\(playbackRuntime.productLifecycle)",
-        ].joined(separator: ",")
-        if componentObservation.shouldLogPhase(breakdown) {
+        ]
+        let breakdown = settlementFields.joined(separator: ",")
+        let settlementSignature = PlaybackSettlementProbeSignature.make(
+            fields: settlementFields
+        )
+        if componentObservation.shouldLogPhase(
+            settlementSignature,
+            heartbeat: 2
+        ) {
             appModel.recordSurfaceInputProbe("windowSettlement \(breakdown)")
         }
         return isSettled ? .settled : .surfaceAttached
@@ -880,7 +925,9 @@ struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
+        subtitleSurface.remove {
+            appModel.recordSurfaceInputProbe($0)
+        }
         guard removesEntity else { return }
         videoEntity.removeFromParent()
         if playbackVideoEntityStore.departingEntity === videoEntity {
@@ -924,7 +971,9 @@ struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
+        subtitleSurface.remove {
+            appModel.recordSurfaceInputProbe($0)
+        }
         guard let sourcePresentation = playbackRuntime.rendererConsumerPresentation,
               sourcePresentation.usesMainWindow,
               playbackRuntime.rendererConsumerEntityID == entityID else {

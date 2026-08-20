@@ -64,7 +64,7 @@ nonisolated extension SpatialSceneDomain {
 }
 
 public nonisolated enum EnvironmentSceneMapping {
-    public static let worldSceneName = "world"
+    public static let worldSceneName = "Immersive"
 
     public static func sceneName(forEnvironmentID _: String) -> String { worldSceneName }
     public static func defaultScreenScale(forEnvironmentID _: String) -> Double { 1.3 }

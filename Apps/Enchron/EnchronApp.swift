@@ -97,15 +97,7 @@ struct EnchronApp: App {
             id: SpatialPlatformWindowIdentity
                 .immersivePlaybackResident.rawValue
         ) {
-            Color.clear
-                .frame(width: 520, height: 300)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                .background {
-                    SpatialPlatformEffectExecutor(
-                        windowIdentity: .immersivePlaybackResident
-                    )
-                }
+            ImmersivePlaybackResidentRoot()
                 .enchronEnvironment(application)
                 .onAppear {
                     application.spatialPlatformEffectCoordinator
@@ -201,6 +193,39 @@ struct EnchronApp: App {
                 SpatialImmersiveSpacePolicy.progressiveImmersionRange,
                 initialAmount: application.appModel.immersiveSpaceOpeningInitialAmount
             )
+        }
+    }
+}
+
+private struct ImmersivePlaybackResidentRoot: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @State private var isStoppingPlayback = false
+
+    var body: some View {
+        Color.clear
+            .frame(width: 520, height: 300)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .background {
+                SpatialPlatformEffectExecutor(
+                    windowIdentity: .immersivePlaybackResident
+                )
+            }
+            .playbackIssueAlert(
+                in: .immersiveResident,
+                onRetry: playbackLauncher.retryPlayback,
+                onClose: stopSpatialPlayback
+            )
+    }
+
+    private func stopSpatialPlayback() {
+        guard isStoppingPlayback == false else { return }
+        isStoppingPlayback = true
+        Task { @MainActor in
+            defer { isStoppingPlayback = false }
+            await playbackLauncher.stopPlaybackAndWait()
+            appModel.requestStoppedPlaybackCleanup()
         }
     }
 }

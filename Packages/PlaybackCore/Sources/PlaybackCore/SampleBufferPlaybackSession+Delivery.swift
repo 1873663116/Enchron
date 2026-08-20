@@ -311,13 +311,22 @@ extension SampleBufferPlaybackSession {
                 ? CMTimeAdd(presentationTime, duration)
                 : presentationTime
 
+            #if os(visionOS)
+                beginDeliveryLagRecoveryIfNeeded(
+                    presentationEnd: presentationEnd,
+                    generation: generation
+                )
+            #endif
+
             let formatSignaledSample: CMSampleBuffer
             do {
-                if stereoLayoutOverride != nil || projectionOverride != nil {
+                if stereoLayoutOverride != nil || projectionOverride != nil
+                    || dynamicRangeOverride != nil {
                     formatSignaledSample = try videoSampleFormatOverride.rewrite(
                         sourceSample,
                         stereoLayout: stereoLayoutOverride,
-                        projection: projectionOverride
+                        projection: projectionOverride,
+                        dynamicRange: dynamicRangeOverride
                     )
                 } else {
                     formatSignaledSample = sourceSample
@@ -541,17 +550,40 @@ extension SampleBufferPlaybackSession {
                 target: decoderBootstrapTarget,
                 usedImmediateEnqueue: requiresImmediateDecoderBootstrap
             )
-            let targetReached = requestedTimelineStart.isNumeric == false
-                || presentationTime >= requestedTimelineStart
-                || presentationEnd >= requestedTimelineStart
+            let requiredPreroll = prerollRequirementLock.withLock {
+                prerollRequirement
+            }
+            let requiredVideoEnd = requiredPreroll?.videoEnd
+                ?? requestedTimelineStart
+            let targetReached = requiredVideoEnd.isNumeric == false
+                || presentationTime >= requiredVideoEnd
+                || presentationEnd >= requiredVideoEnd
             // Skip host-time activation while the start rate is still 0.
             // Rebuild entry opens startsPaused; scheduling setRate(0, atHostTime:)
             // here can fire after a later play() and stop the running timeline.
-            if isPrerolling, bootstrap.complete, targetReached, timelineStartRate > 0 {
-                if synchronizer.rate == timelineStartRate {
+            if isPrerolling, bootstrap.complete, targetReached {
+                if timelineStartRate == 0 {
+                    if activeOperation?.kind == .seek {
+                        let activationTime = pausedTimelineActivationTime(
+                            target: targetTimelineTime(fallback: presentationTime),
+                            firstDisplayablePresentationTime: presentationTime
+                        )
+                        setTimelineStopped(
+                            at: activationTime,
+                            reason: .decoderBootstrap,
+                            capturedVideoDeliveryGeneration: generation
+                        )
+                        isPrerolling = false
+                        clearPrerollRequirement()
+                        recordTimelineControlState()
+                        publishTargetTimelineState(at: activationTime)
+                        publishDiagnostics(at: activationTime, force: true)
+                    }
+                } else if synchronizer.rate == timelineStartRate {
                     // play() already started the timebase. Re-stopping it here
                     // plants a rate-0 mapping that can win about a second later.
                     isPrerolling = false
+                    clearPrerollRequirement()
                     recordTimelineControlState()
                     publishTargetTimelineState(
                         at: targetTimelineTime(fallback: presentationTime)
@@ -570,16 +602,23 @@ extension SampleBufferPlaybackSession {
                     firstDisplayablePresentationTime: presentationTime
                 )
                 do {
-                    try await waitForAudioPreroll(through: activationTime)
+                    let audioRequirement = requiredPreroll
+                        ?? PlaybackBufferingPolicy.seekRequirement(
+                            target: activationTime,
+                            durationSeconds: diagnostics.durationSeconds
+                        )
+                    try await waitForAudioPreroll(
+                        through: audioRequirement.audioEnd,
+                        after: audioRequirement.timelineStart
+                    )
                 } catch {
                     guard isCurrentVideoDelivery(generation), !isClosed else { return }
-                    recordFailure(
-                        error,
+                    guard !(error is CancellationError), !Task.isCancelled else { return }
+                    retireAudio(
+                        after: error,
                         node: .rendererInputCoordination,
-                        kind: "audioRenderer.prerollFailed"
+                        kind: "audioRenderer.prerollFailed.videoContinues"
                     )
-                    onStatusChange?(.failed(error.localizedDescription))
-                    return
                 }
                 let activationSequence = activationObservation.beginActivation(
                     requestedRate: timelineStartRate,
@@ -613,6 +652,7 @@ extension SampleBufferPlaybackSession {
                     reason: "decoderBootstrap"
                 )
                 isPrerolling = false
+                clearPrerollRequirement()
                 recordTimelineControlState()
                 publishTargetTimelineState(at: activationTime)
                 publishDiagnostics(at: activationTime, force: true)
@@ -709,6 +749,60 @@ extension SampleBufferPlaybackSession {
                 )
             }
         }
+    }
+
+    func beginDeliveryLagRecoveryIfNeeded(
+        presentationEnd: CMTime,
+        generation: UInt64
+    ) {
+        guard presentationEnd.isNumeric,
+              rendererSink.enqueueStrategy == .boundedImmediateLead,
+              timelineStartRate > 0,
+              !isPrerolling,
+              activeOperation == nil,
+              mediaSessionRecord?.lifecycle == .playing,
+              isCurrentVideoDelivery(generation) else {
+            return
+        }
+        let timelineTime = timelineClockReading().mediaTime
+        guard timelineTime.isNumeric,
+              timelineTime.seconds - presentationEnd.seconds >=
+                PlaybackBufferingPolicy.deliveryLagRecoveryTriggerSeconds else {
+            return
+        }
+
+        let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+            timelineTime: timelineTime,
+            durationSeconds: diagnostics.durationSeconds
+        )
+        requestedTimelineStart = timelineTime
+        isPrerolling = true
+        prerollRequirementLock.withLock {
+            prerollRequirement = requirement
+        }
+        setTimelineStopped(
+            at: timelineTime,
+            reason: .deliveryLagRecovery,
+            capturedVideoDeliveryGeneration: generation
+        )
+        recordTimelineControlState()
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "timeline.deliveryLagRecovery.started",
+            outcome: .succeeded,
+            details: [
+                "lagSeconds": String(timelineTime.seconds - presentationEnd.seconds),
+                "recoveryLeadSeconds": String(
+                    PlaybackBufferingPolicy.deliveryLagRecoveryLeadSeconds
+                ),
+                "requiredAudioEndSeconds": String(requirement.audioEnd.seconds),
+                "requiredVideoEndSeconds": String(requirement.videoEnd.seconds),
+                "timelineSeconds": String(timelineTime.seconds),
+            ]
+        )
+        publishTargetTimelineState(at: timelineTime)
+        publishDiagnostics(at: timelineTime, force: true)
     }
 
     func isCurrentVideoDelivery(_ generation: UInt64) -> Bool {
@@ -1072,7 +1166,9 @@ extension SampleBufferPlaybackSession {
                 current.isNumeric ? current.seconds : 0,
                 target.isNumeric ? target.seconds : 0
             )
-            let isBlocked = presentationTime.seconds > referenceSeconds + 1
+            let isBlocked = presentationTime.seconds
+                > referenceSeconds
+                    + PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds
                 || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
             let decision = timelineProgressRecoveryLock.withLock {
                 if !isBlocked {
@@ -1365,14 +1461,17 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func waitForAudioPreroll(through activationTime: CMTime) async throws {
-        guard hasAudio, activationTime.isNumeric else { return }
-        let deadline = ContinuousClock.now + .seconds(5)
+    func waitForAudioPreroll(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) async throws {
+        guard hasAudio, requiredEnd.isNumeric, timelineStart.isNumeric else { return }
+        let deadline = ContinuousClock.now + PlaybackBufferingPolicy.audioPrerollTimeout
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
             guard hasAudio else { return }
-            if audioHasPrerolled(through: activationTime) {
+            if audioHasPrerolled(through: requiredEnd, after: timelineStart) {
                 let accumulatedPresentationEnd = endStateLock.withLock {
                     endState.audioPresentationEnd
                 }
@@ -1385,7 +1484,8 @@ extension SampleBufferPlaybackSession {
                     kind: "audioRenderer.prerollCompleted",
                     outcome: .succeeded,
                     details: [
-                        "activationTimeSeconds": String(activationTime.seconds),
+                        "requiredEndSeconds": String(requiredEnd.seconds),
+                        "timelineStartSeconds": String(timelineStart.seconds),
                         "accumulatedPresentationEndSeconds": accumulatedPresentationEndSeconds,
                         "streamEpoch": String(audioStreamEpoch),
                         "rendererStatus": audioRendererStatusLabel,
@@ -1397,22 +1497,34 @@ extension SampleBufferPlaybackSession {
                 return
             }
             if debugStore.snapshot().lifecycle == .failed {
-                throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+                throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
             }
-            try await Task.sleep(for: .milliseconds(5))
+            try await Task.sleep(for: PlaybackBufferingPolicy.audioPrerollPollInterval)
         }
-        throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+        throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
     }
 
-    func retireAudio(after error: Error, node: PlaybackNode, kind: String) {
+    func retireAudio(
+        after error: Error,
+        node: PlaybackNode,
+        kind: String,
+        rendererFailure: RendererFailureFact? = nil
+    ) {
         hasAudio = false
         resetAudioEndState(requiresAudio: false)
+        stopAudioDelivery()
+        audioRendererSink.stopRenderingEventObservation()
         audioProvider.cancel()
         audioRendererSink.flush()
         setAudioRendererError(error.localizedDescription)
         diagnostics.audioRetired = true
         diagnostics.audioRetirementReason = error.localizedDescription
-        recordAudioRetirement(error, node: node, kind: kind)
+        recordAudioRetirement(
+            error,
+            node: node,
+            kind: kind,
+            rendererFailure: rendererFailure
+        )
         recordAudioRendererState()
         onDiagnosticsChange?(diagnostics)
     }
@@ -1494,17 +1606,22 @@ extension SampleBufferPlaybackSession {
         onStatusChange?(.failed(error.localizedDescription))
     }
 
-    func audioHasPrerolled(through activationTime: CMTime) -> Bool {
-        let minimumEnd = CMTimeAdd(
-            activationTime,
-            CMTime(seconds: 0.25, preferredTimescale: 48_000)
-        )
+    func audioHasPrerolled(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) -> Bool {
         return endStateLock.withLock {
             guard let audioEnd = endState.audioPresentationEnd,
                   audioEnd.isNumeric else { return false }
-            if CMTimeCompare(audioEnd, minimumEnd) >= 0 { return true }
+            if CMTimeCompare(audioEnd, requiredEnd) >= 0 { return true }
             return endState.audioProviderEnded
-                && CMTimeCompare(audioEnd, activationTime) > 0
+                && CMTimeCompare(audioEnd, timelineStart) > 0
+        }
+    }
+
+    func clearPrerollRequirement() {
+        prerollRequirementLock.withLock {
+            prerollRequirement = nil
         }
     }
 

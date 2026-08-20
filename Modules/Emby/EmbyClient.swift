@@ -18,7 +18,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     private let session: URLSession
     private let clientIdentity: EmbyClientIdentity
 
-    public init(session: URLSession = .shared, clientIdentity: EmbyClientIdentity) {
+    public init(
+        session: URLSession = MediaSourceNetwork.shared.session,
+        clientIdentity: EmbyClientIdentity
+    ) {
         self.session = session
         self.clientIdentity = clientIdentity
     }
@@ -40,30 +43,32 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         username: String,
         password: String
     ) async throws -> EmbyAuthenticatedServer {
-        let systemInfo = try await publicSystemInfo(at: address)
-        let body = try Self.makeEncoder().encode(AuthenticationRequest(username: username, pw: password))
-        let request = try request(
-            address: address,
-            path: "/Users/AuthenticateByName",
-            method: "POST",
-            body: body
-        )
-        let data = try await data(for: request)
-        let result = try Self.makeDecoder().decode(AuthenticationResultDTO.self, from: data)
-        guard let token = result.accessToken, token.isEmpty == false else {
-            throw EmbyError.missingRequiredField("AccessToken")
+        try await MediaSourceNetwork.shared.withConnectionApproval(to: address) { [self] in
+            let systemInfo = try await publicSystemInfo(at: address)
+            let body = try Self.makeEncoder().encode(AuthenticationRequest(username: username, pw: password))
+            let request = try request(
+                address: address,
+                path: "/Users/AuthenticateByName",
+                method: "POST",
+                body: body
+            )
+            let data = try await data(for: request)
+            let result = try Self.makeDecoder().decode(AuthenticationResultDTO.self, from: data)
+            guard let token = result.accessToken, token.isEmpty == false else {
+                throw EmbyError.missingRequiredField("AccessToken")
+            }
+            guard let userID = result.user?.id, userID.isEmpty == false else {
+                throw EmbyError.missingRequiredField("User.Id")
+            }
+            let serverID = result.serverId.flatMap { $0.isEmpty ? nil : $0 } ?? systemInfo.id.rawValue
+            return EmbyAuthenticatedServer(
+                id: EmbyServerID(rawValue: serverID),
+                name: systemInfo.serverName,
+                baseAddress: try normalizedAddress(address),
+                accessToken: token,
+                userID: EmbyUserID(rawValue: userID)
+            )
         }
-        guard let userID = result.user?.id, userID.isEmpty == false else {
-            throw EmbyError.missingRequiredField("User.Id")
-        }
-        let serverID = result.serverId.flatMap { $0.isEmpty ? nil : $0 } ?? systemInfo.id.rawValue
-        return EmbyAuthenticatedServer(
-            id: EmbyServerID(rawValue: serverID),
-            name: systemInfo.serverName,
-            baseAddress: try normalizedAddress(address),
-            accessToken: token,
-            userID: EmbyUserID(rawValue: userID)
-        )
     }
 
     public func views(on server: EmbyAuthenticatedServer) async throws -> [EmbyLibraryView] {
@@ -497,7 +502,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 )
             },
             entityTag: item.etag,
-            sizeInBytes: item.size,
+            sizeInBytes: Self.positiveByteCount(item.size),
             productionYear: item.productionYear,
             officialRating: item.officialRating,
             communityRating: item.communityRating,
@@ -564,7 +569,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 ?? source.container?.uppercased()
                 ?? "Version",
             container: source.container,
-            sizeInBytes: source.size,
+            sizeInBytes: Self.positiveByteCount(source.size),
             bitrate: source.bitrate,
             mediaStreams: streams
         )
@@ -601,7 +606,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 ?? source.path?.lastPathComponentFromServerPath
                 ?? container.uppercased(),
             container: container,
-            sizeInBytes: source.size,
+            sizeInBytes: Self.positiveByteCount(source.size),
             mediaStreams: streams,
             defaultStreamIndexes: EmbyDefaultStreamIndexes(
                 video: videoIndex,
@@ -614,7 +619,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 itemID: itemID.rawValue,
                 mediaSourceID: id,
                 itemEntityTag: item.metadata.entityTag,
-                sizeInBytes: source.size,
+                sizeInBytes: Self.positiveByteCount(source.size),
                 runTimeTicks: item.metadata.runTimeTicks
             )
         )
@@ -651,6 +656,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 deliveryURL: stream.deliveryUrl
             )
         }
+    }
+
+    private static func positiveByteCount(_ count: Int64?) -> Int64? {
+        count.flatMap { $0 > 0 ? $0 : nil }
     }
 
     private func imageTags(from item: ItemDTO) -> EmbyImageTags {

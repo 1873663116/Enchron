@@ -1,11 +1,25 @@
 import Foundation
 import MediaSource
-import PlaybackFeature
+@_spi(Testing) import PlaybackFeature
 import Synchronization
 import Testing
 
 @MainActor
 struct TrackSelectionPreferenceTests {
+    @Test("older Media Format preferences decode with Dolby Vision enabled off")
+    func olderMediaFormatDefaultsDolbyVisionFallbackToOff() throws {
+        let data = Data(
+            """
+            {"projection":"flat","stereoLayout":"mono"}
+            """.utf8
+        )
+
+        let format = try JSONDecoder().decode(MediaFormat.self, from: data)
+
+        #expect(format == .standard)
+        #expect(format.usesDolbyVisionFallback == false)
+    }
+
     @Test("playback mode persists independently from Media Format")
     func playbackModePersistsIndependentlyFromMediaFormat() async throws {
         let suiteName = "app.enchron.tests.playback-mode.\(UUID().uuidString)"
@@ -486,7 +500,7 @@ struct TrackSelectionPreferenceTests {
         try await unavailableRuntime.waitUntilConfigured()
         #expect(unavailableRuntime.currentAudioTrackID == Self.audioTracks[0].id)
         #expect(unavailableRuntime.currentSubtitleTrackID == Self.subtitleTracks[0].id)
-        #expect(unavailableRuntime.lastErrorMessage == nil)
+        #expect(unavailableRuntime.userVisibleIssue == nil)
 
         let returnedRuntime = TrackSelectionRuntime(
             audioTracks: Self.audioTracks,
@@ -977,6 +991,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var displayMediaProfile: PlaybackModel.MediaProfile?
     var displayFileSizeInBytes: Int64?
     var activeMediaFormatProvenance: MediaFormatProvenance = .source
+    var dolbyVisionFallbackIsAvailable = false
+    var dolbyVisionFallbackIsEnabled = false
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation {
         MediaFormatInterpretationResolver.resolve(
             source: SourceMediaFormatFact(
@@ -995,7 +1011,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var activeSessionID: String?
     var actualPlaybackSeconds: Double = 0
     var didEndNaturally = false
-    var lastErrorMessage: String?
+    var userVisibleIssue: PlaybackUserVisibleIssue?
     private(set) var observationGeneration: UInt64 = 0
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
     var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)?
@@ -1011,6 +1027,10 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var nextFormatApplicationError: TestError?
     private var suspendsNextFormatApplication = false
     private var suspendedFormatApplicationContinuation: CheckedContinuation<Void, Never>?
+
+    func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {
+        userVisibleIssue = issue
+    }
     private var suspendsNextOpen = false
     private var suspendedOpenContinuation: CheckedContinuation<Void, Never>?
 
@@ -1066,7 +1086,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool
     ) async throws {
         formatApplicationCount += 1
         if suspendsNextFormatApplication {
@@ -1082,8 +1103,10 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         lastAppliedFormat = MediaFormat(
             projection: Self.mediaProjection(from: projection),
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereoLayout: Self.mediaStereoLayout(from: stereo)
+            stereoLayout: Self.mediaStereoLayout(from: stereo),
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
+        dolbyVisionFallbackIsEnabled = usesDolbyVisionFallback
         activeMediaFormatProvenance = .userOverride
     }
 

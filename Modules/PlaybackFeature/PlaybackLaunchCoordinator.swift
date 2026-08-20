@@ -5,7 +5,6 @@ import OSLog
 
 @MainActor
 public protocol PlaybackLaunching: AnyObject {
-    func beginPlayback(for url: URL)
     func beginPlayback(_ request: PlaybackLaunchRequest)
     func stopPlayback()
 }
@@ -107,10 +106,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     public func viewingState(for identity: MediaIdentity) async -> ViewingStatus? {
         await mediaStateStore.viewingProjection(for: identity)
-    }
-
-    public func beginPlayback(for url: URL) {
-        requestPlayback(.init(url: url, displayName: url.lastPathComponent))
     }
 
     public func requestPlayback(_ request: PlaybackLaunchRequest) {
@@ -261,6 +256,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         )
         generation += 1
         let launchGeneration = generation
+        saveCurrentArtwork()
         persistCurrentSession()
         launchTask?.cancel()
         metadataTask?.cancel()
@@ -309,7 +305,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 markMediaServerLaunchConfigurationCompleted()
             } catch {
                 guard generation == launchGeneration else { return }
-                if Self.isNetworkURL(preparedRequest.url),
+                if preparedRequest.source.isRemote,
                    await retry(
                     preparedRequest,
                     resumeAt: seconds,
@@ -322,7 +318,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
                 guard generation == launchGeneration, !Task.isCancelled else { return }
                 finishMediaServerReportingSession()
-                playbackRuntime.lastErrorMessage = error.localizedDescription
+                logger.error(
+                    "playback launch failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                if playbackRuntime.userVisibleIssue == nil {
+                    playbackRuntime.setUserVisibleIssue(.mediaOpeningFailed)
+                }
             }
         }
     }
@@ -330,21 +331,24 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public func applyFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int? = nil,
-        stereo: PlaybackModel.StereoLayout
+        stereo: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false
     ) async throws {
         let target = beginMediaFormatRequest()
         try await performMediaFormatCoreOperation { [playbackRuntime] in
             try await playbackRuntime.setFormat(
                 projection: projection,
                 horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                stereo: stereo
+                stereo: stereo,
+                usesDolbyVisionFallback: usesDolbyVisionFallback
             )
         }
         guard mediaFormatRequestIsCurrent(target) else { return }
         let format = MediaFormat(
             projection: Self.projection(from: projection),
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereoLayout: Self.stereo(from: stereo)
+            stereoLayout: Self.stereo(from: stereo),
+            usesDolbyVisionFallback: usesDolbyVisionFallback
         )
         guard await persistMediaFormatMutationIfCurrent(target, mutation: { store, identity in
             await store.saveFormat(format, for: identity)
@@ -435,7 +439,18 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         launchTask = nil
         metadataTask = nil
         pendingResumeDecision = nil
+        saveCurrentArtwork()
         persistCurrentSession()
+    }
+
+    private func saveCurrentArtwork() {
+        guard let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity?.mediaIdentity,
+              let image = playbackRuntime.displayedArtworkImage() else { return }
+        do {
+            try ArtworkStore.shared.store(image, for: ArtworkKey(mediaIdentity: identity))
+        } catch {
+            logger.error("artwork write failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func handlePlaybackEnded(onFallbackShowControls: (@MainActor () -> Void)? = nil) -> Bool {
@@ -858,10 +873,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         guard generation == expectedGeneration else { return false }
         notifyEffectiveMediaFormatApplied()
         return generation == expectedGeneration
-    }
-
-    private static func isNetworkURL(_ url: URL) -> Bool {
-        ["smb", "http", "https", "ftp"].contains(url.scheme?.lowercased() ?? "")
     }
 
     private static func projection(from value: MediaProjection) -> PlaybackModel.ProjectionType {

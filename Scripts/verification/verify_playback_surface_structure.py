@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
+import argparse
+from collections import Counter
+import json
 from pathlib import Path
 import re
 import sys
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_BASELINE = REPOSITORY_ROOT / "Config/playback_surface_structure_baseline.json"
 
 
 def read(path: str) -> str:
@@ -23,6 +27,53 @@ def region(source: str, start_marker: str, end_marker: str) -> str:
 
 
 VIOLATIONS: list[str] = []
+
+
+def read_baseline(path: Path) -> Counter[str]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("version") != 1 or not isinstance(payload.get("knownGaps"), list):
+        raise ValueError("expected version 1 with a knownGaps list")
+
+    baseline: Counter[str] = Counter()
+    for entry in payload["knownGaps"]:
+        if not isinstance(entry, dict):
+            raise ValueError("every knownGaps entry must be an object")
+        name = entry.get("name")
+        count = entry.get("count")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("every known gap must have a non-empty name")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            raise ValueError(f"known gap {name!r} must have a positive integer count")
+        if name in baseline:
+            raise ValueError(f"known gap {name!r} is declared more than once")
+        baseline[name] = count
+    return baseline
+
+
+def compare_with_baseline(
+    violations: list[str],
+    baseline: Counter[str],
+) -> tuple[Counter[str], Counter[str]]:
+    current = Counter(violations)
+    return current - baseline, baseline - current
+
+
+def occurrence_count(count: int) -> str:
+    noun = "occurrence" if count == 1 else "occurrences"
+    return f"{count} {noun}"
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Check playback UI and presentation source contracts."
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=DEFAULT_BASELINE,
+        help="known-gap baseline JSON",
+    )
+    return parser.parse_args()
 
 
 def require(condition: bool, message: str) -> None:
@@ -50,6 +101,8 @@ def order(source: str, *markers: str) -> bool:
 
 
 def main() -> int:
+    arguments = parse_arguments()
+    VIOLATIONS.clear()
     surface = read("Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
     window_root = read(
@@ -317,9 +370,13 @@ def main() -> int:
         "PlaybackPresentation does not own the pure platform request/result channel",
     )
     require(
-        app_scene.count("SpatialPlatformEffectExecutor(") >= 3
-        and "SpatialPlatformEffectExecutor()" in environment_card_root,
+        app_scene.count("SpatialPlatformEffectExecutor(") >= 3,
         "the live nonimmersive roots do not register platform action capability",
+    )
+    require(
+        "SpatialPlatformEffectExecutor" not in environment_card_root,
+        "the environment card volume competes for platform execution instead of"
+        " presenting passively",
     )
     require(
         "let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator"
@@ -768,7 +825,7 @@ def main() -> int:
     )
     require_action_guard(
         "private func detachPlaybackSurface(",
-        "private func setRuntimeError(",
+        "private func setRuntimeIssue(",
         "playbackRuntime.detach()",
     )
     require_action_guard(
@@ -893,13 +950,37 @@ def main() -> int:
     require("presentationObservation.cancel()" in immersive, "immersive teardown leaves observation active")
     require("releaseRendererConsumer(" in immersive, "immersive teardown leaves renderer ownership active")
 
-    if VIOLATIONS:
-        for index, violation in enumerate(VIOLATIONS, 1):
-            print(f"  {index:2d}. {violation}")
-        print(f"\n{len(VIOLATIONS)} playback surface structure contracts no longer hold")
+    try:
+        baseline = read_baseline(arguments.baseline)
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        print(f"playback surface baseline is invalid: {error}", file=sys.stderr)
+        return 2
+
+    new_gaps, resolved_gaps = compare_with_baseline(VIOLATIONS, baseline)
+    if new_gaps:
+        print("Playback surface structure found gaps outside the baseline:")
+        for name, count in sorted(new_gaps.items()):
+            print(f"  {name} ({occurrence_count(count)} beyond baseline)")
+        if resolved_gaps:
+            print("Playback surface baseline also has resolved entries; update it:")
+            for name, count in sorted(resolved_gaps.items()):
+                print(f"  {name} ({occurrence_count(count)} resolved)")
         return 1
 
-    print("Playback surface structure constraints passed")
+    if resolved_gaps:
+        print("Playback surface structure passed with resolved baseline entries:")
+        for name, count in sorted(resolved_gaps.items()):
+            print(f"  remove {occurrence_count(count)}: {name}")
+        print(
+            f"  {occurrence_count(len(VIOLATIONS))} of known gaps remain; "
+            "update the baseline"
+        )
+        return 0
+
+    print(
+        "Playback surface structure passed: "
+        f"{occurrence_count(len(VIOLATIONS))} of known gaps match the baseline"
+    )
     return 0
 
 

@@ -175,9 +175,7 @@ public final class AppModel {
     public private(set) var presentationTargetRendererMayBind = false
     public private(set) var presentationVisualCutoverMayBegin = false
     public private(set) var portalExitLastFrame: CGImage?
-    public var presentationConversionFailureMessage: String?
     public private(set) var lastPresentationConversionDiagnostic: String?
-    private var deferredPresentationConversionFailureMessage: String?
     private var presentationTransitionStartedAt: Date?
 
     public var showControls: Bool = false
@@ -185,6 +183,7 @@ public final class AppModel {
     /// Discriminator for the immersive controls blackout: an empty window
     /// scene carrying none of the controls content, toggled on the same path.
     public var showBlackoutProbeWindow: Bool = false
+    public var environmentCardDismissalRequestRevision: UInt64 = 0
 #endif
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
@@ -257,6 +256,13 @@ public final class AppModel {
                 wasPlaying: wasPlaying
             )
         )
+        preparePresentationTransitionAppearance(transition)
+        return transition
+    }
+
+    private func preparePresentationTransitionAppearance(
+        _ transition: PlaybackPresentationTransition
+    ) {
         presentationSourceRendererMayRelease = false
         presentationTargetRendererMayBind = false
         presentationVisualCutoverMayBegin = false
@@ -276,7 +282,6 @@ public final class AppModel {
             to=\(targetPresentation, privacy: .public)
             """
         )
-        return transition
     }
 
     public func activateEnvironment(
@@ -318,9 +323,16 @@ public final class AppModel {
                 wasPlaying: wasPlaying
             )
         }
-        return try playbackPresentationModel.requestEnvironmentCard(
+        let previousTransitionID = presentationTransition?.id
+        let requested = try playbackPresentationModel.requestEnvironmentCard(
             playbackContext: playbackContext
         )
+        if requested,
+           let transition = presentationTransition,
+           transition.id != previousTransitionID {
+            preparePresentationTransitionAppearance(transition)
+        }
+        return requested
     }
 
     public func requestStoppedPlaybackCleanup(
@@ -343,24 +355,9 @@ public final class AppModel {
         spatialPlatformEffectReplacementHandler?()
     }
 
-    /// Keeps presentation-transfer failure UI out of Window scene creation.
-    /// The failure becomes visible only after the Media Library root appears.
-    public func deferPresentationConversionFailureUntilMediaLibraryIsVisible(
-        _ message: String
-    ) {
-        presentationConversionFailureMessage = nil
-        deferredPresentationConversionFailureMessage = message
-    }
-
     func recordPresentationConversionDiagnostic(_ diagnostic: String) {
         lastPresentationConversionDiagnostic = diagnostic
         Self.recordProbe("conversionFailed \(diagnostic)")
-    }
-
-    public func presentDeferredPresentationConversionFailure() {
-        guard let deferredPresentationConversionFailureMessage else { return }
-        self.deferredPresentationConversionFailureMessage = nil
-        presentationConversionFailureMessage = deferredPresentationConversionFailureMessage
     }
 
     @discardableResult
@@ -530,25 +527,33 @@ public final class AppModel {
     /// Appends one spatial-input fact to `Documents/surface-tap-probe.log` so a
     /// tethered Mac can read the tap chain from the app container while the
     /// wearer drives the actual pinch. Diagnostic channel for device debugging.
-    public func recordSurfaceInputProbe(_ fact: String) {
-        Self.recordProbe(fact)
+    public func recordSurfaceInputProbe(
+        _ fact: String,
+        retention: DebugProbeRetention = .diagnostic
+    ) {
+        Self.recordProbe(fact, retention: retention)
     }
 
-    public static func recordProbe(_ fact: String) {
+    public static func recordProbe(
+        _ fact: String,
+        retention: DebugProbeRetention = .diagnostic
+    ) {
+#if DEBUG
         Logger(subsystem: "app.enchron", category: "Presentation")
             .notice("surface input probe \(fact, privacy: .public)")
-        let url = URL.documentsDirectory.appending(path: "surface-tap-probe.log")
-        guard let data = "\(Date().ISO8601Format()) \(fact)\n".data(using: .utf8) else {
-            return
-        }
-        if let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            try? handle.write(contentsOf: data)
-        } else {
-            try? data.write(to: url)
-        }
+        debugProbeJournal.record(fact, retention: retention)
+#endif
     }
+
+#if DEBUG
+    static var debugProbeStatus: DebugProbeJournal.Status {
+        debugProbeJournal.status
+    }
+
+    private static let debugProbeJournal = DebugProbeJournal(
+        configuration: .product
+    )
+#endif
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
         showControls.toggle()

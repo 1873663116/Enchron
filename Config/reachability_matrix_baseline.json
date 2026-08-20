@@ -1,0 +1,978 @@
+{
+  "acceptedAt": "2026-08-19T12:32:28.679807+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round15-20260819/delivery-final/delivery.json",
+  "cells": [
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Address",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Connect",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Password",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Connection-Username",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-Overview-Expand",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-Version",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Library-Sort",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Navigation-Tab",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-PosterCard-{metadata.id.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Search-Field",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Season-Picker",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Season-{season.metadata.id.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-SignOut",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-StillCard-{metadata.id.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Breadcrumb-current",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-search",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sort",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-Manage-button",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-delete",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-folder-{folder.name}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-video-{file.name}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Breadcrumb-current",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addFiles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addFolder",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-newFolder",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-Manage-selectMultiple",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-confirmDelete",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-delete",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-done",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-MultiSelect-move",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-create",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-name",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-confirm",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-name",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-error-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-folder-{folder.name}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-video-{reference.name}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-environment",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-files",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-settings",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-presentation-conversion-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-resumeDecision-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:PlayerUI-resumeDecision-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-category-{item.id}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:controls-auto-hide",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:default-scenic-environment",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:default-speed",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:end-behavior",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:resume-strategy",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "scroll:emby",
+      "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "scroll:file-list",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-card",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-carousel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-DockMenu-skybox",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-InfoBar-button-back",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-dock",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-loadFailure-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-loadFailure-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "window",
+      "operation": "environmentVolume:open-interact-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-InfoBar-button-back",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-resumePanorama",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-TopAction-videoFormat",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-loadFailure-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-loadFailure-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:setWindowSize",
+      "verdict": "reachable"
+    },
+    {
+      "context": "portal",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-exit-spatial",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-audio",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-episodes",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-speed",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-spatialFailure-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "panorama",
+      "operation": "negative:immersive-resident-window",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-card",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-carousel",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-DockedPlacement-reset",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-exit-spatial",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-forward",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-play",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-rewind",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-button-settings",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-media-information-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-audio",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-episodes",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-more",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-speed",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-subtitles",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-menu-{category}-{item.id}",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-precision-timeline",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-progress",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-{identifier}-slider",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-playbackIssue-confirm",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-spatialFailure-primary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-spatialFailure-secondary",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-unmetCapability-dismiss",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:listMenuItems",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:seekNormalized",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:selectMenuItem",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:setDockedPlacement",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "command:toggleControls",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "environmentVolume:open-interact-close",
+      "verdict": "reachable"
+    },
+    {
+      "context": "docked",
+      "operation": "negative:immersive-resident-window",
+      "verdict": "reachable"
+    }
+  ],
+  "coordinateSystem": "proof-context-v1",
+  "schemaVersion": 2
+}

@@ -113,7 +113,7 @@ public struct GlassCapsuleIconLabelButton: View {
                     minHeight: DesignTokens.Interactive.regular
                 )
                 .clipShape(Capsule())
-                .enchronGlassBackground(in: Capsule())
+                .background(DesignTokens.Surface.elevated, in: Capsule())
                 .enchronHoverContentShape(Capsule())
                 .enchronHoverEffect(.automatic)
         }
@@ -175,7 +175,7 @@ public struct GlassCircleIconLabel: View {
             .foregroundStyle(iconColor)
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
-            .enchronGlassBackground(in: Circle())
+            .background(DesignTokens.Surface.elevated, in: Circle())
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
             .accessibilityLabel(accessibilityLabel)
@@ -838,6 +838,7 @@ public struct SettingListGroup: View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 SettingListGroupRow(
+                    id: item.id,
                     title: item.title,
                     systemName: item.systemName,
                     supportingText: item.supportingText,
@@ -986,6 +987,7 @@ public struct ListGroupRowShell<Content: View>: View {
 }
 
 struct SettingListGroupRow: View {
+    let id: String
     let title: String
     let systemName: String?
     var supportingText: String?
@@ -1023,7 +1025,7 @@ struct SettingListGroupRow: View {
             return DesignTokens.Spacing.lg
         }
     }
-    private var usesRowHover: Bool { !isEmbeddedOnly }
+    private var usesRowHover: Bool { usesWholeRowButton }
     private var usesWholeRowButton: Bool {
         if case .automatic = accessory {
             return true
@@ -1046,6 +1048,34 @@ struct SettingListGroupRow: View {
         ) { _ in
             rowSurfaceContent
         }
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  let family = DebugMenuSelectionFamily(rawValue: id),
+                  case .menu(let currentTitle, let options, _) = accessory else {
+                return
+            }
+            request.handle(
+                host: .settings,
+                family: family,
+                items: options.map { option in
+                    DebugMenuSelectionItem(
+                        id: option.id,
+                        title: option.title,
+                        isSelected: (selectedMenuTitle ?? currentTitle) == option.title,
+                        select: {
+                            menuSelection(
+                                title: currentTitle,
+                                options: options
+                            ).wrappedValue = option.title
+                        }
+                    )
+                }
+            )
+        }
+#endif
     }
 
     private var rowAccessibilityValue: String {
@@ -1608,7 +1638,6 @@ private struct SettingListSelectionIndicator: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
                 }
-                .enchronGlassBackground(in: Circle())
         } else {
             Circle()
                 .stroke(DesignTokens.SourceSidebar.selectionIndicator, lineWidth: DesignTokens.Stroke.regular)

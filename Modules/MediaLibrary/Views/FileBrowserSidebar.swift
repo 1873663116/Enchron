@@ -145,14 +145,7 @@ struct FileBrowserSidebar: View {
     // MARK: - Helpers
 
     private func iconName(for sourceType: FileBrowsingDomain.SourceType) -> String {
-        switch sourceType {
-        case .smb:
-            return "externaldrive.connected.to.line.below"
-        case .webDAV:
-            return "network"
-        case .local, .photoLibrary:
-            return "folder"
-        }
+        sourceType.connectionIcon
     }
 
     private func loadLocalStorageCapacity() async {

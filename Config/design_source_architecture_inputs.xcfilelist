@@ -1,4 +1,6 @@
 $(SRCROOT)/Apps/Enchron/AppModel.swift
+$(SRCROOT)/Apps/Enchron/CertificateTrustPrompt.swift
+$(SRCROOT)/Apps/Enchron/DebugProbeJournal.swift
 $(SRCROOT)/Apps/Enchron/EnchronApp.swift
 $(SRCROOT)/Apps/Enchron/EnchronApplication.swift
 $(SRCROOT)/Apps/Enchron/MainView.swift
@@ -17,6 +19,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarToggleButton.swift
+$(SRCROOT)/Modules/DesignSystem/DebugMenuSelection.swift
 $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift
 $(SRCROOT)/Modules/DesignSystem/View+Platform.swift
@@ -41,9 +44,6 @@ $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrary.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrarySearch.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaPlaybackItem.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaSource.swift
-$(SRCROOT)/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
-$(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailCache.swift
-$(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailService.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Local/ImportedDirectoryScanner.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift
@@ -62,12 +62,15 @@ $(SRCROOT)/Modules/MediaLibrary/Views/LibraryNavigationComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryToolbarComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryViewControls.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/SourceSidebar.swift
+$(SRCROOT)/Modules/MediaSource/ArtworkStore.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
+$(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
 $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
 $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedMediaSource.swift
+$(SRCROOT)/Modules/MediaSource/ServerTrustPolicy.swift
 $(SRCROOT)/Modules/MediaSource/VersionedMediaIdentity.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/MediaFormat.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/MediaStateStore.swift
@@ -77,6 +80,7 @@ $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackQueue.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackRuntimeControlling.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackSeekPolicy.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackSessionReporting.swift
+$(SRCROOT)/Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/ViewingState.swift
 $(SRCROOT)/Modules/PlaybackFeature/Model/MediaProfile.swift

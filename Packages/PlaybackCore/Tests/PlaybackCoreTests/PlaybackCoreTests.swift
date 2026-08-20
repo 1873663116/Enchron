@@ -101,11 +101,12 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
             == information
     )
     let loader = FixedMediaSourceInformationLoader(information)
+    let videoProvider = FakeVideoSampleProvider(events: [.end])
     let audioProvider = FakeAudioSampleProvider()
     let subtitleProvider = MediaInformationRecordingSubtitleProvider()
     let session = SampleBufferPlaybackSession(
         traceID: "shared-media-source-information",
-        provider: FakeVideoSampleProvider(events: [.end]),
+        provider: videoProvider,
         audioProvider: audioProvider,
         subtitleProvider: subtitleProvider,
         mediaSourceInformationLoader: loader,
@@ -119,6 +120,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     )
 
     #expect(loader.loadCount == 1)
+    #expect(videoProvider.sourceInformationReceived == information)
     #expect(audioProvider.sourceInformationReceived == information)
     #expect(subtitleProvider.sourceInformationReceived == information)
 }
@@ -788,11 +790,22 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func controllerSeekKeepsSessionAndAdvancesStreamEpoch() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
+    let initialSample = try makeCompressedH264Sample()
+    let seekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 7)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
-            provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+            // A remote first PTS would block on bounded lead and test the watchdog,
+            // not whether the seek keeps the session and commits its target epoch.
+            provider: FakeVideoSampleProvider(
+                events: [
+                    .sample(initialSample),
+                    .sample(seekSample),
+                    .sample(holdingSample),
+                    .end,
+                ]
+            ),
             rendererSink: FakeRendererInputSink()
         )
     }
@@ -870,12 +883,23 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func newerSeekSupersedesOlderSeekAndOwnsFinalTarget() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let secondSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 12)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: [.sample(sample), .end],
+                // Every generation must be able to reach its requested position;
+                // a lone PTS 20 sample stalls in bounded lead before ownership is tested.
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(secondSeekSample),
+                    .sample(holdingSample),
+                    .end,
+                ],
                 seekPrepareDelay: .milliseconds(150)
             ),
             rendererSink: FakeRendererInputSink()
@@ -922,12 +946,25 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func threeRapidSeeksOnlyAllowNewestWaiterToEnterSession() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let secondSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
+    let thirdSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 15)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 17)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: [.sample(sample), .end],
+                // Reachable samples keep the test on controller generation ordering;
+                // a lone PTS 20 sample instead waits for the first-frame watchdog.
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(secondSeekSample),
+                    .sample(thirdSeekSample),
+                    .sample(holdingSample),
+                    .end,
+                ],
                 seekPrepareDelay: .milliseconds(150),
                 seekPrepareIgnoresCancellation: true
             ),
@@ -981,12 +1018,23 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func rapidRelativeSeeksAccumulateInsideTheCore() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 30)
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 10.5)
+    let secondSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 20.5)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 22.5)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: [.sample(sample), .end],
+                // The half-second margin covers the live base time while remaining
+                // inside bounded lead, so this test reaches relative accumulation.
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(secondSeekSample),
+                    .sample(holdingSample),
+                    .end,
+                ],
                 seekPrepareDelay: .milliseconds(150)
             ),
             rendererSink: FakeRendererInputSink()
@@ -1081,6 +1129,69 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     Issue.record(
         "Provider sample did not reach renderer input coordination: \(session.debugSnapshot())"
     )
+}
+
+@Test func seekPrerollRequiresTargetVideoAndPointTwoSecondsOfAudio() {
+    let target = CMTime(seconds: 12, preferredTimescale: 60_000)
+
+    let requirement = PlaybackBufferingPolicy.seekRequirement(
+        target: target,
+        durationSeconds: 120
+    )
+
+    #expect(requirement.videoEnd.seconds == 12)
+    #expect(requirement.audioEnd.seconds == 12.2)
+
+    let endClampedRequirement = PlaybackBufferingPolicy.seekRequirement(
+        target: target,
+        durationSeconds: 12.1
+    )
+    #expect(endClampedRequirement.audioEnd.seconds == 12.1)
+}
+
+@Test func rendererLeadLimitRemainsAnOpportunisticPlatformCeiling() {
+    #if os(visionOS)
+        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 6)
+    #else
+        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 1)
+    #endif
+}
+
+@Test func deliveryLagRecoveryRefillsOneSecondWithoutChangingTheLeadCeiling() {
+    let timelineTime = CMTime(seconds: 30, preferredTimescale: 60_000)
+
+    let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+        timelineTime: timelineTime,
+        durationSeconds: 120
+    )
+
+    #expect(requirement.videoEnd.seconds == 31)
+    #expect(requirement.audioEnd.seconds == 31)
+
+    let endClampedRequirement =
+        PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+            timelineTime: timelineTime,
+            durationSeconds: 30.5
+        )
+    #expect(endClampedRequirement.videoEnd.seconds == 30.5)
+    #expect(endClampedRequirement.audioEnd.seconds == 30.5)
+}
+
+@Test func endOfStreamAudioMayUseTheAvailablePartialStartupBuffer() {
+    let session = SampleBufferPlaybackSession(traceID: "partial-end-audio-preroll")
+    defer { session.close() }
+    session.endStateLock.withLock {
+        session.endState.audioPresentationEnd = CMTime(
+            seconds: 12.1,
+            preferredTimescale: 48_000
+        )
+        session.endState.audioProviderEnded = true
+    }
+
+    #expect(session.audioHasPrerolled(
+        through: CMTime(seconds: 12.2, preferredTimescale: 48_000),
+        after: CMTime(seconds: 12, preferredTimescale: 48_000)
+    ))
 }
 
 @Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
@@ -3060,6 +3171,53 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
 }
 
+@Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {
+    let fixture = try unsupportedAC4Fixture()
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    let videoSamples = try [0.0, 5.0, 10.0].map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0,
+            durationSeconds: 1
+        )
+    }
+    let sink = FakeRendererInputSink()
+    let session = SampleBufferPlaybackSession(
+        traceID: "retired-audio-repeated-seek-session",
+        provider: FakeVideoSampleProvider(
+            events: videoSamples.map(VideoSampleProviderEvent.sample) + [.end]
+        ),
+        audioProvider: FFmpegAudioSampleProvider(),
+        rendererSink: sink
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: fixture)
+    #expect(session.hasAudio == false)
+    #expect(session.debugSnapshot().lastError == nil)
+    #expect(session.debugSnapshot().lastFailure?.message.contains("ac4") == true)
+
+    for target in [5.0, 10.0] {
+        let sampleCountBeforeSeek = sink.enqueuedSampleCount
+        try await session.seek(
+            to: CMTime(seconds: target, preferredTimescale: 600),
+            startsPaused: true
+        )
+        #expect(session.hasAudio == false)
+        #expect(session.debugSnapshot().lifecycle != .failed)
+        #expect(sink.enqueuedSampleCount > sampleCountBeforeSeek)
+    }
+
+    #expect(statuses.withLock { values in
+        values.contains { status in
+            if case .failed = status { true } else { false }
+        }
+    } == false)
+}
+
 @Test func audioReadFailureRetiresAudioButVideoStillDelivers() async throws {
     let videoSample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
@@ -3248,7 +3406,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.audioTrack?.rawStreamIndex == 1)
 }
 
-@Test(arguments: [RendererFailureKind.video, .audio])
+@Test(arguments: [RendererFailureKind.video])
 func terminalRendererFailurePublishesFailedOnce(
     _ rendererKind: RendererFailureKind
 ) async throws {
@@ -3305,6 +3463,65 @@ func terminalRendererFailurePublishesFailedOnce(
             if case .failed = $0 { true } else { false }
         }.count
     } == 1)
+}
+
+@Test func audioRendererFailureRetiresAudioAndVideoContinues() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
+    let audioSample = try makeAudioSample(durationSeconds: 5)
+    let sink = FakeRendererInputSink()
+    let monitor = FakeRendererFailureMonitor()
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-renderer-retirement-session",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(videoSample), count: 3) + [.end],
+            eventDelay: .milliseconds(25)
+        ),
+        audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
+        rendererSink: sink,
+        rendererFailureMonitor: monitor
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/audio-renderer-failure.mp4")
+    )
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try await waitForAudioSampleCount(1, in: session)
+    let samplesBeforeFailure = sink.enqueuedSampleCount
+    let fact = RendererFailureFact(
+        rendererKind: .audio,
+        errorType: "InjectedAudioRendererError",
+        message: "Injected audio renderer failure",
+        requiresFlushToResumeDecoding: nil
+    )
+
+    monitor.send(fact)
+
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline, session.hasAudio {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    try await waitForSampleCount(UInt64(samplesBeforeFailure + 1), in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(session.hasAudio == false)
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure?.stage == "audioRenderer.failed.videoContinues")
+    #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
+    #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.audio.rawValue)
+    #expect(snapshot.lastFailure?.errorType == fact.errorType)
+    #expect(snapshot.audioRendererState?.error == fact.message)
+    #expect(snapshot.lastError == nil)
+    #expect(statuses.withLock { values in
+        values.contains { status in
+            if case .failed = status { true } else { false }
+        }
+    } == false)
 }
 
 @Test func receiverDecodeWarningsAcceptTheVideoSample() async throws {
@@ -3512,6 +3729,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
     private let readError: Error?
     private let eventDelay: Duration?
     private(set) var startCount = 0
+    private(set) var sourceInformationReceived: MediaSourceInformation?
 
     init(
         events: [VideoSampleProviderEvent],
@@ -3557,7 +3775,13 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         self.eventDelay = eventDelay
     }
 
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?,
+        startTime: CMTime
+    ) async throws {
+        sourceInformationReceived = sourceInformation
         if startTime > .zero, let seekPrepareDelay {
             if seekPrepareIgnoresCancellation {
                 await Task.detached {
@@ -3985,8 +4209,19 @@ private enum MisleadingAudioOpenError: LocalizedError {
     case failed
 
     var errorDescription: String? {
-        "Decoder failed after no audio stream probe"
+        "Audio codec ac4 is unsupported because FFmpeg has no decoder"
     }
+}
+
+private func unsupportedAC4Fixture() throws -> URL {
+    let fixture = FileManager.default.temporaryDirectory
+        .appendingPathComponent("playbackcore-unsupported-\(UUID().uuidString).ac4")
+    let probeableFrame: [UInt8] = [0xAC, 0x40, 0x00, 0x04, 0, 0, 0, 0]
+    try Data((0..<32).flatMap { _ in probeableFrame }).write(
+        to: fixture,
+        options: .atomic
+    )
+    return fixture
 }
 
 func makeCompressedH264Sample(

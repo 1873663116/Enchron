@@ -184,7 +184,7 @@ private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
         "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
         true,
         false,
-        nil
+        kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String
     ),
     (
         "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
@@ -288,6 +288,19 @@ func profile5BridgeMatchesAVFoundationDolbyVisionDecoderConfiguration(
     #expect(atoms["hvcC"] == sourceAtoms["hvcC"])
     #expect(atoms["dvcC"] == sourceAtoms["dvcC"])
     #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_ColorPrimaries as String] as? String
+            == kCMFormatDescriptionColorPrimaries_ITU_R_2020 as String
+    )
+    #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_TransferFunction as String] as? String
+            == kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String
+    )
+    #expect(bridgeExtensions[kCMFormatDescriptionExtension_YCbCrMatrix as String] == nil)
+    #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_FullRangeVideo as String] as? Bool
+            == true
+    )
+    #expect(
         sourceExtensions[kCMFormatDescriptionExtension_VerbatimISOSampleEntry as String]
             != nil
     )
@@ -300,6 +313,113 @@ func profile5BridgeMatchesAVFoundationDolbyVisionDecoderConfiguration(
             == nil
     )
     #expect(CMSampleBufferDataIsReady(sample))
+}
+
+@Test(arguments: [
+    (
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+        kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String
+    ),
+    (
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+        kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String
+    ),
+])
+func compatibleDolbyVisionFallbackRemovesOnlyDolbyVisionInterpretation(
+    relativePath: String,
+    expectedTransfer: String
+) throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(relativePath)
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString {
+        PBFFmpegReaderCreate($0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let sourceSample = try #require(sampleReference?.takeRetainedValue())
+    let sourceFormat = try #require(CMSampleBufferGetFormatDescription(sourceSample))
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    let rewritten = try VideoSampleFormatOverride().rewrite(
+        sourceSample,
+        stereoLayout: nil,
+        projection: nil,
+        dynamicRange: .dolbyVisionFallback
+    )
+    let rewrittenFormat = try #require(CMSampleBufferGetFormatDescription(rewritten))
+    let rewrittenExtensions = try #require(
+        CMFormatDescriptionGetExtensions(rewrittenFormat) as? [String: Any]
+    )
+    let rewrittenAtoms = try sampleDescriptionAtoms(in: rewrittenFormat)
+
+    #expect(sourceAtoms["dvvC"]?.isEmpty == false)
+    #expect(try sampleDescriptionAtoms(in: sourceFormat)["dvvC"] == sourceAtoms["dvvC"])
+    #expect(rewrittenAtoms["dvcC"] == nil)
+    #expect(rewrittenAtoms["dvvC"] == nil)
+    #expect(rewrittenAtoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(CMFormatDescriptionGetMediaSubType(rewrittenFormat) == kCMVideoCodecType_HEVC)
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_ColorPrimaries as String] as? String
+            == kCMFormatDescriptionColorPrimaries_ITU_R_2020 as String
+    )
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_TransferFunction as String] as? String
+            == expectedTransfer
+    )
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_YCbCrMatrix as String] as? String
+            == kCMFormatDescriptionYCbCrMatrix_ITU_R_2020 as String
+    )
+    #expect(
+        rewrittenExtensions[kCMFormatDescriptionExtension_FullRangeVideo as String] as? Bool
+            == false
+    )
+}
+
+@Test func profileFiveRejectsAUserSelectableHDRFallback() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString {
+        PBFFmpegReaderCreate($0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let sample = try #require(sampleReference?.takeRetainedValue())
+
+    #expect(
+        throws: VideoSampleFormatOverrideError
+            .dolbyVisionFallbackUnavailable(compatibilityID: 0)
+    ) {
+        try VideoSampleFormatOverride().rewrite(
+            sample,
+            stereoLayout: nil,
+            projection: nil,
+            dynamicRange: .dolbyVisionFallback
+        )
+    }
 }
 
 @Test func profile10Dav1FixtureCreatesCompressedAV1SamplesWithDolbyVisionConfiguration() throws {
@@ -538,6 +658,26 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
 
         #expect(PBFFmpegReaderIsMVHEVC(activeReader) == expectedMVHEVC)
     }
+}
+
+@Test func mediaSourceInformationCarriesContainerDolbyAndStereoFacts() async throws {
+    let loader = SystemMediaSourceInformationLoader()
+    let profile7 = try await loader.load(
+        from: playbackTestMedia.appendingPathComponent(
+            "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.mkv"
+        )
+    )
+    #expect(profile7.containerSupportsSourceFormatDescription == false)
+    #expect(profile7.dolbyVisionProfile == 7)
+    #expect(profile7.dolbyVisionHasEnhancementLayer)
+
+    let mvhevc = try await loader.load(
+        from: playbackTestMedia.appendingPathComponent(
+            "Samples/CameraOriginals/Apple/applle.MOV"
+        )
+    )
+    #expect(mvhevc.containerSupportsSourceFormatDescription)
+    #expect(mvhevc.hasStereoVideoEnhancementLayer)
 }
 
 @Test func appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat() async throws {
@@ -897,6 +1037,34 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     #expect(provider.info.formatSignaling.provenance == "FFmpeg.codecParameters")
 }
 
+@Test func formatDescriptionOwnerFillsOnlyMissingDecoderConfigurationAtoms() async throws {
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+    )
+    let bridgeFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let sourceFormat = try videoFormatDescription(
+        byRemovingSampleDescriptionAtom: "dvvC",
+        from: bridgeFormat
+    )
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    let bridgeAtoms = try sampleDescriptionAtoms(in: bridgeFormat)
+    var mergedReference: Unmanaged<CMVideoFormatDescription>?
+
+    let status = PBFFmpegVideoFormatDescriptionCreate(
+        nil,
+        sourceFormat,
+        bridgeFormat,
+        nil,
+        &mergedReference
+    )
+    #expect(status == noErr)
+    let merged = try #require(mergedReference?.takeRetainedValue())
+    let mergedAtoms = try sampleDescriptionAtoms(in: merged)
+
+    #expect(mergedAtoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(mergedAtoms["dvvC"] == bridgeAtoms["dvvC"])
+}
+
 @Test func suppliedAssetWithMultipleMatchingVideoFormatsKeepsBridgeFormat() async throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
@@ -1154,7 +1322,7 @@ private func requireBitstreamExtradataBootstrap(
     #expect(message == "Audio stream parameters are unavailable after extended probe")
 }
 
-@Test func delayedAudioParametersProduceCompressedAACSample() throws {
+@Test func delayedAudioParametersProduceDecodedAACSample() throws {
     silenceFFmpegDiagnostics()
     let fixture = try delayedAACTransportStream()
     defer { try? FileManager.default.removeItem(at: fixture) }
@@ -1183,29 +1351,177 @@ private func requireBitstreamExtradataBootstrap(
 
     #expect(PBFFmpegAudioReaderGetSampleRate(activeReader) == 48_000)
     #expect(PBFFmpegAudioReaderGetChannelCount(activeReader) == 1)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
     #expect(CMSampleBufferGetNumSamples(buffer) > 0)
     let format = try #require(CMSampleBufferGetFormatDescription(buffer))
     let streamDescription = try #require(CMAudioFormatDescriptionGetStreamBasicDescription(format))
-    #expect(streamDescription.pointee.mFormatID == kAudioFormatMPEG4AAC)
-    #expect(streamDescription.pointee.mFormatID != kAudioFormatLinearPCM)
+    #expect(streamDescription.pointee.mFormatID == kAudioFormatLinearPCM)
+    #expect(streamDescription.pointee.mFormatFlags & kAudioFormatFlagIsFloat != 0)
     var magicCookieSize = 0
     let magicCookie = CMAudioFormatDescriptionGetMagicCookie(
         format,
         sizeOut: &magicCookieSize
     )
-    #expect(magicCookie != nil)
-    #expect(magicCookieSize > 2)
-    if let magicCookie {
-        let bytes = UnsafeRawBufferPointer(start: magicCookie, count: magicCookieSize)
-        #expect(bytes.first == 0x03)
-    }
+    #expect(magicCookie == nil)
+    #expect(magicCookieSize == 0)
     #expect(metadata.payloadByteCount > 0)
     #expect(metadata.timeBaseNumerator > 0)
     #expect(metadata.timeBaseDenominator > 0)
-    #expect(metadata.cookieSource == PBFFmpegAudioCookieSourceFilterOutput)
+    #expect(metadata.cookieSource == PBFFmpegAudioCookieSourceUnavailable)
 }
 
-@Test func flacPacketsRemainCompressedForAVFoundationDecoding() throws {
+@Test(arguments: [
+    ("audio-dts-5.1", "mka", "dts", 48_000, 6, kAudioChannelLayoutTag_WAVE_5_1_A),
+    (
+        "audio-truehd-5.1",
+        "mka",
+        "truehd",
+        48_000,
+        6,
+        kAudioChannelLayoutTag_WAVE_5_1_A
+    ),
+    ("audio-vorbis-stereo", "ogg", "vorbis", 44_100, 2, kAudioChannelLayoutTag_Stereo),
+])
+func ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout(
+    resource: String,
+    fileExtension: String,
+    expectedCodec: String,
+    expectedSampleRate: Int,
+    expectedChannelCount: Int,
+    expectedLayoutTag: AudioChannelLayoutTag
+) throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(forResource: resource, withExtension: fileExtension)
+            ?? Bundle.module.url(
+                forResource: resource,
+                withExtension: fileExtension,
+                subdirectory: "Fixtures"
+            )
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+    let activeReader = try #require(
+        reader,
+        Comment(rawValue: "\(resource): \(cString(error))")
+    )
+    defer { PBFFmpegAudioReaderDestroy(activeReader) }
+
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
+    #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == expectedCodec)
+    #expect(PBFFmpegAudioReaderGetSampleRate(activeReader) == expectedSampleRate)
+    #expect(PBFFmpegAudioReaderGetChannelCount(activeReader) == expectedChannelCount)
+
+    var previousPresentationTime: CMTime?
+    var sampleCount = 0
+    while sampleCount < 64 {
+        var sample: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &metadata,
+            &error,
+            error.count
+        )
+        if result == PBFFmpegReadResultEnd { break }
+        #expect(
+            result == PBFFmpegReadResultSample,
+            Comment(rawValue: "\(resource): \(cString(error))")
+        )
+        let buffer = try #require(sample?.takeRetainedValue())
+        let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+        let description = try #require(
+            CMAudioFormatDescriptionGetStreamBasicDescription(format)
+        ).pointee
+        var layoutSize = 0
+        let layout = try #require(
+            CMAudioFormatDescriptionGetChannelLayout(format, sizeOut: &layoutSize)
+        )
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(buffer)
+
+        #expect(description.mFormatID == kAudioFormatLinearPCM)
+        #expect(description.mFormatFlags & kAudioFormatFlagIsFloat != 0)
+        #expect(description.mFormatFlags & kAudioFormatFlagIsPacked != 0)
+        #expect(description.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0)
+        #expect(description.mSampleRate == Double(expectedSampleRate))
+        #expect(description.mChannelsPerFrame == expectedChannelCount)
+        #expect(description.mBytesPerFrame == expectedChannelCount * 4)
+        #expect(layoutSize >= MemoryLayout<AudioChannelLayout>.size)
+        #expect(layout.pointee.mChannelLayoutTag == expectedLayoutTag)
+        #expect(CMSampleBufferGetNumSamples(buffer) > 0)
+        #expect(CMSampleBufferGetDuration(buffer).isNumeric)
+        #expect(presentationTime.isNumeric)
+        if let previousPresentationTime {
+            #expect(CMTimeCompare(presentationTime, previousPresentationTime) > 0)
+        }
+        previousPresentationTime = presentationTime
+        sampleCount += 1
+    }
+    #expect(sampleCount > 1)
+}
+
+@Test func trueHDSubframesAreAggregatedBeforeTheyReachCoreMedia() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(forResource: "audio-truehd-5.1", withExtension: "mka")
+            ?? Bundle.module.url(
+                forResource: "audio-truehd-5.1",
+                withExtension: "mka",
+                subdirectory: "Fixtures"
+            )
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegAudioReaderDestroy(activeReader) }
+
+    var frameCounts: [Int] = []
+    while true {
+        var sample: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &metadata,
+            &error,
+            error.count
+        )
+        if result == PBFFmpegReadResultEnd { break }
+        #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+        let buffer = try #require(sample?.takeRetainedValue())
+        frameCounts.append(CMSampleBufferGetNumSamples(buffer))
+    }
+
+    #expect(frameCounts == [4_800, 4_800, 2_400])
+    #expect(frameCounts.reduce(0, +) == 12_000)
+}
+
+@Test func ffmpegUndecodableAudioNamesTheCodecInsteadOfGuessing() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = FileManager.default.temporaryDirectory
+        .appendingPathComponent("playbackcore-unsupported-\(UUID().uuidString).ac4")
+    let probeableAC4Frame: [UInt8] = [0xAC, 0x40, 0x00, 0x04, 0, 0, 0, 0]
+    try Data((0..<32).flatMap { _ in probeableAC4Frame }).write(
+        to: fixture,
+        options: .atomic
+    )
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    var error = [CChar](repeating: 0, count: 512)
+
+    let reader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+
+    #expect(reader == nil)
+    #expect(cString(error) == "Audio codec ac4 is unsupported because FFmpeg has no decoder")
+}
+
+@Test func flacPacketsDecodeToInterleavedFloatPCM() throws {
     silenceFFmpegDiagnostics()
     let fixture = try decodedFixture(
         resource: "audio-flac-stereo.mka",
@@ -1219,7 +1535,7 @@ private func requireBitstreamExtradataBootstrap(
     let activeReader = try #require(reader, Comment(rawValue: cString(error)))
     defer { PBFFmpegAudioReaderDestroy(activeReader) }
 
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == false)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
     #expect(PBFFmpegAudioReaderGetSampleRate(activeReader) == 48_000)
     #expect(PBFFmpegAudioReaderGetChannelCount(activeReader) == 2)
     #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == "flac")
@@ -1240,30 +1556,23 @@ private func requireBitstreamExtradataBootstrap(
         CMAudioFormatDescriptionGetStreamBasicDescription(format)
     ).pointee
 
-    #expect(streamDescription.mFormatID == kAudioFormatFLAC)
+    #expect(streamDescription.mFormatID == kAudioFormatLinearPCM)
+    #expect(streamDescription.mFormatFlags & kAudioFormatFlagIsFloat != 0)
     #expect(streamDescription.mSampleRate == 48_000)
     #expect(streamDescription.mChannelsPerFrame == 2)
-    #expect(streamDescription.mFramesPerPacket > 0)
-    #expect(CMSampleBufferGetNumSamples(buffer) == 1)
+    #expect(streamDescription.mFramesPerPacket == 1)
+    #expect(CMSampleBufferGetNumSamples(buffer) > 1)
     #expect(CMSampleBufferGetDuration(buffer).seconds > 0)
     #expect(metadata.payloadByteCount > 0)
     let dataBuffer = try #require(CMSampleBufferGetDataBuffer(buffer))
     #expect(CMBlockBufferGetDataLength(dataBuffer) == metadata.payloadByteCount)
 
     var magicCookieSize = 0
-    let magicCookie = CMAudioFormatDescriptionGetMagicCookie(
-        format,
-        sizeOut: &magicCookieSize
-    )
-    let cookieBytes = UnsafeRawBufferPointer(
-        start: magicCookie,
-        count: magicCookieSize
-    )
-    #expect(magicCookieSize >= 16)
-    #expect(String(bytes: cookieBytes[4..<8], encoding: .ascii) == "dfLa")
+    #expect(CMAudioFormatDescriptionGetMagicCookie(format, sizeOut: &magicCookieSize) == nil)
+    #expect(magicCookieSize == 0)
 }
 
-@Test func proResCameraOriginalKeepsFiveChannelPCMAsSourcePCM() throws {
+@Test func proResCameraOriginalNormalizesFiveChannelPCMToFloat() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "Samples/Professional/ProRes/ARRI-AMIRA/B001C001_140702_R3VJ.mov"
@@ -1301,14 +1610,15 @@ private func requireBitstreamExtradataBootstrap(
     ).pointee
 
     #expect(description.mFormatID == kAudioFormatLinearPCM)
-    #expect(description.mBitsPerChannel == 24)
-    #expect(description.mBytesPerFrame == 15)
+    #expect(description.mBitsPerChannel == 32)
+    #expect(description.mBytesPerFrame == 20)
+    #expect(description.mFormatFlags & kAudioFormatFlagIsFloat != 0)
     #expect(description.mChannelsPerFrame == 5)
     #expect(CMSampleBufferGetNumSamples(buffer) == 1_024)
     #expect(CMSampleBufferGetDuration(buffer) == CMTime(value: 1_024, timescale: 48_000))
-    #expect(metadata.payloadByteCount == 15_360)
+    #expect(metadata.payloadByteCount == 20_480)
     #expect(metadata.cookieSource == PBFFmpegAudioCookieSourceUnavailable)
-    #expect(CMBlockBufferGetDataLength(try #require(CMSampleBufferGetDataBuffer(buffer))) == 15_360)
+    #expect(CMBlockBufferGetDataLength(try #require(CMSampleBufferGetDataBuffer(buffer))) == 20_480)
 
     var channelLayoutSize = 0
     let channelLayout = CMAudioFormatDescriptionGetChannelLayout(
@@ -1353,9 +1663,9 @@ private func requireBitstreamExtradataBootstrap(
     ).pointee
 
     #expect(description.mFormatID == kAudioFormatLinearPCM)
-    #expect(description.mBitsPerChannel == 16)
-    #expect(description.mBytesPerFrame == description.mChannelsPerFrame * 2)
-    #expect(description.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0)
+    #expect(description.mBitsPerChannel == 32)
+    #expect(description.mBytesPerFrame == description.mChannelsPerFrame * 4)
+    #expect(description.mFormatFlags & kAudioFormatFlagIsFloat != 0)
     #expect(description.mFormatFlags & kAudioFormatFlagIsPacked != 0)
     #expect(CMSampleBufferGetNumSamples(buffer) > 0)
     #expect(metadata.payloadByteCount > 0)
@@ -1391,12 +1701,12 @@ private func requireBitstreamExtradataBootstrap(
         CMAudioFormatDescriptionGetStreamBasicDescription(format)
     ).pointee
 
-    #expect(description.mFormatID == kAudioFormatMPEG4AAC)
+    #expect(description.mFormatID == kAudioFormatLinearPCM)
     #expect(CMSampleBufferDataIsReady(buffer))
     #expect(metadata.payloadByteCount > 0)
 }
 
-@Test func sourcePCMIsNotReportedAsAnFFmpegDecodePath() throws {
+@Test func sourcePCMUsesTheUnifiedFFmpegDecodePath() throws {
     let fixture = playbackTestMedia.appendingPathComponent(
         "Samples/Professional/ProRes/ARRI-AMIRA/B001C001_140702_R3VJ.mov"
     )
@@ -1410,7 +1720,7 @@ private func requireBitstreamExtradataBootstrap(
         startSeconds: 0,
         streamIndex: nil
     )
-    #expect(info.providerKind == "FFmpegSourcePCM")
+    #expect(info.providerKind == "FFmpegDecodedPCM")
     #expect(info.codecName == "pcm_s24le")
 }
 
@@ -1436,9 +1746,9 @@ private func requireBitstreamExtradataBootstrap(
         44_100
     ),
 ])
-func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
+func highEfficiencyAACProfilesDecodeToPCM(
     relativePath: String,
-    expectedFormatID: AudioFormatID,
+    _: AudioFormatID,
     expectedSampleRate: Int
 ) throws {
     silenceFFmpegDiagnostics()
@@ -1469,19 +1779,22 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
         CMAudioFormatDescriptionGetStreamBasicDescription(format)
     ).pointee
 
-    #expect(description.mFormatID == expectedFormatID)
-    #expect(description.mFramesPerPacket == 2_048)
+    #expect(description.mFormatID == kAudioFormatLinearPCM)
+    #expect(description.mFramesPerPacket == 1)
     #expect(description.mChannelsPerFrame == 2)
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == false)
-    #expect(CMSampleBufferGetNumSamples(buffer) == 1)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
+    #expect(CMSampleBufferGetNumSamples(buffer) > 1)
     #expect(
         CMSampleBufferGetDuration(buffer)
-            == CMTime(value: 2_048, timescale: CMTimeScale(expectedSampleRate))
+            == CMTime(
+                value: CMTimeValue(CMSampleBufferGetNumSamples(buffer)),
+                timescale: CMTimeScale(expectedSampleRate)
+            )
     )
     #expect(metadata.payloadByteCount > 0)
 }
 
-@Test func xHEAACMatchesAVFoundationsCompressedFormatDescription() async throws {
+@Test func undecodableXHEAACFailsWithTheDeclaredCodecName() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Upstream/Fraunhofer/Audio/xHE-AAC/Sintel_24kbps_rap5s.mp4"
@@ -1495,45 +1808,21 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
 
     var sample: Unmanaged<CMSampleBuffer>?
     var metadata = PBFFmpegAudioSampleMetadata()
-    #expect(
-        PBFFmpegAudioReaderCopyNextSample(
-            activeReader,
-            &sample,
-            &metadata,
-            &error,
-            error.count
-        ) == PBFFmpegReadResultSample,
-        Comment(rawValue: cString(error))
+    let result = PBFFmpegAudioReaderCopyNextSample(
+        activeReader,
+        &sample,
+        &metadata,
+        &error,
+        error.count
     )
-    let buffer = try #require(sample?.takeRetainedValue())
-    let bridgeFormat = try #require(CMSampleBufferGetFormatDescription(buffer))
-    let bridgeDescription = try #require(
-        CMAudioFormatDescriptionGetStreamBasicDescription(bridgeFormat)
-    ).pointee
-
-    let asset = AVURLAsset(url: fixture)
-    let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
-    let nativeFormat = try #require(try await track.load(.formatDescriptions).first)
-    let nativeDescription = try #require(
-        CMAudioFormatDescriptionGetStreamBasicDescription(nativeFormat)
-    ).pointee
-
+    #expect(result == PBFFmpegReadResultError)
+    #expect(sample == nil)
     #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == "aac")
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == false)
-    #expect(bridgeDescription.mFormatID == kAudioFormatMPEGD_USAC)
-    #expect(bridgeDescription.mFormatID == nativeDescription.mFormatID)
-    #expect(bridgeDescription.mSampleRate == nativeDescription.mSampleRate)
-    #expect(bridgeDescription.mChannelsPerFrame == nativeDescription.mChannelsPerFrame)
-    #expect(bridgeDescription.mFramesPerPacket == nativeDescription.mFramesPerPacket)
-    #expect(
-        decoderSpecificInfo(in: magicCookieData(bridgeFormat))
-            == decoderSpecificInfo(in: magicCookieData(nativeFormat))
-    )
-    #expect(CMSampleBufferGetDuration(buffer) == CMTime(value: 2_048, timescale: 48_000))
-    #expect(metadata.payloadByteCount > 0)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
+    #expect(cString(error).contains("audio codec aac"))
 }
 
-@Test func xHEAACWithLoudnessInfoRemainsADemuxOnlyPath() throws {
+@Test func decodableXHEAACUsesPCM() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Upstream/Fraunhofer/Audio/xHE-AAC/xHEchID.mp4"
@@ -1563,26 +1852,17 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
         CMAudioFormatDescriptionGetStreamBasicDescription(format)
     ).pointee
 
-    #expect(description.mFormatID == kAudioFormatMPEGD_USAC)
-    #expect(description.mFramesPerPacket == 2_048)
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == false)
+    #expect(description.mFormatID == kAudioFormatLinearPCM)
+    #expect(description.mFramesPerPacket == 1)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
     #expect(metadata.payloadByteCount > 0)
 }
 
-@Test func appleAPACHLSKeepsItsCompressedPacketsAndConfiguration() async throws {
+@Test func appleAPACHLSDecodesToPCM() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Upstream/Apple/Audio/APAC-HLS/playlist.m3u8"
     )
-
-    let initializationSegment = fixture.deletingLastPathComponent()
-        .appendingPathComponent("fileSequence0.mp4")
-    let asset = AVURLAsset(url: initializationSegment)
-    let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
-    let nativeFormat = try #require(try await track.load(.formatDescriptions).first)
-    let nativeDescription = try #require(
-        CMAudioFormatDescriptionGetStreamBasicDescription(nativeFormat)
-    ).pointee
 
     #expect(mediaStreams(in: fixture).count {
         $0.raw.category == PBFFmpegMediaStreamCategoryAudio
@@ -1613,24 +1893,17 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
     ).pointee
 
     #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == "apac")
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == false)
-    #expect(bridgeDescription.mFormatID == kAudioFormatAPAC)
-    #expect(bridgeDescription.mFormatID == nativeDescription.mFormatID)
-    #expect(bridgeDescription.mSampleRate == nativeDescription.mSampleRate)
-    #expect(bridgeDescription.mChannelsPerFrame == nativeDescription.mChannelsPerFrame)
-    #expect(bridgeDescription.mFramesPerPacket == nativeDescription.mFramesPerPacket)
-    #expect(magicCookieData(bridgeFormat) == magicCookieData(nativeFormat))
-    #expect(CMSampleBufferGetDuration(buffer) == CMTime(value: 1_024, timescale: 48_000))
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
+    #expect(bridgeDescription.mFormatID == kAudioFormatLinearPCM)
+    #expect(bridgeDescription.mSampleRate == 48_000)
+    #expect(bridgeDescription.mFramesPerPacket == 1)
     #expect(metadata.payloadByteCount > 0)
 }
 
-@Test func appleAudioRendererAcceptsTheCompressedAudioCapabilitySet() throws {
+@Test func appleAudioRendererAcceptsPrivilegedDolbyPassthrough() throws {
     silenceFFmpegDiagnostics()
     let fixtures = [
-        "TestVectors/Upstream/Fraunhofer/Audio/xHE-AAC/Sintel_24kbps_rap5s.mp4",
-        "TestVectors/Upstream/Apple/Audio/APAC-HLS/playlist.m3u8",
         "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
-        "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv",
     ]
 
     for relativePath in fixtures {
@@ -1658,7 +1931,7 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
     }
 }
 
-@Test func opusUsesPacketTimingInsteadOfClaimingAFixedFrameCount() throws {
+@Test func opusDecodesToTimestampedPCM() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-audio-codec-matrix-15s.mkv"
@@ -1697,10 +1970,16 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
         CMAudioFormatDescriptionGetStreamBasicDescription(format)
     ).pointee
 
-    #expect(description.mFormatID == kAudioFormatOpus)
-    #expect(description.mFramesPerPacket == 0)
-    #expect(CMSampleBufferGetDuration(buffer) == CMTime(value: 20, timescale: 1_000))
-    #expect(metadata.packetDuration == 20)
+    #expect(description.mFormatID == kAudioFormatLinearPCM)
+    #expect(description.mFramesPerPacket == 1)
+    #expect(
+        CMSampleBufferGetDuration(buffer)
+            == CMTime(
+                value: CMTimeValue(CMSampleBufferGetNumSamples(buffer)),
+                timescale: 48_000
+            )
+    )
+    #expect(metadata.packetDuration > 0)
     #expect(metadata.timeBaseNumerator == 1)
     #expect(metadata.timeBaseDenominator == 1_000)
 }
@@ -1758,14 +2037,14 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-audio-codec-matrix-15s.mkv"
     )
     let expectedFormats: [(codec: String, formatID: AudioFormatID, outputsPCM: Bool)] = [
-        ("aac", kAudioFormatMPEG4AAC, false),
+        ("aac", kAudioFormatLinearPCM, true),
         ("ac3", kAudioFormatAC3, false),
         ("eac3", kAudioFormatEnhancedAC3, false),
-        ("mp2", kAudioFormatMPEGLayer2, false),
-        ("mp3", kAudioFormatMPEGLayer3, false),
-        ("alac", kAudioFormatAppleLossless, false),
-        ("opus", kAudioFormatOpus, false),
-        ("flac", kAudioFormatFLAC, false),
+        ("mp2", kAudioFormatLinearPCM, true),
+        ("mp3", kAudioFormatLinearPCM, true),
+        ("alac", kAudioFormatLinearPCM, true),
+        ("opus", kAudioFormatLinearPCM, true),
+        ("flac", kAudioFormatLinearPCM, true),
     ]
 
     let audioStreams = mediaStreams(in: fixture).filter {
@@ -1819,7 +2098,7 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
     }
 }
 
-@Test func generatedAV1AndFLACFixtureKeepsBothTracksCompressed() throws {
+@Test func generatedAV1RemainsCompressedWhileFLACDecodesToPCM() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv"
@@ -1851,7 +2130,7 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
     let activeAudioReader = try #require(audioReader, Comment(rawValue: cString(error)))
     defer { PBFFmpegAudioReaderDestroy(activeAudioReader) }
     #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeAudioReader)) == "flac")
-    #expect(PBFFmpegAudioReaderOutputsPCM(activeAudioReader) == false)
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeAudioReader))
 }
 
 @Test func generatedVideoOnlyFixtureHasNoAudioTracks() {

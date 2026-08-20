@@ -106,6 +106,71 @@ class Step(NamedTuple):
     expect_presentation: str
 
 
+class ProbeCursor(NamedTuple):
+    sequence: int | None
+    line_count: int
+
+
+PROBE_SEQUENCE_PATTERN = re.compile(r"(?:^| )probeSequence=(\d+)(?: |$)")
+
+
+def probe_sequence(line: str) -> int | None:
+    match = PROBE_SEQUENCE_PATTERN.search(line)
+    return int(match.group(1)) if match is not None else None
+
+
+def probe_cursor(lines: Sequence[str]) -> ProbeCursor:
+    sequences = [
+        sequence
+        for line in lines
+        if (sequence := probe_sequence(line)) is not None
+    ]
+    return ProbeCursor(
+        sequence=max(sequences) if sequences else None,
+        line_count=len(lines),
+    )
+
+
+def probe_lines_since(
+    lines: Sequence[str],
+    cursor: ProbeCursor,
+) -> tuple[list[str], ProbeCursor, str | None]:
+    sequenced = [
+        (sequence, line)
+        for line in lines
+        if (sequence := probe_sequence(line)) is not None
+    ]
+    if sequenced:
+        delta = [
+            line
+            for sequence, line in sequenced
+            if cursor.sequence is None or sequence > cursor.sequence
+        ]
+        return (
+            delta,
+            ProbeCursor(
+                sequence=max(sequence for sequence, _ in sequenced),
+                line_count=len(lines),
+            ),
+            None,
+        )
+
+    if cursor.sequence is not None:
+        return [], ProbeCursor(cursor.sequence, len(lines)), None
+    if len(lines) < cursor.line_count:
+        return (
+            [],
+            ProbeCursor(None, len(lines)),
+            "Probe line count moved backwards "
+            f"from {cursor.line_count} to {len(lines)}.",
+        )
+    return (
+        list(lines[cursor.line_count:]),
+        ProbeCursor(None, len(lines)),
+        None,
+    )
+
+
 OPEN_CLIP = ("MediaLibrary-grid-video-{clip}",)
 APPLY_FLAT_MONO = (
     "PlayerUI-TopAction-videoFormat",
@@ -444,27 +509,19 @@ def write_probe_excerpt(
     cell_directory: Path,
     step_index: int,
     step_name: str,
-    offset: int,
-) -> tuple[str, list[str], int, str | None]:
+    cursor: ProbeCursor,
+) -> tuple[str, list[str], ProbeCursor, str | None]:
     excerpt_path = cell_directory / (
         f"step-{step_index:02d}-{safe_component(step_name)}-probe.log"
     )
     lines, error = copy_probe_lines(cell_directory)
     if lines is None:
         excerpt_path.write_text("", encoding="utf-8")
-        return str(excerpt_path), [], offset, error
-    if len(lines) < offset:
-        excerpt_path.write_text("", encoding="utf-8")
-        return (
-            str(excerpt_path),
-            [],
-            len(lines),
-            f"Probe line count moved backwards from {offset} to {len(lines)}.",
-        )
-    excerpt = lines[offset:]
+        return str(excerpt_path), [], cursor, error
+    excerpt, next_cursor, cursor_error = probe_lines_since(lines, cursor)
     text = "\n".join(excerpt)
     excerpt_path.write_text(text + ("\n" if text else ""), encoding="utf-8")
-    return str(excerpt_path), excerpt, len(lines), None
+    return str(excerpt_path), excerpt, next_cursor, cursor_error
 
 
 def safe_component(value: str) -> str:
@@ -721,20 +778,21 @@ def wait_for_immersive_settlement(
     cell_directory: Path,
     expected: str,
     target_started_at: float,
-    probe_offset: int,
+    probe_cursor: ProbeCursor,
     controller_directory: Path,
-) -> tuple[dict[str, object], list[str]]:
+) -> tuple[dict[str, object], list[str], ProbeCursor]:
     # In a settled immersive presentation the main window is present but empty,
     # so the control-plane element leaves the accessibility hierarchy; the
     # device probe file is the only observation channel that stays truthful.
     deadline = target_started_at + SETTLEMENT_TIMEOUT_SECONDS
     delta: list[str] = []
+    observed_cursor = probe_cursor
     copy_error: str | None = None
     while time.monotonic() < deadline:
         lines, copy_error = copy_probe_lines(cell_directory)
         elapsed = time.monotonic() - target_started_at
-        if lines is not None and len(lines) >= probe_offset:
-            delta = lines[probe_offset:]
+        if lines is not None:
+            delta, observed_cursor, _ = probe_lines_since(lines, probe_cursor)
             if last_settlement_settled(delta) is True:
                 appeared = appeared_presentation(delta)
                 if appeared is not None and appeared != expected:
@@ -745,6 +803,7 @@ def wait_for_immersive_settlement(
                             "elapsed_seconds": round(elapsed, 3),
                         },
                         delta,
+                        observed_cursor,
                     )
                 return (
                     {
@@ -753,6 +812,7 @@ def wait_for_immersive_settlement(
                         "actual_presentation": appeared or expected,
                     },
                     delta,
+                    observed_cursor,
                 )
         time.sleep(1)
 
@@ -762,9 +822,10 @@ def wait_for_immersive_settlement(
         return (
             {**common, "verdict": DRIVE_ERROR, "phase": "probe", "message": copy_error},
             delta,
+            observed_cursor,
         )
     if any(parse_settlement_fields(line) for line in delta):
-        return ({**common, "verdict": STALL_TIMEOUT}, delta)
+        return ({**common, "verdict": STALL_TIMEOUT}, delta, observed_cursor)
     # No spatial records at all: the tap most likely never opened an immersive
     # surface. A windowed control plane, when present, names where we landed.
     plane, _ = read_control_plane(controller_directory)
@@ -777,6 +838,7 @@ def wait_for_immersive_settlement(
                 "control_plane": format_facts(plane),
             },
             delta,
+            observed_cursor,
         )
     return (
         {
@@ -785,6 +847,7 @@ def wait_for_immersive_settlement(
             "message": "No spatial probe records and no windowed control plane.",
         },
         delta,
+        observed_cursor,
     )
 
 
@@ -841,8 +904,8 @@ def run_step(
     clip: str,
     cell_directory: Path,
     controller_directory: Path,
-    probe_offset: int,
-) -> tuple[dict[str, object], int]:
+    probe_cursor: ProbeCursor,
+) -> tuple[dict[str, object], ProbeCursor]:
     actions = resolve_actions(step, clip)
     step_started_at = time.monotonic()
     immersive_target = step.expect_presentation in IMMERSIVE_PRESENTATIONS
@@ -938,11 +1001,11 @@ def run_step(
                 message="Step has no target-triggering action.",
             )
         elif immersive_target:
-            wait_result, delta = wait_for_immersive_settlement(
+            wait_result, delta, next_cursor = wait_for_immersive_settlement(
                 cell_directory=cell_directory,
                 expected=step.expect_presentation,
                 target_started_at=target_started_at,
-                probe_offset=probe_offset,
+                probe_cursor=probe_cursor,
                 controller_directory=controller_directory,
             )
             result = {
@@ -962,7 +1025,7 @@ def run_step(
             )
             result["settlement_trace"] = settlement_trace(delta)
             apply_visual_gate(result, controller_directory)
-            return result, probe_offset + len(delta)
+            return result, next_cursor
         else:
             result = {
                 "name": step.name,
@@ -981,7 +1044,7 @@ def run_step(
         cell_directory=cell_directory,
         step_index=step_index,
         step_name=step.name,
-        offset=probe_offset,
+        cursor=probe_cursor,
     )
     result["probe_excerpt"] = excerpt_path
     if probe_error is not None:
@@ -1309,19 +1372,20 @@ def wait_for_clean_open(
     cell_directory: Path,
     controller_directory: Path,
     target_started_at: float,
-    probe_offset: int,
-) -> tuple[dict[str, object], list[str]]:
+    probe_cursor: ProbeCursor,
+) -> tuple[dict[str, object], list[str], ProbeCursor]:
     """A clean open may legitimately land windowed (no format signaling) or
     panoramic (signaled source); the verdict records where it landed and the
     signaling truth table instead of presuming a target presentation."""
     deadline = target_started_at + SETTLEMENT_TIMEOUT_SECONDS
     delta: list[str] = []
+    observed_cursor = probe_cursor
     latest_plane: dict[str, str] | None = None
     invisible_steady_polls = 0
     while time.monotonic() < deadline:
         lines, _ = copy_probe_lines(cell_directory)
-        if lines is not None and len(lines) >= probe_offset:
-            delta = lines[probe_offset:]
+        if lines is not None:
+            delta, observed_cursor, _ = probe_lines_since(lines, probe_cursor)
             if last_settlement_settled(delta) is True:
                 elapsed = time.monotonic() - target_started_at
                 return (
@@ -1331,6 +1395,7 @@ def wait_for_clean_open(
                         "time_to_target_seconds": round(elapsed, 3),
                     },
                     delta,
+                    observed_cursor,
                 )
         plane, _ = read_control_plane(controller_directory)
         if plane is not None:
@@ -1354,6 +1419,7 @@ def wait_for_clean_open(
                             "control_plane": format_facts(plane),
                         },
                         delta,
+                        observed_cursor,
                     )
             else:
                 invisible_steady_polls = 0
@@ -1368,6 +1434,7 @@ def wait_for_clean_open(
                         "control_plane": format_facts(plane),
                     },
                     delta,
+                    observed_cursor,
                 )
             if (
                 plane.get("presentation") == "window"
@@ -1384,6 +1451,7 @@ def wait_for_clean_open(
                         "control_plane": format_facts(plane),
                     },
                     delta,
+                    observed_cursor,
                 )
         time.sleep(1)
     elapsed = time.monotonic() - target_started_at
@@ -1395,6 +1463,7 @@ def wait_for_clean_open(
             "control_plane": format_facts(latest_plane),
         },
         delta,
+        observed_cursor,
     )
 
 
@@ -1454,7 +1523,7 @@ def run_cell(
                 "evidence_directory": str(cell_directory),
             }
         probe_lines, _ = copy_probe_lines(cell_directory)
-        probe_offset = len(probe_lines or [])
+        current_probe_cursor = probe_cursor(probe_lines or [])
         if path_name == "clean-open":
             open_document = controller(
                 controller_directory,
@@ -1474,11 +1543,11 @@ def run_cell(
                 verdict = DRIVE_ERROR
                 steps = [step_result]
             else:
-                wait_result, delta = wait_for_clean_open(
+                wait_result, delta, _ = wait_for_clean_open(
                     cell_directory=cell_directory,
                     controller_directory=controller_directory,
                     target_started_at=time.monotonic(),
-                    probe_offset=probe_offset,
+                    probe_cursor=current_probe_cursor,
                 )
                 excerpt_path = cell_directory / "step-01-open-probe.log"
                 text = "\n".join(delta)
@@ -1519,12 +1588,12 @@ def run_cell(
             "ensure-session",
         )
     steps: list[dict[str, object]] = []
-    probe_offset = 0
+    current_probe_cursor = probe_cursor([])
     baseline_error: str | None = None
     if session.get("stage") == "ready" and session.get("success") is True:
         baseline_lines, baseline_error = copy_probe_lines(cell_directory)
         if baseline_lines is not None:
-            probe_offset = len(baseline_lines)
+            current_probe_cursor = probe_cursor(baseline_lines)
 
     if session.get("stage") != "ready" or session.get("success") is not True:
         first_step = path[0]
@@ -1558,13 +1627,13 @@ def run_cell(
         steps.append(step_result)
     else:
         for step_index, step in enumerate(path, start=1):
-            step_result, probe_offset = run_step(
+            step_result, current_probe_cursor = run_step(
                 step=step,
                 step_index=step_index,
                 clip=Path(clip).name,
                 cell_directory=cell_directory,
                 controller_directory=controller_directory,
-                probe_offset=probe_offset,
+                probe_cursor=current_probe_cursor,
             )
             steps.append(step_result)
             if step_result["verdict"] != PASS:

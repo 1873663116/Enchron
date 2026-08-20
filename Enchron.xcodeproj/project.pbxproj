@@ -19,6 +19,7 @@
 		D00000330000000000D0A1A1 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D00000230000000000D0A1A1 /* PlaybackFeature */; };
 		D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = D00000240000000000D0A1A1 /* PlaybackCore */; };
 		D00000350000000000D0A1A1 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = D00000250000000000D0A1A1 /* DesignSystem */; };
+		D00000360000000000D0A1A1 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = D00000260000000000D0A1A1 /* PlaybackPresentation */; };
 		E10000052FA1000100E1C001 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FA1000100E1C001 /* MediaSource */; };
 		E10000062FA1000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* PlaybackFeature */; };
 		E10000072FA1000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E10000042FA1000100E1C001 /* PlaybackPresentation */; };
@@ -33,6 +34,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		D00000080000000000D0A1A1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
+			remoteInfo = Enchron;
+		};
 		E2E0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
@@ -128,6 +136,7 @@
 				DesignSystem/Components/SettingsComponents.swift,
 				DesignSystem/Components/SidebarRow.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,
+				DesignSystem/DebugMenuSelection.swift,
 				DesignSystem/DesignTokens.swift,
 				"DesignSystem/View+EnchronGlass.swift",
 				"DesignSystem/View+Platform.swift",
@@ -152,9 +161,6 @@
 				MediaLibrary/Model/MediaLibrarySearch.swift,
 				MediaLibrary/Model/MediaPlaybackItem.swift,
 				MediaLibrary/Model/MediaSource.swift,
-				MediaLibrary/Services/HTTPRangeStreamingServer.swift,
-				MediaLibrary/Services/ThumbnailCache.swift,
-				MediaLibrary/Services/ThumbnailService.swift,
 				MediaLibrary/Sources/Fake/FakeFileDataSource.swift,
 				MediaLibrary/Sources/Local/ImportedDirectoryScanner.swift,
 				MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift,
@@ -166,11 +172,14 @@
 				MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift,
 				MediaLibrary/Views/ConnectionFormPanel.swift,
 				MediaSource/KeychainStore.swift,
+				MediaSource/ArtworkStore.swift,
 				MediaSource/MediaAccessLease.swift,
+				MediaSource/MediaByteStream.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
 				MediaSource/NetworkMonitor.swift,
 				MediaSource/ResolvedExternalSubtitleSource.swift,
 				MediaSource/ResolvedMediaSource.swift,
+				MediaSource/ServerTrustPolicy.swift,
 				MediaSource/VersionedMediaIdentity.swift,
 				PlaybackFeature/Domain/MediaFormat.swift,
 				PlaybackFeature/Domain/MediaStateStore.swift,
@@ -180,15 +189,18 @@
 				PlaybackFeature/Domain/PlaybackRuntimeControlling.swift,
 				PlaybackFeature/Domain/PlaybackSeekPolicy.swift,
 				PlaybackFeature/Domain/PlaybackSessionReporting.swift,
+				PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift,
 				PlaybackFeature/Domain/TrackSelectionPreference.swift,
 				PlaybackFeature/Domain/ViewingState.swift,
 				PlaybackFeature/Model/MediaProfile.swift,
 				PlaybackFeature/Model/PlaybackState.swift,
+				PlaybackFeature/Model/UnmetCapability.swift,
 				PlaybackFeature/PlaybackAudioSession.swift,
 				PlaybackFeature/PlaybackLaunchCoordinator.swift,
 				PlaybackFeature/PlaybackLaunchRequest.swift,
 				PlaybackFeature/PlaybackMediaMetadataService.swift,
 				PlaybackPresentation/Model/CinemaEnvironment.swift,
+				PlaybackPresentation/Model/PlaybackPanelExpansion.swift,
 				PlaybackPresentation/Model/PlaybackPresentation.swift,
 				PlaybackPresentation/Model/PlaybackPresentationSettlementPhase.swift,
 				PlaybackPresentation/Model/PlaybackSurfacePlacement.swift,
@@ -241,6 +253,21 @@
 		D00000130000000000D0A1A1 /* Tests/EnchronDomainSupport */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests/EnchronDomainSupport;
+			sourceTree = "<group>";
+		};
+		D00000140000000000D0A1A1 /* Tests/PlaybackPresentationTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests/PlaybackPresentationTests;
+			sourceTree = "<group>";
+		};
+		D00000160000000000D0A1A1 /* Tests/EnchronAppLogicTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests/EnchronAppLogicTests;
+			sourceTree = "<group>";
+		};
+		D00000170000000000D0A1A1 /* Tests/MediaSourceTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests/MediaSourceTests;
 			sourceTree = "<group>";
 		};
 		D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */ = {
@@ -300,6 +327,7 @@
 				D00000330000000000D0A1A1 /* PlaybackFeature in Frameworks */,
 				D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */,
 				D00000350000000000D0A1A1 /* DesignSystem in Frameworks */,
+				D00000360000000000D0A1A1 /* PlaybackPresentation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -341,6 +369,9 @@
 				D00000110000000000D0A1A1 /* Tests/EmbyPackageTests */,
 				D00000120000000000D0A1A1 /* Tests/PlaybackFeaturePackageTests */,
 				D00000130000000000D0A1A1 /* Tests/EnchronDomainSupport */,
+				D00000140000000000D0A1A1 /* Tests/PlaybackPresentationTests */,
+				D00000160000000000D0A1A1 /* Tests/EnchronAppLogicTests */,
+				D00000170000000000D0A1A1 /* Tests/MediaSourceTests */,
 				D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */,
 				C3B0F9812F5726B30064596E /* Products */,
 				C38F115C2FC16A0700843A5C /* Recovered References */,
@@ -443,12 +474,16 @@
 			buildRules = (
 			);
 			dependencies = (
+				D00000070000000000D0A1A1 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D00000100000000000D0A1A1 /* Tests/MediaLibraryPackageTests */,
 				D00000110000000000D0A1A1 /* Tests/EmbyPackageTests */,
 				D00000120000000000D0A1A1 /* Tests/PlaybackFeaturePackageTests */,
 				D00000130000000000D0A1A1 /* Tests/EnchronDomainSupport */,
+				D00000140000000000D0A1A1 /* Tests/PlaybackPresentationTests */,
+				D00000160000000000D0A1A1 /* Tests/EnchronAppLogicTests */,
+				D00000170000000000D0A1A1 /* Tests/MediaSourceTests */,
 				D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */,
 			);
 			name = EnchronDomainTests;
@@ -459,6 +494,7 @@
 				D00000230000000000D0A1A1 /* PlaybackFeature */,
 				D00000240000000000D0A1A1 /* PlaybackCore */,
 				D00000250000000000D0A1A1 /* DesignSystem */,
+				D00000260000000000D0A1A1 /* PlaybackPresentation */,
 			);
 			productName = EnchronDomainTests;
 			productReference = D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */;
@@ -639,6 +675,11 @@
 				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
 			);
 			inputPaths = (
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
@@ -659,7 +700,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\npython3 \"$SRCROOT/Scripts/verification/verify_format_description_ownership.py\"\n";
 		};
 		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -671,6 +712,11 @@
 				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
 			);
 			inputPaths = (
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
@@ -691,7 +737,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\npython3 \"$SRCROOT/Scripts/verification/verify_format_description_ownership.py\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -734,6 +780,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		D00000070000000000D0A1A1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C3B0F97F2F5726B30064596E /* Enchron */;
+			targetProxy = D00000080000000000D0A1A1 /* PBXContainerItemProxy */;
+		};
 		E2E0000700000000DEADBEEF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C3B0F97F2F5726B30064596E /* Enchron */;
@@ -994,18 +1045,21 @@
 		D00000090000000000D0A1A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = JFLYK8F636;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -package-name enchron_emby";
+				OTHER_SWIFT_FLAGS = "$(inherited) -package-name $(SRCROOT:base:identifier)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.EnchronDomainTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchron.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Enchron";
+				TEST_TARGET_NAME = Enchron;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Debug;
@@ -1013,18 +1067,21 @@
 		D000000A0000000000D0A1A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = JFLYK8F636;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -package-name enchron_emby";
+				OTHER_SWIFT_FLAGS = "$(inherited) -package-name $(SRCROOT:base:identifier)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.EnchronDomainTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchron.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Enchron";
+				TEST_TARGET_NAME = Enchron;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Release;
@@ -1260,6 +1317,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = DesignSystem;
+		};
+		D00000260000000000D0A1A1 /* PlaybackPresentation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
+			productName = PlaybackPresentation;
 		};
 		E10000022FA1000100E1C001 /* MediaSource */ = {
 			isa = XCSwiftPackageProductDependency;

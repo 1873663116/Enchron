@@ -21,6 +21,8 @@ struct FusedPlayerPanelLive {
     var projection: PlaybackModel.ProjectionType
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
+    var usesDolbyVisionFallback: Bool = false
+    var showsDolbyVisionFallback: Bool = false
     var mediaFormatSummary: String? = nil
     /// Present when the source describes the title beyond its filename. A local file
     /// has none and an Emby item does, which is what makes the information well
@@ -54,9 +56,11 @@ struct FusedPlayerPanelLive {
     var onApplyFormat: (
         PlaybackModel.ProjectionType,
         Int?,
-        PlaybackModel.StereoLayout
+        PlaybackModel.StereoLayout,
+        Bool
     ) -> Void
     var onRestoreAutomaticFormat: () -> Void
+    var onReachabilityAction: (String) -> Void = { _ in }
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -70,6 +74,16 @@ enum PlaybackSeekPresentation {
 
     static func clampedTarget(_ progress: CGFloat) -> CGFloat {
         min(max(progress, 0), 1)
+    }
+
+    static func target(
+        at locationX: CGFloat,
+        travelWidth: CGFloat,
+        thumbDiameter: CGFloat
+    ) -> CGFloat {
+        guard travelWidth > 0 else { return 0 }
+        let leadingThumbCenter = thumbDiameter / 2
+        return clampedTarget((locationX - leadingThumbCenter) / travelWidth)
     }
 
     static func elapsedSeconds(
@@ -210,6 +224,7 @@ struct FusedPlayerPanel: View {
                 horizontalFieldOfViewDegrees: live?.horizontalFieldOfViewDegrees
                     ?? PanoramaHorizontalCoverage.defaultCustomAngle,
                 stereoLayout: live?.stereoLayout ?? .mono,
+                usesDolbyVisionFallback: live?.usesDolbyVisionFallback ?? false,
                 beginsEditing: initialExpansion == .settings
                     && resolvedSurface == .playerControlDock
                     && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
@@ -243,6 +258,7 @@ struct FusedPlayerPanel: View {
                 projection: live.projection,
                 horizontalFieldOfViewDegrees: live.horizontalFieldOfViewDegrees,
                 stereoLayout: live.stereoLayout,
+                usesDolbyVisionFallback: live.usesDolbyVisionFallback,
                 beginsEditing: initialExpansion == .settings
                     && surface == .playerControlDock
                     && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
@@ -296,11 +312,12 @@ struct FusedPlayerPanel: View {
     @State private var placementTrackWidth: CGFloat = 280
     @Namespace private var hoverNamespace
 
-    private enum ScrubberActivation {
+    private enum ScrubberActivation: Equatable {
         case idle
         case activating
         case unlocked
         case seeking
+        case trackSeeking(target: CGFloat)
         case cancelled
     }
 
@@ -353,6 +370,17 @@ struct FusedPlayerPanel: View {
         .enchronGlassBackground(in: shape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
+#if DEBUG
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest,
+                  let live else {
+                return
+            }
+            handleDebugMenuSelection(request, live: live)
+        }
+#endif
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .enchronScrubSensoryFeedback(
             pressTrigger: scrubFeedbackTrigger,
@@ -480,6 +508,7 @@ struct FusedPlayerPanel: View {
                 identifier: "ScreenSize",
                 onChange: { value in
                     onInteraction()
+                    live.onReachabilityAction("slider.ScreenSize")
                     live.onSetScreenScale(value)
                 }
             )
@@ -493,6 +522,7 @@ struct FusedPlayerPanel: View {
                 identifier: "Distance",
                 onChange: { value in
                     onInteraction()
+                    live.onReachabilityAction("slider.Distance")
                     live.onSetScreenDistance(value)
                 }
             )
@@ -506,6 +536,7 @@ struct FusedPlayerPanel: View {
                 identifier: "Elevation",
                 onChange: { value in
                     onInteraction()
+                    live.onReachabilityAction("slider.Elevation")
                     live.onSetScreenElevation(value)
                 }
             )
@@ -513,6 +544,7 @@ struct FusedPlayerPanel: View {
                 Spacer()
                 Button("Restore Defaults") {
                     onInteraction()
+                    live.onReachabilityAction("dockedPlacement.reset")
                     live.onResetDockedPlacement()
                 }
                 .buttonStyle(.borderless)
@@ -545,13 +577,18 @@ struct FusedPlayerPanel: View {
             projection: $videoFormatEditing.projection,
             horizontalFieldOfViewDegrees: $videoFormatEditing.horizontalFieldOfViewDegrees,
             stereoLayout: $videoFormatEditing.stereoLayout,
+            usesDolbyVisionFallback: $videoFormatEditing.usesDolbyVisionFallback,
             canApplyFormat: live.canApplyFormat,
             mediaFormatProvenance: live.mediaFormatProvenance,
             sourceMediaFormatSummary: live.sourceMediaFormatSummary,
+            showsDolbyVisionFallback: live.showsDolbyVisionFallback,
             identifierPrefix: "PlayerPanel-VideoFormat",
             onCancel: cancelVideoFormatEditing,
             onApply: applyVideoFormatEditing,
-            onRestoreAutomaticFormat: restoreAutomaticFormat
+            onRestoreAutomaticFormat: restoreAutomaticFormat,
+            onReachabilityAction: { action in
+                live.onReachabilityAction("videoFormat.\(action)")
+            }
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-VideoFormat")
@@ -564,7 +601,8 @@ struct FusedPlayerPanel: View {
             horizontalFieldOfViewDegrees: live.projection == .customAngle
                 ? live.horizontalFieldOfViewDegrees
                 : nil,
-            stereoLayout: live.stereoLayout
+            stereoLayout: live.stereoLayout,
+            usesDolbyVisionFallback: live.usesDolbyVisionFallback
         )
     }
 
@@ -587,7 +625,8 @@ struct FusedPlayerPanel: View {
         live.onApplyFormat(
             selection.projection,
             selection.horizontalFieldOfViewDegrees,
-            selection.stereoLayout
+            selection.stereoLayout,
+            selection.usesDolbyVisionFallback
         )
     }
 
@@ -746,7 +785,7 @@ struct FusedPlayerPanel: View {
     /// A mark the wearer cannot open is worse than no mark, so anything the well
     /// would show when expanded also makes it expandable.
     private var mediaInformationIsExpandable: Bool {
-        live?.overview?.isEmpty == false || persistentCapabilities.isEmpty == false
+        live != nil
     }
 
     private var mediaInformationAccessibilityValue: String {
@@ -807,15 +846,18 @@ struct FusedPlayerPanel: View {
             .padding(DesignTokens.Spacing.xl)
         }
         .frame(width: clusterWidth, height: 420)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
 
     private func toggleMediaInformation() {
         if expansion.isShowing(.mediaInformation) {
             changeExpansion(to: .collapsed)
+            live?.onReachabilityAction("mediaInformation.close")
         } else {
             guard mediaInformationIsExpandable else { return }
             changeExpansion(to: .mediaInformation)
+            live?.onReachabilityAction("mediaInformation.open")
         }
         onInteraction()
     }
@@ -1096,19 +1138,19 @@ struct FusedPlayerPanel: View {
 
     @ViewBuilder
     private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
-        if !live.subtitleItems.isEmpty {
-            Menu("Subtitles") {
-                liveMenuItems(live.subtitleItems, category: "subtitle")
+        Group {
+            if !live.subtitleItems.isEmpty {
+                Menu("Subtitles") {
+                    liveMenuItems(live.subtitleItems, category: "subtitle")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
             }
-            .accessibilityIdentifier("PlayerPanel-menu-subtitles")
-        }
-        if !live.audioItems.isEmpty {
-            Menu("Audio Track") {
-                liveMenuItems(live.audioItems, category: "audio")
+            if !live.audioItems.isEmpty {
+                Menu("Audio Track") {
+                    liveMenuItems(live.audioItems, category: "audio")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-audio")
             }
-            .accessibilityIdentifier("PlayerPanel-menu-audio")
-        }
-        Section("Playback Settings") {
             Menu("Playback Speed") {
                 liveMenuItems(live.speedItems, category: "speed")
             }
@@ -1120,6 +1162,9 @@ struct FusedPlayerPanel: View {
                 .accessibilityIdentifier("PlayerPanel-menu-episodes")
             }
         }
+        .onAppear {
+            live.onReachabilityAction("menu.more")
+        }
     }
 
     @ViewBuilder
@@ -1127,23 +1172,65 @@ struct FusedPlayerPanel: View {
         _ items: [DeckMenuItem],
         category: String
     ) -> some View {
-        Picker("", selection: liveSelection(items)) {
-            ForEach(items) { item in
-                Text(item.title)
-                    .tag(item.id)
-                    .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
+        ForEach(items) { item in
+            Button {
+                guard let live else { return }
+                activateMenuItem(item, live: live)
+            } label: {
+                if item.isSelected {
+                    Label(item.title, systemImage: "checkmark")
+                } else {
+                    Text(item.title)
+                }
             }
+            .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
         }
-        .pickerStyle(.inline)
-        .labelsHidden()
+        .onAppear {
+            live?.onReachabilityAction("menu.\(category)")
+        }
     }
 
-    private func liveSelection(_ items: [DeckMenuItem]) -> Binding<String> {
-        Binding(
-            get: { items.first(where: \.isSelected)?.id ?? "" },
-            set: { id in items.first(where: { $0.id == id })?.action() }
+    private func activateMenuItem(
+        _ item: DeckMenuItem,
+        live: FusedPlayerPanelLive
+    ) {
+        live.onReachabilityAction("menu.item.\(item.id)")
+        item.action()
+    }
+
+#if DEBUG
+    private func handleDebugMenuSelection(
+        _ request: DebugMenuSelectionRequest,
+        live: FusedPlayerPanelLive
+    ) {
+        let items: [DeckMenuItem]
+        switch request.family {
+        case .subtitles:
+            items = live.subtitleItems
+        case .audio:
+            items = live.audioItems
+        case .speed:
+            items = live.speedItems
+        case .episodes:
+            items = live.episodeItems
+        default:
+            return
+        }
+        guard items.isEmpty == false else { return }
+        request.handle(
+            host: .playerPanel,
+            family: request.family,
+            items: items.map { item in
+                DebugMenuSelectionItem(
+                    id: item.id,
+                    title: item.title,
+                    isSelected: item.isSelected,
+                    select: { activateMenuItem(item, live: live) }
+                )
+            }
         )
     }
+#endif
 
     private func menuOption(_ title: String) -> some View {
         Button {} label: { Text(title) }
@@ -1233,7 +1320,7 @@ struct FusedPlayerPanel: View {
 
     private var trackScale: CGFloat {
         switch scrubberActivation {
-        case .activating, .unlocked, .seeking:
+        case .activating, .unlocked, .seeking, .trackSeeking:
             return 1
         case .idle, .cancelled:
             return DesignTokens.ProgressBar.inactiveScale
@@ -1298,7 +1385,10 @@ struct FusedPlayerPanel: View {
                 )
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverActivation(in: hoverActivationGroup)
         .contentShape(.interaction, Capsule())
+        .onHover { isProgressHovered = $0 }
         .gesture(dragGesture(width: width, thumbX: thumbX))
     }
 
@@ -1306,7 +1396,6 @@ struct FusedPlayerPanel: View {
         Color.clear
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
             .contentShape(.interaction, Capsule())
-            .onHover { isProgressHovered = $0 }
             .accessibilityElement(children: .ignore)
             .accessibilityIdentifier("PlayerPanel-progress")
             .accessibilityLabel("Playback position")
@@ -1434,7 +1523,13 @@ struct FusedPlayerPanel: View {
                 case .idle:
                     guard isThumbHit(value.startLocation, thumbX: thumbX) else {
                         lastScrubberPress = nil
-                        scrubberActivation = .cancelled
+                        scrubberActivation = .trackSeeking(
+                            target: PlaybackSeekPresentation.target(
+                                at: value.startLocation.x,
+                                travelWidth: width,
+                                thumbDiameter: DesignTokens.ProgressBar.thumbDiameter
+                            )
+                        )
                         return
                     }
                     beginScrubberActivation(at: value.location)
@@ -1453,12 +1548,15 @@ struct FusedPlayerPanel: View {
                         forTranslation: value.location.x - seekOrigin.x,
                         width: width
                     )
+                case .trackSeeking:
+                    return
                 case .cancelled:
                     return
                 }
             }
             .onEnded { value in
-                if scrubberActivation == .seeking {
+                switch scrubberActivation {
+                case .seeking:
                     lastScrubberPress = nil
                     let target = PlaybackSeekPresentation.clampedTarget(progress)
                     // 先锁存目标,再释放 dragging;否则 SwiftUI 可能先镜像
@@ -1467,10 +1565,16 @@ struct FusedPlayerPanel: View {
                     scrubReleaseTrigger += 1
                     endScrubbing()
                     live?.onSeek(target)
-                } else if scrubberActivation == .activating {
+                case .activating:
                     completeShortScrubberPress(at: value.location, time: value.time)
                     resetScrubberActivation()
-                } else {
+                case .trackSeeking(let target):
+                    progress = target
+                    armPendingSeek(for: target)
+                    live?.onSeek(target)
+                    onInteraction()
+                    resetScrubberActivation()
+                case .idle, .unlocked, .cancelled:
                     resetScrubberActivation()
                 }
             }
@@ -1586,6 +1690,7 @@ struct FusedPlayerPanel: View {
         progress = target
         armPendingSeek(for: target)
         live?.onSeek(target)
+        live?.onReachabilityAction("progress.adjust")
         onInteraction()
     }
 
@@ -1598,6 +1703,7 @@ struct FusedPlayerPanel: View {
         }
         timelineFeedbackTrigger += 1
         changeExpansion(to: .timeline)
+        live?.onReachabilityAction("precisionTimeline.open")
         onInteraction()
     }
 
@@ -1616,6 +1722,7 @@ struct FusedPlayerPanel: View {
         if expansion.isShowing(.settings) {
             videoFormatEditing.discard()
             changeExpansion(to: .collapsed)
+            live?.onReachabilityAction("settings.close")
         } else {
             if PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
                 for: presentation
@@ -1627,6 +1734,7 @@ struct FusedPlayerPanel: View {
                 videoFormatEditing.beginEditing()
             }
             changeExpansion(to: .settings)
+            live?.onReachabilityAction("settings.open")
         }
         onInteraction()
     }

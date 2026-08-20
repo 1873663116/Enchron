@@ -16,8 +16,9 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let collectionOrigin: MediaCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
     public let accessLease: MediaAccessLease?
+    public let byteStreamHandle: MediaByteStreamHandle?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
-    public let externalSubtitleErrorMessage: String?
+    public let externalSubtitleResolutionFailed: Bool
 
     public init(
         id: UUID,
@@ -28,8 +29,9 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         collectionOrigin: MediaCollectionOrigin,
         versionedIdentity: VersionedMediaIdentity? = nil,
         accessLease: MediaAccessLease? = nil,
+        byteStreamHandle: MediaByteStreamHandle? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil
+        externalSubtitleResolutionFailed: Bool = false
     ) {
         self.id = id
         self.url = url
@@ -39,8 +41,9 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
         self.accessLease = accessLease
+        self.byteStreamHandle = byteStreamHandle
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
@@ -52,7 +55,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
             && lhs.collectionOrigin == rhs.collectionOrigin
             && lhs.versionedIdentity == rhs.versionedIdentity
             && lhs.externalSubtitleSources == rhs.externalSubtitleSources
-            && lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage
+            && lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed
     }
 }
 

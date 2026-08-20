@@ -21,6 +21,15 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
   --output-directory <dir> app-command --verb toggleControls
 ```
 
+## 证据
+
+| 种类 | 判据 | 谁守 |
+|---|---|---|
+| 结构 | `showControls` 是唯一状态；沉浸态不开关 Window Scene | `verify_playback_surface_structure.py` |
+| 物理 | 窗口态 chrome 回到层级；沉浸态探针出现 visible 翻转且无 Window Scene 操作 | 真机 |
+| 物理 | 隐藏后残留语义节点报告 `isHittable=false` | 真机 |
+| 感知 | 注视加捏合召唤是否跟手 | **待做**，合成输入不带该语义，只有佩戴者能验 |
+
 ## 证明的终态
 
 窗口模式下，chrome 元素回到层级。沉浸模式下，探针先出现 `immersiveControlsAttachment firstPoseApplied`。显示和隐藏分别出现 `immersiveControlsAttachment visible=true` 与 `visible=false`，期间没有 Window Scene 操作。显示时，层级包含 `PlayerPanel-controls`、播放、快退、快进、进度、退出和设置等原有 `PlayerPanel-*` 标识。visionOS 可能在隐藏后保留语义节点，但节点必须报告 `isHittable=false`。

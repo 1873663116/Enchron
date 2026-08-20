@@ -488,9 +488,24 @@ public final class FileBrowsingViewModel {
             collectionOrigin: .sourceDirectory,
             versionedIdentity: versionedIdentity,
             accessLease: sourceAccess,
+            byteStreamHandle: resolvedSource.byteStreamHandle,
             externalSubtitleSources: externalSubtitles.sources,
-            externalSubtitleErrorMessage: externalSubtitles.errorMessage
+            externalSubtitleResolutionFailed: externalSubtitles.hadFailures
         )
+    }
+
+    public func artworkURL(for file: FileBrowsingDomain.MediaFile) -> URL? {
+        let identity: MediaIdentity?
+        if let dataSource = activeDataSource {
+            identity = .remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path
+            )
+        } else {
+            identity = VersionedMediaIdentity.localIdentity(file.url)
+        }
+        guard let identity else { return nil }
+        return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
     }
 
     private func resolvedExternalSubtitleSources(
@@ -503,11 +518,12 @@ public final class FileBrowsingViewModel {
         do {
             listedFiles = try await provider.listSubtitleFiles(at: directoryPath)
         } catch {
+            logger.error(
+                "external subtitle discovery failed error=\(error.localizedDescription, privacy: .public)"
+            )
             return ExternalSubtitleResolution(
                 sources: [],
-                failureMessages: [
-                    "Could not inspect the source directory for subtitle files: \(error.localizedDescription)"
-                ]
+                hadFailures: true
             )
         }
         let candidates = ExternalSubtitleAssociation.matching(
@@ -515,13 +531,16 @@ public final class FileBrowsingViewModel {
             subtitleFiles: listedFiles
         )
         var sources: [ResolvedExternalSubtitleSource] = []
-        var failureMessages: [String] = []
+        var hadFailures = false
         for candidate in candidates {
             let resolved: ResolvedMediaSource
             do {
                 resolved = try await provider.resolveSubtitleSource(for: candidate)
             } catch {
-                failureMessages.append("\(candidate.name): \(error.localizedDescription)")
+                hadFailures = true
+                logger.error(
+                    "external subtitle resolution failed source=\(candidate.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
                 continue
             }
             let versionedIdentity = externalSubtitleIdentity(
@@ -540,13 +559,14 @@ public final class FileBrowsingViewModel {
                     url: resolved.url,
                     displayName: candidate.name,
                     versionedIdentity: versionedIdentity,
-                    accessLease: resolved.accessLease
+                    accessLease: resolved.accessLease,
+                    byteStreamHandle: resolved.byteStreamHandle
                 )
             )
         }
         return ExternalSubtitleResolution(
             sources: sources,
-            failureMessages: failureMessages
+            hadFailures: hadFailures
         )
     }
 

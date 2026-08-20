@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "knownExemptions": [
+    {
+      "id": "prores-limited-range-default",
+      "declaration": {
+        "codec_name": "prores",
+        "color_range": "tv"
+      },
+      "field": "full_range",
+      "expected": "0",
+      "actual": "none",
+      "count": 8,
+      "reason": "CoreMedia defines an omitted FullRangeVideo extension as false for YCbCr-based compressed formats, so ProRes limited range uses the platform default.",
+      "evidence": "Xcode beta5 XROS27.0 SDK CMFormatDescription.h, kCMFormatDescriptionExtension_FullRangeVideo declaration"
+    },
+    {
+      "id": "prores-frame-matrix",
+      "declaration": {
+        "codec_name": "prores",
+        "color_space": "bt709"
+      },
+      "field": "matrix",
+      "expected": "ITU_R_709_2",
+      "actual": "none",
+      "count": 5,
+      "reason": "The ProRes matrix value comes from each compressed frame header; CoreMedia source format descriptions omit this per-frame value from the stream-level format description.",
+      "evidence": "FFmpeg libavcodec/proresdec.c decode_frame_header lines 174-266; identity corpus output records the CoreMedia omission"
+    },
+    {
+      "id": "h264-unspecified-range-default",
+      "declaration": {
+        "codec_name": "h264",
+        "color_range": null
+      },
+      "field": "full_range",
+      "expected": "none",
+      "actual": "0",
+      "count": 1,
+      "reason": "CoreMedia's H.264 parameter-set constructor materializes the documented limited-range default when the SPS omits a range declaration.",
+      "evidence": "Xcode beta5 XROS27.0 SDK CMFormatDescription.h FullRangeVideo default; identity corpus output records the H.264 constructor result"
+    }
+  ],
+  "knownCapabilityBoundaries": [
+    {
+      "id": "unsupported-prores-raw",
+      "declaration": {
+        "codec_name": "prores_raw"
+      },
+      "errorContains": "Unsupported codec: prores_raw is not available for compressed sample rendering on this device",
+      "count": 1,
+      "reason": "The current device cannot render ProRes RAW compressed samples.",
+      "evidence": "PlaybackFFmpegBridge.c compressed_codec_is_renderable gate and exact reader error"
+    },
+    {
+      "id": "unsupported-mpeg4-part-2",
+      "declaration": {
+        "codec_name": "mpeg4"
+      },
+      "errorContains": "Unsupported codec: mpeg4 is not available for compressed sample rendering on this device",
+      "count": 1,
+      "reason": "The current device cannot render MPEG-4 Part 2 compressed samples.",
+      "evidence": "PlaybackFFmpegBridge.c compressed_codec_is_renderable gate and exact reader error"
+    }
+  ]
+}
