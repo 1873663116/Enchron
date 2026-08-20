@@ -11,8 +11,14 @@ final class CertificateTrustPrompt {
 
     private var queue: [PendingRequest] = []
     private var active: PendingRequest?
+    private var isPreparingPresentation = false
+    private let modalPresentationCoordinator: AppModalPresentationCoordinator
 
     var certificate: ServerCertificateInfo? { active?.certificate }
+
+    init(modalPresentationCoordinator: AppModalPresentationCoordinator) {
+        self.modalPresentationCoordinator = modalPresentationCoordinator
+    }
 
     func requestApproval(for certificate: ServerCertificateInfo) async -> Bool {
         await withCheckedContinuation { continuation in
@@ -29,7 +35,20 @@ final class CertificateTrustPrompt {
     }
 
     private func presentNextIfNeeded() {
-        guard active == nil, queue.isEmpty == false else { return }
-        active = queue.removeFirst()
+        guard active == nil,
+              isPreparingPresentation == false,
+              queue.isEmpty == false else { return }
+        isPreparingPresentation = true
+        Task { [weak self] in
+            guard let self else { return }
+            await modalPresentationCoordinator
+                .dismissPresentedModalBeforePresentingNext()
+            guard active == nil, queue.isEmpty == false else {
+                isPreparingPresentation = false
+                return
+            }
+            active = queue.removeFirst()
+            isPreparingPresentation = false
+        }
     }
 }

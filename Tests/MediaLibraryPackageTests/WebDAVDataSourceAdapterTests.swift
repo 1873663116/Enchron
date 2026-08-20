@@ -232,6 +232,33 @@ struct WebDAVDataSourceAdapterTests {
         }
     }
 
+    @Test("WebDAV reports when an HTTP endpoint accepts TLS")
+    func HTTPServerRequiringHTTPS() async throws {
+        WebDAVTestURLProtocol.setHandler { _ in
+            throw URLError(.cannotConnectToHost)
+        }
+        defer { WebDAVTestURLProtocol.setHandler(nil) }
+
+        let adapter = WebDAVDataSourceAdapter(
+            session: Self.makeSession(),
+            failureDiagnoser: RemoteConnectionFailureDiagnoser { _ in true }
+        )
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "media.local:5006",
+            username: "viewer"
+        )
+
+        await #expect(throws: RemoteConnectionError.self) {
+            try await adapter.connect(with: info)
+        }
+        guard case .failed(let message) = adapter.connectionStatus else {
+            Issue.record("WebDAV adapter should remain failed after HTTP diagnosis")
+            return
+        }
+        #expect(message == RemoteConnectionError.requiresHTTPS.localizedDescription)
+    }
+
     private static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [WebDAVTestURLProtocol.self]

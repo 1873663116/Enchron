@@ -17,13 +17,16 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
 
     private let session: URLSession
     private let clientIdentity: EmbyClientIdentity
+    private let failureDiagnoser: RemoteConnectionFailureDiagnoser
 
     public init(
         session: URLSession = MediaSourceNetwork.shared.session,
-        clientIdentity: EmbyClientIdentity
+        clientIdentity: EmbyClientIdentity,
+        failureDiagnoser: RemoteConnectionFailureDiagnoser = .live
     ) {
         self.session = session
         self.clientIdentity = clientIdentity
+        self.failureDiagnoser = failureDiagnoser
     }
 
     public func publicSystemInfo(at address: URL) async throws -> EmbyPublicSystemInfo {
@@ -43,31 +46,48 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         username: String,
         password: String
     ) async throws -> EmbyAuthenticatedServer {
-        try await MediaSourceNetwork.shared.withConnectionApproval(to: address) { [self] in
-            let systemInfo = try await publicSystemInfo(at: address)
-            let body = try Self.makeEncoder().encode(AuthenticationRequest(username: username, pw: password))
-            let request = try request(
-                address: address,
-                path: "/Users/AuthenticateByName",
-                method: "POST",
-                body: body
-            )
-            let data = try await data(for: request)
-            let result = try Self.makeDecoder().decode(AuthenticationResultDTO.self, from: data)
-            guard let token = result.accessToken, token.isEmpty == false else {
-                throw EmbyError.missingRequiredField("AccessToken")
+        do {
+            return try await MediaSourceNetwork.shared.withConnectionApproval(
+                to: address
+            ) { [self] in
+                let systemInfo = try await publicSystemInfo(at: address)
+                let body = try Self.makeEncoder().encode(
+                    AuthenticationRequest(username: username, pw: password)
+                )
+                let request = try request(
+                    address: address,
+                    path: "/Users/AuthenticateByName",
+                    method: "POST",
+                    body: body
+                )
+                let data = try await data(for: request)
+                let result = try Self.makeDecoder().decode(
+                    AuthenticationResultDTO.self,
+                    from: data
+                )
+                guard let token = result.accessToken, token.isEmpty == false else {
+                    throw EmbyError.missingRequiredField("AccessToken")
+                }
+                guard let userID = result.user?.id, userID.isEmpty == false else {
+                    throw EmbyError.missingRequiredField("User.Id")
+                }
+                let serverID = result.serverId.flatMap { $0.isEmpty ? nil : $0 }
+                    ?? systemInfo.id.rawValue
+                return EmbyAuthenticatedServer(
+                    id: EmbyServerID(rawValue: serverID),
+                    name: systemInfo.serverName,
+                    baseAddress: try normalizedAddress(address),
+                    accessToken: token,
+                    userID: EmbyUserID(rawValue: userID)
+                )
             }
-            guard let userID = result.user?.id, userID.isEmpty == false else {
-                throw EmbyError.missingRequiredField("User.Id")
+        } catch {
+            switch await failureDiagnoser.diagnose(error, attemptedURL: address) {
+            case .requiresHTTPS:
+                throw RemoteConnectionError.requiresHTTPS
+            case .unclassified:
+                throw error
             }
-            let serverID = result.serverId.flatMap { $0.isEmpty ? nil : $0 } ?? systemInfo.id.rawValue
-            return EmbyAuthenticatedServer(
-                id: EmbyServerID(rawValue: serverID),
-                name: systemInfo.serverName,
-                baseAddress: try normalizedAddress(address),
-                accessToken: token,
-                userID: EmbyUserID(rawValue: userID)
-            )
         }
     }
 

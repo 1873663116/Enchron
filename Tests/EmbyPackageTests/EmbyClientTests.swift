@@ -88,6 +88,26 @@ struct EmbyClientTests {
         #expect(json == ["Username": "Cortisol", "Pw": "secret"])
     }
 
+    @Test("authentication reports when an HTTP endpoint accepts TLS")
+    func authenticationServerRequiringHTTPS() async throws {
+        MockURLProtocol.setHandler { _ in
+            throw URLError(.cannotConnectToHost)
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let client = makeClient(
+            failureDiagnoser: RemoteConnectionFailureDiagnoser { _ in true }
+        )
+        let address = try #require(URL(string: "http://media.local:8096"))
+
+        await #expect(throws: RemoteConnectionError.self) {
+            try await client.authenticate(
+                address: address,
+                username: "Cortisol",
+                password: "secret"
+            )
+        }
+    }
+
     @Test("item queries send typed sorting and parse supported item variants")
     func itemQuery() async throws {
         let recorder = RequestRecorder()
@@ -540,7 +560,9 @@ struct EmbyClientTests {
         )
     }
 
-    private func makeClient() -> EmbyClient {
+    private func makeClient(
+        failureDiagnoser: RemoteConnectionFailureDiagnoser = .live
+    ) -> EmbyClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         return EmbyClient(
@@ -550,7 +572,8 @@ struct EmbyClientTests {
                 version: "1",
                 deviceName: "Tests",
                 deviceID: "tests"
-            )
+            ),
+            failureDiagnoser: failureDiagnoser
         )
     }
 

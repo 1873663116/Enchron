@@ -10,6 +10,8 @@ struct SettingsScreen: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SettingsViewModel.self) private var viewModel
+    @Environment(AppModalPresentationCoordinator.self)
+    private var modalPresentationCoordinator
     @State private var selectedCategoryID: String = Category.playback.rawValue
     @State private var artworkUsageInBytes: Int64 = 0
     @State private var containerIndexUsageInBytes: Int64 = 0
@@ -71,7 +73,11 @@ struct SettingsScreen: View {
             )
 #endif
         }
-        .sheet(isPresented: $showsLicenses) {
+        .sequencedSheet(
+            isPresented: $showsLicenses,
+            coordinator: modalPresentationCoordinator,
+            id: .openSourceLicenses
+        ) {
             OpenSourceLicensesView()
         }
     }

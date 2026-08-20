@@ -226,6 +226,21 @@ class ConnectionFormInventoryTests(unittest.TestCase):
             expected,
         )
 
+    def test_certificate_decisions_are_both_operations(self) -> None:
+        operations = {
+            operation["id"]
+            for operation in inventory.build_inventory()["operations"]
+        }
+
+        self.assertIn(
+            "accessibility:FileBrowsing-CertificateTrust-trust",
+            operations,
+        )
+        self.assertIn(
+            "accessibility:FileBrowsing-CertificateTrust-cancel",
+            operations,
+        )
+
 
 class DebugMenuEquivalentInventoryTests(unittest.TestCase):
     @classmethod

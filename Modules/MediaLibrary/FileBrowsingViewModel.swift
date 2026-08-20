@@ -264,6 +264,9 @@ public final class FileBrowsingViewModel {
     }
 
     private static func friendlyErrorMessage(for error: Error) -> String {
+        if let connectionError = error as? RemoteConnectionError {
+            return connectionError.localizedDescription
+        }
         if let webDAVError = error as? WebDAVError {
             switch webDAVError {
             case .requestFailed(let code) where code == 401 || code == 403:

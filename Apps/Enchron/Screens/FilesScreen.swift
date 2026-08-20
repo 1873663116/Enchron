@@ -84,14 +84,13 @@ struct FilesScreen: View {
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @Environment(MediaLibraryViewModel.self) private var mediaLibrary
     @Environment(MediaLibraryUIState.self) private var uiState
+    @Environment(AppModalPresentationCoordinator.self)
+    private var modalPresentationCoordinator
 
     @State private var sourceItems: [SidebarSourceItem] = []
     @State private var presentedSourceConnection: SourceConnectionKind?
-    @State private var sourceConnectionName = ""
-    @State private var sourceConnectionAddress = ""
-    @State private var sourceConnectionUsername = ""
-    @State private var sourceConnectionPassword = ""
-    @State private var sourceConnectionConnectsAsGuest = false
+    @State private var sourceConnectionDraft = SourceConnectionDraft()
+    @State private var sourceConnectionDraftKind: SourceConnectionKind?
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderToRename: FileBrowsingDomain.LibraryFolder?
@@ -233,43 +232,51 @@ struct FilesScreen: View {
             handleDebugMenuSelection(request)
         }
 #endif
-        .sheet(item: $presentedSourceConnection) { kind in
-            ConnectionFormPanel(
-                kind: kind,
-                name: $sourceConnectionName,
-                address: $sourceConnectionAddress,
-                username: $sourceConnectionUsername,
-                password: $sourceConnectionPassword,
-                connectsAsGuest: $sourceConnectionConnectsAsGuest,
-                accessibilityIdentifierPrefix: kind == .smb
-                    ? "FileBrowsing-SourceConnection-smb"
-                    : "FileBrowsing-SourceConnection-webDAV",
-                guestAccessibilityIdentifier: "FileBrowsing-SourceConnection-smb-guest",
-                onConnect: connect,
-                onCancel: {
-                    recordReachability(
-                        "sourceConnection.\(kind.rawValue).cancel"
-                    )
-                    dismissSourceConnection()
-                },
-                onConnected: dismissSourceConnection
-            )
-            .onChange(of: sourceConnectionName) { _, _ in
-                recordReachability("sourceConnection.\(kind.rawValue).name")
+        .sequencedSheet(
+            item: $presentedSourceConnection,
+            coordinator: modalPresentationCoordinator,
+            id: .sourceConnection,
+            onDismiss: {
+                sourceConnectionDraft.clearAfterDismissal()
+            },
+            content: { kind in
+                ConnectionFormPanel(
+                    kind: kind,
+                    name: $sourceConnectionDraft.name,
+                    address: $sourceConnectionDraft.address,
+                    username: $sourceConnectionDraft.username,
+                    password: $sourceConnectionDraft.password,
+                    connectsAsGuest: $sourceConnectionDraft.connectsAsGuest,
+                    accessibilityIdentifierPrefix: kind == .smb
+                        ? "FileBrowsing-SourceConnection-smb"
+                        : "FileBrowsing-SourceConnection-webDAV",
+                    guestAccessibilityIdentifier: "FileBrowsing-SourceConnection-smb-guest",
+                    onConnect: connect,
+                    onCancel: {
+                        recordReachability(
+                            "sourceConnection.\(kind.rawValue).cancel"
+                        )
+                        dismissSourceConnection()
+                    },
+                    onConnected: completeSourceConnection
+                )
+                .onChange(of: sourceConnectionDraft.name) { _, _ in
+                    recordReachability("sourceConnection.\(kind.rawValue).name")
+                }
+                .onChange(of: sourceConnectionDraft.address) { _, _ in
+                    recordReachability("sourceConnection.\(kind.rawValue).address")
+                }
+                .onChange(of: sourceConnectionDraft.username) { _, _ in
+                    recordReachability("sourceConnection.\(kind.rawValue).username")
+                }
+                .onChange(of: sourceConnectionDraft.password) { _, _ in
+                    recordReachability("sourceConnection.\(kind.rawValue).password")
+                }
+                .onChange(of: sourceConnectionDraft.connectsAsGuest) { _, _ in
+                    recordReachability("sourceConnection.\(kind.rawValue).guest")
+                }
             }
-            .onChange(of: sourceConnectionAddress) { _, _ in
-                recordReachability("sourceConnection.\(kind.rawValue).address")
-            }
-            .onChange(of: sourceConnectionUsername) { _, _ in
-                recordReachability("sourceConnection.\(kind.rawValue).username")
-            }
-            .onChange(of: sourceConnectionPassword) { _, _ in
-                recordReachability("sourceConnection.\(kind.rawValue).password")
-            }
-            .onChange(of: sourceConnectionConnectsAsGuest) { _, _ in
-                recordReachability("sourceConnection.\(kind.rawValue).guest")
-            }
-        }
+        )
         .alert("New Library Folder", isPresented: $isCreatingFolder) {
             TextField(
                 "Folder name",
@@ -473,7 +480,10 @@ struct FilesScreen: View {
     private func presentConnection(for sourceType: FileBrowsingDomain.SourceType) {
         switch sourceType.presentation {
         case .serverConnection:
-            resetSourceConnectionFields()
+            if sourceConnectionDraftKind != sourceType {
+                sourceConnectionDraft = SourceConnectionDraft()
+                sourceConnectionDraftKind = sourceType
+            }
             presentedSourceConnection = sourceType
         case .photoPicker:
             requestPhotosAccessAndPresentPicker()
@@ -488,15 +498,13 @@ struct FilesScreen: View {
         isFileImporterPresented = true
     }
 
-    private func resetSourceConnectionFields() {
-        sourceConnectionName = ""
-        sourceConnectionAddress = ""
-        sourceConnectionUsername = ""
-        sourceConnectionPassword = ""
-        sourceConnectionConnectsAsGuest = false
+    private func dismissSourceConnection() {
+        presentedSourceConnection = nil
     }
 
-    private func dismissSourceConnection() {
+    private func completeSourceConnection() {
+        sourceConnectionDraft.clearAfterSuccessfulConnection()
+        sourceConnectionDraftKind = nil
         presentedSourceConnection = nil
     }
 
@@ -527,6 +535,7 @@ struct FilesScreen: View {
                   viewModel.lastErrorMessage == nil
             else {
                 let message = viewModel.lastErrorMessage ?? "Connection failed."
+                viewModel.dismissCurrentError()
                 return message.localizedCaseInsensitiveContains("timed out")
                     ? .timedOut(message: message)
                     : .failed(message: message)

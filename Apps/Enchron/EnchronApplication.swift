@@ -53,6 +53,7 @@ final class EnchronApplication {
     let mediaLibraryUIState: MediaLibraryUIState
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
+    let modalPresentationCoordinator: AppModalPresentationCoordinator
     let certificateTrustPrompt: CertificateTrustPrompt
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
 
@@ -146,7 +147,10 @@ final class EnchronApplication {
                 try ArtworkStore.shared.store($1, for: ArtworkKey(remoteImageURL: $0))
             }
         )
-        let certificateTrustPrompt = CertificateTrustPrompt()
+        let modalPresentationCoordinator = AppModalPresentationCoordinator()
+        let certificateTrustPrompt = CertificateTrustPrompt(
+            modalPresentationCoordinator: modalPresentationCoordinator
+        )
         ServerTrustPolicy.shared.approvalHandler = { [weak certificateTrustPrompt] certificate in
             await certificateTrustPrompt?.requestApproval(for: certificate) ?? false
         }
@@ -362,6 +366,7 @@ final class EnchronApplication {
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
         self.certificateTrustPrompt = certificateTrustPrompt
+        self.modalPresentationCoordinator = modalPresentationCoordinator
     }
 
     static func mediaStateSuiteName(
@@ -457,6 +462,7 @@ extension View {
             .environment(application.mediaLibraryUIState)
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
+            .environment(application.modalPresentationCoordinator)
             .environment(application.certificateTrustPrompt)
     }
 }
