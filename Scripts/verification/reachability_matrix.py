@@ -638,9 +638,11 @@ def validated_reachable_cell(
 def reachability_action_was_delivered(
     probe: list[str], action: str, *, offset: int
 ) -> bool:
+    # The action ends the line. Interpolated names nest (menu.item.<id> under
+    # menu.<category>), so a substring match would read the child as the parent.
+    written = f" delivered action={action}"
     return any(
-        "reachability " in line
-        and f" delivered action={action}" in line
+        "reachability " in line and line.rstrip().endswith(written)
         for line in probe[offset:]
     )
 

@@ -1806,5 +1806,23 @@ class CompletionHonestyTests(unittest.TestCase):
         return directory.name
 
 
+
+class ReachabilityActionMatching(unittest.TestCase):
+    def test_a_longer_action_does_not_answer_for_a_shorter_one(self) -> None:
+        probe = ["reachability top actions delivered action=dock.openMenu"]
+        self.assertFalse(
+            matrix.reachability_action_was_delivered(
+                probe, "dock.open", offset=0
+            )
+        )
+
+    def test_a_nested_name_does_not_answer_for_its_parent(self) -> None:
+        probe = ["reachability player panel delivered action=menu.item.abc"]
+        self.assertFalse(
+            matrix.reachability_action_was_delivered(
+                probe, "menu.item", offset=0
+            )
+        )
+
 if __name__ == "__main__":
     unittest.main()
