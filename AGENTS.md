@@ -17,6 +17,13 @@ XcodeBuildMCP 工具承担 Xcode IDE 的缺口：SwiftPM、代码覆盖率、mac
 
 两者都由 Xcode 工具链 `mcpbridge` 提供，无需 Xcode 图形界面运行。
 
+## 构建产物
+
+- SwiftPM 构建默认落在 `.build/`，无需干预。
+- `xcodebuild` 一律显式传 `-derivedDataPath .scratch/<日期>-<主题>/DerivedData`；缺省时会写到 `~/Library/Developer/Xcode/DerivedData`。
+- 探针输出、xcresult、日志等一切临时文件只落 `.scratch/<日期>-<主题>/`（或系统 TMPDIR），不落卷根、`$HOME` 或仓库其他位置。
+- 需要长期保存的验收证据移入 `docs/archive/acceptance/evidence/<主题>-<日期>/` 并附 manifest；其余临时产物在会话结束前删除，或运行 `zsh Scripts/scratch-prune.zsh` 清理超过保留期（默认 14 天）的条目。
+
 ## 验证
 
 涉及佩戴者所见画面、物理音频、性能等结论需要物理 Vision Pro，读取 `.claude/skills/visionpro-xcuitest`。visionOS 真机的 UI 自动化只有该 skill 的 XCUITest 控制器一条通道；Xcode 的 Device Interaction 工具在 visionOS 上不可用，只支持 iOS 与 watchOS 模拟器。 

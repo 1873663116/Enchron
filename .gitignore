@@ -17,6 +17,9 @@ __pycache__/
 .swiftpm/
 **/.swiftpm/
 
+# Session scratch: probes, DerivedData, logs (see AGENTS.md 构建产物)
+.scratch/
+
 # Xcode local build output
 build/
 **/xcuserdata/
