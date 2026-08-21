@@ -12,6 +12,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -45,6 +46,7 @@ APP_BUNDLE = "com.xiongzhipeng.XrPlayer"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
+UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
 SEGMENT_SCENARIO_NAMES = {
     "browser-core",
     "breadcrumbs",
@@ -128,6 +130,22 @@ DEFERRED_MENU_TARGETS = {
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def refuse_when_detached() -> None:
+    """This run holds the device's only resident runner for its whole duration, which
+    is exactly the resource a step-at-a-time investigation needs. Detached there is
+    also nobody reading the verdicts it produces while it holds it. `nohup … &` leaves
+    the process reparented to pid 1, so that is the condition to refuse."""
+    if os.getppid() != 1:
+        return
+    raise SystemExit(
+        "reachability_matrix was started detached. It holds the device's only "
+        "resident runner, so nothing else can drive the device until it finishes, "
+        "and no one is reading its verdicts while it does. Run it in the foreground, "
+        "or drive the operation units one at a time: "
+        "python3 Scripts/verification/journey_units.py list"
+    )
 
 
 def redact_sensitive_values(value: object, values: tuple[str, ...]) -> object:
@@ -1011,11 +1029,12 @@ class ReachabilityRun:
                     "reportsHittable": False,
                     "applicationReceived": False,
                     "verdict": "known-defect",
-                    "reason": "The first-run fixture has not produced delivery evidence.",
+                    "reason": UNMEASURED_REASON,
                     "evidence": [],
                 }
 
     def controller(self, action: str, *extra: str, timeout: float = 180.0) -> dict[str, Any]:
+        refuse_when_detached()
         if self.segment is not None and self.channel_failures and action != "halt":
             document = {
                 "success": False,
@@ -6491,10 +6510,16 @@ class ReachabilityRun:
                 for cell in ordered_cells
             ]
             prior_events = list(prior.get("events", []))
+        unmeasured = sum(
+            cell.get("reason") == UNMEASURED_REASON for cell in ordered_cells
+        )
+        if status == "complete" and unmeasured:
+            status = "incomplete"
         summary = {
             verdict: sum(cell["verdict"] == verdict for cell in ordered_cells)
             for verdict in ("reachable", "known-defect")
         }
+        summary["unmeasured"] = unmeasured
         result = {
             "schemaVersion": 3,
             "generatedAt": utc_now(),
@@ -6737,6 +6762,7 @@ def configure_segment(arguments: argparse.Namespace) -> None:
 
 
 def main() -> int:
+    refuse_when_detached()
     arguments = parse_arguments()
     if arguments.merge_segments:
         if arguments.segment_plan is not None or arguments.segment is not None:

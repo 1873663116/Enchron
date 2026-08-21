@@ -1734,5 +1734,55 @@ class SegmentedDeliveryTests(unittest.TestCase):
         )
 
 
+class DetachedRunTests(unittest.TestCase):
+    def test_refuses_to_drive_the_device_once_orphaned(self) -> None:
+        with patch.object(matrix.os, "getppid", return_value=1):
+            with self.assertRaises(SystemExit) as raised:
+                matrix.refuse_when_detached()
+
+        self.assertIn("started detached", str(raised.exception))
+
+    def test_allows_a_run_whose_launching_shell_is_still_present(self) -> None:
+        with patch.object(matrix.os, "getppid", return_value=4242):
+            matrix.refuse_when_detached()
+
+
+class CompletionHonestyTests(unittest.TestCase):
+    def test_a_cell_the_run_never_visited_denies_the_complete_status(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.output = Path(self.enterDirectory())
+        run.arguments = Mock(contexts=list(matrix.PROOF_CONTEXTS))
+        run.events = []
+        run.cells = {
+            ("main-window-browser", "accessibility:measured"): {
+                "context": "main-window-browser",
+                "operation": "accessibility:measured",
+                "verdict": "reachable",
+                "reason": "Delivery observed.",
+            },
+            ("docked", "accessibility:never-visited"): {
+                "context": "docked",
+                "operation": "accessibility:never-visited",
+                "verdict": "known-defect",
+                "reason": matrix.UNMEASURED_REASON,
+            },
+        }
+        run.operations = {
+            "accessibility:measured": {},
+            "accessibility:never-visited": {},
+        }
+
+        run.finish("complete")
+
+        written = json.loads((run.output / "results.json").read_text(encoding="utf-8"))
+        self.assertEqual(written["status"], "incomplete")
+        self.assertEqual(written["summary"]["unmeasured"], 1)
+
+    def enterDirectory(self) -> str:
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        return directory.name
+
+
 if __name__ == "__main__":
     unittest.main()
