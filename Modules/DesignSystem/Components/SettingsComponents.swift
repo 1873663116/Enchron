@@ -1192,16 +1192,19 @@ struct SettingListGroupRow: View {
                 if options.isEmpty {
                     Text("No Options")
                 } else {
-                    // The row's current value is one of these options, so the menu is a selection and
-                    // a Picker states it: the system marks the current row with a checkmark on the
-                    // trailing edge. Plain buttons show no mark at all, and a hand-built one lands in
-                    // front of the title and pushes every title right.
-                    Picker(title, selection: menuSelection(title: title, options: options)) {
-                        ForEach(options) { option in
-                            Text(option.title).tag(option.title)
+                    ForEach(options) { option in
+                        MenuSelectionRow(
+                            option.title,
+                            isSelected: (selectedMenuTitle ?? title) == option.title,
+                            // Not "Settings-menu-…", which would be
+                            // indistinguishable from the host row of a setting
+                            // whose own id happens to contain a hyphen.
+                            identifier: "Settings-menuOption-\(id)-\(option.id)"
+                        ) {
+                            selectedMenuTitle = option.title
+                            option.action()
                         }
                     }
-                    .pickerStyle(.inline)
                 }
             } label: {
                 SettingListActionChip(

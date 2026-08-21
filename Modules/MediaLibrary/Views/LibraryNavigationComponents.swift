@@ -14,20 +14,13 @@ struct PathBreadcrumbMenu: View {
 
     var body: some View {
         Menu {
-            // Picker checkmarks the current level (last) on the trailing edge,
-            // natively. Selecting any other level routes through `onSelectLevel`.
-            Picker(
-                "Path",
-                selection: Binding(
-                    get: { path.count - 1 },
-                    set: { onSelectLevel($0) }
-                )
-            ) {
-                ForEach(Array(path.enumerated()), id: \.offset) { index, _ in
-                    Text(pathPrefix(through: index)).tag(index)
-                }
+            ForEach(Array(path.enumerated()), id: \.offset) { index, _ in
+                MenuSelectionRow(
+                    pathPrefix(through: index),
+                    isSelected: index == path.count - 1,
+                    identifier: "\(accessibilityIdentifier)-level-\(index)"
+                ) { onSelectLevel(index) }
             }
-            .pickerStyle(.inline)
         } label: {
             Text(currentFolder)
                 .font(.body)

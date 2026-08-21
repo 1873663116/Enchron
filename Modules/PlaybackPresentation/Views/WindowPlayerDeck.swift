@@ -399,32 +399,32 @@ struct ProductionPlaybackMoreMenu: View {
             Group {
                 if !subtitleItems.isEmpty {
                     Menu("Subtitles") {
-                        selectableMenuItems(subtitleItems)
-                            .onAppear {
-                                recordReachability("menu.subtitles")
-                            }
+                        selectableMenuItems(
+                            subtitleItems,
+                            category: "subtitles"
+                        )
+                        .onAppear {
+                            recordReachability("menu.subtitles")
+                        }
                     }
                     .accessibilityIdentifier("PlayerUI-menu-subtitles")
                     .disabled(playbackRuntime.mediaKind == .audioOnly)
                 }
                 if !audioItems.isEmpty {
-                    menuSection(
-                        "Audio Track",
-                        items: audioItems,
-                        accessibilityIdentifier: "PlayerUI-menu-audio"
-                    )
+                    Menu("Audio Track") {
+                        selectableMenuItems(audioItems, category: "audio")
+                    }
+                    .accessibilityIdentifier("PlayerUI-menu-audio")
                 }
-                menuSection(
-                    "Playback Speed",
-                    items: speedItems,
-                    accessibilityIdentifier: "PlayerUI-menu-speed"
-                )
+                Menu("Playback Speed") {
+                    selectableMenuItems(speedItems, category: "speed")
+                }
+                .accessibilityIdentifier("PlayerUI-menu-speed")
                 if !episodeItems.isEmpty {
-                    menuSection(
-                        "Episodes",
-                        items: episodeItems,
-                        accessibilityIdentifier: "PlayerUI-menu-episodes"
-                    )
+                    Menu("Episodes") {
+                        selectableMenuItems(episodeItems, category: "episodes")
+                    }
+                    .accessibilityIdentifier("PlayerUI-menu-episodes")
                 }
             }
             .onAppear {
@@ -445,37 +445,20 @@ struct ProductionPlaybackMoreMenu: View {
     }
 
     @ViewBuilder
-    private func menuSection(
-        _ title: String,
-        items: [DeckMenuItem],
-        accessibilityIdentifier: String
+    private func selectableMenuItems(
+        _ items: [DeckMenuItem],
+        category: String
     ) -> some View {
-        Menu(title) {
-            selectableMenuItems(items)
-        }
-        .accessibilityIdentifier(accessibilityIdentifier)
-    }
-
-    @ViewBuilder
-    private func selectableMenuItems(_ items: [DeckMenuItem]) -> some View {
-        Picker("", selection: selection(items)) {
-            ForEach(items) { item in
-                Text(item.title)
-                    .tag(item.id)
+        ForEach(items) { item in
+            MenuSelectionRow(
+                item.title,
+                isSelected: item.isSelected,
+                identifier: "PlayerUI-menu-\(category)-\(item.id)"
+            ) {
+                recordReachability("menu.item.\(item.id)")
+                item.action()
             }
         }
-        .pickerStyle(.inline)
-        .labelsHidden()
-    }
-
-    private func selection(_ items: [DeckMenuItem]) -> Binding<String> {
-        Binding(
-            get: { items.first(where: \.isSelected)?.id ?? "" },
-            set: { id in
-                recordReachability("menu.item.\(id)")
-                items.first(where: { $0.id == id })?.action()
-            }
-        )
     }
 
 #if DEBUG
@@ -505,7 +488,8 @@ struct ProductionPlaybackMoreMenu: View {
                     title: item.title,
                     isSelected: item.isSelected,
                     select: {
-                        selection(items).wrappedValue = item.id
+                        recordReachability("menu.item.\(item.id)")
+                        item.action()
                     }
                 )
             }

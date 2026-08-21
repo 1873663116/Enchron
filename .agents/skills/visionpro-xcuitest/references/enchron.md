@@ -75,9 +75,20 @@ label 为 "Play button on a TV, filled" 的图标是导航栏 Emby 页签（iden
 
 播放控制面板前缀是 `PlayerPanel-`（play、forward 等），与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是佩戴者专属（200ms 稳定按住的状态机）。More 菜单里 Subtitles 有 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目无 identifier，按 label 命中，且菜单活不过两次往返，读 tap 自身返回的层级。同名条目（如两条 `und · aac · 2ch` 音轨）用 `--label` 加 `--index` 组合。
 
-SwiftUI 只在系统容器把内容提升为一等 action 时保留 `.accessibilityIdentifier`，否则丢弃。2026-08-21 真机双向确认：`.alert` 里的 Button 保留 identifier（`MediaLibrary-NewFolder-create` 在层级中），同一 alert 里的 TextField 丢弃（源码声明了 `MediaLibrary-NewFolder-name`，层级里只剩 `placeholderValue`）；`Menu` 里的 Button 保留（Settings 五个菜单宿主），`Menu` 里 inline `Picker` 的 `Text` 行丢弃（给排序菜单五行逐个加 identifier 后重建，层级完全不变）。因此这两类元素只能按 label 或 placeholder 命中，给它们加 identifier 是无效改动。控制器的 `element(for:)` 早已支持 `--label`，`textInputElement` 现在也依次尝试 identifier、label、placeholderValue。排序菜单按 `--label "Date Modified"` 命中并真实改变选中项。
+SwiftUI 只在系统容器把内容提升为一等 action 时保留 `.accessibilityIdentifier`。2026-08-21 在同一构建上逐项实测：
 
-面包屑 `MediaLibrary-Breadcrumb-current` 打开的层级菜单，其行同样只有 label（"Media Library"、"Media Library / Unit Folder"）。
+| 位置 | 构造 | identifier |
+|---|---|---|
+| `.alert` | `Button` | 保留 |
+| `.alert` | `TextField` | 丢弃（只剩 `placeholderValue`） |
+| `Menu` | `Button` | 保留 |
+| `Menu` | inline `Picker` 的 `Text` 行 | 丢弃 |
+| `Menu` | `Toggle` 行 | 丢弃 |
+| `Menu` 里的 `Section` | 其中任何行 | 丢弃 |
+
+自定义 `View` 包装（如 `MenuSelectionRow`）与自定义菜单宿主（如 `GlassCircleIconMenu`）都不影响保留，同一菜单内三变体对照确认。因此菜单行一律写成 `Button` 且不得包在 `Section` 里，分组用 `Divider()`；代价是对勾落在标题前并把标题推右。`Modules/DesignSystem/Components/MenuSelectionRow.swift` 是唯一正确写法，新菜单直接用它。
+
+alert 里的 TextField 无法补救，只能按 label 或 placeholder 命中。控制器的 `element(for:)` 早已支持 `--label`，`textInputElement` 现在也依次尝试 identifier、label、placeholderValue。
 
 `typeText` 优先带 `--identifier`：runner 解析目标元素后自己先 tap 再输入。系统容器丢弃 identifier 的字段改带 `--label`（值取 placeholder，如 `--label "Folder name"`）；两者都不带时返回"无匹配元素"，字段保持为空且没有别的失败信号。SMB 连接表单可全程合成驱动，使用 `FileBrowsing-SourceConnection-smb-` 前缀；WebDAV 使用 `FileBrowsing-SourceConnection-webDAV-` 前缀。字段与按钮的完整集合以 [远程来源特性](../features/remote-source-connection.md) 为准。首次凭据连接后系统弹"保存密码?"对话框，`tap --label '以后'` 可以合成关掉，不属于必须佩戴者的权限 Scene。从播放器退出后浏览位置回到 Media Library 根，重进远程目录要从侧栏重走。
 

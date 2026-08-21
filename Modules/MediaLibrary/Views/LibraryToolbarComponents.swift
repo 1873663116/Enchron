@@ -22,6 +22,22 @@ struct SortMenuButton: View {
     // 锁死:图标恒 .secondary,不暴露。
     private let iconColor: Color = .secondary
 
+    private func keyRow(_ title: String, _ key: SortMenuKey, _ id: String) -> some View {
+        MenuSelectionRow(
+            title,
+            isSelected: sortKey == key,
+            identifier: "\(accessibilityIdentifier)-\(id)"
+        ) { sortKey = key }
+    }
+
+    private func orderRow(_ title: String, _ order: SortMenuOrder, _ id: String) -> some View {
+        MenuSelectionRow(
+            title,
+            isSelected: sortOrder == order,
+            identifier: "\(accessibilityIdentifier)-\(id)"
+        ) { sortOrder = order }
+    }
+
     var body: some View {
         GlassCircleIconMenu(
             systemName: "arrow.up.arrow.down",
@@ -29,21 +45,16 @@ struct SortMenuButton: View {
             accessibilityIdentifier: accessibilityIdentifier,
             iconColor: iconColor
         ) {
-            // Picker renders the selected row with a system checkmark on the
-            // trailing edge — the native menu idiom. A hand-rolled
-            // `Label(systemImage: "checkmark")` forced the mark to the leading
-            // edge, shoving the title right.
-            Picker("Sort By", selection: $sortKey) {
-                Text("Name").tag(SortMenuKey.name)
-                Text("Date Modified").tag(SortMenuKey.modifiedDate)
-                Text("Size").tag(SortMenuKey.size)
-            }
-            .pickerStyle(.inline)
+            // A Section swallows the identifiers of every row inside it, so the
+            // two groups are separated by a divider instead. Measured on device.
+            keyRow("Name", .name, "name")
+            keyRow("Date Modified", .modifiedDate, "modifiedDate")
+            keyRow("Size", .size, "size")
 
-            Picker("Order", selection: $sortOrder) {
-                Text("Ascending").tag(SortMenuOrder.ascending)
-                Text("Descending").tag(SortMenuOrder.descending)
-            }
+            Divider()
+
+            orderRow("Ascending", .ascending, "ascending")
+            orderRow("Descending", .descending, "descending")
         }
         .accessibilityLabel("Sort")
 #if DEBUG

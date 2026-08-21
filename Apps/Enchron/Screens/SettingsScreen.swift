@@ -131,9 +131,9 @@ struct SettingsScreen: View {
                 title: "Resume Playback",
                 systemName: "play.circle",
                 accessory: .menu(title: resumeTitle, options: [
-                    SettingListGroup.MenuOption("Ask Every Time") { setResume(.askEveryTime) },
-                    SettingListGroup.MenuOption("Always Resume") { setResume(.alwaysResume) },
-                    SettingListGroup.MenuOption("Always Start Over") { setResume(.alwaysStartFromBeginning) }
+                    SettingListGroup.MenuOption("Ask Every Time", id: "askEveryTime") { setResume(.askEveryTime) },
+                    SettingListGroup.MenuOption("Always Resume", id: "alwaysResume") { setResume(.alwaysResume) },
+                    SettingListGroup.MenuOption("Always Start Over", id: "alwaysStartFromBeginning") { setResume(.alwaysStartFromBeginning) }
                 ])
             ),
             SettingListGroup.Item(
@@ -141,9 +141,9 @@ struct SettingsScreen: View {
                 title: "End of Playback",
                 systemName: "flag.checkered",
                 accessory: .menu(title: endBehaviorTitle, options: [
-                    SettingListGroup.MenuOption("Stop") { setEnd(.stop) },
-                    SettingListGroup.MenuOption("Loop Single Episode") { setEnd(.repeatOne) },
-                    SettingListGroup.MenuOption("Play Next") { setEnd(.playNext) }
+                    SettingListGroup.MenuOption("Stop", id: "stop") { setEnd(.stop) },
+                    SettingListGroup.MenuOption("Loop Single Episode", id: "repeatOne") { setEnd(.repeatOne) },
+                    SettingListGroup.MenuOption("Play Next", id: "playNext") { setEnd(.playNext) }
                 ])
             ),
             SettingListGroup.Item(
@@ -154,7 +154,7 @@ struct SettingsScreen: View {
                     title: defaultScenicEnvironment.displayName,
                     options: SpatialSceneDomain.CinemaEnvironment.scenicEnvironments.map {
                         environment in
-                        SettingListGroup.MenuOption(environment.displayName) {
+                        SettingListGroup.MenuOption(environment.displayName, id: environment.rawValue) {
                             setDefaultScenicEnvironment(environment)
                         }
                     }
@@ -167,7 +167,7 @@ struct SettingsScreen: View {
                 accessory: .menu(
                     title: speedTitle(viewModel.preferences.defaultPlaybackSpeed),
                     options: PlaybackModel.PlaybackSpeed.allCases.map { speed in
-                        SettingListGroup.MenuOption(speedTitle(speed.value)) {
+                        SettingListGroup.MenuOption(speedTitle(speed.value), id: "\(speed.value)") {
                             viewModel.update { $0.defaultPlaybackSpeed = speed.value }
                             recordMenuReachability("default-speed")
                         }
@@ -179,10 +179,10 @@ struct SettingsScreen: View {
                 title: "Controls Auto-Hide",
                 systemName: "timer",
                 accessory: .menu(title: autoHideTitle, options: [
-                    SettingListGroup.MenuOption("5 Seconds") { setAutoHide(5) },
-                    SettingListGroup.MenuOption("8 Seconds") { setAutoHide(8) },
-                    SettingListGroup.MenuOption("15 Seconds") { setAutoHide(15) },
-                    SettingListGroup.MenuOption("Never") { setAutoHide(0) }
+                    SettingListGroup.MenuOption("5 Seconds", id: "5") { setAutoHide(5) },
+                    SettingListGroup.MenuOption("8 Seconds", id: "8") { setAutoHide(8) },
+                    SettingListGroup.MenuOption("15 Seconds", id: "15") { setAutoHide(15) },
+                    SettingListGroup.MenuOption("Never", id: "never") { setAutoHide(0) }
                 ])
             )
         ]

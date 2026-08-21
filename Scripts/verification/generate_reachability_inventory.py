@@ -751,9 +751,9 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "button",
             "-tab-",
             "-tab",
-            "-menu-",
+            "-menu",
+            "dockmenu-",
             "-topaction-",
-            "-dockmenu-",
             "-effect-",
             "-source-",
             "-row-",
@@ -1128,6 +1128,7 @@ def presentation_derivation(
             "PlayerUI-menu-audio",
             "PlayerUI-menu-speed",
             "PlayerUI-menu-episodes",
+            "PlayerUI-menu-{category}-{item.id}",
         }:
             source = required_source_location(
                 documents,

@@ -554,6 +554,11 @@ UNITS: tuple[Unit, ...] = (
             ),
             real(
                 "tap",
+                "FileBrowsing-FilesScreen-sort-modifiedDate",
+                expect="Grid re-sorts by modified date and the row is checked.",
+            ),
+            real(
+                "tap",
                 "FileBrowsing-FilesScreen-viewMode",
                 expect="Grid switches between layouts.",
             ),
@@ -857,8 +862,7 @@ UNITS: tuple[Unit, ...] = (
             ),
             real(
                 "tap",
-                "",
-                label="Always Ask",
+                "Settings-menuOption-resume-strategy-askEveryTime",
                 expect="Menu closes and the row shows the chosen value.",
             ),
             real(
@@ -867,28 +871,45 @@ UNITS: tuple[Unit, ...] = (
                 covers=("menu:settings:default-speed",),
                 expect="Default speed menu opens.",
             ),
-            real("tap", "", label="1.25x", expect="Row shows the chosen speed."),
+            real(
+                "tap",
+                "Settings-menuOption-default-speed-1.25",
+                expect="Row shows the chosen speed.",
+            ),
             real(
                 "tap",
                 "Settings-menu-controls-auto-hide",
                 covers=("menu:settings:controls-auto-hide",),
                 expect="Auto-hide menu opens.",
             ),
-            real("tap", "", label="Never", expect="Row shows the chosen value."),
+            real(
+                "tap",
+                "Settings-menuOption-controls-auto-hide-never",
+                expect="Row shows the chosen value.",
+            ),
             real(
                 "tap",
                 "Settings-menu-default-scenic-environment",
                 covers=("menu:settings:default-scenic-environment",),
                 expect="Environment menu opens.",
             ),
-            real("tap", "", label="Mount Hood", expect="Row shows the chosen value."),
+            real(
+                "tap",
+                "Settings-menuOption-default-scenic-environment-{environment.rawValue}",
+                label="Mount Hood",
+                expect="Row shows the chosen value.",
+            ),
             real(
                 "tap",
                 "Settings-menu-end-behavior",
                 covers=("menu:settings:end-behavior",),
                 expect="End behaviour menu opens.",
             ),
-            real("tap", "", label="Play Next", expect="Row shows the chosen value."),
+            real(
+                "tap",
+                "Settings-menuOption-end-behavior-playNext",
+                expect="Row shows the chosen value.",
+            ),
             setup("relaunch", expect="App restarts."),
             evidence(
                 "snapshot",
@@ -1256,7 +1277,7 @@ UNITS: tuple[Unit, ...] = (
             ),
             real(
                 "tap",
-                "",
+                "PlayerUI-menu-audio-{item.id}",
                 label="FLAC",
                 expect="Selected track changes and playback keeps advancing.",
             ),
@@ -1268,7 +1289,7 @@ UNITS: tuple[Unit, ...] = (
             ),
             real(
                 "tap",
-                "",
+                "PlayerUI-menu-subtitles-{item.id}",
                 label="English",
                 expect="Subtitles appear and playback keeps advancing.",
             ),

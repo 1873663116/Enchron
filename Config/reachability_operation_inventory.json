@@ -457,7 +457,7 @@
           "path": "Modules/DesignSystem/Components/InputComponents.swift"
         },
         {
-          "line": 81,
+          "line": 74,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],
@@ -488,6 +488,27 @@
         }
       ],
       "template": "DesignPreview-menu-sort"
+    },
+    {
+      "action": "activate",
+      "family": "DesignPreview",
+      "role": "operation",
+      "scope": "component-default",
+      "sources": [
+        {
+          "line": 20,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        },
+        {
+          "line": 29,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        },
+        {
+          "line": 37,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        }
+      ],
+      "template": "DesignPreview-menu-sort-{id}"
     },
     {
       "action": "activate",
@@ -951,7 +972,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 53,
+          "line": 46,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],
@@ -1132,11 +1153,32 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 53,
+          "line": 64,
           "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
         }
       ],
       "template": "FileBrowsing-FilesScreen-sort"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 705,
+          "path": "Apps/Enchron/Screens/FilesScreen.swift"
+        },
+        {
+          "line": 29,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        },
+        {
+          "line": 37,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-sort-{id}"
     },
     {
       "action": "activate",
@@ -1851,7 +1893,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 54,
+          "line": 47,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],
@@ -2973,7 +3015,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 414,
+          "line": 417,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -2986,7 +3028,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 426,
+          "line": 427,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -2999,7 +3041,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 420,
+          "line": 422,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3012,11 +3054,24 @@
       "scope": "product",
       "sources": [
         {
-          "line": 407,
+          "line": 410,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
       "template": "PlayerUI-menu-subtitles"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 456,
+          "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-menu-{category}-{item.id}"
     },
     {
       "action": null,
@@ -3129,7 +3184,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 677,
+          "line": 661,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3142,7 +3197,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 660,
+          "line": 644,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3155,7 +3210,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 667,
+          "line": 651,
           "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3402,11 +3457,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1245,
+          "line": 1248,
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         },
         {
-          "line": 1287,
+          "line": 1290,
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         }
       ],
@@ -3423,7 +3478,7 @@
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         },
         {
-          "line": 150,
+          "line": 143,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],
@@ -3436,11 +3491,24 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1232,
+          "line": 1235,
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         }
       ],
       "template": "Settings-menu-{id}"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1202,
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menuOption-{id}-{option.id}"
     },
     {
       "action": null,
@@ -4042,6 +4110,25 @@
       },
       "id": "accessibility:FileBrowsing-FilesScreen-sort",
       "identifierTemplate": "FileBrowsing-FilesScreen-sort",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 415,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-sort-{id}",
+      "identifierTemplate": "FileBrowsing-FilesScreen-sort-{id}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
@@ -6155,6 +6242,30 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:PlayerUI-menu-{category}-{item.id}",
+      "identifierTemplate": "PlayerUI-menu-{category}-{item.id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowPlaybackTopChromeMoreControl",
+        "sources": [
+          {
+            "line": 62,
+            "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift"
+          },
+          {
+            "line": 24,
+            "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "portal"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:PlayerUI-playbackIssue-confirm",
       "identifierTemplate": "PlayerUI-playbackIssue-confirm",
       "kind": "activate",
@@ -6384,6 +6495,25 @@
     {
       "id": "accessibility:Settings-menu-{id}",
       "identifierTemplate": "Settings-menu-{id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 445,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-menuOption-{id}-{option.id}",
+      "identifierTemplate": "Settings-menuOption-{id}-{option.id}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",

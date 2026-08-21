@@ -418,7 +418,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
       "unit": "files.chrome",
-      "step": 6,
+      "step": 7,
       "drive": "real",
       "expect": "Browser returns to the previous location."
     },
@@ -426,7 +426,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
       "unit": "files.chrome",
-      "step": 7,
+      "step": 8,
       "drive": "real",
       "expect": "Browser returns forward."
     },
@@ -442,7 +442,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-sidebarToggle",
       "unit": "files.chrome",
-      "step": 5,
+      "step": 6,
       "drive": "real",
       "expect": "Sidebar hides and shows."
     },
@@ -456,9 +456,17 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sort-{id}",
       "unit": "files.chrome",
       "step": 4,
+      "drive": "real",
+      "expect": "Grid re-sorts by modified date and the row is checked."
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-viewMode",
+      "unit": "files.chrome",
+      "step": 5,
       "drive": "real",
       "expect": "Grid switches between layouts."
     },
@@ -904,6 +912,14 @@
     },
     {
       "context": "main-window-browser",
+      "operation": "accessibility:Settings-menuOption-{id}-{option.id}",
+      "unit": "settings.menus",
+      "step": 3,
+      "drive": "real",
+      "expect": "Menu closes and the row shows the chosen value."
+    },
+    {
+      "context": "main-window-browser",
       "operation": "command:listMenuItems",
       "status": "exempt",
       "reason": "Read-only. It reports which track is selected and asserts nothing about reachability, so it is evidence rather than an operation."
@@ -966,7 +982,7 @@
       "context": "main-window-browser",
       "operation": "scroll:file-list",
       "unit": "files.chrome",
-      "step": 8,
+      "step": 9,
       "drive": "real",
       "expect": "File list scrolls. The identifier is mandatory: a bare swipe degrades to the Application element and tears the session down."
     },
@@ -1336,6 +1352,14 @@
     },
     {
       "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-{category}-{item.id}",
+      "unit": "playback.tracks",
+      "step": 2,
+      "drive": "real",
+      "expect": "Selected track changes and playback keeps advancing."
+    },
+    {
+      "context": "portal",
       "operation": "accessibility:PlayerUI-playbackIssue-confirm",
       "unit": "issues.playback-surfaces",
       "step": 6,
@@ -1623,6 +1647,14 @@
       "step": 3,
       "drive": "real",
       "expect": "Subtitle list opens."
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-{category}-{item.id}",
+      "unit": "playback.tracks",
+      "step": 2,
+      "drive": "real",
+      "expect": "Selected track changes and playback keeps advancing."
     },
     {
       "context": "window",
