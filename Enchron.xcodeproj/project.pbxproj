@@ -133,6 +133,7 @@
 				DesignSystem/Components/CollapsibleBlock.swift,
 				DesignSystem/Components/GridCard.swift,
 				DesignSystem/Components/InputComponents.swift,
+				DesignSystem/Components/MenuSelectionRow.swift,
 				DesignSystem/Components/SettingsComponents.swift,
 				DesignSystem/Components/SidebarRow.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,

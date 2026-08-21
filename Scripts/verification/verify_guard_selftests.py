@@ -49,6 +49,55 @@ def create_membership_fixture(root: Path, defect: dict[str, object]) -> list[str
     return ["--root", str(root)]
 
 
+# Path.rglob does not descend into symlinked directories, so a fixture that
+# symlinks whole directories reads as an empty tree to the guards that scan it.
+def mirror_tree(source: Path, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    for entry in sorted(source.rglob("*")):
+        mirrored = destination / entry.relative_to(source)
+        if entry.is_dir():
+            mirrored.mkdir(exist_ok=True)
+        else:
+            os.symlink(entry, mirrored)
+
+
+def create_app_layer_reference_fixture(
+    root: Path,
+    defect: dict[str, object],
+) -> list[str]:
+    entry = defect.get("entry")
+    if not isinstance(entry, str):
+        raise ValueError("fixture needs the Modules-relative source to spoil")
+    spoiled = Path(entry)
+    original = REPOSITORY_ROOT / "Modules" / spoiled
+    if not original.is_file():
+        raise ValueError(f"fixture source does not exist: {original}")
+
+    (root / "Apps").mkdir()
+    (root / "Config").mkdir()
+    os.symlink(REPOSITORY_ROOT / "Apps/Enchron", root / "Apps/Enchron")
+    os.symlink(REPOSITORY_ROOT / "Apps/DesignPreview", root / "Apps/DesignPreview")
+    os.symlink(REPOSITORY_ROOT / "Enchron.xcodeproj", root / "Enchron.xcodeproj")
+    for name in (
+        "design_source_architecture_baseline.json",
+        "design_source_architecture_inputs.xcfilelist",
+    ):
+        shutil.copyfile(REPOSITORY_ROOT / "Config" / name, root / "Config" / name)
+
+    mirror_tree(REPOSITORY_ROOT / "Modules", root / "Modules")
+    (root / "Modules" / spoiled).unlink()
+    (root / "Modules" / spoiled).write_text(
+        original.read_text(encoding="utf-8")
+        + """
+func recordIllegalProbe() {
+    AppModel.recordProbe("reverse dependency")
+}
+""",
+        encoding="utf-8",
+    )
+    return ["--root", str(root)]
+
+
 def create_playback_structure_fixture(
     root: Path,
     defect: dict[str, object],
@@ -105,6 +154,8 @@ def command_for(check: dict[str, object], root: Path) -> list[str]:
         arguments = create_membership_fixture(root, defect)
     elif defect_type == "remove-playback-gap-baseline-entry":
         arguments = create_playback_structure_fixture(root, defect)
+    elif defect_type == "add-app-layer-reference":
+        arguments = create_app_layer_reference_fixture(root, defect)
     elif defect_type == "add-playback-issue-write":
         arguments = create_playback_issue_fixture(root)
     else:

@@ -499,6 +499,27 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         self.assertEqual(result, {"success": True})
         self.assertEqual(probe, ["before"])
 
+    def test_delivered_action_matches_whichever_host_wrote_the_probe(self) -> None:
+        probe = [
+            "reachability top actions delivered action=enterPanorama",
+            "reachability playerPanel delivered action=videoFormat.apply",
+            "reachability topActions delivered action=dock.open",
+        ]
+
+        for index, action in enumerate(
+            ("enterPanorama", "videoFormat.apply", "dock.open")
+        ):
+            self.assertTrue(
+                matrix.reachability_action_was_delivered(
+                    probe, action, offset=index
+                )
+            )
+            self.assertFalse(
+                matrix.reachability_action_was_delivered(
+                    probe, action, offset=index + 1
+                )
+            )
+
     def test_video_format_open_requires_a_new_product_probe(self) -> None:
         probe = [
             "old reachability topActions delivered action=videoFormat.open",
@@ -740,8 +761,9 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.copy_probe = Mock(side_effect=[
             [],
             [
-                "reachability topActions delivered action=dock.open",
-                "reachability topActions delivered action=dock.select effect=none",
+                "reachability top actions delivered action=dock.open",
+                "reachability top actions delivered action=dock.select"
+                " environment=skybox effect=none",
                 "worldLoad event=completed anchor=PlaybackSurfaceAnchor",
             ],
         ])

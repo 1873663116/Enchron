@@ -17,6 +17,8 @@ DESIGN_SOURCE_ARCHITECTURE_CHECKER = (
     / "verify_design_source_architecture.py"
 )
 APP_EXCEPTION_ID = "E10000162FA1000100E1C001"
+DESIGN_PREVIEW_EXCEPTION_ID = "C3A35AC72F85434200DA0D16"
+APP_LAYER_DIRECTORY = "Apps/Enchron"
 PRODUCT_TARGETS = {
     "Emby",
     "MediaSource",
@@ -55,6 +57,40 @@ IMPORT_PARSER_SELF_CHECKS = (
     ("@_spi(Internal)\nprivate import class RealityKit.Entity", "RealityKit", False),
 )
 
+SWIFT_COMMENT_OR_STRING_PATTERN = re.compile(
+    "|".join(
+        (
+            r'#+"""(?:.|\n)*?"""#+',
+            r'"""(?:.|\n)*?"""',
+            r'#+"(?:.|\n)*?"#+',
+            r'"(?:\\.|[^"\\\n])*"',
+            r"//[^\n]*",
+            r"/\*(?:.|\n)*?\*/",
+        )
+    )
+)
+SWIFT_INTERPOLATION_OPENING = re.compile(r"\\#*\(")
+
+SWIFT_TOP_LEVEL_TYPE_PATTERN = re.compile(
+    r"""
+    ^
+    (?:(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^\n)]*\))?|public|internal|package|private|fileprivate|open|final|indirect)[ \t]+)*
+    (?:struct|class|enum|actor|protocol|typealias)[ \t]+
+    (?P<name>[A-Za-z_][A-Za-z0-9_]*)
+    """,
+    flags=re.MULTILINE | re.VERBOSE,
+)
+
+APP_LAYER_REFERENCE_SELF_CHECKS = (
+    ("AppModel.recordProbe(fact)", {"AppModel"}),
+    ('let fact = "probe \\(AppModel.identity) done"', {"AppModel"}),
+    ("state.appModelling()", set()),
+    ('accessibilityIdentifier("FileBrowsing-FilesScreen-sort")', set()),
+    ("// AppModel owns this fact", set()),
+    ("/* FilesScreen composes it */", set()),
+    ('let heading = """\nFilesScreen\n"""', set()),
+)
+
 
 def package_description(repository_root: Path) -> dict:
     environment = os.environ.copy()
@@ -84,15 +120,17 @@ def package_module_sources(description: dict, repository_root: Path) -> set[str]
     return sources
 
 
-def app_membership_exceptions(repository_root: Path) -> set[str]:
+def membership_exceptions(repository_root: Path, exception_id: str) -> set[str]:
     project = (repository_root / "Enchron.xcodeproj" / "project.pbxproj").read_text()
     block_match = re.search(
-        rf"{APP_EXCEPTION_ID}.*?membershipExceptions = \((.*?)\);\s*target =",
+        rf"{exception_id}.*?membershipExceptions = \((.*?)\);\s*target =",
         project,
         flags=re.DOTALL,
     )
     if block_match is None:
-        raise RuntimeError("Enchron Modules membership exception block is missing")
+        raise RuntimeError(
+            f"Modules membership exception block is missing: {exception_id}"
+        )
     entries = set()
     for raw_line in block_match.group(1).splitlines():
         value = raw_line.strip().removesuffix(",").strip('"')
@@ -136,6 +174,83 @@ def verify_import_parser() -> None:
         raise RuntimeError(f"Swift import parser matched non-import text: {ignored!r}")
 
 
+def blanked_comment_or_string(match: re.Match[str]) -> str:
+    text = match.group()
+    if text.startswith("/"):
+        return "".join(character if character == "\n" else " " for character in text)
+
+    blanked: list[str] = []
+    index = 0
+    while index < len(text):
+        opening = SWIFT_INTERPOLATION_OPENING.match(text, index)
+        if opening is None:
+            blanked.append(text[index] if text[index] == "\n" else " ")
+            index += 1
+            continue
+        blanked.append(" " * (opening.end() - index))
+        index = opening.end()
+        depth = 1
+        while index < len(text):
+            character = text[index]
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    blanked.append(" ")
+                    index += 1
+                    break
+            blanked.append(character)
+            index += 1
+    return "".join(blanked)
+
+
+def swift_code_without_comments_or_strings(source: str) -> str:
+    return SWIFT_COMMENT_OR_STRING_PATTERN.sub(blanked_comment_or_string, source)
+
+
+def app_layer_type_names(repository_root: Path) -> set[str]:
+    names: set[str] = set()
+    for path in sorted((repository_root / APP_LAYER_DIRECTORY).rglob("*.swift")):
+        code = swift_code_without_comments_or_strings(path.read_text())
+        names.update(
+            match.group("name")
+            for match in SWIFT_TOP_LEVEL_TYPE_PATTERN.finditer(code)
+        )
+    return names
+
+
+def app_layer_type_references(source: str, names: set[str]) -> set[str]:
+    code = swift_code_without_comments_or_strings(source)
+    return {name for name in names if re.search(rf"\b{name}\b", code)}
+
+
+def verify_app_layer_reference_parser() -> None:
+    names = {"AppModel", "FilesScreen"}
+    for snippet, expected in APP_LAYER_REFERENCE_SELF_CHECKS:
+        found = app_layer_type_references(snippet, names)
+        if found != expected:
+            raise RuntimeError(
+                f"Swift App-layer reference parser misread {snippet!r}: {sorted(found)}"
+            )
+
+
+def design_preview_app_layer_references(
+    repository_root: Path,
+) -> list[tuple[str, str]]:
+    names = app_layer_type_names(repository_root)
+    references: list[tuple[str, str]] = []
+    for entry in sorted(
+        membership_exceptions(repository_root, DESIGN_PREVIEW_EXCEPTION_ID)
+    ):
+        source = (repository_root / "Modules" / entry).read_text()
+        references += [
+            (f"Modules/{entry}", name)
+            for name in sorted(app_layer_type_references(source, names))
+        ]
+    return references
+
+
 def playback_presentation_import_violations(
     description: dict,
     repository_root: Path,
@@ -173,10 +288,21 @@ def main() -> int:
     if design_check.returncode != 0:
         return design_check.returncode
 
+    verify_app_layer_reference_parser()
+    app_layer_references = design_preview_app_layer_references(repository_root)
+    if app_layer_references:
+        print(
+            "Modules sources in DesignPreview that reference Apps/Enchron types:",
+            file=sys.stderr,
+        )
+        for path, name in app_layer_references:
+            print(f"  {path}: {name}", file=sys.stderr)
+        return 1
+
     verify_import_parser()
     description = package_description(repository_root)
     package_sources = package_module_sources(description, repository_root)
-    exceptions = app_membership_exceptions(repository_root)
+    exceptions = membership_exceptions(repository_root, APP_EXCEPTION_ID)
     missing = sorted(package_sources - exceptions)
     stale = sorted(exceptions - package_sources)
     import_violations = playback_presentation_import_violations(

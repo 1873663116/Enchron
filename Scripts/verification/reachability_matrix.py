@@ -635,14 +635,20 @@ def validated_reachable_cell(
     return None
 
 
-def video_format_open_was_delivered(
-    probe: list[str], *, offset: int
+def reachability_action_was_delivered(
+    probe: list[str], action: str, *, offset: int
 ) -> bool:
     return any(
         "reachability " in line
-        and " delivered action=videoFormat.open" in line
+        and f" delivered action={action}" in line
         for line in probe[offset:]
     )
+
+
+def video_format_open_was_delivered(
+    probe: list[str], *, offset: int
+) -> bool:
+    return reachability_action_was_delivered(probe, "videoFormat.open", offset=offset)
 
 
 def merge_selected_cells_into_baseline(
@@ -5157,10 +5163,7 @@ class ReachabilityRun:
         if not isinstance(spatial.get("matchedElement"), dict):
             return False
         probe = self.copy_probe("panorama-transition-settled")
-        if any(
-            "reachability topActions delivered action=enterPanorama" in line
-            for line in probe[offset:]
-        ):
+        if reachability_action_was_delivered(probe, "enterPanorama", offset=offset):
             self.mark_observation(
                 "portal",
                 "accessibility:PlayerUI-TopAction-resumePanorama",
@@ -5350,11 +5353,11 @@ class ReachabilityRun:
                 "surfaceSettled=true",
             )
         )
-        delivered_probe = any(
-            "reachability topActions delivered action=dock.open" in line
-            for line in probe[offset:]
+        delivered_probe = reachability_action_was_delivered(
+            probe, "dock.open", offset=offset
         ) and any(
-            "reachability topActions delivered action=dock.select" in line
+            "reachability " in line
+            and " delivered action=dock.select" in line
             and f"effect={'none' if dock_choice == 'skybox' else dock_choice}" in line
             for line in probe[offset:]
         ) and any(
