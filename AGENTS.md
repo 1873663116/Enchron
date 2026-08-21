@@ -7,6 +7,10 @@
 
 工作时读取与任务有关的入口，检查对应代码。代码与文档不一致时，综合二者并调查，判断是代码缺陷、文档漂移，还是尚未完成的实验。
 
+`Scripts/verification/` 下的检查脚本是第三方，它们把产品模型抄成了自己的常量。脚本与文档互相矛盾时两边都可能已漂移，回到生产代码判断；不要因为某一边跑在设备上就采信它，那是谁在执行，不是谁为真。
+
+`Scripts/verification/verify_documentation_references.py` 在 gauntlet 里强制：文档指向的路径必须存在，计划必须写状态行，被取代的 ADR 必须在 `docs/archive/adr/`。被删除文档的去向登记在 `Config/retired_documents.json`。
+
 ## 工具链
 
 项目构建在 Xcode beta5 与同版本 visionOS SDK 上，active developer directory 不在默认的 `/Applications`；以 `xcodebuild -version` 和 `xcode-select -p` 为准。API 可用性与行为取自 Executor 的 `apple_developer_docs`，训练数据通常落后于当前 beta。
@@ -19,11 +23,16 @@ XcodeBuildMCP 工具承担 Xcode IDE 的缺口：SwiftPM、代码覆盖率、mac
 
 ## 构建产物
 
-- SwiftPM 构建默认落在 `.build/`，无需干预。
-- `xcodebuild` 一律显式传 `-derivedDataPath .scratch/<日期>-<主题>/DerivedData`；缺省时会写到 `~/Library/Developer/Xcode/DerivedData`。
-- 探针输出、xcresult、日志等一切临时文件只落 `.scratch/<日期>-<主题>/`（或系统 TMPDIR），不落卷根、`$HOME` 或仓库其他位置。
-- 需要长期保存的验收证据移入 `docs/archive/acceptance/evidence/<主题>-<日期>/` 并附 manifest；其余临时产物在会话结束前删除，或运行 `zsh Scripts/scratch-prune.zsh` 清理超过保留期（默认 14 天）的条目。
+落点由 `Scripts/verification/enchron_artifact_paths.py`（及同名 `.sh`）给出，两个根都从 checkout 派生。脚本取路径时 import 它，不要写绝对路径，`xcodebuild` 的 `-derivedDataPath` 同样从它取。
+
+分层的依据是能不能重新生成：
+
+- `.scratch/` 收一切可重建的东西——DerivedData、SourcePackages、探针输出、日志、生成的 fixture。`zsh Scripts/scratch-prune.zsh` 按保留期（默认 14 天）整目录删除，所以不可重建的东西放进去就是丢了。
+- `TestEvidence/` 收真机跑出来的证据，没有头显重建不了。不入库，按主题与日期分目录。
+- 结论需要长期被引用时，把可读的报告移入 `docs/archive/acceptance/evidence/<主题>-<日期>/`，这一层入库。录屏与 result bundle 不进这一层。
+
+SwiftPM 自己的 `.build/` 无需干预。
 
 ## 验证
 
-涉及佩戴者所见画面、物理音频、性能等结论需要物理 Vision Pro，读取 `.claude/skills/visionpro-xcuitest`。visionOS 真机的 UI 自动化只有该 skill 的 XCUITest 控制器一条通道；Xcode 的 Device Interaction 工具在 visionOS 上不可用，只支持 iOS 与 watchOS 模拟器。 
+涉及佩戴者所见画面、物理音频、性能等结论需要物理 Vision Pro，读取 `.agents/skills/visionpro-xcuitest`。visionOS 真机的 UI 自动化只有该 skill 的 XCUITest 控制器一条通道；Xcode 的 Device Interaction 工具在 visionOS 上不可用，只支持 iOS 与 watchOS 模拟器。 

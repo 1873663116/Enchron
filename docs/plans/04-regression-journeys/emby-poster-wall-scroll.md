@@ -93,7 +93,7 @@ App 存活的正面证据：每次合成失败之后，runner 仍成功取得目
 1. **runner 拒绝无目标的滑动。** `InteractiveDeviceUITests.swift:233-234` 的 `surface = app` 退化是故障源头。改为在缺 identifier 时返回结构化失败（"合成滑动必须指定目标元素"），与该文件其余分支处理"元素不存在""元素不可点击"的方式一致，会话得以保留。
 2. **或退化到主窗口而非 Application。** 若需要保留无参形态，把默认目标改为 `app.windows.element(boundBy:)` 中与主窗口对应的那一个。整窗具名元素接受合成滑动已由本次 `FileBrowsing-FilesScreen` 对照证实。
 3. **控制器侧前置校验。** `interactive_visionpro_ui.py` 在参数解析阶段就要求滑动动作携带 `--identifier`，把失败挡在会话之外，代价为零。
-4. **修正运行手册。** `.claude/skills/visionpro-xcuitest/references/enchron.md` 现记"对 Emby 滚动视图发 swipeUp 导致 runner 死亡……Emby 界面一律不发合成滑动"。该禁令方向错误：Emby 界面带 identifier 的合成滑动正常工作，真正的禁令是"合成滑动一律带 identifier"。同一处记录的 `docs/plans/02-source-parity-acceptance/decision-log.md:165` 与 `decisions.tsv:26` 亦为误归因。
+4. **修正运行手册。** `.agents/skills/visionpro-xcuitest/references/enchron.md` 现记"对 Emby 滚动视图发 swipeUp 导致 runner 死亡……Emby 界面一律不发合成滑动"。该禁令方向错误：Emby 界面带 identifier 的合成滑动正常工作，真正的禁令是"合成滑动一律带 identifier"。同一处记录的 `docs/plans/02-source-parity-acceptance/decision-log.md:165` 与 `decisions.tsv:26` 亦为误归因。
 5. **可达性矩阵可去绕行。** `Scripts/verification/reachability_matrix.py:2284` 用 `scrollEmby` 替代 Emby 滚动，是本故障的历史绕行。`scrollEmby` 仍有价值（`#if DEBUG` 内的确定性滚动到边界），但 Emby 滚动的真实可达性现在可以由带 identifier 的合成滑动证明，两者应分别成条。
 
 ## 调查过程的操作记录
