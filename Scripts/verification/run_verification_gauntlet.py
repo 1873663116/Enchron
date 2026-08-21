@@ -110,6 +110,14 @@ STRUCTURE_CHECKS = (
         "visionpro-core-regression-plan",
         "verify_visionpro_core_regression_plan.py",
     ),
+    StructureCheck(
+        "xcodebuild-test-selection",
+        "check_xcodebuild_test_selection.py",
+    ),
+    StructureCheck(
+        "vision-test-suite-coverage",
+        "check_vision_test_suite_coverage.py",
+    ),
 )
 
 
