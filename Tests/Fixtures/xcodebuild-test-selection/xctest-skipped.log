@@ -1,0 +1,29 @@
+Command line invocation:
+    xcodebuild test-without-building -project Enchron.xcodeproj -scheme Enchron -testPlan Enchron -destination "platform=visionOS Simulator,id=65A9A16C-CB84-4737-93DB-C93A01FDDB9C" "-only-testing:EnchronAppTests/DebugProbeJournalTests" "-only-testing:EnchronAppTests/WebDAVLiveIntegrationTests"
+
+Test Suite 'Selected tests' started at 2026-08-21 20:24:03.700.
+Test Suite 'EnchronAppTests.xctest' started at 2026-08-21 20:24:03.700.
+Test Suite 'DebugProbeJournalTests' started at 2026-08-21 20:24:03.700.
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testCompactionAndReloadPreserveEvidenceFactsAndOrder]' started.
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testCompactionAndReloadPreserveEvidenceFactsAndOrder]' passed (0.217 seconds).
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testDiagnosticPressureNeverCrossesTheByteLimit]' started.
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testDiagnosticPressureNeverCrossesTheByteLimit]' passed (1.339 seconds).
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testEvidenceOverflowFailsClosedWithoutCrossingTheLimit]' started.
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testEvidenceOverflowFailsClosedWithoutCrossingTheLimit]' passed (0.001 seconds).
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testNewEvidenceSessionAtomicallyReplacesThePreviousSession]' started.
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testNewEvidenceSessionAtomicallyReplacesThePreviousSession]' passed (0.001 seconds).
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testWindowSettlementSignatureIgnoresOnlyFastChangingFields]' started.
+Test Case '-[EnchronAppTests.DebugProbeJournalTests testWindowSettlementSignatureIgnoresOnlyFastChangingFields]' passed (0.001 seconds).
+Test Suite 'DebugProbeJournalTests' passed at 2026-08-21 20:24:05.262.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 1.559 (1.562) seconds
+Test Suite 'WebDAVLiveIntegrationTests' started at 2026-08-21 20:24:05.263.
+Test Case '-[EnchronAppTests.WebDAVLiveIntegrationTests testAuthenticatedServerListsAndReadsMedia]' started.
+Tests/EnchronApp/WebDAVLiveIntegrationTests.swift:13: -[EnchronAppTests.WebDAVLiveIntegrationTests testAuthenticatedServerListsAndReadsMedia] : Test skipped - Set the ENCHRON_WEBDAV_TEST_* environment variables to run the live WebDAV test.
+Test Case '-[EnchronAppTests.WebDAVLiveIntegrationTests testAuthenticatedServerListsAndReadsMedia]' skipped (0.062 seconds).
+Test Suite 'WebDAVLiveIntegrationTests' passed at 2026-08-21 20:24:05.324.
+	 Executed 1 test, with 1 test skipped and 0 failures (0 unexpected) in 0.062 (0.062) seconds
+Test Suite 'EnchronAppTests.xctest' passed at 2026-08-21 20:24:05.325.
+	 Executed 6 tests, with 1 test skipped and 0 failures (0 unexpected) in 1.621 (1.624) seconds
+Test Suite 'Selected tests' passed at 2026-08-21 20:24:05.325.
+	 Executed 6 tests, with 1 test skipped and 0 failures (0 unexpected) in 1.621 (1.625) seconds
+** TEST EXECUTE SUCCEEDED **

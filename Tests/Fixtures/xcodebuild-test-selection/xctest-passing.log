@@ -1,0 +1,15 @@
+Command line invocation:
+    xcodebuild test-without-building -project Enchron.xcodeproj -scheme Enchron -testPlan Enchron -destination "platform=visionOS Simulator,id=65A9A16C-CB84-4737-93DB-C93A01FDDB9C" "-only-testing:EnchronAppTests/PlaybackSwitchStateRingTests/testCapacityRetainsEveryRecordThroughItsBoundary"
+
+Test Suite 'Selected tests' started at 2026-08-21 20:23:47.709.
+Test Suite 'EnchronAppTests.xctest' started at 2026-08-21 20:23:47.710.
+Test Suite 'PlaybackSwitchStateRingTests' started at 2026-08-21 20:23:47.710.
+Test Case '-[EnchronAppTests.PlaybackSwitchStateRingTests testCapacityRetainsEveryRecordThroughItsBoundary]' started.
+Test Case '-[EnchronAppTests.PlaybackSwitchStateRingTests testCapacityRetainsEveryRecordThroughItsBoundary]' passed (0.002 seconds).
+Test Suite 'PlaybackSwitchStateRingTests' passed at 2026-08-21 20:23:47.714.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.004) seconds
+Test Suite 'EnchronAppTests.xctest' passed at 2026-08-21 20:23:47.714.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.004) seconds
+Test Suite 'Selected tests' passed at 2026-08-21 20:23:47.714.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.005) seconds
+** TEST EXECUTE SUCCEEDED **

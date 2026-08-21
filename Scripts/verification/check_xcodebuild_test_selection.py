@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-"""Asserts that `xcodebuild_test_selection.py` tells a run that executed nine
-tests from a run that executed none, and that it refuses the second one before it
-is launched.
+"""Asserts that `xcodebuild_test_selection.py` tells a run that executed six tests
+from a run that executed none, and that it refuses the second one before it is
+launched.
 
 An `xcodebuild test` invocation whose `-only-testing:` filter matches nothing
 exits zero and prints `** TEST EXECUTE SUCCEEDED **`. A Swift Testing identifier
@@ -13,42 +13,51 @@ first three, read `Executed N` rather than the exit status, does not work, becau
 `Executed N` comes from the XCTest reporter and reads zero on a fully successful
 Swift Testing run as well.
 
-The preserved pair in `TestEvidence/dv76-verify-20260814` is what makes that
-provable rather than asserted. `r5-label-tests.log` selected nine tests without
-parentheses and ran none. `r5-label-tests2.log` selected the same nine with
-parentheses and ran all nine. Both print `Executed 0 tests, with 0 failures`
+The pair in `Tests/Fixtures/xcodebuild-test-selection` is what makes that provable
+rather than asserted. `swift-testing-bare-selection.log` selected six tests without
+parentheses and ran none. `swift-testing-enumerated-selection.log` selected the same
+six with parentheses and ran all six. Both print `Executed 0 tests, with 0 failures`
 twice, and both end in `** TEST EXECUTE SUCCEEDED **`.
 
 The Swift Testing pair alone leaves the XCTest reporter reading zero on both sides,
-so two real XCTest runs are read as well, one that passed and one that failed. They
-also settle a question the pair cannot: an XCTest method is accepted with or without
-its parentheses, and one of them selected a test in the bare form and ran it. So the
-bare form is not wrong everywhere, and a guard that called that run a failure would
-be switched off within a week. The enumerated form is demanded before a run, where
-there is no count yet and no way to tell the two kinds of test apart; afterwards the
-count decides.
+so three XCTest runs are read as well: one that passed, one that failed, and one
+whose count carries a skipped clause. The passing one settles a question the pair
+cannot: an XCTest method is accepted with or without its parentheses, and that run
+selected its test in the bare form and executed it. So the bare form is not wrong
+everywhere, and a guard that called that run a failure would be switched off within
+a week. The enumerated form is demanded before a run, where there is no count yet
+and no way to tell the two kinds of test apart; afterwards the count decides.
+
+Where they came from. Each log is an `xcodebuild test-without-building` run of the
+`Enchron` scheme against the visionOS simulator, cut down to the reporter, verdict
+and `Command line invocation:` lines that any reading of it depends on. The failing
+one selected a throwaway `XCTestCase` that called `XCTFail`, because no test in this
+repository is meant to fail. `test-enumeration-salvaged.json` is the enumeration of
+that same scheme with a block of xcodebuild's own progress output inserted through
+one identifier, which is what a capture written to stdout instead of
+`-test-enumeration-output-path` looks like.
 
 Eight checks, because the parts fail independently:
 
-  fixtures     the two logs and the enumeration are present, since a pair that has
-               been deleted leaves every check below passing vacuously.
+  fixtures     the logs and the enumeration are present, since a pair that has been
+               deleted leaves every check below passing vacuously.
   trap         the two obvious rules, the XCTest counter and the terminal verdict
                line, still read identically on both logs, so separating them is a
                decision this script makes and not something any reading would get
                right.
-  enumeration  the preserved enumeration is still interleaved mid-identifier by
-               xcodebuild's own output, and all 307 identifiers survive reading it,
-               including the one that was cut in half.
-  identifiers  the nine selections taken from each log's own command line resolve
-               to nothing and to nine respectively, and the parenthesised form is
-               offered as the repair for each of the nine that fail.
+  enumeration  the enumeration is still interleaved mid-identifier by xcodebuild's
+               own output, and every identifier survives reading it, including the
+               one that was cut in half.
+  identifiers  the six selections taken from each log's own command line resolve to
+               nothing and to six respectively, and the parenthesised form is
+               offered as the repair for each of the six that fail.
   verdict      the zero-test log fails and the real one passes, as exit codes,
                through the command line rather than through imported functions,
                including with no enumeration to resolve against, which is the only
                reading where the executed count alone has to carry the judgement.
-  xctest       the nested `Executed 1 test` lines of a real XCTest run aggregate to
-               one rather than three, a run that selected its test in the bare form
-               and executed it reads as a pass, and a run that failed still fails.
+  xctest       the nested `Executed 1 test` lines of an XCTest run aggregate to one
+               rather than three, a run that selected its test in the bare form and
+               executed it reads as a pass, and a run that failed still fails.
   preflight    driven end to end against a stand-in xcodebuild, the run wrapper
                refuses the parenthesis-less selection without launching a test run
                at all, and completes the correct one. This is the leg that matters:
@@ -76,38 +85,37 @@ sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import scratch_directory
 
 TOOL = Path(__file__).parent / "xcodebuild_test_selection.py"
-TEST_EVIDENCE = Path("/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence")
-EVIDENCE = TEST_EVIDENCE / "dv76-verify-20260814"
-ZERO_TEST_LOG = EVIDENCE / "r5-label-tests.log"
-REAL_LOG = EVIDENCE / "r5-label-tests2.log"
-ENUMERATION = EVIDENCE / "r5-test-enumeration.json"
+FIXTURES = Path(__file__).resolve().parents[2] / "Tests/Fixtures/xcodebuild-test-selection"
+ZERO_TEST_LOG = FIXTURES / "swift-testing-bare-selection.log"
+REAL_LOG = FIXTURES / "swift-testing-enumerated-selection.log"
+ENUMERATION = FIXTURES / "test-enumeration-salvaged.json"
 
-# Two real XCTest runs, because the Swift Testing pair leaves the XCTest reporter
-# reading zero on both sides and so measures nothing about how it is read. One
-# passed and one failed, and both print their count three times over nested suites.
-XCTEST_LOG = (
-    TEST_EVIDENCE
-    / "small-batch-20260813/item5-portal-controls-recording-final-attempt3/runner.log"
-)
-FAILED_LOG = TEST_EVIDENCE / "visionpro-core-regression-20260807-122250/test.log"
+# The Swift Testing pair leaves the XCTest reporter reading zero on both sides and so
+# measures nothing about how it is read. These two do. One passed and one failed, and
+# both print their count three times over nested suites.
+XCTEST_LOG = FIXTURES / "xctest-passing.log"
+FAILED_LOG = FIXTURES / "xctest-failing.log"
 XCTEST_NESTED_LINES = 3
-
-# A suite whose fixtures are absent prints its count as `Executed 23 tests, with 4
-# tests skipped and 0 failures`. That clause sits between the count and the
-# failures, so a pattern written against the two-part form reads the whole run as
-# zero and the guard stops a passing suite. This is the run it stopped.
-SKIPPED_LOG = (
-    TEST_EVIDENCE
-    / "post-merge-full-20260814/PlaybackSourceAndAudioSessionTests.log"
+# The bare identifier the passing run selected and executed, and the enumerated form
+# that has to be demanded before a run even though this one worked without it.
+XCTEST_BARE_IDENTIFIER = (
+    "EnchronAppTests/PlaybackSwitchStateRingTests/"
+    "testCapacityRetainsEveryRecordThroughItsBoundary"
 )
-SKIPPED_EXECUTED = 23
 
-ENUMERATED_TOTAL = 307
-SELECTED = 9
-# The identifier the interleaved block cuts in half in the preserved enumeration.
+# A suite with an absent prerequisite prints its count as `Executed 6 tests, with 1
+# test skipped and 0 failures`. That clause sits between the count and the failures,
+# so a pattern written against the two-part form reads the whole run as zero and the
+# guard stops a passing suite.
+SKIPPED_LOG = FIXTURES / "xctest-skipped.log"
+SKIPPED_EXECUTED = 6
+
+ENUMERATED_TOTAL = 138
+SELECTED = 6
+# The identifier the interleaved block cuts in half in the salvaged enumeration.
 REPAIRED_IDENTIFIER = (
-    "EnchronAppUITests/VisionProDeviceAcceptanceUITests/"
-    "testRealPlaybackCapturesPhysicalScreenAndState()"
+    "EnchronAppUITests/SpatialHandoffUITests/"
+    "testDockedTemporarilyUsesDefaultEnvironmentAndRestoresActiveEnvironmentOnReturn()"
 )
 
 STUB_SOURCE = '''#!/usr/bin/env python3
@@ -116,7 +124,7 @@ no build and no device.
 
 Models the two behaviours this guard exists for: an enumeration is written to the
 path it is given, and a test action exits zero whether or not its selection
-matched anything, replaying the preserved log for whichever case it was asked for.
+matched anything, replaying the captured log for whichever case it was asked for.
 """
 
 import json
@@ -234,6 +242,7 @@ def main() -> None:
         ("enumeration", ENUMERATION),
         ("passing XCTest log", XCTEST_LOG),
         ("failing XCTest log", FAILED_LOG),
+        ("skipping XCTest log", SKIPPED_LOG),
     ):
         require(
             "fixtures",
@@ -277,8 +286,8 @@ def main() -> None:
     require(
         "enumeration",
         enumeration.status == "salvaged",
-        "the preserved enumeration is still interleaved and still exercises the repair",
-        f"the preserved enumeration now reads as {enumeration.status}, so the repair path "
+        "the enumeration fixture is still interleaved and still exercises the repair",
+        f"the enumeration fixture now reads as {enumeration.status}, so the repair path "
         "for a capture interrupted mid-identifier is no longer exercised by any fixture.",
     )
     require(
@@ -387,16 +396,21 @@ def main() -> None:
         f"an enumeration. exit {completed.returncode}: {completed.stderr.strip()[:300]}",
     )
 
-    # No preserved log selects nine tests and executes some of them, so the one shape
+    # No captured log selects six tests and executes some of them, so the one shape
     # that puts the shortfall rule under load is constructed from the real run, the
     # way check_dolby_vision_premises.py muxes a container no sample tree contains.
     scratch = scratch_directory("xcodebuild-test-selection-check") / "work"
     if scratch.exists():
         shutil.rmtree(scratch)
     scratch.mkdir(parents=True)
+    shortfall_executed = SELECTED - 2
     shortfall = scratch / "shortfall.log"
     shortfall.write_text(
-        real_text.replace("Test run with 9 tests", "Test run with 4 tests"), encoding="utf-8"
+        real_text.replace(
+            f"Test run with {SELECTED} tests",
+            f"Test run with {shortfall_executed} tests",
+        ),
+        encoding="utf-8",
     )
     completed = subprocess.run(
         [sys.executable, str(tool), "verdict", str(shortfall), "--enumeration", str(ENUMERATION)],
@@ -406,11 +420,12 @@ def main() -> None:
     )
     require(
         "verdict",
-        completed.returncode == 1 and "executed 4" in completed.stderr,
-        "a run that selected nine tests and executed four is a failure",
-        "a run that executed four of the nine tests it selected read as a pass. Only a "
-        "run that executed none is caught, so a run that dies part way through still "
-        f"reports green. exit {completed.returncode}: {completed.stderr.strip()[:300]}",
+        completed.returncode == 1 and f"executed {shortfall_executed}" in completed.stderr,
+        f"a run that selected {SELECTED} tests and executed {shortfall_executed} is a failure",
+        f"a run that executed {shortfall_executed} of the {SELECTED} tests it selected read "
+        "as a pass. Only a run that executed none is caught, so a run that dies part way "
+        f"through still reports green. exit {completed.returncode}: "
+        f"{completed.stderr.strip()[:300]}",
     )
 
     real_verdict = module.read_verdict(real_text)
@@ -458,9 +473,10 @@ def main() -> None:
         "xctest",
         skipped_verdict.executed == SKIPPED_EXECUTED,
         f"a suite reporting skips is read as {skipped_verdict.executed} executed tests",
-        f"a run of {SKIPPED_EXECUTED} tests with 4 skipped was read as "
-        f"{skipped_verdict.executed} executed. The skipped clause splits the count from "
-        "the failures, and reading zero there stops a passing suite mid-regression.",
+        f"a run whose count carries a skipped clause was read as "
+        f"{skipped_verdict.executed} executed rather than {SKIPPED_EXECUTED}. That clause "
+        "splits the count from the failures, and reading zero there stops a passing suite "
+        "mid-regression.",
     )
 
     completed = subprocess.run(
@@ -487,7 +503,7 @@ def main() -> None:
     )
     require(
         "xctest",
-        completed.returncode == 1 and "testInteractiveDeviceSession()" in completed.stdout,
+        completed.returncode == 1 and f"{XCTEST_BARE_IDENTIFIER}()" in completed.stdout,
         "but before a run the enumerated form is still demanded, with the repair named",
         "the same identifier was accepted before a run. Before a run there is no count to "
         "fall back on and no way to tell an XCTest method from a Swift Testing function, "
@@ -646,8 +662,8 @@ def main() -> None:
         "truncation",
         completed.returncode != 0 and "did not finish" in completed.stderr,
         "a run whose tests all reported but whose terminal verdict never arrived is not a pass",
-        "a log with nine passing tests and no terminal verdict read as a pass, so a run "
-        "killed before xcodebuild finished counts as a green one. exit "
+        f"a log with {SELECTED} passing tests and no terminal verdict read as a pass, so a "
+        "run killed before xcodebuild finished counts as a green one. exit "
         f"{completed.returncode}: {completed.stderr.strip()[:300]}",
     )
 
@@ -656,8 +672,8 @@ def main() -> None:
         print(f"FAIL {failure}", file=sys.stderr)
     if failures:
         raise SystemExit(1)
-    print("the guard separates a run that executed nine tests from one that executed none, "
-          "and refuses the second before it is launched")
+    print(f"the guard separates a run that executed {SELECTED} tests from one that executed "
+          "none, and refuses the second before it is launched")
     raise SystemExit(0)
 
 

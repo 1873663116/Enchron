@@ -1,0 +1,18 @@
+Command line invocation:
+    xcodebuild test-without-building -project Enchron.xcodeproj -scheme Enchron -testPlan Enchron -destination "platform=visionOS Simulator,id=65A9A16C-CB84-4737-93DB-C93A01FDDB9C" "-only-testing:EnchronAppTests/EmbyMediaByteSourceTests/routedRangesCarryToken" "-only-testing:EnchronAppTests/EmbyMediaByteSourceTests/staleLengthIsRecovered" "-only-testing:EnchronAppTests/EmbyMediaByteSourceTests/unsatisfiableRangeRecoversLength" "-only-testing:EnchronAppTests/EmbyNavigationModelTests/navigationPositionSurvivesBrowserUnmount" "-only-testing:EnchronAppTests/EmbyNavigationModelTests/sidebarSelectionClearsDetailPath" "-only-testing:EnchronAppTests/EmbyNavigationModelTests/signOutResetsNavigation"
+
+Test Suite 'Selected tests' started at 2026-08-21 20:11:51.932.
+Test Suite 'EnchronAppTests.xctest' started at 2026-08-21 20:11:51.933.
+Test Suite 'EnchronAppTests.xctest' passed at 2026-08-21 20:11:51.933.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-08-21 20:11:51.933.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 2077
+↳ Target Platform: arm64-apple-xros1.0-simulator
+◇ Suite "Emby navigation" started.
+◇ Suite EmbyMediaByteSourceTests started.
+✔ Suite "Emby navigation" passed after 0.001 seconds.
+✔ Suite EmbyMediaByteSourceTests passed after 0.001 seconds.
+✔ Test run with 0 tests in 2 suites passed after 0.001 seconds.
+** TEST EXECUTE SUCCEEDED **

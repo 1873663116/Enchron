@@ -1,0 +1,439 @@
+Command line invocation:
+    xcodebuild test-without-building -project Enchron.xcodeproj -scheme Enchron -testPlan Enchron -destination "platform=visionOS Simulator,id=65A9A16C-CB84-4737-93DB-C93A01FDDB9C" -enumerate-tests -test-enumeration-style flat -test-enumeration-format json
+
+{
+  "errors" : [
+
+  ],
+  "values" : [
+    {
+      "disabledTests" : [
+
+      ],
+      "enabledTests" : [
+        {
+          "identifier" : "EnchronAppTests/CertificateTrustPromptTests/testPromptReturnsCancellation()"
+        },
+        {
+          "identifier" : "EnchronAppTests/CertificateTrustPromptTests/testPromptWaitsForPresentedModalDismissal()"
+        },
+        {
+          "identifier" : "EnchronAppTests/DebugProbeJournalTests/testCompactionAndReloadPreserveEvidenceFactsAndOrder()"
+        },
+        {
+          "identifier" : "EnchronAppTests/DebugProbeJournalTests/testDiagnosticPressureNeverCrossesTheByteLimit()"
+        },
+        {
+          "identifier" : "EnchronAppTests/DebugProbeJournalTests/testEvidenceOverflowFailsClosedWithoutCrossingTheLimit()"
+        },
+        {
+          "identifier" : "EnchronAppTests/DebugProbeJournalTests/testNewEvidenceSessionAtomicallyReplacesThePreviousSession()"
+        },
+        {
+          "identifier" : "EnchronAppTests/DebugProbeJournalTests/testWindowSettlementSignatureIgnoresOnlyFastChangingFields()"
+        },
+        {
+          "identifier" : "EnchronAppTests/EmbyMediaByteSourceTests/routedRangesCarryToken()"
+        },
+        {
+          "identifier" : "EnchronAppTests/EmbyMediaByteSourceTests/staleLengthIsRecovered()"
+        },
+        {
+          "identifier" : "EnchronAppTests/EmbyMediaByteSourceTests/unsatisfiableRangeRecoversLength()"
+        },
+        {
+          "identifier" : "EnchronAppTests/EmbyNavigationModelTests/navigationPositionSurvivesBrowserUnmount()"
+        },
+        {
+          "identifier" : "EnchronAppTests/EmbyNavigationModelTests/sidebarSelectionClearsDetailPath()"
+        },
+        {
+          "identifier" : "EnchronAppTests/EmbyNavigationModelTests/signOutResetsNavigation()"
+        },
+        {
+          "identifier" : "EnchronAppTests/FileBrowserAlertFieldRequestTests/testRequestRejectsTheWrongOrHiddenAlert()"
+        },
+        {
+          "identifier" : "EnchronAppTests/FileBrowserAlertFieldRequestTests/testRequestWritesThroughThePresentedAlertBindingOnce()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testAChangedRendererCreatesANewVideoEntityWithinOneRealityView()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testClearingEnvironmentDisablesEveryEnvironmentBackdrop()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testCrossRealityViewHandoffKeepsDepartingEntityUntilSceneDisappears()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testDockedUsesInteractionPlateSizedFromVideoAspectAndScreenScale()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testDockedVideoSurfaceOmitsRealityKitHitTargets()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testDockingWorldCanLoadFromProductResources()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testEachPresentationHasExactlyOneDirectSurfaceInputOwner()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testLegacyPlaybackSurfaceIsMigratedAndStrippedOfGeometry()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testNewRendererPreservesDepartingEntityAndCarriesItsRevision()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testOrdinaryWindowDoesNotRecoverWhilePortalModeIsInitiallyUnreported()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testPanoramaDoesNotUseModeRequestsToRepairInvalidContentType()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testPanoramaMovesTheSameRendererToVideoPlayerComponent()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testPanoramaReappliesAnUnsettledSpatialVideoMode()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testPanoramaReturnNeverUsesEntityReplacementAsModeRecovery()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testPanoramaReturnWaitsWhenPortalModeIsNotYetReported()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testPanoramaUsesAnIndependentInteractionSurfaceOutsideTheViewerOrigin()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRealityKitContentTypeChangePublishesItsExactTechnicalSessionScope()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRealityKitContentTypeResetsForReplacementTechnicalSession()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRealityKitContentTypeResetsForTechnicalSessionAndRejectsStaleEvents()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testReapplyingDesiredModesAfterSceneActivationKeepsTheExistingRendererBinding()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testReleasingASceneEntityRemovesItsVideoRendererBinding()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRendererTargetBindingIsNotPostponedByPanoramaComponentChanges()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRendererTargetBindingWaitsForRealityKitCommitBeforeRestartingDelivery()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRepeatedWindowConfigurationReusesTheExistingVideoPlayerComponent()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testRevisionAloneNeverRebindsTheSameRenderer()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testScenicEnvironmentReplacesSkyboxWithTintedPlaceholder()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testSkyboxRestoresTheProductResourceWithoutAnEffect()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testWindowBindsTheActiveRendererToVideoPlayerComponent()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testWindowSourceRequestsProgressiveOnItsExistingRendererBinding()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackRealityPresenterTests/testWindowVideoSurfaceOmitsRealityKitHitTargetsSoSwiftUIOwnsTaps()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAcceptedCoreFormatRevisionIsObservableSessionIdentityOnly()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAppleImmersiveVideoFailsBeforePublishingAudioOrVideoPlayback()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAudioSessionLifecycleActivatesMoviePlaybackAndDeactivatesExactlyOnce()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAudioSessionLifecycleCanReactivateAfterEndedDeactivation()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testConcurrentActivationRequestsShareOneSystemActivation()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testControlsAutoHideCountdownRestartsAfterHoverEnds()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testCrossRealityViewTransferAcceptsANewEntityAfterSourceRelease()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testDeactivationWaitsForPendingActivation()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testEachSurfaceTapTogglesControlsExactlyOnce()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testEffectiveHorizontalCoverageMatchesTheSelectedProjection()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testEndedTechnicalSessionReplacementDeliversFinalFrameAndReplayStartsAtZero()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testEverySurfaceInputSourceUsesTheSameStableToggleAction()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testFileAddedToMediaLibraryResolvesToTheOriginalPlaybackSource()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testOnlyPortalToPanoramaRetiresTheSourceSessionBeforeDelivery()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testOpenFailureKeepsPlayerVisibleForRetry()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testPlaybackCoreDimensionSeparatorsProduceTheSameResolution()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testPlaybackCoreSpatialFormatFactsMapToProductProfile()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testSecondRequestTakesTheRendererWhenTheSurfaceNeverReleasedIt()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testTechnicalSessionEndingAfterCutoverRebasesAtTheFinalFrame()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testTechnicalSessionReplacementUsesTheFinalCutoverPositionAndPreservesSelections()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testTemporaryPhotoPlaybackFileLivesForTheSessionAndIsRemovedOnRelease()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testTransferWithinOneRealityViewOwnershipRejectsANewEntity()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testVideoFormatEditorDefaultsToFlatMonoAndAutomaticDiscardsItsDraft()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testWaitingForStopAfterOpenFailureClearsThePlaybackProjection()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testArmAndDisarmFenceGenerationsAndRearmClearsTheCapture()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testCapacityRetainsEveryRecordThroughItsBoundary()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testFullRingOverwritesTheOldestRecordInChronologicalOrder()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testGraphChangesAndByteStreamDeltasSurviveTechnicalSessionRevisionReset()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testLongestDisplayProgressStallUsesOnlyConservativeDisplayProgress()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testMissingNewGraphDisplayProgressRightCensorsSwitch()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testOverwrittenHistoryLeftCensorsAStillRetainedSwitch()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testPresentationChangeToFirstNewGraphDisplayProgressUsesMonotonicTime()"
+        },
+        {
+          "identifier" : "EnchronAppTests/PlaybackSwitchStateRingTests/testTimebaseRateZeroDurationIsDerivedAcrossRendererSamples()"
+        },
+        {
+          "identifier" : "EnchronAppTests/RemoteConnectionFailureDiagnoserTests/testATSBlockRequiresHTTPSWithoutAProbe()"
+        },
+        {
+          "identifier" : "EnchronAppTests/RemoteConnectionFailureDiagnoserTests/testExplicitHTTPSFailureDoesNotRunThePlaintextProbe()"
+        },
+        {
+          "identifier" : "EnchronAppTests/RemoteConnectionFailureDiagnoserTests/testFailedTLSProbePreservesTheOriginalFailureClassification()"
+        },
+        {
+          "identifier" : "EnchronAppTests/RemoteConnectionFailureDiagnoserTests/testPlainHTTPTransportFailureUsesExactEndpointTLSProbe()"
+        },
+        {
+          "identifier" : "EnchronAppTests/SourceConnectionDraftTests/testDismissalPreservesNonSecretInput()"
+        },
+        {
+          "identifier" : "EnchronAppTests/SourceConnectionDraftTests/testSuccessfulConnectionClearsCompletedDraft()"
+        },
+        {
+          "identifier" : "EnchronAppTests/WebDAVLiveIntegrationTests/testAuthenticatedServerListsAndReadsMedia()"
+        },
+        {
+          "identifier" : "EnchronAppTests/dolbyVisionDecoderExistsOnThisDevice()"
+        },
+        {
+          "identifier" : "EnchronAppTests/proResFailsThroughAVFoundation()"
+        },
+        {
+          "identifier" : "EnchronAppTests/proResHasNoDecoderOnThisDevice()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAPMP180AutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAPMP360AutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAPMPWideFOVAutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAppleImmersiveVideoIsRejectedBeforePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testDolbyVisionProfile10AutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testDolbyVisionProfile5AutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testH264AutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testHDR10AutomaticSourcePlaybackOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testLocalMediaReferenceCanBeRemovedAndReadded()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testOfficialMVHEVCAutomaticMonoOverrideAndRestoreOnVisionPro()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testOpeningMediaAutomaticallyAssociatesSiblingSubtitles()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testRealAV1360AcrossWindowDockedAndPanoramaRoundTrips()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testRealHEVC180AcrossWindowDockedAndPanoramaRoundTrips()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testRealHEVCMOVAcrossWindowDockedAndPanoramaRoundTrips()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testRealInsta360ExplicitPanoramaRoundTrip()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testRealNHVR180ExplicitPanoramaRoundTrip()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testRealNHVR180PersistedFormatColdLaunchStartsInPortal()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testReopeningMediaRestoresTrackSelections()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testSelectingAndDisablingSubtitlesPreservesMediaSession()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DockedPlacementUITests/testDockedLightModeAndDarkModeUseOneStableEnvironmentIdentity()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DockedPlacementUITests/testDockedPlacementIsolatedByEnvironmentAndSharedAcrossEffects()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/DockedPlacementUITests/testDockedPlacementPersistsAcrossSessionsAndProcessRestart()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/InteractiveDeviceUITests/testInteractiveDeviceSession()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testCurrentLevelSearchUsesVisibleNamesAndRestoresTheGrid()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testLargeMixedGridGeometryScrollingAndVisualComposition()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testLibraryFolderBreadcrumbBackAndForwardRestoreLocations()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testLibraryFolderCreationDuplicateRejectionMoveRenameAndRemoval()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testMultipleSelectionMovesAndRemovesOnlySelectedLibraryReferences()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testSingleItemGridGeometryAndVisualComposition()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/MediaLibraryRegressionUITests/testSparseMixedGridGeometryAndVisualComposition()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SequentialMediaPlaybackUITests/testSequentialMediaSessionsRemainIsolated()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SettingsUITests/testSettingsCategoryNavigationAndVisualComposition()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SmokeLaunchUITests/testAppLaunchesToInteractiveMainWindow()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SpatialHandoffUITests/testDockedTemporarilyUsesDefaultEnvironmentAnd
+    t =      nans Interface orientation changed to Unknown
+Resolve Package Graph
+
+Test session results, code coverage, and logs:
+
+** TEST EXECUTE SUCCEEDED **
+RestoresActiveEnvironmentOnReturn()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SpatialHandoffUITests/testPanoramaSuspendsAnActiveEnvironmentAndRestoresItOnReturn()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SpatialHandoffUITests/testWindowAndDockedCompleteRoundTrip()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SpatialHandoffUITests/testWindowAndPanoramaCompleteRoundTrip()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/SpatialHandoffUITests/testWindowPlaybackInputOwnership()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testAudioEngineDefaultManualPhaseAcousticCalibrationTone()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testAudioEngineMoviePlaybackAcousticCalibrationTone()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testRealPlaybackAcousticTimeline()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testRealPlaybackCapturesPhysicalScreenAndState()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testRealPlaybackSeekToEndDoesNotPresentLoadError()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testRealVideoAACDiagnostic()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testRealVideoSufficientRateReapplyDiagnostic()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testSampleBufferAudioRendererAcousticCalibrationTone()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testSampleBufferDefaultAudioSessionAcousticCalibrationTone()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/VisionProDeviceAcceptanceUITests/testUR12AcousticCalibrationTone()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/WindowPlaybackRegressionUITests/testConfiguredMediaDisplaysFirstFrame()"
+        },
+        {
+          "identifier" : "EnchronAppUITests/WindowPlaybackRegressionUITests/testLocalMediaWindowPlaybackLifecycle()"
+        }
+      ],
+      "testPlan" : "Enchron"
+    }
+  ]
+}

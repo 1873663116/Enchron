@@ -1,0 +1,18 @@
+Command line invocation:
+    xcodebuild test-without-building -project Enchron.xcodeproj -scheme Enchron -testPlan Enchron -destination "platform=visionOS Simulator,id=65A9A16C-CB84-4737-93DB-C93A01FDDB9C" "-only-testing:EnchronAppTests/SelectionGuardCaptureTests/testCaptureAFailingXCTestRun"
+
+Test Suite 'Selected tests' started at 2026-08-21 20:35:11.478.
+Test Suite 'EnchronAppTests.xctest' started at 2026-08-21 20:35:11.478.
+Test Suite 'SelectionGuardCaptureTests' started at 2026-08-21 20:35:11.478.
+Test Case '-[EnchronAppTests.SelectionGuardCaptureTests testCaptureAFailingXCTestRun]' started.
+Tests/EnchronApp/SelectionGuardCaptureTests.swift:5: error: -[EnchronAppTests.SelectionGuardCaptureTests testCaptureAFailingXCTestRun] : failed - captured so the selection guard has a run that executed a test and failed it
+Test Case '-[EnchronAppTests.SelectionGuardCaptureTests testCaptureAFailingXCTestRun]' failed (0.029 seconds).
+Test Suite 'SelectionGuardCaptureTests' failed at 2026-08-21 20:35:11.509.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.029 (0.030) seconds
+Test Suite 'EnchronAppTests.xctest' failed at 2026-08-21 20:35:11.509.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.029 (0.031) seconds
+Test Suite 'Selected tests' failed at 2026-08-21 20:35:11.509.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.029 (0.031) seconds
+Failing tests:
+	SelectionGuardCaptureTests.testCaptureAFailingXCTestRun()
+** TEST EXECUTE FAILED **
