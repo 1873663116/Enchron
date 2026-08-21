@@ -37,21 +37,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import scratch_directory
 
 EXTRACTOR = Path(__file__).parent / "extract_visionpro_ui_recording.py"
-EVIDENCE = Path("/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence")
-
-RECORDING = (
-    EVIDENCE
-    / "exit-cutover-20260813/before-docked/session.xcresult/Data"
-    / "data.0~c0ocuAnb6WhCbEfBTPv-wTbYVtBPb2zirhHCSfRhxPjMaf7oI2lf0wAuzIbe6lh0spg9S-tOwAg7zMccwPY2ow=="
-)
-
-STDOUT_LOG = (
-    EVIDENCE
-    / "recording-repro-20260814/session.xcresult/Staging/1_Test/Diagnostics"
-    / "EnchronAppUITests-27098CE2-376E-4B1A-B4D1-BBF57774646D-Configuration-Default-Iteration-1"
-    / "EnchronAppUITests-4790BF50-22C1-4DC1-8B46-070F6C276B77"
-    / "StandardOutputAndStandardError-com.xiongzhipeng.XrPlayer.txt"
-)
 
 
 def load_extractor(path: Path) -> types.ModuleType:
@@ -97,6 +82,48 @@ def parses_as_video_without_a_container_check(path: Path) -> dict[str, object] |
         "averageFrameRate": stream.get("avg_frame_rate"),
         "duration": duration,
     }
+
+
+def synthesized_runner_log(scratch: Path) -> Path:
+    """A runner stdout log, the shape the extractor has to reject.
+
+    The device log this replaces was pruned with the artifact root. What it
+    demonstrated survives synthesis, because ffmpeg reads any escape-laden text
+    of this size as an ansi stream in a tty container, which is exactly the
+    misparse the container predicate exists to catch.
+    """
+    log = scratch / "StandardOutputAndStandardError-com.xiongzhipeng.XrPlayer.txt"
+    lines = []
+    for index in range(400):
+        lines.append(
+            f"\x1b[1mTest Case '-[EnchronAppUITests testInteractive{index}]' started.\x1b[0m"
+        )
+        lines.append(
+            f'    t = {index / 10:8.2f}s Tap "PlayerUI-TopAction-videoFormat" Button'
+        )
+        lines.append(f"    t = {index / 10:8.2f}s     Wait for app to idle")
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return log
+
+
+def synthesized_recording(scratch: Path) -> Path:
+    """A screen recording, the shape the extractor has to accept."""
+    movie = scratch / "screen-recording.mp4"
+    completed = subprocess.run(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi",
+            "-i", "testsrc=size=320x240:rate=10:duration=1",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            str(movie),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0 or not movie.is_file():
+        raise SystemExit(f"could not synthesize a recording: {completed.stderr.strip()}")
+    return movie
 
 
 def staged_bundle(log: Path) -> tuple[Path, Path, Path]:
@@ -152,18 +179,11 @@ def main() -> None:
     failures: list[str] = []
 
     print("\nfixtures")
-    for label, path in (("recording", RECORDING), ("runner stdout log", STDOUT_LOG)):
-        if path.is_file():
-            print(f"  ok   the {label} fixture is present")
-            continue
-        print(f"  FAIL the {label} fixture is gone: {path}")
-        failures.append(
-            f"the {label} fixture is missing, so this check proves nothing about it: {path}"
-        )
-    if failures:
-        for failure in failures:
-            print(f"FAIL {failure}", file=sys.stderr)
-        raise SystemExit(1)
+    scratch = scratch_directory("recording-extractor-samples")
+    RECORDING = synthesized_recording(scratch)
+    STDOUT_LOG = synthesized_runner_log(scratch)
+    print(f"  ok   synthesized a recording: {RECORDING.name}")
+    print(f"  ok   synthesized a runner stdout log: {STDOUT_LOG.name}")
 
     print("\npredicate")
     recording = module.probe_video(RECORDING)

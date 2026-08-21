@@ -134,6 +134,10 @@ def unresolved_references() -> tuple[list[str], list[str]]:
         for candidate in sorted(repository_candidates(text, document)):
             if (REPOSITORY_ROOT / candidate).exists():
                 continue
+            # .scratch holds what a check regenerates, so an absent path there
+            # means nobody has run the generator yet, not that the doc is stale.
+            if candidate == ".scratch" or candidate.startswith(".scratch/"):
+                continue
             for retired_path in (candidate, candidate + "/"):
                 if retired_path in retired:
                     notes.append(f"{relative}: {candidate} retired, now {retired[retired_path]}")

@@ -24,10 +24,10 @@ and Swift Testing prints its own
     Test run with 9 tests in 0 suites passed after 0.007 seconds.
 
 A suite that is entirely Swift Testing therefore prints `Executed 0 tests` on a
-completely successful run. The preserved pair in
-`TestEvidence/dv76-verify-20260814` shows both logs carrying that line twice and
-both ending in `** TEST EXECUTE SUCCEEDED **`; the nine tests that ran appear only
-in the Swift Testing lines. Any rule that reads the XCTest counter alone condemns
+completely successful run. The pair in `Tests/Fixtures/xcodebuild-test-selection`
+shows both logs carrying that line twice and both ending in
+`** TEST EXECUTE SUCCEEDED **`; the tests that ran appear only in the Swift
+Testing lines. Any rule that reads the XCTest counter alone condemns
 the good run, and any rule that reads the exit status alone accepts the empty one.
 
 Four entry points, ordered by how early they can stop a wrong conclusion:
