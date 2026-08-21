@@ -25,7 +25,7 @@
 
 ## 干净停止
 
-用控制器的 `halt` 子命令。它先发 `stop` 让 XCTest 保存结果包，5 秒内没有确认就按仓库作用域解析控制器、`xcodebuild` 与 test-runner 进程并终止，返回 `terminated` 与 `remaining` 两张清单。`remaining` 为空才算停干净。
+用控制器的 `halt` 子命令。它先发 `stop` 并唤醒 runner，等最多 30 秒确认；随后给 `xcodebuild` 最多 180 秒退出，让 `.xcresult` 与录屏落盘；仍未退出的按仓库作用域解析控制器、`xcodebuild` 与 test-runner 进程，SIGTERM 5 秒后强杀，返回 `terminated` 与 `remaining` 两张清单。`remaining` 为空才算停干净。各时限以 `interactive_visionpro_ui.py` 顶部常量为准。
 
 作用域按进程工作目录判定，因此同一项目的另一个 checkout 或 worktree 不在范围内。自行拼 `pkill` 会按名字匹配到范围外的构建。
 

@@ -16,7 +16,7 @@ Emby 是媒体服务器来源：它提供媒体实体、元数据与服务器端
 
 ## Driving it with the controller
 
-**Emby 界面一律不发合成滑动**，见下方 Gotchas。可达路径只有点击：
+合成滑动带 `--identifier` 即可用（省略 identifier 的滑动才会杀会话，见 Gotchas）。两条播放入口：
 
 ```sh
 C tap --identifier Emby-Navigation-Tab
@@ -24,7 +24,7 @@ C tap --identifier Emby-StillCard-<id>          # 首页"接下来看"，直达�
 C tap --identifier Emby-Detail-PlayFromBeginning
 ```
 
-系列详情页（`Emby-PosterCard-<id>` 进入）的剧集卡 `Emby-Episode-<id>` 位于窗口折叠线以下，合成输入够不到，因此不要走这条路。
+系列详情页（`Emby-PosterCard-<id>` 进入）的剧集卡 `Emby-Episode-<id>` 是另一条入口，点击直接进播放；折叠线以下的剧集条先对 `Emby-Detail-<id>` 发带 identifier 的滑动滚到可视区再点。
 
 ## 证据
 

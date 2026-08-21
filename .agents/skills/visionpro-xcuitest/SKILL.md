@@ -10,6 +10,7 @@ description: 通过 XCUITest 操作真实 Vision Pro。适用于根据运行时�
  [references/enchron.md] 中保存了已经验证的命令形态、证据基线、权限顺序和已证伪路径。
  [features/README.md] 是 Enchron 的特性地图：每个用户可见特性一个文件，说明它是什么、用户怎么到达、什么终态算证明。只验证了便捷入口而地图列有其它入口的证明是不完整的。
  [references/operation-units.md] 是回归集：产品的全部操作按操作单元分组，逐条给出驱动方式与判据。它由 `Scripts/verification/journey_units.py reference` 生成，不手工编辑。
+ [references/journeys/index.md] 是回归轮次的组织层：13 条旅程（常备 10 条，J00/J05/J06 按需），由 `Scripts/verification/regression_journeys.py reference` 生成，不手工编辑。开轮先 `regression_journeys.py run open` 建台账，每条旅程读完判据即 `run verdict` 记录，收轮 `run close`；台账未收前，Stop hook 会拒绝结束回合，显式放弃用 `run abort --reason`。
  播放 PASS 必须有像素佐证。
 
 ## 注意事项

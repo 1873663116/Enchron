@@ -7,7 +7,7 @@
 - 常驻 XCTest runner：`Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift`
 - Mac 实时控制 VP：`Scripts/verification/interactive_visionpro_ui.py`
 - `.xcresult` 录屏恢复与联系表生成器：`Scripts/verification/extract_visionpro_ui_recording.py`
-- Xcode：`/Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer`
+- Xcode：以 `xcode-select -p` 为准（当前为 `/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer`）
 - 2026-08-09 最后核对的物理设备：CoreDevice ID 为 `59E3D57A-0288-53DC-9A7D-B657B6939558`，Xcode destination ID 为 `00008142-001871A11491401C`
 
 使用脚本前先读取其 `--help`。当前控制器在每条命令后返回界面层级、App 状态、匹配元素观察、session 身份，以及可选的本地 PNG。
@@ -103,7 +103,7 @@ alert 里的 TextField 无法补救，只能按 label 或 placeholder 命中。�
 ```sh
 python3 Scripts/verification/interactive_visionpro_ui.py \
   --device 00008142-001871A11491401C \
-  --developer-dir /Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer \
+  --developer-dir "$(xcode-select -p)" \
   --output-directory <证据目录> \
   ensure-session
 ```
