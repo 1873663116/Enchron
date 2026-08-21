@@ -2,16 +2,29 @@
 
 """Checks that the vision test verifier partitions an enumerated target exactly once.
 
-The preserved enumeration contains the state that the old verifier misses: 31
-target-level Swift Testing functions and six suites outside its hardcoded array. The
-check first proves that the old selection still covers 185 of 257 tests, then drives the
-verifier against a stand-in xcodebuild. Plan-only mode must enumerate into a dedicated
-file, replace a stale file, write an auditable invocation plan, and launch no test action.
+The verifier this check drives once selected tests from a hardcoded array of suite
+names. A target-level Swift Testing function has no suite in its identifier, so no
+list of suite names can name one, and any suite the list forgot never runs. The trap
+leg reproduces that from the enumeration fixture rather than from a remembered count.
+Filters built from every suite name the fixture contains still leave exactly the
+target-level functions unassigned, and the audit refuses a plan made of them.
+
+The verifier is then driven against a stand-in xcodebuild. Plan-only mode must
+enumerate into a dedicated file, replace a stale file, write an auditable invocation
+plan, and launch no test action. The written plan must assign every enumerated test
+in the target exactly once, give each suite its own isolated invocation, and batch
+the target-level functions behind their exact enumerated identifiers.
 
 The plan is then damaged in three independent ways. Removing an invocation must report
 unassigned tests, duplicating one must report overlapping ownership, and adding an empty
 filter must report that it selects nothing. These controls matter because a checker that
 only approves the generated plan could share the same omission as the planner.
+
+Every number the check holds the verifier to comes from
+`Tests/Fixtures/xcodebuild-test-selection/test-enumeration-salvaged.json`, so the
+fixture can be recaptured against a different set of tests without an edit here. What
+the fixture has to contain is checked rather than assumed: more than one suite, at
+least one target-level function, and nothing disabled.
 
 Use --verifier or --tool to point this check at an older copy. The pre-repair verifier
 exits zero after ten fake test actions, but this check fails because it never enumerates
@@ -38,31 +51,16 @@ from enchron_artifact_paths import scratch_directory
 REPOSITORY = Path(__file__).resolve().parents[2]
 VERIFIER = Path(__file__).parent / "verify_vision_test_suites.sh"
 TOOL = Path(__file__).parent / "xcodebuild_test_selection.py"
-ENUMERATION = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
-    "dv76-verify-20260814/r5-test-enumeration.json"
+ENUMERATION = (
+    REPOSITORY / "Tests/Fixtures/xcodebuild-test-selection/test-enumeration-salvaged.json"
 )
+# The target verify_vision_test_suites.sh names. The fixture has to contain it, since
+# the verifier is driven as it ships rather than reconfigured for the fixture.
 TARGET = "EnchronAppTests"
-ENUMERATED_TOTAL = 257
-NESTED_TOTAL = 226
-FREE_FUNCTION_TOTAL = 31
-LEGACY_COVERED = 185
-LEGACY_MISSING = 72
-LEGACY_SUITES = (
-    "EnvironmentSceneMappingTests",
-    "WindowPlaybackPageGeometryTests",
-    "PlaybackPresentationStateTests",
-    "PlaybackSourceAccessTests",
-    "PlaybackSourceAndAudioSessionTests",
-    "MediaLibraryTests",
-    "LocalDataSourceAdapterTests",
-    "FakeFileDataSourceTests",
-    "SMBDataSourceAdapterTests",
-    "WebDAVDataSourceAdapterTests",
-)
+FREE_FUNCTION_INVOCATION = "TargetLevelFreeFunctions"
 
 STUB_SOURCE = '''#!/usr/bin/env python3
-"""Records xcodebuild calls and writes the preserved enumeration when requested."""
+"""Records xcodebuild calls and writes the enumeration fixture when requested."""
 
 import json
 import os
@@ -163,6 +161,7 @@ def main() -> int:
     )
     nested = tuple(name for name in target_identifiers if len(name.split("/")) >= 3)
     free_functions = tuple(name for name in target_identifiers if len(name.split("/")) == 2)
+    suites = tuple(sorted({name.split("/")[1] for name in nested}))
     failures: list[str] = []
 
     def require(leg: str, held: bool, ok: str, bad: str) -> bool:
@@ -180,14 +179,17 @@ def main() -> int:
         "the damaged capture was repaired without losing an identifier",
         f"the enumeration lost identifiers: {enumeration.damaged}",
     )
+    # A fixture with one suite, or with no target-level function, checks the plan
+    # against a shape that exercises half of what the partition has to get right and
+    # leaves the other half free to be wrong. How many of each is the fixture's
+    # business.
     require(
         "fixture",
-        (len(target_identifiers), len(nested), len(free_functions))
-        == (ENUMERATED_TOTAL, NESTED_TOTAL, FREE_FUNCTION_TOTAL),
-        f"the target still has {ENUMERATED_TOTAL} tests: {NESTED_TOTAL} in suites and "
-        f"{FREE_FUNCTION_TOTAL} free functions",
-        f"the fixture now has {len(target_identifiers)} target tests: {len(nested)} in "
-        f"suites and {len(free_functions)} free functions",
+        len(suites) > 1 and bool(free_functions),
+        f"the target has {len(nested)} test(s) across {len(suites)} suites and "
+        f"{len(free_functions)} target-level function(s), so a partition has to reach both",
+        f"the fixture has {len(suites)} suite(s) and {len(free_functions)} target-level "
+        f"function(s) in {TARGET}, so it cannot show that a partition covers both",
     )
     disabled = tuple(name for name in enumeration.disabled if tool.selects(TARGET, name))
     require(
@@ -198,18 +200,52 @@ def main() -> int:
     )
 
     print("\ntrap")
-    legacy_filters = [f"{TARGET}/{suite}" for suite in LEGACY_SUITES]
-    legacy_resolutions = tool.resolve(legacy_filters, enumeration)
-    legacy_covered = set(tool.selected_identifiers(legacy_resolutions))
-    missing = sorted(set(target_identifiers) - legacy_covered)
+    # The defect stated as a relationship rather than a count. A target-level Swift
+    # Testing function has no suite component, so a selection made of suite names
+    # cannot reach one however complete the list of suite names is.
+    suite_filters = [f"{TARGET}/{suite}" for suite in suites]
+    suite_resolutions = tool.resolve(suite_filters, enumeration)
+    suite_covered = set(tool.selected_identifiers(suite_resolutions))
+    unreachable = set(target_identifiers) - suite_covered
     require(
         "trap",
-        len(legacy_covered) == LEGACY_COVERED and len(missing) == LEGACY_MISSING,
-        f"the old hardcoded selection still covers {LEGACY_COVERED} and misses "
-        f"{LEGACY_MISSING}",
-        f"the old selection now covers {len(legacy_covered)} and misses {len(missing)}, "
-        "so this fixture no longer reproduces the defect",
+        unreachable == set(free_functions),
+        f"filters made of all {len(suites)} suite names leave exactly the "
+        f"{len(free_functions)} target-level function(s) unassigned",
+        f"filters made of every suite name leave {len(unreachable)} test(s) unassigned "
+        f"rather than the {len(free_functions)} target-level function(s), so the fixture "
+        "no longer reproduces what a hardcoded suite list misses",
     )
+    suite_only_plan = tool.TargetInvocationPlan(
+        target=TARGET,
+        invocations=tuple(
+            tool.TargetInvocation(
+                name=suite,
+                filters=(f"{TARGET}/{suite}",),
+                identifiers=tuple(
+                    name for name in target_identifiers if name.split("/")[1] == suite
+                ),
+            )
+            for suite in suites
+        ),
+    )
+    try:
+        tool.audit_target_invocations(suite_only_plan, enumeration)
+    except tool.PlanError as error:
+        require(
+            "trap",
+            "unassigned" in str(error),
+            f"and the audit refuses a plan built from them: {error}",
+            f"the audit refused the suite-only plan for an unrelated reason: {error}",
+        )
+    else:
+        require(
+            "trap",
+            False,
+            "",
+            "the audit accepted a plan that reaches no target-level function, so it "
+            "would have approved the selection the verifier was repaired to replace",
+        )
 
     print("\nverifier planning")
     scratch = scratch_directory("vision-test-suite-coverage-check") / "work"
@@ -294,35 +330,36 @@ def main() -> int:
             planned = sum(len(invocation.identifiers) for invocation in plan.invocations)
             require(
                 "verifier",
-                planned == ENUMERATED_TOTAL,
+                planned == len(target_identifiers),
                 f"the written plan assigns all {planned} target tests exactly once",
-                f"the written plan assigns {planned} tests rather than {ENUMERATED_TOTAL}",
+                f"the written plan assigns {planned} tests rather than "
+                f"{len(target_identifiers)}",
             )
             suite_invocations = tuple(
                 invocation
                 for invocation in plan.invocations
-                if invocation.name != "TargetLevelFreeFunctions"
+                if invocation.name != FREE_FUNCTION_INVOCATION
             )
             free_invocations = tuple(
                 invocation
                 for invocation in plan.invocations
-                if invocation.name == "TargetLevelFreeFunctions"
+                if invocation.name == FREE_FUNCTION_INVOCATION
             )
             require(
                 "verifier",
-                len(suite_invocations) == 16
+                {invocation.name for invocation in suite_invocations} == set(suites)
                 and all(len(invocation.filters) == 1 for invocation in suite_invocations),
-                "all 16 suites retain one isolated invocation each",
-                f"the plan has {len(suite_invocations)} suite invocation(s), and their "
-                "filter counts are "
+                f"all {len(suites)} suites retain one isolated invocation each",
+                f"the plan has {len(suite_invocations)} suite invocation(s) for "
+                f"{len(suites)} enumerated suite(s), and their filter counts are "
                 f"{[len(invocation.filters) for invocation in suite_invocations]}",
             )
             require(
                 "verifier",
                 len(free_invocations) == 1
-                and len(free_invocations[0].filters) == FREE_FUNCTION_TOTAL
                 and set(free_invocations[0].filters) == set(free_functions),
-                f"all {FREE_FUNCTION_TOTAL} free functions share one exact-filter invocation",
+                f"all {len(free_functions)} target-level function(s) share one "
+                "exact-filter invocation",
                 "the target-level free functions are missing, split into extra calls, or "
                 "selected by something other than their exact enumerated identifiers",
             )
@@ -449,7 +486,7 @@ def main() -> int:
     if failures:
         return 1
     print(
-        f"the verifier partitions all {ENUMERATED_TOTAL} {TARGET} tests exactly once and "
+        f"the verifier partitions all {len(target_identifiers)} {TARGET} tests exactly once and "
         "refuses incomplete, overlapping, and empty plans"
     )
     return 0
