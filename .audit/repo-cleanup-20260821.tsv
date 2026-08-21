@@ -1,0 +1,6 @@
+ts	phase	decision	why	evidence	result
+2026-08-21T10:51:55Z	harness	built a rerunnable check for dead paths in instructions before fixing any of them	hand-fixing 56 references proves nothing a reviewer can re-run	Scripts/verification/verify_documentation_references.py	56 failures at baseline
+2026-08-21T10:53:23Z	subtract	deleted 13.3 GB of evidence and build caches, salvaged six markdown reports into the archive	the reports carry their own coordinates so the recordings added nothing	commit 86354c4	14.8G to 1.5G, pack 1.23GiB to 400MiB
+2026-08-21T10:58:40Z	artifact-root	derived both artifact roots from the checkout instead of an absolute path beside it	the external root was already deleted and fifteen scripts still defaulted to it	commit e4ec90b	151 verification tests pass, repo 14G to 1.0G
+2026-08-21T11:02:51Z	references	answered retired document names from a registry instead of rewriting decision records	an ADR records what was true when written; the name has to keep resolving	Config/retired_documents.json	56 failures down to 13
+2026-08-21T11:02:51Z	ci	restored the pruned CI worktree and made both workflows rebuild it	every push has failed at step one since an earlier cleanup deleted it	.github/workflows/verification-quick.yml	worktree restored, 71M

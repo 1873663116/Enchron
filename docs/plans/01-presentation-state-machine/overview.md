@@ -1,5 +1,15 @@
 # 呈现状态机重构
 
+状态：搁置
+最后推进：2026-08-15
+停在：phase-9
+
+2×2 模型与全部转换边已在生产代码里（`Modules/PlaybackPresentation/Model/PlaybackPresentation.swift`），
+phase-1 至 phase-8 的代码与模拟器判据成立，两个设备探针的裁决已产出并被下游消费。欠三件：
+phase-7 的横向边连续性与 phase-8 的表冠单双按，两处设备证据从未产出；phase-9 承诺的死代码清理
+只做了自动全景进入与对角线两项，沉浸宿主格式编辑那批仍在 `PlaybackPanel.swift`；phase-5 第 4 条
+自带的重验条件已被 `3d6074bb` 的共存 resident window 触发，重验未做。
+
 ## Context
 
 呈现模型收敛为 2×2：内容族（flat 对 panoramic，由生效投影决定）× 场景宿主（主窗口对沉浸空间）。四个呈现各占一格：
@@ -48,5 +58,5 @@
 
 ## Verification
 
-- 静态与单元：`xcodebuild test -project Enchron.xcodeproj -scheme Enchron -destination 'platform=visionOS Simulator,name=EnchronVisionProProbe' -derivedDataPath /Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataSim -clonedSourcePackagesDirPath /Volumes/Cortisol/DevSpace/Xcode/Enchron/SourcePackages/VisionProCoreRegression`
+- 静态与单元：`zsh Scripts/test-visionos-domain.sh <visionOS Simulator destination id>`
 - 设备回归：`Scripts/verification/playback_mode_matrix.py`，PASS 需像素佐证。

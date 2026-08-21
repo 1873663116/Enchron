@@ -9,7 +9,7 @@ state transition, or an app-command response produced after the product handler.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import os
@@ -33,17 +33,13 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
-DEFAULT_EVIDENCE = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round11-20260818"
-)
-ROUND13_DOCKED_CONTENT_RESULTS = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
-    "reachability-round13-20260819/segments/docked-02-content/results.json"
-)
+DEFAULT_EVIDENCE = evidence_root() / f"reachability-{date.today():%Y%m%d}"
 DEFAULT_DERIVED_DATA = artifact_root() / "DerivedData/Reachability"
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
-DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"
+DEVELOPER_DIR = subprocess.run(
+    ["xcode-select", "-p"], capture_output=True, text=True, check=True
+).stdout.strip()
 APP_BUNDLE = "com.xiongzhipeng.XrPlayer"
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
@@ -106,10 +102,16 @@ CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
-FIXTURE_SOURCE_ROOT = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
-    "reachability-round2-20260818/recovery/TestMediaInbox"
-)
+# Too large to vendor, so they are addressed where TestMedia keeps them.
+TEST_MEDIA = ROOT.parent / "TestMedia"
+FIXTURE_SOURCES = {
+    "furyroad-stripped.mkv":
+        "Samples/DynamicRange/DolbyVision/Experiments/dvvC-ab/furyroad-stripped.mkv",
+    "furyroad-with-dv.mkv":
+        "Samples/DynamicRange/DolbyVision/Experiments/dvvC-ab/furyroad-with-dv.mkv",
+    "sdr-bframe-multiaudio-subtitles-30s.mkv":
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv",
+}
 SCENARIO_FIXTURES = {
     "docked-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
     "panorama-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
@@ -1775,7 +1777,8 @@ class ReachabilityRun:
         return completed.returncode == 0
 
     def stage_fixture(self, file_name: str) -> bool:
-        source = FIXTURE_SOURCE_ROOT / file_name
+        relative = FIXTURE_SOURCES.get(file_name)
+        source = TEST_MEDIA / relative if relative else TEST_MEDIA / file_name
         if not source.is_file():
             self.events.append({
                 "at": utc_now(),
@@ -5014,23 +5017,20 @@ class ReachabilityRun:
                 )
         else:
             self.show_controls()
-            if presentation == "docked":
-                self.reuse_docked_menu_parent_observation()
-            else:
-                observed = self.wait_for_identifier("PlayerPanel-menu-more", timeout=10)
-                matched = observed.get("matchedElement")
-                if isinstance(matched, dict):
-                    self.mark_observation(
-                        presentation,
-                        "accessibility:PlayerPanel-menu-more",
-                        exists=True,
-                        hittable=matched.get("isHittable") is True,
-                        evidence=self.events[-1]["evidence"],
-                        reason=(
-                            "The immersive attachment exposed the named More parent. "
-                            "The system-owned Menu is not synthesized in this scene."
-                        ),
-                    )
+            observed = self.wait_for_identifier("PlayerPanel-menu-more", timeout=10)
+            matched = observed.get("matchedElement")
+            if isinstance(matched, dict):
+                self.mark_observation(
+                    presentation,
+                    "accessibility:PlayerPanel-menu-more",
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason=(
+                        "The immersive attachment exposed the named More parent. "
+                        "The system-owned Menu is not synthesized in this scene."
+                    ),
+                )
             probe = self.copy_probe(f"{presentation}-panel-menu-observed")
 
         family_operations = (
@@ -5098,47 +5098,6 @@ class ReachabilityRun:
             self.controller(
                 "tap", "--label", "1×", "--no-screenshot", timeout=90,
             )
-
-    def reuse_docked_menu_parent_observation(self) -> bool:
-        try:
-            document = json.loads(
-                ROUND13_DOCKED_CONTENT_RESULTS.read_text(encoding="utf-8")
-            )
-        except (OSError, json.JSONDecodeError):
-            return False
-        operation = "accessibility:PlayerPanel-menu-more"
-        cell = validated_reachable_cell(
-            document,
-            context="docked",
-            operation=operation,
-        )
-        if cell is None:
-            return False
-        evidence = "raw/docked-menu-more-round13.json"
-        (self.output / evidence).write_text(
-            json.dumps(
-                {
-                    "source": str(ROUND13_DOCKED_CONTENT_RESULTS),
-                    "cell": cell,
-                },
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            ) + "\n",
-            encoding="utf-8",
-        )
-        self.mark_observation(
-            "docked",
-            operation,
-            exists=True,
-            hittable=True,
-            evidence=evidence,
-            reason=(
-                "Round 13's complete, channel-healthy segment proved the unchanged "
-                "Docked More parent exists and is hittable."
-            ),
-        )
-        return True
 
     def docked_settings_scenario(self) -> None:
         presentation = "docked"

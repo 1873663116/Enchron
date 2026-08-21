@@ -33,14 +33,14 @@
 | 结构 | HDR 回退只移除渲染输入的 Dolby Vision 配置，并按 cross-compatibility 解释为 HDR10 或 HLG；来源 Format Description 保持不变 | PlaybackCore 单测 |
 | 结构 | 本地与远程两种取源方式逐字段一致 | `verify_source_parity_matrix.py --mode parity` |
 | 物理 | 出画且非纯色、非冻结 | `playback_mode_matrix.py` 的双帧亮度与 SSIM 闸 |
-| 物理 | 动态范围片源的采集帧与验收参照物的差异在阈值内 | `verify_reference_frames.py`，参照物由验收场铸造，缺参照时以退出码 2 大声失败 |
-| 感知 | 佩戴者确认动态范围各家族（HDR10、HLG、Dolby Vision 各 profile）色彩与亮度正常 | **待做**，每家族一次，确认帧即成参照物 |
+| 物理 | 动态范围片源的采集帧无整体色偏、无未解释 PQ 的灰雾形态 | Agent 判读，间隔至少 1 秒的 3 帧；每轮先判 furyroad-with-dv 与 stripped 阴阳样本自检 |
+| 感知 | 佩戴者确认动态范围各家族（HDR10、HLG、Dolby Vision 各 profile）色彩与亮度正常 | **待做**，每家族一次 |
 
 ## 证明的终态
 
-结构侧：构造入口唯一性通过；构造恒等检查中的 Dolby Vision 语料零失效，其他家族的既有差异逐项报告；来源 parity 矩阵逐字段无传输差异。物理侧：立体与投影 `visual.verdict = content` 即为终态；动态范围还需与参照物比对在阈值内。感知侧：佩戴者对每个动态范围家族一次性确认，确认当时采集的帧成为参照物，此后由机器比对。
+结构侧：构造入口唯一性通过；构造恒等检查中的 Dolby Vision 语料零失效，其他家族的既有差异逐项报告；来源 parity 矩阵逐字段无传输差异。物理侧：立体与投影 `visual.verdict = content` 即为终态；动态范围由 Agent 判读采集帧，判读者未通过阴阳样本自检时本轮结论作废。感知侧：佩戴者对每个动态范围家族一次性确认。
 
-参照物由 `verify_reference_frames.py` 铸造与比对，本体存放在 `TestMedia/References/`，验收片单在其 `acceptance-clips.md`。Profile 5 全程偏色时全套自动化通过，正是因为结构证据没人验、物理证据没有参照、感知验收没做过，三条同时为空。
+动态范围的物理判定由 Agent 读采集帧作出，判据与自检样本见 [判读模型](../../../../docs/plans/04-regression-journeys/draft.md)。验收片单在 `TestMedia/References/acceptance-clips.md`。Profile 5 曾经全程偏色而全套自动化通过，因为当时结构证据没人验、物理层没有判读者、感知验收没做过，三条同时为空。
 
 ## Gotchas
 

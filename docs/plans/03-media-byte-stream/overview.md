@@ -1,5 +1,8 @@
 # Media Byte Stream 与 Format Description
 
+状态：进行中
+最后推进：2026-08-20
+
 ## Context
 
 两条互不相交的重构。字节侧把三种远程来源收敛到一个入口，见 [ADR 0020](../../adr/0020-media-byte-stream-is-the-single-byte-entry.md)。格式侧把 `CMVideoFormatDescription` 的构造收敛到一个所有者。两者不共用代码，可并行。

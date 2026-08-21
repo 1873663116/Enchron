@@ -1,5 +1,17 @@
 # 源行为一致性验收
 
+状态：搁置
+最后推进：2026-08-16
+停在：阶段 3
+
+阶段 1 与 2 的一致性度量和全语料扫描成立。阶段 3 的真机取证欠两处，且性质不同：docked 格的控制面
+已由 2026-08-19 的可达性基线物理证明，但那一轮以 `--no-screenshot` 运行，`displayedPixel=true` 是
+App 自报的布尔量而非采下来的帧，像素证据仍为零；Dolby Vision 片源的像素比对通道从未开通。
+
+本计划原先把动态范围的物理判据写成"与验收参照物比对"，而 2026-08-20 的裁决是不设参照帧体系
+（见 [判读模型](../04-regression-journeys/draft.md)）。该判据因此作废，动态范围改由 Agent 读采集帧
+判读。合并门槛现在由 04 号计划的可达性清单持有，不由本计划持有。
+
 ## Context
 
 集成分支 `perf/presentation-switch-source-reopen` 汇入了三个并行 agent 的工作，全部落在 `PlaybackFFmpegBridge.c` 与其 Swift 消费者上：Dolby Vision Profile 5 的 sample description 修正、Profile 7 双层源的基础层拆分、远程打开时的 HTTP 连接复用。三者共同改变的是"同一段媒体经本地文件与经远程 HTTP 进入解码器"这条路径，因此验收的对象是这条路径的行为一致性，而不是三个提交各自的实现细节。

@@ -30,10 +30,10 @@ t = 51.80s Tear Down
 
 | 证据 | 出处 | 说明 |
 |---|---|---|
-| 本次复现（Emby 详情页在屏） | `TestEvidence/posterwall-20260820/runner-death1.log:293-310` | 三次 `Synthesize event` 各约 5.5 秒后返回 nil scene ID |
-| 本次对照（Files 页在屏，Emby 全程未打开） | `TestEvidence/posterwall-20260820/runner-death2.log:42-67` | 同一签名，同一行号，证明与 Emby 无关 |
-| 历史死亡一 | `TestEvidence/source-parity-20260816/Interactive-1786813813-1.xcresult` | 活动日志滑动目标为 Target Application |
-| 历史死亡二 | `TestEvidence/source-parity-20260816/Interactive-1786814348-1.xcresult` | 同上；失败落在当时源码 228 行，即 `case .swipeUp: surface.swipeUp()` |
+| 本次复现（Emby 详情页在屏） | posterwall-20260820 runner-death1.log:293-310，已删除 | 三次 `Synthesize event` 各约 5.5 秒后返回 nil scene ID |
+| 本次对照（Files 页在屏，Emby 全程未打开） | 同一轮 runner-death2.log:42-67，已删除 | 同一签名，同一行号，证明与 Emby 无关 |
+| 历史死亡一 | source-parity-20260816 Interactive-1786813813-1.xcresult，已删除 | 活动日志滑动目标为 Target Application |
+| 历史死亡二 | 同一轮 Interactive-1786814348-1.xcresult，已删除 | 同上；失败落在当时源码 228 行，即 `case .swipeUp: surface.swipeUp()` |
 
 App 存活的正面证据：每次合成失败之后，runner 仍成功取得目标 App 的 Accessibility 层级（`runner-death1.log:300,308`，pid 1061；历史运行同形，pid 3467）。设备崩溃报告域 `systemCrashLogs` 中 2026-08-20 无任何 Enchron 条目，最近一条为 `Enchron-2026-08-19-173430.ips`。
 
@@ -98,7 +98,7 @@ App 存活的正面证据：每次合成失败之后，runner 仍成功取得目
 
 ## 调查过程的操作记录
 
-未改动任何产品代码。构建产物写入 `/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedData-posterwall`，证据写入 `/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/posterwall-20260820/`。
+未改动任何产品代码。当时的构建产物与证据写在已废弃的外部产物根下，现已删除；重跑落 `.scratch/` 与 `TestEvidence/`。
 
 工作树留有一处修改：`Scripts/verification/controller_timings.json`，为控制器每次成功往返自动写入的滚动耗时样本，属该脚本的设计行为，非手工改动；未回滚，以免丢弃本次真实测量。
 

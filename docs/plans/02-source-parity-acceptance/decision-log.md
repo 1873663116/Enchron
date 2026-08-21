@@ -32,7 +32,7 @@
 
 ### 通道二（PlaybackCore macOS `swift test`）复测
 
-完整日志 `/Volumes/Cortisol/DevSpace/Xcode/Enchron/playbackcore-postmerge-20260816.log`。结果 200 测试 13 issue 8 失败，对照 2026-08-15 基线的 193 测试 14 issue 9 失败：
+完整日志已随产物根清理删除。结果 200 测试 13 issue 8 失败，对照 2026-08-15 基线的 193 测试 14 issue 9 失败：
 
 失败集合逐条比对，8 个全部是基线既有失败（两个 Apple-Streaming-Examples fixture 漂移、四个 seek 超时、一个字幕 rapid-seek、一个 `controllerRejectsSecondOpenAndRecordsTheRejection`）。基线第九个失败 `dvh1WithoutDolbyVisionConfigurationUsesHEVCAndKeepsMultiviewSignals`（hvcC 原子比较）**现在通过**，正是 Profile 5 修复的靶心。
 
@@ -149,7 +149,7 @@ wire 上的判别证据：
 
 **截图通道先坏了，修好才取证。** `XCUIScreen.main.screenshot()` 在当前 visionOS 构建上返回 1×1 图像（4232 字节，只有 ICC 数据），控制器照常写文件并报成功，于是每张"截图"看起来都是黑屏。历史证据里同一通道是 1920×1080、0.5 到 2.8 MB，说明是通道腐化不是产品黑屏。**若不先查尺寸就按图判读，会得出"播放全黑"的错误结论。** 修法是屏幕图像退化时改用 application 元素捕获（提交 `d716ed70`），修后恢复 1920×1080。
 
-取证结果（证据目录 `TestEvidence/source-parity-20260816/`）：
+取证结果（证据目录 source-parity-20260816 已删除，下列读数是当时的记录）：
 
 | 场景 | 呈现 | 判据 | 像素 |
 |---|---|---|---|

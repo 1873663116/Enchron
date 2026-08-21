@@ -80,6 +80,7 @@ STRUCTURE_CHECKS = (
     ),
     StructureCheck("media-discovery-admission", "verify_media_discovery_admission.py"),
     StructureCheck("glass-usage", "verify_glass_usage.py"),
+    StructureCheck("documentation-references", "verify_documentation_references.py"),
     StructureCheck(
         "playback-issue-ownership",
         "verify_playback_issue_ownership.py",
