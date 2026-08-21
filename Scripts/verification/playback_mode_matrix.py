@@ -24,6 +24,12 @@ DEVELOPER_DIR = subprocess.run(
 if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import artifact_root, evidence_root
+from presentation_model import (
+    FLAT,
+    PANORAMIC,
+    lands_in_immersive_space,
+    lands_in_main_window,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
@@ -194,40 +200,40 @@ APPLY_360_MONO = (
     "PlayerUI-VideoFormat-apply",
 )
 
+PANORAMIC_WINDOW = lands_in_main_window(PANORAMIC)
+FLAT_WINDOW = lands_in_main_window(FLAT)
+PANORAMIC_IMMERSIVE = lands_in_immersive_space(PANORAMIC)
+FLAT_IMMERSIVE = lands_in_immersive_space(FLAT)
+
+ENTER_PANORAMA = ("PlayerUI-TopAction-resumePanorama",)
+MAIN_WINDOW_LANDINGS = frozenset((FLAT_WINDOW, PANORAMIC_WINDOW))
+
 PATHS: dict[str, tuple[Step, ...]] = {
     "open-default": (
-        Step("open", OPEN_CLIP, "panorama"),
+        Step("open", OPEN_CLIP, PANORAMIC_WINDOW),
     ),
     "panorama-portal-cycle": (
-        Step("open", OPEN_CLIP, "panorama"),
+        Step("open", OPEN_CLIP, PANORAMIC_WINDOW),
+        Step("enter-panorama-1", ENTER_PANORAMA, PANORAMIC_IMMERSIVE),
         Step(
             "exit-to-portal-1",
             ("PlayerPanel-button-exit-spatial",),
-            "portal",
+            PANORAMIC_WINDOW,
         ),
-        Step(
-            "enter-panorama-1",
-            ("PlayerUI-TopAction-resumePanorama",),
-            "panorama",
-        ),
+        Step("enter-panorama-2", ENTER_PANORAMA, PANORAMIC_IMMERSIVE),
         Step(
             "exit-to-portal-2",
             ("PlayerPanel-button-exit-spatial",),
-            "portal",
-        ),
-        Step(
-            "enter-panorama-2",
-            ("PlayerUI-TopAction-resumePanorama",),
-            "panorama",
+            PANORAMIC_WINDOW,
         ),
     ),
     "format-flat-roundtrip": (
-        Step("open", OPEN_CLIP, "panorama"),
+        Step("open", OPEN_CLIP, PANORAMIC_WINDOW),
         Step("apply-flat-mono", APPLY_FLAT_MONO, "window"),
-        Step("apply-native-180", APPLY_NATIVE_180, "panorama"),
+        Step("apply-native-180", APPLY_NATIVE_180, PANORAMIC_WINDOW),
     ),
     "dock-roundtrip": (
-        Step("open", OPEN_CLIP, "panorama"),
+        Step("open", OPEN_CLIP, PANORAMIC_WINDOW),
         Step("apply-flat-mono", APPLY_FLAT_MONO, "window"),
         Step(
             "enter-docked",
@@ -235,20 +241,21 @@ PATHS: dict[str, tuple[Step, ...]] = {
                 "PlayerUI-TopAction-dock",
                 "PlayerUI-DockMenu-skybox",
             ),
-            "docked",
+            FLAT_IMMERSIVE,
         ),
         Step(
             "exit-to-window",
             ("PlayerPanel-button-exit-spatial",),
-            "window",
+            FLAT_WINDOW,
         ),
     ),
     "reopen-in-session": (
-        Step("open", OPEN_CLIP, "panorama"),
+        Step("open", OPEN_CLIP, PANORAMIC_WINDOW),
+        Step("enter-panorama", ENTER_PANORAMA, PANORAMIC_IMMERSIVE),
         Step(
             "exit-to-portal",
             ("PlayerPanel-button-exit-spatial",),
-            "portal",
+            PANORAMIC_WINDOW,
         ),
         Step(
             "back-and-reopen",
@@ -256,12 +263,12 @@ PATHS: dict[str, tuple[Step, ...]] = {
                 "PlayerUI-InfoBar-button-back",
                 "MediaLibrary-grid-video-{clip}",
             ),
-            "panorama",
+            PANORAMIC_WINDOW,
         ),
     ),
     "format-360": (
-        Step("open", OPEN_CLIP, "panorama"),
-        Step("apply-360-mono", APPLY_360_MONO, "panorama"),
+        Step("open", OPEN_CLIP, PANORAMIC_WINDOW),
+        Step("apply-360-mono", APPLY_360_MONO, PANORAMIC_WINDOW),
     ),
     "clean-open": (
         Step("open", OPEN_CLIP, "any-steady"),
@@ -271,27 +278,27 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step(
             "apply-native-180",
             ("PlayerUI-window-playback-surface", *APPLY_NATIVE_180),
-            "panorama",
-        ),
-        Step(
-            "exit-to-portal-1",
-            ("summon:PlayerPanel-button-exit-spatial",),
-            "portal",
+            PANORAMIC_WINDOW,
         ),
         Step(
             "enter-panorama-1",
             ("summon:PlayerUI-TopAction-resumePanorama",),
-            "panorama",
+            PANORAMIC_IMMERSIVE,
         ),
         Step(
-            "exit-to-portal-2",
+            "exit-to-portal-1",
             ("summon:PlayerPanel-button-exit-spatial",),
-            "portal",
+            PANORAMIC_WINDOW,
         ),
         Step(
             "enter-panorama-2",
             ("summon:PlayerUI-TopAction-resumePanorama",),
-            "panorama",
+            PANORAMIC_IMMERSIVE,
+        ),
+        Step(
+            "exit-to-portal-2",
+            ("summon:PlayerPanel-button-exit-spatial",),
+            PANORAMIC_WINDOW,
         ),
     ),
     "clean-dock-cycle": (
@@ -308,7 +315,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step(
             "exit-to-window-1",
             ("summon:PlayerPanel-button-exit-spatial",),
-            "window",
+            FLAT_WINDOW,
         ),
         Step(
             "enter-docked-2",
@@ -322,7 +329,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step(
             "exit-to-window-2",
             ("summon:PlayerPanel-button-exit-spatial",),
-            "window",
+            FLAT_WINDOW,
         ),
     ),
     "clean-360-cycle": (
@@ -330,17 +337,17 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step(
             "apply-360-mono",
             ("PlayerUI-window-playback-surface", *APPLY_360_MONO),
-            "panorama",
-        ),
-        Step(
-            "exit-to-portal",
-            ("summon:PlayerPanel-button-exit-spatial",),
-            "portal",
+            PANORAMIC_WINDOW,
         ),
         Step(
             "enter-panorama",
             ("summon:PlayerUI-TopAction-resumePanorama",),
-            "panorama",
+            PANORAMIC_IMMERSIVE,
+        ),
+        Step(
+            "exit-to-portal",
+            ("summon:PlayerPanel-button-exit-spatial",),
+            PANORAMIC_WINDOW,
         ),
     ),
 }
@@ -1377,9 +1384,11 @@ def wait_for_clean_open(
     target_started_at: float,
     probe_cursor: ProbeCursor,
 ) -> tuple[dict[str, object], list[str], ProbeCursor]:
-    """A clean open may legitimately land windowed (no format signaling) or
-    panoramic (signaled source); the verdict records where it landed and the
-    signaling truth table instead of presuming a target presentation."""
+    """A clean open settles in the main window column, and which cell depends on
+    whether the source signals a panoramic projection: window for flat, portal
+    for panoramic. Entering the immersive space is always a separate act, so
+    neither panorama nor docked is a clean-open landing. The verdict records
+    where it landed rather than presuming one."""
     deadline = target_started_at + SETTLEMENT_TIMEOUT_SECONDS
     delta: list[str] = []
     observed_cursor = probe_cursor
@@ -1394,7 +1403,7 @@ def wait_for_clean_open(
                 return (
                     {
                         "verdict": PASS,
-                        "landed": appeared_presentation(delta) or "panorama",
+                        "landed": appeared_presentation(delta) or PANORAMIC_WINDOW,
                         "time_to_target_seconds": round(elapsed, 3),
                     },
                     delta,
@@ -1405,7 +1414,7 @@ def wait_for_clean_open(
             latest_plane = plane
             lifecycle = plane.get("lifecycle") or ""
             if (
-                plane.get("presentation") == "window"
+                plane.get("presentation") in MAIN_WINDOW_LANDINGS
                 and plane.get("transition") == "none"
                 and lifecycle.lower() in WINDOWED_STEADY_LIFECYCLES
                 and plane.get("videoVisible") != "true"
@@ -1440,7 +1449,7 @@ def wait_for_clean_open(
                     observed_cursor,
                 )
             if (
-                plane.get("presentation") == "window"
+                plane.get("presentation") in MAIN_WINDOW_LANDINGS
                 and plane.get("transition") == "none"
                 and plane.get("videoVisible") == "true"
                 and lifecycle.lower() in WINDOWED_STEADY_LIFECYCLES
@@ -1449,7 +1458,7 @@ def wait_for_clean_open(
                 return (
                     {
                         "verdict": PASS,
-                        "landed": "window",
+                        "landed": plane.get("presentation"),
                         "time_to_target_seconds": round(elapsed, 3),
                         "control_plane": format_facts(plane),
                     },

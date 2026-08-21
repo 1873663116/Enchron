@@ -24,6 +24,12 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from presentation_model import (  # noqa: E402
+    CONTENT_FAMILY,
+    FLAT,
+    PANORAMIC,
+    lands_in_main_window,
+)
 from playback_mode_matrix import (  # noqa: E402
     APPLY_360_MONO,
     APPLY_FLAT_MONO,
@@ -52,10 +58,12 @@ SURFACE = "PlayerUI-window-playback-surface"
 # to hit.
 CHROME_HOSTS = ("window", "portal")
 
+# Projection only changes in the main window column, so the immersive cells
+# offer nothing but the way out. apply-flat from panorama was a diagonal.
 LEGAL_MOVES: dict[str, tuple[str, ...]] = {
     "window": ("apply-flat", "apply-180", "apply-360", "enter-docked"),
     "portal": ("apply-flat", "apply-180", "apply-360", "enter-panorama"),
-    "panorama": ("apply-flat", "exit-spatial"),
+    "panorama": ("exit-spatial",),
     "docked": ("exit-spatial",),
 }
 
@@ -64,14 +72,14 @@ def build_step(move: str, presentation: str, clip: str) -> Step:
     prefix = (SURFACE,) if presentation in CHROME_HOSTS else ()
     stereo = STEREO_LABELS.get(clip, "Side-by-Side")
     if move == "apply-flat":
-        return Step("apply-flat", (*prefix, *APPLY_FLAT_MONO), "window")
+        return Step("apply-flat", (*prefix, *APPLY_FLAT_MONO), lands_in_main_window(FLAT))
     if move == "apply-180":
         actions = tuple(
             action.replace("{stereo_label}", stereo) for action in APPLY_NATIVE_180
         )
-        return Step("apply-180", (*prefix, *actions), "panorama")
+        return Step("apply-180", (*prefix, *actions), lands_in_main_window(PANORAMIC))
     if move == "apply-360":
-        return Step("apply-360", (*prefix, *APPLY_360_MONO), "panorama")
+        return Step("apply-360", (*prefix, *APPLY_360_MONO), lands_in_main_window(PANORAMIC))
     if move == "enter-docked":
         return Step(
             "enter-docked",
@@ -83,7 +91,7 @@ def build_step(move: str, presentation: str, clip: str) -> Step:
             "enter-panorama", ("summon:PlayerUI-TopAction-resumePanorama",), "panorama"
         )
     if move == "exit-spatial":
-        target = "portal" if presentation == "panorama" else "window"
+        target = lands_in_main_window(CONTENT_FAMILY[presentation])
         return Step("exit-spatial", ("summon:PlayerPanel-button-exit-spatial",), target)
     raise ValueError(f"unknown move {move}")
 
