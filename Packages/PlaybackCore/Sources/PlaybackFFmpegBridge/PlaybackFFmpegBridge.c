@@ -2900,6 +2900,11 @@ static OSStatus create_annexb_format(
     return status;
 }
 
+// CoreMedia reads the SPS only inside its own H.264 parameter-set constructor.
+// Nothing else supplies the color primaries, transfer function, matrix and
+// full-or-limited range the stream declares there. FFmpeg's codec parameters do
+// not carry them, and passing the same avcC to CMVideoFormatDescriptionCreate as
+// a sample description atom returns noErr with all four fields absent.
 static OSStatus create_h264_format_from_avcc(
     const AVCodecParameters *parameters,
     CFDictionaryRef extensions,

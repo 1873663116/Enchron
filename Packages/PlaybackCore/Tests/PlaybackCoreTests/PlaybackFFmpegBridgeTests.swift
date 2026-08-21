@@ -179,6 +179,95 @@ private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
     )
 }
 
+/// CoreMedia expands the SPS color declaration only inside the parameter-set
+/// constructor `create_h264_format_from_avcc` calls. Each fixture here declares
+/// primaries, transfer, matrix and range nowhere but its SPS, so a description
+/// built from the `avcC` atom instead loses all four.
+@Test(arguments: [
+    (
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4",
+        kCMFormatDescriptionColorPrimaries_ITU_R_709_2 as String?,
+        kCMFormatDescriptionTransferFunction_ITU_R_709_2 as String?,
+        kCMFormatDescriptionYCbCrMatrix_ITU_R_709_2 as String?,
+        false as Bool?
+    ),
+    (
+        "TestVectors/Enchron/Calibration/Sources/equirect_grid.mp4",
+        String?.none,
+        String?.none,
+        String?.none,
+        false as Bool?
+    ),
+    (
+        "Samples/CameraOriginals/Sony-A7SIII/a7s III 4K 60p 600Mbps 10 bit 422 Slog3 SGamut3 .MP4",
+        String?.none,
+        String?.none,
+        String?.none,
+        true as Bool?
+    ),
+])
+func avcCH264FixturesCarryTheColorDeclarationOfTheirParameterSets(
+    relativePath: String,
+    declaredPrimaries: String?,
+    declaredTransfer: String?,
+    declaredMatrix: String?,
+    declaresFullRange: Bool?
+) async throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(relativePath)
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(
+        reader,
+        Comment(rawValue: "\(relativePath): \(cString(error))")
+    )
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: "\(relativePath): \(cString(error))")
+    )
+    let sample = try #require(sampleReference?.takeRetainedValue())
+    let format = try #require(CMSampleBufferGetFormatDescription(sample))
+    #expect(CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_H264)
+    let bridgeExtensions =
+        CMFormatDescriptionGetExtensions(format) as? [String: Any] ?? [:]
+    let sourceFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let sourceExtensions =
+        CMFormatDescriptionGetExtensions(sourceFormat) as? [String: Any] ?? [:]
+
+    for (key, declared) in [
+        (kCMFormatDescriptionExtension_ColorPrimaries as String, declaredPrimaries),
+        (kCMFormatDescriptionExtension_TransferFunction as String, declaredTransfer),
+        (kCMFormatDescriptionExtension_YCbCrMatrix as String, declaredMatrix),
+    ] {
+        #expect(
+            bridgeExtensions[key] as? String == declared,
+            Comment(rawValue: "\(relativePath) bridge \(key)")
+        )
+        #expect(
+            sourceExtensions[key] as? String == declared,
+            Comment(rawValue: "\(relativePath) source \(key)")
+        )
+    }
+    let rangeKey = kCMFormatDescriptionExtension_FullRangeVideo as String
+    #expect(
+        bridgeExtensions[rangeKey] as? Bool == declaresFullRange,
+        Comment(rawValue: "\(relativePath) bridge \(rangeKey)")
+    )
+    #expect(
+        sourceExtensions[rangeKey] as? Bool == declaresFullRange,
+        Comment(rawValue: "\(relativePath) source \(rangeKey)")
+    )
+}
+
 @Test(arguments: [
     (
         "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",

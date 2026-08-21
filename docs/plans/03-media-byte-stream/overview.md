@@ -91,7 +91,7 @@
 | | 事项 | 完成判据 |
 |---|---|---|
 | F1 | 编码标识归一化收敛为一处调用 | 调用点计数为 1 |
-| F2 | `CMVideoFormatDescription` 的五种构造收敛到一个所有者，特例为其分支 | 构造入口计数为 1 |
+| F2 | `CMVideoFormatDescription` 的五种构造收敛到一个所有者，特例为其分支 | 构造入口计数为 1；H.264 的 avcC 分支仍由 `CMVideoFormatDescriptionCreateFromH264ParameterSets` 建出，因为 SPS 声明的色彩原色、传递函数、矩阵与 range 只在这个构造器里展开，改成先建扩展再附 avcC 会静默丢掉四者；`PlaybackFFmpegBridgeTests.avcCH264FixturesCarryTheColorDeclarationOfTheirParameterSets` 通过 |
 | F3 | `MediaSourceInformation` 补齐 Dolby Vision 档次与立体增强层标志 | 事实集中在一个结构 |
 | F4 | 是否咨询 AVFoundation 的判断改用上述事实 | 判断输入不含文件后缀匹配 |
 | F5 | 冲突规则落到一处执行：以 AVFoundation 解析为底，桥接层的解码器配置合并其上 | 重建的配置不覆盖容器原文 |
@@ -110,7 +110,7 @@
 |---|---|
 | V1 | 格式侧合并前后 `Scripts/verification/verify_source_parity_matrix.py` 逐字段一致 |
 | V2 | 真机四种来源各播一次，出画出声，跳转与切轨正常 |
-| V3 | PlaybackCore 单测基线不退（8 失败 13 issue，逐条比对失败名） |
+| V3 | PlaybackCore 单测基线不退，逐条比对失败名，基线见上文 Constraints |
 | V4 | 断线自愈：缓冲充足时断开连接，播放不中断且无提示 |
 | V5 | 索引缓存：同一远程文件第二次打开，网络读取量不含索引 |
 
