@@ -127,10 +127,12 @@ runner 继续常驻；在有意重启之前，后续命令应保持同一个 ses
 
 ## 证据基线与边界
 
-- `/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/true-user-panorama-repro-20260808-191108/true-user-session-after-permission.xcresult` 证明：没有产品状态注入的常驻 session 可以点击 Enchron 导入菜单，并通过真实 Files 选择器依次进入 iCloud Drive、Desktop、TestMedia、Samples、Spatial、Panorama 和 `insta360.mp4`。
-- 同目录的 `true-user-session-imported.xcresult` 证明 Window 链路可以完成媒体选择、播放表面、Video Format、360° 和 Apply。它随后在沉浸空间 `Playback surface` 上报 `invalid activation point transform (nil)`，因此不能证明 XCUIAutomation 可以捏合任意 RealityKit 全景表面。
-- `/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/interactive-panorama-repro-20260808/InteractivePanoramaRepro.xcresult` 是交互和切换成功基线，但其启动使用了回归状态控制，因此不是干净的普通用户启动基线。
-- `/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/spatial-cutover-clean-20260809-rDPQwJ`、`spatial-cutover-system-ui-20260809-ezINUY` 和 `spatial-cutover-live-20260809-9Zue7Q` 证明截图或层级可以工作，而输入所有权仍然无效。不能复用这些会话采用的外部启动路径。
+下列结论出自 2026-08 的真机会话。原始 `.xcresult` 已随证据清理删除，结论本身不依赖重新打开它们。
+
+- 2026-08-08 的 true-user-panorama-repro 会话证明：没有产品状态注入的常驻 session 可以点击 Enchron 导入菜单，并通过真实 Files 选择器依次进入 iCloud Drive、Desktop、TestMedia、Samples、Spatial、Panorama 和 `insta360.mp4`。
+- 同一轮的 imported 会话证明 Window 链路可以完成媒体选择、播放表面、Video Format、360° 和 Apply。它随后在沉浸空间 `Playback surface` 上报 `invalid activation point transform (nil)`，因此不能证明 XCUIAutomation 可以捏合任意 RealityKit 全景表面。
+- 2026-08-08 的 interactive-panorama-repro 会话是交互和切换成功基线，但其启动使用了回归状态控制，因此不是干净的普通用户启动基线。
+- 2026-08-09 的三个 spatial-cutover 会话（clean、system-ui、live）证明截图或层级可以工作，而输入所有权仍然无效。不能复用这些会话采用的外部启动路径。
 
 这台 Vision Pro 支持通过 XCUITest/Xcode 截图。当前环境中的 Device Hub `View Screen` 没有产生可用画面；这个限制不适用于 `XCUIScreen` 截图或 `.xcresult` 录屏。
 

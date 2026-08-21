@@ -15,6 +15,7 @@ that never says whether anyone is still working on it.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -37,7 +38,13 @@ INSTRUCTION_ROOTS = (
 
 HISTORY_ROOTS = ("docs/archive", "docs/research")
 
+# This check and its test quote dead paths as data. They define the rule
+# rather than instructing anyone, so scanning them only finds the examples.
+SELF = ("Scripts/verification/verify_documentation_references.py",
+        "Scripts/verification/test_verify_documentation_references.py")
+
 RETIRED_ARTIFACT_ROOT = "/Volumes/Cortisol/DevSpace/Xcode/Enchron"
+RETIRED_DOCUMENTS_PATH = REPOSITORY_ROOT / "Config/retired_documents.json"
 
 TOP_LEVEL_SEGMENTS = frozenset(
     entry.name for entry in REPOSITORY_ROOT.iterdir() if not entry.name.startswith(".git/")
@@ -49,6 +56,11 @@ ABSOLUTE_VOLUME_PATH = re.compile(r"/Volumes/[^\s`\"'),;]+")
 LINE_LOCATOR = re.compile(r":[\d,\-–、\s]*$")
 ADR_SUPERSEDED = re.compile(r"^\s*\**\s*(?:status|状态)\s*[:：].*supersed", re.IGNORECASE | re.MULTILINE)
 PLAN_STATUS = re.compile(r"^\s*\**\s*(?:status|状态)\s*[:：]", re.IGNORECASE | re.MULTILINE)
+
+
+def retired_documents() -> dict[str, str]:
+    record = json.loads(RETIRED_DOCUMENTS_PATH.read_text(encoding="utf-8"))
+    return {entry["path"]: entry["replacement"] for entry in record["retired"]}
 
 
 def tracked_text_files() -> list[Path]:
@@ -68,6 +80,8 @@ def tracked_text_files() -> list[Path]:
 
 def population(path: Path) -> str | None:
     relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+    if relative in SELF:
+        return None
     if any(relative == root or relative.startswith(root + "/") for root in HISTORY_ROOTS):
         return "history"
     if any(relative == root or relative.startswith(root + "/") for root in INSTRUCTION_ROOTS):
@@ -102,13 +116,14 @@ def absolute_candidates(text: str) -> set[str]:
     return {
         strip_locator(match.group(0))
         for match in ABSOLUTE_VOLUME_PATH.finditer(text)
-        if "*" not in match.group(0) and "<" not in match.group(0)
+        if not any(character in match.group(0) for character in "*<[\\")
     }
 
 
 def unresolved_references() -> tuple[list[str], list[str]]:
     errors: list[str] = []
     notes: list[str] = []
+    retired = retired_documents()
     for document in tracked_text_files():
         group = population(document)
         if group is None:
@@ -117,7 +132,13 @@ def unresolved_references() -> tuple[list[str], list[str]]:
         relative = document.relative_to(REPOSITORY_ROOT).as_posix()
         sink = errors if group == "instruction" else notes
         for candidate in sorted(repository_candidates(text, document)):
-            if not (REPOSITORY_ROOT / candidate).exists():
+            if (REPOSITORY_ROOT / candidate).exists():
+                continue
+            for retired_path in (candidate, candidate + "/"):
+                if retired_path in retired:
+                    notes.append(f"{relative}: {candidate} retired, now {retired[retired_path]}")
+                    break
+            else:
                 sink.append(f"{relative}: {candidate} does not exist")
         for candidate in sorted(absolute_candidates(text)):
             if candidate.startswith(RETIRED_ARTIFACT_ROOT):

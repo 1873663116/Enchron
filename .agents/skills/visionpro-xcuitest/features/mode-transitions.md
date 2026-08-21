@@ -22,14 +22,14 @@ Window chrome 提供 Dock 与 Video Format。Portal chrome 同时提供 Enter Pa
 ```sh
 python3 Scripts/verification/playback_mode_matrix.py --clean --reps 1 \
   --paths clean-spatial-cycle clean-dock-cycle \
-  --media-root /Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/fixtures \
+  --media-root .scratch/loop-fixtures \
   --clips "Spatial/Stereo180/180_3D_loop10.mp4" "Spatial/Stereo180/180_3D_TB_loop10.mp4" \
   --evidence-dir <evidence>/cycles-<stamp>
 # 360 变体：--paths clean-360-cycle --clips "Spatial/Panorama/360_loop10.mp4"
 ```
 
 三条路径依赖的机制：
-- **循环 fixture**：需要覆盖播放中连续切换时，经 `--media-root` 选用 `TestEvidence/fixtures` 下的 10 分钟流拷贝（`*_loop10.mp4`）。ended 转换测试使用自然播放结束的 60 秒原片。
+- **循环 fixture**：需要覆盖播放中连续切换时，先跑 `zsh Scripts/fixtures/generate_loop_fixtures.sh` 由 TestMedia 原片生成 10 分钟流拷贝（`*_loop10.mp4`），再经 `--media-root` 指向 `.scratch/loop-fixtures`。原片约一分钟就结束，会在循环中途结束会话。ended 转换测试正是使用自然播放结束的原片。
 - **summon 原语**（`summon:<identifier>`）：自动隐藏 chrome 上的控件必须在一个收敛循环里"先试点、不中则 toggle 后经 runner 内 3 秒存在等待重试"；分离的可见性探测永远输给隐藏计时器。
 - **tapSequence**：窗口菜单序列（格式编辑五击）必须在一条 runner 命令内以亚秒间隔落点。
 

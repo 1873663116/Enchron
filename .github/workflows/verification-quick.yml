@@ -17,7 +17,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          MAIN=/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron
           REPO=/Volumes/Cortisol/DevSpace/EnchronWorkspace/wt-ci
+          FFMPEG=Packages/PlaybackCore/Vendor/FFmpeg/PlaybackFFmpeg.xcframework
+          # The worktree and the vendored framework are both untracked state on
+          # this machine, so build them when they are absent rather than failing.
+          if [ ! -d "$REPO" ]; then
+            git -C "$MAIN" worktree add --detach "$REPO" HEAD
+          fi
           # The runner's launchd session has no Keychain access, so git must
           # never consult a credential helper. Pushes from this Mac already
           # place the commit in the shared object store; fetch only when the
@@ -29,8 +36,7 @@ jobs:
               fetch origin
           fi
           git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
-          if [ ! -d "$REPO/Packages/PlaybackCore/Vendor/FFmpeg" ]; then
-            echo "vendored FFmpeg missing in the CI worktree" >&2
-            exit 1
+          if [ ! -d "$REPO/$FFMPEG" ]; then
+            ln -s "$MAIN/$FFMPEG" "$REPO/$FFMPEG"
           fi
           python3 "$REPO/Scripts/verification/run_verification_gauntlet.py" --quick

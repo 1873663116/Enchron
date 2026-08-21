@@ -1,0 +1,47 @@
+{
+  "comment": "Documents that were removed, and where the reader should go now. A decision record keeps the name it was written with; this file is how that name still resolves. Checked by Scripts/verification/verify_documentation_references.py.",
+  "retired": [
+    {
+      "path": "docs/product-requirements.md",
+      "removed": "2026-08-07",
+      "commit": "dc8bf6c1",
+      "replacement": "生产代码。产品能力不再有独立规格文档，导航入口是 ARCHITECTURE.md 与 docs/plans/。"
+    },
+    {
+      "path": "docs/core-spec.md",
+      "removed": "2026-08-07",
+      "commit": "dc8bf6c1",
+      "replacement": "Packages/PlaybackCore 的生产源码与测试。核心行为不再有独立合同文档。"
+    },
+    {
+      "path": "docs/acceptance/",
+      "removed": "2026-08-07",
+      "commit": "dc8bf6c1",
+      "replacement": "docs/plans/ 承载在办的验收，.agents/skills/visionpro-xcuitest/features/ 承载特性地图与证据要求。"
+    },
+    {
+      "path": "docs/acceptance/verification-system.md",
+      "removed": "2026-08-07",
+      "commit": "dc8bf6c1",
+      "replacement": ".agents/skills/visionpro-xcuitest/SKILL.md 与 Scripts/verification/run_verification_gauntlet.py。"
+    },
+    {
+      "path": "docs/quality_gates.md",
+      "removed": "2026-08-06",
+      "commit": "7fe3af96",
+      "replacement": "Scripts/verification/run_verification_gauntlet.py 与 Config/verification_gauntlet_baseline.json 是当前的证据阶梯。"
+    },
+    {
+      "path": "docs/plans/active/",
+      "removed": "2026-08-07",
+      "commit": "dc8bf6c1",
+      "replacement": "docs/plans/ 直接存放计划，状态写在每份 overview.md 的状态行里。"
+    },
+    {
+      "path": "docs/reference/",
+      "removed": "2026-08-07",
+      "commit": "dc8bf6c1",
+      "replacement": "docs/CONTEXT.md 承载术语，ARCHITECTURE.md 承载结构导航。"
+    }
+  ]
+}

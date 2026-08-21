@@ -4,6 +4,11 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
+
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root
 import re
 import subprocess
 import sys
@@ -23,9 +28,7 @@ DEFAULT_MEDIA = (
     / "Stereo180"
     / "HNVR-158_H_4096p_8K_LR_180_clip.mp4"
 )
-DEFAULT_SCRATCH = Path(
-    "/Volumes/Cortisol/DerivedData/Enchron-remote-media-open-probe"
-)
+DEFAULT_SCRATCH = artifact_root() / "remote-media-open-probe"
 STAGES = ("session",)
 
 
