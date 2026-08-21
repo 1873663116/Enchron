@@ -761,11 +761,13 @@ extension XCTestCase {
     }
 
     func writeAcceptanceShot(_ screenshot: XCUIScreenshot, name: String) {
+        // Tests/EnchronAppUI/Support/<this file> is four levels below the checkout.
         let shots = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent(".cursor/acceptance-shots", isDirectory: true)
+            .deletingLastPathComponent()
+            .appendingPathComponent(".scratch/acceptance-shots", isDirectory: true)
         try? FileManager.default.createDirectory(
             at: shots,
             withIntermediateDirectories: true

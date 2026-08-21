@@ -20,14 +20,14 @@ import sys
 import time
 
 
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = REPOSITORY_ROOT / "Config/verification_gauntlet_baseline.json"
-DEFAULT_LOG_ROOT = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/VerificationGauntlet/runs"
-)
-PLAYBACK_CORE_SCRATCH = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/VerificationGauntlet/PlaybackCore"
-)
+DEFAULT_LOG_ROOT = artifact_root() / "VerificationGauntlet/runs"
+PLAYBACK_CORE_SCRATCH = artifact_root() / "VerificationGauntlet/PlaybackCore"
 TEST_FAILURE = re.compile(
     r"\bTest (?P<name>[A-Za-z_][A-Za-z0-9_]*)"
     r"(?:\([^)]*\))? (?:recorded an issue|failed after)"

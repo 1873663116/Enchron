@@ -4,11 +4,11 @@ set -euo pipefail
 
 repository_root=${0:A:h:h:h}
 source "$repository_root/Scripts/verification/enchron_artifact_paths.sh"
-xcode_app=${ENCHRON_XCODE_APP:-/Volumes/Cortisol/Applications/Xcode-beta3.app}
-developer_dir="$xcode_app/Contents/Developer"
+developer_dir=${ENCHRON_XCODE_APP:+$ENCHRON_XCODE_APP/Contents/Developer}
+developer_dir=${developer_dir:-$(xcode-select -p)}
 derived_data=${ENCHRON_DERIVED_DATA:-$artifact_root/DerivedData/OrganicArchitecture}
 source_packages=${ENCHRON_SOURCE_PACKAGES:-$artifact_root/SourcePackages/OrganicArchitecture}
-evidence_root=${ENCHRON_EVIDENCE_ROOT:-$artifact_root/TestEvidence/organic-architecture-$(date +%Y%m%d-%H%M%S)}
+evidence_root=${ENCHRON_EVIDENCE_ROOT:-$evidence_root/organic-architecture-$(date +%Y%m%d-%H%M%S)}
 
 mkdir -p "$evidence_root"
 

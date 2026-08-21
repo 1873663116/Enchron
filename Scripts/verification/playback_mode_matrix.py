@@ -18,13 +18,16 @@ import uuid
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
 BUNDLE = "com.xiongzhipeng.XrPlayer"
-DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"
+DEVELOPER_DIR = subprocess.run(
+    ["xcode-select", "-p"], capture_output=True, text=True, check=True
+).stdout.strip()
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
-DEFAULT_EVIDENCE_ROOT = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
-    "playback-mode-coverage-20260809"
-)
+DEFAULT_EVIDENCE_ROOT = evidence_root() / "playback-mode-coverage"
 
 CONTROL_PLANE_IDENTIFIER = "PlayerUI-window-control-plane"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"

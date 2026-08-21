@@ -17,12 +17,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_media_discovery_admission import canonical_suffixes, production_arrays
 
 
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MATRIX = REPOSITORY_ROOT / "Config/media_discovery_capability_matrix.json"
 DEFAULT_TEST_MEDIA = REPOSITORY_ROOT.parent / "TestMedia"
-DEFAULT_SCRATCH = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/VerificationGauntlet/PlaybackCore"
-)
+DEFAULT_SCRATCH = artifact_root() / "VerificationGauntlet/PlaybackCore"
 RANGE_SERVER = REPOSITORY_ROOT / "Scripts/fixtures/range-http-server.py"
 PROBE_PRODUCT = "PlaybackCoreRemoteMediaProbe"
 VIDEO_STAGES = (

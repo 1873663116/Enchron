@@ -25,8 +25,12 @@ from verify_source_parity_matrix import probe_binary
 
 
 EMBY_ADDRESS = "http://192.168.5.2:8096"
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 REPOSITORY = Path(__file__).resolve().parents[2]
-DEFAULT_SCRATCH = "/Volumes/Cortisol/DevSpace/Xcode/Enchron/PlaybackCoreBuild"
+DEFAULT_SCRATCH = str(artifact_root() / "PlaybackCoreBuild")
 INTEGER = re.compile(r"^-?\d+$")
 FLOAT = re.compile(r"^-?(?:\d+\.\d*|\d*\.\d+)(?:[eE][+-]?\d+)?$")
 

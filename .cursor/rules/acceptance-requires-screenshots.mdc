@@ -15,4 +15,4 @@ alwaysApply: true
 
 任一不足都不能报验收成功。已知假阳性：`displayedPixel=true` / `videoSamples` 推进 / 测试 Passed，但截图仍是 LoadingSpinner、毛玻璃空板或仅音频在播。
 
-截图应落到可复查路径（例如 `.cursor/acceptance-shots/<name>-screen.png`）。报告结论前先看图；Spinner、空板、黑窗、控件已出但无画面，一律判未通过。
+截图落 `.scratch/acceptance-shots/<name>-screen.png`，由 `writeAcceptanceShot` 写出。报告结论前先看图；Spinner、空板、黑窗、控件已出但无画面，一律判未通过。

@@ -25,6 +25,10 @@ import urllib.request
 import uuid
 
 
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
@@ -36,9 +40,7 @@ ROUND13_DOCKED_CONTENT_RESULTS = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/"
     "reachability-round13-20260819/segments/docked-02-content/results.json"
 )
-DEFAULT_DERIVED_DATA = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReach11-20260818"
-)
+DEFAULT_DERIVED_DATA = artifact_root() / "DerivedData/Reachability"
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
 DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"

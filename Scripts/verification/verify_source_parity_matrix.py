@@ -32,6 +32,10 @@ from urllib.parse import quote
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from probe_emby_direct_play import authenticate, request
 
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 PACKAGE = REPOSITORY / "Packages" / "PlaybackCore"
 SERVER = REPOSITORY / "Scripts" / "fixtures" / "range-http-server.py"
@@ -187,7 +191,7 @@ def main():
     parser.add_argument("--filter", help="only media whose path or name matches this regex")
     parser.add_argument(
         "--scratch-path",
-        default="/Volumes/Cortisol/DevSpace/Xcode/Enchron/PlaybackCoreBuild",
+        default=str(artifact_root() / "PlaybackCoreBuild"),
     )
     parser.add_argument("--output")
     arguments = parser.parse_args()

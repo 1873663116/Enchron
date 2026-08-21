@@ -19,7 +19,7 @@ xcodebuild_command=${ENCHRON_XCODEBUILD:-xcodebuild}
 destination=${ENCHRON_VISION_TEST_DESTINATION:-}
 derived_data=${ENCHRON_DERIVED_DATA:-$artifact_root/DerivedData/VisionTestSuites}
 source_packages=${ENCHRON_SOURCE_PACKAGES:-$artifact_root/SourcePackages/VisionTestSuites}
-evidence_root=${ENCHRON_EVIDENCE_ROOT:-$artifact_root/TestEvidence/vision-test-suites-$(date +%Y%m%d-%H%M%S)}
+evidence_root=${ENCHRON_EVIDENCE_ROOT:-$evidence_root/vision-test-suites-$(date +%Y%m%d-%H%M%S)}
 plan_only=${ENCHRON_VISION_TEST_PLAN_ONLY:-0}
 
 if [[ -z "$destination" ]]; then

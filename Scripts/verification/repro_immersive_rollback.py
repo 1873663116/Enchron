@@ -23,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from playback_mode_matrix import copy_probe_lines, parse_probe_timestamp  # noqa: E402
 
 DEVICE = "00008142-001871A11491401C"
-DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer"
+DEVELOPER_DIR = subprocess.run(
+    ["xcode-select", "-p"], capture_output=True, text=True, check=True
+).stdout.strip()
 CONTROLLER = Path(__file__).resolve().parent / "interactive_visionpro_ui.py"
 
 

@@ -1,29 +1,44 @@
 #!/usr/bin/env python3
 
-"""Resolves the volume that holds Enchron build and test artifacts, for scripts
-that cannot source `enchron_artifact_paths.sh`. Both carry the same default and
-the same refusal to write to the system disk when the volume is not mounted."""
+"""Where this checkout puts build output, working directories and device evidence.
+
+Everything derives from the checkout, so a worktree or a clone on another
+volume carries its own artifacts instead of writing into a path that happened
+to exist on one machine. `ENCHRON_ARTIFACT_ROOT` overrides the working root for
+a run that has to put it elsewhere.
+
+Two roots, and the difference is how long the contents are meant to live.
+`.scratch` holds anything a check can regenerate, which is why
+`Scripts/scratch-prune.zsh` is free to delete it by age. `TestEvidence` holds
+what a device run recorded and nobody can regenerate without the headset.
+"""
+
+from __future__ import annotations
 
 from pathlib import Path
 import os
 
-DEFAULT_ARTIFACT_ROOT = Path("/Volumes/Cortisol/DevSpace/Xcode/Enchron")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def artifact_root() -> Path:
-    root = Path(os.environ.get("ENCHRON_ARTIFACT_ROOT", str(DEFAULT_ARTIFACT_ROOT)))
-    if root == Path("/Volumes/Cortisol") or Path("/Volumes/Cortisol") in root.parents:
-        if not Path("/Volumes/Cortisol").is_mount():
-            raise SystemExit(
-                "Cortisol is not mounted; refusing to write Enchron build and test "
-                "artifacts to the system disk."
-            )
-    return root
+    """The working root: build output, probes, logs, anything regenerable."""
+    override = os.environ.get("ENCHRON_ARTIFACT_ROOT")
+    return Path(override) if override else REPOSITORY_ROOT / ".scratch"
 
 
 def scratch_directory(name: str) -> Path:
-    """A working directory for one check. Lives beside the build artifacts rather
-    than in the system temporary directory, which is on the internal disk."""
-    path = artifact_root() / "Temporary" / name
+    """A working directory for one check, created on demand."""
+    path = artifact_root() / name
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def derived_data(name: str) -> Path:
+    """A DerivedData path for one xcodebuild invocation."""
+    return artifact_root() / "DerivedData" / name
+
+
+def evidence_root() -> Path:
+    """Device evidence. Not regenerable without the headset, so not under .scratch."""
+    return REPOSITORY_ROOT / "TestEvidence"

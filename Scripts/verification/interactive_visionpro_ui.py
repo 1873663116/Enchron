@@ -8,6 +8,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -26,6 +27,10 @@ APP_COMMAND_PATH = "Documents/test-command.json"
 DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
 APP_RESPONSE_ROOT = "Documents/test-responses"
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from enchron_artifact_paths import artifact_root, evidence_root
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER_PROCESS_MARKER = Path(__file__).name
 RUNNER_PROCESS_MARKERS = (
@@ -945,12 +950,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--derived-data-path",
         dest="derived_data_path",
-        default="/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedData",
+        default=str(artifact_root() / "DerivedData"),
     )
     parser.add_argument(
         "--cloned-packages-path",
         dest="cloned_packages_path",
-        default="/Volumes/Cortisol/DevSpace/Xcode/Enchron/SourcePackages/VisionProCoreRegression",
+        default=str(artifact_root() / "SourcePackages/VisionProCoreRegression"),
     )
     parser.add_argument(
         "--only-testing",
