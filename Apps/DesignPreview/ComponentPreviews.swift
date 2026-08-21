@@ -103,7 +103,7 @@ struct PlaybackControlsPreview: View {
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
 
-            if presentation == .window {
+            if presentation.usesMainWindow {
                 WindowPlaybackControls(
                     live: live(presentation: presentation, overview: overview),
                     initialExpansion: expansion
