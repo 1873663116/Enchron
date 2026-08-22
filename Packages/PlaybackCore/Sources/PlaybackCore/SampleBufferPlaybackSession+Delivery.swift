@@ -84,6 +84,7 @@ extension SampleBufferPlaybackSession {
         audioRendererSink.flush()
         debugStore.recordCleanupStep(.audioRendererFlushed)
         Task { [self] in
+            discardVideoFramesInFlight()
             await rendererSink.flush(removingDisplayedImage: true)
             finishCloseAfterFlush()
         }
@@ -169,6 +170,7 @@ extension SampleBufferPlaybackSession {
         task?.cancel()
         await task?.value
         if flushingRenderer {
+            discardVideoFramesInFlight()
             await rendererSink.flush(removingDisplayedImage: false)
             flushCount += 1
             recordRendererState(at: currentTime())
@@ -401,12 +403,8 @@ extension SampleBufferPlaybackSession {
             }
             let decodeTime = CMSampleBufferGetDecodeTimeStamp(formatSignaledSample)
             let decoderBootstrapTarget = targetTimelineTime(fallback: presentationTime)
-            let bootstrapIncomplete = !decoderBootstrapLock.withLock { decoderBootstrapComplete }
-            // The first DTS after the target is the sample that completes bootstrap.
-            // Waiting for renderer backpressure before submitting that crossing sample
-            // can deadlock while the synchronizer is intentionally held at rate zero.
-            let requiresImmediateDecoderBootstrap = bootstrapIncomplete
-            let timelineIsIntentionallyStopped = isPrerolling || synchronizer.rate == 0
+            let requiresImmediateDecoderBootstrap =
+                !decoderBootstrapLock.withLock { decoderBootstrapComplete }
             let outcome: RendererEnqueueOutcome
             do {
                 let enqueueSample = try CMSampleBuffer(copying: renderSample)
@@ -425,105 +423,50 @@ extension SampleBufferPlaybackSession {
                         ]
                     )
                 }
-                switch rendererSink.enqueueStrategy {
-                case .boundedImmediateLead:
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "boundedLead.enter",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    try await waitForBoundedRendererLead(
-                        lane: .video,
-                        presentationTime: presentationTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "boundedLead.returned",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "enqueueImmediately.enter",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    outcome = try rendererSink.enqueueImmediately(input)
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "enqueueImmediately.returned",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "enqueueImmediately.outcome",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime,
-                        outcome: String(describing: outcome)
-                    )
-                case .receiverBackpressure
-                    where requiresImmediateDecoderBootstrap || timelineIsIntentionallyStopped:
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "boundedLead.enter",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    try await waitForBoundedRendererLead(
-                        lane: .video,
-                        presentationTime: presentationTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "boundedLead.returned",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "enqueueImmediately.enter",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    outcome = try rendererSink.enqueueImmediately(input)
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "enqueueImmediately.returned",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "video",
-                        stage: "enqueueImmediately.outcome",
-                        epoch: streamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime,
-                        outcome: String(describing: outcome)
-                    )
-                case .receiverBackpressure:
-                    outcome = try await rendererSink.enqueue(input)
-                }
+                emitPlaybackDeliveryStage(
+                    lane: "video",
+                    stage: "boundedLead.enter",
+                    epoch: streamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                try await waitForBoundedVideoLead(presentationTime: presentationTime)
+                emitPlaybackDeliveryStage(
+                    lane: "video",
+                    stage: "boundedLead.returned",
+                    epoch: streamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                emitPlaybackDeliveryStage(
+                    lane: "video",
+                    stage: "enqueueImmediately.enter",
+                    epoch: streamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                outcome = try rendererSink.enqueueImmediately(input)
+                recordVideoFrameInFlight(presentationEnd: presentationEnd)
+                emitPlaybackDeliveryStage(
+                    lane: "video",
+                    stage: "enqueueImmediately.returned",
+                    epoch: streamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                emitPlaybackDeliveryStage(
+                    lane: "video",
+                    stage: "enqueueImmediately.outcome",
+                    epoch: streamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime,
+                    outcome: String(describing: outcome)
+                )
                 if sampleOrdinal <= 8 {
                     debugStore.emit(
                         mediaSessionID: traceID,
@@ -774,7 +717,6 @@ extension SampleBufferPlaybackSession {
         generation: UInt64
     ) {
         guard presentationEnd.isNumeric,
-              rendererSink.enqueueStrategy == .boundedImmediateLead,
               timelineStartRate > 0,
               !isPrerolling,
               activeOperation == nil,
@@ -791,7 +733,9 @@ extension SampleBufferPlaybackSession {
 
         let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
             timelineTime: timelineTime,
-            durationSeconds: diagnostics.durationSeconds
+            durationSeconds: diagnostics.durationSeconds,
+            leadFrames: videoLeadFrames,
+            nominalFrameRate: diagnostics.nominalFrameRate
         )
         requestedTimelineStart = timelineTime
         isPrerolling = true
@@ -812,7 +756,7 @@ extension SampleBufferPlaybackSession {
             details: [
                 "lagSeconds": String(timelineTime.seconds - presentationEnd.seconds),
                 "recoveryLeadSeconds": String(
-                    PlaybackBufferingPolicy.deliveryLagRecoveryLeadSeconds
+                    requirement.videoEnd.seconds - timelineTime.seconds
                 ),
                 "requiredAudioEndSeconds": String(requirement.audioEnd.seconds),
                 "requiredVideoEndSeconds": String(requirement.videoEnd.seconds),
@@ -982,57 +926,49 @@ extension SampleBufferPlaybackSession {
                 }
                 let input = RendererInputSample(sampleBuffer: sample)
                 let outcome: RendererEnqueueOutcome
-                switch audioRendererSink.enqueueStrategy {
-                case .boundedImmediateLead:
-                    emitPlaybackDeliveryStage(
-                        lane: "audio",
-                        stage: "boundedLead.enter",
-                        epoch: audioStreamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    try await waitForBoundedRendererLead(
-                        lane: .audio,
-                        presentationTime: presentationTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "audio",
-                        stage: "boundedLead.returned",
-                        epoch: audioStreamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "audio",
-                        stage: "enqueueImmediately.enter",
-                        epoch: audioStreamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    outcome = try audioRendererSink.enqueueImmediately(input)
-                    emitPlaybackDeliveryStage(
-                        lane: "audio",
-                        stage: "enqueueImmediately.returned",
-                        epoch: audioStreamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime
-                    )
-                    emitPlaybackDeliveryStage(
-                        lane: "audio",
-                        stage: "enqueueImmediately.outcome",
-                        epoch: audioStreamEpoch,
-                        sampleOrdinal: sampleOrdinal,
-                        presentationTime: presentationTime,
-                        decodeTime: decodeTime,
-                        outcome: String(describing: outcome)
-                    )
-                case .receiverBackpressure:
-                    outcome = try await audioRendererSink.enqueue(input)
-                }
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "boundedLead.enter",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                try await waitForBoundedAudioLead(presentationTime: presentationTime)
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "boundedLead.returned",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "enqueueImmediately.enter",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                outcome = try audioRendererSink.enqueueImmediately(input)
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "enqueueImmediately.returned",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime
+                )
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "enqueueImmediately.outcome",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    presentationTime: presentationTime,
+                    decodeTime: decodeTime,
+                    outcome: String(describing: outcome)
+                )
                 if sampleOrdinal <= 64 {
                     debugStore.emit(
                         mediaSessionID: traceID,
@@ -1220,58 +1156,147 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    var opportunisticRendererLeadSeconds: Double {
+    /// Frames this stream may hold in the renderer. The reorder depth and the
+    /// decoded frame size both come from the stream itself, so an unopened or
+    /// audio-only session falls back to the frame ceiling.
+    var videoLeadFrames: Int {
         let dimensions = diagnostics.videoGeometry?.encodedDimensions
-        return PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+        return RendererLeadBudget.frames(
+            reorderDepth: diagnostics.videoReorderDepth,
             encodedWidth: dimensions?.width ?? 0,
             encodedHeight: dimensions?.height ?? 0,
-            nominalFrameRate: diagnostics.nominalFrameRate
+            decodedBytesPerPixel: diagnostics.decodedBytesPerPixel
         )
     }
 
-    func waitForBoundedRendererLead(
-        lane: PlaybackDeliveryLane,
-        presentationTime: CMTime
-    ) async throws {
+    func recordVideoFrameInFlight(presentationEnd: CMTime) {
+        guard presentationEnd.isNumeric else { return }
+        videoFramesInFlightLock.withLock {
+            videoFramesInFlight.record(presentationEnd: presentationEnd.seconds)
+        }
+    }
+
+    func discardVideoFramesInFlight() {
+        videoFramesInFlightLock.withLock { videoFramesInFlight.removeAll() }
+    }
+
+    func waitForBoundedVideoLead(presentationTime: CMTime) async throws {
+        guard presentationTime.isNumeric else { return }
+        let budget = videoLeadFrames
+        while true {
+            try Task.checkCancellation()
+            guard !isClosed, !isResetting else { throw CancellationError() }
+            let reading = timelineClockReading()
+            let reference = leadReferenceSeconds(reading)
+            let (framesInFlight, earliestRetirement) = videoFramesInFlightLock.withLock {
+                (
+                    videoFramesInFlight.count(timelineSeconds: reference),
+                    videoFramesInFlight.earliestRetirement()
+                )
+            }
+            let isBlocked = framesInFlight >= budget
+                || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
+            observeLeadDecision(
+                lane: .video,
+                isBlocked: isBlocked,
+                presentationTime: presentationTime,
+                reading: reading
+            )
+            if !isBlocked { return }
+            try await Task.sleep(for: leadRetryDelay(
+                until: earliestRetirement,
+                from: reference,
+                rate: reading.directRate
+            ))
+        }
+    }
+
+    func waitForBoundedAudioLead(presentationTime: CMTime) async throws {
         guard presentationTime.isNumeric else { return }
         while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
             let reading = timelineClockReading()
-            let current = reading.mediaTime
-            let target = targetTimelineTime(fallback: current)
-            let referenceSeconds = max(
-                current.isNumeric ? current.seconds : 0,
-                target.isNumeric ? target.seconds : 0
-            )
+            let reference = leadReferenceSeconds(reading)
             let isBlocked = presentationTime.seconds
-                > referenceSeconds + opportunisticRendererLeadSeconds
+                > reference + PlaybackBufferingPolicy.opportunisticAudioMaximumLeadSeconds
                 || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
-            let decision = timelineProgressRecoveryLock.withLock {
-                if !isBlocked {
-                    return timelineProgressRecovery.observeProgress(reading)
-                }
-                guard timelineProgressRecoveryIsEligible,
-                      timelineProgressRecovery.matches(
-                        videoStreamEpoch: streamEpoch,
-                        audioStreamEpoch: audioStreamEpoch,
-                        requestedRate: timelineStartRate
-                      ) else {
-                    return .none
-                }
-                return timelineProgressRecovery.observeBlockedLane(
-                    lane,
-                    blockedPresentationTime: presentationTime,
-                    reading: reading,
-                    requiredLanes: timelineProgressRequiredLanes
-                )
-            }
-            handleTimelineProgressDecision(decision)
-            if !isBlocked {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(5))
+            observeLeadDecision(
+                lane: .audio,
+                isBlocked: isBlocked,
+                presentationTime: presentationTime,
+                reading: reading
+            )
+            if !isBlocked { return }
+            try await Task.sleep(for: leadRetryDelay(
+                until: presentationTime.seconds
+                    - PlaybackBufferingPolicy.opportunisticAudioMaximumLeadSeconds,
+                from: reference,
+                rate: reading.directRate
+            ))
         }
+    }
+
+    private func leadReferenceSeconds(_ reading: PlaybackTimelineClockReading) -> Double {
+        let current = reading.mediaTime
+        let target = targetTimelineTime(fallback: current)
+        return max(
+            current.isNumeric ? current.seconds : 0,
+            target.isNumeric ? target.seconds : 0
+        )
+    }
+
+    /// The timeline advances at a known rate, so the moment the gate opens is
+    /// arithmetic rather than something to poll for. A stopped timeline retires
+    /// nothing, and only a state change can unblock it, so it falls back to a
+    /// coarse interval.
+    private func leadRetryDelay(
+        until openSeconds: Double?,
+        from referenceSeconds: Double,
+        rate: Double
+    ) -> Duration {
+        guard let openSeconds, openSeconds.isFinite, rate > 0 else {
+            return Self.stoppedTimelineLeadRetryDelay
+        }
+        let hostSeconds = (openSeconds - referenceSeconds) / rate
+        guard hostSeconds.isFinite, hostSeconds > 0 else {
+            return Self.minimumLeadRetryDelay
+        }
+        return max(
+            Self.minimumLeadRetryDelay,
+            min(Self.stoppedTimelineLeadRetryDelay, .seconds(hostSeconds))
+        )
+    }
+
+    private static let minimumLeadRetryDelay = Duration.milliseconds(1)
+    private static let stoppedTimelineLeadRetryDelay = Duration.milliseconds(20)
+
+    private func observeLeadDecision(
+        lane: PlaybackDeliveryLane,
+        isBlocked: Bool,
+        presentationTime: CMTime,
+        reading: PlaybackTimelineClockReading
+    ) {
+        let decision = timelineProgressRecoveryLock.withLock {
+            if !isBlocked {
+                return timelineProgressRecovery.observeProgress(reading)
+            }
+            guard timelineProgressRecoveryIsEligible,
+                  timelineProgressRecovery.matches(
+                    videoStreamEpoch: streamEpoch,
+                    audioStreamEpoch: audioStreamEpoch,
+                    requestedRate: timelineStartRate
+                  ) else {
+                return .none
+            }
+            return timelineProgressRecovery.observeBlockedLane(
+                lane,
+                blockedPresentationTime: presentationTime,
+                reading: reading,
+                requiredLanes: timelineProgressRequiredLanes
+            )
+        }
+        handleTimelineProgressDecision(decision)
     }
 
     var timelineProgressRequiredLanes: Set<PlaybackDeliveryLane> {
@@ -1954,6 +1979,7 @@ extension SampleBufferPlaybackSession {
         didRecordFormat = false
         resetVideoEndState()
         flushCount += 1
+        discardVideoFramesInFlight()
         await rendererSink.flush(removingDisplayedImage: false)
         guard !isClosed else { return }
         isResetting = false

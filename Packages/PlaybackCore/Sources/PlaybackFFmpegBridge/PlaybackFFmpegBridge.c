@@ -3243,6 +3243,17 @@ static void copy_media_information_text(
     snprintf(buffer, bufferSize, "%s", value ? value : "");
 }
 
+static double decoded_bytes_per_pixel(int pixelFormat) {
+    const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(pixelFormat);
+    if (!descriptor || descriptor->nb_components == 0) return 0;
+    int depth = descriptor->comp[0].depth;
+    if (depth <= 0) return 0;
+    int bitsPerPixel = av_get_bits_per_pixel(descriptor);
+    if (bitsPerPixel <= 0) return 0;
+    double samplesPerPixel = (double)bitsPerPixel / (double)depth;
+    return samplesPerPixel * (depth > 8 ? 2.0 : 1.0);
+}
+
 static void fill_media_stream_storage(
     PBFFmpegMediaStreamStorage *storage,
     const AVStream *stream
@@ -3264,6 +3275,10 @@ static void fill_media_stream_storage(
         storage->info.nominalFrameRate <= 0) {
         storage->info.nominalFrameRate = 0;
     }
+    storage->info.reorderDepth = parameters->video_delay > 0
+        ? parameters->video_delay
+        : 0;
+    storage->info.decodedBytesPerPixel = decoded_bytes_per_pixel(parameters->format);
     storage->info.sampleRate = parameters->sample_rate;
     storage->info.channelCount = parameters->ch_layout.nb_channels;
 

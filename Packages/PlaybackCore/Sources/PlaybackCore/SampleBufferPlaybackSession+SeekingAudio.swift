@@ -31,6 +31,9 @@ extension SampleBufferPlaybackSession {
         )
 
         let teardownStarted = ContinuousClock.now
+        let framesInFlightAtTeardown = videoFramesInFlightLock.withLock {
+            videoFramesInFlight.count(timelineSeconds: timelineClockReading().mediaTime.seconds)
+        }
         stopVideoDelivery()
         stopAudioDelivery()
         discardPendingVideoSample()
@@ -45,6 +48,7 @@ extension SampleBufferPlaybackSession {
             audioProvider.cancel()
         }
         let audioProviderCancelled = ContinuousClock.now
+        discardVideoFramesInFlight()
         await rendererSink.flush(removingDisplayedImage: removingDisplayedImage)
         let rendererFlushed = ContinuousClock.now
         debugStore.emit(
@@ -63,6 +67,8 @@ extension SampleBufferPlaybackSession {
                     Self.milliseconds(from: audioProviderCancelled, to: rendererFlushed),
                 "totalMilliseconds":
                     Self.milliseconds(from: teardownStarted, to: rendererFlushed),
+                "leadFrames": String(videoLeadFrames),
+                "framesInFlight": String(framesInFlightAtTeardown),
             ]
         )
         resetDecoderBootstrap()

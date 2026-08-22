@@ -39,47 +39,14 @@ enum PlaybackBufferingPolicy {
     /// 6.8–13.1-second pauses on remote 4K HEVC with TrueHD.
     static let deliveryLagRecoveryLeadSeconds = 1.0
 
-    /// Vision Pro may opportunistically queue compressed samples while playback
-    /// keeps pace. This is a ceiling, not a startup or recovery requirement.
+    /// Audio samples the delivery loop may run ahead of the timeline, in media
+    /// seconds. Decoded audio is small and its renderer flush is cheap, so the
+    /// unit that was wrong for video frames is the right one here.
     #if os(visionOS)
-        static let opportunisticRendererMaximumLeadSeconds = 6.0
+        static let opportunisticAudioMaximumLeadSeconds = 6.0
     #else
-        static let opportunisticRendererMaximumLeadSeconds = 1.0
+        static let opportunisticAudioMaximumLeadSeconds = 1.0
     #endif
-
-    /// The renderer holds that lead as decoded frames, and tearing the queue
-    /// down is what a seek waits on. The 2026-08-21 Vision Pro measurement
-    /// flushed a full 8192x4096 60 fps lead in 2.8 to 4.7 seconds and an
-    /// already-drained one in 0.4 milliseconds, so seconds alone do not
-    /// describe the cost. The ceiling is a pixel budget instead, sized at the
-    /// platform ceiling's worth of 4K30 so ordinary streams keep the full lead
-    /// and only streams expensive enough to stall a seek tighten. Six seconds
-    /// of 4K30 is the budget; it describes the device, so the platform's
-    /// seconds ceiling clamps it rather than scaling it.
-    static let opportunisticRendererMaximumLeadPixels = 3840.0 * 2160.0 * 30.0 * 6.0
-
-    /// Below this the delivery loop stops being a buffer at all.
-    static let opportunisticRendererMinimumLeadSeconds = 0.75
-
-    /// The lead a stream of this pixel rate may hold. An unmeasured stream keeps
-    /// the platform ceiling; nothing is known that would justify tightening it.
-    static func opportunisticRendererMaximumLead(
-        encodedWidth: Int,
-        encodedHeight: Int,
-        nominalFrameRate: Double
-    ) -> Double {
-        let pixelRate = Double(encodedWidth)
-            * Double(encodedHeight)
-            * nominalFrameRate
-        guard pixelRate > 0, pixelRate.isFinite else {
-            return opportunisticRendererMaximumLeadSeconds
-        }
-        let affordable = opportunisticRendererMaximumLeadPixels / pixelRate
-        return min(
-            opportunisticRendererMaximumLeadSeconds,
-            max(opportunisticRendererMinimumLeadSeconds, affordable)
-        )
-    }
 
     /// Five seconds bounds provider or renderer failure; it is not buffered-media
     /// policy. The 5-millisecond poll keeps activation responsive within that bound.
@@ -105,13 +72,23 @@ enum PlaybackBufferingPolicy {
         )
     }
 
+    /// Recovery stops the timeline and refuses to resume until video is buffered
+    /// a lead past it, and the delivery gate measures the same span from the same
+    /// reference. A requirement above what the gate admits is one no sample can
+    /// reach, so the frame budget caps the lead rather than deadlocking against it.
     static func deliveryLagRecoveryRequirement(
         timelineTime: CMTime,
-        durationSeconds: Double
+        durationSeconds: Double,
+        leadFrames: Int,
+        nominalFrameRate: Double
     ) -> PlaybackPrerollRequirement {
+        var leadSeconds = deliveryLagRecoveryLeadSeconds
+        if nominalFrameRate > 0, leadFrames > 0 {
+            leadSeconds = min(leadSeconds, Double(leadFrames) / nominalFrameRate)
+        }
         let end = clampedEnd(
             from: timelineTime,
-            leadSeconds: deliveryLagRecoveryLeadSeconds,
+            leadSeconds: leadSeconds,
             durationSeconds: durationSeconds
         )
         return PlaybackPrerollRequirement(
@@ -306,6 +283,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var firstVideoFrameDeadlineWaitsForPlay = false
     let pendingVideoSampleLock = NSLock()
     var pendingVideoSample: CMSampleBuffer?
+    let videoFramesInFlightLock = NSLock()
+    var videoFramesInFlight = RendererFramesInFlight()
     let decoderBootstrapLock = NSLock()
     var decoderBootstrapComplete = false
     var decoderBootstrapTargetSeconds: Double?
@@ -676,6 +655,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             ? (sourceInformation?.durationSeconds ?? 0)
             : provider.info.durationSeconds
         diagnostics.nominalFrameRate = mediaKind == .audioOnly ? 0 : provider.info.nominalFrameRate
+        let primaryVideoStream = sourceInformation?.streams.first { $0.video != nil }?.video
+        diagnostics.videoReorderDepth = primaryVideoStream?.reorderDepth ?? 0
+        diagnostics.decodedBytesPerPixel = primaryVideoStream?.decodedBytesPerPixel ?? 0
         diagnostics.codecName = mediaKind == .audioOnly
             ? (audioProvider.info?.codecName ?? "audio")
             : provider.info.codecName

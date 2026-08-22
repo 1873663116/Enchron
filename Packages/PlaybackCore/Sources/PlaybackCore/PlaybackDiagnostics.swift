@@ -73,6 +73,12 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var currentSeconds = 0.0
     public var durationSeconds = 0.0
     public var nominalFrameRate = 0.0
+    /// Frames the encoder may hold before output order catches up. The renderer
+    /// lead can never sit below it without starving the decoder.
+    public var videoReorderDepth = 0
+    /// Bytes one decoded pixel occupies on the output surface, which turns the
+    /// encoded dimensions into the decoded frame size the lead budget spends.
+    public var decodedBytesPerPixel = 0.0
     public var enqueuedSampleCount = 0
     public var timelineConfiguredBeforeFirstEnqueue: Bool?
     public var sourcePixelFormat = "----"

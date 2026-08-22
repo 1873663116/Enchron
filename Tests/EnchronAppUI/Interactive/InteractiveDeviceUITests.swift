@@ -25,6 +25,13 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        // xcodebuild forwards TEST_RUNNER_ENCHRON_* into this process with the
+        // prefix stripped, which is the only way a caller can reach the app's
+        // environment through a resident runner it does not relaunch.
+        for (name, value) in ProcessInfo.processInfo.environment
+        where name.hasPrefix("ENCHRON_") {
+            app.launchEnvironment[name] = value
+        }
         app.launch()
         let channel = try InteractiveDeviceUIChannel(app: app)
         try channel.publishReadyState()

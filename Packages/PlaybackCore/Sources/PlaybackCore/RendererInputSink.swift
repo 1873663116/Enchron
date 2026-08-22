@@ -9,11 +9,6 @@ enum RendererEnqueueOutcome: Sendable, Equatable {
     case failed(String)
 }
 
-enum RendererEnqueueStrategy: Sendable, Equatable {
-    case receiverBackpressure
-    case boundedImmediateLead
-}
-
 struct RendererInputSample: @unchecked Sendable {
     let sampleBuffer: CMSampleBuffer
 }
@@ -24,9 +19,7 @@ enum RendererInputEventFact: Sendable {
 }
 
 protocol RendererInputSink: AnyObject {
-    var enqueueStrategy: RendererEnqueueStrategy { get }
     func enqueueImmediately(_ sample: RendererInputSample) throws -> RendererEnqueueOutcome
-    func enqueue(_ sample: RendererInputSample) async throws -> RendererEnqueueOutcome
     func flush(removingDisplayedImage: Bool) async
     func observeRenderingEventsAfterFinishedEnqueuing(
         handler: @escaping @Sendable (RendererInputEventFact) -> Void
@@ -35,9 +28,7 @@ protocol RendererInputSink: AnyObject {
 }
 
 protocol AudioRendererInputSink: AnyObject {
-    var enqueueStrategy: RendererEnqueueStrategy { get }
     func enqueueImmediately(_ sample: RendererInputSample) throws -> RendererEnqueueOutcome
-    func enqueue(_ sample: RendererInputSample) async throws -> RendererEnqueueOutcome
     func flush()
     func observeRenderingEventsAfterFinishedEnqueuing(
         handler: @escaping @Sendable (RendererInputEventFact) -> Void
@@ -46,8 +37,6 @@ protocol AudioRendererInputSink: AnyObject {
 }
 
 extension RendererInputSink {
-    var enqueueStrategy: RendererEnqueueStrategy { .receiverBackpressure }
-
     func observeRenderingEventsAfterFinishedEnqueuing(
         handler: @escaping @Sendable (RendererInputEventFact) -> Void
     ) {}
@@ -55,8 +44,6 @@ extension RendererInputSink {
 }
 
 extension AudioRendererInputSink {
-    var enqueueStrategy: RendererEnqueueStrategy { .receiverBackpressure }
-
     func observeRenderingEventsAfterFinishedEnqueuing(
         handler: @escaping @Sendable (RendererInputEventFact) -> Void
     ) {}
@@ -72,12 +59,6 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
         self.receiver = receiver
     }
 
-    // A replacement session is prepared while its timeline may still be
-    // stopped. Bound media-time lead before using the Receiver's
-    // non-suspending admission so a paused handoff cannot strand the delivery
-    // task in an async capacity wait.
-    var enqueueStrategy: RendererEnqueueStrategy { .boundedImmediateLead }
-
     func enqueueImmediately(_ input: RendererInputSample) throws -> RendererEnqueueOutcome {
         let sample = input.sampleBuffer
         if !CMSampleBufferDataIsReady(sample) {
@@ -87,17 +68,6 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
             unsafeBuffer: sample
         )
         return Self.outcome(receiver.enqueueImmediately(readySample))
-    }
-
-    func enqueue(_ input: RendererInputSample) async throws -> RendererEnqueueOutcome {
-        let sample = input.sampleBuffer
-        if !CMSampleBufferDataIsReady(sample) {
-            try sample.makeDataReady()
-        }
-        let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
-            unsafeBuffer: sample
-        )
-        return Self.outcome(try await receiver.enqueue(readySample))
     }
 
     private static func outcome(
@@ -162,7 +132,6 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
             eventTask = nil
         }
     }
-
 }
 
 final class AVSampleBufferAudioRendererInputSink: AudioRendererInputSink, @unchecked Sendable {
@@ -174,8 +143,6 @@ final class AVSampleBufferAudioRendererInputSink: AudioRendererInputSink, @unche
         self.receiver = receiver
     }
 
-    var enqueueStrategy: RendererEnqueueStrategy { .boundedImmediateLead }
-
     func enqueueImmediately(_ input: RendererInputSample) throws -> RendererEnqueueOutcome {
         let sample = input.sampleBuffer
         if !CMSampleBufferDataIsReady(sample) {
@@ -185,17 +152,6 @@ final class AVSampleBufferAudioRendererInputSink: AudioRendererInputSink, @unche
             unsafeBuffer: sample
         )
         return Self.outcome(receiver.enqueueImmediately(readySample))
-    }
-
-    func enqueue(_ input: RendererInputSample) async throws -> RendererEnqueueOutcome {
-        let sample = input.sampleBuffer
-        if !CMSampleBufferDataIsReady(sample) {
-            try sample.makeDataReady()
-        }
-        let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
-            unsafeBuffer: sample
-        )
-        return Self.outcome(try await receiver.enqueue(readySample))
     }
 
     private static func outcome(

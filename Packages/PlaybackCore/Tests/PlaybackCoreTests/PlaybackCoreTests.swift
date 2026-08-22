@@ -1311,66 +1311,135 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(endClampedRequirement.audioEnd.seconds == 12.1)
 }
 
-@Test func rendererLeadLimitRemainsAnOpportunisticPlatformCeiling() {
+@Test func audioLeadLimitRemainsAnOpportunisticPlatformCeiling() {
     #if os(visionOS)
-        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 6)
+        #expect(PlaybackBufferingPolicy.opportunisticAudioMaximumLeadSeconds == 6)
     #else
-        #expect(PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds == 1)
+        #expect(PlaybackBufferingPolicy.opportunisticAudioMaximumLeadSeconds == 1)
     #endif
 }
 
-@Test func rendererLeadCeilingShrinksForStreamsTooExpensiveToFlushQuickly() {
-    let ordinary = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
-        encodedWidth: 1280,
-        encodedHeight: 720,
-        nominalFrameRate: 24
-    )
-    #expect(ordinary == PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds)
-
-    let eightKSixty = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+@Test func theLeadBudgetSpendsDecodedBytesRatherThanMediaSeconds() {
+    // 8-bit 4:2:0 costs one and a half bytes a pixel, so an 8192x4096 frame is
+    // 50.3 MB and a 1280x720 one is 1.4 MB. Seconds cannot tell those apart.
+    let eightK = RendererLeadBudget.frames(
+        reorderDepth: 2,
         encodedWidth: 8192,
         encodedHeight: 4096,
-        nominalFrameRate: 60
+        decodedBytesPerPixel: 1.5
     )
-    #expect(eightKSixty < ordinary)
-    #expect(eightKSixty >= PlaybackBufferingPolicy.opportunisticRendererMinimumLeadSeconds)
+    let sevenTwenty = RendererLeadBudget.frames(
+        reorderDepth: 2,
+        encodedWidth: 1280,
+        encodedHeight: 720,
+        decodedBytesPerPixel: 1.5
+    )
+    #expect(eightK < sevenTwenty)
+    #expect(sevenTwenty == RendererLeadBudget.maximumFrames)
+    #expect(
+        Double(eightK) * 8192 * 4096 * 1.5 <= RendererLeadBudget.maximumDecodedBytes
+    )
 
-    // A heavier stream never earns more lead than a lighter one.
-    let fourKSixty = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+    // Ten-bit components land in sixteen-bit words, doubling the frame, and the
+    // budget halves where the reorder floor leaves room to spend.
+    let fourK = RendererLeadBudget.frames(
+        reorderDepth: 2,
         encodedWidth: 3840,
         encodedHeight: 2160,
-        nominalFrameRate: 60
+        decodedBytesPerPixel: 1.5
     )
-    #expect(fourKSixty >= eightKSixty)
-    #expect(fourKSixty <= ordinary)
+    let fourKTenBit = RendererLeadBudget.frames(
+        reorderDepth: 2,
+        encodedWidth: 3840,
+        encodedHeight: 2160,
+        decodedBytesPerPixel: 3
+    )
+    #expect(fourKTenBit * 2 == fourK)
 
-    // An unmeasured stream keeps the platform ceiling rather than the floor.
-    let unknown = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
-        encodedWidth: 0,
-        encodedHeight: 0,
-        nominalFrameRate: 0
+    // At 8K there is no room left to spend: one ten-bit frame costs 100 MB, so
+    // the byte ceiling asks for less than the encoder's reordering needs and the
+    // floor decides. That stream pays more per seek than its bytes would allow,
+    // and this is the stated cost of never starving the decoder.
+    let eightKTenBit = RendererLeadBudget.frames(
+        reorderDepth: 2,
+        encodedWidth: 8192,
+        encodedHeight: 4096,
+        decodedBytesPerPixel: 3
     )
-    #expect(unknown == PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds)
+    #expect(eightKTenBit == 2 + RendererLeadBudget.schedulingSlackFrames)
+    #expect(eightK == eightKTenBit)
 }
 
-@Test func deliveryLagRecoveryRefillsOneSecondWithoutChangingTheLeadCeiling() {
+@Test func theLeadBudgetNeverSitsBelowTheEncoderReorderDepth() {
+    // A queue shallower than the encoder's reordering starves the decoder, so
+    // the floor outranks both ceilings however expensive the frames are.
+    let absurdlyExpensive = RendererLeadBudget.frames(
+        reorderDepth: 16,
+        encodedWidth: 8192,
+        encodedHeight: 8192,
+        decodedBytesPerPixel: 6
+    )
+    #expect(absurdlyExpensive == 16 + RendererLeadBudget.schedulingSlackFrames)
+
+    // A stream whose decoded size is unknown keeps the frame ceiling.
+    let unmeasured = RendererLeadBudget.frames(
+        reorderDepth: 0,
+        encodedWidth: 0,
+        encodedHeight: 0,
+        decodedBytesPerPixel: 0
+    )
+    #expect(unmeasured == RendererLeadBudget.maximumFrames)
+}
+
+@Test func framesInFlightRetireInDisplayOrderNotDeliveryOrder() {
+    // Presentation ends arrive in decode order when the stream carries B
+    // frames, so the frame the timeline retires next is the earliest of them.
+    var inFlight = RendererFramesInFlight()
+    for end in [1.0, 4.0, 2.0, 3.0] {
+        inFlight.record(presentationEnd: end)
+    }
+    #expect(inFlight.earliestRetirement() == 1.0)
+    #expect(inFlight.count(timelineSeconds: 0) == 4)
+    #expect(inFlight.count(timelineSeconds: 2.0) == 2)
+    #expect(inFlight.earliestRetirement() == 3.0)
+
+    inFlight.removeAll()
+    #expect(inFlight.count(timelineSeconds: 0) == 0)
+    #expect(inFlight.earliestRetirement() == nil)
+}
+
+@Test func deliveryLagRecoveryNeverAsksForMoreThanTheGateAdmits() {
     let timelineTime = CMTime(seconds: 30, preferredTimescale: 60_000)
 
-    let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+    // With room to spare the recovery lead is the measured one second.
+    let ample = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
         timelineTime: timelineTime,
-        durationSeconds: 120
+        durationSeconds: 120,
+        leadFrames: 48,
+        nominalFrameRate: 24
     )
+    #expect(ample.videoEnd.seconds == 31)
+    #expect(ample.audioEnd.seconds == 31)
 
-    #expect(requirement.videoEnd.seconds == 31)
-    #expect(requirement.audioEnd.seconds == 31)
+    // An 8K stream is gated at a handful of frames. Asking for a full second
+    // there is a requirement no sample can reach, so the budget caps it.
+    let gated = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+        timelineTime: timelineTime,
+        durationSeconds: 120,
+        leadFrames: 4,
+        nominalFrameRate: 60
+    )
+    #expect(gated.videoEnd.seconds < 31)
+    #expect(gated.videoEnd.seconds > 30)
 
-    let endClampedRequirement =
-        PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
-            timelineTime: timelineTime,
-            durationSeconds: 30.5
-        )
-    #expect(endClampedRequirement.videoEnd.seconds == 30.5)
-    #expect(endClampedRequirement.audioEnd.seconds == 30.5)
+    let endClamped = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+        timelineTime: timelineTime,
+        durationSeconds: 30.5,
+        leadFrames: 48,
+        nominalFrameRate: 24
+    )
+    #expect(endClamped.videoEnd.seconds == 30.5)
+    #expect(endClamped.audioEnd.seconds == 30.5)
 }
 
 @Test func endOfStreamAudioMayUseTheAvailablePartialStartupBuffer() {
@@ -1424,7 +1493,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         decodeTimeSeconds: -0.066,
         durationSeconds: 0.016
     )
-    let sink = FakeRendererInputSink(enqueueStrategy: .boundedImmediateLead)
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "negative-preroll-before-zero",
         provider: FakeVideoSampleProvider(events: [.sample(prerollSample), .end]),
@@ -1450,64 +1519,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(firstAttachment[kCMSampleAttachmentKey_DoNotDisplay as String] as? Bool == true)
 }
 
-@Test func decoderPrerollBootstrapsBeforeReceiverBackpressure() async throws {
-    let firstSample = try makeCompressedH264Sample(
-        presentationTimeSeconds: 0.021,
-        decodeTimeSeconds: -0.066,
-        durationSeconds: 1.0 / 30.0
-    )
-    let secondSample = try makeCompressedH264Sample(
-        presentationTimeSeconds: 0.054,
-        decodeTimeSeconds: -0.033,
-        durationSeconds: 1.0 / 30.0
-    )
-    let thirdSample = try makeCompressedH264Sample(
-        presentationTimeSeconds: 0.087,
-        decodeTimeSeconds: 0,
-        durationSeconds: 1.0 / 30.0
-    )
-    let fourthSample = try makeCompressedH264Sample(
-        presentationTimeSeconds: 0.120,
-        decodeTimeSeconds: 0.033,
-        durationSeconds: 1.0 / 30.0
-    )
-    let sink = FakeRendererInputSink(automaticallyRunsRequests: false)
-    let session = SampleBufferPlaybackSession(
-        traceID: "first-video-preroll-session",
-        provider: FakeVideoSampleProvider(
-            events: [
-                .sample(firstSample),
-                .sample(secondSample),
-                .sample(thirdSample),
-                .sample(fourthSample),
-                .end,
-            ]
-        ),
-        rendererSink: sink
-    )
-    defer { session.close() }
-
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/delayed-video.mkv"))
-    try session.start()
-    try await waitForPendingRequestCount(1, in: sink)
-
-    #expect(sink.enqueuedSampleCount == 3)
-    #expect(sink.immediateEnqueueCount == 3)
-    #expect(session.synchronizer.rate == 1)
-    sink.runNextPendingRequest()
-    try await waitForSampleCount(4, in: session)
-    #expect(sink.immediateEnqueueCount == 3)
-}
-
-@Test @MainActor func productionVideoRendererUsesBoundedImmediateLead() {
-    let renderer = AVSampleBufferVideoRenderer()
-    let synchronizer = AVSampleBufferRenderSynchronizer()
-    let receiver = synchronizer.sampleBufferReceiver(adding: renderer)
-    let sink = AVSampleBufferRendererInputSink(receiver: receiver)
-
-    #expect(sink.enqueueStrategy == .boundedImmediateLead)
-}
-
 @Test func pausedHandoffPopulatesBoundedLeadWithoutSuspendingOnReceiverCapacity() async throws {
     let samples = try [0.0, 0.033, 0.066].map {
         try makeCompressedH264Sample(
@@ -1515,10 +1526,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
             decodeTimeSeconds: $0
         )
     }
-    let sink = FakeRendererInputSink(
-        enqueueStrategy: .boundedImmediateLead,
-        automaticallyRunsRequests: false
-    )
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "paused-handoff-bounded-lead",
         provider: FakeVideoSampleProvider(
@@ -1538,14 +1546,13 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
     #expect(session.synchronizer.rate == 0)
     #expect(sink.immediateEnqueueCount == 2)
-    #expect(sink.pendingRequestCount == 0)
 
     try session.play()
     try await waitForSampleCount(3, in: session)
     #expect(sink.immediateEnqueueCount == 3)
 }
 
-@Test func boundedImmediateStrategyDoesNotWaitForReceiverReadiness() async throws {
+@Test func videoDeliveryGatesBeforeEnqueueingImmediately() async throws {
     let samples = try [
         makeCompressedH264Sample(
             presentationTimeSeconds: 0,
@@ -1556,12 +1563,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
             decodeTimeSeconds: 0.033
         ),
     ]
-    let sink = FakeRendererInputSink(
-        enqueueStrategy: .boundedImmediateLead,
-        automaticallyRunsRequests: false
-    )
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
-        traceID: "bounded-immediate-strategy",
+        traceID: "gated-immediate-delivery",
         provider: FakeVideoSampleProvider(
             events: samples.map { .sample($0) } + [.end]
         ),
@@ -1574,12 +1578,11 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     }
     defer { session.debugStore.removeEventObserver(observerID) }
 
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/bounded-immediate.mkv"))
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/gated-immediate.mkv"))
     try session.start()
     try await waitForSampleCount(2, in: session)
 
     #expect(sink.immediateEnqueueCount == 2)
-    #expect(sink.pendingRequestCount == 0)
     let firstSampleStages = events.withLock { events in
         events.compactMap { event -> String? in
             guard event.kind.hasPrefix("playbackDelivery.stage.video."),
@@ -2293,12 +2296,17 @@ func stereoOverrideBeforeFirstSampleKeepsInitialRevision() async throws {
 
 @Test
 func liveStereoOverridePublishesAcceptedRevisionsAndKeepsImmutableRendererGraph() async throws {
-    let sample = try makeCompressedH264Sample(durationSeconds: 30)
-    let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    let samples = try (0..<120).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) / 30,
+            decodeTimeSeconds: Double(index) / 30
+        )
+    }
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "stereo-live",
         provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+            events: samples.map { .sample($0) } + [.end]
         ),
         rendererSink: sink
     )
@@ -2361,12 +2369,9 @@ func liveStereoOverridePublishesAcceptedRevisionsAndKeepsImmutableRendererGraph(
 }
 
 @Test
-func suspendedVideoSampleDeliveryWaitsForTheInFlightEnqueueBeforeReturning() async throws {
+func suspendedVideoSampleDeliveryCancelsTheLeadGateBeforeReturning() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 30)
-    let sink = FakeRendererInputSink(
-        pausesAfterEachEnqueue: true,
-        automaticallyRunsRequests: false
-    )
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "suspend-video-sample-delivery",
         provider: FakeVideoSampleProvider(
@@ -2378,22 +2383,19 @@ func suspendedVideoSampleDeliveryWaitsForTheInFlightEnqueueBeforeReturning() asy
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/suspend.mov"))
     try session.start()
-    try await waitForPendingRequestCount(1, in: sink)
+    try await waitForSampleCount(UInt64(session.videoLeadFrames), in: session)
 
     await session.suspendVideoSampleDelivery(flushingRenderer: true)
 
     #expect(session.videoSampleDeliveryIsSuspended)
-    #expect(sink.pendingRequestCount == 0)
-    #expect(sink.cancelledRequestCount == 1)
+    #expect(session.debugSnapshot().sampleCount == UInt64(session.videoLeadFrames))
     #expect(sink.flushCount == 1)
-    let countWhileSuspended = sink.enqueuedSampleCount
-    try await Task.sleep(for: .milliseconds(50))
-    #expect(sink.enqueuedSampleCount == countWhileSuspended)
-    #expect(sink.pendingRequestCount == 0)
+    #expect(sink.enqueuedSampleCount == 0)
 
     session.resumeVideoSampleDelivery()
-    try await waitForPendingRequestCount(1, in: sink)
+    try await waitForSampleCount(UInt64(session.videoLeadFrames + 1), in: session)
     #expect(session.videoSampleDeliveryIsSuspended == false)
+    #expect((1...session.videoLeadFrames).contains(sink.enqueuedSampleCount))
 }
 
 @Test
@@ -2511,7 +2513,7 @@ func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() asy
         provider: FakeVideoSampleProvider(
             events: Array(repeating: .sample(sample), count: 1_000) + [.end]
         ),
-        rendererSink: FakeRendererInputSink(pausesAfterEachEnqueue: true)
+        rendererSink: FakeRendererInputSink()
     )
     let controller = PlaybackCoreController(
         sessionFactory: { _ in session },
@@ -2540,14 +2542,18 @@ func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() asy
 @Test
 func liveProjectionOverrideKeepsImmutableRendererGraphAndTimeline() async throws {
     let sourceProjection = kCMFormatDescriptionProjectionKind_Equirectangular as String
-    let sample = try makeCompressedH264Sample(
-        projectionKind: kCMFormatDescriptionProjectionKind_Equirectangular
-    )
-    let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    let samples = try (0..<120).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) / 30,
+            decodeTimeSeconds: Double(index) / 30,
+            projectionKind: kCMFormatDescriptionProjectionKind_Equirectangular
+        )
+    }
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "projection-live",
         provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(sample), count: 1_000) + [.end],
+            events: samples.map { .sample($0) } + [.end],
             projectionKind: sourceProjection
         ),
         rendererSink: sink
@@ -2587,12 +2593,17 @@ func liveProjectionOverrideKeepsImmutableRendererGraphAndTimeline() async throws
 
 @Test
 func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeline() async throws {
-    let sample = try makeCompressedH264Sample()
-    let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    let samples = try (0..<120).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) / 30,
+            decodeTimeSeconds: Double(index) / 30
+        )
+    }
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "projection-panorama",
         provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+            events: samples.map { .sample($0) } + [.end]
         ),
         rendererSink: sink
     )
@@ -2629,7 +2640,7 @@ func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeli
 @Test
 func stereoAndProjectionOverridesCommitAtOneFormatRevision() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 30)
-    let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "atomic-format-overrides",
         provider: FakeVideoSampleProvider(
@@ -2683,15 +2694,17 @@ func stereoAndProjectionOverridesCommitAtOneFormatRevision() async throws {
 }
 
 @Test func clearingStereoOverrideWaitsForASourceFormatSample() async throws {
-    let sample = try makeCompressedH264Sample()
-    let sink = FakeRendererInputSink(
-        pausesAfterEachEnqueue: true,
-        automaticallyRunsRequests: false
-    )
+    let samples = try (0..<120).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) / 30,
+            decodeTimeSeconds: Double(index) / 30
+        )
+    }
+    let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
         traceID: "stereo-clear-source-format",
         provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(sample), count: 3) + [.end]
+            events: samples.map { .sample($0) } + [.end]
         ),
         rendererSink: sink
     )
@@ -2700,37 +2713,13 @@ func stereoAndProjectionOverridesCommitAtOneFormatRevision() async throws {
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/stereo.mov"))
     try session.start()
     try await waitForSampleCount(1, in: session)
-    try await waitForPendingRequestCount(1, in: sink)
 
-    let explicitCancellationCount = sink.cancelledRequestCount
-    let explicitMono = Task {
-        try await session.setStereoLayout(.mono)
-    }
-    try await waitForCancelledRequestCount(explicitCancellationCount + 1, in: sink)
-    try await waitForPendingRequestCount(1, in: sink)
-    sink.runNextPendingRequest()
-    _ = try await explicitMono.value
+    _ = try await session.setStereoLayout(.mono)
     let explicitSnapshot = session.debugSnapshot()
     #expect(explicitSnapshot.lastVideoSample?.formatSignaling.viewPackingKind.value == nil)
-    try await waitForPendingRequestCount(1, in: sink)
 
-    let didFinishClear = LockedBox(false)
-    let clearCancellationCount = sink.cancelledRequestCount
-    let clear = Task {
-        let revision = try await session.clearStereoLayoutOverride()
-        didFinishClear.withLock { $0 = true }
-        return revision
-    }
-    try await waitForCancelledRequestCount(clearCancellationCount + 1, in: sink)
-    try await waitForPendingRequestCount(1, in: sink)
-
-    #expect(!didFinishClear.withLock { $0 })
-    #expect(session.debugSnapshot().lastVideoSample?.sourceEventID == explicitSnapshot.lastVideoSample?.sourceEventID)
-
-    sink.runNextPendingRequest()
-    let sourceRevision = try await clear.value
+    let sourceRevision = try await session.clearStereoLayoutOverride()
     let sourceSnapshot = session.debugSnapshot()
-    #expect(didFinishClear.withLock { $0 })
     #expect(sourceRevision == explicitSnapshot.formatRevision + 1)
     #expect(sourceSnapshot.lastVideoSample?.formatRevision == sourceRevision)
     #expect(sourceSnapshot.lastVideoSample?.sourceEventID != explicitSnapshot.lastVideoSample?.sourceEventID)
@@ -2753,16 +2742,19 @@ enum StereoProviderReset: CaseIterable {
 func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     reset: StereoProviderReset
 ) async throws {
-    let sample = try makeCompressedH264Sample()
-    let sink = FakeRendererInputSink(
-        completesFlushImmediately: false,
-        pausesAfterEachEnqueue: true,
-        automaticallyRunsRequests: false
-    )
+    let samples = try (0..<120).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index) / 30,
+            decodeTimeSeconds: Double(index) / 30
+        )
+    }
+    let sink = FakeRendererInputSink(completesFlushImmediately: false)
     let session = SampleBufferPlaybackSession(
         traceID: "stereo-provider-reset",
         provider: FakeVideoSampleProvider(
-            events: [.sample(sample), reset.event, .sample(sample), .end]
+            events: [.sample(samples[0]), reset.event]
+                + samples.dropFirst().map { .sample($0) }
+                + [.end]
         ),
         rendererSink: sink
     )
@@ -2788,34 +2780,14 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     }
 
     sink.completePendingFlushes()
-    try await waitForPendingRequestCount(1, in: sink)
+    try await waitForSampleCount(baseline.sampleCount + 1, in: session)
 
-    let didFinishStereo = LockedBox(false)
-    let didStartStereo = LockedBox(false)
-    let observerID = session.debugStore.addEventObserver { event in
-        if event.kind == "control.stereo.started" {
-            didStartStereo.withLock { $0 = true }
-        }
-    }
-    defer { session.debugStore.removeEventObserver(observerID) }
-    let stereo = Task {
-        let revision = try await session.setStereoLayout(.sideBySide)
-        didFinishStereo.withLock { $0 = true }
-        return revision
-    }
-    await Task.yield()
-    try await waitForFlag(didStartStereo, description: "stereo command start")
-    try await waitForPendingRequestCount(1, in: sink)
-    #expect(!didFinishStereo.withLock { $0 })
-    sink.runNextPendingRequest()
-
-    let acceptedRevision = try await stereo.value
+    let acceptedRevision = try await session.setStereoLayout(.sideBySide)
     let final = session.debugSnapshot()
     let expectedRevision = initialFormatRevision + (reset == .formatChanged ? 2 : 1)
-    #expect(didFinishStereo.withLock { $0 })
     #expect(acceptedRevision == expectedRevision)
     #expect(final.lastVideoSample?.formatRevision == acceptedRevision)
-    #expect(final.sampleCount == baseline.sampleCount + 1)
+    #expect(final.sampleCount >= baseline.sampleCount + 2)
     #expect(
         final.lastVideoSample?.formatSignaling.viewPackingKind.value
             == kCMFormatDescriptionViewPackingKind_SideBySide as String
@@ -2826,11 +2798,8 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
 @MainActor
 @Test func cancelledStereoCommandCannotMutateANewControllerSession() async throws {
-    let sample = try makeCompressedH264Sample()
-    let firstSink = FakeRendererInputSink(
-        pausesAfterEachEnqueue: true,
-        automaticallyRunsRequests: false
-    )
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let firstSink = FakeRendererInputSink()
     let laterSink = FakeRendererInputSink()
     let sessionCreationCount = LockedBox(0)
     let controller = PlaybackCoreController { sessionID in
@@ -2841,7 +2810,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         return SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: Array(repeating: .sample(sample), count: 3) + [.end]
+                events: Array(repeating: .sample(sample), count: 120) + [.end]
             ),
             rendererSink: creation == 1 ? firstSink : laterSink
         )
@@ -2851,10 +2820,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let url = URL(fileURLWithPath: "/fixtures/stereo-controller.mov")
     let first = try await controller.open(url)
     try controller.start()
-    try await waitForPendingRequestCount(1, in: firstSink)
-    firstSink.runNextPendingRequest()
-    try await waitForSampleCount(2, in: first)
-    try await waitForPendingRequestCount(1, in: firstSink)
+    try await waitForSampleCount(UInt64(first.videoLeadFrames), in: first)
 
     let didFinishOldCommand = LockedBox(false)
     let didStartOldCommand = LockedBox(false)
@@ -2874,7 +2840,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
     controller.close(clearSource: false)
     let second = try await controller.open(url)
-    firstSink.runNextPendingRequest()
 
     do {
         _ = try await oldCommand.value
@@ -2887,7 +2852,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         }
     }
 
-    try await Task.sleep(for: .milliseconds(20))
     #expect(didFinishOldCommand.withLock { $0 })
     #expect(controller.activeSession === second)
     #expect(controller.selectedStereoLayout == nil)
@@ -3045,7 +3009,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             sampleAfterPrepare: audioSample,
             repeatsSample: false
         ),
-        rendererSink: FakeRendererInputSink(automaticallyRunsRequests: false)
+        rendererSink: FakeRendererInputSink()
     )
     let recorder = PlaybackDebugRecorder(session: session, platform: "visionOSSimulator")
     defer {
@@ -3397,14 +3361,16 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(session.debugSnapshot().lastFailure?.message.contains("ac4") == true)
 
     for target in [5.0, 10.0] {
-        let sampleCountBeforeSeek = sink.enqueuedSampleCount
+        let streamEpochBeforeSeek = session.debugSnapshot().streamEpoch
         try await session.seek(
             to: CMTime(seconds: target, preferredTimescale: 600),
             startsPaused: true
         )
+        let snapshot = session.debugSnapshot()
         #expect(session.hasAudio == false)
-        #expect(session.debugSnapshot().lifecycle != .failed)
-        #expect(sink.enqueuedSampleCount > sampleCountBeforeSeek)
+        #expect(snapshot.lifecycle != .failed)
+        #expect(snapshot.streamEpoch > streamEpochBeforeSeek)
+        #expect((snapshot.lastVideoSample?.presentationTimeSeconds ?? -.infinity) >= target)
     }
 
     #expect(statuses.withLock { values in
@@ -3812,7 +3778,7 @@ func repeatedSessionStartDoesNotRestartThePreparedProvider() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "idempotent-session-start",
         provider: provider,
-        rendererSink: FakeRendererInputSink(automaticallyRunsRequests: false)
+        rendererSink: FakeRendererInputSink()
     )
     defer { session.close() }
 
@@ -4016,36 +3982,23 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
 
 private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendable {
     private let lock = NSLock()
-    let enqueueStrategy: RendererEnqueueStrategy
     private let completesFlushImmediately: Bool
-    private let pausesAfterEachEnqueue: Bool
-    private let automaticallyRunsRequests: Bool
     private var samples: [CMSampleBuffer] = []
     private var rendererFlushCount = 0
     private var lastFlushRemovedImage: Bool?
     private var pendingFlushContinuations: [CheckedContinuation<Void, Never>] = []
     private var availableFlushCompletions = 0
-    private var waitingEnqueueCount = 0
-    private var availableEnqueuePermits: Int
     private var enqueueOutcomes: [RendererEnqueueOutcome]
-    private var cancelledEnqueueCount = 0
     private var immediateEnqueueCounter = 0
     private var eventObservationCount = 0
     private var eventObservationStartedWithoutSample = false
 
     init(
-        enqueueStrategy: RendererEnqueueStrategy = .receiverBackpressure,
         completesFlushImmediately: Bool = true,
-        pausesAfterEachEnqueue: Bool = false,
-        automaticallyRunsRequests: Bool = true,
         enqueueOutcomes: [RendererEnqueueOutcome] = []
     ) {
-        self.enqueueStrategy = enqueueStrategy
         self.completesFlushImmediately = completesFlushImmediately
-        self.pausesAfterEachEnqueue = pausesAfterEachEnqueue
-        self.automaticallyRunsRequests = automaticallyRunsRequests
         self.enqueueOutcomes = enqueueOutcomes
-        availableEnqueuePermits = automaticallyRunsRequests && pausesAfterEachEnqueue ? 1 : 0
     }
 
     var recommendedPixelBufferAttributes: [String: Any] {
@@ -4072,14 +4025,6 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
         lock.withLock { lastFlushRemovedImage }
     }
 
-    var pendingRequestCount: Int {
-        lock.withLock { waitingEnqueueCount }
-    }
-
-    var cancelledRequestCount: Int {
-        lock.withLock { cancelledEnqueueCount }
-    }
-
     var immediateEnqueueCount: Int {
         lock.withLock { immediateEnqueueCounter }
     }
@@ -4098,43 +4043,6 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
         lock.withLock {
             immediateEnqueueCounter += 1
             samples.append(input.sampleBuffer)
-            guard !enqueueOutcomes.isEmpty else { return .accepted }
-            return enqueueOutcomes.removeFirst()
-        }
-    }
-
-    func enqueue(
-        _ input: RendererInputSample
-    ) async throws -> RendererEnqueueOutcome {
-        let sample = input.sampleBuffer
-        if !automaticallyRunsRequests || pausesAfterEachEnqueue {
-            lock.withLock { waitingEnqueueCount += 1 }
-            defer {
-                lock.withLock {
-                    waitingEnqueueCount -= 1
-                    if Task.isCancelled {
-                        cancelledEnqueueCount += 1
-                    }
-                }
-            }
-            while true {
-                try Task.checkCancellation()
-                let acquiredPermit = lock.withLock {
-                    guard availableEnqueuePermits > 0 else { return false }
-                    availableEnqueuePermits -= 1
-                    return true
-                }
-                if acquiredPermit { break }
-                if automaticallyRunsRequests {
-                    try await Task.sleep(for: .milliseconds(25))
-                    lock.withLock { availableEnqueuePermits += 1 }
-                } else {
-                    try await Task.sleep(for: .milliseconds(1))
-                }
-            }
-        }
-        return lock.withLock {
-            samples.append(sample)
             guard !enqueueOutcomes.isEmpty else { return .accepted }
             return enqueueOutcomes.removeFirst()
         }
@@ -4183,12 +4091,6 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
             return continuations
         }
         continuations.forEach { $0.resume() }
-    }
-
-    func runNextPendingRequest() {
-        lock.withLock {
-            availableEnqueuePermits += 1
-        }
     }
 
 }
@@ -4358,7 +4260,6 @@ private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider 
 }
 
 private final class FakeAudioRendererInputSink: AudioRendererInputSink, @unchecked Sendable {
-    let enqueueStrategy: RendererEnqueueStrategy = .receiverBackpressure
     var rateProvider: (() -> Float)?
 
     private let lock = NSLock()
@@ -4376,13 +4277,6 @@ private final class FakeAudioRendererInputSink: AudioRendererInputSink, @uncheck
     func enqueueImmediately(
         _ sample: RendererInputSample
     ) throws -> RendererEnqueueOutcome {
-        recordEnqueue()
-        return .accepted
-    }
-
-    func enqueue(
-        _ sample: RendererInputSample
-    ) async throws -> RendererEnqueueOutcome {
         recordEnqueue()
         return .accepted
     }
@@ -4761,30 +4655,6 @@ private func waitForLifecycle(
         try await Task.sleep(for: .milliseconds(10))
     }
     Issue.record("Timed out waiting for lifecycle \(lifecycle.rawValue)")
-}
-
-private func waitForPendingRequestCount(
-    _ count: Int,
-    in sink: FakeRendererInputSink
-) async throws {
-    let deadline = ContinuousClock.now + .seconds(2)
-    while ContinuousClock.now < deadline {
-        if sink.pendingRequestCount >= count { return }
-        try await Task.sleep(for: .milliseconds(10))
-    }
-    Issue.record("Timed out waiting for pending renderer request count \(count)")
-}
-
-private func waitForCancelledRequestCount(
-    _ count: Int,
-    in sink: FakeRendererInputSink
-) async throws {
-    let deadline = ContinuousClock.now + .seconds(2)
-    while ContinuousClock.now < deadline {
-        if sink.cancelledRequestCount >= count { return }
-        try await Task.sleep(for: .milliseconds(10))
-    }
-    Issue.record("Timed out waiting for cancelled renderer request count \(count)")
 }
 
 private func waitForFlushCount(

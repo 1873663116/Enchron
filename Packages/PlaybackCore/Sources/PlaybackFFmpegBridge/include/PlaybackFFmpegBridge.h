@@ -36,6 +36,14 @@ typedef struct PBFFmpegMediaStreamInfo {
     int width;
     int height;
     double nominalFrameRate;
+    /// Frames the encoder may hold before output order catches up, from the
+    /// stream's own reorder delay. A decode queue shallower than this starves.
+    int reorderDepth;
+    /// Bytes one decoded pixel occupies on the platform's output surface.
+    /// Chroma subsampling is counted in samples per pixel; components deeper
+    /// than eight bits land in sixteen-bit words, so ten-bit 4:2:0 costs three
+    /// bytes where eight-bit costs one and a half.
+    double decodedBytesPerPixel;
     int sampleRate;
     int channelCount;
 } PBFFmpegMediaStreamInfo;

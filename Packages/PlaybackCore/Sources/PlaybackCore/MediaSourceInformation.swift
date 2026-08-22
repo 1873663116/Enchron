@@ -18,6 +18,10 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
     public let width: Int
     public let height: Int
     public let nominalFrameRate: Double
+    /// Frames the encoder may hold before output order catches up.
+    public let reorderDepth: Int
+    /// Bytes one decoded pixel occupies on the platform's output surface.
+    public let decodedBytesPerPixel: Double
     public let colorPrimaries: String
     public let transferFunction: String
     public let yCbCrMatrix: String
@@ -28,6 +32,8 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
         width: Int,
         height: Int,
         nominalFrameRate: Double,
+        reorderDepth: Int = 0,
+        decodedBytesPerPixel: Double = 0,
         colorPrimaries: String,
         transferFunction: String,
         yCbCrMatrix: String,
@@ -37,6 +43,8 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
         self.width = width
         self.height = height
         self.nominalFrameRate = nominalFrameRate
+        self.reorderDepth = reorderDepth
+        self.decodedBytesPerPixel = decodedBytesPerPixel
         self.colorPrimaries = colorPrimaries
         self.transferFunction = transferFunction
         self.yCbCrMatrix = yCbCrMatrix
@@ -297,6 +305,8 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
                     width: Int(raw.width),
                     height: Int(raw.height),
                     nominalFrameRate: raw.nominalFrameRate,
+                    reorderDepth: Int(raw.reorderDepth),
+                    decodedBytesPerPixel: raw.decodedBytesPerPixel,
                     colorPrimaries: string(colorPrimaries) ?? "unknown",
                     transferFunction: string(transferFunction) ?? "unknown",
                     yCbCrMatrix: string(yCbCrMatrix) ?? "unknown",
