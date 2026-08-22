@@ -56,6 +56,6 @@ Profile 7 双层占 Emby Dolby Vision 条目的八分之五，是本次新增拆
 
 1. **有界一致性度量**。`PlaybackCoreRemoteMediaProbe` 的 `decode` 阶段建 `VTDecompressionSession` 送样本，并按首帧起算的媒体时长设界；先对已知阴阳样本自校验再使用。
 2. **全语料扫描**。`Scripts/verification/verify_source_parity_matrix.py` 的 `local` 与 `emby` 两种模式分别扫本地与远程语料，`parity` 模式对代表性子集比对两种取源方式。
-3. **真机取证**。按呈现格取投影与出画的像素证据，入口见 `.agents/skills/visionpro-xcuitest`。
+3. **真机取证**。按呈现格取投影与出画的像素证据，入口见 `.agents/skills/vp-e2e`。
 
 阶段 3 当前只覆盖 window、portal、panorama 三格，docked 与 Dolby Vision 片源的真机像素尚缺，见 [decisions.tsv](decisions.tsv) 中标记为 open 的行。

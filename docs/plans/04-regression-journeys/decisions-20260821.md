@@ -11,7 +11,7 @@ arrives an hour later as one bit.
 
 38 units, 215 steps, 211 reachability cells, 199 covered by a step and 12
 carrying a written exemption. The generated reference the skill reads is
-`.agents/skills/visionpro-xcuitest/references/operation-units.md`.
+`.agents/skills/vp-e2e/references/operation-units.md`.
 
 ## Decisions
 

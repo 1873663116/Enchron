@@ -30,9 +30,9 @@ else:
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DRAFT_PATH = REPOSITORY_ROOT / "docs/plans/04-regression-journeys/draft.md"
-FEATURE_DIRECTORY = REPOSITORY_ROOT / ".agents/skills/visionpro-xcuitest/features"
+FEATURE_DIRECTORY = REPOSITORY_ROOT / ".agents/skills/vp-e2e/features"
 REFERENCE_DIRECTORY = (
-    REPOSITORY_ROOT / ".agents/skills/visionpro-xcuitest/references/journeys"
+    REPOSITORY_ROOT / ".agents/skills/vp-e2e/references/journeys"
 )
 
 STANDING = "standing"
@@ -46,7 +46,7 @@ REASON_REQUIRED = frozenset(("failed", "voided", "blocked"))
 KNOWN_UNMAPPED: dict[str, str] = {
     "format-coverage": (
         "The draft defines format coverage as a regression-journey category, "
-        "but visionpro-xcuitest has no format-coverage feature file."
+        "but vp-e2e has no format-coverage feature file."
     )
 }
 

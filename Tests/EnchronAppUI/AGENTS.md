@@ -9,7 +9,7 @@
 
 ## 默认入口：端到端调试
 
-/visionpro-xcuitest
+/vp-e2e
 
 ## 稳定回归准入
 

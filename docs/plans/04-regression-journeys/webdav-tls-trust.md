@@ -123,7 +123,7 @@ TN3179《Understanding local network privacy》（`/documentation/technotes/tn31
 - 连接表单是 `FilesScreen` 的 `.sheet`（`Apps/Enchron/Screens/FilesScreen.swift:236-249`），identifier 前缀 `FileBrowsing-SourceConnection-webDAV-`。
 - 证书 alert 的两个按钮**没有** `accessibilityIdentifier`（`MainView.swift:280`、`:283`），但 label 为 `信任` / `取消`。
 - 交互控制器的元素解析（`Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift:285-302`）在 `app.descendants(matching: .any)` 上支持两种匹配：`identifier` 与 `NSPredicate(format: "label == %@")`。SwiftUI alert 在应用进程内呈现，属于 `app` 元素树。
-- 因此 `tap --label 信任` 在结构上应当可以命中。`.agents/skills/visionpro-xcuitest/features/remote-source-connection.md:61` 写的"没有 accessibility identifier，合成驱动无法命中"只对 `--identifier` 成立，**对 `--label` 是过度断言**；该行应在真机确认后更正。
+- 因此 `tap --label 信任` 在结构上应当可以命中。`.agents/skills/vp-e2e/features/remote-source-connection.md:61` 写的"没有 accessibility identifier，合成驱动无法命中"只对 `--identifier` 成立，**对 `--label` 是过度断言**；该行应在真机确认后更正。
 - 本地网络系统弹窗由 `addUIInterruptionMonitor` 覆盖，其接受的按钮 label 为 `Allow` / `允许`（`InteractiveDeviceUITests.swift:12-23`）。
 
 ### 测试覆盖

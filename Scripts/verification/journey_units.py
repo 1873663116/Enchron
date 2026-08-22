@@ -43,7 +43,7 @@ INVENTORY_PATH = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json
 LEDGER_PATH = REPOSITORY_ROOT / "Config/journey_operation_coverage.json"
 REFERENCE_PATH = (
     REPOSITORY_ROOT
-    / ".agents/skills/visionpro-xcuitest/references/operation-units.md"
+    / ".agents/skills/vp-e2e/references/operation-units.md"
 )
 
 REAL = "real"

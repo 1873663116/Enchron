@@ -40,7 +40,7 @@ phase-7 的横向边连续性与 phase-8 的表冠单双按，两处设备证据
 
 ## Applicable skills
 
-设备阶段读 `.agents/skills/visionpro-xcuitest`；每次提交前对 diff 应用 unslop。
+设备阶段读 `.agents/skills/vp-e2e`；每次提交前对 diff 应用 unslop。
 
 ## Phases
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Report which feature promises have no evidence owner.
 
-The feature map under .agents/skills/visionpro-xcuitest/features/ is the promise
+The feature map under .agents/skills/vp-e2e/features/ is the promise
 list. Each file carries an "## 证据" table naming, per evidence kind, what the
 criterion is and who enforces it. A cell reading 待建 or 待做 is a promise nobody
 is watching.
@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-FEATURES = Path(".agents/skills/visionpro-xcuitest/features")
+FEATURES = Path(".agents/skills/vp-e2e/features")
 UNOWNED = ("待建", "待做")
 KINDS = ("结构", "物理", "感知")
 

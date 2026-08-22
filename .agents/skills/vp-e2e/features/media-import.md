@@ -14,7 +14,7 @@
 
 ## Driving it with the controller
 
-Files 选择器跨进程，XCTest 只能按语义 label 驱动且权限门需佩戴者（历史成功证据见 visionpro-xcuitest 的证据基线一节）。无人化验证用注入路径：
+Files 选择器跨进程，XCTest 只能按语义 label 驱动且权限门需佩戴者（历史成功证据见 vp-e2e 的证据基线一节）。无人化验证用注入路径：
 
 ```sh
 xcrun devicectl device copy to --device <CoreDevice> \

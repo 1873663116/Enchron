@@ -15,8 +15,15 @@ from typing import NamedTuple, Sequence
 import uuid
 
 
-DEVICE = "00008142-001871A11491401C"
-CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+import enchron_target
+
+# The lane follows the target: ENCHRON_TARGET_DEVICE moves this whole runner
+# onto the simulator, and the controller switches transport from the same
+# value. See Scripts/verification/enchron_target.py.
+DEVICE = enchron_target.target_device()
+CORE_DEVICE = enchron_target.core_device()
 BUNDLE = "com.xiongzhipeng.XrPlayer"
 DEVELOPER_DIR = subprocess.run(
     ["xcode-select", "-p"], capture_output=True, text=True, check=True

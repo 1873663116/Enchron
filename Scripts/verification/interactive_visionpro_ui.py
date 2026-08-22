@@ -56,10 +56,16 @@ TIMING_SAMPLE_LIMIT = 20
 DEVICECTL_CALL_COUNT = 0
 
 
-def record_timing(action: str, seconds: float) -> None:
+def record_timing(action: str, seconds: float, *, device: str) -> None:
     """Rolling window of measured foreground round trips per action. The
     background-context hook reads this file and stays silent about any action
-    that has no record here."""
+    that has no record here.
+
+    Simulator round trips are roughly an order of magnitude shorter than device
+    ones, so they are keyed separately. Sharing one window would let whichever
+    transport ran most recently define the expected duration of the other."""
+    if is_simulator(device):
+        action = f"simulator:{action}"
     try:
         timings = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -107,6 +113,40 @@ def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.Co
         )
 
 
+_SIMULATOR_UDIDS: set[str] | None = None
+
+
+def is_simulator(device: str) -> bool:
+    """A simulator carries the whole channel on this Mac's filesystem, so every
+    `devicectl` round trip below has a local equivalent that is both faster and
+    incapable of the 120s transport hang."""
+    global _SIMULATOR_UDIDS
+    if _SIMULATOR_UDIDS is None:
+        listing = subprocess.run(
+            ["xcrun", "simctl", "list", "devices", "--json"],
+            check=False, text=True, capture_output=True,
+        )
+        udids: set[str] = set()
+        if listing.returncode == 0:
+            try:
+                for runtime in json.loads(listing.stdout).get("devices", {}).values():
+                    udids.update(entry["udid"] for entry in runtime)
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+        _SIMULATOR_UDIDS = udids
+    return device in _SIMULATOR_UDIDS
+
+
+def simulator_container(device: str, bundle_id: str) -> Path | None:
+    result = subprocess.run(
+        ["xcrun", "simctl", "get_app_container", device, bundle_id, "data"],
+        check=False, text=True, capture_output=True,
+    )
+    if result.returncode != 0:
+        return None
+    return Path(result.stdout.strip())
+
+
 def copy_from_device(
     *,
     device: str,
@@ -115,6 +155,14 @@ def copy_from_device(
     local_path: Path,
     quiet: bool,
 ) -> bool:
+    if is_simulator(device):
+        container = simulator_container(device, runner_bundle_id)
+        source = container / remote_path if container else None
+        if source is None or not source.exists():
+            return False
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(source.read_bytes())
+        return True
     result = run_devicectl(
         [
             "device",
@@ -143,6 +191,14 @@ def copy_to_device(
     local_path: Path,
     remote_path: str,
 ) -> None:
+    if is_simulator(device):
+        container = simulator_container(device, runner_bundle_id)
+        if container is None:
+            raise RuntimeError("The runner container is not installed on this simulator.")
+        destination = container / remote_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(local_path.read_bytes())
+        return
     result = run_devicectl(
         [
             "device",
@@ -169,6 +225,17 @@ def wake_runner(arguments: argparse.Namespace) -> None:
     file that lands with no notification behind it is read only if the runner
     happens to loop again for another reason. Every command, stop included, is
     delivered by posting this notification."""
+    if is_simulator(arguments.device):
+        posted = subprocess.run(
+            ["xcrun", "simctl", "spawn", arguments.device, "notifyutil", "-p",
+             COMMAND_NOTIFICATION],
+            check=False, text=True, capture_output=True,
+        )
+        if posted.returncode != 0:
+            raise RuntimeError(
+                posted.stderr or "Unable to wake the interactive UI runner."
+            )
+        return
     result = run_devicectl(
         [
             "device",
@@ -455,14 +522,28 @@ def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object
         }
     )
 
-    processes = run_devicectl(
-        ["device", "info", "processes", "--device", arguments.device]
+    processes = (
+        subprocess.run(
+            ["xcrun", "simctl", "spawn", arguments.device, "launchctl", "list"],
+            check=False, text=True, capture_output=True,
+        )
+        if is_simulator(arguments.device)
+        else run_devicectl(
+            ["device", "info", "processes", "--device", arguments.device]
+        )
     )
     if processes.returncode == 0:
+        # `launchctl list` on a simulator labels the app by bundle id rather
+        # than by executable path, so the marker set differs by transport.
+        markers = (
+            (DEVICE_PROCESS_MARKER, APP_BUNDLE_ID, arguments.runner_bundle_id)
+            if is_simulator(arguments.device)
+            else (DEVICE_PROCESS_MARKER,)
+        )
         matches = [
             line.strip()
             for line in processes.stdout.splitlines()
-            if DEVICE_PROCESS_MARKER in line
+            if any(marker in line for marker in markers)
         ]
         observations.append(
             {
@@ -731,7 +812,11 @@ def launch_runner(
         "-configuration",
         "Debug",
         "-destination",
-        f"platform=visionOS,id={arguments.destination_id or arguments.device}",
+        (
+            f"platform=visionOS Simulator,id={arguments.device}"
+            if is_simulator(arguments.device)
+            else f"platform=visionOS,id={arguments.destination_id or arguments.device}"
+        ),
         "-derivedDataPath",
         arguments.derived_data_path,
         "-parallel-testing-enabled",
@@ -1088,7 +1173,11 @@ def main() -> int:
         print(json.dumps({"success": False, "error": str(error)}, ensure_ascii=False))
         return 1
     if response.get("success"):
-        record_timing(arguments.action, time.monotonic() - started_at)
+        record_timing(
+            arguments.action,
+            time.monotonic() - started_at,
+            device=arguments.device,
+        )
     response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if response.get("success") else 2

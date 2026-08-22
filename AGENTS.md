@@ -35,4 +35,6 @@ SwiftPM 自己的 `.build/` 无需干预。
 
 ## 验证
 
-涉及佩戴者所见画面、物理音频、性能等结论需要物理 Vision Pro，读取 `.agents/skills/visionpro-xcuitest`。visionOS 真机的 UI 自动化只有该 skill 的 XCUITest 控制器一条通道；Xcode 的 Device Interaction 工具在 visionOS 上不可用，只支持 iOS 与 watchOS 模拟器。 
+端到端调试与回归读取 `.agents/skills/vp-e2e`。默认在 visionOS 模拟器上做；只有模拟器产生不出那个现象时才上物理 Vision Pro，判据与清单在该 skill 里。两条 lane 共用同一个 XCUITest 常驻 runner 与同一个控制器，区别只在传输。
+
+visionOS 的合成输入只有 XCUITest 一条通道，模拟器与真机都是：Xcode 的 Device Interaction 只支持 iOS 与 watchOS 模拟器，XcodeBuildMCP 的 UI 自动化在 visionOS 模拟器上返回空的元素树。 

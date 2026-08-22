@@ -17,13 +17,13 @@
       "path": "docs/acceptance/",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": "docs/plans/ 承载在办的验收，.agents/skills/visionpro-xcuitest/features/ 承载特性地图与证据要求。"
+      "replacement": "docs/plans/ 承载在办的验收，.agents/skills/vp-e2e/features/ 承载特性地图与证据要求。"
     },
     {
       "path": "docs/acceptance/verification-system.md",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": ".agents/skills/visionpro-xcuitest/SKILL.md 与 Scripts/verification/run_verification_gauntlet.py。"
+      "replacement": ".agents/skills/vp-e2e/SKILL.md 与 Scripts/verification/run_verification_gauntlet.py。"
     },
     {
       "path": "docs/quality_gates.md",
@@ -42,6 +42,12 @@
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
       "replacement": "docs/CONTEXT.md 承载术语，ARCHITECTURE.md 承载结构导航。"
+    },
+    {
+      "path": ".agents/skills/vp-e2e/references/enchron.md",
+      "removed": "2026-08-22",
+      "commit": "unreleased",
+      "replacement": "按内容拆开：与 lane 无关的驱动与取证事实在 references/product.md，真机独有的传输、授权与已证伪路径在 references/device.md。"
     }
   ]
 }

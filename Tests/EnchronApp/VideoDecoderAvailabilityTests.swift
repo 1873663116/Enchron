@@ -100,3 +100,50 @@ func proResHasNoDecoderOnThisDevice() throws {
         )
     }
 }
+
+/// Every codec PlaybackCore can hand a renderer, asked of this environment at once.
+///
+/// The axis is `codec_type()` in `PlaybackFFmpegBridge.c`, which is the one place
+/// that decides what reaches the renderer: anything it maps to 0 fails
+/// `compressed_codec_is_renderable` and never reaches VideoToolbox, so probing it
+/// would measure the platform rather than this product.
+///
+/// The two cases above assert what one environment must be true of. This one
+/// asserts nothing beyond the control and records the whole answer instead,
+/// because the interesting use is the diff between a simulator run and a device
+/// run, and a case that encodes one side's answer cannot produce that diff.
+/// The report lands in the container as `video-decoder-matrix.tsv`.
+@Test("this environment's video decoder matrix is recorded")
+func videoDecoderMatrixIsRecorded() throws {
+    let codecs: [(String, CMVideoCodecType)] = [
+        ("H.264", kCMVideoCodecType_H264),
+        ("HEVC", kCMVideoCodecType_HEVC),
+        ("Dolby Vision HEVC", kCMVideoCodecType_DolbyVisionHEVC),
+        ("AV1", kCMVideoCodecType_AV1),
+        ("ProRes 422 Proxy", kCMVideoCodecType_AppleProRes422Proxy),
+        ("ProRes 422 LT", kCMVideoCodecType_AppleProRes422LT),
+        ("ProRes 422", kCMVideoCodecType_AppleProRes422),
+        ("ProRes 422 HQ", kCMVideoCodecType_AppleProRes422HQ),
+        ("ProRes 4444", kCMVideoCodecType_AppleProRes4444),
+        ("ProRes 4444 XQ", kCMVideoCodecType_AppleProRes4444XQ),
+    ]
+    let rows = try codecs.map { name, codec -> String in
+        let status = try decoderStatus(for: codec)
+        // A codec whose sample description is incomplete without extradata
+        // cannot open a session even where its decoder exists, so the only
+        // sound reading is present versus never found.
+        let verdict = status == kVTCouldNotFindVideoDecoderErr ? "absent" : "present"
+        return "\(name)\t\(fourCharacterCode(codec))\t\(status)\t\(verdict)"
+    }
+    let report = rows.joined(separator: "\n")
+    try? report.write(
+        to: URL.documentsDirectory.appending(path: "video-decoder-matrix.tsv"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    // H.264 is the control: the one codec here whose description is complete
+    // without extradata, so a run where even it cannot open a session measured
+    // something other than decoder availability.
+    #expect(try decoderStatus(for: kCMVideoCodecType_H264) == noErr, Comment(rawValue: report))
+}
