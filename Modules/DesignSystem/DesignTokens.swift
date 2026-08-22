@@ -174,8 +174,11 @@ public enum DesignTokens {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /// Enchron's single theme accent, used for focused and active states.
+    /// The accent is the app icon's background pink (#F4E0E8) — the midpoint of
+    /// the icon's vertical gradient — so the product's signal colour and its
+    /// launcher tile read as the same hue.
     public enum Theme {
-        public static let accent: Color = Color(red: 0.224, green: 0.773, blue: 0.733)
+        public static let accent: Color = Color(red: 0.957, green: 0.878, blue: 0.910)
         public static let surfaceContainerHighest: Color = .white.opacity(0.12)
         public static let onSurfaceVariant: Color = .white.opacity(0.68)
         public static let tertiary: Color = accent
