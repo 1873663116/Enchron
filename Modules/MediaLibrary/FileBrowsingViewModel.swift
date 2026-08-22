@@ -75,7 +75,7 @@ public final class FileBrowsingViewModel {
 
     /// Injectable remote-adapter factory (FILE-10 / 44 / 46 testability). It receives
     /// the credential view used for this connection, including any uncommitted overlay. When nil,
-    /// `connectToDataSource` builds the real WebDAV / SMB / Photo adapters; tests
+    /// `connectToDataSource` builds the real WebDAV / SMB adapters; tests
     /// inject a fake that times out / rejects credentials / succeeds deterministically.
     /// Returns nil to fall through to the built-in adapters (e.g. for `.local`).
     private let makeRemoteAdapter: (@MainActor (
@@ -226,10 +226,6 @@ public final class FileBrowsingViewModel {
                 adapter = smb
             case .local:
                 await useDefaultFolder()
-                return
-            case .photoLibrary:
-                isLoading = false
-                lastErrorMessage = "Choose Photos videos from the Media Library add menu."
                 return
             }
         }
@@ -671,7 +667,7 @@ public final class FileBrowsingViewModel {
             let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
             smb.ownerDataSourceID = dataSource.id
             adapter = smb
-        case .photoLibrary, .local:
+        case .local:
             throw MediaReferenceResolver.ResolutionError.unavailableSource
         }
 
@@ -732,7 +728,7 @@ public final class FileBrowsingViewModel {
             let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
             smb.ownerDataSourceID = dataSource.id
             adapter = smb
-        case .photoLibrary, .local:
+        case .local:
             throw MediaReferenceResolver.ResolutionError.unavailableSource
         }
         do {

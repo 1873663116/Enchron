@@ -235,7 +235,6 @@ struct SettingsScreen: View {
                 systemName: "hand.raised",
                 keyValueDetail: [
                     .init(key: "Local Files", value: "Read on device"),
-                    .init(key: "Photos", value: "Read only after permission"),
                     .init(key: "Remote Credentials", value: "Stored in Keychain"),
                     .init(key: "Diagnostics", value: "Remain on device")
                 ]

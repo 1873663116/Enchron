@@ -57,7 +57,7 @@ struct MediaLibraryBehaviorTests {
         let folder = try library.createFolder(named: "Watch Later")
         let reference = FileBrowsingDomain.MediaReference(
             name: "Film.mkv",
-            locator: .photoAsset(localIdentifier: "film")
+            locator: .sourceItem(dataSourceID: UUID(), path: "film")
         )
         try library.add(reference)
 
@@ -73,15 +73,15 @@ struct MediaLibraryBehaviorTests {
         let folder = try library.createFolder(named: "Watch Later")
         let first = FileBrowsingDomain.MediaReference(
             name: "First.mkv",
-            locator: .photoAsset(localIdentifier: "first")
+            locator: .sourceItem(dataSourceID: UUID(), path: "first")
         )
         let second = FileBrowsingDomain.MediaReference(
             name: "Second.mkv",
-            locator: .photoAsset(localIdentifier: "second")
+            locator: .sourceItem(dataSourceID: UUID(), path: "second")
         )
         let unselected = FileBrowsingDomain.MediaReference(
             name: "Keep.mkv",
-            locator: .photoAsset(localIdentifier: "keep")
+            locator: .sourceItem(dataSourceID: UUID(), path: "keep")
         )
         try library.add(first)
         try library.add(second)
@@ -135,7 +135,7 @@ struct MediaLibraryBehaviorTests {
     func searchUsesVisibleMediaName() {
         let reference = FileBrowsingDomain.MediaReference(
             name: "The Matrix.mkv",
-            locator: .photoAsset(localIdentifier: "matrix")
+            locator: .sourceItem(dataSourceID: UUID(), path: "matrix")
         )
 
         #expect(MediaLibrarySearch.matches(reference, query: " matrix "))
@@ -159,7 +159,7 @@ struct MediaLibraryBehaviorTests {
         let season = try library.createFolder(named: "Season 1", in: series.id)
         let episode = FileBrowsingDomain.MediaReference(
             name: "Episode 01.mkv",
-            locator: .photoAsset(localIdentifier: "episode-01")
+            locator: .sourceItem(dataSourceID: UUID(), path: "episode-01")
         )
         try library.add(episode, to: season.id)
         let viewModel = MediaLibraryViewModel(

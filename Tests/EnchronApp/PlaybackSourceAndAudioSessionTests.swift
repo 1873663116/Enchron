@@ -71,22 +71,6 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
     }
 
-    func testTemporaryPhotoPlaybackFileLivesForTheSessionAndIsRemovedOnRelease() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(path: "EnchronPhotoAccessTests-\(UUID().uuidString)", directoryHint: .isDirectory)
-        let file = directory.appending(path: "photo-source.mov")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data([0x00, 0x01, 0x02]).write(to: file)
-
-        let access = MediaAccessLease.temporaryFile(file)
-
-        XCTAssertTrue(access.ensureActive())
-        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
-        access.release()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
-    }
-
     @MainActor
     func testAudioSessionLifecycleActivatesMoviePlaybackAndDeactivatesExactlyOnce() async throws {
         let session = RecordingPlaybackAudioSession()

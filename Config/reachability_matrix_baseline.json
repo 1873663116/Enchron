@@ -199,11 +199,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
       "verdict": "reachable"
     },
@@ -265,11 +260,6 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-addFolder",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
       "verdict": "reachable"
     },
     {

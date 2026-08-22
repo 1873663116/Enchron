@@ -16,7 +16,6 @@ nonisolated extension FileBrowsingDomain {
     public struct MediaReference: Sendable, Equatable, Identifiable, Codable {
         public enum Locator: Sendable, Equatable, Codable {
             case file(bookmark: Data, relativePath: String)
-            case photoAsset(localIdentifier: String)
             case sourceItem(dataSourceID: UUID, path: String)
         }
 
@@ -85,6 +84,14 @@ nonisolated extension FileBrowsingDomain {
             let reference: MediaReference
         }
 
+        private struct FailableDecodable<Wrapped: Decodable>: Decodable {
+            let value: Wrapped?
+
+            init(from decoder: any Decoder) throws {
+                value = try? Wrapped(from: decoder)
+            }
+        }
+
         private var allFolders: [LibraryFolder] = []
         private var entries: [Entry] = []
         private var importedDirectories: [ImportedDirectory] = []
@@ -100,7 +107,8 @@ nonisolated extension FileBrowsingDomain {
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             allFolders = try container.decode([LibraryFolder].self, forKey: .allFolders)
-            entries = try container.decode([Entry].self, forKey: .entries)
+            entries = try container.decode([FailableDecodable<Entry>].self, forKey: .entries)
+                .compactMap(\.value)
             importedDirectories = try container.decodeIfPresent(
                 [ImportedDirectory].self,
                 forKey: .importedDirectories

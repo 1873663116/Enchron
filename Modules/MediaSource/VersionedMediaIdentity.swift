@@ -16,10 +16,6 @@ public struct MediaIdentity: Codable, Hashable, Sendable {
         make(scope: "local-path-fallback", components: [canonicalPath])
     }
 
-    public static func photo(localIdentifier: String) -> Self {
-        make(scope: "photo", components: [localIdentifier])
-    }
-
     public static func remote(sourceKey: String, canonicalPath: String) -> Self {
         make(scope: "remote", components: [sourceKey, canonicalPath])
     }
@@ -57,10 +53,6 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
             String(sizeInBytes),
             String(modifiedAt.timeIntervalSince1970.bitPattern),
         ])
-    }
-
-    public static func photo(localIdentifier: String, versionToken: String) -> Self {
-        make(components: ["photo", localIdentifier, versionToken])
     }
 
     public static func remote(entityTag: String, sizeInBytes: Int64) -> Self {

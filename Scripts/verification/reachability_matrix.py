@@ -2655,7 +2655,6 @@ class ReachabilityRun:
         for identifier, family, target, expected_action in (
             ("addFiles", "sourceAdd", "local", "sidebar.add.local"),
             ("addFolder", "sourceAdd", "folder", "sidebar.addFolder"),
-            ("addPhotos", "sourceAdd", "photoLibrary", "sidebar.add.photoLibrary"),
             ("refresh", "sourceAction", "refresh", "sidebar.refresh"),
             ("delete", "sourceAction", "delete", "sourceSidebar.delete"),
         ):
@@ -3098,7 +3097,6 @@ class ReachabilityRun:
         for target, expected_action in (
             ("addFiles", "manage.addFiles"),
             ("addFolder", "manage.addFolder"),
-            ("addPhotos", "manage.addPhotos"),
         ):
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")

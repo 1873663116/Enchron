@@ -210,7 +210,6 @@ private struct CircleButtonsSection: View {
             Section("Local") {
                 Button("Choose Folder...") {}
                 Button("Import Video...") {}
-                Button("Photo Library...") {}
                 Button("Use App Documents") {}
             }
             Section("Remote") {

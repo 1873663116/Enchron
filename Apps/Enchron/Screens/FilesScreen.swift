@@ -2,8 +2,6 @@ import DesignSystem
 import MediaLibrary
 import MediaSource
 import SwiftUI
-import PhotosUI
-@preconcurrency import Photos
 import UniformTypeIdentifiers
 
 #if DEBUG
@@ -66,7 +64,6 @@ struct FilesScreen: View {
     private enum ManageAction: String, CaseIterable {
         case addFiles
         case addFolder
-        case addPhotos
         case newFolder
         case selectMultiple
 
@@ -74,7 +71,6 @@ struct FilesScreen: View {
             switch self {
             case .addFiles: "Add Files"
             case .addFolder: "Add Folder"
-            case .addPhotos: "Add from Photos"
             case .newFolder: "New Library Folder"
             case .selectMultiple: "Select Multiple"
             }
@@ -98,8 +94,6 @@ struct FilesScreen: View {
     @State private var folderToRemove: FileBrowsingDomain.LibraryFolder?
     @State private var fileSelectionKind: FileSelectionKind = .files
     @State private var isFileImporterPresented = false
-    @State private var isPhotosPickerPresented = false
-    @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var mediaReferenceSelectionIsActive = false
     @State private var selectedMediaReferenceIDs: Set<UUID> = []
     @State private var isBatchRemoveConfirmationPresented = false
@@ -360,18 +354,6 @@ struct FilesScreen: View {
                 mediaLibrary.lastErrorMessage = error.localizedDescription
             }
         }
-        .photosPicker(
-            isPresented: $isPhotosPickerPresented,
-            selection: $selectedPhotoItems,
-            maxSelectionCount: nil,
-            selectionBehavior: .ordered,
-            matching: .videos,
-            preferredItemEncoding: .current,
-            photoLibrary: .shared()
-        )
-        .onChange(of: selectedPhotoItems) { _, items in
-            addSelectedPhotos(items)
-        }
         .enchronErrorDialog(
             "File Browser Error",
             message: viewModel.lastErrorMessage ?? "Couldn't load this location. Check the source connection and try again.",
@@ -487,8 +469,6 @@ struct FilesScreen: View {
                 sourceConnectionDraftKind = sourceType
             }
             presentedSourceConnection = sourceType
-        case .photoPicker:
-            requestPhotosAccessAndPresentPicker()
         case .fileImporter:
             fileSelectionKind = .files
             isFileImporterPresented = true
@@ -768,12 +748,6 @@ struct FilesScreen: View {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
                 .accessibilityIdentifier("MediaLibrary-Manage-addFolder")
-                Button {
-                    performManageAction(.addPhotos)
-                } label: {
-                    Label("Add from Photos", systemImage: "photo.on.rectangle")
-                }
-                .accessibilityIdentifier("MediaLibrary-Manage-addPhotos")
                 Divider()
                 Button {
                     performManageAction(.newFolder)
@@ -1145,8 +1119,6 @@ struct FilesScreen: View {
             isFileImporterPresented = true
         case .addFolder:
             presentFolderImporter()
-        case .addPhotos:
-            requestPhotosAccessAndPresentPicker()
         case .newFolder:
             isCreatingFolder = true
         case .selectMultiple:
@@ -1323,30 +1295,6 @@ struct FilesScreen: View {
         folderToRename = folder
     }
 
-    private func requestPhotosAccessAndPresentPicker() {
-        Task {
-            let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-            switch status {
-            case .authorized, .limited:
-                isPhotosPickerPresented = true
-            default:
-                mediaLibrary.lastErrorMessage = "Photos access is required to keep persistent video references."
-            }
-        }
-    }
-
-    private func addSelectedPhotos(_ items: [PhotosPickerItem]) {
-        let selections = items.compactMap { item -> (localIdentifier: String, name: String)? in
-            guard let identifier = item.itemIdentifier else { return nil }
-            let assets = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
-            let name = assets.firstObject
-                .flatMap { PHAssetResource.assetResources(for: $0).first?.originalFilename }
-                ?? "Photos Video"
-            return (identifier, name)
-        }
-        mediaLibrary.addPhotoItems(selections)
-        selectedPhotoItems = []
-    }
 }
 
 private enum FileSelectionKind {

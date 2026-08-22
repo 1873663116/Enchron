@@ -222,12 +222,6 @@ struct SourceSidebar: View {
                         .accessibilityIdentifier("\(identifierPrefix)-addFolder")
                     }
                     Button {
-                        performAddSource(.photoLibrary)
-                    } label: {
-                        Label("Photos", systemImage: "photo.on.rectangle")
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix)-addPhotos")
-                    Button {
                         performAddSource(.webDAV)
                     } label: {
                         Label("WebDAV", systemImage: "cloud.fill")
@@ -298,12 +292,6 @@ struct SourceSidebar: View {
                     title: "Files",
                     isSelected: false,
                     select: { performAddSource(.local) }
-                ),
-                DebugMenuSelectionItem(
-                    id: "photoLibrary",
-                    title: "Photos",
-                    isSelected: false,
-                    select: { performAddSource(.photoLibrary) }
                 ),
                 DebugMenuSelectionItem(
                     id: "webDAV",

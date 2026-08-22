@@ -71,12 +71,6 @@
     {
       "rule": "preview-raw-control",
       "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Photo Library...\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
       "signature": "Button(\"Remove Source\") { isPresented = true }",
       "count": 1
     },

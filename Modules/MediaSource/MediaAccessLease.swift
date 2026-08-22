@@ -1,14 +1,6 @@
 import Foundation
 
 public final class MediaAccessLease: @unchecked Sendable {
-    private final class RetainedOwner: @unchecked Sendable {
-        let value: AnyObject
-
-        init(_ value: AnyObject) {
-            self.value = value
-        }
-    }
-
     private let acquireOperation: @Sendable () -> Bool
     private let releaseOperation: @Sendable () -> Void
     private let lock = NSLock()
@@ -35,26 +27,6 @@ public final class MediaAccessLease: @unchecked Sendable {
             acquire: { url.startAccessingSecurityScopedResource() },
             release: { url.stopAccessingSecurityScopedResource() }
         )
-    }
-
-    public static func retaining(_ owner: AnyObject, securityScoped url: URL) -> MediaAccessLease {
-        let retainedOwner = RetainedOwner(owner)
-        let accessStarted = url.startAccessingSecurityScopedResource()
-        return MediaAccessLease {
-            _ = retainedOwner.value
-            if accessStarted { url.stopAccessingSecurityScopedResource() }
-        }
-    }
-
-    public static func temporaryFile(_ url: URL) -> MediaAccessLease {
-        MediaAccessLease {
-            let fileManager = FileManager.default
-            try? fileManager.removeItem(at: url)
-            let directory = url.deletingLastPathComponent()
-            if (try? fileManager.contentsOfDirectory(atPath: directory.path).isEmpty) == true {
-                try? fileManager.removeItem(at: directory)
-            }
-        }
     }
 
     public func ensureActive() -> Bool {

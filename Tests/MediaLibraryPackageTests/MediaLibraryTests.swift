@@ -26,14 +26,14 @@ struct MediaLibraryTests {
         let series = try library.createFolder(named: "Series")
         let reference = FileBrowsingDomain.MediaReference(
             name: "Episode 02.mkv",
-            locator: .photoAsset(localIdentifier: "photos-local-id")
+            locator: .sourceItem(dataSourceID: UUID(), path: "photos-local-id")
         )
         try library.add(reference, to: inbox.id)
 
         try library.moveReference(reference.id, to: series.id)
 
         #expect(library.references(in: inbox.id).isEmpty)
-        #expect(library.references(in: series.id).first?.locator == .photoAsset(localIdentifier: "photos-local-id"))
+        #expect(library.references(in: series.id).first?.locator == reference.locator)
 
         library.removeReference(reference.id)
 
@@ -51,7 +51,7 @@ struct MediaLibraryTests {
         )
         let second = FileBrowsingDomain.MediaReference(
             name: "Second.mov",
-            locator: .photoAsset(localIdentifier: "second-asset")
+            locator: .sourceItem(dataSourceID: UUID(), path: "second-asset")
         )
         let unselectedSourceID = UUID()
         let unselected = FileBrowsingDomain.MediaReference(
@@ -133,10 +133,6 @@ struct MediaLibraryTests {
             to: folder.id
         )
         try original.add(
-            .init(name: "Photos.mov", locator: .photoAsset(localIdentifier: "asset-id")),
-            to: folder.id
-        )
-        try original.add(
             .init(name: "Remote.mkv", locator: .sourceItem(dataSourceID: UUID(), path: "/Remote.mkv")),
             to: folder.id
         )
@@ -144,6 +140,73 @@ struct MediaLibraryTests {
         try store.save(original)
 
         #expect(try store.load() == original)
+    }
+
+    @Test("a persisted library with an unreadable entry drops only that entry")
+    func unreadableEntryIsDroppedWithoutLosingOtherState() throws {
+        let suiteName = "app.enchron.tests.media-library.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let key = "enchron.mediaLibrary"
+        let store = UserDefaultsMediaLibraryStore(defaults: defaults, key: key)
+
+        let json = """
+        {
+          "allFolders": [
+            {"id": "11111111-1111-1111-1111-111111111111", "name": "Mixed Sources", "parentID": null}
+          ],
+          "entries": [
+            {
+              "folderID": "11111111-1111-1111-1111-111111111111",
+              "reference": {
+                "id": "22222222-2222-2222-2222-222222222222",
+                "name": "Local.mov",
+                "locator": {"file": {"bookmark": "AQ==", "relativePath": "Local.mov"}},
+                "sizeInBytes": 0,
+                "modifiedAt": 0,
+                "fileExtension": "mov",
+                "remoteEntityTag": null,
+                "remoteSourceKey": null
+              }
+            },
+            {
+              "folderID": "11111111-1111-1111-1111-111111111111",
+              "reference": {
+                "id": "33333333-3333-3333-3333-333333333333",
+                "name": "Photos.mov",
+                "locator": {"photoAsset": {"localIdentifier": "asset-id"}},
+                "sizeInBytes": 0,
+                "modifiedAt": 0,
+                "fileExtension": "mov",
+                "remoteEntityTag": null,
+                "remoteSourceKey": null
+              }
+            },
+            {
+              "folderID": "11111111-1111-1111-1111-111111111111",
+              "reference": {
+                "id": "44444444-4444-4444-4444-444444444444",
+                "name": "Remote.mkv",
+                "locator": {"sourceItem": {"dataSourceID": "55555555-5555-5555-5555-555555555555", "path": "/Remote.mkv"}},
+                "sizeInBytes": 0,
+                "modifiedAt": 0,
+                "fileExtension": "mkv",
+                "remoteEntityTag": null,
+                "remoteSourceKey": null
+              }
+            }
+          ],
+          "importedDirectories": []
+        }
+        """
+        defaults.set(Data(json.utf8), forKey: key)
+
+        let loaded = try store.load()
+
+        let folder = try #require(loaded.folders(in: nil).first)
+        #expect(folder.name == "Mixed Sources")
+        let names = Set(loaded.references(in: folder.id).map(\.name))
+        #expect(names == ["Local.mov", "Remote.mkv"])
     }
 
     @MainActor

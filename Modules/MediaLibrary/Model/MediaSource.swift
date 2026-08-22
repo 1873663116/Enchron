@@ -6,13 +6,11 @@ public nonisolated enum FileBrowsingDomain {}
 nonisolated extension FileBrowsingDomain {
     public enum SourceType: String, Sendable, CaseIterable, Codable, Identifiable {
         case local
-        case photoLibrary
         case smb
         case webDAV
 
         public enum Presentation: Sendable {
             case fileImporter
-            case photoPicker
             case serverConnection
         }
 
@@ -20,14 +18,12 @@ nonisolated extension FileBrowsingDomain {
         public var presentation: Presentation {
             switch self {
             case .local: .fileImporter
-            case .photoLibrary: .photoPicker
             case .smb, .webDAV: .serverConnection
             }
         }
         public var title: String {
             switch self {
             case .local: "Local Files"
-            case .photoLibrary: "Photos"
             case .smb: "SMB"
             case .webDAV: "WebDAV"
             }
@@ -35,7 +31,6 @@ nonisolated extension FileBrowsingDomain {
         public var sidebarIcon: String {
             switch self {
             case .local: "externaldrive.fill"
-            case .photoLibrary: "photo.on.rectangle"
             case .smb: "server.rack"
             case .webDAV: "cloud.fill"
             }
@@ -44,14 +39,14 @@ nonisolated extension FileBrowsingDomain {
             switch self {
             case .smb: "externaldrive.connected.to.line.below"
             case .webDAV: "network"
-            case .local, .photoLibrary: "folder"
+            case .local: "folder"
             }
         }
         public var connectionSubtitle: String {
             switch self {
             case .smb: "Local network share · Host name or IP address"
             case .webDAV: "HTTP(S) server · Full server address"
-            case .local, .photoLibrary: ""
+            case .local: ""
             }
         }
         public var addressLabel: String { self == .smb ? "Address" : "Server Address" }
@@ -196,7 +191,7 @@ nonisolated extension FileBrowsingDomain {
             }
 
             switch sourceType {
-            case .local, .photoLibrary:
+            case .local:
                 return rootPath
             case .webDAV, .smb:
                 var value = ""
@@ -224,7 +219,7 @@ nonisolated extension FileBrowsingDomain {
                 return "smb://\(rawAddress)"
             case .webDAV:
                 return "http://\(rawAddress)"
-            case .local, .photoLibrary:
+            case .local:
                 return rawAddress
             }
         }
