@@ -2425,7 +2425,11 @@ static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
     return hasVideo;
 }
 
-static void fill_video_color_from_codec_configuration(AVFormatContext *context) {
+/// A qualified MOV stream table lets the open skip `avformat_find_stream_info`,
+/// which is what keeps an open from reading media bytes just to describe itself.
+/// The fields that probe would have filled still live in the codec configuration
+/// atom, so opening a decoder over the extradata alone recovers them.
+static void fill_video_facts_from_codec_configuration(AVFormatContext *context) {
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVCodecParameters *parameters = context->streams[index]->codecpar;
         if (parameters->codec_type != AVMEDIA_TYPE_VIDEO ||
@@ -2433,7 +2437,8 @@ static void fill_video_color_from_codec_configuration(AVFormatContext *context) 
         if (parameters->color_primaries != AVCOL_PRI_UNSPECIFIED &&
             parameters->color_trc != AVCOL_TRC_UNSPECIFIED &&
             parameters->color_space != AVCOL_SPC_UNSPECIFIED &&
-            parameters->color_range != AVCOL_RANGE_UNSPECIFIED) continue;
+            parameters->color_range != AVCOL_RANGE_UNSPECIFIED &&
+            parameters->format != AV_PIX_FMT_NONE) continue;
         const AVCodec *decoder = avcodec_find_decoder(parameters->codec_id);
         AVCodecContext *codecContext = decoder
             ? avcodec_alloc_context3(decoder)
@@ -2454,6 +2459,20 @@ static void fill_video_color_from_codec_configuration(AVFormatContext *context) 
             if (parameters->color_range == AVCOL_RANGE_UNSPECIFIED) {
                 parameters->color_range = codecContext->color_range;
             }
+            if (parameters->format == AV_PIX_FMT_NONE) {
+                parameters->format = codecContext->pix_fmt != AV_PIX_FMT_NONE
+                    ? codecContext->pix_fmt
+                    : codecContext->sw_pix_fmt;
+            }
+            if (parameters->bits_per_raw_sample == 0) {
+                parameters->bits_per_raw_sample = codecContext->bits_per_raw_sample;
+            }
+            if (parameters->profile == AV_PROFILE_UNKNOWN) {
+                parameters->profile = codecContext->profile;
+            }
+            if (parameters->video_delay == 0) {
+                parameters->video_delay = codecContext->has_b_frames;
+            }
         }
         avcodec_free_context(&codecContext);
     }
@@ -2471,7 +2490,7 @@ static int read_stream_information(
     int result;
     if (read.movFamily && mov_stream_table_is_qualified(context)) {
         result = finalize_stream_information(context, sourceReadContext, false);
-        fill_video_color_from_codec_configuration(context);
+        fill_video_facts_from_codec_configuration(context);
         read.skippedProbe = true;
     } else {
         result = finalize_stream_information(context, sourceReadContext, true);
@@ -3243,14 +3262,56 @@ static void copy_media_information_text(
     snprintf(buffer, bufferSize, "%s", value ? value : "");
 }
 
-static double decoded_bytes_per_pixel(int pixelFormat) {
-    const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(pixelFormat);
-    if (!descriptor || descriptor->nb_components == 0) return 0;
-    int depth = descriptor->comp[0].depth;
-    if (depth <= 0) return 0;
-    int bitsPerPixel = av_get_bits_per_pixel(descriptor);
-    if (bitsPerPixel <= 0) return 0;
-    double samplesPerPixel = (double)bitsPerPixel / (double)depth;
+/// Chroma subsampling counted in samples per pixel: 4:2:0 carries one luma and
+/// half a chroma sample, 4:2:2 one and one, 4:4:4 one and two.
+static double samples_per_pixel_for_chroma(int log2ChromaWidth, int log2ChromaHeight) {
+    double chromaFraction = 1.0
+        / (double)(1 << log2ChromaWidth)
+        / (double)(1 << log2ChromaHeight);
+    return 1.0 + 2.0 * chromaFraction;
+}
+
+/// H.264 profiles above High select their own chroma format in the SPS; every
+/// profile below it is 4:2:0 by definition.
+static double samples_per_pixel_for_h264_profile(int profile) {
+    switch (profile) {
+        case AV_PROFILE_H264_HIGH_422:
+        case AV_PROFILE_H264_HIGH_422_INTRA:
+            return samples_per_pixel_for_chroma(1, 0);
+        case AV_PROFILE_H264_HIGH_444:
+        case AV_PROFILE_H264_HIGH_444_PREDICTIVE:
+        case AV_PROFILE_H264_HIGH_444_INTRA:
+            return samples_per_pixel_for_chroma(0, 0);
+        default:
+            return samples_per_pixel_for_chroma(1, 1);
+    }
+}
+
+/// What one decoded pixel costs on the output surface. Components deeper than
+/// eight bits land in sixteen-bit words, so ten-bit 4:2:0 costs three bytes
+/// where eight-bit costs one and a half.
+///
+/// The pixel format is the direct answer, but the H.264 decoder does not choose
+/// one until it decodes a frame, and this runs before any media byte is read.
+/// The SPS fields it does parse at open carry the same two facts.
+static double decoded_bytes_per_pixel(const AVCodecParameters *parameters) {
+    double samplesPerPixel = 0;
+    int depth = 0;
+    const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(parameters->format);
+    if (descriptor && descriptor->nb_components > 0 && descriptor->comp[0].depth > 0) {
+        depth = descriptor->comp[0].depth;
+        int bitsPerPixel = av_get_bits_per_pixel(descriptor);
+        if (bitsPerPixel > 0) samplesPerPixel = (double)bitsPerPixel / (double)depth;
+    }
+    if (samplesPerPixel <= 0) {
+        depth = parameters->bits_per_raw_sample > 0
+            ? parameters->bits_per_raw_sample
+            : 8;
+        samplesPerPixel = parameters->codec_id == AV_CODEC_ID_H264
+            ? samples_per_pixel_for_h264_profile(parameters->profile)
+            : samples_per_pixel_for_chroma(1, 1);
+    }
+    if (samplesPerPixel <= 0 || depth <= 0) return 0;
     return samplesPerPixel * (depth > 8 ? 2.0 : 1.0);
 }
 
@@ -3278,7 +3339,7 @@ static void fill_media_stream_storage(
     storage->info.reorderDepth = parameters->video_delay > 0
         ? parameters->video_delay
         : 0;
-    storage->info.decodedBytesPerPixel = decoded_bytes_per_pixel(parameters->format);
+    storage->info.decodedBytesPerPixel = decoded_bytes_per_pixel(parameters);
     storage->info.sampleRate = parameters->sample_rate;
     storage->info.channelCount = parameters->ch_layout.nb_channels;
 
