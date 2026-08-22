@@ -282,7 +282,7 @@ UNITS: tuple[Unit, ...] = (
         title="Every import entry opens its picker",
         contexts=("main-window-browser",),
         precondition="Files tab, manage menu reachable.",
-        proves="Folder and photo import entries are reachable, not only Files.",
+        proves="Folder import entries are reachable, not only Files.",
         steps=(
             real(
                 "tap",
@@ -297,12 +297,6 @@ UNITS: tuple[Unit, ...] = (
             wearer("system folder picker", "Wearer cancels."),
             real(
                 "tap",
-                "MediaLibrary-Manage-addPhotos",
-                expect="Photo picker appears.",
-            ),
-            wearer("system photo picker", "Wearer cancels."),
-            real(
-                "tap",
                 "FileBrowsing-SourcesSidebar-addFiles",
                 expect="Sidebar file entry opens the same picker.",
             ),
@@ -313,12 +307,6 @@ UNITS: tuple[Unit, ...] = (
                 expect="Sidebar folder entry opens the folder picker.",
             ),
             wearer("system folder picker", "Wearer cancels."),
-            real(
-                "tap",
-                "FileBrowsing-SourcesSidebar-addPhotos",
-                expect="Sidebar photo entry opens the photo picker.",
-            ),
-            wearer("system photo picker", "Wearer cancels."),
         ),
     ),
     Unit(

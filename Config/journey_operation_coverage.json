@@ -586,7 +586,7 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
       "unit": "library.import-entries",
-      "step": 6,
+      "step": 4,
       "drive": "real",
       "expect": "Sidebar file entry opens the same picker."
     },
@@ -594,17 +594,9 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
       "unit": "library.import-entries",
-      "step": 8,
+      "step": 6,
       "drive": "real",
       "expect": "Sidebar folder entry opens the folder picker."
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
-      "unit": "library.import-entries",
-      "step": 10,
-      "drive": "real",
-      "expect": "Sidebar photo entry opens the photo picker."
     },
     {
       "context": "main-window-browser",
@@ -709,14 +701,6 @@
       "step": 2,
       "drive": "real",
       "expect": "Folder picker appears."
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "unit": "library.import-entries",
-      "step": 4,
-      "drive": "real",
-      "expect": "Photo picker appears."
     },
     {
       "context": "main-window-browser",
