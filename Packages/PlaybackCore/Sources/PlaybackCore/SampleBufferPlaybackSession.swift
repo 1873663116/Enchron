@@ -72,29 +72,36 @@ enum PlaybackBufferingPolicy {
         )
     }
 
-    /// Recovery stops the timeline and refuses to resume until video is buffered
-    /// a lead past it, and the delivery gate measures the same span from the same
-    /// reference. A requirement above what the gate admits is one no sample can
-    /// reach, so the frame budget caps the lead rather than deadlocking against it.
+    /// Recovery stops the timeline and refuses to resume until each lane is
+    /// buffered a lead past it, and each lane's delivery gate measures the same
+    /// span from the same reference. A video requirement above what the frame
+    /// gate admits is one no sample can reach, so the frame budget caps it. The
+    /// audio gate still bounds in media seconds, so audio keeps the full lead.
     static func deliveryLagRecoveryRequirement(
         timelineTime: CMTime,
         durationSeconds: Double,
         leadFrames: Int,
         nominalFrameRate: Double
     ) -> PlaybackPrerollRequirement {
-        var leadSeconds = deliveryLagRecoveryLeadSeconds
+        var videoLeadSeconds = deliveryLagRecoveryLeadSeconds
         if nominalFrameRate > 0, leadFrames > 0 {
-            leadSeconds = min(leadSeconds, Double(leadFrames) / nominalFrameRate)
+            videoLeadSeconds = min(
+                videoLeadSeconds,
+                Double(leadFrames) / nominalFrameRate
+            )
         }
-        let end = clampedEnd(
-            from: timelineTime,
-            leadSeconds: leadSeconds,
-            durationSeconds: durationSeconds
-        )
         return PlaybackPrerollRequirement(
             timelineStart: timelineTime,
-            videoEnd: end,
-            audioEnd: end
+            videoEnd: clampedEnd(
+                from: timelineTime,
+                leadSeconds: videoLeadSeconds,
+                durationSeconds: durationSeconds
+            ),
+            audioEnd: clampedEnd(
+                from: timelineTime,
+                leadSeconds: deliveryLagRecoveryLeadSeconds,
+                durationSeconds: durationSeconds
+            )
         )
     }
 
@@ -655,9 +662,18 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             ? (sourceInformation?.durationSeconds ?? 0)
             : provider.info.durationSeconds
         diagnostics.nominalFrameRate = mediaKind == .audioOnly ? 0 : provider.info.nominalFrameRate
-        let primaryVideoStream = sourceInformation?.streams.first { $0.video != nil }?.video
-        diagnostics.videoReorderDepth = primaryVideoStream?.reorderDepth ?? 0
-        diagnostics.decodedBytesPerPixel = primaryVideoStream?.decodedBytesPerPixel ?? 0
+        // The reader picks its video stream with av_find_best_stream and reports
+        // which one as `stream:<index>`. A file whose first video stream is an
+        // attached picture or a preview would otherwise describe a frame the
+        // decoder never produces.
+        let selectedStreamIndex = provider.info.selectedRawTrackMapping.value
+            .flatMap { $0.hasPrefix("stream:") ? Int($0.dropFirst(7)) : nil }
+        let videoStreams = sourceInformation?.streams.filter { $0.video != nil } ?? []
+        let selectedVideoStream = videoStreams
+            .first { $0.streamIndex == selectedStreamIndex }?.video
+            ?? videoStreams.first?.video
+        diagnostics.videoReorderDepth = selectedVideoStream?.reorderDepth ?? 0
+        diagnostics.decodedBytesPerPixel = selectedVideoStream?.decodedBytesPerPixel ?? 0
         diagnostics.codecName = mediaKind == .audioOnly
             ? (audioProvider.info?.codecName ?? "audio")
             : provider.info.codecName

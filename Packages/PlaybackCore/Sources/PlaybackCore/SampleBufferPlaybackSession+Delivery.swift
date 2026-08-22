@@ -84,8 +84,8 @@ extension SampleBufferPlaybackSession {
         audioRendererSink.flush()
         debugStore.recordCleanupStep(.audioRendererFlushed)
         Task { [self] in
-            discardVideoFramesInFlight()
             await rendererSink.flush(removingDisplayedImage: true)
+            discardVideoFramesInFlight()
             finishCloseAfterFlush()
         }
     }
@@ -170,8 +170,8 @@ extension SampleBufferPlaybackSession {
         task?.cancel()
         await task?.value
         if flushingRenderer {
-            discardVideoFramesInFlight()
             await rendererSink.flush(removingDisplayedImage: false)
+            discardVideoFramesInFlight()
             flushCount += 1
             recordRendererState(at: currentTime())
         }
@@ -449,7 +449,9 @@ extension SampleBufferPlaybackSession {
                     decodeTime: decodeTime
                 )
                 outcome = try rendererSink.enqueueImmediately(input)
-                recordVideoFrameInFlight(presentationEnd: presentationEnd)
+                if outcome != .cancelledByFlush {
+                    recordVideoFrameInFlight(presentationEnd: presentationEnd)
+                }
                 emitPlaybackDeliveryStage(
                     lane: "video",
                     stage: "enqueueImmediately.returned",
@@ -716,7 +718,12 @@ extension SampleBufferPlaybackSession {
         presentationEnd: CMTime,
         generation: UInt64
     ) {
+        // Recovery stops the timeline and asks for a media-time span of video.
+        // Expressing what the frame gate admits needs a frame rate, so a stream
+        // that reports none cannot be sized and is left to run rather than
+        // stopped against a requirement it may never reach.
         guard presentationEnd.isNumeric,
+              diagnostics.nominalFrameRate > 0,
               timelineStartRate > 0,
               !isPrerolling,
               activeOperation == nil,
@@ -1979,8 +1986,8 @@ extension SampleBufferPlaybackSession {
         didRecordFormat = false
         resetVideoEndState()
         flushCount += 1
-        discardVideoFramesInFlight()
         await rendererSink.flush(removingDisplayedImage: false)
+        discardVideoFramesInFlight()
         guard !isClosed else { return }
         isResetting = false
         if mediaSessionRecord?.lifecycle == .playing {

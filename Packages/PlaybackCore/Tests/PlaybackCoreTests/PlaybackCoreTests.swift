@@ -1431,6 +1431,10 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     #expect(gated.videoEnd.seconds < 31)
     #expect(gated.videoEnd.seconds > 30)
+    // Audio is bounded in media seconds by its own gate, so capping it against
+    // the video frame budget would give up the measured recovery reserve on
+    // exactly the streams whose reads are slowest.
+    #expect(gated.audioEnd.seconds == 31)
 
     let endClamped = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
         timelineTime: timelineTime,

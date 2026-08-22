@@ -53,8 +53,11 @@ enum RendererLeadBudget {
         guard bytesPerFrame > 0, bytesPerFrame.isFinite else {
             return max(floor, maximumFrames)
         }
-        let affordable = Int((maximumDecodedBytes / bytesPerFrame).rounded(.down))
-        return max(floor, min(maximumFrames, affordable))
+        let affordable = (maximumDecodedBytes / bytesPerFrame).rounded(.down)
+        guard affordable < Double(maximumFrames) else {
+            return max(floor, maximumFrames)
+        }
+        return max(floor, min(maximumFrames, Int(affordable)))
     }
 
     private static func environmentInteger(_ name: String) -> Int? {

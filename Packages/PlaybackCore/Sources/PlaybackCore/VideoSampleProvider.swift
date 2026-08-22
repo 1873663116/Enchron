@@ -13,8 +13,6 @@ struct VideoSampleProviderInfo: Sendable {
     var containerFormat = "unknown"
     var durationSeconds = 0.0
     var nominalFrameRate = 0.0
-    var reorderDepth = 0
-    var decodedBytesPerPixel = 0.0
     var codecName = "unknown"
     var codecTag = "unknown"
     var isMVHEVC = false
