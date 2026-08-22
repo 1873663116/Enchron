@@ -1436,6 +1436,21 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     // exactly the streams whose reads are slowest.
     #expect(gated.audioEnd.seconds == 31)
 
+    // The gate holds frames whose end is past the timeline, and a frame
+    // straddling it ends less than one frame later. Simulate the deepest queue
+    // the gate ever permits and check recovery asks for something inside it,
+    // for the worst-case alignment where the first frame ends just after T.
+    for (budget, rate) in [(4, 60.0), (4, 23.976), (12, 30.0), (48, 24.0), (2, 60.0)] {
+        let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
+            timelineTime: timelineTime,
+            durationSeconds: 3_600,
+            leadFrames: budget,
+            nominalFrameRate: rate
+        )
+        let deepestReachableEnd = timelineTime.seconds + Double(budget - 1) / rate
+        #expect(requirement.videoEnd.seconds <= deepestReachableEnd)
+    }
+
     let endClamped = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
         timelineTime: timelineTime,
         durationSeconds: 30.5,

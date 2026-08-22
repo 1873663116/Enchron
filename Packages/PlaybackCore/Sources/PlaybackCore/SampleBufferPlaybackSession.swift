@@ -83,11 +83,16 @@ enum PlaybackBufferingPolicy {
         leadFrames: Int,
         nominalFrameRate: Double
     ) -> PlaybackPrerollRequirement {
+        // The gate holds at most `leadFrames` frames whose presentation end sits
+        // past the timeline. A frame straddling `timelineTime` ends less than one
+        // frame after it, so the deepest end those frames can reach is one frame
+        // short of `leadFrames / nominalFrameRate`. Asking for the full span is a
+        // requirement the gate can never satisfy.
         var videoLeadSeconds = deliveryLagRecoveryLeadSeconds
-        if nominalFrameRate > 0, leadFrames > 0 {
+        if nominalFrameRate > 0, leadFrames > 1 {
             videoLeadSeconds = min(
                 videoLeadSeconds,
-                Double(leadFrames) / nominalFrameRate
+                Double(leadFrames - 1) / nominalFrameRate
             )
         }
         return PlaybackPrerollRequirement(

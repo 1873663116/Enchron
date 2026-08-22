@@ -449,7 +449,12 @@ extension SampleBufferPlaybackSession {
                     decodeTime: decodeTime
                 )
                 outcome = try rendererSink.enqueueImmediately(input)
-                if outcome != .cancelledByFlush {
+                // A delivery task cancelled by a seek can still be inside this
+                // call when the seek clears the ledger. Recording afterwards
+                // would leave a pre-seek frame counted against the new stream,
+                // and on a backward seek it would sit there until the timeline
+                // reached it again.
+                if outcome != .cancelledByFlush, isCurrentVideoDelivery(generation) {
                     recordVideoFrameInFlight(presentationEnd: presentationEnd)
                 }
                 emitPlaybackDeliveryStage(
