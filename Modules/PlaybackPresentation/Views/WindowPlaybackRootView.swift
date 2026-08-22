@@ -337,6 +337,9 @@ struct WindowPlaybackRootView<
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
             .zIndex(2)
+            .enchronSpatialOffset(
+                z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+            )
             .transition(.opacity)
     }
 
@@ -412,6 +415,9 @@ struct WindowPlaybackRootView<
             PlaybackEdgeEmphasis(.bottom)
         }
         .allowsHitTesting(false)
+        .enchronSpatialOffset(
+            z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+        )
     }
 
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {

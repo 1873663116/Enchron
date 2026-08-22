@@ -10,6 +10,11 @@ public enum WindowPlaybackSurfaceGeometry {
     /// PlayerWindow contract; a zero-depth host can leave the component loading.
     nonisolated public static let projectedPortalDepth: CGFloat = 1
     nonisolated public static let backgroundSortOrder: Int32 = 0
+    /// The window video mesh is coincident with the Window's SwiftUI plane and
+    /// carries `ModelSortGroup.planarUIInline`, which orders it by z rather
+    /// than by the view tree. Chrome drawn over the video therefore needs a
+    /// forward step, or the mesh wins the tie and the chrome never appears.
+    nonisolated public static let coincidentChromeDepth: CGFloat = .ulpOfOne
 
     nonisolated public static func realityViewDepth(
         for presentation: PlaybackPresentation
