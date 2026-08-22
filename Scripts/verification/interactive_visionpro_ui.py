@@ -1035,7 +1035,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--derived-data-path",
         dest="derived_data_path",
-        default=str(artifact_root() / "DerivedData"),
+        # Every runner reaches the device through this controller, and none of
+        # them had a way to say which build to install. A run that silently used
+        # a stale app reported the previous build's diagnostics as if they were
+        # the current one's.
+        default=os.environ.get("ENCHRON_DERIVED_DATA")
+            or str(artifact_root() / "DerivedData"),
     )
     parser.add_argument(
         "--cloned-packages-path",

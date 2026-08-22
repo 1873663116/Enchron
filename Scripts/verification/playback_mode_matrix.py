@@ -1275,8 +1275,10 @@ def clean_state_preamble(
     listing = app_command(controller_directory, "listLibrary")
     if listing.get("ok") is not True:
         return {"phase": "clean-list", "controller": controller_summary(listing)}
+    # listLibrary reports the product's own shape, folders as `folder=<name>`
+    # and media as `reference=<name>`.
     names = listing.get("payload")
-    if names != [media_path.name]:
+    if names != [f"reference={media_path.name}"]:
         return {
             "phase": "clean-verify",
             "message": f"Library after clean import is {names}.",
