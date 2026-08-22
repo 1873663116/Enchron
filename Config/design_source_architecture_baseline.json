@@ -479,12 +479,6 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
-      "signature": ".frame(height: 420, alignment: .top)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
       "signature": ".frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)",
       "count": 1
     },

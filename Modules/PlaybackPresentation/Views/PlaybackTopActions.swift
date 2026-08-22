@@ -528,49 +528,28 @@ struct PlaybackTopActions: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            topButtonRow
-
-            if state.presentedMenu == .dock {
-                dockMenu
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, secondaryMenuTopOffset)
-                    .zIndex(10)
+        // Both secondary menus are system popovers anchored to their buttons, so
+        // the row only ever lays out the buttons. The popover is its own scene:
+        // it sizes itself to the panel and is not clipped by the playback window.
+        topButtonRow
+            .onAppear {
+                onSecondaryMenuVisibilityChange?(state.presentedMenu != nil)
             }
-
-            if state.presentedMenu == .videoFormat {
-                videoFormatMenu
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, secondaryMenuTopOffset)
-                    .zIndex(10)
+            .onDisappear {
+                onSecondaryMenuVisibilityChange?(false)
             }
-        }
-        // Secondary menus use layout padding instead of a visual offset so their
-        // Accessibility frames remain inside this stable top-chrome region.
-        // Empty ZStack space has no hit shape of its own.
-        .frame(height: 420, alignment: .top)
-        .onAppear {
-            onSecondaryMenuVisibilityChange?(state.presentedMenu != nil)
-        }
-        .onDisappear {
-            onSecondaryMenuVisibilityChange?(false)
-        }
-        .onChange(of: state.presentedMenu) { _, menu in
-            onSecondaryMenuVisibilityChange?(menu != nil)
-        }
-        .onChange(of: controlsVisible) { _, visible in
-            if visible == false { dismissMenu() }
-        }
-        .onChange(of: canApplyFormat) { _, available in
-            if available == false, state.presentedMenu == .videoFormat { dismissMenu() }
-        }
-        .onChange(of: committedVideoFormatSelection) { _, selection in
-            state.synchronizeCommittedVideoFormat(selection)
-        }
-    }
-
-    private var secondaryMenuTopOffset: CGFloat {
-        DesignTokens.Interactive.large + DesignTokens.Spacing.sm
+            .onChange(of: state.presentedMenu) { _, menu in
+                onSecondaryMenuVisibilityChange?(menu != nil)
+            }
+            .onChange(of: controlsVisible) { _, visible in
+                if visible == false { dismissMenu() }
+            }
+            .onChange(of: canApplyFormat) { _, available in
+                if available == false, state.presentedMenu == .videoFormat { dismissMenu() }
+            }
+            .onChange(of: committedVideoFormatSelection) { _, selection in
+                state.synchronizeCommittedVideoFormat(selection)
+            }
     }
 
     private var topButtonRow: some View {
@@ -595,6 +574,12 @@ struct PlaybackTopActions: View {
                     accessibilityIdentifier: "PlayerUI-TopAction-dock",
                     iconTier: .compact
                 )
+                .popover(
+                    isPresented: dockMenuIsPresented,
+                    attachmentAnchor: .rect(.bounds)
+                ) {
+                    dockMenu
+                }
             }
         } formatControl: {
             if topActionsComposition.showsVideoFormat {
@@ -608,6 +593,12 @@ struct PlaybackTopActions: View {
                     accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
                 )
                 .disabled(!canApplyFormat)
+                .popover(
+                    isPresented: videoFormatMenuIsPresented,
+                    attachmentAnchor: .rect(.bounds)
+                ) {
+                    videoFormatMenu
+                }
             }
         }
     }
@@ -617,12 +608,7 @@ struct PlaybackTopActions: View {
     }
 
     private var dockMenu: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.card,
-            style: .continuous
-        )
-
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text("View in \(defaultScenicEnvironment.displayName)")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
@@ -651,13 +637,18 @@ struct PlaybackTopActions: View {
         .padding(DesignTokens.Spacing.md)
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
-        .contentShape(shape)
-        .enchronListGroupSurface(in: shape)
-        .background {
-            secondaryMenuInteractionShield(shape)
-        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-DockMenu")
+    }
+
+    private var dockMenuIsPresented: Binding<Bool> {
+        Binding(
+            get: { state.presentedMenu == .dock },
+            set: { presented in
+                guard presented == false, state.presentedMenu == .dock else { return }
+                state.dismissMenu()
+            }
+        )
     }
 
     private func dockThumbnailName(
@@ -786,12 +777,7 @@ struct PlaybackTopActions: View {
     }
 
     private var videoFormatMenu: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.card,
-            style: .continuous
-        )
-
-        return PlaybackVideoFormatEditor(
+        PlaybackVideoFormatEditor(
             projection: $state.projection,
             horizontalFieldOfViewDegrees: $state.horizontalFieldOfViewDegrees,
             stereoLayout: $state.stereoLayout,
@@ -811,20 +797,18 @@ struct PlaybackTopActions: View {
         .padding(DesignTokens.Spacing.lg)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
-        .contentShape(shape)
-        .enchronListGroupSurface(in: shape)
-        .background {
-            secondaryMenuInteractionShield(shape)
-        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-VideoFormat")
     }
 
-    private func secondaryMenuInteractionShield<S: Shape>(_ shape: S) -> some View {
-        Color.clear
-            .contentShape(.interaction, shape)
-            .onTapGesture { }
-            .accessibilityHidden(true)
+    private var videoFormatMenuIsPresented: Binding<Bool> {
+        Binding(
+            get: { state.presentedMenu == .videoFormat },
+            set: { presented in
+                guard presented == false, state.presentedMenu == .videoFormat else { return }
+                state.dismissMenu()
+            }
+        )
     }
 
 }
