@@ -30,18 +30,41 @@ extension SampleBufferPlaybackSession {
             details: ["targetSeconds": String(target)]
         )
 
+        let teardownStarted = ContinuousClock.now
         stopVideoDelivery()
         stopAudioDelivery()
         discardPendingVideoSample()
         setTimelineStopped(reason: .seek)
+        let deliveryStopped = ContinuousClock.now
         deliveryQueue.sync {
             isResetting = true
             provider.cancel()
         }
+        let videoProviderCancelled = ContinuousClock.now
         audioDeliveryQueue.sync {
             audioProvider.cancel()
         }
+        let audioProviderCancelled = ContinuousClock.now
         await rendererSink.flush(removingDisplayedImage: removingDisplayedImage)
+        let rendererFlushed = ContinuousClock.now
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "control.seek.teardownStages",
+            outcome: .succeeded,
+            details: [
+                "stopDeliveryMilliseconds":
+                    Self.milliseconds(from: teardownStarted, to: deliveryStopped),
+                "videoProviderCancelMilliseconds":
+                    Self.milliseconds(from: deliveryStopped, to: videoProviderCancelled),
+                "audioProviderCancelMilliseconds":
+                    Self.milliseconds(from: videoProviderCancelled, to: audioProviderCancelled),
+                "rendererFlushMilliseconds":
+                    Self.milliseconds(from: audioProviderCancelled, to: rendererFlushed),
+                "totalMilliseconds":
+                    Self.milliseconds(from: teardownStarted, to: rendererFlushed),
+            ]
+        )
         resetDecoderBootstrap()
         audioRendererSink.flush()
         resetEndState(requiresAudio: hasAudio)
@@ -617,6 +640,16 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: ["streamIndex": String(streamIndex)]
         )
+    }
+
+    static func milliseconds(
+        from start: ContinuousClock.Instant,
+        to end: ContinuousClock.Instant
+    ) -> String {
+        let components = (end - start).components
+        let value = Double(components.seconds) * 1_000
+            + Double(components.attoseconds) / 1_000_000_000_000_000
+        return String(format: "%.1f", value)
     }
 
 }

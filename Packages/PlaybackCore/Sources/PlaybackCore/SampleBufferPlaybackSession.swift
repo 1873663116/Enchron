@@ -47,6 +47,40 @@ enum PlaybackBufferingPolicy {
         static let opportunisticRendererMaximumLeadSeconds = 1.0
     #endif
 
+    /// The renderer holds that lead as decoded frames, and tearing the queue
+    /// down is what a seek waits on. The 2026-08-21 Vision Pro measurement
+    /// flushed a full 8192x4096 60 fps lead in 2.8 to 4.7 seconds and an
+    /// already-drained one in 0.4 milliseconds, so seconds alone do not
+    /// describe the cost. The ceiling is a pixel budget instead, sized at the
+    /// platform ceiling's worth of 4K30 so ordinary streams keep the full lead
+    /// and only streams expensive enough to stall a seek tighten. Six seconds
+    /// of 4K30 is the budget; it describes the device, so the platform's
+    /// seconds ceiling clamps it rather than scaling it.
+    static let opportunisticRendererMaximumLeadPixels = 3840.0 * 2160.0 * 30.0 * 6.0
+
+    /// Below this the delivery loop stops being a buffer at all.
+    static let opportunisticRendererMinimumLeadSeconds = 0.75
+
+    /// The lead a stream of this pixel rate may hold. An unmeasured stream keeps
+    /// the platform ceiling; nothing is known that would justify tightening it.
+    static func opportunisticRendererMaximumLead(
+        encodedWidth: Int,
+        encodedHeight: Int,
+        nominalFrameRate: Double
+    ) -> Double {
+        let pixelRate = Double(encodedWidth)
+            * Double(encodedHeight)
+            * nominalFrameRate
+        guard pixelRate > 0, pixelRate.isFinite else {
+            return opportunisticRendererMaximumLeadSeconds
+        }
+        let affordable = opportunisticRendererMaximumLeadPixels / pixelRate
+        return min(
+            opportunisticRendererMaximumLeadSeconds,
+            max(opportunisticRendererMinimumLeadSeconds, affordable)
+        )
+    }
+
     /// Five seconds bounds provider or renderer failure; it is not buffered-media
     /// policy. The 5-millisecond poll keeps activation responsive within that bound.
     static let audioPrerollTimeout: Duration = .seconds(5)

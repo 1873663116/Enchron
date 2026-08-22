@@ -1319,6 +1319,40 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #endif
 }
 
+@Test func rendererLeadCeilingShrinksForStreamsTooExpensiveToFlushQuickly() {
+    let ordinary = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+        encodedWidth: 1280,
+        encodedHeight: 720,
+        nominalFrameRate: 24
+    )
+    #expect(ordinary == PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds)
+
+    let eightKSixty = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+        encodedWidth: 8192,
+        encodedHeight: 4096,
+        nominalFrameRate: 60
+    )
+    #expect(eightKSixty < ordinary)
+    #expect(eightKSixty >= PlaybackBufferingPolicy.opportunisticRendererMinimumLeadSeconds)
+
+    // A heavier stream never earns more lead than a lighter one.
+    let fourKSixty = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+        encodedWidth: 3840,
+        encodedHeight: 2160,
+        nominalFrameRate: 60
+    )
+    #expect(fourKSixty >= eightKSixty)
+    #expect(fourKSixty <= ordinary)
+
+    // An unmeasured stream keeps the platform ceiling rather than the floor.
+    let unknown = PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+        encodedWidth: 0,
+        encodedHeight: 0,
+        nominalFrameRate: 0
+    )
+    #expect(unknown == PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds)
+}
+
 @Test func deliveryLagRecoveryRefillsOneSecondWithoutChangingTheLeadCeiling() {
     let timelineTime = CMTime(seconds: 30, preferredTimescale: 60_000)
 

@@ -1220,6 +1220,15 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    var opportunisticRendererLeadSeconds: Double {
+        let dimensions = diagnostics.videoGeometry?.encodedDimensions
+        return PlaybackBufferingPolicy.opportunisticRendererMaximumLead(
+            encodedWidth: dimensions?.width ?? 0,
+            encodedHeight: dimensions?.height ?? 0,
+            nominalFrameRate: diagnostics.nominalFrameRate
+        )
+    }
+
     func waitForBoundedRendererLead(
         lane: PlaybackDeliveryLane,
         presentationTime: CMTime
@@ -1236,8 +1245,7 @@ extension SampleBufferPlaybackSession {
                 target.isNumeric ? target.seconds : 0
             )
             let isBlocked = presentationTime.seconds
-                > referenceSeconds
-                    + PlaybackBufferingPolicy.opportunisticRendererMaximumLeadSeconds
+                > referenceSeconds + opportunisticRendererLeadSeconds
                 || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
             let decision = timelineProgressRecoveryLock.withLock {
                 if !isBlocked {
