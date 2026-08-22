@@ -49,7 +49,7 @@ public struct AnimatedDirectionalIconButton: View {
                 .foregroundStyle(.white)
                 .frame(width: visualSize, height: visualSize)
                 .clipShape(Circle())
-                .background(DesignTokens.Surface.elevated, in: Circle())
+                .enchronButtonSurface(in: Circle())
                 .enchronHoverContentShape(Circle())
                 .enchronHoverEffect(.automatic)
                 .opacity(isEnabled ? 1 : 0.32)

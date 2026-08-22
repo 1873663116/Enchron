@@ -19,6 +19,23 @@ import SwiftUI
 /// glass directly through `enchronGlassBackground(in:)` at their host site.
 public extension View {
 
+    // ── Button surface ──
+
+    /// The surface every button component sits on: a thick system material so the
+    /// control reads as its own plate rather than a tint of the glass behind it,
+    /// plus a 1pt white rim that holds the control's boundary over bright
+    /// passthrough. Callers supply the shape they already clip and hit-test on,
+    /// so the fill, the rim, and the hover region stay on one geometry.
+    func enchronButtonSurface<S: InsettableShape>(in shape: S) -> some View {
+        background(.thickMaterial, in: shape)
+            .overlay {
+                shape.strokeBorder(
+                    DesignTokens.Surface.chromeBorder,
+                    lineWidth: DesignTokens.Stroke.regular
+                )
+            }
+    }
+
     // ── Container-level glass ──
 
     /// Large panel with the regular material hierarchy used inside a window.
@@ -35,7 +52,7 @@ public extension View {
     func enchronGlassControl() -> some View {
         self
             .clipShape(Capsule())
-            .background(DesignTokens.Surface.elevated, in: Capsule())
+            .enchronButtonSurface(in: Capsule())
             .enchronHoverContentShape(Capsule())
             .enchronHoverEffect(.automatic)
             .contentShape(Capsule())
@@ -107,11 +124,11 @@ public extension View {
             .contentShape(Capsule())
     }
 
-    /// Filter pills / capsule buttons — capsule glass + `.lift` hover.
+    /// Filter pills / capsule buttons — button surface + `.lift` hover.
     func enchronGlassPill() -> some View {
         self
             .clipShape(Capsule())
-            .background(.ultraThinMaterial, in: Capsule())
+            .enchronButtonSurface(in: Capsule())
             .enchronHoverContentShape(Capsule())
             .contentShape(Capsule())
             .enchronHoverEffect(.lift)

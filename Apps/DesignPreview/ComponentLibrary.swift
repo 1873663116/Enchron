@@ -228,7 +228,7 @@ private struct CircleButtonsSection: View {
                 .frame(width: DesignTokens.Interactive.regular,
                        height: DesignTokens.Interactive.regular)
                 .clipShape(Circle())
-                .background(DesignTokens.Surface.elevated, in: Circle())
+                .enchronButtonSurface(in: Circle())
                 .contentShape(.hoverEffect, Circle())
                 .hoverEffect(.automatic)
                 .contentShape(Circle())

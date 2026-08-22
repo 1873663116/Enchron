@@ -310,6 +310,10 @@ public enum DesignTokens {
         public static let selectionHeaderText: Color = .primary
         /// Focused input/control border, using Enchron's single theme accent.
         public static let focusBorder: Color = Theme.accent
+        /// The white rim bounding app chrome — the sidebar's trailing edge and every
+        /// button surface — against whatever it sits over. Half-strength white so a
+        /// window full of buttons does not read as a grid of bright outlines.
+        public static let chromeBorder: Color = .white.opacity(0.5)
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
