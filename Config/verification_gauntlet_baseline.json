@@ -24,6 +24,18 @@
     {
       "name": "Samples/Professional/ProRes/ProRes RAW HQ 4.2K 23.976 HDR PQ 10.23.2021 Sample Footage.mov",
       "decode": "probe_failed"
+    },
+    {
+      "name": "TestVectors/Upstream/FATE/DVB/dvbsubtest_filter.ts",
+      "decode": "probe_failed"
+    },
+    {
+      "name": "TestVectors/Upstream/FATE/MPEG4-Part2/demo.m4v",
+      "decode": "probe_failed"
+    },
+    {
+      "name": "TestVectors/Upstream/FATE/MPEG4-Part2/mpeg4_sstp_dpcm.m4v",
+      "decode": "probe_failed"
     }
   ]
 }
