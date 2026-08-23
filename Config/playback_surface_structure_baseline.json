@@ -39,14 +39,6 @@
       "count": 1
     },
     {
-      "name": "the attached controls retain a legacy Window Scene operation",
-      "count": 1
-    },
-    {
-      "name": "the Portal collapse path does not invalidate a laid-out retained viewport",
-      "count": 1
-    },
-    {
       "name": "Environment Card Scene lifecycle does not report residency facts to the owner",
       "count": 1
     },
@@ -88,14 +80,6 @@
     },
     {
       "name": "immersive action and Scene lifecycle facts do not refresh retry residency",
-      "count": 1
-    },
-    {
-      "name": "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift bypasses the platform executor",
-      "count": 4
-    },
-    {
-      "name": "immersive teardown leaves the video component attached",
       "count": 1
     }
   ]

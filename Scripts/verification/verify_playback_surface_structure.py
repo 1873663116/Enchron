@@ -461,19 +461,42 @@ def main() -> int:
         "already-closed collapse can wait for source fade or issue immersive scene actions",
     )
     require(
-        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in main_view
-        and ".allowsHitTesting(controlsAcceptInput)" in spatial_controls
-        and ".accessibilityHidden(controlsAcceptInput == false)" in spatial_controls
-        and "WorldTrackingProvider" in immersive_controls_attachment
-        and "queryDeviceAnchor(" in immersive_controls_attachment
-        and "OpacityComponent(" in immersive_controls_attachment
-        and "attachmentEntity.isEnabled = visible" in immersive_controls_attachment
-        and 'id: "playerControls"' not in platform_executor,
-        "the attached controls retain a legacy Window Scene operation",
+        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in main_view,
+        "MainView does not derive attached-controls visibility from the attachment policy",
+    )
+    require(
+        ".allowsHitTesting(controlsAcceptInput)" in spatial_controls,
+        "attached controls do not disable hit testing while inactive",
+    )
+    require(
+        ".accessibilityHidden(controlsAcceptInput == false)" in spatial_controls,
+        "attached controls remain accessibility-visible while inactive",
+    )
+    require(
+        "WorldTrackingProvider" in immersive_controls_attachment,
+        "attached controls do not use world tracking for placement",
+    )
+    require(
+        "queryDeviceAnchor(" in immersive_controls_attachment,
+        "attached controls do not query the device anchor for placement",
+    )
+    require(
+        "OpacityComponent(" in immersive_controls_attachment,
+        "attached controls do not retain explicit RealityKit opacity",
+    )
+    require(
+        "private func setEnabled(" in immersive_controls_attachment
+        and "entity.isEnabled = value" in immersive_controls_attachment,
+        "attached controls do not route RealityKit enablement through the instrumented writer",
+    )
+    require(
+        'id: "playerControls"' not in platform_executor,
+        "the platform executor retains the legacy playerControls Window Scene operation",
     )
     require(
         "PortalPlaybackViewportRefreshPolicy.requiresRefresh(" in platform_executor
-        and "mainWindowPlaybackSurfaceRefreshRevision &+= 1" in platform_executor
+        and "portalPlaybackViewportRefreshState.request()" in platform_executor
+        and "requestedRevision &+= 1" in execution_lease
         and "let viewportRefreshRevision = viewportRefreshRevision" in surface
         and "validVisionLayoutViewportRefreshRevision = viewportRefreshRevision" in surface
         and "recordMainWindowPlaybackSurfaceRefreshApplied" in main_view
@@ -931,20 +954,49 @@ def main() -> int:
         REPOSITORY_ROOT / "Apps/Enchron",
         REPOSITORY_ROOT / "Modules/PlaybackPresentation",
     )
+    debug_blackout_probe_platform_api_lines = {
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "@Environment(\\.openWindow)",
+            "@Environment(\\.openWindow) private var openWindow",
+        ),
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "@Environment(\\.dismissWindow)",
+            "@Environment(\\.dismissWindow) private var dismissWindow",
+        ),
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "openWindow(id:",
+            'openWindow(id: "blackoutProbe")',
+        ),
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "dismissWindow(id:",
+            'dismissWindow(id: "blackoutProbe")',
+        ),
+    }
     for root in platform_roots:
         for source_path in root.rglob("*.swift"):
             if source_path == platform_executor_path:
                 continue
-            source = source_path.read_text()
-            for token in platform_api_tokens:
-                require(
-                    token not in source,
-                    f"{source_path.relative_to(REPOSITORY_ROOT)} bypasses the platform executor",
-                )
+            relative_path = str(source_path.relative_to(REPOSITORY_ROOT))
+            for line in source_path.read_text().splitlines():
+                stripped_line = line.strip()
+                for token in platform_api_tokens:
+                    if token not in line:
+                        continue
+                    require(
+                        (relative_path, token, stripped_line)
+                        in debug_blackout_probe_platform_api_lines,
+                        f"{relative_path} bypasses the platform executor: {stripped_line}",
+                    )
     require("public func stopPlaybackAndWait() async" in launch, "launch coordinator lacks cleanup barrier")
     require("public func stopAndWait(" in runtime, "runtime lacks cleanup barrier")
     require(
-        "videoEntity.components.remove(VideoPlayerComponent.self)" in immersive,
+        "releasePlaybackComponentForRealityViewTransfer()" in immersive
+        and "func releasePlaybackComponentForRealityViewTransfer()" in reality_presenter
+        and "entity.components.remove(VideoPlayerComponent.self)" in reality_presenter,
         "immersive teardown leaves the video component attached",
     )
     require("presentationObservation.cancel()" in immersive, "immersive teardown leaves observation active")
