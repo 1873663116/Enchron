@@ -236,6 +236,48 @@ struct PlaybackPresentationStateTests {
         #expect(state.hasApplied(second) == false)
     }
 
+    @Test("RealityView hosts keep identities independent of their shared Entity")
+    func realityViewHostIdentityIsStableAndUnique() {
+        let first = PlaybackRealityViewHostIdentity()
+        let second = PlaybackRealityViewHostIdentity()
+
+        #expect(first != second)
+        #expect(first.description == first.description)
+        #expect(first.description.hasPrefix("EnchronRealityView.spatial#"))
+    }
+
+    @Test("Only a live RealityView can acquire an unowned Entity topology")
+    func realityViewTopologyWritePolicy() {
+        #expect(
+            PlaybackRealityViewTopologyWritePolicy.decision(
+                currentHostIsActive: false,
+                entityIsActive: false,
+                entityIsInCurrentHost: false
+            ) == .inactiveHost
+        )
+        #expect(
+            PlaybackRealityViewTopologyWritePolicy.decision(
+                currentHostIsActive: true,
+                entityIsActive: true,
+                entityIsInCurrentHost: false
+            ) == .entityOwnedByAnotherActiveHost
+        )
+        #expect(
+            PlaybackRealityViewTopologyWritePolicy.decision(
+                currentHostIsActive: true,
+                entityIsActive: false,
+                entityIsInCurrentHost: false
+            ) == .allowed
+        )
+        #expect(
+            PlaybackRealityViewTopologyWritePolicy.decision(
+                currentHostIsActive: true,
+                entityIsActive: true,
+                entityIsInCurrentHost: true
+            ) == .allowed
+        )
+    }
+
     @Test("RealityView scheduling retains one trailing update")
     func realityViewUpdateSchedulingState() {
         var state = PlaybackRealityViewUpdateSchedulingState()

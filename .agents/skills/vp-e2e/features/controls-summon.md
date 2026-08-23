@@ -28,6 +28,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
 | 结构 | `showControls` 是唯一状态；沉浸态不开关 Window Scene | `verify_playback_surface_structure.py` |
 | 物理 | 窗口态 chrome 回到层级；沉浸态探针出现 visible 翻转且无 Window Scene 操作 | 真机 |
 | 物理 | 隐藏后残留语义节点报告 `isHittable=false` | 真机 |
+| 物理 | 每条 `spatialVideoTopology reconciled writeID=<id>` 都有同一 ID 的 `ownershipVerified ... ancestorChainActive=true`，且没有 `ancestorChainActive=false` | `measure_controls_flash.py` 真机录屏轮次 |
 | 感知 | 注视加捏合召唤是否跟手 | **待做**，合成输入不带该语义，只有佩戴者能验 |
 
 ## 证明的终态

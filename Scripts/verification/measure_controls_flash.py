@@ -343,6 +343,50 @@ def event_seconds(
     ]
 
 
+def probe_field(message: str, name: str) -> str | None:
+    match = re.search(rf"(?:^| ){re.escape(name)}=([^ ]+)", message)
+    return match.group(1) if match is not None else None
+
+
+def topology_ownership_outcome(
+    events: list[tuple[datetime, str]],
+) -> dict[str, object]:
+    write_ids: list[str] = []
+    verification_by_write_id: dict[str, list[bool]] = {}
+    for _, message in events:
+        if "spatialVideoTopology reconciled" in message:
+            if write_id := probe_field(message, "writeID"):
+                write_ids.append(write_id)
+        elif "spatialVideoTopology ownershipVerified" in message:
+            write_id = probe_field(message, "writeID")
+            chain_active = probe_field(message, "ancestorChainActive")
+            if write_id is not None and chain_active in {"true", "false"}:
+                verification_by_write_id.setdefault(write_id, []).append(
+                    chain_active == "true"
+                )
+
+    failed_write_ids = sorted(
+        write_id
+        for write_id, observations in verification_by_write_id.items()
+        if False in observations
+    )
+    unverified_write_ids = sorted(
+        write_id
+        for write_id in write_ids
+        if True not in verification_by_write_id.get(write_id, [])
+    )
+    return {
+        "writeIDs": write_ids,
+        "verifiedActiveWriteIDs": sorted(
+            write_id
+            for write_id, observations in verification_by_write_id.items()
+            if True in observations
+        ),
+        "failedWriteIDs": failed_write_ids,
+        "unverifiedWriteIDs": unverified_write_ids,
+    }
+
+
 def spans_for_events(
     spans: list[dict[str, float | int]],
     marks: list[float],
@@ -660,6 +704,12 @@ def main() -> int:
         recording_started_at=recording_started_at,
         contains="immersiveSpaceAppeared",
     )
+    if not entry_marks:
+        entry_marks = event_seconds(
+            events,
+            recording_started_at=recording_started_at,
+            contains="presentation portal -> panorama",
+        )
     toggle_blackouts = spans_for_events(spans, toggle_marks)
     visibility_blackouts = spans_for_events(spans, visibility_marks)
     entry_blackouts = spans_during_phases(
@@ -668,6 +718,7 @@ def main() -> int:
         toggle_marks,
         samples[-1][0],
     )
+    topology_ownership = topology_ownership_outcome(events)
     report = {
         "recording": str(video),
         "recordingStartedAt": recording_started_at,
@@ -681,6 +732,7 @@ def main() -> int:
         "exitPreparationToggleMarksSeconds": exit_preparation_toggle_marks,
         "panoramaEntryMarksSeconds": entry_marks,
         "panoramaEntryBlackouts": entry_blackouts,
+        "topologyOwnership": topology_ownership,
         "runError": run_error,
         "probeError": probe_error,
         "stopResult": stop_result,
@@ -698,6 +750,9 @@ def main() -> int:
         or not entry_marks
         or stop_result is None
         or stop_result.get("success") is not True
+        or not topology_ownership["writeIDs"]
+        or bool(topology_ownership["failedWriteIDs"])
+        or bool(topology_ownership["unverifiedWriteIDs"])
     ):
         return 1
     return 0 if not toggle_blackouts and not visibility_blackouts else 2

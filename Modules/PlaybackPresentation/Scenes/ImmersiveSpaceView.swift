@@ -661,6 +661,12 @@ public struct ImmersiveSpaceView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
+    @State private var realityViewHostIdentity = PlaybackRealityViewHostIdentity()
+    @State private var realityViewHostMarker: Entity = {
+        let entity = Entity()
+        entity.name = "EnchronRealityView.host"
+        return entity
+    }()
     @State private var world = WorldSceneState()
     @State private var subtitleSurface = PlaybackSubtitleSurface()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
@@ -745,9 +751,11 @@ public struct ImmersiveSpaceView: View {
 
     public var body: some View {
         RealityView { content, attachments in
+            installRealityViewHostMarker(into: content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
         } update: { content, attachments in
+            installRealityViewHostMarker(into: content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
         } attachments: {
@@ -819,6 +827,16 @@ public struct ImmersiveSpaceView: View {
             appModel.recordSurfaceInputProbe("blackoutProbeWindow visible=\(visible)")
         }
 #endif
+    }
+
+    private func installRealityViewHostMarker(
+        into content: RealityViewContent
+    ) {
+        guard content.entities.contains(where: { $0 === realityViewHostMarker })
+                == false else {
+            return
+        }
+        content.add(realityViewHostMarker)
     }
 
     private func installControlsAttachment(
@@ -966,6 +984,13 @@ public struct ImmersiveSpaceView: View {
         )
         updateWorld(in: content)
         let presentation = requestedPresentation
+        if presentation.usesImmersiveSpace,
+           realityViewHostMarker.isActive == false {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "inactiveRealityViewHost"
+            )
+            return
+        }
         if presentation == .panorama {
             PlaybackPanoramaInteractionSurface.configure(
                 panoramaInteractionSurface,
@@ -1130,6 +1155,30 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: videoComponentRevision
         )
         let entity = videoEntity
+        if presentation != .docked {
+            let entityIsInCurrentHost = content.entities.contains { $0 === entity }
+            let topologyWriteDecision = PlaybackRealityViewTopologyWritePolicy.decision(
+                currentHostIsActive: realityViewHostMarker.isActive,
+                entityIsActive: entity.isActive,
+                entityIsInCurrentHost: entityIsInCurrentHost
+            )
+            guard topologyWriteDecision == .allowed else {
+                appModel.recordSpatialPlaybackSurfacePreparationStage(
+                    "topologyWriteDenied"
+                )
+                appModel.recordSurfaceInputProbe(
+                    "spatialVideoTopology skipped"
+                        + " reason=\(topologyWriteDecision)"
+                        + " host=\(realityViewHostIdentity)"
+                        + " hostActive=\(realityViewHostMarker.isActive)"
+                        + " entity=\(ObjectIdentifier(entity))"
+                        + " entityActive=\(entity.isActive)"
+                        + " entityInCurrentHost=\(entityIsInCurrentHost)"
+                        + " attachedHost=\(playbackRuntime.attachedRealityViewID ?? "none")"
+                )
+                return
+            }
+        }
         let desiredName = "EnchronVideo.\(presentation)"
         if entity.name != desiredName {
             entity.name = desiredName
@@ -1253,14 +1302,25 @@ public struct ImmersiveSpaceView: View {
             )
             if topologyWrites.isEmpty == false {
                 let component = entity.components[VideoPlayerComponent.self]
+                let topologyWriteID = UUID()
                 appModel.recordSurfaceInputProbe(
                     "spatialVideoTopology reconciled"
+                        + " writeID=\(topologyWriteID.uuidString)"
                         + " presentation=\(presentation.rawValue)"
+                        + " host=\(realityViewHostIdentity)"
+                        + " hostActive=\(realityViewHostMarker.isActive)"
                         + " entity=\(ObjectIdentifier(entity))"
+                        + " entityActiveAfterWrite=\(entity.isActive)"
                         + " componentBound=\(component?.videoRenderer === renderer)"
                         + " componentRevision=\(videoComponentRevision)"
                         + " technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")"
-                        + " writes=\(topologyWrites.joined(separator: ","))"
+                        + " writes=\(topologyWrites.joined(separator: ","))",
+                    retention: .evidence
+                )
+                verifyActiveAncestorChain(
+                    after: topologyWriteID,
+                    for: entity,
+                    host: realityViewHostIdentity
                 )
             }
         }
@@ -1950,6 +2010,39 @@ public struct ImmersiveSpaceView: View {
             entityID: entityID(for: sourcePresentation),
             realityViewID: realityViewID(for: sourcePresentation)
         )
+    }
+
+    private func verifyActiveAncestorChain(
+        after topologyWriteID: UUID,
+        for entity: Entity,
+        host: PlaybackRealityViewHostIdentity
+    ) {
+        Task { @MainActor in
+            for _ in 0..<PlaybackSurfaceActivation.maximumRetryCountForView {
+                if entity.isActive {
+                    appModel.recordSurfaceInputProbe(
+                        "spatialVideoTopology ownershipVerified"
+                            + " writeID=\(topologyWriteID.uuidString)"
+                            + " host=\(host)"
+                            + " entity=\(ObjectIdentifier(entity))"
+                            + " ancestorChainActive=true",
+                        retention: .evidence
+                    )
+                    return
+                }
+                try? await Task.sleep(
+                    for: PlaybackSurfaceActivation.retryIntervalForView
+                )
+            }
+            appModel.recordSurfaceInputProbe(
+                "spatialVideoTopology ownershipVerified"
+                    + " writeID=\(topologyWriteID.uuidString)"
+                    + " host=\(host)"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " ancestorChainActive=false",
+                retention: .evidence
+            )
+        }
     }
 
     private func recordDisplayLinkProbe(

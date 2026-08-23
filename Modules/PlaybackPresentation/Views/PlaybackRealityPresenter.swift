@@ -7,6 +7,43 @@ import PlaybackPresentation
 import RealityKit
 import SwiftUI
 
+/// Stable identity for one RealityView host, independent of the shared Entity
+/// that the host may carry.
+struct PlaybackRealityViewHostIdentity: Equatable, Sendable, CustomStringConvertible {
+    private let id: UUID
+
+    init(id: UUID = UUID()) {
+        self.id = id
+    }
+
+    var description: String {
+        "EnchronRealityView.spatial#\(id.uuidString)"
+    }
+}
+
+enum PlaybackRealityViewTopologyWriteDecision: Equatable {
+    case allowed
+    case inactiveHost
+    case entityOwnedByAnotherActiveHost
+}
+
+/// A shared playback Entity can move only from an inactive chain into the
+/// active RealityView that is executing the update. `Entity.isActive` covers
+/// its complete ancestor chain, so no lifecycle callback is required.
+enum PlaybackRealityViewTopologyWritePolicy {
+    static func decision(
+        currentHostIsActive: Bool,
+        entityIsActive: Bool,
+        entityIsInCurrentHost: Bool
+    ) -> PlaybackRealityViewTopologyWriteDecision {
+        guard currentHostIsActive else { return .inactiveHost }
+        guard entityIsInCurrentHost || entityIsActive == false else {
+            return .entityOwnedByAnotherActiveHost
+        }
+        return .allowed
+    }
+}
+
 /// Identifies the accepted renderer input to which RealityKit's cached content
 /// classification belongs. Format semantics are deliberately absent: Runtime
 /// publishes the accepted revision before it publishes the matching semantic
