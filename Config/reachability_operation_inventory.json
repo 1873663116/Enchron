@@ -2162,7 +2162,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 616,
+          "line": 615,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2175,7 +2175,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 595,
+          "line": 594,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2188,11 +2188,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 629,
+          "line": 628,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 638,
+          "line": 637,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2209,7 +2209,7 @@
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
-            "line": 514,
+            "line": 513,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -2218,7 +2218,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 620,
+          "line": 619,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2235,7 +2235,7 @@
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
-            "line": 514,
+            "line": 513,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -2244,7 +2244,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 620,
+          "line": 619,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2261,7 +2261,7 @@
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
-            "line": 514,
+            "line": 513,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -2270,7 +2270,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 620,
+          "line": 619,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2287,7 +2287,7 @@
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
-            "line": 514,
+            "line": 513,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -2296,7 +2296,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 620,
+          "line": 619,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2313,7 +2313,7 @@
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
-            "line": 514,
+            "line": 513,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -2322,7 +2322,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 620,
+          "line": 619,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2339,7 +2339,7 @@
         "host": "uninstantiatedPlayerControlDockVideoFormat",
         "sources": [
           {
-            "line": 514,
+            "line": 513,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -2348,7 +2348,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 620,
+          "line": 619,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
@@ -2365,49 +2365,15 @@
       "scope": "product",
       "sources": [
         {
-          "line": 962,
+          "line": 961,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 969,
+          "line": 968,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
       "template": "PlayerPanel-button-exit-spatial"
-    },
-    {
-      "action": "activate",
-      "family": "PlayerPanel",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 1071,
-          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-        },
-        {
-          "line": 1085,
-          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-        }
-      ],
-      "template": "PlayerPanel-button-forward"
-    },
-    {
-      "action": "activate",
-      "family": "PlayerPanel",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 1015,
-          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-        },
-        {
-          "line": 1147,
-          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
-        }
-      ],
-      "template": "PlayerPanel-button-play"
     },
     {
       "action": "activate",
@@ -2424,6 +2390,40 @@
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
+      "template": "PlayerPanel-button-forward"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1014,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 1146,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
+      "template": "PlayerPanel-button-play"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 1069,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        },
+        {
+          "line": 1083,
+          "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        }
+      ],
       "template": "PlayerPanel-button-rewind"
     },
     {
@@ -2433,7 +2433,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 719,
+          "line": 718,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2446,7 +2446,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 377,
+          "line": 376,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2459,7 +2459,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 808,
+          "line": 807,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2472,7 +2472,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 891,
+          "line": 890,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2485,7 +2485,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 897,
+          "line": 896,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2498,11 +2498,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 841,
+          "line": 840,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         },
         {
-          "line": 848,
+          "line": 847,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2515,7 +2515,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 878,
+          "line": 877,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2528,7 +2528,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1200,
+          "line": 1199,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2541,7 +2541,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1210,
+          "line": 1209,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2554,7 +2554,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1116,
+          "line": 1115,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2567,7 +2567,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1205,
+          "line": 1204,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2580,7 +2580,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1193,
+          "line": 1192,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2593,7 +2593,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1234,
+          "line": 1233,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2619,7 +2619,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1445,
+          "line": 1444,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2632,7 +2632,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1535,
+          "line": 1534,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2645,7 +2645,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1549,
+          "line": 1548,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -2658,7 +2658,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1786,
+          "line": 1785,
           "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
         }
       ],
@@ -5157,7 +5157,7 @@
         "host": "dockedPlacementControls",
         "sources": [
           {
-            "line": 510,
+            "line": 509,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]
@@ -5176,7 +5176,7 @@
         "host": "immersiveReturnControls",
         "sources": [
           {
-            "line": 958,
+            "line": 957,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5398,7 +5398,7 @@
         "host": "playerControlDockControls",
         "sources": [
           {
-            "line": 481,
+            "line": 480,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5431,7 +5431,7 @@
         "host": "playerControlDockControls",
         "sources": [
           {
-            "line": 481,
+            "line": 480,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5455,7 +5455,7 @@
         "host": "playerControlDockControls",
         "sources": [
           {
-            "line": 481,
+            "line": 480,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5488,7 +5488,7 @@
         "host": "playerControlDockControls",
         "sources": [
           {
-            "line": 481,
+            "line": 480,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5521,7 +5521,7 @@
         "host": "playerControlDockControls",
         "sources": [
           {
-            "line": 481,
+            "line": 480,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5557,7 +5557,7 @@
         "host": "playerControlDockControls",
         "sources": [
           {
-            "line": 481,
+            "line": 480,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           },
           {
@@ -5649,7 +5649,7 @@
         "host": "dockedPlacementControls",
         "sources": [
           {
-            "line": 510,
+            "line": 509,
             "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
           }
         ]

@@ -1222,8 +1222,8 @@ UNITS: tuple[Unit, ...] = (
             ),
             wearer(
                 "progress drag",
-                "Dragging the scrubber needs a 200ms steady hold that synthetic "
-                "input cannot produce.",
+                "Progress drag has not been proven with synthetic input; it "
+                "remains a wearer handoff until a simulator Session proves it.",
             ),
             real(
                 "tap",

@@ -240,10 +240,12 @@ def main() -> int:
         "requestGeometryUpdate(" not in main_view,
         "the production host duplicates the shared window playback resize contract",
     )
+    design_tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
-        ".frame(width: clusterWidth)" in playback_panel
+        "panelChromeSize" in playback_panel
+        and "PlayerPanelChrome.contentSize" in playback_panel
         and "case .windowOrnament:" in playback_panel
-        and "DesignTokens.ControlBar.contentWidth" in playback_panel,
+        and "ControlBar.contentWidth" in design_tokens,
         "the window ornament does not have a stable rendered outer width",
     )
     require(

@@ -339,7 +339,6 @@ struct FusedPlayerPanel: View {
         return PlaybackTimeFormatter.clock(elapsedSeconds)
     }
 
-    // verifier: .frame(width: clusterWidth) and DesignTokens.ControlBar.contentWidth anchor the ornament.
     private var clusterWidth: CGFloat { panelChromeSize.width }
 
     private var panelChromeSize: CGSize {
