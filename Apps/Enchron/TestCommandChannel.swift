@@ -461,6 +461,8 @@ final class TestCommandChannel {
             return try setFileBrowserAlertField(request)
         case "seekNormalized":
             return try seekNormalized(request)
+        case "stepFrame":
+            return try stepFrame(request)
         case "setDockedPlacement":
             return try setDockedPlacement(request)
         case "listMenuItems":
@@ -671,6 +673,31 @@ final class TestCommandChannel {
                 )
             }
         )
+    }
+
+    /// The precision timeline opens on a double press of the scrubber, which a
+    /// synthetic tap cannot reproduce, so the frame-step buttons are otherwise
+    /// unreachable from a test.
+    private func stepFrame(_ request: Request) throws -> Response {
+        guard let direction = request.args["direction"],
+              ["forward", "backward"].contains(direction) else {
+            throw CommandError(
+                message: "stepFrame requires direction=forward|backward."
+            )
+        }
+        guard playbackRuntime.playbackPosition.duration > 0 else {
+            throw CommandError(message: "stepFrame requires active playback.")
+        }
+        if direction == "forward" {
+            playbackRuntime.frameStepForward()
+        } else {
+            playbackRuntime.frameStepBackward()
+        }
+        AppModel.recordProbe(
+            "testcmd stepFrame delivered direction=\(direction)",
+            retention: .evidence
+        )
+        return Response(id: request.id, ok: true, detail: nil, payload: [direction])
     }
 
     private func seekNormalized(_ request: Request) throws -> Response {

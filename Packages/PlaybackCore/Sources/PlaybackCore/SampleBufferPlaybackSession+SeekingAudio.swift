@@ -31,6 +31,10 @@ extension SampleBufferPlaybackSession {
         )
 
         let teardownStarted = ContinuousClock.now
+        // Teardown is only the first half of a seek. The rest is reopening the
+        // demuxer at the target and decoding forward to it, and until this was
+        // split out nothing said which half a seek actually spends its time in.
+        var videoProviderReopened: ContinuousClock.Instant?
         let framesInFlightAtTeardown = videoFramesInFlightLock.withLock {
             videoFramesInFlight.count(timelineSeconds: timelineClockReading().mediaTime.seconds)
         }
@@ -150,6 +154,7 @@ extension SampleBufferPlaybackSession {
             )
             try Task.checkCancellation()
             try provider.start()
+            videoProviderReopened = ContinuousClock.now
             if hasAudio {
                 do {
                     try await audioProvider.prepare(
@@ -265,6 +270,13 @@ extension SampleBufferPlaybackSession {
                             "streamEpoch": String(expectedEpoch),
                             "audioStreamEpoch": String(expectedAudioEpoch),
                             "subtitleStreamEpoch": String(subtitleSeekEpoch),
+                            "reopenMilliseconds": videoProviderReopened.map {
+                                Self.milliseconds(from: teardownStarted, to: $0)
+                            } ?? "unavailable",
+                            "totalMilliseconds": Self.milliseconds(
+                                from: teardownStarted,
+                                to: ContinuousClock.now
+                            ),
                         ]
                     )
                     completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
@@ -337,6 +349,13 @@ extension SampleBufferPlaybackSession {
                     "audioStreamEpoch": String(expectedAudioEpoch),
                     "subtitleStreamEpoch": String(subtitleSeekEpoch),
                     "audioRetired": "true",
+                    "reopenMilliseconds": videoProviderReopened.map {
+                        Self.milliseconds(from: teardownStarted, to: $0)
+                    } ?? "unavailable",
+                    "totalMilliseconds": Self.milliseconds(
+                        from: teardownStarted,
+                        to: ContinuousClock.now
+                    ),
                 ]
             )
             completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
