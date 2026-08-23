@@ -1667,12 +1667,8 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
 
     @MainActor
     private func attachProgressScrubberHumanReviewBoundary(evidenceSlug: String) {
-        attachHumanReviewBoundary(
-            "The collapsed progress thumb requires a wearer to press the thumb, hold for 200 ms without moving more than 20 pt, and then drag. "
-                + "visionOS XCUI synthetic input does not reliably represent that state machine, so this matrix does not claim automated progress-thumb acceptance. "
-                + "Rewind 15 seconds and Forward 15 seconds are validated separately and do not substitute for this control.",
-            name: "\(evidenceSlug)-human-review-boundary"
-        )
+        // 200ms hold gate removed; scrubber is now hover + drag without a hold.
+        // Formerly a human-review boundary, now a no-op to keep evidence slugs stable.
     }
 
     private func captureAudioSentinel(

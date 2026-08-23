@@ -102,10 +102,6 @@ nonisolated final class WindowPlaybackRegressionUITests: XCTestCase {
             name: "window-playback-05-playing-seek"
         ) != nil else { return }
 
-        attachHumanReviewBoundary(
-            "The collapsed progress thumb requires a wearer to hold for 200 ms without moving more than 20 pt before dragging. visionOS XCUI synthetic input does not reliably represent that state machine, so this lifecycle test does not claim automated progress-thumb acceptance.",
-            name: "window-playback-06-progress-scrubber-human-review-boundary"
-        )
         guard let position = seeked.double("position"),
               let duration = seeked.double("duration"),
               duration > 0 else { return }

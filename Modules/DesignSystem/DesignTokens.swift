@@ -347,6 +347,8 @@ public enum DesignTokens {
         public static let expandedPlayerControlsContentWidth: CGFloat = 880
         /// Compact height of the read-only playback media-information well.
         public static let playbackMediaInfoHeight: CGFloat = 72
+        /// Width of the unmet-capabilities column in the expanded media info.
+        public static let mediaInfoDetailColumnWidth: CGFloat = 280
         /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
         /// Softens content clipping at the top and bottom of the main WindowGroup.
@@ -687,14 +689,6 @@ public enum DesignTokens {
         /// is far under the gaze target a wearer can hit; the region that starts
         /// a scrub and shows the gaze highlight is this wide instead.
         public static let thumbGrabWidth: CGFloat = Interactive.large
-        /// Movement tolerated while the scrubber is waiting to unlock. An indirect
-        /// pinch carries hand travel from its first frame, so this is the drift a
-        /// wearer spends holding still, not a deliberate drag.
-        public static let activationSlop: CGFloat = Spacing.xxl
-        /// Wall-clock gate before seeking is unlocked.
-        public static let activationDuration: Duration = .milliseconds(200)
-        /// Height transition paired with the activation gate.
-        public static let activationAnimation: Animation = .easeOut(duration: 0.2)
         /// Maximum interval between two completed short presses on the scrubber.
         public static let doublePressInterval: TimeInterval = 0.35
         /// Watched-progress edge stroke height on grid cards — sits on the card's
@@ -720,6 +714,62 @@ public enum DesignTokens {
         public static let playedColor: Color = .white.opacity(0.72)
         /// Played portion in hover/drag state.
         public static let playedHoverColor: Color = .white.opacity(0.95)
+    }
+
+    /// Player panel chrome: one row of sizes measured from the current
+    /// panel content rather than derived by measuring the content itself.
+    /// Each aside carries the size its contents expect; the panel frame
+    /// interpolates between them via `PlayerPanelChrome.morph` while both
+    /// layers crossfade via `PlayerPanelChrome.crossfade`.
+    public enum PlayerPanelChromeAside: Equatable, Sendable, CaseIterable {
+        case collapsed, timeline, settings, mediaInformation
+    }
+
+    public enum PlayerPanelChromeSurface: Equatable, Sendable {
+        case windowOrnament, playerControlDock
+    }
+
+    public enum PlayerPanelChrome {
+        // swiftlint:disable:next nesting - Aside/Surface aliases are required so call sites read as PlayerPanelChrome.Aside per synthesis.
+        public typealias Aside = PlayerPanelChromeAside
+        // swiftlint:disable:next nesting
+        public typealias Surface = PlayerPanelChromeSurface
+
+        /// Content size for each aside. Width follows `ControlBar.contentWidth`
+        /// for collapsed and `Layout.expandedPlayerControlsContentWidth` for
+        /// every expanded aside, so the chrome width is a datum rather than a
+        /// measurement of whatever happens to be on screen.
+        public static func contentSize(for aside: Aside, surface: Surface) -> CGSize {
+            let width: CGFloat
+            let height: CGFloat
+            switch aside {
+            case .collapsed:
+                width = ControlBar.contentWidth
+                // well (72) + spacing (12) + transport row (60) + spacing (12) + progress strip (44)
+                height = Layout.playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.sm + ProgressBar.hitHeight
+            case .timeline:
+                width = Layout.expandedPlayerControlsContentWidth
+                // well + transport + timeline block (220) + inter-block spacings
+                height = Layout.playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.sm + PrecisionTimeline.expandedHeight
+            case .settings:
+                width = Layout.expandedPlayerControlsContentWidth
+                height = 360
+            case .mediaInformation:
+                width = Layout.expandedPlayerControlsContentWidth
+                height = 280
+            }
+            _ = surface
+            return CGSize(width: width, height: height)
+        }
+
+        /// Chrome morph. Visible travel lands around 0.15-0.18s, settles within 0.3s.
+        public static let morph: Animation = .spring(response: 0.32, dampingFraction: 0.86)
+        /// Crossfade for the two content layers, started in the same transaction
+        /// as `morph` so insertion and removal overlap and no empty-shell frame
+        /// is produced.
+        public static let crossfade: Animation = .easeInOut(duration: 0.18)
+        public static var contentRemoval: AnyTransition { .opacity.animation(crossfade) }
+        public static var contentInsertion: AnyTransition { .opacity.animation(crossfade) }
     }
 
     /// DesignPreview precision timeline prototype.

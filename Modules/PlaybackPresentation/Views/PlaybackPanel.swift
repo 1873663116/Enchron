@@ -292,10 +292,7 @@ struct FusedPlayerPanel: View {
     @State private var isTimelineDragging = false
     @State private var isProgressHovered = false
     @State private var scrubberActivation: ScrubberActivation = .idle
-    @State private var activationOrigin: CGPoint?
-    @State private var activationCurrentLocation: CGPoint?
     @State private var seekOrigin: CGPoint?
-    @State private var activationGeneration = 0
     @State private var lastScrubberPress: (time: Date, location: CGPoint)?
     @State private var dragStartProgress: CGFloat = 0.45
     /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
@@ -315,11 +312,8 @@ struct FusedPlayerPanel: View {
 
     private enum ScrubberActivation: Equatable {
         case idle
-        case activating
-        case unlocked
         case seeking
         case trackSeeking(target: CGFloat)
-        case cancelled
     }
 
     // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
@@ -346,9 +340,39 @@ struct FusedPlayerPanel: View {
     }
 
     private var clusterWidth: CGFloat {
-        expansion.isExpanded
-            ? DesignTokens.Layout.expandedPlayerControlsContentWidth
-            : DesignTokens.ControlBar.contentWidth
+        let aside: DesignTokens.PlayerPanelChrome.Aside = {
+            switch expansion.layout {
+            case .collapsed: return .collapsed
+            case .timeline: return .timeline
+            case .settings: return .settings
+            case .mediaInformation: return .mediaInformation
+            }
+        }()
+        let surface: DesignTokens.PlayerPanelChrome.Surface = {
+            switch self.surface {
+            case .windowOrnament: return .windowOrnament
+            case .playerControlDock: return .playerControlDock
+            }
+        }()
+        return DesignTokens.PlayerPanelChrome.contentSize(for: aside, surface: surface).width
+    }
+
+    private var panelChromeSize: CGSize {
+        let aside: DesignTokens.PlayerPanelChrome.Aside = {
+            switch expansion.layout {
+            case .collapsed: return .collapsed
+            case .timeline: return .timeline
+            case .settings: return .settings
+            case .mediaInformation: return .mediaInformation
+            }
+        }()
+        let surface: DesignTokens.PlayerPanelChrome.Surface = {
+            switch self.surface {
+            case .windowOrnament: return .windowOrnament
+            case .playerControlDock: return .playerControlDock
+            }
+        }()
+        return DesignTokens.PlayerPanelChrome.contentSize(for: aside, surface: surface)
     }
 
     private var shape: RoundedRectangle {
@@ -356,19 +380,14 @@ struct FusedPlayerPanel: View {
     }
 
     var body: some View {
-        Group {
-            panelContent
-        }
-        .opacity(expansion.contentIsVisible ? 1 : 0)
-        // A gaze landing where a button used to be must not press it while the panel
-        // is between sizes, and the shell keeps absorbing the pinch because the glass
-        // background sits outside this.
-        .allowsHitTesting(expansion.contentIsVisible)
-        .frame(width: clusterWidth)
-        .padding(.horizontal, DesignTokens.ControlBar.paddingH)
-        .padding(.vertical, DesignTokens.ControlBar.paddingV)
-        .clipShape(shape)
-        .enchronGlassBackground(in: shape)
+        Color.clear
+            .frame(width: panelChromeSize.width, height: panelChromeSize.height)
+            .overlay { panelContentStack }
+            .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+            .padding(.vertical, DesignTokens.ControlBar.paddingV)
+            .clipShape(shape)
+            .enchronGlassBackground(in: shape)
+            .animation(DesignTokens.PlayerPanelChrome.morph, value: expansion.layout)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
 #if DEBUG
@@ -408,49 +427,88 @@ struct FusedPlayerPanel: View {
         }
         .onChange(of: controlsVisible) { _, isVisible in
             guard isVisible == false else { return }
-            // Chrome that is on its way out has nothing to animate through, so the
-            // panel returns to collapsed whole rather than by the three steps.
             expansion = PlaybackPanelExpansion()
             videoFormatEditing.discard()
             isDragging = false
             isTimelineDragging = false
             scrubberActivation = .idle
-            activationGeneration += 1
-            activationOrigin = nil
-            activationCurrentLocation = nil
             seekOrigin = nil
             pendingSeekTarget = nil
         }
     }
 
     @ViewBuilder
-    private var panelContent: some View {
-        if expansion.layout == .mediaInformation {
-            expandedMediaInformation
-        } else {
-            switch surface {
-            case .windowOrnament:
-                windowOrnamentContent
-            case .playerControlDock:
-                playerControlDockContent
+    private var panelContentStack: some View {
+        ZStack {
+            switch expansion.layout {
+            case .collapsed:
+                collapsedContent
+                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+            case .timeline:
+                timelineContent
+                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+            case .settings:
+                settingsContent
+                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+            case .mediaInformation:
+                mediaInformationContent
+                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .animation(DesignTokens.PlayerPanelChrome.crossfade, value: expansion.layout)
+    }
+
+    private var collapsedContent: some View {
+        Group {
+            switch surface {
+            case .windowOrnament: windowOrnamentContent
+            case .playerControlDock: playerControlDockCollapsedContent
+            }
+        }
+        .allowsHitTesting(true)
+    }
+
+    private var timelineContent: some View {
+        Group {
+            switch surface {
+            case .windowOrnament: windowOrnamentContent
+            case .playerControlDock: playerControlDockContent
+            }
+        }
+        .allowsHitTesting(true)
+    }
+
+    private var settingsContent: some View {
+        playerControlDockContent
+            .allowsHitTesting(true)
+    }
+
+    private var mediaInformationContent: some View {
+        expandedMediaInformation
+            .allowsHitTesting(true)
+    }
+
+    private var playerControlDockCollapsedContent: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            mediaInformationWell(width: clusterWidth)
+            playerControlDockControls
+            progressBar(width: compactProgressBarWidth)
         }
     }
 
     private var windowOrnamentContent: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            // The scrubber leads the capsule. It is the control a gaze has to
-            // find, and putting it at the bottom edge left it competing with the
-            // system window bar directly beneath the deck.
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                windowTransportControls
+                mediaInformationWell(width: windowMediaInformationWidth)
+            }
+
             if expansion.layout == .timeline {
                 timelineBlock
             } else {
                 progressBar(width: compactProgressBarWidth)
-            }
-
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                windowTransportControls
-                mediaInformationWell(width: windowMediaInformationWidth)
             }
         }
     }
@@ -647,22 +705,8 @@ struct FusedPlayerPanel: View {
     /// the next, so the order follows the animations themselves rather than durations
     /// repeated here that could drift from the ones in `DesignTokens`.
     private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
-        withAnimation(DesignTokens.AnimationToken.panelContentExit) {
+        withAnimation(DesignTokens.PlayerPanelChrome.morph) {
             expansion.request(layout)
-        } completion: {
-            advanceExpansion(from: .contentLeaving)
-        }
-    }
-
-    private func advanceExpansion(from completed: PlaybackPanelExpansion.Phase) {
-        let animation = completed == .contentLeaving
-            ? DesignTokens.AnimationToken.panelSpring
-            : DesignTokens.AnimationToken.panelContentEntrance
-        withAnimation(animation) {
-            expansion.advance(from: completed)
-        } completion: {
-            guard completed == .contentLeaving else { return }
-            advanceExpansion(from: .resizing)
         }
     }
 
@@ -797,34 +841,31 @@ struct FusedPlayerPanel: View {
 
     private var expandedMediaInformation: some View {
         ZStack(alignment: .topTrailing) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                     Text(live?.mediaName ?? "Unknown")
                         .font(DesignTokens.Typography.headline)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let overview = live?.overview, overview.isEmpty == false {
-                        Text(overview)
-                            .font(DesignTokens.Typography.metadata)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("PlayerPanel-media-information-overview")
+                        ViewThatFits(in: .vertical) {
+                            Text(overview)
+                                .font(DesignTokens.Typography.metadata)
+                                .lineLimit(4)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("PlayerPanel-media-information-overview")
+
+                            ScrollView(.vertical, showsIndicators: true) {
+                                Text(overview)
+                                    .font(DesignTokens.Typography.metadata)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .accessibilityIdentifier("PlayerPanel-media-information-overview")
+                            }
+                        }
                     }
 
-                    ForEach(persistentCapabilities) { capability in
-                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                            Label(
-                                "\(capability.requested). \(capability.delivered).",
-                                systemImage: "exclamationmark.circle"
-                            )
-                            .font(DesignTokens.Typography.metadata)
-                            Text(capability.reason)
-                                .font(DesignTokens.Typography.metadata)
-                                .foregroundStyle(.secondary)
-                        }
-                        .accessibilityIdentifier(
-                            "PlayerPanel-media-information-unmet-\(capability.id)"
-                        )
-                    }
+                    Divider()
 
                     HStack(spacing: DesignTokens.Spacing.xl) {
                         Text(spatialMetadataLabel)
@@ -834,9 +875,30 @@ struct FusedPlayerPanel: View {
                     .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(DesignTokens.Spacing.xl)
-                .padding(.trailing, DesignTokens.Interactive.large)
+
+                if persistentCapabilities.isEmpty == false {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        ForEach(persistentCapabilities) { capability in
+                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                                Label(
+                                    "\(capability.requested). \(capability.delivered).",
+                                    systemImage: "exclamationmark.circle"
+                                )
+                                .font(DesignTokens.Typography.metadata)
+                                Text(capability.reason)
+                                    .font(DesignTokens.Typography.metadata)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .accessibilityIdentifier(
+                                "PlayerPanel-media-information-unmet-\(capability.id)"
+                            )
+                        }
+                    }
+                    .frame(width: DesignTokens.Layout.mediaInfoDetailColumnWidth, alignment: .topLeading)
+                }
             }
+            .padding(DesignTokens.Spacing.xl)
+            .padding(.trailing, DesignTokens.Interactive.large + DesignTokens.Spacing.sm)
 
             GlassCircleIconButton.close(
                 accessibilityLabel: "Close Media Information",
@@ -846,7 +908,6 @@ struct FusedPlayerPanel: View {
             .keyboardShortcut(.escape, modifiers: [])
             .padding(DesignTokens.Spacing.xl)
         }
-        .frame(width: clusterWidth, height: 420)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
@@ -1265,12 +1326,8 @@ struct FusedPlayerPanel: View {
             onSeekBegan: beginTimelineSeek,
             onSeekEnded: commitTimelineSeek
         )
-        .frame(
-            width: clusterWidth,
-            height: DesignTokens.PrecisionTimeline.expandedHeight
-        )
+        .frame(height: DesignTokens.PrecisionTimeline.expandedHeight)
         .transition(.opacity)
-        // 对称:双击进度条展开,双击时间轴收起。
         .contentShape(Rectangle())
         .simultaneousGesture(TapGesture(count: 2).onEnded { closeTimeline() })
     }
@@ -1321,10 +1378,11 @@ struct FusedPlayerPanel: View {
     // MARK: Progress bar(收起态;双击展开时间轴)—— 整套抄自 PlayerControlDeck
 
     private var trackScale: CGFloat {
+        if isDragging || isProgressHovered { return 1 }
         switch scrubberActivation {
-        case .activating, .unlocked, .seeking, .trackSeeking:
+        case .seeking, .trackSeeking:
             return 1
-        case .idle, .cancelled:
+        case .idle:
             return DesignTokens.ProgressBar.inactiveScale
         }
     }
@@ -1534,15 +1592,6 @@ struct FusedPlayerPanel: View {
                         )
                         return
                     }
-                    beginScrubberActivation(at: value.location)
-                case .activating:
-                    guard let origin = activationOrigin else { return }
-                    if distance(from: origin, to: value.location) > DesignTokens.ProgressBar.activationSlop {
-                        cancelScrubberActivation()
-                    } else {
-                        activationCurrentLocation = value.location
-                    }
-                case .unlocked:
                     beginScrubbing(at: value.location)
                 case .seeking:
                     guard let seekOrigin else { return }
@@ -1552,31 +1601,30 @@ struct FusedPlayerPanel: View {
                     )
                 case .trackSeeking:
                     return
-                case .cancelled:
-                    return
                 }
             }
             .onEnded { value in
                 switch scrubberActivation {
                 case .seeking:
-                    lastScrubberPress = nil
-                    let target = PlaybackSeekPresentation.clampedTarget(progress)
-                    // 先锁存目标,再释放 dragging;否则 SwiftUI 可能先镜像
-                    // 旧 live.position 一帧,使拇指出现回跳。
-                    armPendingSeek(for: target)
-                    scrubReleaseTrigger += 1
-                    endScrubbing()
-                    live?.onSeek(target)
-                case .activating:
-                    completeShortScrubberPress(at: value.location, time: value.time)
-                    resetScrubberActivation()
+                    let isShortPress = hypot(value.translation.width, value.translation.height) <= DesignTokens.ProgressBar.thumbGrabWidth / 2
+                    if isShortPress {
+                        completeShortScrubberPress(at: value.location, time: value.time)
+                        resetScrubberActivation()
+                    } else {
+                        lastScrubberPress = nil
+                        let target = PlaybackSeekPresentation.clampedTarget(progress)
+                        armPendingSeek(for: target)
+                        scrubReleaseTrigger += 1
+                        endScrubbing()
+                        live?.onSeek(target)
+                    }
                 case .trackSeeking(let target):
                     progress = target
                     armPendingSeek(for: target)
                     live?.onSeek(target)
                     onInteraction()
                     resetScrubberActivation()
-                case .idle, .unlocked, .cancelled:
+                case .idle:
                     resetScrubberActivation()
                 }
             }
@@ -1585,46 +1633,11 @@ struct FusedPlayerPanel: View {
     private func completeShortScrubberPress(at location: CGPoint, time: Date) {
         if let previous = lastScrubberPress,
            time.timeIntervalSince(previous.time) <= DesignTokens.ProgressBar.doublePressInterval,
-           distance(from: previous.location, to: location) <= DesignTokens.ProgressBar.activationSlop {
+           distance(from: previous.location, to: location) <= DesignTokens.ProgressBar.thumbGrabWidth / 2 {
             lastScrubberPress = nil
             openTimeline()
         } else {
             lastScrubberPress = (time, location)
-        }
-    }
-
-    private func beginScrubberActivation(at location: CGPoint) {
-        activationGeneration += 1
-        let generation = activationGeneration
-        activationOrigin = location
-        activationCurrentLocation = location
-        seekOrigin = nil
-        dragStartProgress = displayProgress
-        progress = displayProgress
-        withAnimation(DesignTokens.ProgressBar.activationAnimation) {
-            scrubberActivation = .activating
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: DesignTokens.ProgressBar.activationDuration)
-            guard Task.isCancelled == false else { return }
-            guard activationGeneration == generation else { return }
-            guard scrubberActivation == .activating else { return }
-            lastScrubberPress = nil
-            seekOrigin = activationCurrentLocation
-            scrubberActivation = .unlocked
-            scrubFeedbackTrigger += 1
-        }
-    }
-
-    private func cancelScrubberActivation() {
-        activationGeneration += 1
-        lastScrubberPress = nil
-        activationOrigin = nil
-        activationCurrentLocation = nil
-        seekOrigin = nil
-        withAnimation(DesignTokens.AnimationToken.selection) {
-            scrubberActivation = .cancelled
-            isDragging = false
         }
     }
 
@@ -1651,9 +1664,6 @@ struct FusedPlayerPanel: View {
     }
 
     private func resetScrubberActivation() {
-        activationGeneration += 1
-        activationOrigin = nil
-        activationCurrentLocation = nil
         seekOrigin = nil
         withAnimation(DesignTokens.AnimationToken.selection) {
             scrubberActivation = .idle

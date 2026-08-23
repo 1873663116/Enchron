@@ -1220,10 +1220,11 @@ UNITS: tuple[Unit, ...] = (
                 "PlayerPanel-precision-timeline",
                 expect="Precision timeline closes, symmetrically.",
             ),
-            wearer(
+            real(
                 "progress drag",
-                "Dragging the scrubber needs a 200ms steady hold that synthetic "
-                "input cannot produce.",
+                "PlayerPanel-progress",
+                expect="Progress thumb accepts a drag and seeks. Hover reveals "
+                "the thumb and no hold gate is present.",
             ),
             real(
                 "tap",

@@ -486,7 +486,6 @@ struct InteractionLayoutPreview: View {
                             )
                     }
             },
-            .scalar("activationSlop", "32pt", "drift tolerated while the press holds to unlock"),
             .spec("previewWidth", "680pt", "Design Preview player progress width") {
                 tokenBarSwatch(DesignTokens.ProgressBar.previewWidth, max: 680)
             },

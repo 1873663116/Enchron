@@ -419,12 +419,6 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
-      "signature": ".frame(width: clusterWidth, height: 420)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
       "signature": ".padding(.top, 6)",
       "count": 2
     },

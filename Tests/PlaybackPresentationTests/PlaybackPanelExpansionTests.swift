@@ -1,125 +1,89 @@
+import DesignSystem
 import PlaybackPresentation
 import Testing
 
-@Test("a change reaches the requested block only after the contents have left")
-func aChangeLeavesBeforeItResizes() {
-    var expansion = PlaybackPanelExpansion()
-    expansion.request(.timeline)
-
-    #expect(expansion.phase == .contentLeaving)
-    #expect(expansion.layout == .collapsed)
-    #expect(expansion.contentIsVisible == false)
-
-    expansion.advance(from: .contentLeaving)
-    #expect(expansion.phase == .resizing)
-    #expect(expansion.layout == .timeline)
-    #expect(expansion.contentIsVisible == false)
-
-    expansion.advance(from: .resizing)
-    #expect(expansion.phase == .settled)
-    #expect(expansion.layout == .timeline)
-    #expect(expansion.contentIsVisible)
+@Test("expanded flag follows layout directly")
+func onlyCollapsedIsUnexpanded() {
+    #expect(PlaybackPanelExpansion().isExpanded == false)
+    #expect(PlaybackPanelExpansion(.timeline).isExpanded)
+    #expect(PlaybackPanelExpansion(.settings).isExpanded)
+    #expect(PlaybackPanelExpansion(.mediaInformation).isExpanded)
 }
 
-@Test("a button reads as selected from the moment it is pressed")
+@Test("selected state follows layout without flicker")
 func theButtonDoesNotFlickerBackWhileTheContentsLeave() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.settings)
-
     #expect(expansion.isShowing(.settings))
     #expect(expansion.isShowing(.collapsed) == false)
-    #expect(expansion.layout == .collapsed)
+    #expect(expansion.layout == .settings)
+}
+
+@Test("requesting the same layout is a no-op")
+func aRedundantRequestIsIgnored() {
+    var expansion = PlaybackPanelExpansion(.settings)
+    expansion.request(.settings)
+    #expect(expansion.layout == .settings)
+    #expect(expansion.isShowing(.settings))
 }
 
 @Test("pressing the block already showing collapses the panel")
 func theBlockButtonToggles() {
     var expansion = PlaybackPanelExpansion(.timeline)
     expansion.toggle(.timeline)
-
     #expect(expansion.isShowing(.collapsed))
-    expansion.advance(from: .contentLeaving)
     #expect(expansion.layout == .collapsed)
     #expect(expansion.isExpanded == false)
 }
 
-@Test("media information uses the same leave resize enter sequence")
+@Test("toggling mediaInformation collapses when already showing it")
 func mediaInformationUsesThePanelExpansionSequence() {
     var expansion = PlaybackPanelExpansion()
     expansion.toggle(.mediaInformation)
-
-    #expect(expansion.phase == .contentLeaving)
-    #expect(expansion.layout == .collapsed)
     #expect(expansion.isShowing(.mediaInformation))
-
-    expansion.advance(from: .contentLeaving)
-    #expect(expansion.phase == .resizing)
     #expect(expansion.layout == .mediaInformation)
-    #expect(expansion.contentIsVisible == false)
-
-    expansion.advance(from: .resizing)
-    #expect(expansion.phase == .settled)
-    #expect(expansion.contentIsVisible)
-
     expansion.toggle(.mediaInformation)
-    #expect(expansion.phase == .contentLeaving)
     #expect(expansion.isShowing(.collapsed))
+    #expect(expansion.layout == .collapsed)
 }
 
-@Test("requesting the block already showing does nothing")
-func aRedundantRequestIsIgnored() {
-    var expansion = PlaybackPanelExpansion(.settings)
-    expansion.request(.settings)
-
-    #expect(expansion.phase == .settled)
-    #expect(expansion.contentIsVisible)
-}
-
-@Test("changing your mind mid-change retargets it rather than queueing behind it")
+@Test("a second request retargets immediately without queueing")
 func aSecondRequestRetargets() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.timeline)
     expansion.request(.settings)
-
-    #expect(expansion.phase == .contentLeaving)
-    expansion.advance(from: .contentLeaving)
     #expect(expansion.layout == .settings)
+    #expect(expansion.isShowing(.settings))
 }
 
-@Test("a request during the resize sends the shell to the new block instead")
+@Test("retargeting mid-flight lands on the last requested layout")
 func aRequestDuringTheResizeTurnsTheShellAround() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.timeline)
-    expansion.advance(from: .contentLeaving)
-    #expect(expansion.phase == .resizing)
-
+    #expect(expansion.layout == .timeline)
     expansion.request(.settings)
-    #expect(expansion.phase == .contentLeaving)
-
-    expansion.advance(from: .contentLeaving)
     #expect(expansion.layout == .settings)
-    expansion.advance(from: .resizing)
-    #expect(expansion.contentIsVisible)
 }
 
-@Test("a completion that lands after a newer request cannot skip a step")
-func aStaleCompletionIsIgnored() {
-    var expansion = PlaybackPanelExpansion()
-    expansion.request(.timeline)
-    expansion.advance(from: .contentLeaving)
-
-    // The exit animation from the first request reports in late, by which time the
-    // panel is already resizing. Acting on it would settle the contents back in
-    // before the shell had finished travelling.
-    expansion.advance(from: .contentLeaving)
-
-    #expect(expansion.phase == .resizing)
-    #expect(expansion.contentIsVisible == false)
+@Test("each aside resolves to a chrome size")
+func eachAsideHasAChromeSize() {
+    let surfaces: [DesignTokens.PlayerPanelChrome.Surface] = [.windowOrnament, .playerControlDock]
+    for surface in surfaces {
+        for aside in DesignTokens.PlayerPanelChrome.Aside.allCases {
+            let size = DesignTokens.PlayerPanelChrome.contentSize(for: aside, surface: surface)
+            #expect(size.width > 0, "width for \(aside) on \(surface) must be positive")
+            #expect(size.height > 0, "height for \(aside) on \(surface) must be positive")
+        }
+    }
+    let collapsed = DesignTokens.PlayerPanelChrome.contentSize(for: .collapsed, surface: .windowOrnament)
+    let timeline = DesignTokens.PlayerPanelChrome.contentSize(for: .timeline, surface: .windowOrnament)
+    #expect(timeline.height > collapsed.height)
 }
 
-@Test("the collapsed panel is the one that is not expanded")
-func onlyCollapsedIsUnexpanded() {
-    #expect(PlaybackPanelExpansion().isExpanded == false)
-    #expect(PlaybackPanelExpansion(.timeline).isExpanded)
-    #expect(PlaybackPanelExpansion(.settings).isExpanded)
-    #expect(PlaybackPanelExpansion(.mediaInformation).isExpanded)
+@Test("alias PlaybackPanelLayout refers to the same value object")
+func layoutAliasMatchesExpansion() {
+    var layout = PlaybackPanelLayout(.timeline)
+    #expect(layout.isShowing(.timeline))
+    layout.toggle(.timeline)
+    #expect(layout.isShowing(.collapsed))
 }
