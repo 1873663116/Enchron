@@ -676,6 +676,10 @@ public struct ImmersiveSpaceView: View {
     @State private var targetRevealState = PortalToPanoramaTargetRevealState()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
+#if DEBUG
+    @State private var dockedAnchorFrontProbe = Entity()
+    @State private var dockedChildFrontProbe = Entity()
+#endif
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
 
     private var videoEntity: Entity {
@@ -1270,6 +1274,9 @@ public struct ImmersiveSpaceView: View {
             updateDockedInteractionSurface(on: entity, in: content)
         } else {
             dockedInteractionSurface.removeFromParent()
+#if DEBUG
+            removeDockedHitTestProbes()
+#endif
         }
         recordDisplayLinkProbe(
             event: "componentConfigured",
@@ -1889,6 +1896,9 @@ public struct ImmersiveSpaceView: View {
         appModel.clearSpatialPlaybackSurfaceObservation()
         panoramaInteractionSurface.removeFromParent()
         headInputProbe.removeFromParent()
+#if DEBUG
+        removeDockedHitTestProbes()
+#endif
         guard let presentation, presentation.usesImmersiveSpace else { return }
         videoEntity.removeFromParent()
         let preservesPlaybackComponent = playbackRuntime.activeSessionID != nil
@@ -2172,6 +2182,12 @@ public struct ImmersiveSpaceView: View {
             on: entity,
             screenSize: component.playerScreenSize
         )
+#if DEBUG
+        installDockedHitTestProbes(
+            beside: entity,
+            screenSize: component.playerScreenSize
+        )
+#endif
         let collisionExtents = dockedInteractionSurface
             .components[CollisionComponent.self]?
             .shapes.first?
@@ -2192,6 +2208,61 @@ public struct ImmersiveSpaceView: View {
         )
         recordDockedInputTargetSceneProbe(in: content)
     }
+
+#if DEBUG
+    private func installDockedHitTestProbes(
+        beside entity: Entity,
+        screenSize: SIMD2<Float>
+    ) {
+        guard let anchor = entity.parent else { return }
+
+        PlaybackDockedInteractionSurface.install(
+            dockedChildFrontProbe,
+            on: entity,
+            screenSize: screenSize
+        )
+        dockedChildFrontProbe.name =
+            PlaybackDockedInteractionSurface.childFrontProbeName
+        // The docked video faces the viewer along local -Z. This probe is the
+        // nearest collider so one targeted tap distinguishes child hit testing
+        // from the sibling fallback behind it.
+        dockedChildFrontProbe.position = [0, 0, -0.10]
+
+        PlaybackDockedInteractionSurface.configure(
+            dockedAnchorFrontProbe,
+            screenSize: screenSize
+        )
+        dockedAnchorFrontProbe.name =
+            PlaybackDockedInteractionSurface.anchorFrontProbeName
+        dockedAnchorFrontProbe.orientation = entity.orientation
+        dockedAnchorFrontProbe.scale = entity.scale
+        dockedAnchorFrontProbe.position = entity.position
+            + entity.orientation.act([0, 0, -0.05])
+        if dockedAnchorFrontProbe.parent !== anchor {
+            anchor.addChild(dockedAnchorFrontProbe)
+        }
+
+        let hierarchy =
+            "child=\(dockedChildFrontProbe.name)"
+                + " childWorldPosition=\(dockedChildFrontProbe.position(relativeTo: nil))"
+                + " childActive=\(dockedChildFrontProbe.isActive)"
+                + " sibling=\(dockedAnchorFrontProbe.name)"
+                + " siblingWorldPosition=\(dockedAnchorFrontProbe.position(relativeTo: nil))"
+                + " siblingActive=\(dockedAnchorFrontProbe.isActive)"
+        guard presentationObservation.shouldLogSurfaceReadiness(
+            reason: "dockedHitTestProbeHierarchy",
+            signature: hierarchy
+        ) else { return }
+        appModel.recordSurfaceInputProbe(
+            "dockedHitTestProbe hierarchy \(hierarchy)"
+        )
+    }
+
+    private func removeDockedHitTestProbes() {
+        dockedAnchorFrontProbe.removeFromParent()
+        dockedChildFrontProbe.removeFromParent()
+    }
+#endif
 
     private func recordDockedInteractionSurfaceAssemblyProbe(_ state: String) {
         guard presentationObservation.shouldLogSurfaceReadiness(

@@ -318,6 +318,10 @@ enum PlaybackSurfaceInputOwnership {
 @MainActor
 enum PlaybackDockedInteractionSurface {
     static let entityName = "EnchronDockedInput.surface"
+#if DEBUG
+    static let anchorFrontProbeName = "EnchronDockedInput.probeFront"
+    static let childFrontProbeName = "EnchronDockedInput.probeChildFront"
+#endif
     static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
     static let thickness: Float = 0.01
     static let frontOffset: Float = 0.01
@@ -359,7 +363,13 @@ enum PlaybackDockedInteractionSurface {
     }
 
     static func contains(_ entity: Entity) -> Bool {
-        entity.name == entityName
+        if entity.name == entityName { return true }
+#if DEBUG
+        return entity.name == anchorFrontProbeName
+            || entity.name == childFrontProbeName
+#else
+        return false
+#endif
     }
 }
 
