@@ -514,6 +514,35 @@ def main() -> int:
         'id: "playerControls"' not in platform_executor,
         "the platform executor retains the legacy playerControls Window Scene operation",
     )
+    apply_locked_controls_transform = region(
+        immersive_controls_attachment,
+        "private func applyLockedTransform(",
+        "private func hideAttachment(",
+    )
+    require(
+        order(
+            apply_locked_controls_transform,
+            "entity.transform = transform",
+            "OpacityComponent(opacity: 1)",
+            "setEnabled(",
+            "true,",
+        )
+        and 'writer: "ImmersivePlaybackControlsAttachmentController.applyLockedTransform"'
+        in apply_locked_controls_transform,
+        "immersive controls can become enabled before their locked transform applies",
+    )
+    pending_controls_placement = region(
+        immersive_controls_attachment,
+        "private func placeForPendingVisibilityRiseIfPossible()",
+        "private func applyLockedTransform(",
+    )
+    require(
+        "immersiveControlsAttachment placementRequested" in immersive_controls_attachment
+        and "immersiveControlsAttachment placementApplied revision="
+        in pending_controls_placement
+        and "reason=worldLocked" in pending_controls_placement,
+        "immersive controls placement has no observable requested/applied/world-locked sequence",
+    )
     require(
         "PortalPlaybackViewportRefreshPolicy.requiresRefresh(" in platform_executor
         and "portalPlaybackViewportRefreshState.request()" in platform_executor

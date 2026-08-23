@@ -492,7 +492,7 @@
 7. P4(PlayerPanel-button-exit-spatial) → 机械层：presentation=window、attached=window、按有效逐眼画面比例重新锁定。
 8. P4 退出播放；P3(180_3D.mp4)。**首开呈现按现行为记录而非预设**：本步先读诊断串中的实际呈现与投影，把「产品对已声明全景格式的片源首开于何种呈现」作为事实记录下来；若为 window 则继续走步骤 9 经编辑器进入，若已直接进入 portal 则跳过步骤 9 的投影设置只做稳态核对。两种都不判失败——这是行为记录，不是判据（附录 D7 据此关闭：现行为即定义）。
 9. P7(180°, SBS) → Portal 稳态四字段加 1280×720，再 resumePanorama 至沉浸 settle。
-10. Panorama 内控件往返：通道 toggleControls 显示 → 探针序列 firstPoseApplied→visible=true；层级含 PlayerPanel-controls；再 toggleControls 隐藏 → visible=false，残留语义节点 isHittable=false；全程无 Window Scene 操作。真实捏合唤出归人工层（判据 toggle source=spatialTap，合成点击不带该语义，不能代替）。
+10. Panorama 内控件往返：通道 toggleControls 显示 → 同一 revision 的探针序列 placementRequested→entityEnablementWrite(writer=ImmersivePlaybackControlsAttachmentController.applyLockedTransform,value=true)→placementApplied→placementStopped(reason=worldLocked)，并出现 visible=true；层级含 PlayerPanel-controls；再 toggleControls 隐藏 → visible=false，残留语义节点 isHittable=false；全程无 Window Scene 操作。真实捏合唤出归人工层（判据为 EnchronPanoramaInput.* 的 spatialTap accepted=true 后紧跟 toggle source=spatialTap，合成点击不带该语义，不能代替）。
 11. P4(面板 Return to Portal) → portal 稳态。
 12. P7''(Flat, Mono) 经编辑器改回 → presentation=window、比例锁定。
     **本步附加轨道存续断言**，因为它走的正是替换会话路径。改格式前先选定一条非默认音轨与一件外挂字幕边车；改格式后复核两项选择均保持。产品在会话被替换时按固定顺序恢复外挂字幕来源、音轨、字幕轨，每项恢复都以「该轨在新会话的轨道表中仍然存在」为前提；前提不成立时选择被静默丢弃，用户侧无任何提示。判据因此是双向的：选择保持即通过；选择丢失即缺陷，并同时检查是否有可见表达，无表达则另记一条表达缺口。**这是全套旅程里唯一会走到替换会话恢复路径的地方。**

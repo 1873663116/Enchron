@@ -34,7 +34,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
 
 ## 证明的终态
 
-窗口模式下，chrome 元素回到层级。沉浸模式下，探针先出现 `immersiveControlsAttachment firstPoseApplied`。显示和隐藏分别出现 `immersiveControlsAttachment visible=true` 与 `visible=false`，期间没有 Window Scene 操作。显示时，层级包含 `PlayerPanel-controls`、播放、快退、快进、进度、退出和设置等原有 `PlayerPanel-*` 标识。visionOS 可能在隐藏后保留语义节点，但节点必须报告 `isHittable=false`。
+窗口模式下，chrome 元素回到层级。沉浸模式每次显示时，同一 revision 先请求定位，再由 `ImmersivePlaybackControlsAttachmentController.applyLockedTransform` 写入 transform 与 opacity，最后以 `entityEnablementWrite ... value=true` 打开实体；随后出现 `placementApplied` 与 `placementStopped ... reason=worldLocked`。这些运行时事实与结构守卫共同证明控件在启用前已经落位。显示和隐藏分别出现 `immersiveControlsAttachment visible=true` 与 `visible=false`，期间没有 Window Scene 操作。显示时，层级包含 `PlayerPanel-controls`、播放、快退、快进、进度、退出和设置等原有 `PlayerPanel-*` 标识。visionOS 可能在隐藏后保留语义节点，但节点必须报告 `isHittable=false`。
 
 ## 佩戴者验收清单
 
