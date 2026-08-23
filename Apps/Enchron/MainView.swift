@@ -301,6 +301,9 @@ public struct MainView: View {
         return "地址：\(certificate.address)\n证书名：\(certificate.certificateName)\n指纹：\(certificate.sha256Fingerprint)\n有效期：\(validFrom) – \(validUntil)"
     }
 
+    /// Keep the controls ornament attached while this window hosts playback.
+    /// Detaching it for chrome visibility rebuilds the RealityKit viewport and
+    /// costs a black frame; browser content still carries no ornament geometry.
     private var hostsPlaybackOrnament: Bool {
         showsWindowPlayback && appModel.playbackPresentation.usesMainWindow
     }
@@ -338,18 +341,40 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: showsPlaybackChrome ? .visible : .hidden,
+                visibility: hostsPlaybackOrnament ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
             ) {
-                WindowPlayerDeckView(
-                    presentationOverride: hostedPlaybackPresentation
-                )
-                .playbackIssueAlert(
-                    at: .playerDeck,
-                    onRetry: playbackLauncher.retryPlayback,
-                    onClose: playbackLauncher.stopPlayback
-                )
+                ZStack {
+                    Color.clear
+                        .frame(
+                            width: DesignTokens.ControlBar.outerWidth,
+                            height: hostsPlaybackOrnament
+                                ? collapsedWindowControlsOrnamentHeight
+                                : .zero
+                        )
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+
+                    if showsPlaybackChrome {
+                        WindowPlayerDeckView(
+                            presentationOverride: hostedPlaybackPresentation
+                        )
+                        .playbackIssueAlert(
+                            at: .playerDeck,
+                            onRetry: playbackLauncher.retryPlayback,
+                            onClose: playbackLauncher.stopPlayback
+                        )
+                        .transition(.opacity)
+                    }
+                }
             }
+    }
+
+    private var collapsedWindowControlsOrnamentHeight: CGFloat {
+        DesignTokens.Layout.playbackMediaInfoHeight
+            + DesignTokens.Spacing.sm
+            + DesignTokens.ProgressBar.hitHeight
+            + DesignTokens.ControlBar.paddingV * 2
     }
 
     private var primaryContent: some View {
