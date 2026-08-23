@@ -509,6 +509,26 @@ def main() -> int:
         and "case .startLatest:" in reality_presenter,
         "RealityView updates can still discard the Portal refresh while one is pending",
     )
+    reality_view_id = region(
+        immersive,
+        "private func realityViewID(for presentation:",
+        "private func detachSpatialSurface()",
+    )
+    require(
+        "return realityViewHostIdentity.description" in reality_view_id
+        and "ObjectIdentifier(videoEntity)" not in reality_view_id,
+        "immersive RealityView identity is derived from the shared video Entity",
+    )
+    topology_write_gate = region(
+        immersive,
+        "let entity = videoEntity",
+        'let desiredName = "EnchronVideo.',
+    )
+    require(
+        "PlaybackRealityViewTopologyWritePolicy.decision(" in topology_write_gate
+        and "presentation != .docked" not in topology_write_gate,
+        "Docked bypasses live-host topology ownership",
+    )
     require(
         ".environmentCardAppeared" in app_scene
         and ".environmentCardDisappeared" in app_scene,

@@ -1155,29 +1155,27 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: videoComponentRevision
         )
         let entity = videoEntity
-        if presentation != .docked {
-            let entityIsInCurrentHost = content.entities.contains { $0 === entity }
-            let topologyWriteDecision = PlaybackRealityViewTopologyWritePolicy.decision(
-                currentHostIsActive: realityViewHostMarker.isActive,
-                entityIsActive: entity.isActive,
-                entityIsInCurrentHost: entityIsInCurrentHost
+        let entityIsInCurrentHost = content.entities.contains { $0 === entity }
+        let topologyWriteDecision = PlaybackRealityViewTopologyWritePolicy.decision(
+            currentHostIsActive: realityViewHostMarker.isActive,
+            entityIsActive: entity.isActive,
+            entityIsInCurrentHost: entityIsInCurrentHost
+        )
+        guard topologyWriteDecision == .allowed else {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "topologyWriteDenied"
             )
-            guard topologyWriteDecision == .allowed else {
-                appModel.recordSpatialPlaybackSurfacePreparationStage(
-                    "topologyWriteDenied"
-                )
-                appModel.recordSurfaceInputProbe(
-                    "spatialVideoTopology skipped"
-                        + " reason=\(topologyWriteDecision)"
-                        + " host=\(realityViewHostIdentity)"
-                        + " hostActive=\(realityViewHostMarker.isActive)"
-                        + " entity=\(ObjectIdentifier(entity))"
-                        + " entityActive=\(entity.isActive)"
-                        + " entityInCurrentHost=\(entityIsInCurrentHost)"
-                        + " attachedHost=\(playbackRuntime.attachedRealityViewID ?? "none")"
-                )
-                return
-            }
+            appModel.recordSurfaceInputProbe(
+                "spatialVideoTopology skipped"
+                    + " reason=\(topologyWriteDecision)"
+                    + " host=\(realityViewHostIdentity)"
+                    + " hostActive=\(realityViewHostMarker.isActive)"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " entityActive=\(entity.isActive)"
+                    + " entityInCurrentHost=\(entityIsInCurrentHost)"
+                    + " attachedHost=\(playbackRuntime.attachedRealityViewID ?? "none")"
+            )
+            return
         }
         let desiredName = "EnchronVideo.\(presentation)"
         if entity.name != desiredName {
@@ -2217,7 +2215,7 @@ public struct ImmersiveSpaceView: View {
 
     private func realityViewID(for presentation: PlaybackPresentation) -> String {
         _ = presentation
-        return "EnchronRealityView.spatial#\(ObjectIdentifier(videoEntity))"
+        return realityViewHostIdentity.description
     }
 
     private func detachSpatialSurface() {
