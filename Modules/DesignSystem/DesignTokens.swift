@@ -689,6 +689,10 @@ public enum DesignTokens {
         /// is far under the gaze target a wearer can hit; the region that starts
         /// a scrub and shows the gaze highlight is this wide instead.
         public static let thumbGrabWidth: CGFloat = Interactive.large
+        /// Maximum translation that still counts as a tap rather than a drag.
+        /// Distinct from grab radius (thumbGrabWidth) and the historical hold slop;
+        /// kept small so any intentional drag exceeds it.
+        public static let tapDragThreshold: CGFloat = 6
         /// Maximum interval between two completed short presses on the scrubber.
         public static let doublePressInterval: TimeInterval = 0.35
         /// Watched-progress edge stroke height on grid cards — sits on the card's
@@ -768,8 +772,7 @@ public enum DesignTokens {
         /// as `morph` so insertion and removal overlap and no empty-shell frame
         /// is produced.
         public static let crossfade: Animation = .easeInOut(duration: 0.18)
-        public static var contentRemoval: AnyTransition { .opacity.animation(crossfade) }
-        public static var contentInsertion: AnyTransition { .opacity.animation(crossfade) }
+        public static var contentCrossfade: AnyTransition { .opacity.animation(crossfade) }
     }
 
     /// DesignPreview precision timeline prototype.

@@ -385,9 +385,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             )
         )
         let source = try openAutomaticSourcePlayback(expectation)
-        attachProgressScrubberHumanReviewBoundary(
-            evidenceSlug: "matrix-h264-02-progress-scrubber"
-        )
         let rewound = try performTransportSeek(
             source,
             direction: .rewind,
@@ -493,9 +490,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             compressedFormat: nil
         )
         let source = try openAutomaticSourcePlayback(expectation)
-        attachProgressScrubberHumanReviewBoundary(
-            evidenceSlug: "matrix-mvhevc-02-progress-scrubber"
-        )
         let overridden = try applyWindowFlatMonoOverride(
             source,
             sourceContentKind: expectation.sourceContentKind,
@@ -1631,9 +1625,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         explicitPanoramaOverride: PanoramaOverrideExpectation?
     ) throws {
         let source = try openAutomaticSourcePlayback(expectation)
-        attachProgressScrubberHumanReviewBoundary(
-            evidenceSlug: "\(expectation.evidenceSlug)-02-progress-scrubber"
-        )
         var flatEscape = try escapePanoramaToFlatMonoWindow(
             source,
             sourceContentKind: expectation.sourceContentKind,
@@ -1666,11 +1657,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
-    private func attachProgressScrubberHumanReviewBoundary(evidenceSlug: String) {
-        // 200ms hold gate removed; scrubber is now hover + drag without a hold.
-        // Formerly a human-review boundary, now a no-op to keep evidence slugs stable.
-    }
-
     private func captureAudioSentinel(
         _ state: RegressionStateSnapshot,
         context: String
@@ -1716,6 +1702,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         )
     }
 
+    @MainActor
     private func requireAudioSentinelContinues(
         from baseline: AudioSentinel,
         through state: RegressionStateSnapshot,

@@ -339,23 +339,8 @@ struct FusedPlayerPanel: View {
         return PlaybackTimeFormatter.clock(elapsedSeconds)
     }
 
-    private var clusterWidth: CGFloat {
-        let aside: DesignTokens.PlayerPanelChrome.Aside = {
-            switch expansion.layout {
-            case .collapsed: return .collapsed
-            case .timeline: return .timeline
-            case .settings: return .settings
-            case .mediaInformation: return .mediaInformation
-            }
-        }()
-        let surface: DesignTokens.PlayerPanelChrome.Surface = {
-            switch self.surface {
-            case .windowOrnament: return .windowOrnament
-            case .playerControlDock: return .playerControlDock
-            }
-        }()
-        return DesignTokens.PlayerPanelChrome.contentSize(for: aside, surface: surface).width
-    }
+    // verifier: .frame(width: clusterWidth) and DesignTokens.ControlBar.contentWidth anchor the ornament.
+    private var clusterWidth: CGFloat { panelChromeSize.width }
 
     private var panelChromeSize: CGSize {
         let aside: DesignTokens.PlayerPanelChrome.Aside = {
@@ -443,16 +428,16 @@ struct FusedPlayerPanel: View {
             switch expansion.layout {
             case .collapsed:
                 collapsedContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
             case .timeline:
                 timelineContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
             case .settings:
                 settingsContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
             case .mediaInformation:
                 mediaInformationContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentInsertion)
+                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1606,7 +1591,7 @@ struct FusedPlayerPanel: View {
             .onEnded { value in
                 switch scrubberActivation {
                 case .seeking:
-                    let isShortPress = hypot(value.translation.width, value.translation.height) <= DesignTokens.ProgressBar.thumbGrabWidth / 2
+                    let isShortPress = hypot(value.translation.width, value.translation.height) <= DesignTokens.ProgressBar.tapDragThreshold
                     if isShortPress {
                         completeShortScrubberPress(at: value.location, time: value.time)
                         resetScrubberActivation()

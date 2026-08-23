@@ -582,8 +582,8 @@ Play, pause and skip from the transport panel.
    - expect: Precision timeline opens. A single tap seeks; the timeline is a double tap, and it does not exist to be tapped until that gesture opens it.
 7. `real` doubleTap `PlayerPanel-precision-timeline`
    - expect: Precision timeline closes, symmetrically.
-8. `real` progress drag `PlayerPanel-progress`
-   - expect: Progress thumb accepts a drag and seeks. Hover reveals the thumb and no hold gate is present.
+8. `wearer` handoff `progress drag`
+   - expect: Dragging the scrubber needs a 200ms steady hold that synthetic input cannot produce.
 9. `real` tap `PlayerPanel-media-information`
    - expect: Media information well expands. The well is its own tap target, and nothing else opens it.
 10. `real` tap `PlayerPanel-media-information-close`
