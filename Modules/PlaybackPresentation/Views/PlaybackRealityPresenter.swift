@@ -350,6 +350,20 @@ enum PlaybackSurfaceInputOwnership {
             false
         }
     }
+
+    static func acceptsSpatialTapTarget(
+        _ entity: Entity,
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        switch owner(for: presentation) {
+        case .windowSwiftUIRoot:
+            false
+        case .dockedInteractionSurface:
+            PlaybackDockedInteractionSurface.contains(entity)
+        case .panoramaInteractionSurface:
+            PlaybackPanoramaInteractionSurface.contains(entity)
+        }
+    }
 }
 
 @MainActor
@@ -403,13 +417,7 @@ enum PlaybackDockedInteractionSurface {
     }
 
     static func contains(_ entity: Entity) -> Bool {
-        if entity.name == entityName { return true }
-#if DEBUG
-        return entity.name == anchorFrontProbeName
-            || entity.name == childFrontProbeName
-#else
-        return false
-#endif
+        entity.name == entityName
     }
 }
 

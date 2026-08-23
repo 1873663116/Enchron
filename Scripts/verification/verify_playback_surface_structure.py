@@ -26,6 +26,24 @@ def region(source: str, start_marker: str, end_marker: str) -> str:
     return source[start:end]
 
 
+def without_debug_blocks(source: str) -> str:
+    lines: list[str] = []
+    debug_depth = 0
+    for line in source.splitlines(keepends=True):
+        directive = line.strip()
+        if directive == "#if DEBUG":
+            debug_depth = 1
+            continue
+        if debug_depth:
+            if directive.startswith("#if "):
+                debug_depth += 1
+            elif directive == "#endif":
+                debug_depth -= 1
+            continue
+        lines.append(line)
+    return "".join(lines)
+
+
 VIOLATIONS: list[str] = []
 
 
@@ -543,6 +561,54 @@ def main() -> int:
         and "entity.position = [0, 0, -frontOffset]"
         in docked_interaction_surface,
         "the Docked interaction collider is behind its -Z-facing video plane",
+    )
+    production_immersive = without_debug_blocks(immersive)
+    require(
+        "headInputProbe" not in production_immersive
+        and "EnchronHeadInput.probe" not in production_immersive,
+        "the diagnostic head-locked input plane ships in production",
+    )
+    require(
+        'ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"'
+        in immersive
+        and 'ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"'
+        in immersive,
+        "immersive diagnostic colliders are not opt-in",
+    )
+    spatial_tap_gesture = region(
+        immersive,
+        "private var spatialSurfaceTapGesture:",
+        "private func toggleControlsFromSpatialSurface(",
+    )
+    require(
+        "PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(" in spatial_tap_gesture
+        and "requestedPresentation != .docked" not in spatial_tap_gesture,
+        "Panorama accepts spatial taps from entities outside its interaction shell",
+    )
+    spatial_input_ownership = region(
+        reality_presenter,
+        "enum PlaybackSurfaceInputOwnership",
+        "enum PlaybackDockedInteractionSurface",
+    )
+    require(
+        "case .dockedInteractionSurface:" in spatial_input_ownership
+        and "PlaybackDockedInteractionSurface.contains(entity)"
+        in spatial_input_ownership
+        and "case .panoramaInteractionSurface:" in spatial_input_ownership
+        and "PlaybackPanoramaInteractionSurface.contains(entity)"
+        in spatial_input_ownership,
+        "immersive spatial tap ownership is not symmetric by presentation",
+    )
+    docked_contains = region(
+        docked_interaction_surface,
+        "static func contains(_ entity: Entity)",
+        "\n    }\n}",
+    )
+    require(
+        "entity.name == entityName" in docked_contains
+        and "anchorFrontProbeName" not in docked_contains
+        and "childFrontProbeName" not in docked_contains,
+        "Docked diagnostic probes can trigger production controls",
     )
     require(
         ".environmentCardAppeared" in app_scene

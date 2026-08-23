@@ -654,6 +654,12 @@ public struct ImmersiveSpaceView: View {
     // transparent SwiftUI attachment was never hit by real gaze (8/8 wearer
     // pinches arrived untargeted, 2026-08-10), so the shell is the receiver.
     private static let collisionShellInputShelved = false
+#if DEBUG
+    private static let headInputProbeIsEnabled =
+        ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"
+    private static let dockedHitTestProbesAreEnabled =
+        ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"
+#endif
 
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -703,9 +709,9 @@ public struct ImmersiveSpaceView: View {
         playbackVideoEntityStore.dockedInteractionSurface
     }
 
-    /// Diagnostic collider locked to the wearer's head, two meters straight
-    /// ahead. It is reachable from any gaze direction and any room position,
-    /// so a miss here rules geometry out of the spatial input question.
+#if DEBUG
+    /// Opt-in diagnostic collider locked to the wearer's head. Ordinary Debug
+    /// runs leave it absent so it cannot mask the panorama interaction shell.
     @State private var headInputProbe: Entity = {
         let anchor = AnchorEntity(.head, trackingMode: .continuous)
         let panel = Entity()
@@ -718,6 +724,7 @@ public struct ImmersiveSpaceView: View {
         anchor.addChild(panel)
         return anchor
     }()
+#endif
 
     private var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope? {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
@@ -946,8 +953,10 @@ public struct ImmersiveSpaceView: View {
                     )
                     return
                 }
-                guard requestedPresentation != .docked
-                        || PlaybackDockedInteractionSurface.contains(value.entity) else {
+                guard PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                    value.entity,
+                    for: requestedPresentation
+                ) else {
                     appModel.recordSurfaceInputProbe(
                         "spatialTap entity=\(value.entity.name) accepted=false controls=false"
                     )
@@ -1058,20 +1067,28 @@ public struct ImmersiveSpaceView: View {
                     )
                 }
             }
-            if content.entities.contains(where: { $0 === headInputProbe }) == false {
+#if DEBUG
+            if Self.headInputProbeIsEnabled,
+               content.entities.contains(where: { $0 === headInputProbe }) == false {
                 content.add(headInputProbe)
                 appModel.recordSurfaceInputProbe(
                     "headProbeAttached active=\(headInputProbe.isActive)"
                 )
+            } else if Self.headInputProbeIsEnabled == false,
+                      content.entities.contains(where: { $0 === headInputProbe }) {
+                content.remove(headInputProbe)
             }
+#endif
         } else {
             if content.entities.contains(where: { $0 === panoramaInteractionSurface }) {
                 content.remove(panoramaInteractionSurface)
                 appModel.recordSurfaceInputProbe("shellDetached")
             }
+#if DEBUG
             if content.entities.contains(where: { $0 === headInputProbe }) {
                 content.remove(headInputProbe)
             }
+#endif
         }
     }
 
@@ -1953,8 +1970,8 @@ public struct ImmersiveSpaceView: View {
         displayLinkProbe.reset()
         appModel.clearSpatialPlaybackSurfaceObservation()
         panoramaInteractionSurface.removeFromParent()
-        headInputProbe.removeFromParent()
 #if DEBUG
+        headInputProbe.removeFromParent()
         removeDockedHitTestProbes()
 #endif
         guard let presentation, presentation.usesImmersiveSpace else { return }
@@ -2274,10 +2291,14 @@ public struct ImmersiveSpaceView: View {
             screenSize: component.playerScreenSize
         )
 #if DEBUG
-        installDockedHitTestProbes(
-            beside: entity,
-            screenSize: component.playerScreenSize
-        )
+        if Self.dockedHitTestProbesAreEnabled {
+            installDockedHitTestProbes(
+                beside: entity,
+                screenSize: component.playerScreenSize
+            )
+        } else {
+            removeDockedHitTestProbes()
+        }
 #endif
         let collisionExtents = dockedInteractionSurface
             .components[CollisionComponent.self]?

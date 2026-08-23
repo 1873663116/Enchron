@@ -838,6 +838,58 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
+    func testImmersiveGesturesAcceptOnlyTheirPresentationInteractionSurface() throws {
+        let dockedSurface = PlaybackDockedInteractionSurface.makeEntity()
+        let panoramaSurface = PlaybackPanoramaInteractionSurface.makeEntity()
+        let panoramaPanel = try XCTUnwrap(panoramaSurface.children.first)
+        let unrelatedEntity = Entity()
+        unrelatedEntity.name = "EnchronHeadInput.probe"
+
+        XCTAssertTrue(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                dockedSurface,
+                for: .docked
+            )
+        )
+        XCTAssertFalse(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                panoramaPanel,
+                for: .docked
+            )
+        )
+        XCTAssertTrue(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                panoramaPanel,
+                for: .panorama
+            )
+        )
+        XCTAssertFalse(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                dockedSurface,
+                for: .panorama
+            )
+        )
+        for presentation in PlaybackPresentation.allCases {
+            XCTAssertFalse(
+                PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                    unrelatedEntity,
+                    for: presentation
+                )
+            )
+        }
+#if DEBUG
+        let debugDockedProbe = Entity()
+        debugDockedProbe.name = PlaybackDockedInteractionSurface.childFrontProbeName
+        XCTAssertFalse(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                debugDockedProbe,
+                for: .docked
+            )
+        )
+#endif
+    }
+
+    @MainActor
     func testPanoramaMovesTheSameRendererToVideoPlayerComponent() throws {
         let renderer = AVSampleBufferVideoRenderer()
         let entity = Entity()
