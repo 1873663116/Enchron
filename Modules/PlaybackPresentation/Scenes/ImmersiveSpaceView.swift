@@ -1197,7 +1197,7 @@ public struct ImmersiveSpaceView: View {
             contentTypeSessionID: realityKitContentTypeScope?.technicalSessionID,
             onChange: { change in
                 if change == .videoSize {
-                    updateDockedInteractionSurface(on: entity)
+                    updateDockedInteractionSurface(on: entity, in: content)
                 }
                 recordSpatialPresentationState()
             },
@@ -1267,7 +1267,7 @@ public struct ImmersiveSpaceView: View {
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
         )
         if presentation == .docked {
-            updateDockedInteractionSurface(on: entity)
+            updateDockedInteractionSurface(on: entity, in: content)
         } else {
             dockedInteractionSurface.removeFromParent()
         }
@@ -2138,10 +2138,33 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
-    private func updateDockedInteractionSurface(on entity: Entity) {
-        guard requestedPresentation == .docked,
-              videoEntity === entity,
-              let component = entity.components[VideoPlayerComponent.self] else {
+    private func updateDockedInteractionSurface(
+        on entity: Entity,
+        in content: RealityViewContent
+    ) {
+        guard requestedPresentation == .docked else {
+            recordDockedInteractionSurfaceAssemblyProbe(
+                "skipped reason=presentationNotDocked"
+                    + " requestedPresentation=\(requestedPresentation.rawValue)"
+                    + " candidate=\(ObjectIdentifier(entity))"
+            )
+            return
+        }
+        guard videoEntity === entity else {
+            recordDockedInteractionSurfaceAssemblyProbe(
+                "skipped reason=videoEntityMismatch"
+                    + " candidate=\(ObjectIdentifier(entity))"
+                    + " expected=\(ObjectIdentifier(videoEntity))"
+            )
+            return
+        }
+        guard let component = entity.components[VideoPlayerComponent.self] else {
+            recordDockedInteractionSurfaceAssemblyProbe(
+                "skipped reason=videoPlayerComponentMissing"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " active=\(entity.isActive)"
+                    + " parent=\(entity.parent?.name ?? "none")"
+            )
             return
         }
         PlaybackDockedInteractionSurface.install(
@@ -2149,6 +2172,82 @@ public struct ImmersiveSpaceView: View {
             on: entity,
             screenSize: component.playerScreenSize
         )
+        let collisionExtents = dockedInteractionSurface
+            .components[CollisionComponent.self]?
+            .shapes.first?
+            .bounds.extents
+        recordDockedInteractionSurfaceAssemblyProbe(
+            "installed"
+                + " name=\(dockedInteractionSurface.name)"
+                + " entity=\(ObjectIdentifier(dockedInteractionSurface))"
+                + " parent=\(dockedInteractionSurface.parent?.name ?? "none")"
+                + " parentMatchesVideo=\(dockedInteractionSurface.parent === entity)"
+                + " screenSize=\(component.playerScreenSize)"
+                + " collisionExtents=\(collisionExtents.map(String.init(describing:)) ?? "none")"
+                + " localPosition=\(dockedInteractionSurface.position)"
+                + " worldPosition=\(dockedInteractionSurface.position(relativeTo: nil))"
+                + " worldScale=\(dockedInteractionSurface.scale(relativeTo: nil))"
+                + " active=\(dockedInteractionSurface.isActive)"
+                + " inputTarget=\(dockedInteractionSurface.components[InputTargetComponent.self] != nil)"
+        )
+        recordDockedInputTargetSceneProbe(in: content)
+    }
+
+    private func recordDockedInteractionSurfaceAssemblyProbe(_ state: String) {
+        guard presentationObservation.shouldLogSurfaceReadiness(
+            reason: "dockedInteractionSurfaceAssembly",
+            signature: state
+        ) else { return }
+        appModel.recordSurfaceInputProbe(
+            "dockedInputSurface assembly=\(state)"
+        )
+    }
+
+    private func recordDockedInputTargetSceneProbe(
+        in content: RealityViewContent
+    ) {
+        var entries: [String] = []
+        func visit(_ entity: Entity, path: String) {
+            let name = entity.name.isEmpty ? "unnamed" : entity.name
+            let nextPath = path + "/" + name
+            if entity.components[InputTargetComponent.self] != nil {
+                let collisionExtents = entity.components[CollisionComponent.self]?
+                    .shapes
+                    .map { String(describing: $0.bounds.extents) }
+                    .joined(separator: ",")
+                    ?? "none"
+                entries.append(
+                    "path=\(nextPath)"
+                        + " entity=\(ObjectIdentifier(entity))"
+                        + " active=\(entity.isActive)"
+                        + " enabled=\(entity.isEnabled)"
+                        + " worldPosition=\(entity.position(relativeTo: nil))"
+                        + " worldOrientation=\(entity.orientation(relativeTo: nil))"
+                        + " worldScale=\(entity.scale(relativeTo: nil))"
+                        + " collisionExtents=\(collisionExtents)"
+                )
+            }
+            for child in entity.children {
+                visit(child, path: nextPath)
+            }
+        }
+        for (index, root) in content.entities.enumerated() {
+            visit(root, path: "root[\(index)]")
+        }
+        entries.sort()
+        let signature = entries.joined(separator: "|")
+        guard presentationObservation.shouldLogSurfaceReadiness(
+            reason: "dockedInputTargetScene",
+            signature: signature
+        ) else { return }
+        appModel.recordSurfaceInputProbe(
+            "dockedInputTargetScene count=\(entries.count)"
+        )
+        for entry in entries {
+            appModel.recordSurfaceInputProbe(
+                "dockedInputTarget entity \(entry)"
+            )
+        }
     }
 }
 
