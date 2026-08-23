@@ -2381,24 +2381,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func frameStep(direction: Double) {
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
-        let rate = diagnostics.nominalFrameRate > 0 ? diagnostics.nominalFrameRate : 30
-        let offset = direction / rate
-        let target = max(
-            0,
-            playbackPosition.duration > 0
-                ? min(playbackPosition.duration, playbackPosition.seconds + offset)
-                : playbackPosition.seconds + offset
-        )
         let playbackObservationGeneration = observationGeneration
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await controller.seek(
-                    by: CMTime(seconds: offset, preferredTimescale: 60_000),
-                    after: .pause
+                let landing = try await controller.stepFrame(
+                    direction > 0 ? .forward : .backward
                 )
                 emitPlaybackObservation(
-                    .seekCompleted(positionSeconds: target),
+                    .seekCompleted(positionSeconds: landing.seconds),
                     generation: playbackObservationGeneration
                 )
             } catch let error as PlaybackControlError {

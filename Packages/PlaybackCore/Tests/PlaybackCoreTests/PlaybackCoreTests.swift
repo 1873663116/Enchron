@@ -1391,6 +1391,24 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(unmeasured == RendererLeadBudget.maximumFrames)
 }
 
+@Test func steppingForwardLandsOnTheNextQueuedFrameWithoutANominalRate() {
+    // A variable-rate stream has no single frame duration, so a step derived
+    // from a nominal rate lands between frames. The queue holds the exact
+    // moment each frame gives way to the one behind it.
+    var inFlight = RendererFramesInFlight()
+    for end in [0.5, 0.9, 1.6, 1.7] {
+        inFlight.record(presentationEnd: end)
+    }
+    #expect(inFlight.nextRetirement(after: 0.0) == 0.5)
+    #expect(inFlight.nextRetirement(after: 0.5) == 0.9)
+    #expect(inFlight.nextRetirement(after: 0.9) == 1.6)
+    #expect(inFlight.nextRetirement(after: 1.6) == 1.7)
+
+    // Once the timeline has passed everything queued, only a seek can produce
+    // the next frame, and the step has to say so rather than invent a landing.
+    #expect(inFlight.nextRetirement(after: 1.7) == nil)
+}
+
 @Test func framesInFlightRetireInDisplayOrderNotDeliveryOrder() {
     // Presentation ends arrive in decode order when the stream carries B
     // frames, so the frame the timeline retires next is the earliest of them.
@@ -1569,6 +1587,51 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     try session.play()
     try await waitForSampleCount(3, in: session)
     #expect(sink.immediateEnqueueCount == 3)
+}
+
+@Test func steppingForwardMovesTheTimelineWithoutTearingTheChainDown() async throws {
+    let samples = try [0.0, 0.033, 0.066, 0.1].map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0,
+            decodeTimeSeconds: $0,
+            durationSeconds: 0.033
+        )
+    }
+    let sink = FakeRendererInputSink()
+    let session = SampleBufferPlaybackSession(
+        traceID: "frame-step-forward",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(20)
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/frame-step.mp4"),
+        startsPaused: true
+    )
+    try session.start()
+    try await waitForSampleCount(3, in: session)
+
+    let flushesBeforeStep = sink.flushCount
+    let enqueuedBeforeStep = sink.immediateEnqueueCount
+    let timeBeforeStep = session.currentTime().seconds
+
+    let outcome = session.stepForwardOneFrame()
+
+    guard case .advanced(let landing) = outcome else {
+        Issue.record("the renderer was holding a frame the step should have used")
+        return
+    }
+    // The whole point: the frame was already in the renderer, so nothing was
+    // flushed and no sample had to be decoded again.
+    #expect(sink.flushCount == flushesBeforeStep)
+    #expect(sink.immediateEnqueueCount >= enqueuedBeforeStep)
+    #expect(landing.seconds > timeBeforeStep)
+    #expect(session.synchronizer.rate == 0)
+    #expect(abs(session.currentTime().seconds - landing.seconds) < 0.001)
 }
 
 @Test func videoDeliveryGatesBeforeEnqueueingImmediately() async throws {

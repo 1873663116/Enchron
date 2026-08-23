@@ -759,6 +759,36 @@ public final class PlaybackCoreController {
         try await seek(to: target, after: behavior)
     }
 
+    /// Move one frame and stay paused there.
+    ///
+    /// Stepping forward lands on a frame the renderer is still holding, so it is
+    /// a timeline move and costs nothing beyond it. Stepping backward, or
+    /// stepping forward when nothing is queued past the timeline, falls back to
+    /// the seek that rebuilds the delivery chain.
+    /// Returns where the timeline landed, which the queue knows exactly and a
+    /// nominal frame rate only approximates.
+    @discardableResult
+    public func stepFrame(_ direction: PlaybackFrameStepDirection) async throws -> CMTime {
+        guard let session = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        try rejectIfSeekIsInProgress()
+        if direction == .forward,
+           case .advanced(let landing) = session.stepForwardOneFrame() {
+            return landing
+        }
+        let rate = session.diagnostics.nominalFrameRate
+        let frameSeconds = rate > 0 ? 1 / rate : 1.0 / 30
+        let base = latestRequestedSeekTime ?? session.currentTime()
+        let target = CMTime(
+            seconds: base.seconds
+                + (direction == .forward ? frameSeconds : -frameSeconds),
+            preferredTimescale: 60_000
+        )
+        try await seek(to: target, after: .pause)
+        return target
+    }
+
     /// Preserves source compatibility while callers migrate from the nullable pause flag.
     @available(*, deprecated, message: "Use seek(to:after:) with PlaybackAfterSeekBehavior.")
     public func seek(to time: CMTime, startsPaused: Bool?) async throws {

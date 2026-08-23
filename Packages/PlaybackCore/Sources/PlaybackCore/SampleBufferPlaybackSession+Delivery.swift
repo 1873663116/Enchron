@@ -1188,6 +1188,36 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    /// Move the timeline onto the next frame the renderer is already holding.
+    /// The queue knows when that frame becomes current, so nothing here consults
+    /// a nominal frame rate and a variable-rate stream steps exactly.
+    func stepForwardOneFrame() -> PlaybackFrameStepOutcome {
+        guard !isClosed, !isResetting else { return .needsSeek }
+        // Opening paused leaves the session prerolling until something starts
+        // the timeline, which is exactly the state a step happens in. What the
+        // step actually needs is a decoder that has bootstrapped, because only
+        // then is a queued frame displayable.
+        guard decoderBootstrapLock.withLock({ decoderBootstrapComplete }) else {
+            return .needsSeek
+        }
+        let now = timelineClockReading().mediaTime
+        guard now.isNumeric else { return .needsSeek }
+        let next = videoFramesInFlightLock.withLock {
+            videoFramesInFlight.nextRetirement(after: now.seconds)
+        }
+        guard let next, next.isFinite, next > now.seconds else { return .needsSeek }
+        let target = CMTime(seconds: next, preferredTimescale: 60_000)
+        timelineStartRate = 0
+        // Asking to sit on a chosen frame supersedes preroll's pending
+        // activation, which would otherwise re-anchor the timeline underneath it.
+        isPrerolling = false
+        clearPrerollRequirement()
+        setTimelineStopped(at: target, reason: .frameStep)
+        recordTimelineControlState()
+        publishDiagnostics(at: target, force: true)
+        return .advanced(to: target)
+    }
+
     func discardVideoFramesInFlight() {
         videoFramesInFlightLock.withLock { videoFramesInFlight.removeAll() }
     }

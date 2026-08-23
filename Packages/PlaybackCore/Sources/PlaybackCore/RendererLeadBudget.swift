@@ -93,6 +93,14 @@ struct RendererFramesInFlight {
         presentationEnds.min()
     }
 
+    /// When the timeline next retires a frame, which is also the moment the
+    /// frame behind it becomes the displayed one. Reading it from the queue
+    /// rather than from a nominal frame rate keeps a variable-rate stream exact.
+    mutating func nextRetirement(after timelineSeconds: Double) -> Double? {
+        presentationEnds.removeAll { $0 <= timelineSeconds }
+        return presentationEnds.min()
+    }
+
     mutating func removeAll() {
         presentationEnds.removeAll()
     }
