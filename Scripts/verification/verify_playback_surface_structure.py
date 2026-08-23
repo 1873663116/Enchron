@@ -26,6 +26,24 @@ def region(source: str, start_marker: str, end_marker: str) -> str:
     return source[start:end]
 
 
+def without_debug_blocks(source: str) -> str:
+    lines: list[str] = []
+    debug_depth = 0
+    for line in source.splitlines(keepends=True):
+        directive = line.strip()
+        if directive == "#if DEBUG":
+            debug_depth = 1
+            continue
+        if debug_depth:
+            if directive.startswith("#if "):
+                debug_depth += 1
+            elif directive == "#endif":
+                debug_depth -= 1
+            continue
+        lines.append(line)
+    return "".join(lines)
+
+
 VIOLATIONS: list[str] = []
 
 
@@ -131,6 +149,9 @@ def main() -> int:
     )
     reality_presenter = read(
         "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift"
+    )
+    playback_reality_adapter = read(
+        "Modules/PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapter.swift"
     )
     spatial_handoff = read("Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift")
     docked_placement = read("Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift")
@@ -463,19 +484,71 @@ def main() -> int:
         "already-closed collapse can wait for source fade or issue immersive scene actions",
     )
     require(
-        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in main_view
-        and ".allowsHitTesting(controlsAcceptInput)" in spatial_controls
-        and ".accessibilityHidden(controlsAcceptInput == false)" in spatial_controls
-        and "WorldTrackingProvider" in immersive_controls_attachment
-        and "queryDeviceAnchor(" in immersive_controls_attachment
-        and "OpacityComponent(" in immersive_controls_attachment
-        and "attachmentEntity.isEnabled = visible" in immersive_controls_attachment
-        and 'id: "playerControls"' not in platform_executor,
-        "the attached controls retain a legacy Window Scene operation",
+        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in main_view,
+        "MainView does not derive attached-controls visibility from the attachment policy",
+    )
+    require(
+        ".allowsHitTesting(controlsAcceptInput)" in spatial_controls,
+        "attached controls do not disable hit testing while inactive",
+    )
+    require(
+        ".accessibilityHidden(controlsAcceptInput == false)" in spatial_controls,
+        "attached controls remain accessibility-visible while inactive",
+    )
+    require(
+        "WorldTrackingProvider" in immersive_controls_attachment,
+        "attached controls do not use world tracking for placement",
+    )
+    require(
+        "queryDeviceAnchor(" in immersive_controls_attachment,
+        "attached controls do not query the device anchor for placement",
+    )
+    require(
+        "OpacityComponent(" in immersive_controls_attachment,
+        "attached controls do not retain explicit RealityKit opacity",
+    )
+    require(
+        "private func setEnabled(" in immersive_controls_attachment
+        and "entity.isEnabled = value" in immersive_controls_attachment,
+        "attached controls do not route RealityKit enablement through the instrumented writer",
+    )
+    require(
+        'id: "playerControls"' not in platform_executor,
+        "the platform executor retains the legacy playerControls Window Scene operation",
+    )
+    apply_locked_controls_transform = region(
+        immersive_controls_attachment,
+        "private func applyLockedTransform(",
+        "private func hideAttachment(",
+    )
+    require(
+        order(
+            apply_locked_controls_transform,
+            "entity.transform = transform",
+            "OpacityComponent(opacity: 1)",
+            "setEnabled(",
+            "true,",
+        )
+        and 'writer: "ImmersivePlaybackControlsAttachmentController.applyLockedTransform"'
+        in apply_locked_controls_transform,
+        "immersive controls can become enabled before their locked transform applies",
+    )
+    pending_controls_placement = region(
+        immersive_controls_attachment,
+        "private func placeForPendingVisibilityRiseIfPossible()",
+        "private func applyLockedTransform(",
+    )
+    require(
+        "immersiveControlsAttachment placementRequested" in immersive_controls_attachment
+        and "immersiveControlsAttachment placementApplied revision="
+        in pending_controls_placement
+        and "reason=worldLocked" in pending_controls_placement,
+        "immersive controls placement has no observable requested/applied/world-locked sequence",
     )
     require(
         "PortalPlaybackViewportRefreshPolicy.requiresRefresh(" in platform_executor
-        and "mainWindowPlaybackSurfaceRefreshRevision &+= 1" in platform_executor
+        and "portalPlaybackViewportRefreshState.request()" in platform_executor
+        and "requestedRevision &+= 1" in execution_lease
         and "let viewportRefreshRevision = viewportRefreshRevision" in surface
         and "validVisionLayoutViewportRefreshRevision = viewportRefreshRevision" in surface
         and "recordMainWindowPlaybackSurfaceRefreshApplied" in main_view
@@ -487,6 +560,86 @@ def main() -> int:
         and "queuedOperation = operation" in reality_presenter
         and "case .startLatest:" in reality_presenter,
         "RealityView updates can still discard the Portal refresh while one is pending",
+    )
+    reality_view_id = region(
+        immersive,
+        "private func realityViewID(for presentation:",
+        "private func detachSpatialSurface()",
+    )
+    require(
+        "return realityViewHostIdentity.description" in reality_view_id
+        and "ObjectIdentifier(videoEntity)" not in reality_view_id,
+        "immersive RealityView identity is derived from the shared video Entity",
+    )
+    topology_write_gate = region(
+        immersive,
+        "let entity = videoEntity",
+        'let desiredName = "EnchronVideo.',
+    )
+    require(
+        "PlaybackRealityViewTopologyWritePolicy.decision(" in topology_write_gate
+        and "presentation != .docked" not in topology_write_gate,
+        "Docked bypasses live-host topology ownership",
+    )
+    docked_interaction_surface = region(
+        reality_presenter,
+        "enum PlaybackDockedInteractionSurface",
+        "enum PlaybackPanoramaInteractionSurface",
+    )
+    require(
+        "entity.look(at: viewerReference, from: position, relativeTo: nil)"
+        in playback_reality_adapter
+        and "entity.position = [0, 0, -frontOffset]"
+        in docked_interaction_surface,
+        "the Docked interaction collider is behind its -Z-facing video plane",
+    )
+    production_immersive = without_debug_blocks(immersive)
+    require(
+        "headInputProbe" not in production_immersive
+        and "EnchronHeadInput.probe" not in production_immersive,
+        "the diagnostic head-locked input plane ships in production",
+    )
+    require(
+        'ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"'
+        in immersive
+        and 'ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"'
+        in immersive,
+        "immersive diagnostic colliders are not opt-in",
+    )
+    spatial_tap_gesture = region(
+        immersive,
+        "private var spatialSurfaceTapGesture:",
+        "private func toggleControlsFromSpatialSurface(",
+    )
+    require(
+        "PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(" in spatial_tap_gesture
+        and "requestedPresentation != .docked" not in spatial_tap_gesture,
+        "Panorama accepts spatial taps from entities outside its interaction shell",
+    )
+    spatial_input_ownership = region(
+        reality_presenter,
+        "enum PlaybackSurfaceInputOwnership",
+        "enum PlaybackDockedInteractionSurface",
+    )
+    require(
+        "case .dockedInteractionSurface:" in spatial_input_ownership
+        and "PlaybackDockedInteractionSurface.contains(entity)"
+        in spatial_input_ownership
+        and "case .panoramaInteractionSurface:" in spatial_input_ownership
+        and "PlaybackPanoramaInteractionSurface.contains(entity)"
+        in spatial_input_ownership,
+        "immersive spatial tap ownership is not symmetric by presentation",
+    )
+    docked_contains = region(
+        docked_interaction_surface,
+        "static func contains(_ entity: Entity)",
+        "\n    }\n}",
+    )
+    require(
+        "entity.name == entityName" in docked_contains
+        and "anchorFrontProbeName" not in docked_contains
+        and "childFrontProbeName" not in docked_contains,
+        "Docked diagnostic probes can trigger production controls",
     )
     require(
         ".environmentCardAppeared" in app_scene
@@ -933,20 +1086,49 @@ def main() -> int:
         REPOSITORY_ROOT / "Apps/Enchron",
         REPOSITORY_ROOT / "Modules/PlaybackPresentation",
     )
+    debug_blackout_probe_platform_api_lines = {
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "@Environment(\\.openWindow)",
+            "@Environment(\\.openWindow) private var openWindow",
+        ),
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "@Environment(\\.dismissWindow)",
+            "@Environment(\\.dismissWindow) private var dismissWindow",
+        ),
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "openWindow(id:",
+            'openWindow(id: "blackoutProbe")',
+        ),
+        (
+            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "dismissWindow(id:",
+            'dismissWindow(id: "blackoutProbe")',
+        ),
+    }
     for root in platform_roots:
         for source_path in root.rglob("*.swift"):
             if source_path == platform_executor_path:
                 continue
-            source = source_path.read_text()
-            for token in platform_api_tokens:
-                require(
-                    token not in source,
-                    f"{source_path.relative_to(REPOSITORY_ROOT)} bypasses the platform executor",
-                )
+            relative_path = str(source_path.relative_to(REPOSITORY_ROOT))
+            for line in source_path.read_text().splitlines():
+                stripped_line = line.strip()
+                for token in platform_api_tokens:
+                    if token not in line:
+                        continue
+                    require(
+                        (relative_path, token, stripped_line)
+                        in debug_blackout_probe_platform_api_lines,
+                        f"{relative_path} bypasses the platform executor: {stripped_line}",
+                    )
     require("public func stopPlaybackAndWait() async" in launch, "launch coordinator lacks cleanup barrier")
     require("public func stopAndWait(" in runtime, "runtime lacks cleanup barrier")
     require(
-        "videoEntity.components.remove(VideoPlayerComponent.self)" in immersive,
+        "releasePlaybackComponentForRealityViewTransfer()" in immersive
+        and "func releasePlaybackComponentForRealityViewTransfer()" in reality_presenter
+        and "entity.components.remove(VideoPlayerComponent.self)" in reality_presenter,
         "immersive teardown leaves the video component attached",
     )
     require("presentationObservation.cancel()" in immersive, "immersive teardown leaves observation active")

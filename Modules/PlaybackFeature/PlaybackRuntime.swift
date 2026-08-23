@@ -135,6 +135,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var audioSpectrumFrame: AudioSpectrumFrame = .silent
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
+    public var attachedRealityViewID: String? { attachment?.realityViewID }
     /// The first RealityView presentation that received the active technical
     /// playback instance. This resets whenever that instance is replaced.
     public private(set) var firstAttachedPresentationForActiveTechnicalSession:

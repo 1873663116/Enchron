@@ -7,6 +7,43 @@ import PlaybackPresentation
 import RealityKit
 import SwiftUI
 
+/// Stable identity for one RealityView host, independent of the shared Entity
+/// that the host may carry.
+struct PlaybackRealityViewHostIdentity: Equatable, Sendable, CustomStringConvertible {
+    private let id: UUID
+
+    init(id: UUID = UUID()) {
+        self.id = id
+    }
+
+    var description: String {
+        "EnchronRealityView.spatial#\(id.uuidString)"
+    }
+}
+
+enum PlaybackRealityViewTopologyWriteDecision: Equatable {
+    case allowed
+    case inactiveHost
+    case entityOwnedByAnotherActiveHost
+}
+
+/// A shared playback Entity can move only from an inactive chain into the
+/// active RealityView that is executing the update. `Entity.isActive` covers
+/// its complete ancestor chain, so no lifecycle callback is required.
+enum PlaybackRealityViewTopologyWritePolicy {
+    static func decision(
+        currentHostIsActive: Bool,
+        entityIsActive: Bool,
+        entityIsInCurrentHost: Bool
+    ) -> PlaybackRealityViewTopologyWriteDecision {
+        guard currentHostIsActive else { return .inactiveHost }
+        guard entityIsInCurrentHost || entityIsActive == false else {
+            return .entityOwnedByAnotherActiveHost
+        }
+        return .allowed
+    }
+}
+
 /// Identifies the accepted renderer input to which RealityKit's cached content
 /// classification belongs. Format semantics are deliberately absent: Runtime
 /// publishes the accepted revision before it publishes the matching semantic
@@ -313,11 +350,29 @@ enum PlaybackSurfaceInputOwnership {
             false
         }
     }
+
+    static func acceptsSpatialTapTarget(
+        _ entity: Entity,
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        switch owner(for: presentation) {
+        case .windowSwiftUIRoot:
+            false
+        case .dockedInteractionSurface:
+            PlaybackDockedInteractionSurface.contains(entity)
+        case .panoramaInteractionSurface:
+            PlaybackPanoramaInteractionSurface.contains(entity)
+        }
+    }
 }
 
 @MainActor
 enum PlaybackDockedInteractionSurface {
     static let entityName = "EnchronDockedInput.surface"
+#if DEBUG
+    static let anchorFrontProbeName = "EnchronDockedInput.probeFront"
+    static let childFrontProbeName = "EnchronDockedInput.probeChildFront"
+#endif
     static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
     static let thickness: Float = 0.01
     static let frontOffset: Float = 0.01
@@ -347,7 +402,10 @@ enum PlaybackDockedInteractionSurface {
             ? screenSize
             : fallbackScreenSize
         entity.name = entityName
-        entity.position = [0, 0, frontOffset]
+        // PlaybackSurfaceRealityKitAdapter.dock uses look(at:from:relativeTo:),
+        // whose default forward direction is local -Z. The child collider is in
+        // front of the video only when its positive offset magnitude moves -Z.
+        entity.position = [0, 0, -frontOffset]
         entity.orientation = .init()
         entity.scale = .one
         entity.components.set(InputTargetComponent())

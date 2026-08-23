@@ -654,6 +654,12 @@ public struct ImmersiveSpaceView: View {
     // transparent SwiftUI attachment was never hit by real gaze (8/8 wearer
     // pinches arrived untargeted, 2026-08-10), so the shell is the receiver.
     private static let collisionShellInputShelved = false
+#if DEBUG
+    private static let headInputProbeIsEnabled =
+        ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"
+    private static let dockedHitTestProbesAreEnabled =
+        ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"
+#endif
 
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -661,6 +667,12 @@ public struct ImmersiveSpaceView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
+    @State private var realityViewHostIdentity = PlaybackRealityViewHostIdentity()
+    @State private var realityViewHostMarker: Entity = {
+        let entity = Entity()
+        entity.name = "EnchronRealityView.host"
+        return entity
+    }()
     @State private var world = WorldSceneState()
     @State private var subtitleSurface = PlaybackSubtitleSurface()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
@@ -676,6 +688,10 @@ public struct ImmersiveSpaceView: View {
     @State private var targetRevealState = PortalToPanoramaTargetRevealState()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
+#if DEBUG
+    @State private var dockedAnchorFrontProbe = Entity()
+    @State private var dockedChildFrontProbe = Entity()
+#endif
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
 
     private var videoEntity: Entity {
@@ -693,9 +709,9 @@ public struct ImmersiveSpaceView: View {
         playbackVideoEntityStore.dockedInteractionSurface
     }
 
-    /// Diagnostic collider locked to the wearer's head, two meters straight
-    /// ahead. It is reachable from any gaze direction and any room position,
-    /// so a miss here rules geometry out of the spatial input question.
+#if DEBUG
+    /// Opt-in diagnostic collider locked to the wearer's head. Ordinary Debug
+    /// runs leave it absent so it cannot mask the panorama interaction shell.
     @State private var headInputProbe: Entity = {
         let anchor = AnchorEntity(.head, trackingMode: .continuous)
         let panel = Entity()
@@ -708,6 +724,7 @@ public struct ImmersiveSpaceView: View {
         anchor.addChild(panel)
         return anchor
     }()
+#endif
 
     private var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope? {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
@@ -741,9 +758,11 @@ public struct ImmersiveSpaceView: View {
 
     public var body: some View {
         RealityView { content, attachments in
+            installRealityViewHostMarker(into: content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
         } update: { content, attachments in
+            installRealityViewHostMarker(into: content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
         } attachments: {
@@ -815,6 +834,16 @@ public struct ImmersiveSpaceView: View {
             appModel.recordSurfaceInputProbe("blackoutProbeWindow visible=\(visible)")
         }
 #endif
+    }
+
+    private func installRealityViewHostMarker(
+        into content: RealityViewContent
+    ) {
+        guard content.entities.contains(where: { $0 === realityViewHostMarker })
+                == false else {
+            return
+        }
+        content.add(realityViewHostMarker)
     }
 
     private func installControlsAttachment(
@@ -924,8 +953,10 @@ public struct ImmersiveSpaceView: View {
                     )
                     return
                 }
-                guard requestedPresentation != .docked
-                        || PlaybackDockedInteractionSurface.contains(value.entity) else {
+                guard PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                    value.entity,
+                    for: requestedPresentation
+                ) else {
                     appModel.recordSurfaceInputProbe(
                         "spatialTap entity=\(value.entity.name) accepted=false controls=false"
                     )
@@ -962,6 +993,13 @@ public struct ImmersiveSpaceView: View {
         )
         updateWorld(in: content)
         let presentation = requestedPresentation
+        if presentation.usesImmersiveSpace,
+           realityViewHostMarker.isActive == false {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "inactiveRealityViewHost"
+            )
+            return
+        }
         if presentation == .panorama {
             PlaybackPanoramaInteractionSurface.configure(
                 panoramaInteractionSurface,
@@ -1029,20 +1067,28 @@ public struct ImmersiveSpaceView: View {
                     )
                 }
             }
-            if content.entities.contains(where: { $0 === headInputProbe }) == false {
+#if DEBUG
+            if Self.headInputProbeIsEnabled,
+               content.entities.contains(where: { $0 === headInputProbe }) == false {
                 content.add(headInputProbe)
                 appModel.recordSurfaceInputProbe(
                     "headProbeAttached active=\(headInputProbe.isActive)"
                 )
+            } else if Self.headInputProbeIsEnabled == false,
+                      content.entities.contains(where: { $0 === headInputProbe }) {
+                content.remove(headInputProbe)
             }
+#endif
         } else {
             if content.entities.contains(where: { $0 === panoramaInteractionSurface }) {
                 content.remove(panoramaInteractionSurface)
                 appModel.recordSurfaceInputProbe("shellDetached")
             }
+#if DEBUG
             if content.entities.contains(where: { $0 === headInputProbe }) {
                 content.remove(headInputProbe)
             }
+#endif
         }
     }
 
@@ -1126,6 +1172,28 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: videoComponentRevision
         )
         let entity = videoEntity
+        let entityIsInCurrentHost = content.entities.contains { $0 === entity }
+        let topologyWriteDecision = PlaybackRealityViewTopologyWritePolicy.decision(
+            currentHostIsActive: realityViewHostMarker.isActive,
+            entityIsActive: entity.isActive,
+            entityIsInCurrentHost: entityIsInCurrentHost
+        )
+        guard topologyWriteDecision == .allowed else {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "topologyWriteDenied"
+            )
+            appModel.recordSurfaceInputProbe(
+                "spatialVideoTopology skipped"
+                    + " reason=\(topologyWriteDecision)"
+                    + " host=\(realityViewHostIdentity)"
+                    + " hostActive=\(realityViewHostMarker.isActive)"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " entityActive=\(entity.isActive)"
+                    + " entityInCurrentHost=\(entityIsInCurrentHost)"
+                    + " attachedHost=\(playbackRuntime.attachedRealityViewID ?? "none")"
+            )
+            return
+        }
         let desiredName = "EnchronVideo.\(presentation)"
         if entity.name != desiredName {
             entity.name = desiredName
@@ -1197,7 +1265,7 @@ public struct ImmersiveSpaceView: View {
             contentTypeSessionID: realityKitContentTypeScope?.technicalSessionID,
             onChange: { change in
                 if change == .videoSize {
-                    updateDockedInteractionSurface(on: entity)
+                    updateDockedInteractionSurface(on: entity, in: content)
                 }
                 recordSpatialPresentationState()
             },
@@ -1249,14 +1317,25 @@ public struct ImmersiveSpaceView: View {
             )
             if topologyWrites.isEmpty == false {
                 let component = entity.components[VideoPlayerComponent.self]
+                let topologyWriteID = UUID()
                 appModel.recordSurfaceInputProbe(
                     "spatialVideoTopology reconciled"
+                        + " writeID=\(topologyWriteID.uuidString)"
                         + " presentation=\(presentation.rawValue)"
+                        + " host=\(realityViewHostIdentity)"
+                        + " hostActive=\(realityViewHostMarker.isActive)"
                         + " entity=\(ObjectIdentifier(entity))"
+                        + " entityActiveAfterWrite=\(entity.isActive)"
                         + " componentBound=\(component?.videoRenderer === renderer)"
                         + " componentRevision=\(videoComponentRevision)"
                         + " technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")"
-                        + " writes=\(topologyWrites.joined(separator: ","))"
+                        + " writes=\(topologyWrites.joined(separator: ","))",
+                    retention: .evidence
+                )
+                verifyActiveAncestorChain(
+                    after: topologyWriteID,
+                    for: entity,
+                    host: realityViewHostIdentity
                 )
             }
         }
@@ -1267,9 +1346,12 @@ public struct ImmersiveSpaceView: View {
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
         )
         if presentation == .docked {
-            updateDockedInteractionSurface(on: entity)
+            updateDockedInteractionSurface(on: entity, in: content)
         } else {
             dockedInteractionSurface.removeFromParent()
+#if DEBUG
+            removeDockedHitTestProbes()
+#endif
         }
         recordDisplayLinkProbe(
             event: "componentConfigured",
@@ -1888,7 +1970,10 @@ public struct ImmersiveSpaceView: View {
         displayLinkProbe.reset()
         appModel.clearSpatialPlaybackSurfaceObservation()
         panoramaInteractionSurface.removeFromParent()
+#if DEBUG
         headInputProbe.removeFromParent()
+        removeDockedHitTestProbes()
+#endif
         guard let presentation, presentation.usesImmersiveSpace else { return }
         videoEntity.removeFromParent()
         let preservesPlaybackComponent = playbackRuntime.activeSessionID != nil
@@ -1940,6 +2025,39 @@ public struct ImmersiveSpaceView: View {
             entityID: entityID(for: sourcePresentation),
             realityViewID: realityViewID(for: sourcePresentation)
         )
+    }
+
+    private func verifyActiveAncestorChain(
+        after topologyWriteID: UUID,
+        for entity: Entity,
+        host: PlaybackRealityViewHostIdentity
+    ) {
+        Task { @MainActor in
+            for _ in 0..<PlaybackSurfaceActivation.maximumRetryCountForView {
+                if entity.isActive {
+                    appModel.recordSurfaceInputProbe(
+                        "spatialVideoTopology ownershipVerified"
+                            + " writeID=\(topologyWriteID.uuidString)"
+                            + " host=\(host)"
+                            + " entity=\(ObjectIdentifier(entity))"
+                            + " ancestorChainActive=true",
+                        retention: .evidence
+                    )
+                    return
+                }
+                try? await Task.sleep(
+                    for: PlaybackSurfaceActivation.retryIntervalForView
+                )
+            }
+            appModel.recordSurfaceInputProbe(
+                "spatialVideoTopology ownershipVerified"
+                    + " writeID=\(topologyWriteID.uuidString)"
+                    + " host=\(host)"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " ancestorChainActive=false",
+                retention: .evidence
+            )
+        }
     }
 
     private func recordDisplayLinkProbe(
@@ -2114,7 +2232,7 @@ public struct ImmersiveSpaceView: View {
 
     private func realityViewID(for presentation: PlaybackPresentation) -> String {
         _ = presentation
-        return "EnchronRealityView.spatial#\(ObjectIdentifier(videoEntity))"
+        return realityViewHostIdentity.description
     }
 
     private func detachSpatialSurface() {
@@ -2138,10 +2256,33 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
-    private func updateDockedInteractionSurface(on entity: Entity) {
-        guard requestedPresentation == .docked,
-              videoEntity === entity,
-              let component = entity.components[VideoPlayerComponent.self] else {
+    private func updateDockedInteractionSurface(
+        on entity: Entity,
+        in content: RealityViewContent
+    ) {
+        guard requestedPresentation == .docked else {
+            recordDockedInteractionSurfaceAssemblyProbe(
+                "skipped reason=presentationNotDocked"
+                    + " requestedPresentation=\(requestedPresentation.rawValue)"
+                    + " candidate=\(ObjectIdentifier(entity))"
+            )
+            return
+        }
+        guard videoEntity === entity else {
+            recordDockedInteractionSurfaceAssemblyProbe(
+                "skipped reason=videoEntityMismatch"
+                    + " candidate=\(ObjectIdentifier(entity))"
+                    + " expected=\(ObjectIdentifier(videoEntity))"
+            )
+            return
+        }
+        guard let component = entity.components[VideoPlayerComponent.self] else {
+            recordDockedInteractionSurfaceAssemblyProbe(
+                "skipped reason=videoPlayerComponentMissing"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " active=\(entity.isActive)"
+                    + " parent=\(entity.parent?.name ?? "none")"
+            )
             return
         }
         PlaybackDockedInteractionSurface.install(
@@ -2149,6 +2290,147 @@ public struct ImmersiveSpaceView: View {
             on: entity,
             screenSize: component.playerScreenSize
         )
+#if DEBUG
+        if Self.dockedHitTestProbesAreEnabled {
+            installDockedHitTestProbes(
+                beside: entity,
+                screenSize: component.playerScreenSize
+            )
+        } else {
+            removeDockedHitTestProbes()
+        }
+#endif
+        let collisionExtents = dockedInteractionSurface
+            .components[CollisionComponent.self]?
+            .shapes.first?
+            .bounds.extents
+        recordDockedInteractionSurfaceAssemblyProbe(
+            "installed"
+                + " name=\(dockedInteractionSurface.name)"
+                + " entity=\(ObjectIdentifier(dockedInteractionSurface))"
+                + " parent=\(dockedInteractionSurface.parent?.name ?? "none")"
+                + " parentMatchesVideo=\(dockedInteractionSurface.parent === entity)"
+                + " screenSize=\(component.playerScreenSize)"
+                + " collisionExtents=\(collisionExtents.map(String.init(describing:)) ?? "none")"
+                + " localPosition=\(dockedInteractionSurface.position)"
+                + " worldPosition=\(dockedInteractionSurface.position(relativeTo: nil))"
+                + " worldScale=\(dockedInteractionSurface.scale(relativeTo: nil))"
+                + " active=\(dockedInteractionSurface.isActive)"
+                + " inputTarget=\(dockedInteractionSurface.components[InputTargetComponent.self] != nil)"
+        )
+        recordDockedInputTargetSceneProbe(in: content)
+    }
+
+#if DEBUG
+    private func installDockedHitTestProbes(
+        beside entity: Entity,
+        screenSize: SIMD2<Float>
+    ) {
+        guard let anchor = entity.parent else { return }
+
+        PlaybackDockedInteractionSurface.install(
+            dockedChildFrontProbe,
+            on: entity,
+            screenSize: screenSize
+        )
+        dockedChildFrontProbe.name =
+            PlaybackDockedInteractionSurface.childFrontProbeName
+        // The docked video faces the viewer along local -Z. This probe is the
+        // nearest collider so one targeted tap distinguishes child hit testing
+        // from the sibling fallback behind it.
+        dockedChildFrontProbe.position = [0, 0, -0.10]
+
+        PlaybackDockedInteractionSurface.configure(
+            dockedAnchorFrontProbe,
+            screenSize: screenSize
+        )
+        dockedAnchorFrontProbe.name =
+            PlaybackDockedInteractionSurface.anchorFrontProbeName
+        dockedAnchorFrontProbe.orientation = entity.orientation
+        dockedAnchorFrontProbe.scale = entity.scale
+        dockedAnchorFrontProbe.position = entity.position
+            + entity.orientation.act([0, 0, -0.05])
+        if dockedAnchorFrontProbe.parent !== anchor {
+            anchor.addChild(dockedAnchorFrontProbe)
+        }
+
+        let hierarchy =
+            "child=\(dockedChildFrontProbe.name)"
+                + " childWorldPosition=\(dockedChildFrontProbe.position(relativeTo: nil))"
+                + " childActive=\(dockedChildFrontProbe.isActive)"
+                + " sibling=\(dockedAnchorFrontProbe.name)"
+                + " siblingWorldPosition=\(dockedAnchorFrontProbe.position(relativeTo: nil))"
+                + " siblingActive=\(dockedAnchorFrontProbe.isActive)"
+        guard presentationObservation.shouldLogSurfaceReadiness(
+            reason: "dockedHitTestProbeHierarchy",
+            signature: hierarchy
+        ) else { return }
+        appModel.recordSurfaceInputProbe(
+            "dockedHitTestProbe hierarchy \(hierarchy)"
+        )
+    }
+
+    private func removeDockedHitTestProbes() {
+        dockedAnchorFrontProbe.removeFromParent()
+        dockedChildFrontProbe.removeFromParent()
+    }
+#endif
+
+    private func recordDockedInteractionSurfaceAssemblyProbe(_ state: String) {
+        guard presentationObservation.shouldLogSurfaceReadiness(
+            reason: "dockedInteractionSurfaceAssembly",
+            signature: state
+        ) else { return }
+        appModel.recordSurfaceInputProbe(
+            "dockedInputSurface assembly=\(state)"
+        )
+    }
+
+    private func recordDockedInputTargetSceneProbe(
+        in content: RealityViewContent
+    ) {
+        var entries: [String] = []
+        func visit(_ entity: Entity, path: String) {
+            let name = entity.name.isEmpty ? "unnamed" : entity.name
+            let nextPath = path + "/" + name
+            if entity.components[InputTargetComponent.self] != nil {
+                let collisionExtents = entity.components[CollisionComponent.self]?
+                    .shapes
+                    .map { String(describing: $0.bounds.extents) }
+                    .joined(separator: ",")
+                    ?? "none"
+                entries.append(
+                    "path=\(nextPath)"
+                        + " entity=\(ObjectIdentifier(entity))"
+                        + " active=\(entity.isActive)"
+                        + " enabled=\(entity.isEnabled)"
+                        + " worldPosition=\(entity.position(relativeTo: nil))"
+                        + " worldOrientation=\(entity.orientation(relativeTo: nil))"
+                        + " worldScale=\(entity.scale(relativeTo: nil))"
+                        + " collisionExtents=\(collisionExtents)"
+                )
+            }
+            for child in entity.children {
+                visit(child, path: nextPath)
+            }
+        }
+        for (index, root) in content.entities.enumerated() {
+            visit(root, path: "root[\(index)]")
+        }
+        entries.sort()
+        let signature = entries.joined(separator: "|")
+        guard presentationObservation.shouldLogSurfaceReadiness(
+            reason: "dockedInputTargetScene",
+            signature: signature
+        ) else { return }
+        appModel.recordSurfaceInputProbe(
+            "dockedInputTargetScene count=\(entries.count)"
+        )
+        for entry in entries {
+            appModel.recordSurfaceInputProbe(
+                "dockedInputTarget entity \(entry)"
+            )
+        }
     }
 }
 
