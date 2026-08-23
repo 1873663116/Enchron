@@ -293,7 +293,6 @@ struct FusedPlayerPanel: View {
     @State private var isProgressHovered = false
     @State private var scrubberActivation: ScrubberActivation = .idle
     @State private var seekOrigin: CGPoint?
-    @State private var lastScrubberPress: (time: Date, location: CGPoint)?
     @State private var dragStartProgress: CGFloat = 0.45
     /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
     /// 避免"跳回旧位再闪到目标"。live 追上(或超时兜底)即释放。
@@ -313,7 +312,6 @@ struct FusedPlayerPanel: View {
     private enum ScrubberActivation: Equatable {
         case idle
         case seeking
-        case trackSeeking(target: CGFloat)
     }
 
     // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
@@ -1364,7 +1362,7 @@ struct FusedPlayerPanel: View {
     private var trackScale: CGFloat {
         if isDragging || isProgressHovered { return 1 }
         switch scrubberActivation {
-        case .seeking, .trackSeeking:
+        case .seeking:
             return 1
         case .idle:
             return DesignTokens.ProgressBar.inactiveScale
@@ -1399,8 +1397,6 @@ struct FusedPlayerPanel: View {
         overlayWidth: CGFloat
     ) -> some View {
         return ZStack(alignment: .leading) {
-            progressInteractionRegion(width: overlayWidth)
-
             progressHub(
                 width: width,
                 progress: clampedProgress,
@@ -1427,19 +1423,47 @@ struct FusedPlayerPanel: View {
                     x: thumbX,
                     y: DesignTokens.ProgressBar.hitHeight / 2
                 )
+
+            progressInteractionRegion(
+                width: overlayWidth,
+                travelWidth: width,
+                thumbX: thumbX
+            )
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
         .enchronHoverContentShape(Capsule())
         .enchronHoverActivation(in: hoverActivationGroup)
         .contentShape(.interaction, Capsule())
         .onHover { isProgressHovered = $0 }
-        .gesture(dragGesture(width: width, thumbX: thumbX))
     }
 
-    private func progressInteractionRegion(width: CGFloat) -> some View {
-        Color.clear
+    private func progressInteractionRegion(
+        width: CGFloat,
+        travelWidth: CGFloat,
+        thumbX: CGFloat
+    ) -> some View {
+        Capsule()
+            // A rendered surface keeps this custom accessibility target in
+            // both the visionOS render tree and the synthetic-input hit-test tree.
+            .fill(DesignTokens.ProgressBar.interactionSurface)
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
             .contentShape(.interaction, Capsule())
+            .gesture(
+                ExclusiveGesture(
+                    SpatialTapGesture(count: 2),
+                    SpatialTapGesture()
+                ).onEnded { value in
+                    switch value {
+                    case .first:
+                        openTimeline()
+                    case .second(let tap):
+                        seekToTrack(at: tap.location.x, travelWidth: travelWidth)
+                    }
+                }
+            )
+            .simultaneousGesture(
+                dragGesture(width: travelWidth, thumbX: thumbX)
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityIdentifier("PlayerPanel-progress")
             .accessibilityLabel("Playback position")
@@ -1565,17 +1589,7 @@ struct FusedPlayerPanel: View {
             .onChanged { value in
                 switch scrubberActivation {
                 case .idle:
-                    guard isThumbHit(value.startLocation, thumbX: thumbX) else {
-                        lastScrubberPress = nil
-                        scrubberActivation = .trackSeeking(
-                            target: PlaybackSeekPresentation.target(
-                                at: value.startLocation.x,
-                                travelWidth: width,
-                                thumbDiameter: DesignTokens.ProgressBar.thumbDiameter
-                            )
-                        )
-                        return
-                    }
+                    guard isThumbHit(value.startLocation, thumbX: thumbX) else { return }
                     beginScrubbing(at: value.location)
                 case .seeking:
                     guard let seekOrigin else { return }
@@ -1583,46 +1597,37 @@ struct FusedPlayerPanel: View {
                         forTranslation: value.location.x - seekOrigin.x,
                         width: width
                     )
-                case .trackSeeking:
-                    return
                 }
             }
             .onEnded { value in
-                switch scrubberActivation {
-                case .seeking:
-                    let isShortPress = hypot(value.translation.width, value.translation.height) <= DesignTokens.ProgressBar.tapDragThreshold
-                    if isShortPress {
-                        completeShortScrubberPress(at: value.location, time: value.time)
-                        resetScrubberActivation()
-                    } else {
-                        lastScrubberPress = nil
-                        let target = PlaybackSeekPresentation.clampedTarget(progress)
-                        armPendingSeek(for: target)
-                        scrubReleaseTrigger += 1
-                        endScrubbing()
-                        live?.onSeek(target)
-                    }
-                case .trackSeeking(let target):
-                    progress = target
-                    armPendingSeek(for: target)
-                    live?.onSeek(target)
-                    onInteraction()
+                guard case .seeking = scrubberActivation else {
                     resetScrubberActivation()
-                case .idle:
-                    resetScrubberActivation()
+                    return
                 }
+                // The exclusive tap gesture owns a press without travel.
+                guard hypot(value.translation.width, value.translation.height)
+                        > DesignTokens.ProgressBar.tapDragThreshold else {
+                    resetScrubberActivation()
+                    return
+                }
+                let target = PlaybackSeekPresentation.clampedTarget(progress)
+                armPendingSeek(for: target)
+                scrubReleaseTrigger += 1
+                endScrubbing()
+                live?.onSeek(target)
             }
     }
 
-    private func completeShortScrubberPress(at location: CGPoint, time: Date) {
-        if let previous = lastScrubberPress,
-           time.timeIntervalSince(previous.time) <= DesignTokens.ProgressBar.doublePressInterval,
-           distance(from: previous.location, to: location) <= DesignTokens.ProgressBar.thumbGrabWidth / 2 {
-            lastScrubberPress = nil
-            openTimeline()
-        } else {
-            lastScrubberPress = (time, location)
-        }
+    private func seekToTrack(at locationX: CGFloat, travelWidth: CGFloat) {
+        let target = PlaybackSeekPresentation.target(
+            at: locationX,
+            travelWidth: travelWidth,
+            thumbDiameter: DesignTokens.ProgressBar.thumbDiameter
+        )
+        progress = target
+        armPendingSeek(for: target)
+        live?.onSeek(target)
+        onInteraction()
     }
 
     private func beginScrubbing(at location: CGPoint) {
@@ -1653,10 +1658,6 @@ struct FusedPlayerPanel: View {
             scrubberActivation = .idle
             isDragging = false
         }
-    }
-
-    private func distance(from start: CGPoint, to end: CGPoint) -> CGFloat {
-        hypot(end.x - start.x, end.y - start.y)
     }
 
     private func progressValue(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {

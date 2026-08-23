@@ -693,8 +693,9 @@ public enum DesignTokens {
         /// Distinct from grab radius (thumbGrabWidth) and the historical hold slop;
         /// kept small so any intentional drag exceeds it.
         public static let tapDragThreshold: CGFloat = 6
-        /// Maximum interval between two completed short presses on the scrubber.
-        public static let doublePressInterval: TimeInterval = 0.35
+        /// Nearly invisible paint that keeps custom scrubber hit targets in the
+        /// visionOS render and synthetic-input hit-test trees.
+        public static let interactionSurface: Color = .white.opacity(0.011)
         /// Watched-progress edge stroke height on grid cards — sits on the card's
         /// bottom edge like a thin stroke (hover-revealed), not a full track.
         public static let watchedEdgeHeight: CGFloat = 3
