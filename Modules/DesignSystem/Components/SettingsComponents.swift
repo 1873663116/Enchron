@@ -4,81 +4,60 @@ import SwiftUI
 
 // MARK: - Reusable controls
 
-public enum PlaybackEdgePosition {
-    case top
-    case bottom
-}
-
-/// A noninteractive backdrop treatment for controls placed directly over video.
-/// The effect is strongest at the window edge and feathers into the picture.
+/// A noninteractive top wash that lifts window chrome off the picture.
+/// Strongest under the buttons, easing out downward and toward the sides so
+/// the wash never paints the window's rounded corners.
 public struct PlaybackEdgeEmphasis: View {
-    private let position: PlaybackEdgePosition
-
-    public init(_ position: PlaybackEdgePosition) {
-        self.position = position
-    }
+    public init() {}
 
     public var body: some View {
         Rectangle()
-            .fill(.regularMaterial)
-            .overlay {
-                Rectangle()
-                    .fill(scrimGradient)
-            }
-            .mask(materialMask)
+            .fill(.black)
+            .mask(verticalFade)
+            .mask(horizontalFade)
+            .opacity(DesignTokens.PlaybackEdge.peakOpacity)
+            .blur(radius: DesignTokens.PlaybackEdge.blurRadius)
+            .padding(DesignTokens.PlaybackEdge.blurRadius)
             .frame(maxWidth: .infinity)
             .frame(height: DesignTokens.PlaybackEdge.depth)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 
-    private var materialMask: LinearGradient {
+    private var verticalFade: LinearGradient {
         LinearGradient(
             stops: [
+                .init(color: .white, location: 0),
                 .init(
-                    color: .black.opacity(DesignTokens.PlaybackEdge.maskEdgeOpacity),
-                    location: 0
-                ),
-                .init(
-                    color: .black.opacity(DesignTokens.PlaybackEdge.maskEdgeOpacity),
-                    location: DesignTokens.PlaybackEdge.maskPlateauEndLocation
-                ),
-                .init(
-                    color: .black.opacity(DesignTokens.PlaybackEdge.maskLowLevelOpacity),
-                    location: DesignTokens.PlaybackEdge.maskLowLevelLocation
-                ),
-                .init(
-                    color: .black.opacity(DesignTokens.PlaybackEdge.maskTailMiddleOpacity),
-                    location: DesignTokens.PlaybackEdge.maskTailMiddleLocation
-                ),
-                .init(
-                    color: .black.opacity(DesignTokens.PlaybackEdge.maskTailEndOpacity),
-                    location: DesignTokens.PlaybackEdge.maskTailEndLocation
+                    color: .white.opacity(
+                        DesignTokens.PlaybackEdge.midOpacity
+                            / max(DesignTokens.PlaybackEdge.peakOpacity, 0.001)
+                    ),
+                    location: DesignTokens.PlaybackEdge.midLocation
                 ),
                 .init(color: .clear, location: 1)
             ],
-            startPoint: edgeStartPoint,
-            endPoint: edgeEndPoint
+            startPoint: .top,
+            endPoint: .bottom
         )
     }
 
-    private var scrimGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                .black.opacity(DesignTokens.PlaybackEdge.edgeScrimOpacity),
-                .clear
-            ],
-            startPoint: edgeStartPoint,
-            endPoint: edgeEndPoint
-        )
-    }
-
-    private var edgeStartPoint: UnitPoint {
-        position == .top ? .top : .bottom
-    }
-
-    private var edgeEndPoint: UnitPoint {
-        position == .top ? .bottom : .top
+    private var horizontalFade: some View {
+        HStack(spacing: 0) {
+            LinearGradient(
+                colors: [.clear, .white],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: DesignTokens.PlaybackEdge.sideFadeWidth)
+            Color.white
+            LinearGradient(
+                colors: [.white, .clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: DesignTokens.PlaybackEdge.sideFadeWidth)
+        }
     }
 }
 
@@ -148,9 +127,6 @@ public struct GlassCircleIconLabel: View {
     var accessibilityIdentifier: String?
     var symbolContentTransition: ContentTransition = .identity
 
-    // 纯视觉:玻璃圆 + 注视高亮 + press,命中区恒等于视觉圆。命中区的静默扩展由
-    // 手势包装层(GlassCircleIconButton)负责——不在 label 内撑大 interaction 区,
-    // 否则外层 Button/Menu 会把 hover 套到扩展区,产生一圈多余的注视高亮。
     public init(
         systemName: String,
         accessibilityLabel: String,
@@ -627,7 +603,7 @@ public extension View {
 }
 
 public extension View {
-    /// The material-and-divider treatment used by inset list-group containers.
+    /// The material-and-edge treatment used by inset list-group containers.
     /// The generic form lets feature components reuse the exact same recessed
     /// surface without introducing a glass background.
     func enchronListGroupSurface<S: InsettableShape>(
@@ -639,7 +615,7 @@ public extension View {
             .clipShape(shape)
             .overlay {
                 shape.stroke(
-                    DesignTokens.Surface.divider,
+                    DesignTokens.Surface.chromeBorder,
                     lineWidth: DesignTokens.Stroke.subtle
                 )
             }

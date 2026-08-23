@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -313,8 +314,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step(
             "enter-docked-1",
             (
-                "PlayerUI-window-playback-surface",
-                "PlayerUI-TopAction-dock",
+                "summon:PlayerUI-TopAction-dock",
                 "PlayerUI-DockMenu-skybox",
             ),
             "docked",
@@ -327,8 +327,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step(
             "enter-docked-2",
             (
-                "PlayerUI-window-playback-surface",
-                "PlayerUI-TopAction-dock",
+                "summon:PlayerUI-TopAction-dock",
                 "PlayerUI-DockMenu-skybox",
             ),
             "docked",
@@ -477,33 +476,41 @@ def copy_probe_lines_once(
         "PATH": "/usr/bin:/bin",
     }
     try:
-        completed = subprocess.run(
-            [
-                "xcrun",
-                "devicectl",
-                "device",
-                "copy",
-                "from",
-                "--device",
-                CORE_DEVICE,
-                "--domain-type",
-                "appDataContainer",
-                "--domain-identifier",
-                BUNDLE,
-                "--source",
-                PROBE_REMOTE_PATH,
-                "--destination",
-                str(destination),
-            ],
-            capture_output=True,
-            text=True,
-            env=environment,
-            check=False,
-            # An app whose main thread is wedged also wedges the container
-            # copy, and an unbounded wait here hangs the whole sweep instead
-            # of recording the stall it is meant to observe.
-            timeout=PROBE_COPY_TIMEOUT_SECONDS,
-        )
+        if enchron_target.is_simulator(DEVICE):
+            completed = enchron_target.copy_from_container(
+                bundle_id=BUNDLE,
+                source=PROBE_REMOTE_PATH,
+                destination=destination,
+                developer_dir=DEVELOPER_DIR,
+            )
+        else:
+            completed = subprocess.run(
+                [
+                    "xcrun",
+                    "devicectl",
+                    "device",
+                    "copy",
+                    "from",
+                    "--device",
+                    CORE_DEVICE,
+                    "--domain-type",
+                    "appDataContainer",
+                    "--domain-identifier",
+                    BUNDLE,
+                    "--source",
+                    PROBE_REMOTE_PATH,
+                    "--destination",
+                    str(destination),
+                ],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+                # An app whose main thread is wedged also wedges the container
+                # copy, and an unbounded wait here hangs the whole sweep instead
+                # of recording the stall it is meant to observe.
+                timeout=PROBE_COPY_TIMEOUT_SECONDS,
+            )
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout).strip()
             return None, detail[-500:] or "Unable to copy the device probe."
@@ -1209,6 +1216,18 @@ def summon_and_tap(
 
 
 def push_to_inbox(media_path: Path) -> str | None:
+    if enchron_target.is_simulator(DEVICE):
+        container = enchron_target.simulator_container(DEVICE, BUNDLE)
+        if container is None:
+            return f"Unable to locate the simulator container for {BUNDLE}."
+        destination = container / "Documents/TestMediaInbox" / media_path.name
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(media_path, destination)
+        except OSError as error:
+            return str(error)
+        return None
+
     environment = {"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"}
     try:
         completed = subprocess.run(

@@ -47,6 +47,12 @@ private struct EnchronInsetHoverShape<Base: Shape>: Shape {
     }
 }
 
+private func enchronInsetsAreUniform(_ insets: EdgeInsets) -> Bool {
+    insets.top == insets.leading
+        && insets.leading == insets.bottom
+        && insets.bottom == insets.trailing
+}
+
 public extension View {
     @ViewBuilder
     func enchronGlassBackground<S: InsettableShape>(in shape: S) -> some View {
@@ -63,15 +69,26 @@ public extension View {
         contentShape(.hoverEffect, shape)
     }
 
+    /// Clip drawing and hover to the visual shape, then keep hit-testing on the
+    /// current bounds. `insets` is the silent margin between the visible control
+    /// and the expanded target; hover must not paint into that margin.
     @ViewBuilder
-    func enchronHoverContentShape<S: Shape>(
+    func enchronHoverContentShape<S: InsettableShape>(
         _ shape: S,
         insets: EdgeInsets
     ) -> some View {
-        contentShape(
-            .hoverEffect,
-            EnchronInsetHoverShape(base: shape, insets: insets)
-        )
+        let visual = EnchronInsetHoverShape(base: shape, insets: insets)
+        if enchronInsetsAreUniform(insets) {
+            self
+                .clipShape(shape.inset(by: insets.top))
+                .contentShape(.interaction, shape)
+                .contentShape(.hoverEffect, shape.inset(by: insets.top))
+        } else {
+            self
+                .clipShape(visual)
+                .contentShape(.interaction, shape)
+                .contentShape(.hoverEffect, visual)
+        }
     }
 
     @ViewBuilder

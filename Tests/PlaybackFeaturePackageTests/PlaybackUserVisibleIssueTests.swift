@@ -27,8 +27,8 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         title: "Unable to Play",
         message: "This item could not be prepared for playback.",
         messageStrategy: .fixedProductCopy,
-        actions: [.confirm],
-        locations: [.mediaLibrary]
+        actions: [.close],
+        locations: [.mainWindow, .mediaLibrary]
     ),
     .init(
         issue: .unsupportedVideoCodec(.vc1),
@@ -36,8 +36,8 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         title: "Unable to Play",
         message: "This video uses VC-1 video, which Enchron does not support.",
         messageStrategy: .unsupportedVideoCodecFact,
-        actions: [.confirm],
-        locations: [.mediaLibrary]
+        actions: [.close],
+        locations: [.mainWindow, .mediaLibrary]
     ),
     .init(
         issue: .sourceAccessUnavailable,

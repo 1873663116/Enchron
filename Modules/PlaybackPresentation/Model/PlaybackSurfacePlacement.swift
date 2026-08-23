@@ -14,6 +14,9 @@ public enum WindowPlaybackSurfaceGeometry {
     /// carries `ModelSortGroup.planarUIInline`, which orders it by z rather
     /// than by the view tree. Chrome drawn over the video therefore needs a
     /// forward step, or the mesh wins the tie and the chrome never appears.
+    /// Apply this only to views whose layout bounds sit inside the window's
+    /// rounded corners; a full-window offset leaves the 2D clip and shows as
+    /// a sharp rectangle around the glass.
     nonisolated public static let coincidentChromeDepth: CGFloat = .ulpOfOne
 
     nonisolated public static func realityViewDepth(

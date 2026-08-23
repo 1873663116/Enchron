@@ -112,13 +112,13 @@ final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    private enum MainWindowRestorationMethod {
+    private enum PlaybackWindowRestorationMethod {
         case dismissedResidentWindow
-        case openedMainWindow
+        case openedPlaybackWindow
     }
 
-    private struct MainWindowRestoration {
-        let method: MainWindowRestorationMethod
+    private struct PlaybackWindowRestoration {
+        let method: PlaybackWindowRestorationMethod
         let isReady: Bool
     }
 
@@ -163,9 +163,9 @@ final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var windowObservation = SpatialPlatformWindowObservation()
     @ObservationIgnored
-    private weak var mainWindowScene: UIWindowScene?
+    private weak var playbackWindowScene: UIWindowScene?
     @ObservationIgnored
-    private var mainWindowSceneSessionIdentifier: String?
+    private var playbackWindowSceneSessionIdentifier: String?
     @ObservationIgnored
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
@@ -230,6 +230,8 @@ final class SpatialPlatformEffectCoordinator {
             actions,
             id: id,
             makePreferred:
+                actions.windowIdentity == .playback
+                ||
                 actions.windowIdentity == .immersivePlaybackResident
         )
         if let invalidatedLease {
@@ -246,10 +248,14 @@ final class SpatialPlatformEffectCoordinator {
         if let windowIdentity {
             windowCapabilityIDs[windowIdentity] = nil
         }
-        let preferredFallbackID = windowIdentity
-            == .immersivePlaybackResident
-            ? windowCapabilityIDs[.main]
-            : nil
+        let preferredFallbackID: UUID? = switch windowIdentity {
+        case .immersivePlaybackResident:
+            windowCapabilityIDs[.playback] ?? windowCapabilityIDs[.main]
+        case .playback:
+            windowCapabilityIDs[.main]
+        case .main, nil:
+            nil
+        }
         if let invalidatedLease = leaseRegistry.unregister(
             id: id,
             preferredFallbackID: preferredFallbackID
@@ -271,6 +277,15 @@ final class SpatialPlatformEffectCoordinator {
 
     var mainWindowObservationRevision: UInt64 {
         windowObservation.revision(for: .main)
+    }
+
+    var playbackWindowObservedResidency: String {
+        windowObservation.residency(for: .playback).map(String.init(describing:))
+            ?? "unobserved"
+    }
+
+    var playbackWindowObservationRevision: UInt64 {
+        windowObservation.revision(for: .playback)
     }
 
     func recordImmersiveSpaceResidency(
@@ -358,10 +373,10 @@ final class SpatialPlatformEffectCoordinator {
         )
     }
 
-    func recordMainWindowScene(_ windowScene: UIWindowScene?) {
-        mainWindowScene = windowScene
+    func recordPlaybackWindowScene(_ windowScene: UIWindowScene?) {
+        playbackWindowScene = windowScene
         if let windowScene {
-            mainWindowSceneSessionIdentifier =
+            playbackWindowSceneSessionIdentifier =
                 windowScene.session.persistentIdentifier
         }
     }
@@ -572,7 +587,7 @@ final class SpatialPlatformEffectCoordinator {
             ) else { return }
             _ = await complete(execution, outcome: .succeeded)
         case .normalizeStoppedSpatialPlayback(let keepsEnvironmentOpen):
-            guard (await restoreMainWindow(
+            guard (await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )).isReady else { return }
@@ -593,7 +608,7 @@ final class SpatialPlatformEffectCoordinator {
         keepsEnvironmentOpen: Bool
     ) async {
         guard await waitForImmersiveActionLane(execution: execution),
-              (await restoreMainWindow(
+              (await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
               )).isReady else {
@@ -651,7 +666,7 @@ final class SpatialPlatformEffectCoordinator {
             replacementTask.cancel()
             _ = try? await replacementTask.value
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -671,7 +686,7 @@ final class SpatialPlatformEffectCoordinator {
                   ) else {
                 return
             }
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -684,7 +699,7 @@ final class SpatialPlatformEffectCoordinator {
 
         guard appModel.allowPresentationSourceRendererRelease() else {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -699,7 +714,7 @@ final class SpatialPlatformEffectCoordinator {
                     .presentationConversionFailed,
                     execution: execution
                   ) else { return }
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -710,7 +725,7 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
         guard appModel.allowPresentationTargetRendererBinding() else {
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -726,7 +741,7 @@ final class SpatialPlatformEffectCoordinator {
                     .presentationConversionFailed,
                     execution: execution
                   ) else { return }
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -764,7 +779,7 @@ final class SpatialPlatformEffectCoordinator {
                 .surfaceAttachmentFailed,
                 execution: execution
             ) else { return }
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -777,7 +792,7 @@ final class SpatialPlatformEffectCoordinator {
         lastPlatformOperation = "spatial-surface-settled"
 
         guard appModel.beginPresentationVisualCutover() else {
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
@@ -880,7 +895,7 @@ final class SpatialPlatformEffectCoordinator {
             try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
         } catch {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
-            _ = await restoreMainWindow(
+            _ = await restorePlaybackWindow(
                 for: windowTransition,
                 execution: execution
             )
@@ -913,7 +928,7 @@ final class SpatialPlatformEffectCoordinator {
                 to: presentation
             )
         }
-        let restoration = await restoreMainWindow(
+        let restoration = await restorePlaybackWindow(
             for: windowTransition,
             execution: execution
         )
@@ -921,10 +936,13 @@ final class SpatialPlatformEffectCoordinator {
             rebaseTask.cancel()
             _ = try? await rebaseTask.value
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
-            lastPlatformOperation = "main-window-appearance-failed"
+            lastPlatformOperation = "playback-window-appearance-failed"
             guard executionIsLive(execution) else { return }
-            if case .openedMainWindow = restoration.method {
-                _ = dismissWindow(id: "main", execution: execution)
+            if case .openedPlaybackWindow = restoration.method {
+                _ = dismissWindow(
+                    id: SpatialPlatformWindowIdentity.playback.rawValue,
+                    execution: execution
+                )
             }
             guard setRuntimeIssue(
                 .presentationConversionFailed,
@@ -961,8 +979,11 @@ final class SpatialPlatformEffectCoordinator {
         }
         guard settled else {
             lastPlatformOperation = "window-playback-surface-failed"
-            if case .openedMainWindow = restoration.method {
-                guard dismissWindow(id: "main", execution: execution) else {
+            if case .openedPlaybackWindow = restoration.method {
+                guard dismissWindow(
+                    id: SpatialPlatformWindowIdentity.playback.rawValue,
+                    execution: execution
+                ) else {
                     return
                 }
             }
@@ -1009,8 +1030,8 @@ final class SpatialPlatformEffectCoordinator {
                 return
             }
         }
-        guard await orderWindowToFront(.main, execution: execution) else {
-            lastPlatformOperation = "main-window-activation-failed"
+        guard await orderWindowToFront(.playback, execution: execution) else {
+            lastPlatformOperation = "playback-window-activation-failed"
             return
         }
         await releaseDepartingPresentationResources()
@@ -1126,7 +1147,7 @@ final class SpatialPlatformEffectCoordinator {
         )
         guard executionIsLive(execution),
               let actions = leaseRegistry.currentCapability,
-              actions.windowIdentity == .main else {
+              actions.windowIdentity == .playback else {
             return false
         }
         residentWindowState = .opening
@@ -1160,60 +1181,60 @@ final class SpatialPlatformEffectCoordinator {
         return false
     }
 
-    private func restoreMainWindow(
+    private func restorePlaybackWindow(
         for transition: SpatialPlatformPlaybackWindowTransition,
         execution: Execution
-    ) async -> MainWindowRestoration {
+    ) async -> PlaybackWindowRestoration {
         let action = SpatialPlatformPlaybackWindowPolicy.action(
             for: transition,
             residentWindowState: residentWindowState
         )
         switch action {
         case .pushResidentWindow:
-            return MainWindowRestoration(
-                method: .openedMainWindow,
+            return PlaybackWindowRestoration(
+                method: .openedPlaybackWindow,
                 isReady: false
             )
         case .dismissResidentWindow:
             if await dismissWindowAndWaitForDisappearance(
                 .immersivePlaybackResident,
                 execution: execution
-            ), await waitForMainWindowToBecomeForeground(
+            ), await waitForPlaybackWindowToBecomeForeground(
                 execution: execution
             ) {
-                preferMainWindowCapability()
-                return MainWindowRestoration(
+                preferPlaybackWindowCapability()
+                return PlaybackWindowRestoration(
                     method: .dismissedResidentWindow,
                     isReady: true
                 )
             }
             guard executionIsLive(execution) else {
-                return MainWindowRestoration(
+                return PlaybackWindowRestoration(
                     method: .dismissedResidentWindow,
                     isReady: false
                 )
             }
             let isReady = await openWindowAndWaitForAppearance(
-                .main,
+                .playback,
                 execution: execution
             )
             if isReady {
-                preferMainWindowCapability()
+                preferPlaybackWindowCapability()
             }
-            return MainWindowRestoration(
-                method: .openedMainWindow,
+            return PlaybackWindowRestoration(
+                method: .openedPlaybackWindow,
                 isReady: isReady
             )
-        case .openMainWindow:
+        case .openPlaybackWindow:
             let isReady = await openWindowAndWaitForAppearance(
-                .main,
+                .playback,
                 execution: execution
             )
             if isReady {
-                preferMainWindowCapability()
+                preferPlaybackWindowCapability()
             }
-            return MainWindowRestoration(
-                method: .openedMainWindow,
+            return PlaybackWindowRestoration(
+                method: .openedPlaybackWindow,
                 isReady: isReady
             )
         }
@@ -1223,13 +1244,13 @@ final class SpatialPlatformEffectCoordinator {
         execution: Execution
     ) async {
         guard executionIsLive(execution) else { return }
-        _ = await restoreMainWindow(
+        _ = await restorePlaybackWindow(
             for: .normalizeSpatialPlayback,
             execution: execution
         )
     }
 
-    private func waitForMainWindowToBecomeForeground(
+    private func waitForPlaybackWindowToBecomeForeground(
         execution: Execution
     ) async -> Bool {
         let clock = ContinuousClock()
@@ -1238,13 +1259,13 @@ final class SpatialPlatformEffectCoordinator {
         )
         while clock.now < deadline {
             guard executionIsLive(execution) else { return false }
-            let observedMainWindowScene = mainWindowScene
+            let observedPlaybackWindowScene = playbackWindowScene
                 ?? UIApplication.shared.connectedScenes.first { scene in
                     scene.session.persistentIdentifier
-                        == mainWindowSceneSessionIdentifier
+                        == playbackWindowSceneSessionIdentifier
                 } as? UIWindowScene
-            if observedMainWindowScene?.activationState == .foregroundActive {
-                lastPlatformOperation = "main-window-restored"
+            if observedPlaybackWindowScene?.activationState == .foregroundActive {
+                lastPlatformOperation = "playback-window-restored"
                 return true
             }
             do {
@@ -1388,8 +1409,8 @@ final class SpatialPlatformEffectCoordinator {
         execution: Execution
     ) async -> Bool {
         let observationRevision = windowObservation.revision(for: window)
-        let dismissedSceneSessionIdentifier = window == .main
-            ? mainWindowScene?.session.persistentIdentifier
+        let dismissedSceneSessionIdentifier = window == .playback
+            ? playbackWindowScene?.session.persistentIdentifier
             : nil
         var residentAppearanceRevisionDismissed = observationRevision
         guard dismissWindow(id: window.rawValue, execution: execution) else {
@@ -1410,11 +1431,11 @@ final class SpatialPlatformEffectCoordinator {
                 lastPlatformOperation = "\(window.rawValue)-window-disappeared"
                 return true
             }
-            if window == .main,
-               mainWindowSceneIsDisconnected(
+            if window == .playback,
+               playbackWindowSceneIsDisconnected(
                 sessionIdentifier: dismissedSceneSessionIdentifier
                ) {
-                lastPlatformOperation = "main-window-scene-disconnected"
+                lastPlatformOperation = "playback-window-scene-disconnected"
                 return true
             }
             if window == .immersivePlaybackResident,
@@ -1442,11 +1463,11 @@ final class SpatialPlatformEffectCoordinator {
         return false
     }
 
-    private func mainWindowSceneIsDisconnected(
+    private func playbackWindowSceneIsDisconnected(
         sessionIdentifier: String?
     ) -> Bool {
         guard let sessionIdentifier else { return false }
-        if mainWindowScene?.activationState == .unattached {
+        if playbackWindowScene?.activationState == .unattached {
             return true
         }
         return UIApplication.shared.connectedScenes.contains { scene in
@@ -1454,8 +1475,8 @@ final class SpatialPlatformEffectCoordinator {
         } == false
     }
 
-    private func preferMainWindowCapability() {
-        guard let capabilityID = windowCapabilityIDs[.main] else { return }
+    private func preferPlaybackWindowCapability() {
+        guard let capabilityID = windowCapabilityIDs[.playback] else { return }
         _ = leaseRegistry.preferCapability(id: capabilityID)
     }
 
@@ -1881,7 +1902,7 @@ final class SpatialPlatformEffectCoordinator {
                     return false
                 }
                 if restoresMainWindowOnFailure {
-                    _ = await restoreMainWindow(
+                    _ = await restorePlaybackWindow(
                         for: .normalizeSpatialPlayback,
                         execution: execution
                     )
@@ -1905,7 +1926,7 @@ final class SpatialPlatformEffectCoordinator {
                 return false
             }
             if restoresMainWindowOnFailure {
-                _ = await restoreMainWindow(
+                _ = await restorePlaybackWindow(
                     for: .normalizeSpatialPlayback,
                     execution: execution
                 )

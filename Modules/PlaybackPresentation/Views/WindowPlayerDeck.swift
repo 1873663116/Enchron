@@ -37,7 +37,9 @@ struct WindowPlayerDeckView: View {
     private func register() {
         appModel.registerControlsInteraction()
         if appModel.showControls == false {
-            withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
+            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                appModel.showControls = true
+            }
         }
     }
 

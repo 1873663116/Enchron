@@ -187,6 +187,11 @@ enum PlaybackPresentationTransitionAppearance {
     }
 }
 
+public enum MainViewSceneRole {
+    case browser
+    case playback
+}
+
 public struct MainView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "MainView")
     @Environment(AppModel.self) private var appModel
@@ -198,13 +203,20 @@ public struct MainView: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(CertificateTrustPrompt.self) private var certificateTrustPrompt
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
     @State private var isWindowSecondaryMenuPresented = false
+    private let sceneRole: MainViewSceneRole
     private let playbackSurfaceIsEnabled: Bool
 
-    public init(playbackSurfaceIsEnabled: Bool = true) {
+    public init(
+        sceneRole: MainViewSceneRole = .browser,
+        playbackSurfaceIsEnabled: Bool = true
+    ) {
+        self.sceneRole = sceneRole
         self.playbackSurfaceIsEnabled = playbackSurfaceIsEnabled
     }
 
@@ -232,6 +244,7 @@ public struct MainView: View {
     public var body: some View {
         platformContent
         .onAppear {
+            guard sceneRole == .playback else { return }
             playbackRuntime.onPlaybackEnded = {
                 let showControls = playbackLauncher.handlePlaybackEnded {
                     appModel.showControls = true
@@ -244,6 +257,7 @@ public struct MainView: View {
             }
         }
         .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, hasActivePlaybackRequest in
+            guard sceneRole == .playback else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(20))
                 if hasActivePlaybackRequest {
@@ -253,7 +267,16 @@ public struct MainView: View {
                 }
             }
         }
+        .onChange(of: appModel.playbackWindowSessionIsActive) { _, isActive in
+            reconcilePlaybackWindowPresentation(sessionIsActive: isActive)
+        }
+        .task {
+            reconcilePlaybackWindowPresentation(
+                sessionIsActive: appModel.playbackWindowSessionIsActive
+            )
+        }
         .onChange(of: appModel.lastControlsInteractionAt) { _, _ in
+            guard sceneRole == .playback else { return }
             guard playbackRuntime.hasActivePlaybackRequest else { return }
             scheduleControlsAutoHide()
         }
@@ -339,7 +362,16 @@ public struct MainView: View {
 
     @ViewBuilder
     private var platformContent: some View {
-        primaryContent
+        switch sceneRole {
+        case .browser:
+            browserSceneContent
+        case .playback:
+            playbackSceneContent
+        }
+    }
+
+    private var playbackSceneContent: some View {
+        playbackPrimaryContent
             .ornament(
                 visibility: hostsPlaybackOrnament ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
@@ -370,6 +402,11 @@ public struct MainView: View {
             }
     }
 
+    private var browserSceneContent: some View {
+        browserPrimaryContent
+            .browserWindowGeometry()
+    }
+
     private var collapsedWindowControlsOrnamentHeight: CGFloat {
         DesignTokens.Layout.playbackMediaInfoHeight
             + DesignTokens.Spacing.sm
@@ -377,18 +414,17 @@ public struct MainView: View {
             + DesignTokens.ControlBar.paddingV * 2
     }
 
-    private var primaryContent: some View {
+    private var browserPrimaryContent: some View {
         ZStack {
-            if PlaybackSurfaceMountPolicy.shouldMount(
-                showsWindowPlayback: showsWindowPlayback
-            ) {
-                windowPlayback
-                    .transition(.opacity)
-            } else {
-                browserWindowSurface
-                    .browserWindowGeometry()
-                    .transition(.opacity)
-            }
+            browserWindowSurface
+
+        }
+        .playbackIssueAlert(at: .mediaLibrary)
+    }
+
+    private var playbackPrimaryContent: some View {
+        ZStack {
+            windowPlayback
 
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
                 PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
@@ -418,7 +454,6 @@ public struct MainView: View {
                 )
             }
         }
-        .playbackIssueAlert(at: .mediaLibrary)
     }
 
     @ViewBuilder
@@ -444,6 +479,7 @@ public struct MainView: View {
 
             Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
                 EmbyScreen { selectionResult in
+                    appModel.beginPlaybackWindowSession()
                     do {
                         let selection = try selectionResult.get()
                         let request = try await embySession.playbackRequest(for: selection)
@@ -546,7 +582,7 @@ public struct MainView: View {
                 && hostedPlaybackPresentation.usesMainWindow,
             hidesSurfaceFromAccessibility: isWindowSecondaryMenuPresented,
             onSurfaceTap: {
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withAnimation(DesignTokens.AnimationToken.controlsTransition) {
                     PlaybackSurfaceInputAction.perform(
                         .windowSwiftUI,
                         appModel: appModel
@@ -554,7 +590,7 @@ public struct MainView: View {
                 }
             },
             onWindowSceneChange: { windowScene in
-                spatialPlatformEffectCoordinator.recordMainWindowScene(
+                spatialPlatformEffectCoordinator.recordPlaybackWindowScene(
                     windowScene
                 )
             },
@@ -665,7 +701,7 @@ public struct MainView: View {
             }
             #endif
 
-            if showsLoadingChrome {
+            if showsLoadingChrome, playbackLauncher.pendingResumeDecision == nil {
                 LoadingSpinner(sourceReadBytesPerSecond: {
                     playbackRuntime.outputObservation().sourceReadBytesPerSecond
                 })
@@ -808,7 +844,7 @@ public struct MainView: View {
             "corePresentationDisplayedPixel=\(presentationRecord?.displayedPixelBuffer.map(String.init) ?? "none")",
             "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
             "mvHEVC=\(playbackRuntime.diagnostics.isMVHEVC)",
-            "windowStyle=automatic",
+            "windowStyle=plain",
             "loadingSpinner=\(loadingSpinnerVisible ? "on" : "off")",
             "tapTrace=\(appModel.debugSurfaceTapTrace)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
@@ -974,9 +1010,24 @@ public struct MainView: View {
             guard !Task.isCancelled,
                   appModel.canAutoHideControls,
                   playbackRuntime.lifecycle == .playing else { return }
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
                 appModel.showControls = false
             }
+        }
+    }
+
+    private func reconcilePlaybackWindowPresentation(
+        sessionIsActive: Bool
+    ) {
+        switch sceneRole {
+        case .browser:
+            guard sessionIsActive else { return }
+            openWindow(id: SpatialPlatformWindowIdentity.playback.rawValue)
+            dismissWindow(id: SpatialPlatformWindowIdentity.main.rawValue)
+        case .playback:
+            guard sessionIsActive == false else { return }
+            openWindow(id: SpatialPlatformWindowIdentity.main.rawValue)
+            dismissWindow(id: SpatialPlatformWindowIdentity.playback.rawValue)
         }
     }
 

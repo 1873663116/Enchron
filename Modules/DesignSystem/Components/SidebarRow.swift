@@ -17,14 +17,14 @@ public extension View {
     /// The surface every browsing sidebar sits on. Part of the window's own surface rather than a
     /// plate floating inside it: a floating plate carries its own glass rim, and its bottom edge sits
     /// above the window's, which leaves a band of page showing between the two. Square, full height,
-    /// with a white rim on the trailing edge marking where the sidebar ends and the content area
+    /// with a theme-accent rim on the trailing edge marking where the sidebar ends and the content area
     /// begins. The leading edge needs no rim: it lands on the window's own boundary.
     func enchronSidebarSurface() -> some View {
         background(.thickMaterial)
             .overlay(alignment: .trailing) {
                 Rectangle()
                     .fill(DesignTokens.Surface.chromeBorder)
-                    .frame(width: DesignTokens.Stroke.regular)
+                    .frame(width: DesignTokens.Stroke.subtle)
             }
     }
 }

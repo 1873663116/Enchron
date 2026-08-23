@@ -641,12 +641,15 @@ struct SurfaceStrokePreview: View {
             .spec("focusBorder", "theme accent", "focused input/control border") {
                 tokenColorSwatch(DesignTokens.Surface.focusBorder)
             },
+            .spec("chromeBorder", "accent 0.25", "button, sidebar, and list-group edge") {
+                tokenColorSwatch(DesignTokens.Surface.chromeBorder)
+            },
         ]
     }
 
     private var strokeSpecs: [TokenSpec] {
         [
-            .spec("subtle", "0.5pt", "card borders, unselected state") {
+            .spec("subtle", "0.5pt", "chrome rims, list-group edges, unselected cards") {
                 tokenStrokeSwatch(DesignTokens.Stroke.subtle)
             },
             .spec("regular", "1.0pt", "timeline major ticks") {

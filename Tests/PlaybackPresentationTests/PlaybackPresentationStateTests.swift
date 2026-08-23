@@ -71,14 +71,14 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("Immersive playback exit opens the main window without an open resident window")
-    func immersivePlaybackExitOpensMainWindowWithoutOpenResidentWindow() {
+    @Test("Immersive playback exit opens the playback window without an open resident window")
+    func immersivePlaybackExitOpensPlaybackWindowWithoutOpenResidentWindow() {
         for family in [PresentationContentFamily.flat, .panoramic] {
             #expect(
                 SpatialPlatformPlaybackWindowPolicy.action(
                     for: .exitImmersivePlayback(family),
                     residentWindowState: .absent
-                ) == .openMainWindow
+                ) == .openPlaybackWindow
             )
         }
     }
@@ -183,7 +183,7 @@ struct PlaybackPresentationStateTests {
                 SpatialPlatformPlaybackWindowPolicy.action(
                     for: .collapseImmersivePlayback(family),
                     residentWindowState: .absent
-                ) == .openMainWindow
+                ) == .openPlaybackWindow
             )
         }
     }
@@ -293,8 +293,8 @@ struct PlaybackPresentationStateTests {
         #expect(state.complete() == .idle)
     }
 
-    @Test("Spatial playback normalization restores the retained Main Window")
-    func spatialPlaybackNormalizationRestoresRetainedMainWindow() {
+    @Test("Spatial playback normalization restores the retained playback Window")
+    func spatialPlaybackNormalizationRestoresRetainedPlaybackWindow() {
         #expect(
             SpatialPlatformPlaybackWindowPolicy.action(
                 for: .normalizeSpatialPlayback,
@@ -311,7 +311,7 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformPlaybackWindowPolicy.action(
                 for: .normalizeSpatialPlayback,
                 residentWindowState: .absent
-            ) == .openMainWindow
+            ) == .openPlaybackWindow
         )
     }
 

@@ -251,6 +251,7 @@ struct SpatialPlatformImmersiveSpaceObservation {
 
 enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
     case main
+    case playback
     case immersivePlaybackResident
 }
 
@@ -314,7 +315,7 @@ enum SpatialPlatformPlaybackWindowTransition: Equatable, Sendable {
 enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
     case pushResidentWindow
     case dismissResidentWindow
-    case openMainWindow
+    case openPlaybackWindow
 }
 
 enum SpatialPlatformPlaybackWindowPolicy {
@@ -330,7 +331,7 @@ enum SpatialPlatformPlaybackWindowPolicy {
              .normalizeSpatialPlayback:
             switch residentWindowState {
             case .absent:
-                .openMainWindow
+                .openPlaybackWindow
             case .opening, .open, .closing:
                 .dismissResidentWindow
             }

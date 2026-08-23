@@ -337,24 +337,10 @@ struct FusedPlayerPanel: View {
         return PlaybackTimeFormatter.clock(elapsedSeconds)
     }
 
-    private var clusterWidth: CGFloat { panelChromeSize.width }
-
-    private var panelChromeSize: CGSize {
-        let aside: DesignTokens.PlayerPanelChrome.Aside = {
-            switch expansion.layout {
-            case .collapsed: return .collapsed
-            case .timeline: return .timeline
-            case .settings: return .settings
-            case .mediaInformation: return .mediaInformation
-            }
-        }()
-        let surface: DesignTokens.PlayerPanelChrome.Surface = {
-            switch self.surface {
-            case .windowOrnament: return .windowOrnament
-            case .playerControlDock: return .playerControlDock
-            }
-        }()
-        return DesignTokens.PlayerPanelChrome.contentSize(for: aside, surface: surface)
+    private var clusterWidth: CGFloat {
+        expansion.isExpanded
+            ? DesignTokens.Layout.expandedPlayerControlsContentWidth
+            : DesignTokens.ControlBar.contentWidth
     }
 
     private var shape: RoundedRectangle {
@@ -362,14 +348,16 @@ struct FusedPlayerPanel: View {
     }
 
     var body: some View {
-        Color.clear
-            .frame(width: panelChromeSize.width, height: panelChromeSize.height)
-            .overlay { panelContentStack }
-            .padding(.horizontal, DesignTokens.ControlBar.paddingH)
-            .padding(.vertical, DesignTokens.ControlBar.paddingV)
-            .clipShape(shape)
-            .enchronGlassBackground(in: shape)
-            .animation(DesignTokens.PlayerPanelChrome.morph, value: expansion.layout)
+        Group {
+            panelContent
+        }
+        .opacity(expansion.contentIsVisible ? 1 : 0)
+        .allowsHitTesting(expansion.contentIsVisible)
+        .frame(width: clusterWidth)
+        .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+        .padding(.vertical, DesignTokens.ControlBar.paddingV)
+        .clipShape(shape)
+        .enchronGlassBackground(in: shape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
 #if DEBUG
@@ -420,77 +408,30 @@ struct FusedPlayerPanel: View {
     }
 
     @ViewBuilder
-    private var panelContentStack: some View {
-        ZStack {
-            switch expansion.layout {
-            case .collapsed:
-                collapsedContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
-            case .timeline:
-                timelineContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
-            case .settings:
-                settingsContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
-            case .mediaInformation:
-                mediaInformationContent
-                    .transition(DesignTokens.PlayerPanelChrome.contentCrossfade)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .animation(DesignTokens.PlayerPanelChrome.crossfade, value: expansion.layout)
-    }
-
-    private var collapsedContent: some View {
-        Group {
+    private var panelContent: some View {
+        if expansion.layout == .mediaInformation {
+            expandedMediaInformation
+        } else {
             switch surface {
-            case .windowOrnament: windowOrnamentContent
-            case .playerControlDock: playerControlDockCollapsedContent
+            case .windowOrnament:
+                windowOrnamentContent
+            case .playerControlDock:
+                playerControlDockContent
             }
-        }
-        .allowsHitTesting(true)
-    }
-
-    private var timelineContent: some View {
-        Group {
-            switch surface {
-            case .windowOrnament: windowOrnamentContent
-            case .playerControlDock: playerControlDockContent
-            }
-        }
-        .allowsHitTesting(true)
-    }
-
-    private var settingsContent: some View {
-        playerControlDockContent
-            .allowsHitTesting(true)
-    }
-
-    private var mediaInformationContent: some View {
-        expandedMediaInformation
-            .allowsHitTesting(true)
-    }
-
-    private var playerControlDockCollapsedContent: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            mediaInformationWell(width: clusterWidth)
-            playerControlDockControls
-            progressBar(width: compactProgressBarWidth)
         }
     }
 
     private var windowOrnamentContent: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                windowTransportControls
-                mediaInformationWell(width: windowMediaInformationWidth)
-            }
-
             if expansion.layout == .timeline {
                 timelineBlock
             } else {
                 progressBar(width: compactProgressBarWidth)
+            }
+
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                windowTransportControls
+                mediaInformationWell(width: windowMediaInformationWidth)
             }
         }
     }
@@ -687,8 +628,22 @@ struct FusedPlayerPanel: View {
     /// the next, so the order follows the animations themselves rather than durations
     /// repeated here that could drift from the ones in `DesignTokens`.
     private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
-        withAnimation(DesignTokens.PlayerPanelChrome.morph) {
+        withAnimation(DesignTokens.AnimationToken.panelContentExit) {
             expansion.request(layout)
+        } completion: {
+            advanceExpansion(from: .contentLeaving)
+        }
+    }
+
+    private func advanceExpansion(from completed: PlaybackPanelExpansion.Phase) {
+        let animation = completed == .contentLeaving
+            ? DesignTokens.AnimationToken.panelSpring
+            : DesignTokens.AnimationToken.panelContentEntrance
+        withAnimation(animation) {
+            expansion.advance(from: completed)
+        } completion: {
+            guard completed == .contentLeaving else { return }
+            advanceExpansion(from: .resizing)
         }
     }
 
@@ -823,31 +778,34 @@ struct FusedPlayerPanel: View {
 
     private var expandedMediaInformation: some View {
         ZStack(alignment: .topTrailing) {
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     Text(live?.mediaName ?? "Unknown")
                         .font(DesignTokens.Typography.headline)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let overview = live?.overview, overview.isEmpty == false {
-                        ViewThatFits(in: .vertical) {
-                            Text(overview)
-                                .font(DesignTokens.Typography.metadata)
-                                .lineLimit(4)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier("PlayerPanel-media-information-overview")
-
-                            ScrollView(.vertical, showsIndicators: true) {
-                                Text(overview)
-                                    .font(DesignTokens.Typography.metadata)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .accessibilityIdentifier("PlayerPanel-media-information-overview")
-                            }
-                        }
+                        Text(overview)
+                            .font(DesignTokens.Typography.metadata)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("PlayerPanel-media-information-overview")
                     }
 
-                    Divider()
+                    ForEach(persistentCapabilities) { capability in
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                            Label(
+                                "\(capability.requested). \(capability.delivered).",
+                                systemImage: "exclamationmark.circle"
+                            )
+                            .font(DesignTokens.Typography.metadata)
+                            Text(capability.reason)
+                                .font(DesignTokens.Typography.metadata)
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityIdentifier(
+                            "PlayerPanel-media-information-unmet-\(capability.id)"
+                        )
+                    }
 
                     HStack(spacing: DesignTokens.Spacing.xl) {
                         Text(spatialMetadataLabel)
@@ -857,30 +815,9 @@ struct FusedPlayerPanel: View {
                     .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                if persistentCapabilities.isEmpty == false {
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                        ForEach(persistentCapabilities) { capability in
-                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                                Label(
-                                    "\(capability.requested). \(capability.delivered).",
-                                    systemImage: "exclamationmark.circle"
-                                )
-                                .font(DesignTokens.Typography.metadata)
-                                Text(capability.reason)
-                                    .font(DesignTokens.Typography.metadata)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .accessibilityIdentifier(
-                                "PlayerPanel-media-information-unmet-\(capability.id)"
-                            )
-                        }
-                    }
-                    .frame(width: DesignTokens.Layout.mediaInfoDetailColumnWidth, alignment: .topLeading)
-                }
+                .padding(DesignTokens.Spacing.xl)
+                .padding(.trailing, DesignTokens.Interactive.large)
             }
-            .padding(DesignTokens.Spacing.xl)
-            .padding(.trailing, DesignTokens.Interactive.large + DesignTokens.Spacing.sm)
 
             GlassCircleIconButton.close(
                 accessibilityLabel: "Close Media Information",
@@ -890,6 +827,7 @@ struct FusedPlayerPanel: View {
             .keyboardShortcut(.escape, modifiers: [])
             .padding(DesignTokens.Spacing.xl)
         }
+        .frame(width: clusterWidth, height: 420)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
@@ -1308,7 +1246,10 @@ struct FusedPlayerPanel: View {
             onSeekBegan: beginTimelineSeek,
             onSeekEnded: commitTimelineSeek
         )
-        .frame(height: DesignTokens.PrecisionTimeline.expandedHeight)
+        .frame(
+            width: clusterWidth,
+            height: DesignTokens.PrecisionTimeline.expandedHeight
+        )
         .transition(.opacity)
         .contentShape(Rectangle())
         .simultaneousGesture(TapGesture(count: 2).onEnded { closeTimeline() })

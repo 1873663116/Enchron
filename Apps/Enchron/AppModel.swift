@@ -188,6 +188,7 @@ public final class AppModel {
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
+    public private(set) var playbackWindowSessionIsActive = false
     private(set) var activePlaybackWindowSceneIdentity: PlaybackWindowSceneIdentity?
 
     // MARK: - Screen Position State (Immersive Mode)
@@ -355,10 +356,19 @@ public final class AppModel {
         line: Int = #line
     ) {
         Self.recordProbe("stoppedPlaybackCleanup origin=\(origin):\(line)")
+        playbackWindowSessionIsActive = false
         resetPresentationTransitionAppearance()
         playbackPresentationModel.requestStoppedPlaybackCleanup()
         spatialPlatformEffectReplacementHandler?()
         logger.notice("playback stopped; spatial platform cleanup requested")
+    }
+
+    public func beginPlaybackWindowSession() {
+        playbackWindowSessionIsActive = true
+    }
+
+    public func endPlaybackWindowSession() {
+        playbackWindowSessionIsActive = false
     }
 
     public func prepareColdPlaybackLaunch(

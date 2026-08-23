@@ -194,9 +194,17 @@ struct WindowPlaybackTopChrome<
     var body: some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
             navigationControl
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(
+                    z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                )
             spatialActions
                 .frame(maxWidth: .infinity)
             moreControl
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(
+                    z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                )
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .zIndex(1)
@@ -221,8 +229,16 @@ struct WindowPlaybackSpatialActions<
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             dockControl
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(
+                    z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                )
             Spacer(minLength: DesignTokens.Spacing.xl)
             formatControl
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(
+                    z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                )
         }
     }
 }
@@ -312,15 +328,21 @@ struct WindowPlaybackRootView<
 
     private var layeredContent: some View {
         surfaceContent
-            .overlay {
-                if showsWindowChrome {
-                    edgeEmphasis
-                        .transition(.opacity)
-                }
+            .overlay(alignment: .top) {
+                edgeEmphasis
+                    .opacity(showsWindowChrome ? 1 : 0)
+                    .animation(
+                        DesignTokens.AnimationToken.controlsTransition,
+                        value: showsWindowChrome
+                    )
             }
             .overlay(alignment: .top) {
                 topChromePlane
                     .opacity(showsWindowChrome ? 1 : 0)
+                    .animation(
+                        DesignTokens.AnimationToken.controlsTransition,
+                        value: showsWindowChrome
+                    )
                     .allowsHitTesting(showsWindowChrome)
                     .accessibilityHidden(!showsWindowChrome)
             }
@@ -337,10 +359,6 @@ struct WindowPlaybackRootView<
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
             .zIndex(2)
-            .enchronSpatialOffset(
-                z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
-            )
-            .transition(.opacity)
     }
 
     @ViewBuilder
@@ -360,6 +378,7 @@ struct WindowPlaybackRootView<
                     // playback-surface hit region.
                     Color.clear
                         .frame(height: surfaceTapTopInset)
+                        .animation(nil, value: showsWindowChrome)
                         .allowsHitTesting(false)
 
                     surfaceTapLayer(onSurfaceTap: onSurfaceTap)
@@ -374,30 +393,25 @@ struct WindowPlaybackRootView<
     @ViewBuilder
     private func surfaceTapLayer(onSurfaceTap: @escaping () -> Void) -> some View {
         if hidesSurfaceFromAccessibility {
-            surfaceTapGestureLayer(onSurfaceTap: onSurfaceTap)
+            surfaceTapButton(onSurfaceTap: onSurfaceTap)
                 .accessibilityHidden(true)
         } else {
-            surfaceTapGestureLayer(onSurfaceTap: onSurfaceTap)
-                .accessibilityAddTraits(.isButton)
+            surfaceTapButton(onSurfaceTap: onSurfaceTap)
                 .accessibilityLabel("Playback surface")
                 .accessibilityIdentifier("PlayerUI-window-playback-surface")
-                .accessibilityAction {
-                    onSurfaceTap()
-                }
         }
     }
 
-    private func surfaceTapGestureLayer(
+    private func surfaceTapButton(
         onSurfaceTap: @escaping () -> Void
     ) -> some View {
-        Color.clear
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
+        Button(action: onSurfaceTap) {
+            DesignTokens.PlaybackSurface.interactionPlane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+            .buttonStyle(.plain)
             .allowsHitTesting(!hidesSurfaceFromAccessibility)
-            .gesture(
-                SpatialTapGesture()
-                    .onEnded { _ in onSurfaceTap() }
-            )
     }
 
     /// The playback surface begins below the stable button row. Secondary
@@ -409,15 +423,14 @@ struct WindowPlaybackRootView<
     }
 
     private var edgeEmphasis: some View {
-        VStack(spacing: 0) {
-            PlaybackEdgeEmphasis(.top)
-            Spacer(minLength: 0)
-            PlaybackEdgeEmphasis(.bottom)
-        }
-        .allowsHitTesting(false)
-        .enchronSpatialOffset(
-            z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
-        )
+        PlaybackEdgeEmphasis()
+            .enchronSpatialFrame(depth: 0)
+            .enchronSpatialOffset(
+                z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+            )
+            .padding(.horizontal, DesignTokens.PlaybackEdge.spatialInset)
+            .padding(.top, DesignTokens.Spacing.xxs)
+            .allowsHitTesting(false)
     }
 
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {

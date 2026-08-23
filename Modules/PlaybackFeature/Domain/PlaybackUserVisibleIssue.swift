@@ -210,16 +210,16 @@ public extension PlaybackUserVisibleIssueCategory {
             .init(
                 title: "Unable to Play",
                 messageStrategy: .fixedProductCopy,
-                allowedActions: [.confirm],
-                presentationLocations: [.mediaLibrary],
+                allowedActions: [.close],
+                presentationLocations: [.mainWindow, .mediaLibrary],
                 interruptsPlayback: true
             )
         case .unsupportedVideoCodec:
             .init(
                 title: "Unable to Play",
                 messageStrategy: .unsupportedVideoCodecFact,
-                allowedActions: [.confirm],
-                presentationLocations: [.mediaLibrary],
+                allowedActions: [.close],
+                presentationLocations: [.mainWindow, .mediaLibrary],
                 interruptsPlayback: true
             )
         case .sourceAccessUnavailable:

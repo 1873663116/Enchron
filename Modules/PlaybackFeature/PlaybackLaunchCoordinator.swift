@@ -69,6 +69,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         @MainActor (PersistedPlaybackMode, Bool) -> PersistedPlaybackMode
     )?
     public var onViewingStatesCleared: (@MainActor () -> Void)?
+    public var onPlaybackIntentStarted: (@MainActor () -> Void)?
+    public var onPlaybackStopRequested: (@MainActor () -> Void)?
     public private(set) var pendingResumeDecision: ResumeDecision?
 
     private var launchTask: Task<Void, Never>?
@@ -109,6 +111,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func requestPlayback(_ request: PlaybackLaunchRequest) {
+        onPlaybackIntentStarted?()
         generation += 1
         let requestGeneration = generation
         pendingResumeDecision = nil
@@ -423,11 +426,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func stopPlayback() {
+        onPlaybackStopRequested?()
         cancelPlaybackLaunchAndPersistProgress()
         playbackRuntime.stop(releasingSourceAccess: true)
     }
 
     public func stopPlaybackAndWait() async {
+        onPlaybackStopRequested?()
         cancelPlaybackLaunchAndPersistProgress()
         await playbackRuntime.stopAndWait(releasingSourceAccess: true)
     }

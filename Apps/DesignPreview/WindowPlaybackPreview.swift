@@ -13,7 +13,11 @@ struct WindowPlaybackPreview: View {
             geometryPolicy: .aspectLocked(fixtureLayout),
             preferredInitialSize: fixtureInitialSize,
             showsWindowChrome: showsControls,
-            onSurfaceTap: { showsControls.toggle() }
+            onSurfaceTap: {
+                withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                    showsControls.toggle()
+                }
+            }
         ) {
             WindowPlaybackRealityFixture()
         } topChrome: {

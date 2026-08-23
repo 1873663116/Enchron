@@ -40,10 +40,10 @@ struct EnchronApp: App {
                 ] == "1" {
                     AcousticCalibrationView()
                 } else {
-                    MainView()
+                    MainView(sceneRole: .browser)
                 }
 #else
-                MainView()
+                MainView(sceneRole: .browser)
 #endif
             }
             .background {
@@ -87,12 +87,39 @@ struct EnchronApp: App {
             width: BrowserWindowLayout.defaultSize.width,
             height: BrowserWindowLayout.defaultSize.height
         )
-        // Browser, loading, and playback remain inside one visionOS-owned
-        // system window, including its outer glass and rounded boundary.
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
 
         Window(
+            "Playback",
+            id: SpatialPlatformWindowIdentity.playback.rawValue
+        ) {
+            MainView(sceneRole: .playback)
+                .background {
+                    SpatialPlatformEffectExecutor(windowIdentity: .playback)
+                }
+                .enchronEnvironment(application)
+                .onAppear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(.open, for: .playback)
+                }
+                .onDisappear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(.closed, for: .playback)
+                }
+                .persistentSystemOverlays(.hidden)
+        }
+        .windowStyle(.plain)
+        .defaultSize(
+            width: WindowPlaybackLayout.fallback.defaultSize.width,
+            height: WindowPlaybackLayout.fallback.defaultSize.height
+        )
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+        .persistentSystemOverlays(.hidden)
+
+        WindowGroup(
             "Immersive Playback Resident",
             id: SpatialPlatformWindowIdentity
                 .immersivePlaybackResident.rawValue

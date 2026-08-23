@@ -11,7 +11,8 @@ import SwiftUI
 ///   4. `contentShape(.interaction, ...)` — hit-test region
 ///
 /// Later wrappers that enlarge interaction bounds must use
-/// `enchronHoverContentShape(_:insets:)` to keep hover at the visual bounds.
+/// `enchronHoverContentShape(_:insets:)` so hover stays clipped to the
+/// visible control while the hit target can stay larger.
 ///
 /// visionOS window roots already supply glass. Reusable controls use these
 /// non-glass tiers so callers cannot create a second material boundary inside
@@ -23,15 +24,15 @@ public extension View {
 
     /// The surface every button component sits on: a thick system material so the
     /// control reads as its own plate rather than a tint of the glass behind it,
-    /// plus a 1pt white rim that holds the control's boundary over bright
+    /// plus a centered hairline rim that holds the control's boundary over bright
     /// passthrough. Callers supply the shape they already clip and hit-test on,
     /// so the fill, the rim, and the hover region stay on one geometry.
     func enchronButtonSurface<S: InsettableShape>(in shape: S) -> some View {
         background(.thickMaterial, in: shape)
             .overlay {
-                shape.strokeBorder(
+                shape.stroke(
                     DesignTokens.Surface.chromeBorder,
-                    lineWidth: DesignTokens.Stroke.regular
+                    lineWidth: DesignTokens.Stroke.subtle
                 )
             }
     }

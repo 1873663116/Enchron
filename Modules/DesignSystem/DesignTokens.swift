@@ -313,10 +313,12 @@ public enum DesignTokens {
         public static let selectionHeaderText: Color = .primary
         /// Focused input/control border, using Enchron's single theme accent.
         public static let focusBorder: Color = Theme.accent
-        /// The white rim bounding app chrome — the sidebar's trailing edge and every
-        /// button surface — against whatever it sits over. Half-strength white so a
-        /// window full of buttons does not read as a grid of bright outlines.
-        public static let chromeBorder: Color = .white.opacity(0.5)
+        /// Shared opacity for chrome and list-group edge strokes.
+        public static let edgeStrokeOpacity: Double = 0.25
+        /// The rim bounding app chrome — buttons, the sidebar's trailing edge, and
+        /// list-group containers. Theme accent at quarter strength so a window full
+        /// of edges does not read as a grid of bright outlines.
+        public static let chromeBorder: Color = Theme.accent.opacity(edgeStrokeOpacity)
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -325,7 +327,7 @@ public enum DesignTokens {
 
     /// Line width tiers for borders and timeline marks.
     public enum Stroke {
-        /// Card borders, unselected state
+        /// Hairline used by chrome rims, list-group edges, and unselected card borders.
         public static let subtle: CGFloat = 0.5
         /// Timeline major ticks
         public static let regular: CGFloat = 1.0
@@ -347,8 +349,6 @@ public enum DesignTokens {
         public static let expandedPlayerControlsContentWidth: CGFloat = 880
         /// Compact height of the read-only playback media-information well.
         public static let playbackMediaInfoHeight: CGFloat = 72
-        /// Width of the unmet-capabilities column in the expanded media info.
-        public static let mediaInfoDetailColumnWidth: CGFloat = 280
         /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
         /// Softens content clipping at the top and bottom of the main WindowGroup.
@@ -656,22 +656,27 @@ public enum DesignTokens {
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
+    public enum PlaybackSurface {
+        /// Nonzero paint that keeps the window playback Button in the visionOS
+        /// render and input hit-test trees without visibly covering the video.
+        public static let interactionPlane: Color = .white.opacity(0.011)
+    }
+
     public enum PlaybackEdge {
-        /// Covers the control and its window-edge padding without reaching the center.
-        public static let depth: CGFloat = 132
-        /// A short edge plateau preserves the strongest material treatment.
-        public static let maskEdgeOpacity: CGFloat = 0.75
-        public static let maskPlateauEndLocation: CGFloat = 0.15
-        /// The material falls quickly to a low-interference level.
-        public static let maskLowLevelLocation: CGFloat = 0.30
-        public static let maskLowLevelOpacity: CGFloat = 0.20
-        /// A long ease-out tail restores clarity gradually toward the center.
-        public static let maskTailMiddleLocation: CGFloat = 0.55
-        public static let maskTailMiddleOpacity: CGFloat = 0.10
-        public static let maskTailEndLocation: CGFloat = 0.78
-        public static let maskTailEndOpacity: CGFloat = 0.04
-        /// A restrained darkening layer preserves white control contrast.
-        public static let edgeScrimOpacity: CGFloat = 0.05
+        /// Covers the top button row and eases out before the picture's midpoint.
+        public static let depth: CGFloat = 168
+        /// Softens the wash so the fade has no hard edge of its own.
+        public static let blurRadius: CGFloat = 18
+        /// Wash strength under the buttons.
+        public static let peakOpacity: CGFloat = 0.38
+        /// Mid-stop of the ease-out, past the button row.
+        public static let midLocation: CGFloat = 0.42
+        public static let midOpacity: CGFloat = 0.14
+        /// Softens the wash's own left and right edges. Corner clearance is
+        /// the lifted view's inset, not this fade.
+        public static let sideFadeWidth: CGFloat = blurRadius + Spacing.md
+        /// Keeps a z-lifted wash's layout bounds off the window's rounded corners.
+        public static let spatialInset: CGFloat = Radius.panel
     }
 
     /// Playback progress bar dimensions.
@@ -719,61 +724,6 @@ public enum DesignTokens {
         public static let playedColor: Color = .white.opacity(0.72)
         /// Played portion in hover/drag state.
         public static let playedHoverColor: Color = .white.opacity(0.95)
-    }
-
-    /// Player panel chrome: one row of sizes measured from the current
-    /// panel content rather than derived by measuring the content itself.
-    /// Each aside carries the size its contents expect; the panel frame
-    /// interpolates between them via `PlayerPanelChrome.morph` while both
-    /// layers crossfade via `PlayerPanelChrome.crossfade`.
-    public enum PlayerPanelChromeAside: Equatable, Sendable, CaseIterable {
-        case collapsed, timeline, settings, mediaInformation
-    }
-
-    public enum PlayerPanelChromeSurface: Equatable, Sendable {
-        case windowOrnament, playerControlDock
-    }
-
-    public enum PlayerPanelChrome {
-        // swiftlint:disable:next nesting - Aside/Surface aliases are required so call sites read as PlayerPanelChrome.Aside per synthesis.
-        public typealias Aside = PlayerPanelChromeAside
-        // swiftlint:disable:next nesting
-        public typealias Surface = PlayerPanelChromeSurface
-
-        /// Content size for each aside. Width follows `ControlBar.contentWidth`
-        /// for collapsed and `Layout.expandedPlayerControlsContentWidth` for
-        /// every expanded aside, so the chrome width is a datum rather than a
-        /// measurement of whatever happens to be on screen.
-        public static func contentSize(for aside: Aside, surface: Surface) -> CGSize {
-            let width: CGFloat
-            let height: CGFloat
-            switch aside {
-            case .collapsed:
-                width = ControlBar.contentWidth
-                // well (72) + spacing (12) + transport row (60) + spacing (12) + progress strip (44)
-                height = Layout.playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.sm + ProgressBar.hitHeight
-            case .timeline:
-                width = Layout.expandedPlayerControlsContentWidth
-                // well + transport + timeline block (220) + inter-block spacings
-                height = Layout.playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.sm + PrecisionTimeline.expandedHeight
-            case .settings:
-                width = Layout.expandedPlayerControlsContentWidth
-                height = 360
-            case .mediaInformation:
-                width = Layout.expandedPlayerControlsContentWidth
-                height = 280
-            }
-            _ = surface
-            return CGSize(width: width, height: height)
-        }
-
-        /// Chrome morph. Visible travel lands around 0.15-0.18s, settles within 0.3s.
-        public static let morph: Animation = .spring(response: 0.32, dampingFraction: 0.86)
-        /// Crossfade for the two content layers, started in the same transaction
-        /// as `morph` so insertion and removal overlap and no empty-shell frame
-        /// is produced.
-        public static let crossfade: Animation = .easeInOut(duration: 0.18)
-        public static var contentCrossfade: AnyTransition { .opacity.animation(crossfade) }
     }
 
     /// DesignPreview precision timeline prototype.

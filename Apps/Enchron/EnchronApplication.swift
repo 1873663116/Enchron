@@ -200,6 +200,12 @@ final class EnchronApplication {
             appModel.prepareColdPlaybackLaunch(for: family)
             return mode
         }
+        launcher.onPlaybackIntentStarted = { [weak appModel] in
+            appModel?.beginPlaybackWindowSession()
+        }
+        launcher.onPlaybackStopRequested = { [weak appModel] in
+            appModel?.endPlaybackWindowSession()
+        }
         launcher.onEffectiveMediaFormatApplied = {
             [weak appModel, weak playbackRuntime] interpretation in
             guard let appModel, let playbackRuntime else { return }
