@@ -1220,10 +1220,10 @@ UNITS: tuple[Unit, ...] = (
                 "PlayerPanel-precision-timeline",
                 expect="Precision timeline closes, symmetrically.",
             ),
-            wearer(
-                "progress drag",
-                "Progress drag has not been proven with synthetic input; it "
-                "remains a wearer handoff until a simulator Session proves it.",
+            real(
+                "swipeRight",
+                "PlayerPanel-progress",
+                expect="Progress drag moves the position while playback is paused.",
             ),
             real(
                 "tap",
@@ -1241,11 +1241,11 @@ UNITS: tuple[Unit, ...] = (
                 "seekNormalized",
                 args=("position=0.5",),
                 expect="Position lands at half the duration.",
-                why="Seeking to an exact fraction is not a control the product "
-                "offers; the drag that would do it is wearer-only.",
-                skips="The scrubber drag and its hold state machine.",
-                blind="Any defect in the drag gesture. The seek path itself is "
-                "the same one the drag calls.",
+                why="An exact half-duration checkpoint is deterministic setup; "
+                "the product drag is relative and cannot target it repeatably.",
+                skips="The scrubber hit test, drag gesture and coordinate mapping.",
+                blind="A defect limited to those input layers. The preceding real "
+                "swipe covers the drag path independently.",
             ),
         ),
     ),

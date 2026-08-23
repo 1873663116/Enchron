@@ -582,17 +582,17 @@ Play, pause and skip from the transport panel.
    - expect: Precision timeline opens. A single tap seeks; the timeline is a double tap, and it does not exist to be tapped until that gesture opens it.
 7. `real` doubleTap `PlayerPanel-precision-timeline`
    - expect: Precision timeline closes, symmetrically.
-8. `wearer` handoff `progress drag`
-   - expect: Progress drag has not been proven with synthetic input; it remains a wearer handoff until a simulator Session proves it.
+8. `real` swipeRight `PlayerPanel-progress`
+   - expect: Progress drag moves the position while playback is paused.
 9. `real` tap `PlayerPanel-media-information`
    - expect: Media information well expands. The well is its own tap target, and nothing else opens it.
 10. `real` tap `PlayerPanel-media-information-close`
    - expect: Media information panel closes.
 11. `injected` app `seekNormalized` position=0.5
    - expect: Position lands at half the duration.
-   - why injected: Seeking to an exact fraction is not a control the product offers; the drag that would do it is wearer-only.
-   - skips: The scrubber drag and its hold state machine.
-   - blind to: Any defect in the drag gesture. The seek path itself is the same one the drag calls.
+   - why injected: An exact half-duration checkpoint is deterministic setup; the product drag is relative and cannot target it repeatably.
+   - skips: The scrubber hit test, drag gesture and coordinate mapping.
+   - blind to: A defect limited to those input layers. The preceding real swipe covers the drag path independently.
 
 ## playback.tracks
 
