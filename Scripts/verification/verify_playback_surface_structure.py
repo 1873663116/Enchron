@@ -132,6 +132,9 @@ def main() -> int:
     reality_presenter = read(
         "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift"
     )
+    playback_reality_adapter = read(
+        "Modules/PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapter.swift"
+    )
     spatial_handoff = read("Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift")
     docked_placement = read("Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift")
     regression_support = read("Tests/EnchronAppUI/Support/DeviceRegressionSupport.swift")
@@ -528,6 +531,18 @@ def main() -> int:
         "PlaybackRealityViewTopologyWritePolicy.decision(" in topology_write_gate
         and "presentation != .docked" not in topology_write_gate,
         "Docked bypasses live-host topology ownership",
+    )
+    docked_interaction_surface = region(
+        reality_presenter,
+        "enum PlaybackDockedInteractionSurface",
+        "enum PlaybackPanoramaInteractionSurface",
+    )
+    require(
+        "entity.look(at: viewerReference, from: position, relativeTo: nil)"
+        in playback_reality_adapter
+        and "entity.position = [0, 0, -frontOffset]"
+        in docked_interaction_surface,
+        "the Docked interaction collider is behind its -Z-facing video plane",
     )
     require(
         ".environmentCardAppeared" in app_scene

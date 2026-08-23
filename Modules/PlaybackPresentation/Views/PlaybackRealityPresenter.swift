@@ -388,7 +388,10 @@ enum PlaybackDockedInteractionSurface {
             ? screenSize
             : fallbackScreenSize
         entity.name = entityName
-        entity.position = [0, 0, frontOffset]
+        // PlaybackSurfaceRealityKitAdapter.dock uses look(at:from:relativeTo:),
+        // whose default forward direction is local -Z. The child collider is in
+        // front of the video only when its positive offset magnitude moves -Z.
+        entity.position = [0, 0, -frontOffset]
         entity.orientation = .init()
         entity.scale = .one
         entity.components.set(InputTargetComponent())
