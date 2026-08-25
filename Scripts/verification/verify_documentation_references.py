@@ -23,6 +23,7 @@ INSTRUCTION_ROOTS = (
     "AGENTS.md",
     "ARCHITECTURE.md",
     "docs/CONTEXT.md",
+    "docs/MERGE_EVIDENCE.md",
     ".agents/skills",
     ".cursor/rules",
     ".github",
