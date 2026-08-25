@@ -7,10 +7,6 @@
       "count": 1
     },
     {
-      "name": "a full-window transparent hit plane can intercept Window chrome gaze",
-      "count": 1
-    },
-    {
       "name": "camera target does not follow presentation",
       "count": 1
     },

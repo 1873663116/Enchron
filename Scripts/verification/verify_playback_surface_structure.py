@@ -204,10 +204,45 @@ def main() -> int:
     )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
+    window_interaction_surface = region(
+        reality_presenter,
+        "enum PlaybackWindowInteractionSurface",
+        "enum PlaybackDockedInteractionSurface",
+    )
     require(
-        "Color.clear" not in vision_surface
-        and ".allowsHitTesting(appModel.showControls == false)" in vision_surface,
-        "a full-window transparent hit plane can intercept Window chrome gaze",
+        "entity.components.set(InputTargetComponent())" in window_interaction_surface
+        and "CollisionComponent(" in window_interaction_surface
+        and "entity.position = [0, 0, frontOffset]" in window_interaction_surface
+        and "size.x, size.y, thickness" in window_interaction_surface,
+        "the window playback surface entity carries no viewer-facing collision input target",
+    )
+    require(
+        "PlaybackWindowInteractionSurface.install(" in surface
+        and "component?.playerScreenSize" in surface
+        and "TapGesture()" in surface
+        and ".targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)"
+        in surface
+        and ".simultaneousGesture(surfaceTapGesture)" in vision_surface,
+        "window surface taps are not recognized on the sized playback entity",
+    )
+    window_surface_content = region(
+        window_root,
+        "private var surfaceContent: some View",
+        "private var edgeEmphasis: some View",
+    )
+    require(
+        "Button(" not in window_root
+        and ".allowsHitTesting" not in vision_surface
+        and order(
+            window_surface_content,
+            "videoContent",
+            "Color.clear",
+            ".allowsHitTesting(false)",
+            '.accessibilityIdentifier("PlayerUI-window-playback-surface")',
+        )
+        and window_surface_content.count(".allowsHitTesting") == 1,
+        "the window video surface is not a hit-testable RealityView under an"
+        " input-transparent accessibility node",
     )
     require(
         "content.cameraTarget = presentation == .docked ? videoEntity : nil" in surface,
@@ -262,6 +297,12 @@ def main() -> int:
         "the production host duplicates the shared window playback resize contract",
     )
     design_tokens = read("Modules/DesignSystem/DesignTokens.swift")
+    require(
+        "enum PlaybackSurface" not in design_tokens
+        and "interactionPlane" not in design_tokens
+        and "interactionSurface" not in design_tokens,
+        "DesignTokens still owns a painted input plane",
+    )
     require(
         "panelChromeSize" in playback_panel
         and "PlayerPanelChrome.contentSize" in playback_panel
@@ -622,7 +663,10 @@ def main() -> int:
         "enum PlaybackDockedInteractionSurface",
     )
     require(
-        "case .dockedInteractionSurface:" in spatial_input_ownership
+        "case .windowInteractionSurface:" in spatial_input_ownership
+        and "PlaybackWindowInteractionSurface.contains(entity)"
+        in spatial_input_ownership
+        and "case .dockedInteractionSurface:" in spatial_input_ownership
         and "PlaybackDockedInteractionSurface.contains(entity)"
         in spatial_input_ownership
         and "case .panoramaInteractionSurface:" in spatial_input_ownership
@@ -641,6 +685,22 @@ def main() -> int:
         and "childFrontProbeName" not in docked_contains,
         "Docked diagnostic probes can trigger production controls",
     )
+    sub_perceptual_paint = re.compile(r"\.opacity\(\s*0\.0(?:0\d+|1\d?)\s*\)")
+    for sub_perceptual_path in (
+        "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
+        "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+        "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
+        "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift",
+        "Apps/Enchron/MainView.swift",
+        "Modules/DesignSystem/DesignTokens.swift",
+    ):
+        production_paint_text = without_debug_blocks(read(sub_perceptual_path))
+        for paint in sub_perceptual_paint.finditer(production_paint_text):
+            require(
+                ".allowsHitTesting(false)"
+                in production_paint_text[paint.end():paint.end() + 240],
+                f"{sub_perceptual_path} paints a sub-perceptual layer that can carry input",
+            )
     require(
         ".environmentCardAppeared" in app_scene
         and ".environmentCardDisappeared" in app_scene,
