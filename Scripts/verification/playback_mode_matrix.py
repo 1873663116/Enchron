@@ -285,7 +285,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step("open", OPEN_CLIP, "window"),
         Step(
             "apply-native-180",
-            ("PlayerUI-window-playback-surface", *APPLY_NATIVE_180),
+            ("summon:" + APPLY_NATIVE_180[0], *APPLY_NATIVE_180[1:]),
             PANORAMIC_WINDOW,
         ),
         Step(
@@ -342,7 +342,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step("open", OPEN_CLIP, "window"),
         Step(
             "apply-360-mono",
-            ("PlayerUI-window-playback-surface", *APPLY_360_MONO),
+            ("summon:" + APPLY_360_MONO[0], *APPLY_360_MONO[1:]),
             PANORAMIC_WINDOW,
         ),
         Step(

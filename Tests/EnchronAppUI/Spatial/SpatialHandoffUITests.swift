@@ -55,42 +55,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let playbackSurface = app.buttons[
             "PlayerUI-window-playback-surface"
         ].firstMatch
-        guard requireHittable(
-            playbackSurface,
-            named: "Window playback surface"
-        ) else { return }
-        playbackSurface.tap()
-        let hidden = try XCTUnwrap(waitForState(windowState, timeout: 8) {
-            $0.string("controls") == "hidden"
-                && $0.string("chrome") == "off"
-                && $0.string("tapTrace") == "toggled:hidden"
-        })
-        attachState(hidden, name: "window-input-02-hidden")
-        attachScreenshot(from: app, name: "window-input-02-hidden")
-        assertControlsVisibility(
-            "hidden",
-            remainsStableFor: 0.8,
-            in: windowState,
-            context: "one Window surface tap"
-        )
-
-        guard requireHittable(
-            playbackSurface,
-            named: "Window playback surface with controls hidden"
-        ) else { return }
-        playbackSurface.tap()
-        let shownAgain = try XCTUnwrap(waitForState(windowState, timeout: 8) {
-            $0.string("controls") == "shown"
-                && $0.string("chrome") == "on"
-                && $0.string("tapTrace") == "toggled:shown"
-        })
-        attachState(shownAgain, name: "window-input-03-shown-again")
-        attachScreenshot(from: app, name: "window-input-03-shown-again")
-        assertControlsVisibility(
-            "shown",
-            remainsStableFor: 0.8,
-            in: windowState,
-            context: "second Window surface tap"
+        XCTAssertTrue(
+            playbackSurface.waitForExistence(timeout: 5),
+            "The playback surface accessibility node must stay published for the harness."
         )
 
         let playPause = app.descendants(matching: .any)[
@@ -257,37 +224,15 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         attachScreenshot(from: app, name: "window-input-09-timeline-expanded")
 
         Thread.sleep(forTimeInterval: 1.2)
-        guard requireHittable(
-            playbackSurface,
-            named: "Window playback surface after closing menus"
-        ) else { return }
-        playbackSurface.tap()
-        _ = try XCTUnwrap(waitForState(windowState, timeout: 8) {
-            $0.string("controls") == "hidden"
-                && $0.string("chrome") == "off"
-                && $0.string("tapTrace") == "toggled:hidden"
-        })
+        precisionTimeline.doubleTap()
         XCTAssertTrue(
             precisionTimeline.waitForNonExistence(timeout: 5),
-            "Hiding Player Controls must end the temporary Precision Timeline expansion."
+            "Double activation must close the Precision Timeline."
         )
-        attachScreenshot(from: app, name: "window-input-10-timeline-reset-hidden")
-
-        guard requireHittable(
-            playbackSurface,
-            named: "Window playback surface after timeline reset"
-        ) else { return }
-        playbackSurface.tap()
-        _ = try XCTUnwrap(waitForState(windowState, timeout: 8) {
-            $0.string("controls") == "shown"
-                && $0.string("chrome") == "on"
-                && $0.string("tapTrace") == "toggled:shown"
-        })
         XCTAssertTrue(progress.waitForExistence(timeout: 5))
-        XCTAssertFalse(precisionTimeline.exists)
-        attachScreenshot(from: app, name: "window-input-11-standard-progress-restored")
+        attachScreenshot(from: app, name: "window-input-10-timeline-closed")
         attachHumanReviewBoundary(
-            "Review the recording for duplicate surface reactions, control hit-through, and any visible layering conflict between the SwiftUI chrome and video surface.",
+            "Window surface summon and dismiss now ride the RealityKit input target, which synthetic XCUI taps cannot reach: verify the toggle with real gaze plus pinch (Device Hub canvas on the simulator, wearer on device). Review the recording for control hit-through and any visible layering conflict between the SwiftUI chrome and video surface.",
             name: "window-input-human-review-boundary"
         )
     }

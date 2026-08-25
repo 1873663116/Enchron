@@ -548,9 +548,19 @@ def main() -> int:
         mark_phase("openMedia")
         require_success(
             session.controller(
+                "app-command",
+                "--verb",
+                "toggleControls",
+                "--arg",
+                "visible=true",
+                "--no-screenshot",
+            ),
+            "show controls for Panorama entry",
+        )
+        require_success(
+            session.controller(
                 "tapSequence",
                 "--identifiers",
-                "PlayerUI-window-playback-surface",
                 "PlayerUI-TopAction-resumePanorama",
                 "--no-screenshot",
             ),

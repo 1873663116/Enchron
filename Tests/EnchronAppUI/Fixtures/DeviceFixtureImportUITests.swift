@@ -3346,35 +3346,18 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             return false
         }
 
-        let playbackSurface = app.buttons.matching(
-            identifier: "PlayerUI-window-playback-surface"
-        ).firstMatch
-        guard requireHittable(
-            playbackSurface,
-            named: "Window playback surface for showing controls"
-        ) else { return false }
-        for _ in 1...2 {
-            playbackSurface.tap()
-            if waitForState(currentStateElement, timeout: 4, where: {
-                $0.string("controls") == "shown"
-                    && $0.string("chrome") == "on"
-                    && $0.string("tapTrace") == "toggled:shown"
-            }) != nil {
-                return true
-            }
-            let latest = RegressionStateSnapshot(
-                rawValue: currentStateElement.value as? String ?? ""
-            )
-            if latest.string("tapTrace") != "toggled:hidden" {
-                break
-            }
-        }
         attachCurrentState(
             of: currentStateElement,
             name: "\(evidenceName)-state-failure"
         )
         attachScreenshot(from: app, name: "\(evidenceName)-failure")
-        XCTFail("The public playback surface did not restore the Window controls.")
+        XCTFail(
+            "Window controls were hidden and synthetic input cannot summon them:"
+                + " the playback surface is a RealityKit input target that only real"
+                + " gaze plus pinch reaches. Keep controls visible via"
+                + " ENCHRON_CONTROLS_AUTO_HIDE_SECONDS or drive toggleControls"
+                + " through the host-side test channel."
+        )
         return false
     }
 
