@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "generatedFrom": "Scripts/verification/journey_units.py",
   "cells": [
     {
@@ -1363,8 +1363,9 @@
       "operation": "accessibility:PlayerUI-window-playback-surface",
       "unit": "playback.controls-window",
       "step": 1,
-      "drive": "real",
-      "expect": "Controls appear. In the window and portal this is a real touch on the video, not an injection."
+      "drive": "device-hub",
+      "expect": "Controls appear and the probe line lands. The surface is a RealityKit collider behind an input-transparent accessibility node: a synthetic tap reports success without reaching it, the channel toggle writes no spatialTap line, and the harness keeps only the summon: prefix as its declared injection, so this probe line is evidence only the Device Hub pipeline produces.",
+      "probe": "spatialTap entity=EnchronWindowInput.surface accepted=true"
     },
     {
       "context": "portal",
@@ -1398,7 +1399,7 @@
       "context": "portal",
       "operation": "command:toggleControls",
       "status": "exempt",
-      "reason": "Deliberately unused here. The controls are summoned by a real tap on the video surface in this presentation, and reaching for the injection would skip a path that works."
+      "reason": "Deliberately unused here. The controls are summoned by real gaze and pinch on the surface collider in this presentation, the channel toggle survives in the synthetic harness only as the summon: step prefix, and exempting it keeps that injection from standing in for Device Hub evidence."
     },
     {
       "context": "window",
@@ -1661,8 +1662,9 @@
       "operation": "accessibility:PlayerUI-window-playback-surface",
       "unit": "playback.controls-window",
       "step": 1,
-      "drive": "real",
-      "expect": "Controls appear. In the window and portal this is a real touch on the video, not an injection."
+      "drive": "device-hub",
+      "expect": "Controls appear and the probe line lands. The surface is a RealityKit collider behind an input-transparent accessibility node: a synthetic tap reports success without reaching it, the channel toggle writes no spatialTap line, and the harness keeps only the summon: prefix as its declared injection, so this probe line is evidence only the Device Hub pipeline produces.",
+      "probe": "spatialTap entity=EnchronWindowInput.surface accepted=true"
     },
     {
       "context": "window",
@@ -1688,7 +1690,7 @@
       "context": "window",
       "operation": "command:toggleControls",
       "status": "exempt",
-      "reason": "Deliberately unused here. The controls are summoned by a real tap on the video surface in this presentation, and reaching for the injection would skip a path that works."
+      "reason": "Deliberately unused here. The controls are summoned by real gaze and pinch on the surface collider in this presentation, the channel toggle survives in the synthetic harness only as the summon: step prefix, and exempting it keeps that injection from standing in for Device Hub evidence."
     },
     {
       "context": "window",

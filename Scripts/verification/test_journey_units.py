@@ -118,5 +118,84 @@ class RegistryTests(unittest.TestCase):
                 )
 
 
+
+class DeviceHubVocabularyTests(unittest.TestCase):
+    SURFACE = "PlayerUI-window-playback-surface"
+    ENTITY = "EnchronWindowInput.surface"
+    PROBE = "spatialTap entity=EnchronWindowInput.surface accepted=true"
+
+    def complaints(self, step: units.Step) -> list[str]:
+        return units.entity_input_complaints(
+            step, units.identifier_operations(), units.entity_input_operations()
+        )
+
+    def test_a_synthetic_tap_on_an_entity_input_target_is_rejected(self) -> None:
+        step = units.real("tap", self.SURFACE, expect="Controls appear.")
+        self.assertTrue(any("RealityKit" in item for item in self.complaints(step)))
+
+    def test_an_injection_cannot_claim_an_entity_input_target(self) -> None:
+        step = units.injected(
+            "tap", self.SURFACE, why="w", skips="s", blind="b", expect="Shown."
+        )
+        self.assertTrue(self.complaints(step))
+
+    def test_a_device_hub_pinch_with_the_probe_contract_passes(self) -> None:
+        step = units.device_hub(
+            "pinch", self.SURFACE, entity=self.ENTITY, probe=self.PROBE, expect="Shown."
+        )
+        self.assertEqual([], self.complaints(step))
+
+    def test_a_channel_style_probe_is_rejected(self) -> None:
+        step = units.device_hub(
+            "pinch",
+            self.SURFACE,
+            entity=self.ENTITY,
+            probe="toggle source=channel showControls=true",
+            expect="Shown.",
+        )
+        self.assertTrue(any("spatialTap" in item for item in self.complaints(step)))
+
+    def test_a_device_hub_step_cannot_launder_an_ordinary_control(self) -> None:
+        step = units.device_hub(
+            "pinch",
+            "PlayerPanel-button-play",
+            entity=self.ENTITY,
+            probe=self.PROBE,
+            expect="Pauses.",
+        )
+        self.assertTrue(self.complaints(step))
+
+    def test_evidence_fields_are_rejected_outside_device_hub(self) -> None:
+        step = units.Step(
+            verb="tap",
+            target=self.SURFACE,
+            drive=units.REAL,
+            entity=self.ENTITY,
+            expect="Shown.",
+        )
+        self.assertTrue(
+            any("only a device-hub" in item for item in self.complaints(step))
+        )
+
+    def test_a_device_hub_pinch_covers_the_operation_it_pinches(self) -> None:
+        patterns = [
+            (units.template_pattern(self.SURFACE), f"accessibility:{self.SURFACE}")
+        ]
+        step = units.device_hub(
+            "pinch", self.SURFACE, entity=self.ENTITY, probe=self.PROBE, expect="Shown."
+        )
+        self.assertEqual(
+            units.derived_claims(step, ("window",), patterns),
+            [("window", f"accessibility:{self.SURFACE}")],
+        )
+
+    def test_the_surface_cells_record_the_device_hub_drive_and_probe(self) -> None:
+        assignment = units.covered_by(units.identifier_operations())
+        for context in ("window", "portal"):
+            entry = assignment[(context, f"accessibility:{self.SURFACE}")]
+            self.assertEqual(units.DEVICE_HUB, entry["drive"])
+            self.assertIn("accepted=true", str(entry["probe"]))
+
+
 if __name__ == "__main__":
     unittest.main()

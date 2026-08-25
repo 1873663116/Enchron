@@ -51,7 +51,8 @@ INJECTED = "injected"
 SETUP = "setup"
 EVIDENCE = "evidence"
 WEARER = "wearer"
-DRIVES = (REAL, INJECTED, SETUP, EVIDENCE, WEARER)
+DEVICE_HUB = "device-hub"
+DRIVES = (REAL, INJECTED, SETUP, EVIDENCE, WEARER, DEVICE_HUB)
 
 VERBS = (
     "tap",
@@ -69,9 +70,12 @@ VERBS = (
     "assert",
     "frames",
     "handoff",
+    "pinch",
 )
 
 COMMAND_CHANNEL_PATH = REPOSITORY_ROOT / "Apps/Enchron/TestCommandChannel.swift"
+
+ENTITY_INPUT_HOSTS = frozenset({"windowPlaybackSurfaceEntityTapTarget"})
 
 
 def app_commands() -> set[str]:
@@ -109,6 +113,8 @@ class Step:
     args: tuple[str, ...] = ()
     identifiers: tuple[str, ...] = ()
     injection: Injection | None = None
+    entity: str = ""
+    probe: str = ""
 
     def targets(self) -> tuple[str, ...]:
         if self.identifiers:
@@ -180,6 +186,19 @@ def injected(
         drive=INJECTED,
         injection=Injection(why=why, skips=skips, blind=blind),
         **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def device_hub(
+    verb: str, target: str, *, entity: str, probe: str, **kwargs: object
+) -> Step:
+    return Step(
+        verb=verb,
+        target=target,
+        drive=DEVICE_HUB,
+        entity=entity,
+        probe=probe,
+        **kwargs,
     )
 
 
@@ -1148,18 +1167,27 @@ UNITS: tuple[Unit, ...] = (
     ),
     Unit(
         id="playback.controls-window",
-        title="Summon the controls by touching the video and use the top bar",
+        title="Summon the controls through the gaze-and-pinch pipeline and "
+        "use the top bar",
         contexts=("window", "portal",),
-        precondition="Steady playback in the window.",
-        proves="The summon gesture works and the top actions respond before "
-        "auto-hide takes them away.",
+        precondition="Steady playback in the window, Device Hub canvas "
+        "frontmost for the summon step.",
+        proves="The surface collider accepts a real gaze-and-pinch summon "
+        "and the top actions respond before auto-hide takes them away.",
         needs=("playback.open",),
         steps=(
-            real(
-                "tap",
+            device_hub(
+                "pinch",
                 "PlayerUI-window-playback-surface",
-                expect="Controls appear. In the window and portal this is a real "
-                "touch on the video, not an injection.",
+                entity="EnchronWindowInput.surface",
+                probe="spatialTap entity=EnchronWindowInput.surface accepted=true",
+                expect="Controls appear and the probe line lands. The surface "
+                "is a RealityKit collider behind an input-transparent "
+                "accessibility node: a synthetic tap reports success without "
+                "reaching it, the channel toggle writes no spatialTap line, "
+                "and the harness keeps only the summon: prefix as its "
+                "declared injection, so this probe line is evidence only the "
+                "Device Hub pipeline produces.",
             ),
             real(
                 "tapSequence",
@@ -1762,10 +1790,12 @@ UNITS: tuple[Unit, ...] = (
     ),
 )
 
-REFUSED_BECAUSE_REAL_TAP_WORKS = (
-    "Deliberately unused here. The controls are summoned by a real tap on the "
-    "video surface in this presentation, and reaching for the injection would "
-    "skip a path that works."
+REFUSED_BECAUSE_DEVICE_HUB_OWNS_THE_SUMMON = (
+    "Deliberately unused here. The controls are summoned by real gaze and "
+    "pinch on the surface collider in this presentation, the channel toggle "
+    "survives in the synthetic harness only as the summon: step prefix, and "
+    "exempting it keeps that injection from standing in for Device Hub "
+    "evidence."
 )
 SUPERSEDED_BY_REAL_MENU_TAPS = (
     "Superseded. Measured on device 2026-08-20: the menu host is hittable, the "
@@ -1779,7 +1809,7 @@ SUPERSEDED_BY_REAL_MENU_TAPS = (
 # skip a path we can actually walk does not earn its place.
 EXEMPTIONS: dict[tuple[str, str], str] = {
     **{
-        (context, "command:toggleControls"): REFUSED_BECAUSE_REAL_TAP_WORKS
+        (context, "command:toggleControls"): REFUSED_BECAUSE_DEVICE_HUB_OWNS_THE_SUMMON
         for context in ("window", "portal")
     },
     **{
@@ -1837,6 +1867,83 @@ def match_operation(target: str, patterns: list[tuple[re.Pattern[str], str]]) ->
     return hits[0] if hits else None
 
 
+def entity_input_operations() -> dict[str, dict[str, object]]:
+    return {
+        operation["id"]: operation
+        for operation in inventory()["operations"]
+        if operation["proofContextDerivation"].get("host") in ENTITY_INPUT_HOSTS
+    }
+
+
+def entity_input_complaints(
+    step: Step,
+    patterns: list[tuple[re.Pattern[str], str]],
+    entity_operations: dict[str, dict[str, object]],
+) -> list[str]:
+    complaints: list[str] = []
+    matched: list[str] = []
+    for candidate in step.targets():
+        operation = match_operation(candidate, patterns)
+        if operation:
+            matched.append(operation)
+    matched_entity = [
+        operation for operation in matched if operation in entity_operations
+    ]
+    if step.drive != DEVICE_HUB:
+        if step.entity or step.probe:
+            complaints.append(
+                "declares entity or probe evidence, which only a device-hub "
+                "step may carry"
+            )
+        if step.verb == "pinch":
+            complaints.append(
+                "uses the pinch verb outside the device-hub pipeline"
+            )
+        if matched_entity and step.drive != EVIDENCE:
+            complaints.append(
+                f"{', '.join(matched_entity)} is a RealityKit input target "
+                "(2026-08-25 R5/Q11): synthetic XCUI events never reach the "
+                "collider and still report success against its "
+                "input-transparent accessibility node, so only a device-hub "
+                "step can drive it"
+            )
+        return complaints
+    if step.verb != "pinch":
+        complaints.append(
+            "device-hub steps land as gaze plus pinch; use the pinch verb"
+        )
+    if not matched or len(matched_entity) != len(matched):
+        complaints.append(
+            "device-hub steps may target only RealityKit input targets; a "
+            "synthetic-reachable control stays on a real step so the "
+            "device-hub drive keeps meaning evidence only that pipeline "
+            "produces"
+        )
+    if not step.entity:
+        complaints.append("names no collider entity")
+    elif not any(
+        step.entity in (REPOSITORY_ROOT / source["path"]).read_text(encoding="utf-8")
+        for operation in matched_entity
+        for source in entity_operations[operation]["proofContextDerivation"]["sources"]
+    ):
+        complaints.append(
+            f"entity {step.entity!r} appears in none of the target "
+            "operation's derivation sources"
+        )
+    if not (
+        step.probe.startswith("spatialTap ")
+        and f"entity={step.entity}" in step.probe
+        and "accepted=true" in step.probe
+    ):
+        complaints.append(
+            "probe must be the app-side spatialTap line "
+            "(spatialTap entity=<entity> ... accepted=true); the command "
+            "channel writes no spatialTap lines, so nothing synthetic can "
+            "produce this evidence"
+        )
+    return complaints
+
+
 def derived_claims(
     step: Step,
     unit_contexts: tuple[str, ...],
@@ -1849,7 +1956,7 @@ def derived_claims(
     Setup and evidence steps derive nothing, because reaching a screen and
     reading it back are not the operation.
     """
-    if step.drive not in (REAL, INJECTED, WEARER):
+    if step.drive not in (REAL, INJECTED, WEARER, DEVICE_HUB):
         return []
     operations: list[str] = []
     for candidate in step.targets():
@@ -1920,6 +2027,16 @@ def check() -> int:
     known = set(cells)
     patterns = identifier_operations()
     commands = app_commands()
+    entity_operations = entity_input_operations()
+    hosts = {
+        operation["proofContextDerivation"].get("host")
+        for operation in inventory()["operations"]
+    }
+    for host in sorted(ENTITY_INPUT_HOSTS - hosts):
+        failures.append(
+            f"entity-input host {host!r} is no longer in the inventory; the "
+            "derivation moved and this set is stale"
+        )
     seen: set[tuple[str, str]] = set()
     unit_ids = set()
 
@@ -1955,6 +2072,10 @@ def check() -> int:
                             failures.append(f"{where}: injection {name} is empty")
             if step.drive != INJECTED and step.injection is not None:
                 failures.append(f"{where}: declares an injection but is not injected")
+            for complaint in entity_input_complaints(
+                step, patterns, entity_operations
+            ):
+                failures.append(f"{where}: {complaint}")
             if not step.expect.strip():
                 failures.append(f"{where}: no expectation")
             derived = derived_claims(step, unit.contexts, patterns)
@@ -2037,16 +2158,16 @@ def covered_by(patterns: list[tuple[re.Pattern[str], str]]) -> dict[tuple[str, s
                 if step_supports(step, cell[1]) is None
             ]
             cells.extend(derived_claims(step, unit.contexts, patterns))
+            entry: dict[str, object] = {
+                "unit": unit.id,
+                "step": position,
+                "drive": step.drive,
+                "expect": step.expect,
+            }
+            if step.drive == DEVICE_HUB:
+                entry["probe"] = step.probe
             for cell in cells:
-                assignment.setdefault(
-                    cell,
-                    {
-                        "unit": unit.id,
-                        "step": position,
-                        "drive": step.drive,
-                        "expect": step.expect,
-                    },
-                )
+                assignment.setdefault(cell, dict(entry))
     return assignment
 
 
@@ -2068,7 +2189,7 @@ def ledger_text() -> str:
     return (
         json.dumps(
             {
-                "schemaVersion": 2,
+                "schemaVersion": 3,
                 "generatedFrom": "Scripts/verification/journey_units.py",
                 "cells": entries,
             },
@@ -2138,7 +2259,11 @@ def reference_text() -> str:
         "`real` drives the product through its own hit testing. `injected` reaches "
         "past some of that path and says what it skips, so a pass there is worth "
         "less than a pass beside it. `setup` and `evidence` prove nothing on their "
-        "own. `wearer` needs the human in the headset.",
+        "own. `wearer` needs the human in the headset. `device-hub` drives a "
+        "RealityKit input target through the system gaze-and-pinch pipeline "
+        "(Device Hub canvas: hover is gaze, click is pinch); its proof is the "
+        "app-side spatialTap probe line, which neither a synthetic tap nor the "
+        "command channel can produce.",
         "",
     ]
     for unit in UNITS:
@@ -2159,6 +2284,9 @@ def reference_text() -> str:
                 lines.append(f"   - why injected: {step.injection.why}")
                 lines.append(f"   - skips: {step.injection.skips}")
                 lines.append(f"   - blind to: {step.injection.blind}")
+            if step.drive == DEVICE_HUB:
+                lines.append(f"   - entity: `{step.entity}`")
+                lines.append(f"   - probe: `{step.probe}`")
         lines.append("")
     lines.append("## Uncovered by design")
     lines.append("")
