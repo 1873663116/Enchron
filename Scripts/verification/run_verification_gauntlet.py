@@ -119,6 +119,14 @@ STRUCTURE_CHECKS = (
         "vision-test-suite-coverage",
         "check_vision_test_suite_coverage.py",
     ),
+    StructureCheck(
+        "merge-evidence-tier",
+        "merge_evidence_tier.py",
+    ),
+    StructureCheck(
+        "merge-evidence-tier-tests",
+        "test_merge_evidence_tier.py",
+    ),
 )
 
 

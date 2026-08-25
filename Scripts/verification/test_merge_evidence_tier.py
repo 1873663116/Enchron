@@ -464,5 +464,36 @@ class CommitRangeTests(unittest.TestCase):
         self.assertIn("only declare upward", insufficient.stdout)
 
 
+class GauntletRegistrationTests(unittest.TestCase):
+    def test_the_gauntlet_runs_the_classifier_and_its_tests_in_quick_mode(self) -> None:
+        import run_verification_gauntlet as gauntlet
+
+        registered = {
+            check.identifier: check for check in gauntlet.STRUCTURE_CHECKS
+        }
+        self.assertIn("merge-evidence-tier", registered)
+        self.assertIn("merge-evidence-tier-tests", registered)
+        self.assertEqual(
+            registered["merge-evidence-tier"].filename, "merge_evidence_tier.py"
+        )
+        self.assertEqual(
+            registered["merge-evidence-tier-tests"].filename,
+            "test_merge_evidence_tier.py",
+        )
+        self.assertTrue(registered["merge-evidence-tier"].runs_in_quick_mode)
+        self.assertTrue(registered["merge-evidence-tier-tests"].runs_in_quick_mode)
+
+    def test_the_gate_never_turns_a_w3_range_into_a_failure(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(TOOL), "d69ee38^..d69ee38"],
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode == 2:
+            self.skipTest("range is not in this clone's history")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(tiers.REVIEW_PHRASE, completed.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
