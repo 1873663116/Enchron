@@ -106,8 +106,10 @@ $(SRCROOT)/Modules/PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapte
 $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformExecutionLease.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Session/DebugProbeJournal.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Session/PlaybackPresentationChrome.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Session/SurfaceInputProbes.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/AudioSpectrumSurface.swift

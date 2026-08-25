@@ -123,6 +123,9 @@ def main() -> int:
     VIOLATIONS.clear()
     surface = read("Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
+    attachment_view = read(
+        "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift"
+    )
     window_root = read(
         "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift"
     )
@@ -198,9 +201,9 @@ def main() -> int:
         "private func scheduleVisionSurfaceUpdate(",
     )
     spatial_controls = region(
-        main_view,
+        attachment_view,
         "struct ImmersivePlaybackControlsAttachmentView: View",
-        "private func rendererPerformanceAccessibilityFields(",
+        "public enum PlaybackStateAccessibility",
     )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
@@ -369,10 +372,10 @@ def main() -> int:
         "device UI acceptance races the unrelated production controls auto-hide timer",
     )
     require(
-        '"PlayerUI-spatial-state"' in main_view
+        '"PlayerUI-spatial-state"' in attachment_view
         and '"PlayerUI-spatial-state"' in spatial_handoff
         and '"PlayerUI-spatial-state"' in docked_placement
-        and '"PlayerUI-spatial-control-plane"' not in main_view,
+        and '"PlayerUI-spatial-control-plane"' not in attachment_view,
         "spatial acceptance state collapses or replaces the real Player Control Deck accessibility tree",
     )
     require(
@@ -525,8 +528,8 @@ def main() -> int:
         "already-closed collapse can wait for source fade or issue immersive scene actions",
     )
     require(
-        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in main_view,
-        "MainView does not derive attached-controls visibility from the attachment policy",
+        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in attachment_view,
+        "the controls attachment does not derive its visibility from the attachment policy",
     )
     require(
         ".allowsHitTesting(controlsAcceptInput)" in spatial_controls,
@@ -691,6 +694,7 @@ def main() -> int:
         "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
         "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
         "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift",
+        "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
         "Apps/Enchron/MainView.swift",
         "Modules/DesignSystem/DesignTokens.swift",
     ):

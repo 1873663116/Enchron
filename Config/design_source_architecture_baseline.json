@@ -144,19 +144,19 @@
       "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/MainView.swift",
       "signature": ".font(.system(size: 1))",
-      "count": 3
+      "count": 2
     },
     {
       "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/MainView.swift",
       "signature": ".frame(width: 1, height: 1)",
-      "count": 4
+      "count": 3
     },
     {
       "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/MainView.swift",
       "signature": ".opacity(0.001)",
-      "count": 4
+      "count": 3
     },
     {
       "rule": "production-hardcoded-visual",
@@ -360,6 +360,24 @@
       "rule": "production-hardcoded-visual",
       "path": "Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift",
       "signature": ".frame(width: 0, height: 0)",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+      "signature": ".font(.system(size: 1))",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+      "signature": ".frame(width: 1, height: 1)",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+      "signature": ".opacity(0.001)",
       "count": 1
     },
     {
