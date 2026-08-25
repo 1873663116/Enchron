@@ -83,6 +83,42 @@ struct PlaybackPresentationStateTests {
         }
     }
 
+    @Test("Window session reconciliation swaps scenes only from the owning host window")
+    func windowSessionReconciliationSwapsScenesOnlyFromOwningHostWindow() {
+        #expect(
+            PlaybackWindowSessionReconciliationPolicy.action(
+                hostWindow: .main,
+                sessionIsActive: true
+            ) == .presentPlaybackWindow
+        )
+        #expect(
+            PlaybackWindowSessionReconciliationPolicy.action(
+                hostWindow: .main,
+                sessionIsActive: false
+            ) == .none
+        )
+        #expect(
+            PlaybackWindowSessionReconciliationPolicy.action(
+                hostWindow: .playback,
+                sessionIsActive: false
+            ) == .restoreMainWindow
+        )
+        #expect(
+            PlaybackWindowSessionReconciliationPolicy.action(
+                hostWindow: .playback,
+                sessionIsActive: true
+            ) == .none
+        )
+        for sessionIsActive in [true, false] {
+            #expect(
+                PlaybackWindowSessionReconciliationPolicy.action(
+                    hostWindow: .immersivePlaybackResident,
+                    sessionIsActive: sessionIsActive
+                ) == .none
+            )
+        }
+    }
+
     @Test("Immersive playback exit reveals the Main Window only after spatial teardown and target activation")
     func immersivePlaybackExitWaitsToRevealActivatedWindowTarget() {
         #expect(

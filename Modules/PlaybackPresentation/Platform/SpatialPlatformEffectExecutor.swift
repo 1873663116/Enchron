@@ -446,6 +446,42 @@ final class SpatialPlatformEffectCoordinator {
         activeTask = ActiveTask(lease: execution.lease, task: task)
     }
 
+    func reconcilePlaybackWindowPresentation(
+        hostWindow: SpatialPlatformWindowIdentity,
+        sessionIsActive: Bool
+    ) {
+        let action = PlaybackWindowSessionReconciliationPolicy.action(
+            hostWindow: hostWindow,
+            sessionIsActive: sessionIsActive
+        )
+        guard action != .none else { return }
+        guard let actions = leaseRegistry.currentCapability else {
+            appModel.recordSurfaceInputProbe(
+                "playbackWindowReconcile dropped hostWindow=\(hostWindow.rawValue)"
+                    + " sessionIsActive=\(sessionIsActive)"
+            )
+            return
+        }
+        switch action {
+        case .presentPlaybackWindow:
+            actions.openWindow(
+                id: SpatialPlatformWindowIdentity.playback.rawValue
+            )
+            actions.dismissWindow(
+                id: SpatialPlatformWindowIdentity.main.rawValue
+            )
+        case .restoreMainWindow:
+            actions.openWindow(
+                id: SpatialPlatformWindowIdentity.main.rawValue
+            )
+            actions.dismissWindow(
+                id: SpatialPlatformWindowIdentity.playback.rawValue
+            )
+        case .none:
+            break
+        }
+    }
+
     private func invalidateTask(_ lease: SpatialPlatformExecutionLease) {
         lastExecutionCheckpoint = "execution-invalidated"
         if activeTask?.lease == lease {

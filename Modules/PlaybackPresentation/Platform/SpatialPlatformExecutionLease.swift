@@ -339,6 +339,28 @@ enum SpatialPlatformPlaybackWindowPolicy {
     }
 }
 
+enum PlaybackWindowSessionReconciliationAction: Equatable, Sendable {
+    case presentPlaybackWindow
+    case restoreMainWindow
+    case none
+}
+
+enum PlaybackWindowSessionReconciliationPolicy {
+    static func action(
+        hostWindow: SpatialPlatformWindowIdentity,
+        sessionIsActive: Bool
+    ) -> PlaybackWindowSessionReconciliationAction {
+        switch hostWindow {
+        case .main:
+            sessionIsActive ? .presentPlaybackWindow : .none
+        case .playback:
+            sessionIsActive ? .none : .restoreMainWindow
+        case .immersivePlaybackResident:
+            .none
+        }
+    }
+}
+
 /// Both ways out of Panorama land in the same retained Portal viewport, so
 /// app-requested exits and system collapses refresh it alike.
 enum PortalPlaybackViewportRefreshPolicy {

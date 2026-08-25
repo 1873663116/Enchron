@@ -203,8 +203,6 @@ public struct MainView: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(CertificateTrustPrompt.self) private var certificateTrustPrompt
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
@@ -1022,16 +1020,10 @@ public struct MainView: View {
     private func reconcilePlaybackWindowPresentation(
         sessionIsActive: Bool
     ) {
-        switch sceneRole {
-        case .browser:
-            guard sessionIsActive else { return }
-            openWindow(id: SpatialPlatformWindowIdentity.playback.rawValue)
-            dismissWindow(id: SpatialPlatformWindowIdentity.main.rawValue)
-        case .playback:
-            guard sessionIsActive == false else { return }
-            openWindow(id: SpatialPlatformWindowIdentity.main.rawValue)
-            dismissWindow(id: SpatialPlatformWindowIdentity.playback.rawValue)
-        }
+        spatialPlatformEffectCoordinator.reconcilePlaybackWindowPresentation(
+            hostWindow: sceneRole == .browser ? .main : .playback,
+            sessionIsActive: sessionIsActive
+        )
     }
 
 }
