@@ -1364,54 +1364,35 @@ struct FusedPlayerPanel: View {
                     x: thumbX,
                     y: DesignTokens.ProgressBar.hitHeight / 2
                 )
-
-            progressInteractionRegion(
-                width: overlayWidth,
-                travelWidth: width,
-                thumbX: thumbX
-            )
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
         .enchronHoverContentShape(Capsule())
         .enchronHoverActivation(in: hoverActivationGroup)
         .contentShape(.interaction, Capsule())
         .onHover { isProgressHovered = $0 }
-    }
-
-    private func progressInteractionRegion(
-        width: CGFloat,
-        travelWidth: CGFloat,
-        thumbX: CGFloat
-    ) -> some View {
-        Capsule()
-            // A rendered surface keeps this custom accessibility target in
-            // both the visionOS render tree and the synthetic-input hit-test tree.
-            .fill(DesignTokens.ProgressBar.interactionSurface)
-            .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
-            .contentShape(.interaction, Capsule())
-            .gesture(
-                ExclusiveGesture(
-                    SpatialTapGesture(count: 2),
-                    SpatialTapGesture()
-                ).onEnded { value in
-                    switch value {
-                    case .first:
-                        openTimeline()
-                    case .second(let tap):
-                        seekToTrack(at: tap.location.x, travelWidth: travelWidth)
-                    }
+        .gesture(
+            ExclusiveGesture(
+                SpatialTapGesture(count: 2),
+                SpatialTapGesture()
+            ).onEnded { value in
+                switch value {
+                case .first:
+                    openTimeline()
+                case .second(let tap):
+                    seekToTrack(at: tap.location.x, travelWidth: width)
                 }
-            )
-            .simultaneousGesture(
-                dragGesture(width: travelWidth, thumbX: thumbX)
-            )
-            .accessibilityElement(children: .ignore)
-            .accessibilityIdentifier("PlayerPanel-progress")
-            .accessibilityLabel("Playback position")
-            .accessibilityValue("\(displayedElapsedLabel) of \(live?.durationLabel ?? "14:15")")
-            .accessibilityAdjustableAction { direction in
-                adjustProgressForAccessibility(direction)
             }
+        )
+        .simultaneousGesture(
+            dragGesture(width: width, thumbX: thumbX)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-progress")
+        .accessibilityLabel("Playback position")
+        .accessibilityValue("\(displayedElapsedLabel) of \(live?.durationLabel ?? "14:15")")
+        .accessibilityAdjustableAction { direction in
+            adjustProgressForAccessibility(direction)
+        }
     }
 
     private func progressHub(
