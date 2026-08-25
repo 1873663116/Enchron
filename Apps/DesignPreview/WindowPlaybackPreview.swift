@@ -12,14 +12,13 @@ struct WindowPlaybackPreview: View {
         WindowPlaybackRootView(
             geometryPolicy: .aspectLocked(fixtureLayout),
             preferredInitialSize: fixtureInitialSize,
-            showsWindowChrome: showsControls,
-            onSurfaceTap: {
+            showsWindowChrome: showsControls
+        ) {
+            WindowPlaybackRealityFixture {
                 withAnimation(DesignTokens.AnimationToken.controlsTransition) {
                     showsControls.toggle()
                 }
             }
-        ) {
-            WindowPlaybackRealityFixture()
         } topChrome: {
             WindowPlaybackTopChrome {
                 GlassCircleIconButton.back(accessibilityLabel: "Back")
@@ -70,6 +69,8 @@ struct WindowPlaybackPreview: View {
 }
 
 private struct WindowPlaybackRealityFixture: View {
+    let onSurfaceTap: () -> Void
+
     static let imageAspectRatio: CGFloat = {
         guard let image = UIImage(named: "WindowPlaybackLightAppearanceAction"),
               image.size.height > 0 else {
@@ -92,7 +93,11 @@ private struct WindowPlaybackRealityFixture: View {
                 addScreenIfNeeded(to: content)
                 updateScreenLayout(in: content, geometry: geometry)
             }
-            .allowsHitTesting(false)
+            .simultaneousGesture(
+                TapGesture()
+                    .targetedToEntity(screenEntity)
+                    .onEnded { _ in onSurfaceTap() }
+            )
             .frame(depth: WindowPlaybackSurfaceGeometry.flatWindowDepth)
         }
         .frame(depth: WindowPlaybackSurfaceGeometry.flatWindowDepth)
@@ -133,6 +138,18 @@ private struct WindowPlaybackRealityFixture: View {
             ModelSortGroupComponent(
                 group: .planarUIAlwaysBehind,
                 order: WindowPlaybackSurfaceGeometry.backgroundSortOrder
+            )
+        )
+        screenEntity.components.set(InputTargetComponent())
+        screenEntity.components.set(
+            CollisionComponent(
+                shapes: [
+                    .generateBox(size: [
+                        Float(aspectRatio),
+                        Float(WindowPlaybackSurfaceGeometry.unitHeight),
+                        PlaybackWindowInteractionSurface.thickness
+                    ])
+                ]
             )
         )
         screenEntity.name = "WindowPlaybackPreview.Screen"

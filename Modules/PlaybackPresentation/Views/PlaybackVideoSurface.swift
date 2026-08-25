@@ -195,6 +195,7 @@ struct PlaybackVideoSurface: View {
 
     let presentation: PlaybackPresentation
     let isActive: Bool
+    let surfaceTapIsEnabled: Bool
     let viewportRefreshRevision: UInt64
     let onViewportRefreshApplied: @MainActor (UInt64) -> Void
 
@@ -249,6 +250,7 @@ struct PlaybackVideoSurface: View {
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             }
             .frame(depth: realityViewDepth)
+            .simultaneousGesture(surfaceTapGesture)
         }
         .frame(depth: realityViewDepth)
         .task(id: surfaceReadinessKey) {
@@ -293,6 +295,34 @@ struct PlaybackVideoSurface: View {
                 appModel: appModel
             )
         }
+    }
+
+    private var surfaceTapGesture: some Gesture {
+        TapGesture()
+            .targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)
+            .onEnded { value in
+                guard surfaceTapIsEnabled,
+                      PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                        value.entity,
+                        for: presentation
+                      ) else {
+                    appModel.recordSurfaceInputProbe(
+                        "spatialTap entity=\(value.entity.name)"
+                            + " accepted=false presentation=\(presentation.rawValue)"
+                    )
+                    return
+                }
+                appModel.recordSurfaceInputProbe(
+                    "spatialTap entity=\(value.entity.name)"
+                        + " accepted=true presentation=\(presentation.rawValue)"
+                )
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    PlaybackSurfaceInputAction.perform(
+                        .spatialTap,
+                        appModel: appModel
+                    )
+                }
+            }
     }
 
     private var surfaceReadinessKey: String {
@@ -462,6 +492,11 @@ struct PlaybackVideoSurface: View {
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode,
             requestsProgressiveImmersiveViewingMode: false
+        )
+        PlaybackWindowInteractionSurface.install(
+            playbackVideoEntityStore.windowInteractionSurface,
+            on: videoEntity,
+            screenSize: component?.playerScreenSize ?? .zero
         )
         let videoEntityOpacity = PlaybackPresentationTransitionAppearance.windowVideoEntityOpacity(
             for: presentation,

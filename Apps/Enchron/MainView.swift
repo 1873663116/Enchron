@@ -581,14 +581,6 @@ public struct MainView: View {
             showsWindowChrome: showsPlaybackChrome
                 && hostedPlaybackPresentation.usesMainWindow,
             hidesSurfaceFromAccessibility: isWindowSecondaryMenuPresented,
-            onSurfaceTap: {
-                withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                    PlaybackSurfaceInputAction.perform(
-                        .windowSwiftUI,
-                        appModel: appModel
-                    )
-                }
-            },
             onWindowSceneChange: { windowScene in
                 spatialPlatformEffectCoordinator.recordPlaybackWindowScene(
                     windowScene
@@ -660,10 +652,21 @@ public struct MainView: View {
         return ZStack {
             if playbackRuntime.mediaKind == .audioOnly {
                 AudioSpectrumSurface(frame: playbackRuntime.audioSpectrumFrame)
+                    .contentShape(.interaction, Rectangle())
+                    .onTapGesture {
+                        guard isWindowSecondaryMenuPresented == false else { return }
+                        withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                            PlaybackSurfaceInputAction.perform(
+                                .windowSwiftUI,
+                                appModel: appModel
+                            )
+                        }
+                    }
             } else {
                 PlaybackVideoSurface(
                     presentation: hostedPlaybackPresentation,
                     isActive: windowSurfaceIsActive,
+                    surfaceTapIsEnabled: isWindowSecondaryMenuPresented == false,
                     viewportRefreshRevision: spatialPlatformEffectCoordinator
                         .mainWindowPlaybackSurfaceRefreshRevision,
                     onViewportRefreshApplied: {

@@ -1081,7 +1081,7 @@ def presentation_derivation(
             source = required_source_location(
                 documents,
                 "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
-                "private func surfaceTapLayer(",
+                '"PlayerUI-window-playback-surface"',
             )
             return main_window_presentations, {
                 "host": "windowPlaybackSurfaceTapLayer",

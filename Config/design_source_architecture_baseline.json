@@ -514,12 +514,6 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
-      "signature": "VStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift",
       "signature": ".fill(.black.opacity(0.40))",
       "count": 1

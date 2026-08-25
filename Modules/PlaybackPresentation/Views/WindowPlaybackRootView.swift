@@ -259,7 +259,6 @@ struct WindowPlaybackRootView<
     private let freeformSizeOnDisappear: @MainActor () -> CGSize?
     private let showsWindowChrome: Bool
     private let hidesSurfaceFromAccessibility: Bool
-    private let onSurfaceTap: (() -> Void)?
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
     private let videoContent: VideoContent
@@ -272,7 +271,6 @@ struct WindowPlaybackRootView<
         freeformSizeOnDisappear: @escaping @MainActor () -> CGSize? = { nil },
         showsWindowChrome: Bool,
         hidesSurfaceFromAccessibility: Bool = false,
-        onSurfaceTap: (() -> Void)? = nil,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
         onGeometryRefresh: @escaping @MainActor (
             WindowPlaybackGeometryRefreshEvent
@@ -286,7 +284,6 @@ struct WindowPlaybackRootView<
         self.freeformSizeOnDisappear = freeformSizeOnDisappear
         self.showsWindowChrome = showsWindowChrome
         self.hidesSurfaceFromAccessibility = hidesSurfaceFromAccessibility
-        self.onSurfaceTap = onSurfaceTap
         self.onWindowSceneChange = onWindowSceneChange
         self.onGeometryRefresh = onGeometryRefresh
         self.videoContent = videoContent()
@@ -361,65 +358,18 @@ struct WindowPlaybackRootView<
             .zIndex(2)
     }
 
-    @ViewBuilder
     private var surfaceContent: some View {
-        if let onSurfaceTap {
-            ZStack {
-                // Window owns surface taps in SwiftUI. The RealityView must not
-                // compete for gaze + pinch, or the clear hit layer never fires.
-                videoContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        videoContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay {
+                Color.clear
                     .allowsHitTesting(false)
-
-                VStack(spacing: 0) {
-                    // Padding remains part of a SwiftUI view's content shape.
-                    // A separate non-interactive band is required so chrome
-                    // and its secondary panel are genuinely outside the
-                    // playback-surface hit region.
-                    Color.clear
-                        .frame(height: surfaceTapTopInset)
-                        .animation(nil, value: showsWindowChrome)
-                        .allowsHitTesting(false)
-
-                    surfaceTapLayer(onSurfaceTap: onSurfaceTap)
-                }
+                    .accessibilityElement()
+                    .accessibilityLabel("Playback surface")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("PlayerUI-window-playback-surface")
+                    .accessibilityHidden(hidesSurfaceFromAccessibility)
             }
-        } else {
-            videoContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    @ViewBuilder
-    private func surfaceTapLayer(onSurfaceTap: @escaping () -> Void) -> some View {
-        if hidesSurfaceFromAccessibility {
-            surfaceTapButton(onSurfaceTap: onSurfaceTap)
-                .accessibilityHidden(true)
-        } else {
-            surfaceTapButton(onSurfaceTap: onSurfaceTap)
-                .accessibilityLabel("Playback surface")
-                .accessibilityIdentifier("PlayerUI-window-playback-surface")
-        }
-    }
-
-    private func surfaceTapButton(
-        onSurfaceTap: @escaping () -> Void
-    ) -> some View {
-        Button(action: onSurfaceTap) {
-            DesignTokens.PlaybackSurface.interactionPlane
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-        }
-            .buttonStyle(.plain)
-            .allowsHitTesting(!hidesSurfaceFromAccessibility)
-    }
-
-    /// The playback surface begins below the stable button row. Secondary
-    /// panels render above it and own their complete hit shapes, so opening a
-    /// panel never changes the surface region or rebuilds the top controls.
-    private var surfaceTapTopInset: CGFloat {
-        guard showsWindowChrome else { return 0 }
-        return DesignTokens.Spacing.lg + DesignTokens.Interactive.large
     }
 
     private var edgeEmphasis: some View {

@@ -656,12 +656,6 @@ public enum DesignTokens {
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
-    public enum PlaybackSurface {
-        /// Nonzero paint that keeps the window playback Button in the visionOS
-        /// render and input hit-test trees without visibly covering the video.
-        public static let interactionPlane: Color = .white.opacity(0.011)
-    }
-
     public enum PlaybackEdge {
         /// Covers the top button row and eases out before the picture's midpoint.
         public static let depth: CGFloat = 168
