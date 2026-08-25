@@ -17,7 +17,7 @@ from verify_documentation_references import (
     strip_locator,
 )
 
-DOCUMENT = REPOSITORY_ROOT / "docs/plans/04-regression-journeys/supported-formats.md"
+DOCUMENT = REPOSITORY_ROOT / "docs/archive/plans/04-regression-journeys/supported-formats.md"
 
 
 class RepositoryCandidates(unittest.TestCase):
@@ -31,7 +31,7 @@ class RepositoryCandidates(unittest.TestCase):
 
     def test_relative_link_resolves_against_the_document(self) -> None:
         found = repository_candidates("[byte stream](../../adr/README.md)", DOCUMENT)
-        self.assertEqual(found, {"docs/adr/README.md"})
+        self.assertEqual(found, {"docs/archive/adr/README.md"})
 
     def test_sibling_without_a_marker_is_left_alone(self) -> None:
         self.assertEqual(repository_candidates("see `overview.md`", DOCUMENT), set())
@@ -46,7 +46,7 @@ class Locators(unittest.TestCase):
         self.assertEqual(strip_locator("Modules/Emby/EmbyScreens.swift:433-447"), "Modules/Emby/EmbyScreens.swift")
 
     def test_anchor_is_stripped(self) -> None:
-        self.assertEqual(strip_locator("docs/adr/README.md#status"), "docs/adr/README.md")
+        self.assertEqual(strip_locator("docs/archive/adr/README.md#status"), "docs/archive/adr/README.md")
 
     def test_trailing_chinese_punctuation_is_stripped(self) -> None:
         self.assertEqual(strip_locator("Scripts/verification/journey_units.py）"), "Scripts/verification/journey_units.py")

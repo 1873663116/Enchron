@@ -1,6 +1,4 @@
-# Enchron 当前代码结构
-
-本文是当前已接受生产代码的导航说明。
+# Enchron 代码结构导航
 
 ## 仓库组成
 
@@ -38,15 +36,9 @@ flowchart LR
     PlaybackPresentation --> PlaybackFeature
 ```
 
-`MediaLibrary` 的部分 SwiftUI 文件、`PlaybackFeature/PlaybackRuntime.swift`，以及 `PlaybackPresentation` 的 Platform、Resources、Scenes 和 Views 当前被根 Package 排除。这些需要 Apple 平台集成的源码由 Xcode 工程中的 Enchron App 编译。准确的成员关系以两个 Package manifest 和 Xcode project 当前记录为准。
-
-[`Packages/PlaybackCore/Package.swift`](Packages/PlaybackCore/Package.swift) 定义独立的 `PlaybackCore` 模块及其测试。产品 App 中与它连接的代码位于 [`Modules/PlaybackFeature/PlaybackRuntime.swift`](Modules/PlaybackFeature/PlaybackRuntime.swift) 和相关 App 组合代码。核心内部如何建立媒体会话、处理 sample、时间线和 renderer，应直接从该 Package 的生产源码与测试判断。
-
-[`Packages/RealityKitContent/Package.swift`](Packages/RealityKitContent/Package.swift) 定义 Xcode 工程当前链接的本地 `RealityKitContent` library。场景资源实际由哪些生产代码加载，应从当前 import、资源引用和 Xcode 工程判断；该 Package 的存在本身不证明某项场景内容正在被产品使用。
-
 ## 产品代码职责
 
-[`Modules/MediaSource`](Modules/MediaSource) 表达来源身份、授权与本地或远程访问。其具体来源实现和依赖由目录中的生产代码给出。
+[`Modules/MediaSource`](Modules/MediaSource) 表达来源身份、授权与本地或远程访问。
 
 [`Modules/MediaLibrary`](Modules/MediaLibrary) 表达虚拟媒体库、来源浏览和媒体引用。由根 Package 编译的领域代码与由 App 编译的平台界面代码通过 manifest 的 exclude 列表区分。
 

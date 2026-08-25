@@ -6,10 +6,6 @@ Documents split into two populations. Instructions carry paths an agent is
 expected to follow, so a path that no longer resolves sends the reader
 somewhere empty; those failures are errors. History records what was true when
 it was written, so its dead paths are reported and not enforced.
-
-The structural rules cover the two drifts that produced dangling paths in the
-first place: a superseded decision left beside the accepted ones, and a plan
-that never says whether anyone is still working on it.
 """
 
 from __future__ import annotations
@@ -27,8 +23,6 @@ INSTRUCTION_ROOTS = (
     "AGENTS.md",
     "ARCHITECTURE.md",
     "docs/CONTEXT.md",
-    "docs/adr",
-    "docs/plans",
     ".agents/skills",
     ".cursor/rules",
     ".github",
@@ -36,7 +30,7 @@ INSTRUCTION_ROOTS = (
     "Scripts",
 )
 
-HISTORY_ROOTS = ("docs/archive", "docs/research")
+HISTORY_ROOTS = ("docs/archive",)
 
 # This check and its test quote dead paths as data. They define the rule
 # rather than instructing anyone, so scanning them only finds the examples.
@@ -54,8 +48,6 @@ MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 BACKTICKED = re.compile(r"`([^`\s]+)`")
 ABSOLUTE_VOLUME_PATH = re.compile(r"/Volumes/[^\s`\"'),;]+")
 LINE_LOCATOR = re.compile(r":[\d,\-–、\s]*$")
-ADR_SUPERSEDED = re.compile(r"^\s*\**\s*(?:status|状态)\s*[:：].*supersed", re.IGNORECASE | re.MULTILINE)
-PLAN_STATUS = re.compile(r"^\s*\**\s*(?:status|状态)\s*[:：]", re.IGNORECASE | re.MULTILINE)
 
 
 def retired_documents() -> dict[str, str]:
@@ -152,32 +144,12 @@ def unresolved_references() -> tuple[list[str], list[str]]:
     return errors, notes
 
 
-def misplaced_decisions() -> list[str]:
-    directory = REPOSITORY_ROOT / "docs/adr"
-    return [
-        f"docs/adr/{record.name}: superseded, belongs in docs/archive/adr"
-        for record in sorted(directory.glob("*.md"))
-        if record.name != "README.md" and ADR_SUPERSEDED.search(record.read_text(encoding="utf-8"))
-    ]
-
-
-def plans_without_status() -> list[str]:
-    directory = REPOSITORY_ROOT / "docs/plans"
-    return [
-        f"{overview.relative_to(REPOSITORY_ROOT).as_posix()}: no status line"
-        for overview in sorted(directory.glob("*/overview.md"))
-        if not PLAN_STATUS.search(overview.read_text(encoding="utf-8"))
-    ]
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--show-history", action="store_true")
     arguments = parser.parse_args()
 
     errors, notes = unresolved_references()
-    errors += misplaced_decisions()
-    errors += plans_without_status()
 
     if arguments.show_history:
         for note in notes:

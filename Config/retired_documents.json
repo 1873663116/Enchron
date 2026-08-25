@@ -5,7 +5,7 @@
       "path": "docs/product-requirements.md",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": "生产代码。产品能力不再有独立规格文档，导航入口是 ARCHITECTURE.md 与 docs/plans/。"
+      "replacement": "生产代码。产品能力不再有独立规格文档，导航入口是 ARCHITECTURE.md。"
     },
     {
       "path": "docs/core-spec.md",
@@ -17,7 +17,7 @@
       "path": "docs/acceptance/",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": "docs/plans/ 承载在办的验收，.agents/skills/vp-e2e/features/ 承载特性地图与证据要求。"
+      "replacement": ".agents/skills/vp-e2e/features/ 承载特性地图与证据要求。"
     },
     {
       "path": "docs/acceptance/verification-system.md",
@@ -35,7 +35,7 @@
       "path": "docs/plans/active/",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": "docs/plans/ 直接存放计划，状态写在每份 overview.md 的状态行里。"
+      "replacement": "docs/archive/plans/ 保存历史计划。"
     },
     {
       "path": "docs/reference/",
@@ -48,6 +48,42 @@
       "removed": "2026-08-22",
       "commit": "unreleased",
       "replacement": "按内容拆开：与 lane 无关的驱动与取证事实在 references/product.md，真机独有的传输、授权与已证伪路径在 references/device.md。"
+    },
+    {
+      "path": "docs/adr/",
+      "removed": "2026-08-25",
+      "commit": "unreleased",
+      "replacement": "docs/archive/adr/ 保存全部 ADR；决策记录不再有活跃层。"
+    },
+    {
+      "path": "docs/plans/",
+      "removed": "2026-08-25",
+      "commit": "unreleased",
+      "replacement": "docs/archive/plans/ 保存历史计划；在办工作不再有计划层。"
+    },
+    {
+      "path": "docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md",
+      "removed": "2026-08-25",
+      "commit": "unreleased",
+      "replacement": "docs/archive/adr/0020-media-byte-stream-is-the-single-byte-entry.md"
+    },
+    {
+      "path": "docs/plans/03-media-byte-stream/overview.md",
+      "removed": "2026-08-25",
+      "commit": "unreleased",
+      "replacement": "docs/archive/plans/03-media-byte-stream/overview.md"
+    },
+    {
+      "path": "docs/plans/04-regression-journeys/draft.md",
+      "removed": "2026-08-25",
+      "commit": "unreleased",
+      "replacement": "docs/archive/plans/04-regression-journeys/draft.md"
+    },
+    {
+      "path": "docs/plans/04-regression-journeys/emby-poster-wall-scroll.md",
+      "removed": "2026-08-25",
+      "commit": "unreleased",
+      "replacement": "docs/archive/plans/04-regression-journeys/emby-poster-wall-scroll.md"
     }
   ]
 }
