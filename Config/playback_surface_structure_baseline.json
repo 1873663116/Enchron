@@ -77,6 +77,11 @@
     {
       "name": "immersive action and Scene lifecycle facts do not refresh retry residency",
       "count": 1
+    },
+    {
+      "name": "the window ornament does not have a stable rendered outer width",
+      "count": 1,
+      "reason": "9c48de9 deliberately replaced the fixed PlayerPanelChrome.contentSize chrome with a width-morphing panel (clusterWidth animates between ControlBar.contentWidth and expandedPlayerControlsContentWidth, PlaybackPanelExpansionTests updated to match). The check still encodes the pre-9c48de9 fixed-width contract from 7676b57; restoring panelChromeSize would revert that shipped product decision, so the gap is recorded until the contract text is redefined."
     }
   ]
 }
