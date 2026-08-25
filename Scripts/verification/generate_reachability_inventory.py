@@ -1083,9 +1083,24 @@ def presentation_derivation(
                 "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
                 '"PlayerUI-window-playback-surface"',
             )
+            gesture_source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
+                ".targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)",
+            )
+            collider_source = required_source_location(
+                documents,
+                "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift",
+                "enum PlaybackWindowInteractionSurface",
+            )
             return main_window_presentations, {
-                "host": "windowPlaybackSurfaceTapLayer",
-                "sources": [asdict(source), asdict(main_window_source)],
+                "host": "windowPlaybackSurfaceEntityTapTarget",
+                "sources": [
+                    asdict(source),
+                    asdict(gesture_source),
+                    asdict(collider_source),
+                    asdict(main_window_source),
+                ],
             }
         if template.startswith("PlayerUI-DockMenu-") or template == (
             "PlayerUI-TopAction-dock"

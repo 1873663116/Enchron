@@ -1001,6 +1001,81 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-CertificateTrust-trust",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Sidebar-Toggle",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-sort-{id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-NewFolder-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-RenameFolder-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-action-{id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-{id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menuOption-{id}-{option.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-menu-{category}-{item.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-window-playback-surface",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-menu-{category}-{item.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerUI-window-playback-surface",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-media-information",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",
