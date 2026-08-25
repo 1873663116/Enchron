@@ -68,6 +68,7 @@ let package = Package(
                 "Platform",
                 "Resources",
                 "Scenes",
+                "Session",
                 "Views",
             ]
         ),

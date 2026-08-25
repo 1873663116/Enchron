@@ -1,7 +1,6 @@
 $(SRCROOT)/Apps/Enchron/AppModalPresentationCoordinator.swift
 $(SRCROOT)/Apps/Enchron/AppModel.swift
 $(SRCROOT)/Apps/Enchron/CertificateTrustPrompt.swift
-$(SRCROOT)/Apps/Enchron/DebugProbeJournal.swift
 $(SRCROOT)/Apps/Enchron/EnchronApp.swift
 $(SRCROOT)/Apps/Enchron/EnchronApplication.swift
 $(SRCROOT)/Apps/Enchron/MainView.swift
@@ -108,6 +107,8 @@ $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.s
 $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformExecutionLease.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Session/DebugProbeJournal.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Session/SurfaceInputProbes.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/AudioSpectrumSurface.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/DragRotationModifier.swift

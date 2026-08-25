@@ -566,21 +566,13 @@ public final class AppModel {
         _ fact: String,
         retention: DebugProbeRetention = .diagnostic
     ) {
-#if DEBUG
-        Logger(subsystem: "app.enchron", category: "Presentation")
-            .notice("surface input probe \(fact, privacy: .public)")
-        debugProbeJournal.record(fact, retention: retention)
-#endif
+        SurfaceInputProbes.record(fact, retention: retention)
     }
 
 #if DEBUG
     static var debugProbeStatus: DebugProbeJournal.Status {
-        debugProbeJournal.status
+        SurfaceInputProbes.status
     }
-
-    private static let debugProbeJournal = DebugProbeJournal(
-        configuration: .product
-    )
 #endif
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {

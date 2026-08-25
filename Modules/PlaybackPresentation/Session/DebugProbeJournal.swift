@@ -31,7 +31,7 @@ private struct LoadedDebugProbeState {
 }
 
 @MainActor
-final class DebugProbeJournal {
+public final class DebugProbeJournal {
     struct Configuration {
         let url: URL
         let byteLimit: Int
@@ -46,13 +46,13 @@ final class DebugProbeJournal {
         )
     }
 
-    struct Status: Equatable {
-        let byteLimit: Int
-        fileprivate(set) var fileBytes: Int
-        fileprivate(set) var peakFileBytes: Int
-        fileprivate(set) var compactionCount: Int
-        fileprivate(set) var evidenceOverflowed: Bool
-        fileprivate(set) var writeFailed: Bool
+    public struct Status: Equatable {
+        public let byteLimit: Int
+        public fileprivate(set) var fileBytes: Int
+        public fileprivate(set) var peakFileBytes: Int
+        public fileprivate(set) var compactionCount: Int
+        public fileprivate(set) var evidenceOverflowed: Bool
+        public fileprivate(set) var writeFailed: Bool
     }
 
     private let configuration: Configuration
