@@ -1875,6 +1875,14 @@ def entity_input_operations() -> dict[str, dict[str, object]]:
     }
 
 
+def probe_matches_contract(entity: str, probe: str) -> bool:
+    return (
+        probe.startswith("spatialTap ")
+        and f"entity={entity}" in probe
+        and "accepted=true" in probe
+    )
+
+
 def entity_input_complaints(
     step: Step,
     patterns: list[tuple[re.Pattern[str], str]],
@@ -1930,11 +1938,7 @@ def entity_input_complaints(
             f"entity {step.entity!r} appears in none of the target "
             "operation's derivation sources"
         )
-    if not (
-        step.probe.startswith("spatialTap ")
-        and f"entity={step.entity}" in step.probe
-        and "accepted=true" in step.probe
-    ):
+    if not probe_matches_contract(step.entity, step.probe):
         complaints.append(
             "probe must be the app-side spatialTap line "
             "(spatialTap entity=<entity> ... accepted=true); the command "
