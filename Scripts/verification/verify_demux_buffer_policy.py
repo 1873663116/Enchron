@@ -28,8 +28,8 @@ def main() -> int:
         "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackDemuxBuffering.swift"
     )
     byte_stream = read("Modules/MediaSource/MediaByteStream.swift")
-    runtime = read("Modules/PlaybackFeature/PlaybackRuntime.swift")
-    launch = read("Modules/PlaybackFeature/PlaybackLaunchRequest.swift")
+    runtime = read("Modules/Playback/PlaybackRuntime.swift")
+    launch = read("Modules/Playback/PlaybackLaunchRequest.swift")
     diagnostics = read("Apps/Enchron/MainView.swift")
 
     require(

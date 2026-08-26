@@ -63,13 +63,9 @@ let package = Package(
                 .product(name: "RealityKitContent", package: "RealityKitContent"),
                 .product(name: "RealityKitScripting", package: "realitykitscripting"),
             ],
-            path: "Modules",
+            path: "Modules/Playback",
             exclude: [
-                "PlaybackPresentation/Resources",
-            ],
-            sources: [
-                "PlaybackFeature",
-                "PlaybackPresentation",
+                "Resources",
             ],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),

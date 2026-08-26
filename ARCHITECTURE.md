@@ -9,8 +9,8 @@ Apps/Enchron/                    产品 App 组合与 visionOS Scene
 Apps/DesignPreview/              生产 UI 组件的预览宿主
 Modules/MediaSource/             本地与远程来源能力
 Modules/MediaLibrary/            媒体库领域与可由 Package 编译的界面部分
-Modules/PlaybackFeature/         播放产品状态与策略，由 Playback target 编译
-Modules/PlaybackPresentation/    呈现领域与平台界面代码，由 Playback target 编译
+Modules/Playback/         播放产品状态与策略，由 Playback target 编译
+Modules/Playback/    呈现领域与平台界面代码，由 Playback target 编译
 Modules/DesignSystem/            跨 feature 的视觉原语和生产组件
 Packages/PlaybackCore/           独立播放核心 Package
 Packages/RealityKitContent/      Xcode 工程当前链接的本地 RealityKit 内容 Package
@@ -20,7 +20,7 @@ Scripts/verification/            可重复的结构与证据辅助检查
 
 ## 编译所有权
 
-根 [`Package.swift`](Package.swift) 当前定义五个 library target；`Playback` 单一 target 编译 `Modules/PlaybackFeature` 与 `Modules/PlaybackPresentation` 两个目录。它也是这些 target 依赖关系的直接事实来源：
+根 [`Package.swift`](Package.swift) 当前定义五个 library target；`Playback` 单一 target 编译 `Modules/Playback` 与 `Modules/Playback` 两个目录。它也是这些 target 依赖关系的直接事实来源：
 
 ```mermaid
 flowchart LR
@@ -41,9 +41,9 @@ flowchart LR
 
 [`Modules/MediaLibrary`](Modules/MediaLibrary) 表达虚拟媒体库、来源浏览和媒体引用。由根 Package 编译的领域代码与由 App 编译的平台界面代码通过 manifest 的 exclude 列表区分。
 
-[`Modules/PlaybackFeature`](Modules/PlaybackFeature) 表达面向产品的播放状态和策略。`PlaybackRuntime` 是连接 PlaybackCore 的适配层。
+[`Modules/Playback`](Modules/Playback) 表达面向产品的播放状态和策略。`PlaybackRuntime` 是连接 PlaybackCore 的适配层。
 
-[`Modules/PlaybackPresentation`](Modules/PlaybackPresentation) 表达 Window、Portal、Docked、Panorama 和 Environment 相关的产品状态，以及平台 Scene、RealityKit 和 SwiftUI 呈现代码。两个目录同属 `Playback` target，由 Package 编译。
+[`Modules/Playback`](Modules/Playback) 表达 Window、Portal、Docked、Panorama 和 Environment 相关的产品状态，以及平台 Scene、RealityKit 和 SwiftUI 呈现代码。两个目录同属 `Playback` target，由 Package 编译。
 
 UI 生产表面属于承载其产品行为的 feature，跨 feature 的视觉原语和组件属于 [`Modules/DesignSystem`](Modules/DesignSystem)。[`Apps/DesignPreview`](Apps/DesignPreview) 展示这些生产实现，不拥有平行的产品页面或状态。
 

@@ -62,7 +62,7 @@ let example = "runtime.userVisibleIssue = issue"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.create_owner(root)
-            source = root / "Modules/PlaybackPresentation/Legacy.swift"
+            source = root / "Modules/Playback/Legacy.swift"
             source.parent.mkdir(parents=True)
             source.write_text("var subtitleErrorMessage: String?\n", encoding="utf-8")
 

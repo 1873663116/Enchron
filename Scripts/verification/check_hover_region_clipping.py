@@ -13,7 +13,7 @@ import sys
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PRODUCTION_ROOTS = (
     Path("Modules/DesignSystem"),
-    Path("Modules/PlaybackPresentation/Views"),
+    Path("Modules/Playback/Views"),
     Path("Modules/MediaLibrary"),
     Path("Apps/Enchron"),
 )

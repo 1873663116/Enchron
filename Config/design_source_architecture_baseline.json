@@ -358,181 +358,181 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift",
+      "path": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
       "signature": ".frame(width: 0, height: 0)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+      "path": "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
       "signature": ".font(.system(size: 1))",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+      "path": "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
       "signature": ".frame(width: 1, height: 1)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+      "path": "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
       "signature": ".opacity(0.001)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": ".init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.34), location: 0.08),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": ".init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.52), location: 0.18),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": ".init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.62), location: 0.42),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": ".init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.72), location: 0.68),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": ".init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.92), location: 0.88),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": "VStack(spacing: 0) {",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".frame(minWidth: 64, alignment: .trailing)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".frame(width: 100, alignment: .leading)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)",
       "count": 3
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".frame(width: clusterWidth, height: 420)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".padding(.top, 6)",
       "count": 2
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": "HStack(spacing: 0) {",
       "count": 2
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": "shape.stroke(.white.opacity(0.08), lineWidth: DesignTokens.Stroke.subtle)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift",
+      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
       "signature": ".blur(radius: lineWidth * 2)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift",
+      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
       "signature": ".strokeBorder(DesignTokens.Theme.accent.opacity(0.3), lineWidth: 1)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift",
+      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
       "signature": ".white.opacity(0.9),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift",
+      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
       "signature": "DesignTokens.Theme.accent.opacity(0.15),",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift",
+      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
       "signature": "with: .color(Color.black.opacity(0.12))",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+      "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": ".frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+      "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": ".frame(width: 360)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+      "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": ".frame(width: 48, height: 48)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+      "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": ".frame(width: 520)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+      "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": "VStack(alignment: .leading, spacing: 2) {",
       "count": 2
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
+      "path": "Modules/Playback/Views/PlaybackVideoSurface.swift",
       "signature": ".frame(width: 1, height: 1)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
+      "path": "Modules/Playback/Views/PlaybackVideoSurface.swift",
       "signature": ".opacity(0.001)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift",
+      "path": "Modules/Playback/Views/WindowPlayerDeck.swift",
       "signature": ".fill(.black.opacity(0.40))",
       "count": 1
     },

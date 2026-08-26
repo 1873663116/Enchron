@@ -21,7 +21,7 @@ from presentation_model import (
 
 SWIFT = (
     Path(__file__).resolve().parents[2]
-    / "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+    / "Modules/Playback/Model/PlaybackPresentation.swift"
 )
 
 SWIFT_CASE_ARROW = re.compile(r"case\s+([^\n:]+):\s*\n\s*\.(\w+)")

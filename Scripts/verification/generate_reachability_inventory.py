@@ -41,10 +41,10 @@ SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Modules/DesignSystem",
     REPOSITORY_ROOT / "Modules/Emby",
     REPOSITORY_ROOT / "Modules/MediaLibrary",
-    REPOSITORY_ROOT / "Modules/PlaybackPresentation",
+    REPOSITORY_ROOT / "Modules/Playback",
 )
 DERIVATION_SOURCE_PATHS = (
-    "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift",
+    "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift",
 )
 IDENTIFIER_FAMILIES = (
     "AcousticCalibration-",
@@ -913,7 +913,7 @@ def playback_presentation_property_cases(
     documents: dict[str, str],
     property_name: str,
 ) -> tuple[list[str], SourceLocation]:
-    path = "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+    path = "Modules/Playback/Model/PlaybackPresentation.swift"
     text = documents.get(path)
     if text is None:
         raise PresentationDerivationError(f"missing production render source {path}")
@@ -984,7 +984,7 @@ def presentation_derivation(
     if operation_family == "EnvironmentCard":
         source = required_source_location(
             documents,
-            "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift",
+            "Modules/Playback/Views/SenseZoneVolumeRoot.swift",
             "EnvironmentCardCarousel(",
         )
         return ["window", "docked"], {
@@ -993,7 +993,7 @@ def presentation_derivation(
         }
 
     if operation_family == "PlayerPanel":
-        path = "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        path = "Modules/Playback/Views/PlaybackPanel.swift"
         if template.startswith("PlayerPanel-menu-"):
             source = required_source_location(
                 documents,
@@ -1080,17 +1080,17 @@ def presentation_derivation(
         if template == "PlayerUI-window-playback-surface":
             source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
+                "Modules/Playback/Views/WindowPlaybackRootView.swift",
                 '"PlayerUI-window-playback-surface"',
             )
             gesture_source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
+                "Modules/Playback/Views/PlaybackVideoSurface.swift",
                 ".targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)",
             )
             collider_source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift",
+                "Modules/Playback/Views/PlaybackRealityPresenter.swift",
                 "enum PlaybackWindowInteractionSurface",
             )
             return main_window_presentations, {
@@ -1107,12 +1107,12 @@ def presentation_derivation(
         ):
             host_source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+                "Modules/Playback/Views/PlayerInfoBarView.swift",
                 "PlaybackTopActions(",
             )
             condition_source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+                "Modules/Playback/Views/PlaybackTopActions.swift",
                 "showsDock = immersiveEntryTarget == .docked",
             )
             return ["window"], {
@@ -1122,12 +1122,12 @@ def presentation_derivation(
         if template == "PlayerUI-TopAction-resumePanorama":
             host_source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+                "Modules/Playback/Views/PlayerInfoBarView.swift",
                 "PlaybackTopActions(",
             )
             condition_source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+                "Modules/Playback/Views/PlaybackTopActions.swift",
                 "showsPanoramaEntry = immersiveEntryTarget == .panorama",
             )
             return ["portal"], {
@@ -1144,7 +1144,7 @@ def presentation_derivation(
         }:
             source = required_source_location(
                 documents,
-                "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+                "Modules/Playback/Views/PlayerInfoBarView.swift",
                 "ProductionPlaybackMoreMenu()",
             )
             return main_window_presentations, {
@@ -1214,7 +1214,7 @@ def presentation_derivation(
             )
             policy_source = required_source_location(
                 documents,
-                "Modules/PlaybackFeature/Domain/PlaybackUserVisibleIssue.swift",
+                "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift",
                 "presentationLocations: [.playerDeck]",
             )
             return [], {

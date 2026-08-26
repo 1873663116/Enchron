@@ -39,7 +39,7 @@ def main() -> int:
     )
     local = read("Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift")
     emby = swift_sources("Modules/Emby")
-    playback_feature = swift_sources("Modules/PlaybackFeature")
+    playback_feature = swift_sources("Modules/Playback")
     project = read("Enchron.xcodeproj/project.pbxproj")
     architecture_inputs = read("Config/design_source_architecture_inputs.xcfilelist")
 

@@ -121,40 +121,40 @@ def order(source: str, *markers: str) -> bool:
 def main() -> int:
     arguments = parse_arguments()
     VIOLATIONS.clear()
-    surface = read("Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift")
+    surface = read("Modules/Playback/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
     attachment_view = read(
-        "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift"
+        "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift"
     )
     window_root = read(
-        "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift"
+        "Modules/Playback/Views/WindowPlaybackRootView.swift"
     )
     window_preview = read("Apps/DesignPreview/WindowPlaybackPreview.swift")
     design_preview_app = read("Apps/DesignPreview/DesignPreviewApp.swift")
     playback_panel = read(
-        "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+        "Modules/Playback/Views/PlaybackPanel.swift"
     )
-    geometry = read("Modules/PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift")
-    launch = read("Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift")
-    runtime = read("Modules/PlaybackFeature/PlaybackRuntime.swift")
+    geometry = read("Modules/Playback/Model/WindowPlaybackPageGeometry.swift")
+    launch = read("Modules/Playback/PlaybackLaunchCoordinator.swift")
+    runtime = read("Modules/Playback/PlaybackRuntime.swift")
     seek_policy = read(
-        "Modules/PlaybackFeature/Domain/PlaybackSeekPolicy.swift"
+        "Modules/Playback/Domain/PlaybackSeekPolicy.swift"
     )
     output_verification = read(
-        "Modules/PlaybackFeature/Domain/PlaybackOutputVerification.swift"
+        "Modules/Playback/Domain/PlaybackOutputVerification.swift"
     )
     core_delivery = read(
         "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Delivery.swift"
     )
-    immersive = read("Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift")
+    immersive = read("Modules/Playback/Scenes/ImmersiveSpaceView.swift")
     immersive_controls_attachment = read(
-        "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift"
+        "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachment.swift"
     )
     reality_presenter = read(
-        "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift"
+        "Modules/Playback/Views/PlaybackRealityPresenter.swift"
     )
     playback_reality_adapter = read(
-        "Modules/PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapter.swift"
+        "Modules/Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift"
     )
     spatial_handoff = read("Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift")
     docked_placement = read("Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift")
@@ -166,25 +166,25 @@ def main() -> int:
     application = read("Apps/Enchron/EnchronApplication.swift")
     architecture = read("ARCHITECTURE.md")
     environment_card_root = read(
-        "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift"
+        "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
     )
     environment_components = read(
-        "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift"
+        "Modules/Playback/Views/EnvironmentComponents.swift"
     )
     presentation_model = read(
-        "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
+        "Modules/Playback/Model/PlaybackPresentation.swift"
     )
     session_model = read(
-        "Modules/PlaybackPresentation/Session/PlaybackSessionModel.swift"
+        "Modules/Playback/Session/PlaybackSessionModel.swift"
     )
     platform_executor_path = (
         REPOSITORY_ROOT
-        / "Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift"
+        / "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift"
     )
     platform_executor = platform_executor_path.read_text()
     execution_lease_path = (
         REPOSITORY_ROOT
-        / "Modules/PlaybackPresentation/Platform/SpatialPlatformExecutionLease.swift"
+        / "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift"
     )
     require(
         execution_lease_path.exists(),
@@ -692,11 +692,11 @@ def main() -> int:
     )
     sub_perceptual_paint = re.compile(r"\.opacity\(\s*0\.0(?:0\d+|1\d?)\s*\)")
     for sub_perceptual_path in (
-        "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
-        "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
-        "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift",
-        "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift",
-        "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
+        "Modules/Playback/Views/PlaybackVideoSurface.swift",
+        "Modules/Playback/Views/PlaybackPanel.swift",
+        "Modules/Playback/Views/WindowPlaybackRootView.swift",
+        "Modules/Playback/Views/WindowPlayerDeck.swift",
+        "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
         "Apps/Enchron/MainView.swift",
         "Modules/DesignSystem/DesignTokens.swift",
     ):
@@ -1150,26 +1150,26 @@ def main() -> int:
     )
     platform_roots = (
         REPOSITORY_ROOT / "Apps/Enchron",
-        REPOSITORY_ROOT / "Modules/PlaybackPresentation",
+        REPOSITORY_ROOT / "Modules/Playback",
     )
     debug_blackout_probe_platform_api_lines = {
         (
-            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
             "@Environment(\\.openWindow)",
             "@Environment(\\.openWindow) private var openWindow",
         ),
         (
-            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
             "@Environment(\\.dismissWindow)",
             "@Environment(\\.dismissWindow) private var dismissWindow",
         ),
         (
-            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
             "openWindow(id:",
             'openWindow(id: "blackoutProbe")',
         ),
         (
-            "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+            "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
             "dismissWindow(id:",
             'dismissWindow(id: "blackoutProbe")',
         ),

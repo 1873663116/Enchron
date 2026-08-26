@@ -20,13 +20,13 @@
       "guard": "Scripts/verification/verify_package_membership.py",
       "defect": {
         "type": "add-app-layer-reference",
-        "entry": "PlaybackPresentation/Views/PlaybackTopActions.swift"
+        "entry": "Playback/Views/PlaybackTopActions.swift"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
           "Modules sources in DesignPreview that reference Apps/Enchron types:",
-          "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift: AppModel"
+          "Modules/Playback/Views/PlaybackTopActions.swift: AppModel"
         ]
       }
     },

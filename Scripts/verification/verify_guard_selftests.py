@@ -115,7 +115,7 @@ def create_playback_structure_fixture(
 
 
 def create_playback_issue_fixture(root: Path) -> list[str]:
-    owner = root / "Modules/PlaybackFeature/PlaybackRuntime.swift"
+    owner = root / "Modules/Playback/PlaybackRuntime.swift"
     owner.parent.mkdir(parents=True)
     owner.write_text(
         """public final class PlaybackRuntime {
@@ -128,7 +128,7 @@ def create_playback_issue_fixture(root: Path) -> list[str]:
 """,
         encoding="utf-8",
     )
-    illegal = root / "Modules/PlaybackPresentation/IllegalPlaybackIssueWriter.swift"
+    illegal = root / "Modules/Playback/IllegalPlaybackIssueWriter.swift"
     illegal.parent.mkdir(parents=True)
     illegal.write_text(
         """func overwriteIssue(runtime: PlaybackRuntime, issue: PlaybackUserVisibleIssue) {

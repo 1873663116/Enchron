@@ -31,13 +31,13 @@ ALLOWED_WRAPPER_CALLS = Counter(
     {
         WrapperCallIdentity(
             path=Path(
-                "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift"
+                "Modules/Playback/Views/EnvironmentComponents.swift"
             ),
             enclosing_type="EnvironmentCard",
             callee="enchronGlassBackground",
         ): 1,
         WrapperCallIdentity(
-            path=Path("Modules/PlaybackPresentation/Views/PlaybackPanel.swift"),
+            path=Path("Modules/Playback/Views/PlaybackPanel.swift"),
             enclosing_type="FusedPlayerPanel",
             callee="enchronGlassBackground",
         ): 1,

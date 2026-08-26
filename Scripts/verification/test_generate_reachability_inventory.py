@@ -335,7 +335,7 @@ class RenderHostInventoryTests(unittest.TestCase):
                 self.assertTrue(
                     any(
                         source["path"]
-                        == "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+                        == "Modules/Playback/Views/PlaybackPanel.swift"
                         for source in derivation["sources"]
                     )
                 )
@@ -362,7 +362,7 @@ class RenderHostInventoryTests(unittest.TestCase):
 
     def test_unknown_product_family_fails_instead_of_defaulting_to_all_presentations(self) -> None:
         documents = {
-            "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift": """
+            "Modules/Playback/Model/PlaybackPresentation.swift": """
                 enum PlaybackPresentation {
                     var usesMainWindow: Bool { self == .window || self == .portal }
                     var usesImmersiveSpace: Bool { self == .docked || self == .panorama }

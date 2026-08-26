@@ -2,7 +2,7 @@
 
 """The presentation model, mirrored from Swift for the device scripts.
 
-Modules/PlaybackPresentation/Model/PlaybackPresentation.swift owns this. The
+Modules/Playback/Model/PlaybackPresentation.swift owns this. The
 device scripts cannot import it, and when they wrote the answers out as string
 literals instead, the literals kept saying a panoramic clip lands in panorama
 long after the product started landing it in portal. Whole matrix paths then

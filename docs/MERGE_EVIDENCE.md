@@ -30,8 +30,8 @@
 | `Apps/DesignPreview/` | W2 | 设计预览壳，被结构检查禁止引用 App 层 |
 | `Apps/Enchron/` | W3 | App 壳持有呈现切换与沉浸场景生命周期 |
 | `Modules/MediaSource/` | W3 | 字节流供给播放管线 |
-| `Modules/PlaybackFeature/` | W3 | 播放管线 |
-| `Modules/PlaybackPresentation/` | W3 | 呈现切换 |
+| `Modules/Playback/` | W3 | 播放管线 |
+| `Modules/Playback/` | W3 | 呈现切换 |
 | `Packages/PlaybackCore/` | W3 | 播放核心（Tests 子目录除外） |
 | `Packages/RealityKitContent/` | W3 | 沉浸内容 |
 | `Config/` | W3 | 执法状态：基线与台账即约束，改基线等于改约束，永不属于 W0 |

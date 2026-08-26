@@ -41,8 +41,8 @@ class PathTierTests(unittest.TestCase):
     def test_playback_presentation_and_immersion_are_w3(self) -> None:
         self.assertTier("Apps/Enchron/MainView.swift", tiers.W3)
         self.assertTier("Modules/MediaSource/MediaByteStream.swift", tiers.W3)
-        self.assertTier("Modules/PlaybackFeature/PlaybackRuntime.swift", tiers.W3)
-        self.assertTier("Modules/PlaybackPresentation/Scenes/A.swift", tiers.W3)
+        self.assertTier("Modules/Playback/PlaybackRuntime.swift", tiers.W3)
+        self.assertTier("Modules/Playback/Scenes/A.swift", tiers.W3)
         self.assertTier("Packages/PlaybackCore/Sources/Core/A.swift", tiers.W3)
         self.assertTier("Packages/RealityKitContent/Package.swift", tiers.W3)
 
@@ -90,7 +90,7 @@ class VerdictTests(unittest.TestCase):
 
     def test_w2_and_w3_are_review_required_with_their_evidence_list(self) -> None:
         verdict = tiers.build_verdict(
-            "a..b", ["Modules/PlaybackPresentation/Scenes/A.swift"]
+            "a..b", ["Modules/Playback/Scenes/A.swift"]
         )
         self.assertEqual(verdict.tier, tiers.W3)
         self.assertFalse(verdict.free_merge)
@@ -293,7 +293,7 @@ class CommitRangeTests(unittest.TestCase):
             cls.commit(
                 {
                     "docs/more.md": "docs",
-                    "Modules/PlaybackPresentation/Scenes/Scene.swift": "playback",
+                    "Modules/Playback/Scenes/Scene.swift": "playback",
                 }
             ),
             cls.commit(

@@ -26,7 +26,7 @@ def main() -> int:
         "Tests/MediaByteStreamConformance/Tests/"
         "MediaByteStreamConformanceTests/MediaByteStreamConformanceTests.swift"
     )
-    playback_request = text("Modules/PlaybackFeature/PlaybackLaunchRequest.swift")
+    playback_request = text("Modules/Playback/PlaybackLaunchRequest.swift")
     media_library = ROOT / "Modules/MediaLibrary"
 
     require("protocol MediaByteRangeSource" in byte_stream, "M1: byte source protocol is missing")

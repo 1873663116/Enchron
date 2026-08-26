@@ -17,7 +17,7 @@ DEFAULT_REFERENCE = "19a817f9"
 FILES_SCREEN = "Apps/Enchron/Screens/FilesScreen.swift"
 EMBY_SCREENS = "Modules/Emby/EmbyScreens.swift"
 MAIN_VIEW = "Apps/Enchron/MainView.swift"
-PLAYBACK_PANEL = "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+PLAYBACK_PANEL = "Modules/Playback/Views/PlaybackPanel.swift"
 
 COVERED_CELLS = (
     ("main-window-browser", "accessibility:Emby-Season-Picker"),

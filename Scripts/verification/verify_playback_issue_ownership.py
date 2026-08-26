@@ -11,15 +11,15 @@ import sys
 
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-OWNER = Path("Modules/PlaybackFeature/PlaybackRuntime.swift")
+OWNER = Path("Modules/Playback/PlaybackRuntime.swift")
 ALLOWED_WRITE = (OWNER, "setUserVisibleIssue")
 AUDITED_LEGACY_PATHS = (
     Path("Apps/Enchron/AppModel.swift"),
     Path("Apps/Enchron/EnchronApplication.swift"),
     Path("Apps/Enchron/MainView.swift"),
     Path("Modules/Emby"),
-    Path("Modules/PlaybackFeature"),
-    Path("Modules/PlaybackPresentation"),
+    Path("Modules/Playback"),
+    Path("Modules/Playback"),
 )
 PRODUCTION_ROOTS = (Path("Apps"), Path("Modules"))
 LEGACY_IDENTIFIERS = (
