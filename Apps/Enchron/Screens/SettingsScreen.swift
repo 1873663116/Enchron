@@ -7,7 +7,7 @@ import SwiftUI
 import UIKit
 
 struct SettingsScreen: View {
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SettingsViewModel.self) private var viewModel
     @Environment(AppModalPresentationCoordinator.self)
@@ -67,7 +67,7 @@ struct SettingsScreen: View {
         .task { await refreshCacheUsage() }
         .onChange(of: selectedCategoryID) { _, category in
 #if DEBUG
-            appModel.recordSurfaceInputProbe(
+            playbackSession.recordSurfaceInputProbe(
                 "reachability settings delivered action=category.\(category)",
                 retention: .evidence
             )
@@ -287,7 +287,7 @@ struct SettingsScreen: View {
 
     private func setAutoHide(_ seconds: Int) {
         viewModel.update { $0.controlsAutoHideSeconds = seconds }
-        appModel.controlsAutoHideSeconds = seconds
+        playbackSession.controlsAutoHideSeconds = seconds
         recordMenuReachability("controls-auto-hide")
     }
 
@@ -296,13 +296,13 @@ struct SettingsScreen: View {
     ) {
         guard environment.isScenic else { return }
         viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
-        appModel.configureDefaultEnvironment(environment)
+        playbackSession.configureDefaultEnvironment(environment)
         recordMenuReachability("default-scenic-environment")
     }
 
     private func recordMenuReachability(_ family: String) {
 #if DEBUG
-        appModel.recordSurfaceInputProbe(
+        playbackSession.recordSurfaceInputProbe(
             "reachability settings delivered action=menu.\(family)",
             retention: .evidence
         )

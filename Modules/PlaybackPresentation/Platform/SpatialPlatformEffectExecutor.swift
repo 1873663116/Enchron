@@ -133,7 +133,7 @@ final class SpatialPlatformEffectCoordinator {
         case failed(reason: SpatialPlaybackTransportFailureReason)
     }
 
-    private let appModel: AppModel
+    private let appModel: PlaybackSessionModel
     private let playbackRuntime: PlaybackRuntime
     private let playbackVideoEntityStore: PlaybackVideoEntityStore
     @ObservationIgnored
@@ -190,13 +190,13 @@ final class SpatialPlatformEffectCoordinator {
         Duration.seconds(5)
     private static let windowLifecycleConfirmationTimeout = Duration.seconds(5)
     init(
-        appModel: AppModel,
+        session: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         playbackVideoEntityStore: PlaybackVideoEntityStore,
         stopPlaybackForFailedPresentationTransfer: (@MainActor () async -> Void)? = nil,
         persistSettledPlaybackMode: (@MainActor (PlaybackPresentation) -> Void)? = nil
     ) {
-        self.appModel = appModel
+        self.appModel = session
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
         self.stopPlaybackForFailedPresentationTransfer =
@@ -618,7 +618,7 @@ final class SpatialPlatformEffectCoordinator {
             await dismissEnvironmentPreview(execution)
         case .presentEnvironmentCard:
             guard openWindow(
-                id: AppModel.senseZoneVolumeID,
+                id: PlaybackSessionModel.senseZoneVolumeID,
                 execution: execution
             ) else { return }
             _ = await complete(execution, outcome: .succeeded)
@@ -1521,7 +1521,7 @@ final class SpatialPlatformEffectCoordinator {
     ) async -> Bool {
         guard appModel.environmentCardResidency != .closed else { return true }
         guard dismissWindow(
-            id: AppModel.senseZoneVolumeID,
+            id: PlaybackSessionModel.senseZoneVolumeID,
             execution: execution
         ) else { return false }
 
@@ -2103,7 +2103,7 @@ final class SpatialPlatformEffectCoordinator {
 
 @MainActor
 struct SpatialPlatformEffectExecutor: View {
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(SpatialPlatformEffectCoordinator.self) private var coordinator
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
@@ -2143,7 +2143,7 @@ struct SpatialPlatformEffectExecutor: View {
 #if DEBUG
             .onChange(of: appModel.environmentCardDismissalRequestRevision) { _, revision in
                 guard windowIdentity == .main, revision > 0 else { return }
-                dismissWindow(id: AppModel.senseZoneVolumeID)
+                dismissWindow(id: PlaybackSessionModel.senseZoneVolumeID)
                 appModel.recordSurfaceInputProbe(
                     "testcmd dismissEnvironmentCard delivered revision=\(revision)",
                     retention: .evidence

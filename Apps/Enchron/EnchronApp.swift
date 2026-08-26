@@ -50,7 +50,7 @@ struct EnchronApp: App {
                 SpatialPlatformEffectExecutor(windowIdentity: .main)
             }
             .onChange(of: mainScenePhase) { previous, current in
-                AppModel.recordProbe("mainScenePhase \(previous) -> \(current)")
+                SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
                 guard current == .active else { return }
                 Task { @MainActor in
                     await Task.yield()
@@ -62,8 +62,8 @@ struct EnchronApp: App {
             .enchronEnvironment(application)
             .onAppear {
                 let identity = sceneIdentity.wrappedValue
-                AppModel.recordProbe("mainWindowScene appeared identity=\(identity)")
-                application.appModel.recordPlaybackWindowSceneAppeared(identity)
+                SurfaceInputProbes.record("mainWindowScene appeared identity=\(identity)")
+                application.playbackSessionModel.recordPlaybackWindowSceneAppeared(identity)
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.open, for: .main)
                 Task { @MainActor in
@@ -74,8 +74,8 @@ struct EnchronApp: App {
             }
             .onDisappear {
                 let identity = sceneIdentity.wrappedValue
-                AppModel.recordProbe("mainWindowScene disappeared identity=\(identity)")
-                application.appModel.recordPlaybackWindowSceneDisappeared(identity)
+                SurfaceInputProbes.record("mainWindowScene disappeared identity=\(identity)")
+                application.playbackSessionModel.recordPlaybackWindowSceneDisappeared(identity)
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.closed, for: .main)
             }
@@ -158,7 +158,7 @@ struct EnchronApp: App {
         .defaultLaunchBehavior(.suppressed)
 #endif
 
-        Window("Environment", id: AppModel.senseZoneVolumeID) {
+        Window("Environment", id: PlaybackSessionModel.senseZoneVolumeID) {
             SenseZoneVolumeRoot()
                 .enchronEnvironment(application)
         }
@@ -167,36 +167,36 @@ struct EnchronApp: App {
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
 
-        ImmersiveSpace(id: application.appModel.immersiveSpaceID) {
+        ImmersiveSpace(id: application.playbackSessionModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .background {
                     SpatialPlatformEffectExecutor()
                 }
                 .enchronEnvironment(application)
                 .onImmersionChange { _, newImmersion in
-                    application.appModel.recordImmersionAmount(newImmersion.amount)
+                    application.playbackSessionModel.recordImmersionAmount(newImmersion.amount)
                 }
                 .onAppear {
-                    application.appModel.recordSurfaceInputProbe(
+                    application.playbackSessionModel.recordSurfaceInputProbe(
                         "immersiveSpaceAppeared"
-                            + " presentation=\(application.appModel.playbackPresentation.rawValue)"
-                            + " transition=\(application.appModel.presentationTransition?.targetPresentation.rawValue ?? "none")"
+                            + " presentation=\(application.playbackSessionModel.playbackPresentation.rawValue)"
+                            + " transition=\(application.playbackSessionModel.presentationTransition?.targetPresentation.rawValue ?? "none")"
                     )
                     application.spatialPlatformEffectCoordinator
                         .recordImmersiveSpaceResidency(.open)
-                    application.appModel.receiveSpatialPlatformResult(
+                    application.playbackSessionModel.receiveSpatialPlatformResult(
                         .immersiveSpaceAppeared
                     )
-                    Task { await application.appModel.loadScreenPosition() }
+                    Task { await application.playbackSessionModel.loadScreenPosition() }
                 }
                 .onDisappear {
-                    application.appModel.recordSurfaceInputProbe(
+                    application.playbackSessionModel.recordSurfaceInputProbe(
                         "immersiveSpaceDisappeared"
-                            + " presentation=\(application.appModel.playbackPresentation.rawValue)"
-                            + " transition=\(application.appModel.presentationTransition?.targetPresentation.rawValue ?? "none")"
+                            + " presentation=\(application.playbackSessionModel.playbackPresentation.rawValue)"
+                            + " transition=\(application.playbackSessionModel.presentationTransition?.targetPresentation.rawValue ?? "none")"
                             + " attached=\(application.playbackRuntime.attachedPresentation?.rawValue ?? "none")"
                             + " lifecycle=\(application.playbackRuntime.productLifecycle)"
-                            + " stage=\(application.appModel.spatialPlaybackSurfacePreparationStage)"
+                            + " stage=\(application.playbackSessionModel.spatialPlaybackSurfacePreparationStage)"
                     )
                     application.spatialPlatformEffectCoordinator
                         .recordImmersiveSpaceResidency(.closed)
@@ -209,23 +209,23 @@ struct EnchronApp: App {
                     if application.playbackRuntime.attachedPresentation != .window {
                         application.playbackRuntime.detach()
                     }
-                    application.appModel.receiveSpatialPlatformResult(
+                    application.playbackSessionModel.receiveSpatialPlatformResult(
                         .immersiveSpaceDisappeared(playbackContext)
                     )
                 }
         }
         .immersionStyle(selection: $immersionStyle, in: .progressive)
-        .onChange(of: application.appModel.immersiveSpaceStyleRevision) { _, _ in
+        .onChange(of: application.playbackSessionModel.immersiveSpaceStyleRevision) { _, _ in
             immersionStyle = .progressive(
                 SpatialImmersiveSpacePolicy.progressiveImmersionRange,
-                initialAmount: application.appModel.immersiveSpaceOpeningInitialAmount
+                initialAmount: application.playbackSessionModel.immersiveSpaceOpeningInitialAmount
             )
         }
     }
 }
 
 private struct ImmersivePlaybackResidentRoot: View {
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @State private var isStoppingPlayback = false
 
@@ -252,7 +252,7 @@ private struct ImmersivePlaybackResidentRoot: View {
         Task { @MainActor in
             defer { isStoppingPlayback = false }
             await playbackLauncher.stopPlaybackAndWait()
-            appModel.requestStoppedPlaybackCleanup()
+            playbackSession.requestStoppedPlaybackCleanup()
         }
     }
 }

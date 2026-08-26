@@ -2,7 +2,7 @@ import SwiftUI
 import PlaybackPresentation
 
 struct SenseZoneVolumeRoot: View {
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityPrefersCrossFadeTransitions)
     private var accessibilityPrefersCrossFadeTransitions

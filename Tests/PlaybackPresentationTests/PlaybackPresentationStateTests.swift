@@ -512,9 +512,9 @@ struct PlaybackPresentationStateTests {
         )
 
         let playbackModel = try settledModel(in: .docked)
-        let appModel = AppModel(playbackPresentationModel: playbackModel)
+        let appModel = PlaybackSessionModel(playbackPresentationModel: playbackModel)
         let coordinator = SpatialPlatformEffectCoordinator(
-            appModel: appModel,
+            session: appModel,
             playbackRuntime: PlaybackRuntime(),
             playbackVideoEntityStore: PlaybackVideoEntityStore()
         )
@@ -919,9 +919,9 @@ struct PlaybackPresentationStateTests {
         let deliveredMode = startEntry(.panorama, true)
 
         #expect(deliveredMode == .panorama)
-        #expect(application.appModel.playbackPresentation == .portal)
-        #expect(application.appModel.presentationTransition == nil)
-        #expect(application.appModel.pendingSpatialPlatformEffect == nil)
+        #expect(application.playbackSessionModel.playbackPresentation == .portal)
+        #expect(application.playbackSessionModel.presentationTransition == nil)
+        #expect(application.playbackSessionModel.pendingSpatialPlatformEffect == nil)
     }
 
     @Test("Presentation settlement belongs to the replacement technical session")
@@ -1488,7 +1488,7 @@ struct PlaybackPresentationStateTests {
     @Test("Panorama return to Portal restores the Environment immersion amount")
     @MainActor
     func panoramaReturnRestoresEnvironmentImmersionAmount() throws {
-        let appModel = AppModel()
+        let appModel = PlaybackSessionModel()
         appModel.prepareColdPlaybackLaunch(for: .panoramic)
         appModel.recordImmersionAmount(0.62)
         try appModel.activateEnvironment(.scenicOne, effect: .dark)
@@ -1556,7 +1556,7 @@ struct PlaybackPresentationStateTests {
     @Test("Portal-to-Panorama gates binding and visible cutover in order")
     @MainActor
     func portalToPanoramaGatesReplacementTargetAfterSourceRelease() throws {
-        let appModel = AppModel()
+        let appModel = PlaybackSessionModel()
         appModel.prepareColdPlaybackLaunch(for: .panoramic)
         appModel.showControls = true
 
@@ -1590,7 +1590,7 @@ struct PlaybackPresentationStateTests {
     @Test("Docked Environment Card initializes the same transition timing gates")
     @MainActor
     func dockedEnvironmentCardInitializesTransitionAppearance() throws {
-        let appModel = AppModel(
+        let appModel = PlaybackSessionModel(
             playbackPresentationModel: try settledModel(in: .docked)
         )
 
@@ -2046,7 +2046,7 @@ struct PlaybackPresentationStateTests {
     @Test("Immersive Space lifecycle revision changes only for appearance events")
     @MainActor
     func immersiveSpaceLifecycleRevisionTracksAppearanceEvents() {
-        let appModel = AppModel()
+        let appModel = PlaybackSessionModel()
 
         _ = appModel.receiveSpatialPlatformResult(.immersiveSpaceAppeared)
         #expect(appModel.immersiveSpaceLifecycleRevision == 1)
@@ -3597,7 +3597,7 @@ struct PlaybackPresentationStateTests {
 
     @MainActor
     private func completePendingEffect(
-        _ appModel: AppModel,
+        _ appModel: PlaybackSessionModel,
         executionID: UUID = UUID(),
         outcome: SpatialPlatformEffectOutcome = .succeeded
     ) throws -> SpatialPlatformEffectResolution {

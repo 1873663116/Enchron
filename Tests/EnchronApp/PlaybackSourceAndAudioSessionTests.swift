@@ -29,7 +29,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
     @MainActor
     func testEachSurfaceTapTogglesControlsExactlyOnce() {
-        let appModel = AppModel()
+        let appModel = PlaybackSessionModel()
         let firstTap = Date(timeIntervalSinceReferenceDate: 1_000)
 
         appModel.toggleControlsFromPlaybackSurface(at: firstTap)
@@ -43,9 +43,9 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
     @MainActor
     func testEverySurfaceInputSourceUsesTheSameStableToggleAction() {
-        let windowModel = AppModel()
-        let spatialTapModel = AppModel()
-        let accessibilityModel = AppModel()
+        let windowModel = PlaybackSessionModel()
+        let spatialTapModel = PlaybackSessionModel()
+        let accessibilityModel = PlaybackSessionModel()
         let moment = Date(timeIntervalSinceReferenceDate: 2_000)
 
         PlaybackSurfaceInputAction.perform(
@@ -983,7 +983,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
     @MainActor
     func testControlsAutoHideCountdownRestartsAfterHoverEnds() {
-        let appModel = AppModel()
+        let appModel = PlaybackSessionModel()
         let entered = Date(timeIntervalSince1970: 100)
         let exited = Date(timeIntervalSince1970: 105)
 

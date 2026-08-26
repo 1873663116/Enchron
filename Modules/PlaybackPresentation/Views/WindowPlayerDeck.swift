@@ -7,7 +7,7 @@ import SwiftUI
 
 struct WindowPlayerDeckView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerDeck")
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var presentationOverride: PlaybackPresentation? = nil
@@ -389,7 +389,7 @@ struct WindowPlayerDeckView: View {
 /// DesignSystem circle control while the menu contents remain feature-owned.
 struct ProductionPlaybackMoreMenu: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackMoreMenu")
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var body: some View {

@@ -174,7 +174,9 @@ def main() -> int:
     presentation_model = read(
         "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift"
     )
-    app_model = read("Apps/Enchron/AppModel.swift")
+    session_model = read(
+        "Modules/PlaybackPresentation/Session/PlaybackSessionModel.swift"
+    )
     platform_executor_path = (
         REPOSITORY_ROOT
         / "Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift"
@@ -469,14 +471,14 @@ def main() -> int:
         "live roots do not register, unregister, and drain queued platform effects",
     )
     require(
-        'Window("Environment", id: AppModel.senseZoneVolumeID)' in app_scene
+        'Window("Environment", id: PlaybackSessionModel.senseZoneVolumeID)' in app_scene
         and "WindowGroup(id: AppModel.senseZoneVolumeID)" not in app_scene
         and ".windowStyle(.volumetric)" in app_scene,
         "Environment Card is not a singleton volumetric Window Scene",
     )
     require(
         'id: "playerControls"' not in app_scene
-        and "PlayerControlsSceneIdentity" not in app_model
+        and "PlayerControlsSceneIdentity" not in session_model
         and "ImmersivePlaybackControlsAttachmentView(" in immersive,
         "immersive playback controls still depend on a Window Scene",
     )
@@ -745,7 +747,7 @@ def main() -> int:
         "the executor does not correlate its lease with the owner pending request",
     )
     require(
-        "setSpatialPlatformEffectReplacementHandler" in app_model
+        "setSpatialPlatformEffectReplacementHandler" in session_model
         and "appModel.setSpatialPlatformEffectReplacementHandler" in platform_executor
         and "self?.requestDrain()" in platform_executor,
         "request replacement does not promptly invalidate and drain the active execution",

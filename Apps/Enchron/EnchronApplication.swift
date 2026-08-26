@@ -41,6 +41,7 @@ enum EffectiveMediaFormatPresentationResolver {
 final class EnchronApplication {
     private static let logger = Logger(subsystem: "app.enchron", category: "Application")
     let appModel: AppModel
+    let playbackSessionModel: PlaybackSessionModel
     let playbackRuntime: PlaybackRuntime
     let playbackVideoEntityStore: PlaybackVideoEntityStore
     let embyNavigationModel: EmbyNavigationModel
@@ -135,7 +136,7 @@ final class EnchronApplication {
                 .init(resumePolicy: .alwaysStartFromBeginning)
             )
         }
-        let appModel = AppModel(
+        let playbackSessionModel = PlaybackSessionModel(
             playbackPresentationModel: PlaybackPresentationModel(
                 screenPositionStore: screenPositionStore
             )
@@ -178,17 +179,17 @@ final class EnchronApplication {
         )
 #if DEBUG
         embySession.diagnosticProbe = {
-            AppModel.recordProbe($0, retention: .evidence)
+            SurfaceInputProbes.record($0, retention: .evidence)
         }
 #endif
         let embyConnection = EmbyConnectionViewModel(session: embySession)
         let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)
         let embySearch = EmbySearchViewModel(client: embyClient, session: embySession)
-        launcher.onPlaybackModeEntryStarted = { [weak appModel] mode, isColdLaunch in
-            guard let appModel else { return mode }
-            appModel.showControls = false
+        launcher.onPlaybackModeEntryStarted = { [weak playbackSessionModel] mode, isColdLaunch in
+            guard let playbackSessionModel else { return mode }
+            playbackSessionModel.showControls = false
             guard isColdLaunch else {
-                return switch appModel.playbackPresentation {
+                return switch playbackSessionModel.playbackPresentation {
                 case .window, .docked: .window
                 case .portal, .panorama: .panorama
                 }
@@ -197,21 +198,21 @@ final class EnchronApplication {
             case .window: .flat
             case .panorama: .panoramic
             }
-            appModel.prepareColdPlaybackLaunch(for: family)
+            playbackSessionModel.prepareColdPlaybackLaunch(for: family)
             return mode
         }
-        launcher.onPlaybackIntentStarted = { [weak appModel] in
-            appModel?.beginPlaybackWindowSession()
+        launcher.onPlaybackIntentStarted = { [weak playbackSessionModel] in
+            playbackSessionModel?.beginPlaybackWindowSession()
         }
-        launcher.onPlaybackStopRequested = { [weak appModel] in
-            appModel?.endPlaybackWindowSession()
+        launcher.onPlaybackStopRequested = { [weak playbackSessionModel] in
+            playbackSessionModel?.endPlaybackWindowSession()
         }
         launcher.onEffectiveMediaFormatApplied = {
-            [weak appModel, weak playbackRuntime] interpretation in
-            guard let appModel, let playbackRuntime else { return }
+            [weak playbackSessionModel, weak playbackRuntime] interpretation in
+            guard let playbackSessionModel, let playbackRuntime else { return }
             let resolution = EffectiveMediaFormatPresentationResolver.resolve(
                 interpretation,
-                from: appModel.playbackPresentation
+                from: playbackSessionModel.playbackPresentation
             )
             do {
                 switch resolution {
@@ -219,9 +220,9 @@ final class EnchronApplication {
                     guard playbackRuntime.technicalSessionFormatReplacementIsPending else {
                         return
                     }
-                    Task { @MainActor [weak appModel, weak playbackRuntime] in
-                        guard let appModel, let playbackRuntime else { return }
-                        AppModel.recordProbe(
+                    Task { @MainActor [weak playbackSessionModel, weak playbackRuntime] in
+                        guard let playbackSessionModel, let playbackRuntime else { return }
+                        SurfaceInputProbes.record(
                             "formatRebuild begin"
                                 + " lifecycle=\(playbackRuntime.productLifecycle)"
                                 + " presentation=\(String(describing: playbackRuntime.attachedPresentation))"
@@ -229,29 +230,29 @@ final class EnchronApplication {
                         do {
                             try await playbackRuntime
                                 .rebuildTechnicalSessionForCurrentPresentation()
-                            AppModel.recordProbe(
+                            SurfaceInputProbes.record(
                                 "formatRebuild ok"
                                     + " lifecycle=\(playbackRuntime.productLifecycle)"
                             )
                         } catch {
-                            AppModel.recordProbe(
+                            SurfaceInputProbes.record(
                                 "formatRebuild failed"
                                     + " lifecycle=\(playbackRuntime.productLifecycle)"
                                     + " error=\(error)"
                             )
                             await playbackRuntime.stopAndWait()
-                            appModel.requestStoppedPlaybackCleanup()
+                            playbackSessionModel.requestStoppedPlaybackCleanup()
                             playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
                         }
                     }
                 case .switchToPortal:
-                    _ = try appModel.requestPlaybackPresentation(
+                    _ = try playbackSessionModel.requestPlaybackPresentation(
                         .portal,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
                     )
                 case .returnToWindow:
-                    _ = try appModel.requestPlaybackPresentation(
+                    _ = try playbackSessionModel.requestPlaybackPresentation(
                         .window,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
@@ -278,12 +279,12 @@ final class EnchronApplication {
             defaultsSuiteName: mediaLibraryDefaultsSuiteName,
             viewingStateProvider: Self.viewingStateProvider(launcher),
             onPlay: {
-                AppModel.recordProbe("openRequestForwarded")
+                SurfaceInputProbes.record("openRequestForwarded")
                 launcher.requestPlayback($0.playbackLaunchRequest)
             }
         )
         let mediaLibrary = mediaLibraryFeature.library
-        mediaLibrary.diagnosticProbe = { AppModel.recordProbe($0) }
+        mediaLibrary.diagnosticProbe = { SurfaceInputProbes.record($0) }
         let browser = mediaLibraryFeature.browser
 
         launcher.nextFileProvider = {
@@ -333,16 +334,17 @@ final class EnchronApplication {
         let preferences = preferencesStore.loadPreferences()
         if let override = environment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"].flatMap(Int.init),
            override > 0 {
-            appModel.controlsAutoHideSeconds = override
+            playbackSessionModel.controlsAutoHideSeconds = override
         } else {
-            appModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
+            playbackSessionModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
         }
         let configuredEnvironment = SpatialSceneDomain.CinemaEnvironment(
             preferenceValue: preferences.defaultEnvironmentID
         ) ?? .defaultScenic
-        appModel.configureDefaultEnvironment(configuredEnvironment)
+        playbackSessionModel.configureDefaultEnvironment(configuredEnvironment)
 
-        self.appModel = appModel
+        appModel = AppModel()
+        self.playbackSessionModel = playbackSessionModel
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
         embyNavigationModel = embyNavigation
@@ -351,7 +353,7 @@ final class EnchronApplication {
         embyHomeViewModel = embyHome
         embySearchViewModel = embySearch
         let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
-            appModel: appModel,
+            session: playbackSessionModel,
             playbackRuntime: playbackRuntime,
             playbackVideoEntityStore: playbackVideoEntityStore,
             stopPlaybackForFailedPresentationTransfer: { [weak launcher] in
@@ -377,7 +379,7 @@ final class EnchronApplication {
         self.certificateTrustPrompt = certificateTrustPrompt
         self.modalPresentationCoordinator = modalPresentationCoordinator
         #if DEBUG
-            appModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
+            playbackSessionModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()
                 _ = playbackSwitchStateRing?.beginSwitch(
                     kind: .presentation,
@@ -385,14 +387,14 @@ final class EnchronApplication {
                     at: DispatchTime.now().uptimeNanoseconds
                 )
             }
-            appModel.playbackSwitchPresentationSettlementHandler = { [weak playbackSwitchStateRing] presentation in
+            playbackSessionModel.playbackSwitchPresentationSettlementHandler = { [weak playbackSwitchStateRing] presentation in
                 playbackSwitchStateRing?.settlePresentation(presentation)
             }
-            playbackRuntime.debugSetPlaybackFormatSwitchHandler { [weak playbackSwitchStateRing, weak appModel, weak playbackRuntime] in
+            playbackRuntime.debugSetPlaybackFormatSwitchHandler { [weak playbackSwitchStateRing, weak playbackSessionModel, weak playbackRuntime] in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()
                 _ = playbackSwitchStateRing?.beginSwitch(
                     kind: .format,
-                    targetPresentation: appModel?.playbackPresentation,
+                    targetPresentation: playbackSessionModel?.playbackPresentation,
                     at: DispatchTime.now().uptimeNanoseconds
                 )
             }
@@ -479,6 +481,7 @@ private extension MediaCollectionSnapshot {
 extension View {
     func enchronEnvironment(_ application: EnchronApplication) -> some View {
         environment(application.appModel)
+            .environment(application.playbackSessionModel)
             .environment(application.playbackRuntime)
             .environment(application.playbackVideoEntityStore)
             .environment(application.spatialPlatformEffectCoordinator)

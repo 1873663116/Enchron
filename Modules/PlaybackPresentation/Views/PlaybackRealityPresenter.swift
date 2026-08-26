@@ -134,7 +134,7 @@ final class PlaybackVideoEntityStore {
             departingEntity = entity
             departingPresentation = currentPresentation
             entity = Entity()
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "rendererOwnership.entityMint reason=rendererChanged"
                     + " retired=\(PlaybackRuntime.probeEntity(retiredEntityID))"
                     + " minted=\(PlaybackRuntime.probeEntity(entityID))"
@@ -313,7 +313,7 @@ enum PlaybackSurfaceInputAction {
 
     static func perform(
         _ source: Source,
-        appModel: AppModel,
+        appModel: PlaybackSessionModel,
         at date: Date = Date()
     ) {
         _ = source

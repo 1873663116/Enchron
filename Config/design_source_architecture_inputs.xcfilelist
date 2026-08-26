@@ -110,6 +110,7 @@ $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachme
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Session/DebugProbeJournal.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Session/PlaybackPresentationChrome.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Session/PlaybackSessionModel.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Session/SurfaceInputProbes.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/AudioSpectrumSurface.swift

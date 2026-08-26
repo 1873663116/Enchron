@@ -450,7 +450,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "rendererOwnership.prepareForPlayback source=\(request.displayName)"
                 + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
                 + "/\(Self.probeEntity(rendererConsumerEntityID))"
@@ -681,7 +681,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             recordAudioSessionFact()
             renderer = mediaKind == .video ? newSession.renderer : nil
             rendererEpoch &+= 1
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "rendererOwnership.open stage=rendererPublished"
                     + " technical=\(newSession.traceID)"
                     + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
@@ -805,7 +805,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             + "/\(Self.probeEntity(rendererConsumerEntityID))"
             + " released=\(releasedFacts)"
         if let rendererConsumerEntityID, rendererConsumerEntityID != entityID {
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "rendererOwnership.claim outcome=busy \(ownershipFacts)"
             )
             throw RuntimeError.rendererConsumerBusy(rendererConsumerPresentation ?? presentation)
@@ -815,7 +815,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 presentation: presentation,
                 entityID: entityID
             ) else {
-                AppModel.recordProbe(
+                SurfaceInputProbes.record(
                     "rendererOwnership.claim outcome=transferPending \(ownershipFacts)"
                 )
                 throw RuntimeError.rendererTransferPending
@@ -825,7 +825,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         rendererConsumerPresentation = presentation
         rendererConsumerEntityID = entityID
         rendererConsumerEpoch = rendererEpoch
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "rendererOwnership.claim outcome=granted \(ownershipFacts)"
         )
     }
@@ -841,7 +841,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard let rendererConsumerEpoch,
               rendererConsumerEpoch != rendererEpoch else { return }
         if let rendererConsumerEntityID {
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "rendererOwnership.discardSpent"
                     + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
                     + "/\(Self.probeEntity(rendererConsumerEntityID))"
@@ -871,7 +871,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         guard rendererConsumerPresentation == presentation,
               rendererConsumerEntityID == entityID else {
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "rendererOwnership.release outcome=guardRejected"
                     + " requested=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
                     + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
@@ -879,7 +879,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             )
             return
         }
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "rendererOwnership.release outcome=released"
                 + " holder=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
         )
@@ -1796,7 +1796,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     @discardableResult
     private func beginStop(releasingSourceAccess: Bool) -> Task<Void, Never>? {
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "rendererOwnership.stop"
                 + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
                 + "/\(Self.probeEntity(rendererConsumerEntityID))"

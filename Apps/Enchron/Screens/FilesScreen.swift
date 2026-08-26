@@ -915,7 +915,7 @@ struct FilesScreen: View {
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { previous, current in
             guard abs(current - previous) >= 1 else { return }
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "reachability fileScroll kind=grid offset=\(current)",
                 retention: .evidence
             )
@@ -938,7 +938,7 @@ struct FilesScreen: View {
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { previous, current in
             guard abs(current - previous) >= 1 else { return }
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "reachability fileScroll kind=list offset=\(current)",
                 retention: .evidence
             )
@@ -1089,7 +1089,7 @@ struct FilesScreen: View {
 
     private func activateMediaReference(_ reference: FileBrowsingDomain.MediaReference) {
         recordReachability("library.video")
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "libraryTap name=\(reference.name) selectionActive=\(mediaReferenceSelectionIsActive)"
         )
         guard mediaReferenceSelectionIsActive else {
@@ -1199,7 +1199,7 @@ struct FilesScreen: View {
 
     private func recordReachability(_ action: String) {
 #if DEBUG
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "reachability files delivered action=\(action)",
             retention: .evidence
         )

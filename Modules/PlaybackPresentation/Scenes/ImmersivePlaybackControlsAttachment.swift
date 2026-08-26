@@ -69,7 +69,7 @@ final class ImmersivePlaybackControlsAttachmentController {
     static let forwardOffsetMeters: Float = -0.7
     static let verticalOffsetMeters: Float = -0.22
 
-    private weak var appModel: AppModel?
+    private weak var appModel: PlaybackSessionModel?
     private var attachmentEntity: Entity?
     private var session: ARKitSession?
     private var provider: WorldTrackingProvider?
@@ -78,7 +78,7 @@ final class ImmersivePlaybackControlsAttachmentController {
     private var placementState = ImmersivePlaybackControlsPlacementState()
     private var lockedTransform: Transform?
 
-    func attach(_ entity: Entity, appModel: AppModel) {
+    func attach(_ entity: Entity, appModel: PlaybackSessionModel) {
         self.appModel = appModel
         if attachmentEntity !== entity {
             if let attachmentEntity {

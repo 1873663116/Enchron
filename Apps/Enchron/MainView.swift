@@ -66,6 +66,7 @@ public enum MainViewSceneRole {
 public struct MainView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "MainView")
     @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -91,12 +92,12 @@ public struct MainView: View {
 
     private var showsWindowPlayback: Bool {
         playbackRuntime.hasActivePlaybackRequest
-            && (appModel.playbackPresentation.usesMainWindow
-                || appModel.presentationTransition?.targetPresentation.usesMainWindow == true)
+            && (playbackSession.playbackPresentation.usesMainWindow
+                || playbackSession.presentationTransition?.targetPresentation.usesMainWindow == true)
     }
 
     private var windowSurfaceIsActive: Bool {
-        let transition = appModel.presentationTransition
+        let transition = playbackSession.presentationTransition
         return playbackSurfaceIsEnabled
             && showsWindowPlayback
             && PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
@@ -104,9 +105,9 @@ public struct MainView: View {
                 previousPresentation: transition?.previousPresentation,
                 targetPresentation: transition?.targetPresentation,
                 sourceRendererMayRelease:
-                    appModel.presentationSourceRendererMayRelease,
+                    playbackSession.presentationSourceRendererMayRelease,
                 targetRendererMayBind:
-                    appModel.presentationTargetRendererMayBind
+                    playbackSession.presentationTargetRendererMayBind
             )
     }
 
@@ -116,11 +117,11 @@ public struct MainView: View {
             guard sceneRole == .playback else { return }
             playbackRuntime.onPlaybackEnded = {
                 let showControls = playbackLauncher.handlePlaybackEnded {
-                    appModel.showControls = true
+                    playbackSession.showControls = true
                     controlsTimer?.cancel()
                 }
                 if showControls {
-                    appModel.showControls = true
+                    playbackSession.showControls = true
                     controlsTimer?.cancel()
                 }
             }
@@ -136,15 +137,15 @@ public struct MainView: View {
                 }
             }
         }
-        .onChange(of: appModel.playbackWindowSessionIsActive) { _, isActive in
+        .onChange(of: playbackSession.playbackWindowSessionIsActive) { _, isActive in
             reconcilePlaybackWindowPresentation(sessionIsActive: isActive)
         }
         .task {
             reconcilePlaybackWindowPresentation(
-                sessionIsActive: appModel.playbackWindowSessionIsActive
+                sessionIsActive: playbackSession.playbackWindowSessionIsActive
             )
         }
-        .onChange(of: appModel.lastControlsInteractionAt) { _, _ in
+        .onChange(of: playbackSession.lastControlsInteractionAt) { _, _ in
             guard sceneRole == .playback else { return }
             guard playbackRuntime.hasActivePlaybackRequest else { return }
             scheduleControlsAutoHide()
@@ -197,7 +198,7 @@ public struct MainView: View {
     /// Detaching it for chrome visibility rebuilds the RealityKit viewport and
     /// costs a black frame; browser content still carries no ornament geometry.
     private var hostsPlaybackOrnament: Bool {
-        showsWindowPlayback && appModel.playbackPresentation.usesMainWindow
+        showsWindowPlayback && playbackSession.playbackPresentation.usesMainWindow
     }
 
     /// Player Controls and top chrome only after presentable video is up.
@@ -208,7 +209,7 @@ public struct MainView: View {
             && (
                 issueRequiresPlayerDeck
                     || (
-                        appModel.showControls
+                        playbackSession.showControls
                             && (playbackRuntime.presentationState == .videoVisible
                                 || playbackRuntime.presentationState == .audioVisible
                                 || isLeavingWindowPresentation)
@@ -304,7 +305,7 @@ public struct MainView: View {
                     message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
                     onResume: {
 #if DEBUG
-                        appModel.recordSurfaceInputProbe(
+                        playbackSession.recordSurfaceInputProbe(
                             "reachability resume decision delivered action=resume",
                             retention: .evidence
                         )
@@ -313,7 +314,7 @@ public struct MainView: View {
                     },
                     onStartOver: {
 #if DEBUG
-                        appModel.recordSurfaceInputProbe(
+                        playbackSession.recordSurfaceInputProbe(
                             "reachability resume decision delivered action=startOver",
                             retention: .evidence
                         )
@@ -329,8 +330,8 @@ public struct MainView: View {
     private var browserWindowSurface: some View {
         if BrowserWindowSurfacePolicy.showsBrowser(
             hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
-            transitionIsActive: appModel.presentationTransition != nil,
-            immersiveSpaceResidency: appModel.immersiveSpaceResidency
+            transitionIsActive: playbackSession.presentationTransition != nil,
+            immersiveSpaceResidency: playbackSession.immersiveSpaceResidency
         ) {
             browser
         } else {
@@ -348,11 +349,11 @@ public struct MainView: View {
 
             Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
                 EmbyScreen { selectionResult in
-                    appModel.beginPlaybackWindowSession()
+                    playbackSession.beginPlaybackWindowSession()
                     do {
                         let selection = try selectionResult.get()
                         let request = try await embySession.playbackRequest(for: selection)
-                        AppModel.recordProbe("openRequestForwarded")
+                        SurfaceInputProbes.record("openRequestForwarded")
                         playbackLauncher.requestPlayback(request)
                     } catch EmbyError.unsupportedVideoCodec(let codec) {
                         playbackRuntime.setUserVisibleIssue(
@@ -414,19 +415,19 @@ public struct MainView: View {
     private func selectBrowserTab(_ tab: AppModel.NavigationTab) {
         guard tab.isContentDestination else {
 #if DEBUG
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "navigation tab delivered tab=\(tab.rawValue)",
                 retention: .evidence
             )
 #endif
-            try? appModel.requestEnvironmentCard(
+            try? playbackSession.requestEnvironmentCard(
                 mediaSessionID: playbackRuntime.activeSessionID,
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
             return
         }
 #if DEBUG
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "navigation tab delivered tab=\(tab.rawValue)",
             retention: .evidence
         )
@@ -443,8 +444,8 @@ public struct MainView: View {
             freeformSizeOnDisappear: {
                 BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
                     hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
-                    transitionIsActive: appModel.presentationTransition != nil,
-                    immersiveSpaceResidency: appModel.immersiveSpaceResidency
+                    transitionIsActive: playbackSession.presentationTransition != nil,
+                    immersiveSpaceResidency: playbackSession.immersiveSpaceResidency
                 ) ? WindowPlaybackLayout.fallback.defaultSize : nil
             },
             showsWindowChrome: showsPlaybackChrome
@@ -458,12 +459,12 @@ public struct MainView: View {
             onGeometryRefresh: { event in
                 switch event {
                 case let .requested(revision, size):
-                    appModel.recordSurfaceInputProbe(
+                    playbackSession.recordSurfaceInputProbe(
                         "mainWindowGeometryRefresh requestedRevision=\(revision)"
                             + " size=\(size.width)x\(size.height)"
                     )
                 case let .failed(revision, message):
-                    appModel.recordSurfaceInputProbe(
+                    playbackSession.recordSurfaceInputProbe(
                         "mainWindowGeometryRefresh failedRevision=\(revision)"
                             + " error=\(message)"
                     )
@@ -476,9 +477,9 @@ public struct MainView: View {
                 controlsVisible: showsPlaybackChrome,
                 onSecondaryMenuVisibilityChange: {
                     isWindowSecondaryMenuPresented = $0
-                    appModel.setControlsFocused($0)
+                    playbackSession.setControlsFocused($0)
 #if DEBUG
-                    appModel.recordSurfaceInputProbe(
+                    playbackSession.recordSurfaceInputProbe(
                         "reachability top secondary menu visible=\($0)"
                     )
 #endif
@@ -515,7 +516,7 @@ public struct MainView: View {
         let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
             hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
             presentationState: playbackRuntime.presentationState,
-            isPresentationTransitionActive: appModel.presentationTransition != nil
+            isPresentationTransitionActive: playbackSession.presentationTransition != nil
         )
 
         return ZStack {
@@ -527,7 +528,7 @@ public struct MainView: View {
                         withAnimation(DesignTokens.AnimationToken.controlsTransition) {
                             PlaybackSurfaceInputAction.perform(
                                 .windowSwiftUI,
-                                appModel: appModel
+                                appModel: playbackSession
                             )
                         }
                     }
@@ -545,12 +546,12 @@ public struct MainView: View {
                 )
             }
 
-            if let lastFrame = appModel.portalExitLastFrame,
+            if let lastFrame = playbackSession.portalExitLastFrame,
                SpatialPlatformImmersiveExitWindowRevealPolicy
                 .shouldShowLastFrameBridge(
                     family: .panoramic,
                     targetIsSettled:
-                        appModel.presentationVisualCutoverMayBegin,
+                        playbackSession.presentationVisualCutoverMayBegin,
                     hasCapturedFrame: true
                 ) {
                 Image(lastFrame, scale: 1, label: Text(""))
@@ -637,54 +638,54 @@ public struct MainView: View {
             debugSnapshot?.rendererState?.displayedFrameObservationCount
         ).map(String.init) ?? "none"
         let environment = PlaybackStateAccessibility.environmentAccessibilityValues(
-            for: appModel.environmentContext
+            for: playbackSession.environmentContext
         )
         let panoramaReturnEnvironment = PlaybackStateAccessibility.environmentAccessibilityValues(
-            for: appModel.panoramaReturnEnvironmentContext
+            for: playbackSession.panoramaReturnEnvironmentContext
         )
-        let immersionAmount = appModel.lastObservedImmersionAmount.map {
+        let immersionAmount = playbackSession.lastObservedImmersionAmount.map {
             String($0)
         } ?? "none"
-        let skyboxOpacity = appModel.environmentSkyboxOpacity.map {
+        let skyboxOpacity = playbackSession.environmentSkyboxOpacity.map {
             String(format: "%.4f", $0)
         } ?? "none"
         let loadingSpinnerVisible = WindowPlaybackLoadingVisibility.shouldShow(
             hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
             presentationState: playbackRuntime.presentationState,
-            isPresentationTransitionActive: appModel.presentationTransition != nil
+            isPresentationTransitionActive: playbackSession.presentationTransition != nil
         )
         var fields: [String] = [
             "active=\(playbackRuntime.hasActivePlaybackRequest)",
             "formatReady=\(playbackRuntime.mediaFormatIsKnown)",
-            "presentation=\(appModel.playbackPresentation.rawValue)",
-            "transition=\(appModel.presentationTransition?.targetPresentation.rawValue ?? "none")",
-            "pendingSpatialEffect=\(appModel.pendingSpatialPlatformEffect == nil ? "none" : "present")",
-            "sourceRendererMayRelease=\(appModel.presentationSourceRendererMayRelease)",
-            "targetRendererMayBind=\(appModel.presentationTargetRendererMayBind)",
-            "immersiveSpaceResidency=\(String(describing: appModel.immersiveSpaceResidency))",
-            "immersiveSpaceLifecycleRevision=\(appModel.immersiveSpaceLifecycleRevision)",
-            "environmentCardResidency=\(String(describing: appModel.environmentCardResidency))",
+            "presentation=\(playbackSession.playbackPresentation.rawValue)",
+            "transition=\(playbackSession.presentationTransition?.targetPresentation.rawValue ?? "none")",
+            "pendingSpatialEffect=\(playbackSession.pendingSpatialPlatformEffect == nil ? "none" : "present")",
+            "sourceRendererMayRelease=\(playbackSession.presentationSourceRendererMayRelease)",
+            "targetRendererMayBind=\(playbackSession.presentationTargetRendererMayBind)",
+            "immersiveSpaceResidency=\(String(describing: playbackSession.immersiveSpaceResidency))",
+            "immersiveSpaceLifecycleRevision=\(playbackSession.immersiveSpaceLifecycleRevision)",
+            "environmentCardResidency=\(String(describing: playbackSession.environmentCardResidency))",
             "environment=\(environment.environment)",
             "environmentEffect=\(environment.effect)",
             "panoramaReturnEnvironment=\(panoramaReturnEnvironment.environment)",
             "panoramaReturnEnvironmentEffect=\(panoramaReturnEnvironment.effect)",
             "immersionAmount=\(immersionAmount)",
             "skyboxOpacity=\(skyboxOpacity)",
-            "skyboxActive=\(appModel.environmentSkyboxIsActive)",
-            "surfacePreparation=\(appModel.spatialPlaybackSurfacePreparationStage.replacingOccurrences(of: ";", with: ","))",
+            "skyboxActive=\(playbackSession.environmentSkyboxIsActive)",
+            "surfacePreparation=\(playbackSession.spatialPlaybackSurfacePreparationStage.replacingOccurrences(of: ";", with: ","))",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "firstTechnicalSessionAttachment=\(playbackRuntime.firstAttachedPresentationForActiveTechnicalSession?.rawValue ?? "none")",
             "rendererConsumer=\(playbackRuntime.rendererConsumerPresentation?.rawValue ?? "none")",
             "rendererConsumerEntity=\(playbackRuntime.rendererConsumerEntityID == nil ? "none" : "present")",
             "playbackEntity=\(playbackVideoEntityStore.entityID)",
-            "controls=\(appModel.showControls ? "shown" : "hidden")",
+            "controls=\(playbackSession.showControls ? "shown" : "hidden")",
             "lastPlatformOperation=\(spatialPlatformEffectCoordinator.lastPlatformOperation)",
             "lastExecutionCheckpoint=\(spatialPlatformEffectCoordinator.lastExecutionCheckpoint)",
             "executionAttemptCount=\(spatialPlatformEffectCoordinator.executionAttemptCount)",
             "lastExecutionResolution=\(spatialPlatformEffectCoordinator.lastExecutionResolution)",
             "portalViewportRefreshRevision=\(spatialPlatformEffectCoordinator.mainWindowPlaybackSurfaceRefreshRevision)",
             "portalViewportAppliedRefreshRevision=\(spatialPlatformEffectCoordinator.mainWindowPlaybackSurfaceAppliedRefreshRevision)",
-            "conversionDiagnostic=\((appModel.lastPresentationConversionDiagnostic ?? "none").replacingOccurrences(of: ";", with: ","))",
+            "conversionDiagnostic=\((playbackSession.lastPresentationConversionDiagnostic ?? "none").replacingOccurrences(of: ";", with: ","))",
             "chrome=\(showsPlaybackChrome ? "on" : "off")",
             "windowOpacityTarget=\(windowPlaybackOpacity)",
             "windowInteractive=\(windowPlaybackAcceptsInput)",
@@ -718,7 +719,7 @@ public struct MainView: View {
             "mvHEVC=\(playbackRuntime.diagnostics.isMVHEVC)",
             "windowStyle=plain",
             "loadingSpinner=\(loadingSpinnerVisible ? "on" : "off")",
-            "tapTrace=\(appModel.debugSurfaceTapTrace)",
+            "tapTrace=\(playbackSession.debugSurfaceTapTrace)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")",
@@ -804,7 +805,7 @@ public struct MainView: View {
         #endif
         return (
             fields
-                + appModel.spatialPlaybackSurfaceObservation.accessibilityFields
+                + playbackSession.spatialPlaybackSurfaceObservation.accessibilityFields
         ).joined(separator: ";")
     }
 
@@ -819,34 +820,34 @@ public struct MainView: View {
     }
 
     private var hostedPlaybackPresentation: PlaybackPresentation {
-        if let target = appModel.presentationTransition?.targetPresentation,
+        if let target = playbackSession.presentationTransition?.targetPresentation,
            target.usesMainWindow {
             return target
         }
-        return appModel.playbackPresentation.usesMainWindow
-            ? appModel.playbackPresentation
+        return playbackSession.playbackPresentation.usesMainWindow
+            ? playbackSession.playbackPresentation
             : .window
     }
 
     private var isLeavingWindowPresentation: Bool {
-        appModel.presentationTransition?.previousPresentation.usesMainWindow == true
-            && appModel.presentationTransition?.targetPresentation.usesMainWindow == false
+        playbackSession.presentationTransition?.previousPresentation.usesMainWindow == true
+            && playbackSession.presentationTransition?.targetPresentation.usesMainWindow == false
     }
 
     private var windowPlaybackOpacity: Double {
         PlaybackPresentationTransitionAppearance.windowSceneHostOpacity(
             for: hostedPlaybackPresentation,
-            settledPresentation: appModel.playbackPresentation,
-            transition: appModel.presentationTransition,
-            visualCutoverMayBegin: appModel.presentationVisualCutoverMayBegin
+            settledPresentation: playbackSession.playbackPresentation,
+            transition: playbackSession.presentationTransition,
+            visualCutoverMayBegin: playbackSession.presentationVisualCutoverMayBegin
         )
     }
 
     private var windowPlaybackAcceptsInput: Bool {
         PlaybackPresentationTransitionAppearance.acceptsInput(
             for: hostedPlaybackPresentation,
-            settledPresentation: appModel.playbackPresentation,
-            transition: appModel.presentationTransition
+            settledPresentation: playbackSession.playbackPresentation,
+            transition: playbackSession.presentationTransition
         )
     }
 
@@ -875,15 +876,15 @@ public struct MainView: View {
 
     private func scheduleControlsAutoHide() {
         controlsTimer?.cancel()
-        guard appModel.controlsAutoHideSeconds > 0 else { return }
-        let delay = Duration.seconds(appModel.controlsAutoHideSeconds)
+        guard playbackSession.controlsAutoHideSeconds > 0 else { return }
+        let delay = Duration.seconds(playbackSession.controlsAutoHideSeconds)
         controlsTimer = Task { @MainActor in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled,
-                  appModel.canAutoHideControls,
+                  playbackSession.canAutoHideControls,
                   playbackRuntime.lifecycle == .playing else { return }
             withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                appModel.showControls = false
+                playbackSession.showControls = false
             }
         }
     }
@@ -900,7 +901,7 @@ public struct MainView: View {
 }
 
 private struct PlaybackAutomationStateProbe: View {
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     let hostedPresentation: PlaybackPresentation
@@ -950,7 +951,7 @@ private struct PlaybackAutomationStateProbe: View {
         )
         let demuxBuffer = playbackRuntime.diagnostics.demuxBuffer
         var fields = [
-            "presentation=\(appModel.playbackPresentation.rawValue)",
+            "presentation=\(playbackSession.playbackPresentation.rawValue)",
             "hosted=\(hostedPresentation.rawValue)",
             "simulation=\(simulatedPresentation)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
@@ -1019,7 +1020,7 @@ private struct PlaybackAutomationStateProbe: View {
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
             "subtitleFrame=\(playbackRuntime.activeSubtitleFrame?.kind.rawValue ?? "none")",
-            "controls=\(appModel.showControls ? "shown" : "hidden")",
+            "controls=\(playbackSession.showControls ? "shown" : "hidden")",
             "error=\(playbackRuntime.userVisibleIssue?.category.rawValue ?? "none")"
         ]
         fields.append(contentsOf: PlaybackStateAccessibility.rendererPerformanceAccessibilityFields(
@@ -1086,7 +1087,7 @@ extension View {
 }
 
 private struct PlaybackIssueAlertModifier: ViewModifier {
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
 
     let scope: PlaybackIssuePresentationScope
@@ -1173,7 +1174,7 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
         at location: PlaybackIssuePresentationLocation
     ) {
 #if DEBUG
-        appModel.recordSurfaceInputProbe(
+        playbackSession.recordSurfaceInputProbe(
             "reachability playback issue delivered location=\(location) action=\(action)",
             retention: .evidence
         )
@@ -1212,7 +1213,7 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
 
     private var presentationConversionDiagnostic: String {
 #if DEBUG
-        appModel.lastPresentationConversionDiagnostic ?? "none"
+        playbackSession.lastPresentationConversionDiagnostic ?? "none"
 #else
         "none"
 #endif

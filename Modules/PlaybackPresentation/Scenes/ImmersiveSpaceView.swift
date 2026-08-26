@@ -661,7 +661,7 @@ public struct ImmersiveSpaceView: View {
         ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"
 #endif
 
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(\.openWindow) private var openWindow

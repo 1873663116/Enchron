@@ -9,7 +9,7 @@ import SwiftUI
 /// video while media information belongs to the bottom Player Controls ornament.
 struct PlayerInfoBarView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerInfoBar")
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
 

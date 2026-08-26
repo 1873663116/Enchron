@@ -189,7 +189,7 @@ private final class PlaybackVideoComponentObservation {
 struct PlaybackVideoSurface: View {
     private static let subtitleControlSafeAreaFraction: Float = 0.32
 
-    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
 
@@ -400,7 +400,7 @@ struct PlaybackVideoSurface: View {
         }
         guard playbackRuntime.mediaFormatIsKnown,
               let renderer = playbackRuntime.renderer else {
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "rendererOwnership.prepareSurface outcome=noRendererYet"
                     + " presentation=\(presentation.rawValue)"
                     + " entity=\(PlaybackRuntime.probeEntity(entityID))"

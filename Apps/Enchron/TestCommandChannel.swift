@@ -78,7 +78,7 @@ final class TestCommandChannel {
     }
 
     private let mediaLibrary: MediaLibraryViewModel
-    private let appModel: AppModel
+    private let playbackSession: PlaybackSessionModel
     private let playbackRuntime: PlaybackRuntime
     #if DEBUG
         private var playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
@@ -95,14 +95,14 @@ final class TestCommandChannel {
 
     init(
         mediaLibrary: MediaLibraryViewModel,
-        appModel: AppModel,
+        playbackSession: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         embySession: EmbySessionViewModel,
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
         self.mediaLibrary = mediaLibrary
-        self.appModel = appModel
+        self.playbackSession = playbackSession
         self.playbackRuntime = playbackRuntime
         self.embySession = embySession
         self.fileManager = fileManager
@@ -194,14 +194,14 @@ final class TestCommandChannel {
 #if DEBUG
             if let evidenceSession = request.args["evidenceSession"],
                evidenceSession.isEmpty == false {
-                AppModel.recordProbe(
+                SurfaceInputProbes.record(
                     "reachability evidence session=\(evidenceSession)"
                         + " command=\(request.id) verb=\(request.verb)",
                     retention: .evidenceSession(evidenceSession)
                 )
             }
 #endif
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "testcmd \(request.verb) begin",
                 retention: .evidence
             )
@@ -219,7 +219,7 @@ final class TestCommandChannel {
 
             let data = try JSONEncoder().encode(response)
             try data.write(to: responseURL, options: .atomic)
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "testcmd \(request.verb) \(response.ok ? "ok" : "failed")",
                 retention: .evidence
             )
@@ -227,7 +227,7 @@ final class TestCommandChannel {
                 try fileManager.removeItem(at: requestURL)
             }
         } catch {
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "testcmd channel failed error=\(error.localizedDescription)",
                 retention: .evidence
             )
@@ -311,7 +311,7 @@ final class TestCommandChannel {
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
 #if DEBUG
         case "probeStatus":
-            let status = AppModel.debugProbeStatus
+            let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit
                 && status.evidenceOverflowed == false
                 && status.writeFailed == false
@@ -335,8 +335,8 @@ final class TestCommandChannel {
             let generation = playbackSwitchStateRing.arm(
                 context: PlaybackSwitchTraceContext(
                     logicalSessionID: logicalSessionID,
-                    settledPresentation: appModel.playbackPresentation,
-                    targetPresentation: appModel.presentationTransition?.targetPresentation
+                    settledPresentation: playbackSession.playbackPresentation,
+                    targetPresentation: playbackSession.presentationTransition?.targetPresentation
                 ),
                 byteStreamCounters: Self.switchCounters(
                     playbackRuntime.debugCurrentByteStreamCounters()
@@ -401,20 +401,20 @@ final class TestCommandChannel {
 #endif
         case "toggleControls":
             let requestedVisibility = request.args["visible"].flatMap(Bool.init)
-            if requestedVisibility == nil || requestedVisibility != appModel.showControls {
-                appModel.toggleControlsFromPlaybackSurface()
+            if requestedVisibility == nil || requestedVisibility != playbackSession.showControls {
+                playbackSession.toggleControlsFromPlaybackSurface()
             }
             return Response(
                 id: request.id,
                 ok: true,
                 detail: nil,
-                payload: [String(appModel.showControls)]
+                payload: [String(playbackSession.showControls)]
             )
 #if DEBUG
         case "setWindowSize":
             return try setWindowSize(request)
         case "openEnvironmentCard":
-            let requested = try appModel.requestEnvironmentCard(
+            let requested = try playbackSession.requestEnvironmentCard(
                 mediaSessionID: playbackRuntime.activeSessionID,
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
@@ -422,26 +422,26 @@ final class TestCommandChannel {
                 id: request.id,
                 ok: requested,
                 detail: requested ? nil : "The environment card request was already pending.",
-                payload: [String(describing: appModel.environmentCardResidency)]
+                payload: [String(describing: playbackSession.environmentCardResidency)]
             )
         case "dismissEnvironmentCard":
-            appModel.environmentCardDismissalRequestRevision &+= 1
+            playbackSession.environmentCardDismissalRequestRevision &+= 1
             return Response(
                 id: request.id,
                 ok: true,
                 detail: nil,
-                payload: [String(appModel.environmentCardDismissalRequestRevision)]
+                payload: [String(playbackSession.environmentCardDismissalRequestRevision)]
             )
         case "exitSpatial":
-            guard let target = appModel.playbackPresentation.exitImmersiveTarget else {
+            guard let target = playbackSession.playbackPresentation.exitImmersiveTarget else {
                 throw CommandError(message: "exitSpatial requires immersive playback.")
             }
-            let transition = try appModel.requestPlaybackPresentation(
+            let transition = try playbackSession.requestPlaybackPresentation(
                 target,
                 mediaSessionID: playbackRuntime.activeSessionID,
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "testcmd exitSpatial delivered target=\(target) transition=\(transition.id)",
                 retention: .evidence
             )
@@ -478,12 +478,12 @@ final class TestCommandChannel {
                 operation: .select(target: target)
             )
         case "toggleBlackoutProbeWindow":
-            appModel.showBlackoutProbeWindow.toggle()
+            playbackSession.showBlackoutProbeWindow.toggle()
             return Response(
                 id: request.id,
                 ok: true,
                 detail: nil,
-                payload: [String(appModel.showBlackoutProbeWindow)]
+                payload: [String(playbackSession.showBlackoutProbeWindow)]
             )
 #endif
         case "resetState":
@@ -693,7 +693,7 @@ final class TestCommandChannel {
         } else {
             playbackRuntime.frameStepBackward()
         }
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "testcmd stepFrame delivered direction=\(direction)",
             retention: .evidence
         )
@@ -715,7 +715,7 @@ final class TestCommandChannel {
         }
         let seconds = position * duration
         playbackRuntime.seek(to: seconds, event: .progressBar)
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "testcmd seekNormalized delivered position=\(position) seconds=\(seconds)",
             retention: .evidence
         )
@@ -728,7 +728,7 @@ final class TestCommandChannel {
     }
 
     private func setDockedPlacement(_ request: Request) throws -> Response {
-        guard appModel.playbackPresentation == .docked else {
+        guard playbackSession.playbackPresentation == .docked else {
             throw CommandError(message: "setDockedPlacement requires Docked playback.")
         }
         guard let axis = request.args["axis"],
@@ -745,26 +745,26 @@ final class TestCommandChannel {
             guard PlaybackScreenSize.scaleRange.contains(value) else {
                 throw CommandError(message: "screenSize is outside its product range.")
             }
-            appModel.setScreenScale(value)
-            applied = appModel.screenScale
+            playbackSession.setScreenScale(value)
+            applied = playbackSession.screenScale
         case "distance":
             guard PlaybackDockedPlacement.distanceRange.contains(value) else {
                 throw CommandError(message: "distance is outside its product range.")
             }
-            appModel.setScreenDistance(value)
-            applied = appModel.screenDepthOffset
+            playbackSession.setScreenDistance(value)
+            applied = playbackSession.screenDepthOffset
         case "elevation":
             guard PlaybackDockedPlacement.elevationRange.contains(value) else {
                 throw CommandError(message: "elevation is outside its product range.")
             }
-            appModel.setScreenElevation(value)
-            applied = appModel.screenViewAngle
+            playbackSession.setScreenElevation(value)
+            applied = playbackSession.screenViewAngle
         default:
             throw CommandError(
                 message: "setDockedPlacement axis must be screenSize|distance|elevation."
             )
         }
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "testcmd setDockedPlacement delivered axis=\(axis) value=\(applied)",
             retention: .evidence
         )
@@ -798,7 +798,7 @@ final class TestCommandChannel {
             )
         }
         playbackRuntime.setUserVisibleIssue(issue)
-        AppModel.recordProbe(
+        SurfaceInputProbes.record(
             "testcmd showPlaybackIssue delivered category=\(category)",
             retention: .evidence
         )
@@ -829,7 +829,7 @@ final class TestCommandChannel {
             page: page,
             direction: direction
         ) { deliveredPage in
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "testcmd scrollEmby delivered page=\(deliveredPage)"
                     + " direction=\(direction.rawValue)",
                 retention: .evidence
@@ -903,7 +903,7 @@ final class TestCommandChannel {
     }
 
     private func setWindowSize(_ request: Request) throws -> Response {
-        guard appModel.playbackPresentation == .portal else {
+        guard playbackSession.playbackPresentation == .portal else {
             throw CommandError(message: "setWindowSize requires Portal playback.")
         }
         guard let widthText = request.args["width"],
@@ -933,7 +933,7 @@ final class TestCommandChannel {
             throw CommandError(message: "setWindowSize found no foreground Window scene.")
         }
 
-        appModel.recordSurfaceInputProbe(
+        playbackSession.recordSurfaceInputProbe(
             "setWindowSize requested=\(size.width)x\(size.height)"
         )
         windowScene.requestGeometryUpdate(
@@ -943,18 +943,18 @@ final class TestCommandChannel {
                 maximumSize: bounds.maximumSize,
                 resizingRestrictions: .freeform
             )
-        ) { [weak appModel] error in
+        ) { [weak playbackSession] error in
             Task { @MainActor in
-                appModel?.recordSurfaceInputProbe(
+                playbackSession?.recordSurfaceInputProbe(
                     "setWindowSize failed error=\(error.localizedDescription)"
                 )
             }
         }
-        Task { @MainActor [weak appModel, weak windowScene] in
+        Task { @MainActor [weak playbackSession, weak windowScene] in
             try? await Task.sleep(for: .milliseconds(500))
             guard let windowScene else { return }
             let applied = windowScene.effectiveGeometry.coordinateSpace.bounds.size
-            appModel?.recordSurfaceInputProbe(
+            playbackSession?.recordSurfaceInputProbe(
                 "setWindowSize observed=\(applied.width)x\(applied.height)",
                 retention: .evidence
             )
@@ -1002,7 +1002,7 @@ private enum TestCommandChannelBootstrap {
         do {
             let channel = try TestCommandChannel(
                 mediaLibrary: application.mediaLibraryViewModel,
-                appModel: application.appModel,
+                playbackSession: application.playbackSessionModel,
                 playbackRuntime: application.playbackRuntime,
                 embySession: application.embySessionViewModel
             )
@@ -1012,7 +1012,7 @@ private enum TestCommandChannelBootstrap {
             activeChannel = channel
             channel.start()
         } catch {
-            AppModel.recordProbe(
+            SurfaceInputProbes.record(
                 "testcmd channel failed error=\(error.localizedDescription)",
                 retention: .evidence
             )
