@@ -42,17 +42,7 @@ let package = Package(
                 "DesignSystem",
                 .product(name: "AMSMB2", package: "AMSMB2"),
             ],
-            path: "Modules/MediaLibrary",
-            exclude: [
-                "Views/BreadcrumbView.swift",
-                "Views/FileBrowserSidebar.swift",
-                "Views/FolderListView.swift",
-                "Views/LibraryListComponents.swift",
-                "Views/LibraryNavigationComponents.swift",
-                "Views/LibraryToolbarComponents.swift",
-                "Views/LibraryViewControls.swift",
-                "Views/SourceSidebar.swift",
-            ]
+            path: "Modules/MediaLibrary"
         ),
         .target(
             name: "Playback",

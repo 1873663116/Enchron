@@ -3,18 +3,18 @@ import Foundation
 import MediaLibrary
 import SwiftUI
 
-enum SortMenuKey {
+public enum SortMenuKey {
     case name
     case modifiedDate
     case size
 }
 
-enum SortMenuOrder {
+public enum SortMenuOrder {
     case ascending
     case descending
 }
 
-struct SortMenuButton: View {
+public struct SortMenuButton: View {
     @Binding var sortKey: SortMenuKey
     @Binding var sortOrder: SortMenuOrder
     var accessibilityIdentifier: String = "DesignPreview-menu-sort"
@@ -38,7 +38,7 @@ struct SortMenuButton: View {
         ) { sortOrder = order }
     }
 
-    var body: some View {
+    public var body: some View {
         GlassCircleIconMenu(
             systemName: "arrow.up.arrow.down",
             accessibilityLabel: "Sort",
@@ -115,5 +115,15 @@ struct SortMenuButton: View {
             }
         }
 #endif
+    }
+
+    public init(
+        sortKey: Binding<SortMenuKey>,
+        sortOrder: Binding<SortMenuOrder>,
+        accessibilityIdentifier: String = "DesignPreview-menu-sort"
+    ) {
+        self._sortKey = sortKey
+        self._sortOrder = sortOrder
+        self.accessibilityIdentifier = accessibilityIdentifier
     }
 }

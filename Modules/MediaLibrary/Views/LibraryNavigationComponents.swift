@@ -3,7 +3,7 @@ import Foundation
 import MediaLibrary
 import SwiftUI
 
-struct PathBreadcrumbMenu: View {
+public struct PathBreadcrumbMenu: View {
     let path: [String]
     var onSelectLevel: (Int) -> Void = { _ in }
     var accessibilityIdentifier = "DesignPreview-breadcrumb-current"
@@ -12,7 +12,7 @@ struct PathBreadcrumbMenu: View {
         path.last ?? ""
     }
 
-    var body: some View {
+    public var body: some View {
         Menu {
             ForEach(Array(path.enumerated()), id: \.offset) { index, _ in
                 MenuSelectionRow(
@@ -66,35 +66,65 @@ struct PathBreadcrumbMenu: View {
     private func pathPrefix(through index: Int) -> String {
         path.prefix(index + 1).joined(separator: " / ")
     }
+
+    public init(
+        path: [String],
+        onSelectLevel: @escaping (Int) -> Void = { _ in },
+        accessibilityIdentifier: String = "DesignPreview-breadcrumb-current"
+    ) {
+        self.path = path
+        self.onSelectLevel = onSelectLevel
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
 }
 
-struct SearchInputCapsule: View {
+public struct SearchInputCapsule: View {
     @Binding var text: String
     var placeholder = "Search"
     var accessibilityIdentifier = "DesignPreview-input-search"
 
-    var body: some View {
+    public var body: some View {
         GlassSearchField(
             text: $text,
             placeholder: placeholder,
             accessibilityIdentifier: accessibilityIdentifier
         )
     }
+
+    public init(
+        text: Binding<String>,
+        placeholder: String = "Search",
+        accessibilityIdentifier: String = "DesignPreview-input-search"
+    ) {
+        self._text = text
+        self.placeholder = placeholder
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
 }
 
 // MARK: - Category sidebar
 
 /// 分类器条目:图标 + 标题 + 稳定 id。
-struct CategorySidebarItem: Identifiable, Equatable {
-    let id: String
-    let icon: String
-    let title: String
+public struct CategorySidebarItem: Identifiable, Equatable {
+    public let id: String
+    public let icon: String
+    public let title: String
+
+    public init(
+        id: String,
+        icon: String,
+        title: String
+    ) {
+        self.id = id
+        self.icon = icon
+        self.title = title
+    }
 }
 
 /// 通用静态大类分类器侧栏:在 Settings 页面 / Panel 面板中选一个大类。
 /// 天生无重排、无删除、无 footer——就是个可选中的静态列表。行视觉复用纯视觉行 `SourceSidebarRow`。
 /// 本件是唯一暴露尺寸(`width`/`height` 成对)的标准件,因 Settings 满宽 vs Panel 紧凑,容器管不了。
-struct CategorySidebar: View {
+public struct CategorySidebar: View {
     let items: [CategorySidebarItem]
     @Binding var selection: String
     var title: String = "Categories"
@@ -103,7 +133,7 @@ struct CategorySidebar: View {
     var containerIdentifier: String = "CategorySidebar"
     var identifierPrefix: String = "CategorySidebar"
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             VStack(alignment: .leading, spacing: DesignTokens.SourceSidebar.headerContentGap) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
@@ -154,6 +184,24 @@ struct CategorySidebar: View {
         .enchronSidebarSurface()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(containerIdentifier)
+    }
+
+    public init(
+        items: [CategorySidebarItem],
+        selection: Binding<String>,
+        title: String = "Categories",
+        width: CGFloat = DesignTokens.SourceSidebar.width,
+        height: CGFloat? = nil,
+        containerIdentifier: String = "CategorySidebar",
+        identifierPrefix: String = "CategorySidebar"
+    ) {
+        self.items = items
+        self._selection = selection
+        self.title = title
+        self.width = width
+        self.height = height
+        self.containerIdentifier = containerIdentifier
+        self.identifierPrefix = identifierPrefix
     }
 }
 

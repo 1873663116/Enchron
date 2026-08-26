@@ -2,7 +2,7 @@ import DesignSystem
 import MediaLibrary
 import SwiftUI
 
-struct NavBackForwardCapsuleControl: View {
+public struct NavBackForwardCapsuleControl: View {
     let canGoBack: Bool
     let canGoForward: Bool
     var onBack: () -> Void = {}
@@ -12,7 +12,7 @@ struct NavBackForwardCapsuleControl: View {
     private let iconColor: Color = .white
     private let disabledOpacity: Double = 0.45
 
-    var body: some View {
+    public var body: some View {
         let capsuleWidth = DesignTokens.Interactive.regular * 2
 
         HStack(spacing: 0) {
@@ -60,9 +60,23 @@ struct NavBackForwardCapsuleControl: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
+
+    public init(
+        canGoBack: Bool,
+        canGoForward: Bool,
+        onBack: @escaping () -> Void = {},
+        onForward: @escaping () -> Void = {},
+        accessibilityIdentifier: String = "DesignPreview-control-navBackForward"
+    ) {
+        self.canGoBack = canGoBack
+        self.canGoForward = canGoForward
+        self.onBack = onBack
+        self.onForward = onForward
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
 }
 
-struct ViewModeCapsuleControl: View {
+public struct ViewModeCapsuleControl: View {
     @Binding var selection: Int
     var accessibilityIdentifier: String = "DesignPreview-control-viewMode"
     var accessibilityLabel: String = "View Mode"
@@ -75,7 +89,7 @@ struct ViewModeCapsuleControl: View {
     @State private var pressedIndex: Int? = nil
     @State private var pressFeedbackTrigger = 0
 
-    var body: some View {
+    public var body: some View {
         let capsuleWidth = DesignTokens.Interactive.regular * 2
         let press = DesignTokens.PressFeedback.icon
 
@@ -129,6 +143,16 @@ struct ViewModeCapsuleControl: View {
                 .frame(width: DesignTokens.Interactive.regular,
                        height: DesignTokens.Interactive.regular)
         }
+    }
+
+    public init(
+        selection: Binding<Int>,
+        accessibilityIdentifier: String = "DesignPreview-control-viewMode",
+        accessibilityLabel: String = "View Mode"
+    ) {
+        self._selection = selection
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.accessibilityLabel = accessibilityLabel
     }
 }
 

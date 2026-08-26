@@ -161,7 +161,11 @@
       "scope": "component-default",
       "sources": [
         {
-          "line": 80,
+          "line": 92,
+          "path": "Modules/MediaLibrary/Views/LibraryListComponents.swift"
+        },
+        {
+          "line": 96,
           "path": "Modules/MediaLibrary/Views/LibraryListComponents.swift"
         }
       ],
@@ -234,7 +238,7 @@
       "scope": "component-default",
       "sources": [
         {
-          "line": 242,
+          "line": 260,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -248,6 +252,10 @@
       "sources": [
         {
           "line": 9,
+          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
+        },
+        {
+          "line": 73,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],
@@ -314,6 +322,10 @@
         {
           "line": 10,
           "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        },
+        {
+          "line": 69,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
         }
       ],
       "template": "DesignPreview-control-navBackForward"
@@ -359,7 +371,11 @@
       "scope": "component-default",
       "sources": [
         {
-          "line": 67,
+          "line": 81,
+          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+        },
+        {
+          "line": 150,
           "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
         }
       ],
@@ -457,7 +473,11 @@
           "path": "Modules/DesignSystem/Components/InputComponents.swift"
         },
         {
-          "line": 74,
+          "line": 84,
+          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
+        },
+        {
+          "line": 97,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],
@@ -484,6 +504,10 @@
       "sources": [
         {
           "line": 20,
+          "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
+        },
+        {
+          "line": 123,
           "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift"
         }
       ],
@@ -1650,7 +1674,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 217,
+          "line": 235,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1667,7 +1691,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 222,
+          "line": 240,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1684,7 +1708,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 235,
+          "line": 253,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1701,7 +1725,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 229,
+          "line": 247,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1718,7 +1742,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 259,
+          "line": 277,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1735,7 +1759,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 252,
+          "line": 270,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1752,7 +1776,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 382,
+          "line": 400,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1769,7 +1793,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 148,
+          "line": 166,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -1786,7 +1810,7 @@
           "path": "Apps/Enchron/Screens/FilesScreen.swift"
         },
         {
-          "line": 207,
+          "line": 225,
           "path": "Modules/MediaLibrary/Views/SourceSidebar.swift"
         }
       ],
@@ -3448,7 +3472,7 @@
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         },
         {
-          "line": 143,
+          "line": 173,
           "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
         }
       ],

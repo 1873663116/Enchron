@@ -2,12 +2,12 @@ import DesignSystem
 import MediaLibrary
 import SwiftUI
 
-struct FileListGroup: View {
-    enum Kind {
+public struct FileListGroup: View {
+    public enum Kind {
         case video
         case folder
 
-        var icon: String {
+        public var icon: String {
             switch self {
             case .video: "film"
             case .folder: "folder"
@@ -15,27 +15,39 @@ struct FileListGroup: View {
         }
     }
 
-    struct Item: Identifiable {
-        struct ContextAction: Identifiable {
-            let title: String
-            let systemName: String
-            var role: ButtonRole? = nil
-            let action: () -> Void
-            var id: String { "\(title)-\(systemName)" }
+    public struct Item: Identifiable {
+        public struct ContextAction: Identifiable {
+            public let title: String
+            public let systemName: String
+            public var role: ButtonRole? = nil
+            public let action: () -> Void
+            public var id: String { "\(title)-\(systemName)" }
+
+            public init(
+                title: String,
+                systemName: String,
+                role: ButtonRole? = nil,
+                action: @escaping () -> Void
+            ) {
+                self.title = title
+                self.systemName = systemName
+                self.role = role
+                self.action = action
+            }
         }
 
-        let id: String
-        let kind: Kind
-        let title: String
+        public let id: String
+        public let kind: Kind
+        public let title: String
         /// Trailing metadata revealed on gaze.
-        let metadata: String?
-        var action: () -> Void = {}
-        var contextActions: [ContextAction] = []
-        var selectionEnabled = false
-        var isSelected = false
+        public let metadata: String?
+        public var action: () -> Void = {}
+        public var contextActions: [ContextAction] = []
+        public var selectionEnabled = false
+        public var isSelected = false
 
         /// Video file variant — gaze reveals `badges · size · duration`.
-        static func video(
+        public static func video(
             id: String? = nil,
             title: String,
             fileSize: String,
@@ -59,7 +71,7 @@ struct FileListGroup: View {
         }
 
         /// Folder variant — gaze reveals the item count.
-        static func folder(
+        public static func folder(
             id: String? = nil,
             title: String,
             itemCount: Int?,
@@ -77,8 +89,16 @@ struct FileListGroup: View {
         }
     }
 
-    var accessibilityIdentifier: String = "DesignPreview-FileListGroup"
-    let items: [Item]
+    public var accessibilityIdentifier: String = "DesignPreview-FileListGroup"
+    public let items: [Item]
+
+    public init(
+        accessibilityIdentifier: String = "DesignPreview-FileListGroup",
+        items: [Item]
+    ) {
+        self.items = items
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
 
     private var cornerRadius: CGFloat { DesignTokens.Radius.element }
     private var groupShape: RoundedRectangle {
@@ -87,7 +107,7 @@ struct FileListGroup: View {
 
     @Namespace private var hoverNamespace
 
-    var body: some View {
+    public var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 FileListGroupRow(
@@ -107,14 +127,14 @@ struct FileListGroup: View {
     }
 }
 
-struct FileListGroupRow: View {
+public struct FileListGroupRow: View {
     let item: FileListGroup.Item
     let cornerRadius: CGFloat
     let index: Int
     let count: Int
     var hoverNamespace: Namespace.ID?
 
-    var body: some View {
+    public var body: some View {
         ListGroupRowShell(
             index: index,
             count: count,

@@ -9,14 +9,14 @@ import SwiftUI
 // `viewOnly` 时退化为纯展示的列表。底层行复用 `EditableSourceSidebarRow` 与
 // `SourceSidebarRow`，样式与动效全部走 `DesignTokens.SourceSidebar`。
 
-struct SidebarSourceItem: Identifiable, Equatable {
-    let id: String
-    let icon: String
-    let title: String
-    var isSelected = false
-    var isEnabled = true
-    var isActiveSource = false
-    var isDeletable = true
+public struct SidebarSourceItem: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let icon: String
+    public let title: String
+    public var isSelected = false
+    public var isEnabled = true
+    public var isActiveSource = false
+    public var isDeletable = true
 
     static let defaultItems = [
         SidebarSourceItem(
@@ -28,9 +28,27 @@ struct SidebarSourceItem: Identifiable, Equatable {
         SidebarSourceItem(id: "nas-01-smb", icon: "server.rack", title: "NAS-01 (SMB)", isSelected: true, isActiveSource: true),
         SidebarSourceItem(id: "webdav", icon: "cloud.fill", title: "WebDAV", isEnabled: false)
     ]
+
+    public init(
+        id: String,
+        icon: String,
+        title: String,
+        isSelected: Bool = false,
+        isEnabled: Bool = true,
+        isActiveSource: Bool = false,
+        isDeletable: Bool = true
+    ) {
+        self.id = id
+        self.icon = icon
+        self.title = title
+        self.isSelected = isSelected
+        self.isEnabled = isEnabled
+        self.isActiveSource = isActiveSource
+        self.isDeletable = isDeletable
+    }
 }
 
-struct SourceSidebar: View {
+public struct SourceSidebar: View {
     @Binding var items: [SidebarSourceItem]
     var title: String = "Sources"
     var containerIdentifier: String = "SourceSidebar"
@@ -56,7 +74,7 @@ struct SourceSidebar: View {
     @State private var appearingSourceIDs: Set<SidebarSourceItem.ID> = []
     @State private var nextDebugSourceIndex = 1
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             sourcesSection
 
@@ -614,6 +632,32 @@ struct SourceSidebar: View {
         }
 
         return 0
+    }
+
+    public init(
+        items: Binding<[SidebarSourceItem]>,
+        title: String = "Sources",
+        containerIdentifier: String = "SourceSidebar",
+        identifierPrefix: String = "SourceSidebar",
+        onSelectSource: ((SidebarSourceItem.ID) -> Void)? = nil,
+        onAddSource: ((FileBrowsingDomain.SourceType) -> Void)? = nil,
+        onImportFolder: (() -> Void)? = nil,
+        onRefresh: (() -> Void)? = nil,
+        onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)? = nil,
+        onReachabilityAction: ((String) -> Void)? = nil,
+        showsStorageMeter: Bool = false
+    ) {
+        self._items = items
+        self.title = title
+        self.containerIdentifier = containerIdentifier
+        self.identifierPrefix = identifierPrefix
+        self.onSelectSource = onSelectSource
+        self.onAddSource = onAddSource
+        self.onImportFolder = onImportFolder
+        self.onRefresh = onRefresh
+        self.onDeleteSources = onDeleteSources
+        self.onReachabilityAction = onReachabilityAction
+        self.showsStorageMeter = showsStorageMeter
     }
 }
 
