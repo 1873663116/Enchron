@@ -272,6 +272,9 @@ public struct PlaybackVideoSurface: View {
         .onChange(of: playbackRuntime.videoComponentRevision) {
             surfaceRefreshTick &+= 1
         }
+        .onChange(of: appModel.windowChromeOcclusion) {
+            surfaceRefreshTick &+= 1
+        }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
             surfaceRefreshTick &+= 1
@@ -506,12 +509,20 @@ public struct PlaybackVideoSurface: View {
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode,
             requestsProgressiveImmersiveViewingMode: false
         )
+        let installedOcclusion = appModel.windowChromeOcclusion
         PlaybackWindowInteractionSurface.install(
             playbackVideoEntityStore.windowInteractionSurface,
             on: videoEntity,
             screenSize: component?.playerScreenSize ?? .zero,
             verticalFill: surfaceVerticalFill,
-            occlusion: appModel.windowChromeOcclusion
+            occlusion: installedOcclusion
+        )
+        appModel.recordSurfaceInputProbe(
+            "windowColliderInstall topFraction=\(installedOcclusion.topFraction)"
+                + " menu=\(installedOcclusion.secondaryMenuIsPresented)"
+                + " verticalFill=\(surfaceVerticalFill)"
+                + " screenSize=\(component?.playerScreenSize ?? .zero)"
+                + " hasTarget=\(playbackVideoEntityStore.windowInteractionSurface.components[InputTargetComponent.self] != nil)"
         )
         let videoEntityOpacity = PlaybackPresentationTransitionAppearance.windowVideoEntityOpacity(
             for: presentation,
