@@ -1,6 +1,6 @@
 import DesignSystem
 import DeveloperToolsSupport
-import PlaybackPresentation
+import Playback
 import RealityKit
 import SwiftUI
 import UIKit

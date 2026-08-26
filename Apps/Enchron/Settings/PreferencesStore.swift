@@ -1,5 +1,5 @@
 import Foundation
-import PlaybackFeature
+import Playback
 
 
 public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {

@@ -1,7 +1,7 @@
 #if DEBUG
 import Foundation
 import PlaybackCore
-import PlaybackPresentation
+import Playback
 
 nonisolated struct PlaybackSwitchTraceContext: Codable, Equatable, Sendable {
     var logicalSessionID: String

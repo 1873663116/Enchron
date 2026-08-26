@@ -3,8 +3,7 @@ import Emby
 import MediaSource
 import OSLog
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
+import Playback
 import SwiftUI
 
 enum PlaybackSurfaceMountPolicy {

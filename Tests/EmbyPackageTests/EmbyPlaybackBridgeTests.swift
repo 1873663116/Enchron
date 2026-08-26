@@ -1,6 +1,6 @@
 import Foundation
 import MediaSource
-import PlaybackFeature
+import Playback
 import Synchronization
 import Testing
 @testable import Emby

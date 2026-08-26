@@ -1,4 +1,4 @@
-import PlaybackPresentation
+import Playback
 import XCTest
 
 nonisolated final class ScreenPositionPersistenceTests: XCTestCase {

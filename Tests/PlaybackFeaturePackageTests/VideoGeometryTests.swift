@@ -1,5 +1,5 @@
 import Foundation
-import PlaybackFeature
+import Playback
 import Testing
 
 @Suite("Video display geometry")

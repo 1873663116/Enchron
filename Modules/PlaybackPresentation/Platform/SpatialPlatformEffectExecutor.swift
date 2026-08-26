@@ -4,8 +4,6 @@ import CoreGraphics
 import CoreVideo
 import Observation
 import OSLog
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 import UIKit
 import VideoToolbox
@@ -26,7 +24,7 @@ enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
     }
 }
 
-enum SpatialPlatformImmersiveExitWindowRevealPolicy {
+public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldRevealMainWindow(
         sourceRendererIsReleased: Bool,
         targetSessionIsActivated: Bool
@@ -48,7 +46,7 @@ enum SpatialPlatformImmersiveExitWindowRevealPolicy {
         return targetSurfacePixelIdentityIsCurrent
     }
 
-    static func shouldShowLastFrameBridge(
+    public static func shouldShowLastFrameBridge(
         family: PresentationContentFamily,
         targetIsSettled: Bool,
         hasCapturedFrame: Bool
@@ -59,7 +57,7 @@ enum SpatialPlatformImmersiveExitWindowRevealPolicy {
 
 @MainActor
 @Observable
-final class SpatialPlatformEffectCoordinator {
+public final class SpatialPlatformEffectCoordinator {
     fileprivate struct SceneActions {
         let windowIdentity: SpatialPlatformWindowIdentity?
         let openImmersiveSpace: OpenImmersiveSpaceAction
@@ -171,25 +169,25 @@ final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var residentWindowState = SpatialPlatformResidentWindowState.absent
 
-    private(set) var lastPlatformOperation = "none"
-    private(set) var lastExecutionCheckpoint = "none"
-    private(set) var executionAttemptCount: UInt64 = 0
-    private(set) var lastExecutionResolution = "none"
+    public private(set) var lastPlatformOperation = "none"
+    public private(set) var lastExecutionCheckpoint = "none"
+    public private(set) var executionAttemptCount: UInt64 = 0
+    public private(set) var lastExecutionResolution = "none"
     private(set) var portalPlaybackViewportRefreshState =
         PortalPlaybackViewportRefreshState()
 
-    var mainWindowPlaybackSurfaceRefreshRevision: UInt64 {
+    public var mainWindowPlaybackSurfaceRefreshRevision: UInt64 {
         portalPlaybackViewportRefreshState.requestedRevision
     }
 
-    var mainWindowPlaybackSurfaceAppliedRefreshRevision: UInt64 {
+    public var mainWindowPlaybackSurfaceAppliedRefreshRevision: UInt64 {
         portalPlaybackViewportRefreshState.appliedRevision
     }
 
     private static let immersiveSpaceLifecycleConfirmationTimeout =
         Duration.seconds(5)
     private static let windowLifecycleConfirmationTimeout = Duration.seconds(5)
-    init(
+    public init(
         session: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         playbackVideoEntityStore: PlaybackVideoEntityStore,
@@ -208,7 +206,7 @@ final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    func recordMainWindowPlaybackSurfaceRefreshApplied(_ revision: UInt64) {
+    public func recordMainWindowPlaybackSurfaceRefreshApplied(_ revision: UInt64) {
         guard revision > 0,
               revision <= portalPlaybackViewportRefreshState.requestedRevision else {
             return
@@ -288,7 +286,7 @@ final class SpatialPlatformEffectCoordinator {
         windowObservation.revision(for: .playback)
     }
 
-    func recordImmersiveSpaceResidency(
+    public func recordImmersiveSpaceResidency(
         _ residency: SpatialPlatformImmersiveSpaceResidency
     ) {
         immersiveSpaceObservation.record(residency)
@@ -302,7 +300,7 @@ final class SpatialPlatformEffectCoordinator {
         )
     }
 
-    func reconcileImmersiveSpaceResidency() {
+    public func reconcileImmersiveSpaceResidency() {
         let hasConnectedImmersiveSpaceScene =
             UIApplication.shared.connectedScenes.contains { scene in
                 scene.session.role == .immersiveSpaceApplication
@@ -312,7 +310,7 @@ final class SpatialPlatformEffectCoordinator {
         )
     }
 
-    func reconcileImmersiveSpaceResidency(
+    public func reconcileImmersiveSpaceResidency(
         hasConnectedImmersiveSpaceScene: Bool
     ) {
         guard SpatialPlatformImmersiveSpaceReconciliationPolicy
@@ -350,7 +348,7 @@ final class SpatialPlatformEffectCoordinator {
         requestDrain()
     }
 
-    func recordWindowResidency(
+    public func recordWindowResidency(
         _ residency: SpatialPlatformWindowResidency,
         for window: SpatialPlatformWindowIdentity
     ) {
@@ -373,7 +371,7 @@ final class SpatialPlatformEffectCoordinator {
         )
     }
 
-    func recordPlaybackWindowScene(_ windowScene: UIWindowScene?) {
+    public func recordPlaybackWindowScene(_ windowScene: UIWindowScene?) {
         playbackWindowScene = windowScene
         if let windowScene {
             playbackWindowSceneSessionIdentifier =
@@ -381,7 +379,7 @@ final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    func playbackSessionLifecycleChanged(
+    public func playbackSessionLifecycleChanged(
         _ event: PlaybackRuntime.SessionLifecycleEvent
     ) {
         guard let previousID = Self.invalidatedMediaSessionID(for: event),
@@ -446,7 +444,7 @@ final class SpatialPlatformEffectCoordinator {
         activeTask = ActiveTask(lease: execution.lease, task: task)
     }
 
-    func reconcilePlaybackWindowPresentation(
+    public func reconcilePlaybackWindowPresentation(
         hostWindow: SpatialPlatformWindowIdentity,
         sessionIsActive: Bool
     ) {
@@ -2102,7 +2100,7 @@ final class SpatialPlatformEffectCoordinator {
 }
 
 @MainActor
-struct SpatialPlatformEffectExecutor: View {
+public struct SpatialPlatformEffectExecutor: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(SpatialPlatformEffectCoordinator.self) private var coordinator
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
@@ -2113,11 +2111,11 @@ struct SpatialPlatformEffectExecutor: View {
     @State private var registrationID = UUID()
     private let windowIdentity: SpatialPlatformWindowIdentity?
 
-    init(windowIdentity: SpatialPlatformWindowIdentity? = nil) {
+    public init(windowIdentity: SpatialPlatformWindowIdentity? = nil) {
         self.windowIdentity = windowIdentity
     }
 
-    var body: some View {
+    public var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)

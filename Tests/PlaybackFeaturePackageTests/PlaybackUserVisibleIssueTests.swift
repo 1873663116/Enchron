@@ -1,4 +1,4 @@
-import PlaybackFeature
+@testable import Playback
 import Testing
 
 private struct PlaybackIssueExpectation {
@@ -150,6 +150,7 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
 ]
 
 @Test("every playback issue category has one complete presentation policy")
+@MainActor
 func everyPlaybackIssueCategoryHasOnePolicy() {
     #expect(playbackIssueExpectations.map(\.category) == PlaybackUserVisibleIssueCategory.allCases)
 
@@ -167,6 +168,7 @@ func everyPlaybackIssueCategoryHasOnePolicy() {
 }
 
 @Test("unsupported codec names are reduced to bounded product facts")
+@MainActor
 func unsupportedCodecNamesDoNotBecomeProductCopy() {
     let arbitrary = PlaybackUserVisibleIssue.unsupportedVideoCodec(
         PlaybackUnsupportedVideoCodec(codecName: "secret-server-diagnostic")

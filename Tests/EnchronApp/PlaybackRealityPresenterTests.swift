@@ -1,5 +1,5 @@
 import AVFoundation
-import PlaybackPresentation
+@testable import Playback
 import RealityKit
 import RealityKitContent
 import XCTest

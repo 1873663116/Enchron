@@ -2,8 +2,6 @@ import AVFoundation
 import Foundation
 import Observation
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
 import RealityKit
 import SwiftUI
 
@@ -48,7 +46,7 @@ enum PlaybackRealityViewTopologyWritePolicy {
 /// classification belongs. Format semantics are deliberately absent: Runtime
 /// publishes the accepted revision before it publishes the matching semantic
 /// fields, and including both would invalidate the same classification twice.
-struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
+public struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
     let sessionID: String
     let technicalSessionID: String
 
@@ -75,25 +73,27 @@ struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class PlaybackVideoEntityStore {
+public final class PlaybackVideoEntityStore {
     private(set) var entity = Entity()
     private(set) var departingEntity: Entity?
     let dockedInteractionSurface = PlaybackDockedInteractionSurface.makeEntity()
     let panoramaInteractionSurface = PlaybackPanoramaInteractionSurface.makeEntity()
     let windowInteractionSurface = PlaybackWindowInteractionSurface.makeEntity()
-    private(set) var realityKitContentType = "unobserved"
+    public private(set) var realityKitContentType = "unobserved"
     private(set) var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope?
     @ObservationIgnored private var renderer: AVSampleBufferVideoRenderer?
     @ObservationIgnored private var currentPresentation: PlaybackPresentation?
     @ObservationIgnored private var departingPresentation: PlaybackPresentation?
     @ObservationIgnored private var videoComponentRevision: UInt64 = 0
     @ObservationIgnored private var realityViewUsesImmersiveSpace: Bool?
-    @ObservationIgnored var onRealityKitContentTypeChanged: ((
+    @ObservationIgnored public var onRealityKitContentTypeChanged: ((
         String,
         PlaybackRealityKitContentTypeScope
     ) -> Void)?
 
-    var entityID: String {
+    public init() {}
+
+    public var entityID: String {
         "EnchronVideo#\(ObjectIdentifier(entity))"
     }
 
@@ -303,15 +303,15 @@ final class PlaybackSurfaceActivation {
 /// dispatcher. Panorama uses a dedicated invisible interaction surface rather
 /// than depending on a collision volume around its projected video.
 @MainActor
-enum PlaybackSurfaceInputAction {
-    enum Source {
+public enum PlaybackSurfaceInputAction {
+    public enum Source {
         case windowSwiftUI
         case immersiveSwiftUI
         case spatialTap
         case accessibilityActivate
     }
 
-    static func perform(
+    public static func perform(
         _ source: Source,
         appModel: PlaybackSessionModel,
         at date: Date = Date()
@@ -359,10 +359,10 @@ enum PlaybackSurfaceInputOwnership {
 }
 
 @MainActor
-enum PlaybackWindowInteractionSurface {
+public enum PlaybackWindowInteractionSurface {
     static let entityName = "EnchronWindowInput.surface"
     static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
-    static let thickness: Float = 0.01
+    public static let thickness: Float = 0.01
     static let frontOffset: Float = 0.01
 
     static func makeEntity() -> Entity {

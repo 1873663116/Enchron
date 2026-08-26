@@ -1,5 +1,5 @@
 {
-  "originHash" : "ee8cf85a7665a73939cd50cc507d6cd5d5214ba010e268fecbdf383853dd2a15",
+  "originHash" : "d907926e078ccbeb2b1f87088022573f44f0d4239e7c13941f599ac7e4fa71a5",
   "pins" : [
     {
       "identity" : "amsmb2",
@@ -8,6 +8,24 @@
       "state" : {
         "revision" : "1726aaaf7adf63d7d1d2a0c5d1b0e635028215c0",
         "version" : "4.0.3"
+      }
+    },
+    {
+      "identity" : "realitykitscripting",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/realitykitscripting.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "860a42d1ef76ce37f89a279a469099600606814d"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
       }
     }
   ],

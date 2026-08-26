@@ -12,12 +12,14 @@ let package = Package(
         .library(name: "Emby", targets: ["Emby"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "MediaLibrary", targets: ["MediaLibrary"]),
-        .library(name: "PlaybackFeature", targets: ["PlaybackFeature"]),
-        .library(name: "PlaybackPresentation", targets: ["PlaybackPresentation"]),
+        .library(name: "Playback", targets: ["Playback"]),
         .executable(name: "EnchronDomainChecks", targets: ["EnchronDomainChecks"]),
     ],
     dependencies: [
         .package(url: "https://github.com/amosavian/AMSMB2.git", from: "4.0.3"),
+        .package(path: "Packages/PlaybackCore"),
+        .package(path: "Packages/RealityKitContent"),
+        .package(url: "https://github.com/apple/realitykitscripting.git", branch: "main"),
     ],
     targets: [
         .target(
@@ -26,7 +28,7 @@ let package = Package(
         ),
         .target(
             name: "Emby",
-            dependencies: ["MediaSource", "DesignSystem", "PlaybackFeature"],
+            dependencies: ["MediaSource", "DesignSystem", "Playback"],
             path: "Modules/Emby"
         ),
         .target(
@@ -53,28 +55,29 @@ let package = Package(
             ]
         ),
         .target(
-            name: "PlaybackFeature",
-            dependencies: ["MediaSource"],
-            path: "Modules/PlaybackFeature",
+            name: "Playback",
+            dependencies: [
+                "MediaSource",
+                "DesignSystem",
+                .product(name: "PlaybackCore", package: "PlaybackCore"),
+                .product(name: "RealityKitContent", package: "RealityKitContent"),
+                .product(name: "RealityKitScripting", package: "realitykitscripting"),
+            ],
+            path: "Modules",
             exclude: [
-                "PlaybackRuntime.swift",
-            ]
-        ),
-        .target(
-            name: "PlaybackPresentation",
-            dependencies: ["PlaybackFeature"],
-            path: "Modules/PlaybackPresentation",
-            exclude: [
-                "Platform",
-                "Resources",
-                "Scenes",
-                "Session",
-                "Views",
+                "PlaybackPresentation/Resources",
+            ],
+            sources: [
+                "PlaybackFeature",
+                "PlaybackPresentation",
+            ],
+            swiftSettings: [
+                .defaultIsolation(MainActor.self),
             ]
         ),
         .executableTarget(
             name: "EnchronDomainChecks",
-            dependencies: ["MediaSource", "MediaLibrary", "PlaybackFeature", "PlaybackPresentation"],
+            dependencies: ["MediaSource", "MediaLibrary", "Playback"],
             path: "Scripts/domain-checks"
         ),
         .testTarget(
@@ -84,7 +87,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EmbyTests",
-            dependencies: ["Emby", "MediaSource", "PlaybackFeature", "DesignSystem"],
+            dependencies: ["Emby", "MediaSource", "Playback", "DesignSystem"],
             path: "Tests/EmbyPackageTests",
             resources: [
                 .process("Fixtures"),
@@ -92,7 +95,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PlaybackFeatureTests",
-            dependencies: ["PlaybackFeature", "MediaSource"],
+            dependencies: ["Playback", "MediaSource"],
             path: "Tests/PlaybackFeaturePackageTests"
         ),
     ]

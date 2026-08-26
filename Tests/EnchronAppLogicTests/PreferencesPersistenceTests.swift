@@ -1,5 +1,5 @@
 import XCTest
-import PlaybackPresentation
+import Playback
 @testable import Enchron
 
 /// Verifies the extended `UserPreferences` fields survive a save→load round-trip

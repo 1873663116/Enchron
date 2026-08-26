@@ -1,13 +1,11 @@
 import DesignSystem
 import OSLog
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 
 /// Window playback chrome. Navigation and presentation actions stay over the
 /// video while media information belongs to the bottom Player Controls ornament.
-struct PlayerInfoBarView: View {
+public struct PlayerInfoBarView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerInfoBar")
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -16,7 +14,15 @@ struct PlayerInfoBarView: View {
     var controlsVisible = true
     var onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
 
-    var body: some View {
+    public init(
+        controlsVisible: Bool = true,
+        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
+    ) {
+        self.controlsVisible = controlsVisible
+        self.onSecondaryMenuVisibilityChange = onSecondaryMenuVisibilityChange
+    }
+
+    public var body: some View {
         WindowPlaybackTopChrome {
             GlassCircleIconButton.back(
                 accessibilityLabel: "Back",

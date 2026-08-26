@@ -5,8 +5,7 @@ import Foundation
 import MediaLibrary
 import MediaSource
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
+import Playback
 #if os(visionOS)
 import UIKit
 #endif

@@ -1,8 +1,7 @@
 import Foundation
 import MediaLibrary
 import MediaSource
-import PlaybackFeature
-import PlaybackPresentation
+import Playback
 
 private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     guard condition() else {

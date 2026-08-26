@@ -1,6 +1,6 @@
 import Foundation
 import PlaybackCore
-@_spi(Testing) import PlaybackFeature
+@_spi(Testing) @testable import Playback
 import Testing
 @testable import Enchron
 

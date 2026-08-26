@@ -100,12 +100,6 @@
 				MediaLibrary/Views/LibraryToolbarComponents.swift,
 				MediaLibrary/Views/LibraryViewControls.swift,
 				MediaLibrary/Views/SourceSidebar.swift,
-				PlaybackPresentation/Views/EnvironmentComponents.swift,
-				PlaybackPresentation/Views/PlaybackFormatters.swift,
-				PlaybackPresentation/Views/PlaybackPanel.swift,
-				PlaybackPresentation/Views/PlaybackTimeline.swift,
-				PlaybackPresentation/Views/PlaybackTopActions.swift,
-				PlaybackPresentation/Views/WindowPlaybackRootView.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
@@ -149,8 +143,8 @@
 				Emby/EmbyMediaByteSource.swift,
 				Emby/EmbyModels.swift,
 				Emby/EmbyPlaybackBridge.swift,
-				Emby/EmbyScreens.swift,
 				Emby/EmbyScreenViewModels.swift,
+				Emby/EmbyScreens.swift,
 				Emby/EmbyServerStore.swift,
 				Emby/EmbySessionViewModel.swift,
 				Emby/EmbyShelf.swift,
@@ -173,8 +167,8 @@
 				MediaLibrary/Storage/SavedDataSourceStore.swift,
 				MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift,
 				MediaLibrary/Views/ConnectionFormPanel.swift,
-				MediaSource/KeychainStore.swift,
 				MediaSource/ArtworkStore.swift,
+				MediaSource/KeychainStore.swift,
 				MediaSource/MediaAccessLease.swift,
 				MediaSource/MediaByteStream.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
@@ -202,6 +196,7 @@
 				PlaybackFeature/PlaybackLaunchCoordinator.swift,
 				PlaybackFeature/PlaybackLaunchRequest.swift,
 				PlaybackFeature/PlaybackMediaMetadataService.swift,
+				PlaybackFeature/PlaybackRuntime.swift,
 				PlaybackPresentation/Model/CinemaEnvironment.swift,
 				PlaybackPresentation/Model/PlaybackPanelExpansion.swift,
 				PlaybackPresentation/Model/PlaybackPresentation.swift,
@@ -209,7 +204,30 @@
 				PlaybackPresentation/Model/PlaybackSurfacePlacement.swift,
 				PlaybackPresentation/Model/SpatialPlaybackSurfaceSettlementPolicy.swift,
 				PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift,
+				PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapter.swift,
+				PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift,
+				PlaybackPresentation/Platform/SpatialPlatformExecutionLease.swift,
+				PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift,
+				PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachmentView.swift,
+				PlaybackPresentation/Scenes/ImmersiveSpaceView.swift,
+				PlaybackPresentation/Session/DebugProbeJournal.swift,
+				PlaybackPresentation/Session/PlaybackPresentationChrome.swift,
+				PlaybackPresentation/Session/PlaybackSessionModel.swift,
+				PlaybackPresentation/Session/SurfaceInputProbes.swift,
 				PlaybackPresentation/Storage/ScreenPositionStore.swift,
+				PlaybackPresentation/Views/AudioSpectrumSurface.swift,
+				PlaybackPresentation/Views/DragRotationModifier.swift,
+				PlaybackPresentation/Views/EnvironmentComponents.swift,
+				PlaybackPresentation/Views/PlaybackFormatters.swift,
+				PlaybackPresentation/Views/PlaybackPanel.swift,
+				PlaybackPresentation/Views/PlaybackRealityPresenter.swift,
+				PlaybackPresentation/Views/PlaybackTimeline.swift,
+				PlaybackPresentation/Views/PlaybackTopActions.swift,
+				PlaybackPresentation/Views/PlaybackVideoSurface.swift,
+				PlaybackPresentation/Views/PlayerInfoBarView.swift,
+				PlaybackPresentation/Views/SenseZoneVolumeRoot.swift,
+				PlaybackPresentation/Views/WindowPlaybackRootView.swift,
+				PlaybackPresentation/Views/WindowPlayerDeck.swift,
 			);
 			target = C3B0F97F2F5726B30064596E /* Enchron */;
 		};
@@ -422,8 +440,7 @@
 				E10000122FA1000100E1C001 /* DesignSystem */,
 				E22000012FA4000100E1C001 /* Emby */,
 				E20000032FA2000100E1C001 /* MediaLibrary */,
-				E21000012FA2000100E1C001 /* PlaybackFeature */,
-				E21000022FA2000100E1C001 /* PlaybackPresentation */,
+				E21000012FA2000100E1C001 /* Playback */,
 			);
 			productName = DesignPreview;
 			productReference = C3A35AB32F85429300DA0D16 /* DesignPreview.app */;
@@ -456,8 +473,7 @@
 				C3B0F9852F5726B30064596E /* RealityKitContent */,
 				A4C1A00E2FD2000100AABBCC /* RealityKitScripting */,
 				E10000022FA1000100E1C001 /* MediaSource */,
-				E10000032FA1000100E1C001 /* PlaybackFeature */,
-				E10000042FA1000100E1C001 /* PlaybackPresentation */,
+				E10000032FA1000100E1C001 /* Playback */,
 				E10000102FA1000100E1C001 /* DesignSystem */,
 				E20000012FA2000100E1C001 /* MediaLibrary */,
 				E22000042FA4000100E1C001 /* Emby */,
@@ -494,10 +510,9 @@
 				D00000200000000000D0A1A1 /* MediaSource */,
 				D00000210000000000D0A1A1 /* Emby */,
 				D00000220000000000D0A1A1 /* MediaLibrary */,
-				D00000230000000000D0A1A1 /* PlaybackFeature */,
+				D00000230000000000D0A1A1 /* Playback */,
 				D00000240000000000D0A1A1 /* PlaybackCore */,
 				D00000250000000000D0A1A1 /* DesignSystem */,
-				D00000260000000000D0A1A1 /* PlaybackPresentation */,
 			);
 			productName = EnchronDomainTests;
 			productReference = D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */;
@@ -1306,10 +1321,10 @@
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = MediaLibrary;
 		};
-		D00000230000000000D0A1A1 /* PlaybackFeature */ = {
+		D00000230000000000D0A1A1 /* Playback */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = PlaybackFeature;
+			productName = Playback;
 		};
 		D00000240000000000D0A1A1 /* PlaybackCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1321,25 +1336,15 @@
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = DesignSystem;
 		};
-		D00000260000000000D0A1A1 /* PlaybackPresentation */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = PlaybackPresentation;
-		};
 		E10000022FA1000100E1C001 /* MediaSource */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = MediaSource;
 		};
-		E10000032FA1000100E1C001 /* PlaybackFeature */ = {
+		E10000032FA1000100E1C001 /* Playback */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = PlaybackFeature;
-		};
-		E10000042FA1000100E1C001 /* PlaybackPresentation */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = PlaybackPresentation;
+			productName = Playback;
 		};
 		E10000102FA1000100E1C001 /* DesignSystem */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1361,15 +1366,10 @@
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = MediaLibrary;
 		};
-		E21000012FA2000100E1C001 /* PlaybackFeature */ = {
+		E21000012FA2000100E1C001 /* Playback */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = PlaybackFeature;
-		};
-		E21000022FA2000100E1C001 /* PlaybackPresentation */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = PlaybackPresentation;
+			productName = Playback;
 		};
 		E22000012FA4000100E1C001 /* Emby */ = {
 			isa = XCSwiftPackageProductDependency;

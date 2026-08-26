@@ -1,4 +1,4 @@
-import PlaybackFeature
+import Playback
 import Testing
 
 @Test("a single-layer profile names itself and nothing else")

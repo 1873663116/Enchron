@@ -1,15 +1,14 @@
 import DesignSystem
 import Foundation
-import PlaybackPresentation
 import SwiftUI
 
-struct DeckMenuItem: Identifiable {
-    let id: String
+public struct DeckMenuItem: Identifiable {
+    public let id: String
     let title: String
     let isSelected: Bool
     let action: () -> Void
 
-    init(id: String, title: String, isSelected: Bool, action: @escaping () -> Void) {
+    public init(id: String, title: String, isSelected: Bool, action: @escaping () -> Void) {
         self.id = id
         self.title = title
         self.isSelected = isSelected
@@ -749,14 +748,24 @@ private enum MaterialCircularIndeterminateAdvance {
     }
 }
 
-struct LoadingSpinner: View {
+public struct LoadingSpinner: View {
     var size: CGFloat = 56
     var showBorder: Bool = true
     var sourceReadBytesPerSecond: (@MainActor () -> UInt64)?
 
     @State private var cycleAnchor = Date()
 
-    var body: some View {
+    public init(
+        size: CGFloat = 56,
+        showBorder: Bool = true,
+        sourceReadBytesPerSecond: (@MainActor () -> UInt64)? = nil
+    ) {
+        self.size = size
+        self.showBorder = showBorder
+        self.sourceReadBytesPerSecond = sourceReadBytesPerSecond
+    }
+
+    public var body: some View {
         let lineWidth = size * 0.06
         let inset = size * 0.16
 

@@ -23,16 +23,14 @@ PRODUCT_TARGETS = {
     "Emby",
     "MediaSource",
     "MediaLibrary",
-    "PlaybackFeature",
-    "PlaybackPresentation",
+    "Playback",
     "DesignSystem",
 }
-PLAYBACK_PRESENTATION_ALLOWED_IMPORTS = {
-    "CoreGraphics",
-    "Foundation",
-    "Observation",
-    "PlaybackFeature",
+PLAYBACK_FORBIDDEN_IMPORTS = {
+    "Emby",
+    "MediaLibrary",
 }
+PLAYBACK_SOURCE_DIRECTORIES = ("PlaybackFeature", "PlaybackPresentation")
 SWIFT_IMPORT_PATTERN = re.compile(
     r"""
     ^[ \t]*
@@ -46,15 +44,17 @@ SWIFT_IMPORT_PATTERN = re.compile(
 )
 
 IMPORT_PARSER_SELF_CHECKS = (
-    ("import Foundation", "Foundation", True),
-    ("import Observation", "Observation", True),
-    ("@testable import PlaybackFeature", "PlaybackFeature", True),
+    ("import Foundation", "Foundation", False),
+    ("import Observation", "Observation", False),
+    ("@testable import Playback", "Playback", False),
     ("@preconcurrency import RealityKit", "RealityKit", False),
     ("@_implementationOnly import AVFoundation", "AVFoundation", False),
     ("@_exported import PlaybackCore", "PlaybackCore", False),
     ("public import SwiftUI", "SwiftUI", False),
-    ("package import struct CoreGraphics.CGPoint", "CoreGraphics", True),
+    ("package import struct CoreGraphics.CGPoint", "CoreGraphics", False),
     ("@_spi(Internal)\nprivate import class RealityKit.Entity", "RealityKit", False),
+    ("import Emby", "Emby", True),
+    ("import MediaLibrary", "MediaLibrary", True),
 )
 
 SWIFT_COMMENT_OR_STRING_PATTERN = re.compile(
@@ -158,15 +158,15 @@ def swift_import_modules(source: str) -> list[str]:
 
 
 def verify_import_parser() -> None:
-    for declaration, expected_module, expected_allowed in IMPORT_PARSER_SELF_CHECKS:
+    for declaration, expected_module, expected_forbidden in IMPORT_PARSER_SELF_CHECKS:
         modules = swift_import_modules(declaration)
         if modules != [expected_module]:
             raise RuntimeError(
                 f"Swift import parser did not recognize {declaration!r}: {modules!r}"
             )
-        if (expected_module in PLAYBACK_PRESENTATION_ALLOWED_IMPORTS) != expected_allowed:
+        if (expected_module in PLAYBACK_FORBIDDEN_IMPORTS) != expected_forbidden:
             raise RuntimeError(
-                f"Swift import allowlist self-check has an unexpected result for {declaration!r}"
+                f"Swift import denylist self-check has an unexpected result for {declaration!r}"
             )
 
     ignored = swift_import_modules('// import RealityKit\nlet importToken = "AVFoundation"')
@@ -251,16 +251,50 @@ def design_preview_app_layer_references(
     return references
 
 
-def playback_presentation_import_violations(
+def playback_import_violations(
     description: dict,
     repository_root: Path,
 ) -> list[tuple[Path, str]]:
     violations: list[tuple[Path, str]] = []
-    for source in target_sources(description, "PlaybackPresentation", repository_root):
+    for source in target_sources(description, "Playback", repository_root):
+        if source.suffix != ".swift":
+            continue
         for module in swift_import_modules(source.read_text()):
-            if module not in PLAYBACK_PRESENTATION_ALLOWED_IMPORTS:
+            if module in PLAYBACK_FORBIDDEN_IMPORTS:
                 violations.append((source.relative_to(repository_root), module))
     return violations
+
+
+def playback_app_layer_references(
+    description: dict,
+    repository_root: Path,
+) -> list[tuple[Path, str]]:
+    names = app_layer_type_names(repository_root)
+    references: list[tuple[Path, str]] = []
+    for source in target_sources(description, "Playback", repository_root):
+        if source.suffix != ".swift":
+            continue
+        found = app_layer_type_references(source.read_text(), names)
+        references += [
+            (source.relative_to(repository_root), name) for name in sorted(found)
+        ]
+    return references
+
+
+def playback_excluded_sources(
+    description: dict,
+    repository_root: Path,
+) -> list[str]:
+    compiled = {
+        path.relative_to(repository_root / "Modules").as_posix()
+        for path in target_sources(description, "Playback", repository_root)
+    }
+    expected = {
+        path.relative_to(repository_root / "Modules").as_posix()
+        for directory in PLAYBACK_SOURCE_DIRECTORIES
+        for path in (repository_root / "Modules" / directory).rglob("*.swift")
+    }
+    return sorted(expected - compiled)
 
 
 def main() -> int:
@@ -305,11 +339,13 @@ def main() -> int:
     exceptions = membership_exceptions(repository_root, APP_EXCEPTION_ID)
     missing = sorted(package_sources - exceptions)
     stale = sorted(exceptions - package_sources)
-    import_violations = playback_presentation_import_violations(
+    import_violations = playback_import_violations(description, repository_root)
+    playback_app_references = playback_app_layer_references(
         description,
         repository_root,
     )
-    if missing or stale or import_violations:
+    excluded_playback = playback_excluded_sources(description, repository_root)
+    if missing or stale or import_violations or playback_app_references or excluded_playback:
         if missing:
             print("Package sources still compiled directly by Enchron:", file=sys.stderr)
             for path in missing:
@@ -319,9 +355,17 @@ def main() -> int:
             for path in stale:
                 print(f"  {path}", file=sys.stderr)
         if import_violations:
-            print("PlaybackPresentation imports outside its allowlist:", file=sys.stderr)
+            print("Playback imports inside its denylist:", file=sys.stderr)
             for path, module in import_violations:
                 print(f"  {path}: {module}", file=sys.stderr)
+        if playback_app_references:
+            print("Playback sources that reference Apps/Enchron types:", file=sys.stderr)
+            for path, name in playback_app_references:
+                print(f"  {path}: {name}", file=sys.stderr)
+        if excluded_playback:
+            print("Playback shadow sources missing from the merged target:", file=sys.stderr)
+            for path in excluded_playback:
+                print(f"  {path}", file=sys.stderr)
         return 1
     print(f"Enchron excludes all {len(package_sources)} package-owned Swift sources")
     return 0

@@ -1,11 +1,9 @@
 import DesignSystem
 import OSLog
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 
-struct WindowPlayerDeckView: View {
+public struct WindowPlayerDeckView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerDeck")
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -13,8 +11,16 @@ struct WindowPlayerDeckView: View {
     var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
 
+    public init(
+        presentationOverride: PlaybackPresentation? = nil,
+        onExitPlayback: (() -> Void)? = nil
+    ) {
+        self.presentationOverride = presentationOverride
+        self.onExitPlayback = onExitPlayback
+    }
+
     @ViewBuilder
-    var body: some View {
+    public var body: some View {
         Group {
             if usesWindowPlaybackControls {
                 WindowPlaybackControls(
@@ -612,12 +618,18 @@ struct ProductionPlaybackMoreMenu: View {
 
 /// The pre-play decision remains part of the media-opening flow. Playback
 /// failures use a system alert instead of sharing this product-owned surface.
-struct ResumeDecisionCard: View {
+public struct ResumeDecisionCard: View {
     let message: String
     let onResume: () -> Void
     let onStartOver: () -> Void
 
-    var body: some View {
+    public init(message: String, onResume: @escaping () -> Void, onStartOver: @escaping () -> Void) {
+        self.message = message
+        self.onResume = onResume
+        self.onStartOver = onStartOver
+    }
+
+    public var body: some View {
         ZStack {
             Rectangle()
                 .fill(.black.opacity(0.40))

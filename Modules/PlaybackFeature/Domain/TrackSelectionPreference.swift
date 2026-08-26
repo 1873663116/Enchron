@@ -1,9 +1,9 @@
-public enum SubtitleTrackSelectionPreference: Codable, Equatable, Sendable {
+nonisolated public enum SubtitleTrackSelectionPreference: Codable, Equatable, Sendable {
     case off
     case track(id: String)
 }
 
-public struct TrackSelectionPreference: Codable, Equatable, Sendable {
+nonisolated public struct TrackSelectionPreference: Codable, Equatable, Sendable {
     public var audioTrackID: String?
     public var subtitleTrack: SubtitleTrackSelectionPreference?
 

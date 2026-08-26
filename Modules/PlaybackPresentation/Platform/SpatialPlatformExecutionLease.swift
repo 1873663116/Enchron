@@ -1,5 +1,4 @@
 import Foundation
-import PlaybackPresentation
 
 struct SpatialPlatformExecutionLease: Equatable, Sendable {
     let executionID: UUID
@@ -249,13 +248,13 @@ struct SpatialPlatformImmersiveSpaceObservation {
     }
 }
 
-enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
+public enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
     case main
     case playback
     case immersivePlaybackResident
 }
 
-enum SpatialPlatformWindowResidency: Equatable, Sendable {
+public enum SpatialPlatformWindowResidency: Equatable, Sendable {
     case open
     case closed
 }

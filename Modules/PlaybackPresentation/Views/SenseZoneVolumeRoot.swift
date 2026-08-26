@@ -1,7 +1,6 @@
 import SwiftUI
-import PlaybackPresentation
 
-struct SenseZoneVolumeRoot: View {
+public struct SenseZoneVolumeRoot: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityPrefersCrossFadeTransitions)
@@ -11,7 +10,9 @@ struct SenseZoneVolumeRoot: View {
     @State private var revealCompleted = false
     @State private var sceneLifetimeIsOpen = false
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         EnvironmentCardCarousel(
             activeEnvironment: appModel.environmentContext.environment,
             defaultEffect: appModel.currentEnvironmentEffect,

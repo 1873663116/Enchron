@@ -1,5 +1,5 @@
 import Foundation
-import PlaybackFeature
+import Playback
 import Observation
 
 public nonisolated struct UserPreferences: Sendable, Equatable {

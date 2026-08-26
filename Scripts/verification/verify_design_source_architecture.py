@@ -20,8 +20,7 @@ PRODUCTION_SOURCE_DIRECTORIES = ("Apps/Enchron", "Modules")
 PRODUCTION_IMPORTS = {
     "DesignSystem",
     "MediaLibrary",
-    "PlaybackFeature",
-    "PlaybackPresentation",
+    "Playback",
 }
 PREVIEW_SHELL_FILES = {
     Path("Apps/DesignPreview/ContentView.swift"),

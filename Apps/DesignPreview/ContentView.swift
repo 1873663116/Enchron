@@ -1,6 +1,6 @@
 import DesignSystem
 import MediaLibrary
-import PlaybackPresentation
+import Playback
 import SwiftUI
 
 // MARK: - Preview routing˙©

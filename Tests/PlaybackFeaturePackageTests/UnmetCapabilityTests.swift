@@ -1,7 +1,8 @@
-import PlaybackFeature
+import Playback
 import Testing
 
 @Test("a ProRes file the device cannot decode is the only case that stops playback")
+@MainActor
 func proResIsTheOnlyPreventingCapability() {
     let found = UnmetCapability.all(
         from: PlaybackCapabilityFacts(
@@ -15,6 +16,7 @@ func proResIsTheOnlyPreventingCapability() {
 }
 
 @Test("ProRes that decodes is not reported, so the codec name alone never accuses")
+@MainActor
 func proResThatDecodesIsSilent() {
     let found = UnmetCapability.all(
         from: PlaybackCapabilityFacts(codecName: "prores", rendererFailedToDecode: false)
@@ -23,6 +25,7 @@ func proResThatDecodesIsSilent() {
 }
 
 @Test("a second view that was lost is reported without stopping playback")
+@MainActor
 func flattenedMultiviewIsPersistentOnly() {
     let found = UnmetCapability.all(
         from: PlaybackCapabilityFacts(
@@ -36,6 +39,7 @@ func flattenedMultiviewIsPersistentOnly() {
 }
 
 @Test("multiview that survived to the renderer reports nothing")
+@MainActor
 func intactMultiviewIsSilent() {
     let found = UnmetCapability.all(
         from: PlaybackCapabilityFacts(
@@ -48,6 +52,7 @@ func intactMultiviewIsSilent() {
 }
 
 @Test("retired audio carries the reason PlaybackCore gave rather than a guess")
+@MainActor
 func retiredAudioPrefersTheReportedReason() {
     let found = UnmetCapability.all(
         from: PlaybackCapabilityFacts(
@@ -60,6 +65,7 @@ func retiredAudioPrefersTheReportedReason() {
 }
 
 @Test("several unmet capabilities coexist and only the picture one interrupts")
+@MainActor
 func onlyThePictureCaseInterrupts() {
     let found = UnmetCapability.all(
         from: PlaybackCapabilityFacts(

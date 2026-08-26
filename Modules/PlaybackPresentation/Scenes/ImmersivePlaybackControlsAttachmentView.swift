@@ -1,6 +1,4 @@
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 
 struct ImmersivePlaybackControlsAttachmentView: View {

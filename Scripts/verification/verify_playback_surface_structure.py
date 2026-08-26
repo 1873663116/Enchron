@@ -984,7 +984,7 @@ def main() -> int:
     completion = region(
         platform_executor,
         "private func complete(",
-        "\n}\n\n@MainActor\nstruct SpatialPlatformEffectExecutor",
+        "\n}\n\n@MainActor\npublic struct SpatialPlatformEffectExecutor",
     )
     require(
         "resolution != .ignored" in completion

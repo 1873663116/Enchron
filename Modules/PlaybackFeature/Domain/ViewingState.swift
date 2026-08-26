@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 
-public enum ViewingStatus: Codable, Equatable, Sendable {
+nonisolated public enum ViewingStatus: Codable, Equatable, Sendable {
     case resumable(positionSeconds: Double, durationSeconds: Double)
     case completed(durationSeconds: Double)
 }

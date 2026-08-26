@@ -1,12 +1,10 @@
 import DesignSystem
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 import UIKit
 
-struct WindowPlaybackLayout: Equatable {
-    static let fallbackAspectRatio: CGFloat = 16.0 / 9.0
-    static let fallback = WindowPlaybackLayout(aspectRatio: fallbackAspectRatio)
+public struct WindowPlaybackLayout: Equatable {
+    public static let fallbackAspectRatio: CGFloat = 16.0 / 9.0
+    public static let fallback = WindowPlaybackLayout(aspectRatio: fallbackAspectRatio)
 
     /// The control bar hangs below the window at a fixed 728pt, so a narrower
     /// window would wear a bar wider than itself.
@@ -19,15 +17,15 @@ struct WindowPlaybackLayout: Equatable {
     private static let defaultArea: CGFloat = 1_280 * 720
     private static let maximumArea: CGFloat = 1_808 * 1_017
 
-    let aspectRatio: CGFloat
+    public let aspectRatio: CGFloat
 
-    init(aspectRatio: CGFloat) {
+    public init(aspectRatio: CGFloat) {
         self.aspectRatio = aspectRatio.isFinite && aspectRatio > 0
             ? aspectRatio
             : Self.fallbackAspectRatio
     }
 
-    init(
+    public init(
         resolution: PlaybackModel.MediaProfile.Resolution?,
         pixelAspectRatio: PlaybackModel.MediaProfile.PixelAspectRatio = .square,
         stereoLayout: PlaybackModel.StereoLayout
@@ -50,11 +48,11 @@ struct WindowPlaybackLayout: Equatable {
         )
     }
 
-    var minimumSize: CGSize { size(area: Self.minimumArea) }
+    public var minimumSize: CGSize { size(area: Self.minimumArea) }
 
-    var defaultSize: CGSize { size(area: Self.defaultArea) }
+    public var defaultSize: CGSize { size(area: Self.defaultArea) }
 
-    var maximumSize: CGSize { size(area: Self.maximumArea) }
+    public var maximumSize: CGSize { size(area: Self.maximumArea) }
 
     func hasPlaybackAspectRatio(
         _ size: CGSize,
@@ -64,7 +62,7 @@ struct WindowPlaybackLayout: Equatable {
         return abs(size.width / size.height - aspectRatio) <= tolerance
     }
 
-    func contains(_ size: CGSize, tolerance: CGFloat = 0.5) -> Bool {
+    public func contains(_ size: CGSize, tolerance: CGFloat = 0.5) -> Bool {
         size.width >= minimumSize.width - tolerance
             && size.height >= minimumSize.height - tolerance
             && size.width <= maximumSize.width + tolerance
@@ -101,9 +99,9 @@ struct WindowPlaybackLayout: Equatable {
 
 /// The window range the browser asks for. It has no video to match, so its
 /// shape is fixed at 16:9 and owes nothing to playback's.
-enum BrowserWindowLayout {
+public enum BrowserWindowLayout {
     static let minimumSize = CGSize(width: 1_088, height: 612)
-    static let defaultSize = CGSize(width: 1_536, height: 864)
+    public static let defaultSize = CGSize(width: 1_536, height: 864)
     static let maximumSize = CGSize(width: 1_808, height: 1_017)
 }
 
@@ -111,7 +109,7 @@ extension View {
     /// Every surface that can own the window states its own range. None of them restores a system
     /// default on the way out, so the order in which one surface disappears and the next appears
     /// cannot leave the window unconstrained.
-    func browserWindowGeometry() -> some View {
+    public func browserWindowGeometry() -> some View {
         background {
             WindowPlaybackSceneReader { windowScene in
                 guard let windowScene else { return }
@@ -129,11 +127,11 @@ extension View {
 
 /// Every playback presentation, Portal included, locks the window to the
 /// video's aspect tiers. Portal owns no sizing rule of its own.
-enum WindowPlaybackGeometryPolicy: Equatable {
+public enum WindowPlaybackGeometryPolicy: Equatable {
     case aspectLocked(WindowPlaybackLayout)
     case audioOnly
 
-    init(
+    public init(
         presentation: PlaybackPresentation,
         videoLayout: WindowPlaybackLayout
     ) {
@@ -167,12 +165,12 @@ enum WindowPlaybackGeometryPolicy: Equatable {
     }
 }
 
-enum WindowPlaybackGeometryRefreshEvent: Equatable {
+public enum WindowPlaybackGeometryRefreshEvent: Equatable {
     case requested(revision: UInt64, size: CGSize)
     case failed(revision: UInt64, message: String)
 }
 
-struct WindowPlaybackTopChrome<
+public struct WindowPlaybackTopChrome<
     NavigationControl: View,
     SpatialActions: View,
     MoreControl: View
@@ -181,7 +179,7 @@ struct WindowPlaybackTopChrome<
     private let spatialActions: SpatialActions
     private let moreControl: MoreControl
 
-    init(
+    public init(
         @ViewBuilder navigationControl: () -> NavigationControl,
         @ViewBuilder spatialActions: () -> SpatialActions,
         @ViewBuilder moreControl: () -> MoreControl
@@ -191,7 +189,7 @@ struct WindowPlaybackTopChrome<
         self.moreControl = moreControl()
     }
 
-    var body: some View {
+    public var body: some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
             navigationControl
                 .enchronSpatialFrame(depth: 0)
@@ -247,7 +245,7 @@ struct WindowPlaybackSpatialActions<
 ///
 /// The App owns the `Window` scene and injects live content. DesignPreview
 /// injects deterministic fixtures into this same composition.
-struct WindowPlaybackRootView<
+public struct WindowPlaybackRootView<
     VideoContent: View,
     TopChrome: View
 >: View {
@@ -264,7 +262,7 @@ struct WindowPlaybackRootView<
     private let videoContent: VideoContent
     private let topChrome: TopChrome
 
-    init(
+    public init(
         geometryPolicy: WindowPlaybackGeometryPolicy,
         geometryRefreshRevision: UInt64 = 0,
         preferredInitialSize: CGSize? = nil,
@@ -290,7 +288,7 @@ struct WindowPlaybackRootView<
         self.topChrome = topChrome()
     }
 
-    var body: some View {
+    public var body: some View {
         layeredContent
             .frame(
                 minWidth: geometryPolicy.minimumSize?.width,

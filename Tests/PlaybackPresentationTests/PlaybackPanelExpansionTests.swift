@@ -1,7 +1,8 @@
-import PlaybackPresentation
+import Playback
 import Testing
 
 @Test("a change reaches the requested block only after the contents have left")
+@MainActor
 func aChangeLeavesBeforeItResizes() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.timeline)
@@ -22,6 +23,7 @@ func aChangeLeavesBeforeItResizes() {
 }
 
 @Test("a button reads as selected from the moment it is pressed")
+@MainActor
 func theButtonDoesNotFlickerBackWhileTheContentsLeave() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.settings)
@@ -32,6 +34,7 @@ func theButtonDoesNotFlickerBackWhileTheContentsLeave() {
 }
 
 @Test("pressing the block already showing collapses the panel")
+@MainActor
 func theBlockButtonToggles() {
     var expansion = PlaybackPanelExpansion(.timeline)
     expansion.toggle(.timeline)
@@ -43,6 +46,7 @@ func theBlockButtonToggles() {
 }
 
 @Test("media information uses the same leave resize enter sequence")
+@MainActor
 func mediaInformationUsesThePanelExpansionSequence() {
     var expansion = PlaybackPanelExpansion()
     expansion.toggle(.mediaInformation)
@@ -66,6 +70,7 @@ func mediaInformationUsesThePanelExpansionSequence() {
 }
 
 @Test("requesting the block already showing does nothing")
+@MainActor
 func aRedundantRequestIsIgnored() {
     var expansion = PlaybackPanelExpansion(.settings)
     expansion.request(.settings)
@@ -75,6 +80,7 @@ func aRedundantRequestIsIgnored() {
 }
 
 @Test("changing your mind mid-change retargets it rather than queueing behind it")
+@MainActor
 func aSecondRequestRetargets() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.timeline)
@@ -86,6 +92,7 @@ func aSecondRequestRetargets() {
 }
 
 @Test("a request during the resize sends the shell to the new block instead")
+@MainActor
 func aRequestDuringTheResizeTurnsTheShellAround() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.timeline)
@@ -102,6 +109,7 @@ func aRequestDuringTheResizeTurnsTheShellAround() {
 }
 
 @Test("a completion that lands after a newer request cannot skip a step")
+@MainActor
 func aStaleCompletionIsIgnored() {
     var expansion = PlaybackPanelExpansion()
     expansion.request(.timeline)
@@ -114,6 +122,7 @@ func aStaleCompletionIsIgnored() {
 }
 
 @Test("the collapsed panel is the one that is not expanded")
+@MainActor
 func onlyCollapsedIsUnexpanded() {
     #expect(PlaybackPanelExpansion().isExpanded == false)
     #expect(PlaybackPanelExpansion(.timeline).isExpanded)

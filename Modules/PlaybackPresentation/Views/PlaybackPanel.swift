@@ -1,7 +1,5 @@
 import DesignSystem
 import Foundation
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 
 
@@ -9,7 +7,7 @@ import SwiftUI
 
 /// Playback and presentation bindings. A nil value lets DesignPreview render
 /// the panel without constructing a playback session.
-struct FusedPlayerPanelLive {
+public struct FusedPlayerPanelLive {
     var presentation: PlaybackPresentation
     var mediaName: String
     var mediaProfile: PlaybackModel.MediaProfile?
@@ -66,6 +64,106 @@ struct FusedPlayerPanelLive {
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
     var episodeItems: [DeckMenuItem]
+
+    public init(
+        presentation: PlaybackPresentation,
+        mediaName: String,
+        mediaProfile: PlaybackModel.MediaProfile?,
+        canApplyFormat: Bool,
+        screenScale: Double,
+        recommendedScreenScale: Double,
+        screenDistance: Double,
+        screenElevationDegrees: Double,
+        projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int,
+        stereoLayout: PlaybackModel.StereoLayout,
+        usesDolbyVisionFallback: Bool = false,
+        showsDolbyVisionFallback: Bool = false,
+        mediaFormatSummary: String? = nil,
+        overview: String? = nil,
+        unmetCapabilities: [UnmetCapability] = [],
+        mediaFormatProvenance: MediaFormatProvenance,
+        sourceMediaFormatSummary: String,
+        isPlaying: Bool,
+        showsReplay: Bool,
+        canSkipForward: Bool,
+        canStepForward: Bool,
+        progress: CGFloat,
+        elapsedLabel: String,
+        durationLabel: String,
+        duration: Double,
+        framesPerSecond: Double,
+        onPlayPause: @escaping () -> Void,
+        onSkipBackward: @escaping () -> Void,
+        onSkipForward: @escaping () -> Void,
+        onSeek: @escaping (CGFloat) -> Void,
+        onPrecisionSeek: @escaping (CGFloat) -> Void,
+        onFrameStep: @escaping (Int) -> Void,
+        onEnterImmersive: @escaping () -> Void,
+        onExitSpatial: @escaping () -> Void,
+        onExitPlayback: @escaping () -> Void,
+        onSetScreenScale: @escaping @MainActor @Sendable (Double) -> Void,
+        onSetScreenDistance: @escaping @MainActor @Sendable (Double) -> Void,
+        onSetScreenElevation: @escaping @MainActor @Sendable (Double) -> Void,
+        onResetDockedPlacement: @escaping () -> Void,
+        onApplyFormat: @escaping ( PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout, Bool ) -> Void,
+        onRestoreAutomaticFormat: @escaping () -> Void,
+        onReachabilityAction: @escaping (String) -> Void = { _ in },
+        subtitlesEnabled: Bool = true,
+        subtitleItems: [DeckMenuItem],
+        audioItems: [DeckMenuItem],
+        speedItems: [DeckMenuItem],
+        episodeItems: [DeckMenuItem]
+    ) {
+        self.presentation = presentation
+        self.mediaName = mediaName
+        self.mediaProfile = mediaProfile
+        self.canApplyFormat = canApplyFormat
+        self.screenScale = screenScale
+        self.recommendedScreenScale = recommendedScreenScale
+        self.screenDistance = screenDistance
+        self.screenElevationDegrees = screenElevationDegrees
+        self.projection = projection
+        self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
+        self.stereoLayout = stereoLayout
+        self.usesDolbyVisionFallback = usesDolbyVisionFallback
+        self.showsDolbyVisionFallback = showsDolbyVisionFallback
+        self.mediaFormatSummary = mediaFormatSummary
+        self.overview = overview
+        self.unmetCapabilities = unmetCapabilities
+        self.mediaFormatProvenance = mediaFormatProvenance
+        self.sourceMediaFormatSummary = sourceMediaFormatSummary
+        self.isPlaying = isPlaying
+        self.showsReplay = showsReplay
+        self.canSkipForward = canSkipForward
+        self.canStepForward = canStepForward
+        self.progress = progress
+        self.elapsedLabel = elapsedLabel
+        self.durationLabel = durationLabel
+        self.duration = duration
+        self.framesPerSecond = framesPerSecond
+        self.onPlayPause = onPlayPause
+        self.onSkipBackward = onSkipBackward
+        self.onSkipForward = onSkipForward
+        self.onSeek = onSeek
+        self.onPrecisionSeek = onPrecisionSeek
+        self.onFrameStep = onFrameStep
+        self.onEnterImmersive = onEnterImmersive
+        self.onExitSpatial = onExitSpatial
+        self.onExitPlayback = onExitPlayback
+        self.onSetScreenScale = onSetScreenScale
+        self.onSetScreenDistance = onSetScreenDistance
+        self.onSetScreenElevation = onSetScreenElevation
+        self.onResetDockedPlacement = onResetDockedPlacement
+        self.onApplyFormat = onApplyFormat
+        self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
+        self.onReachabilityAction = onReachabilityAction
+        self.subtitlesEnabled = subtitlesEnabled
+        self.subtitleItems = subtitleItems
+        self.audioItems = audioItems
+        self.speedItems = speedItems
+        self.episodeItems = episodeItems
+    }
 }
 
 /// Presentation-only rules for holding a scrubber at its requested position
@@ -159,13 +257,13 @@ enum PlaybackPanelSettingsPolicy {
     }
 }
 
-struct WindowPlaybackControls: View {
+public struct WindowPlaybackControls: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
 
-    var body: some View {
+    public var body: some View {
         FusedPlayerPanel(
             live: live,
             onInteraction: onInteraction,
@@ -174,15 +272,27 @@ struct WindowPlaybackControls: View {
             controlsVisible: controlsVisible
         )
     }
+
+    public init(
+        live: FusedPlayerPanelLive,
+        onInteraction: @escaping () -> Void = {},
+        initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
+        controlsVisible: Bool = true
+    ) {
+        self.live = live
+        self.onInteraction = onInteraction
+        self.initialExpansion = initialExpansion
+        self.controlsVisible = controlsVisible
+    }
 }
 
-struct PlayerControlDock: View {
+public struct PlayerControlDock: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
 
-    var body: some View {
+    public var body: some View {
         FusedPlayerPanel(
             live: live,
             onInteraction: onInteraction,
@@ -191,14 +301,26 @@ struct PlayerControlDock: View {
             controlsVisible: controlsVisible
         )
     }
+
+    public init(
+        live: FusedPlayerPanelLive,
+        onInteraction: @escaping () -> Void = {},
+        initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
+        controlsVisible: Bool = true
+    ) {
+        self.live = live
+        self.onInteraction = onInteraction
+        self.initialExpansion = initialExpansion
+        self.controlsVisible = controlsVisible
+    }
 }
 
-struct FusedPlayerPanel: View {
+public struct FusedPlayerPanel: View {
     var live: FusedPlayerPanelLive?
     var onInteraction: () -> Void = {}
     private let surface: PlaybackControlPanelSurface
 
-    init(
+    public init(
         live: FusedPlayerPanelLive? = nil,
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
@@ -347,7 +469,7 @@ struct FusedPlayerPanel: View {
         RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             panelContent
         }

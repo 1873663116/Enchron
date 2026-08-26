@@ -1,6 +1,6 @@
 import Foundation
 
-public struct PlaybackQueueEntry: Equatable, Identifiable, Sendable {
+nonisolated public struct PlaybackQueueEntry: Equatable, Identifiable, Sendable {
     public let id: UUID
     public let displayName: String
     public let isCurrent: Bool
@@ -12,7 +12,7 @@ public struct PlaybackQueueEntry: Equatable, Identifiable, Sendable {
     }
 }
 
-public struct PlaybackQueueSnapshot: Equatable, Sendable {
+nonisolated public struct PlaybackQueueSnapshot: Equatable, Sendable {
     public let entries: [PlaybackQueueEntry]
 
     public init(entries: [PlaybackQueueEntry] = []) {

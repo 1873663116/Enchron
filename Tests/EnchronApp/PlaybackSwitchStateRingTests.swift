@@ -1,5 +1,5 @@
 import PlaybackCore
-import PlaybackPresentation
+import Playback
 import XCTest
 @testable import Enchron
 

@@ -1,11 +1,10 @@
 import ARKit
-import PlaybackPresentation
 import QuartzCore
 import RealityKit
 import simd
 
 @MainActor
-enum ImmersivePlaybackControlsAttachmentPolicy {
+public enum ImmersivePlaybackControlsAttachmentPolicy {
     static func isVisible(
         presentation: PlaybackPresentation,
         controlsVisible: Bool,

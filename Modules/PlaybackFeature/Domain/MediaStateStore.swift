@@ -4,12 +4,12 @@ import MediaSource
 /// The playback-mode family restored on the next launch. This is deliberately
 /// independent from Media Format: projection and stereo interpretation remain
 /// in `formatPreference`.
-public enum PersistedPlaybackMode: String, Codable, Equatable, Sendable {
+nonisolated public enum PersistedPlaybackMode: String, Codable, Equatable, Sendable {
     case window
     case panorama
 }
 
-package struct PersistedMediaState: Codable, Equatable, Sendable {
+nonisolated package struct PersistedMediaState: Codable, Equatable, Sendable {
     package let versionedIdentity: VersionedMediaIdentity
     package var viewingStatus: ViewingStatus?
     package var formatPreference: MediaFormat?
@@ -31,7 +31,7 @@ package struct PersistedMediaState: Codable, Equatable, Sendable {
     }
 }
 
-package struct PersistedPlaybackPresentationPreferences: Equatable, Sendable {
+nonisolated package struct PersistedPlaybackPresentationPreferences: Equatable, Sendable {
     package let format: MediaFormat?
     package let playbackMode: PersistedPlaybackMode?
 }

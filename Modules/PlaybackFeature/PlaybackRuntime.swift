@@ -6,8 +6,6 @@ import MediaSource
 import Observation
 import OSLog
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
 
 #if DEBUG
 private final class PlaybackSwitchRendererSampleForwarder:
@@ -2285,7 +2283,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         clearVideoComponentBindingObservation()
     }
 
-    func outputObservation() -> PlaybackOutputObservation {
+    public func outputObservation() -> PlaybackOutputObservation {
         let snapshot = session?.debugSnapshot()
         let sourceReadSession = openingTechnicalSessionReplacementController?.activeSession
             ?? preparedTechnicalSessionReplacement?.session
@@ -2342,12 +2340,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    func debugSnapshot() -> PlaybackDebugSnapshotV1? {
+    public func debugSnapshot() -> PlaybackDebugSnapshotV1? {
         session?.debugSnapshot()
     }
 
     #if DEBUG
-    func debugEvidenceJSON() -> String {
+    public func debugEvidenceJSON() -> String {
         controller.debugEvidenceJSON() ?? ""
     }
     #endif

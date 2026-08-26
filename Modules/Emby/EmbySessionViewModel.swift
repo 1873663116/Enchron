@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import PlaybackFeature
+import Playback
 
 @MainActor
 @Observable

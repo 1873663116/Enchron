@@ -1,18 +1,17 @@
 import DesignSystem
-import PlaybackPresentation
 import SwiftUI
 
-struct FeaturedEnvironment: Identifiable {
-    let environment: SpatialSceneDomain.CinemaEnvironment
-    let lightImageName: String
-    let darkImageName: String
-    let title: String
-    let environmentNumber: String
-    let quote: String
-    let mode: String
-    let atmosphere: String
+public struct FeaturedEnvironment: Identifiable {
+    public let environment: SpatialSceneDomain.CinemaEnvironment
+    public let lightImageName: String
+    public let darkImageName: String
+    public let title: String
+    public let environmentNumber: String
+    public let quote: String
+    public let mode: String
+    public let atmosphere: String
 
-    var id: String { environment.rawValue }
+    public var id: String { environment.rawValue }
 
     static func catalogEntry(
         for environment: SpatialSceneDomain.CinemaEnvironment
@@ -27,7 +26,7 @@ struct FeaturedEnvironment: Identifiable {
         }
     }
 
-    static let catalog: [FeaturedEnvironment] = [
+    public static let catalog: [FeaturedEnvironment] = [
         .init(
             environment: .scenicOne,
             lightImageName: "SunsetNature",
@@ -71,7 +70,7 @@ struct FeaturedEnvironment: Identifiable {
     ]
 }
 
-struct EnvironmentCard: View {
+public struct EnvironmentCard: View {
     var environment: FeaturedEnvironment = .catalog[0]
     var effect: SpatialSceneDomain.EnvironmentEffect = .light
     var isEnvironmentActive = false
@@ -81,7 +80,7 @@ struct EnvironmentCard: View {
     var onExpand: () -> Void = {}
     var onMore: () -> Void = {}
 
-    var body: some View {
+    public var body: some View {
         let shape = RoundedRectangle(
             cornerRadius: DesignTokens.EnvironmentCard.cornerRadius,
             style: .continuous
@@ -260,6 +259,25 @@ struct EnvironmentCard: View {
         )
     }
 
+    public init(
+        environment: FeaturedEnvironment = .catalog[0],
+        effect: SpatialSceneDomain.EnvironmentEffect = .light,
+        isEnvironmentActive: Bool = false,
+        detailVisibility: CGFloat = 1,
+        atmosphericFade: CGFloat = 0,
+        onEffectChange: @escaping (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in },
+        onExpand: @escaping () -> Void = {},
+        onMore: @escaping () -> Void = {}
+    ) {
+        self.environment = environment
+        self.effect = effect
+        self.isEnvironmentActive = isEnvironmentActive
+        self.detailVisibility = detailVisibility
+        self.atmosphericFade = atmosphericFade
+        self.onEffectChange = onEffectChange
+        self.onExpand = onExpand
+        self.onMore = onMore
+    }
 }
 
 struct EnvironmentCarouselRenderSlot: Identifiable, Equatable {

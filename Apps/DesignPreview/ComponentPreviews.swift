@@ -1,7 +1,6 @@
 import DesignSystem
 import MediaLibrary
-import PlaybackFeature
-import PlaybackPresentation
+import Playback
 import SwiftUI
 
 

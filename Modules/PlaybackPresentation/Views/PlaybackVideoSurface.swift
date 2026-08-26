@@ -2,8 +2,6 @@ import AVFoundation
 import RealityKit
 import OSLog
 import PlaybackCore
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 
 private let playbackVideoSurfaceLogger = Logger(
@@ -186,7 +184,7 @@ private final class PlaybackVideoComponentObservation {
     }
 }
 
-struct PlaybackVideoSurface: View {
+public struct PlaybackVideoSurface: View {
     private static let subtitleControlSafeAreaFraction: Float = 0.32
 
     @Environment(PlaybackSessionModel.self) private var appModel
@@ -198,6 +196,20 @@ struct PlaybackVideoSurface: View {
     let surfaceTapIsEnabled: Bool
     let viewportRefreshRevision: UInt64
     let onViewportRefreshApplied: @MainActor (UInt64) -> Void
+
+    public init(
+        presentation: PlaybackPresentation,
+        isActive: Bool,
+        surfaceTapIsEnabled: Bool,
+        viewportRefreshRevision: UInt64,
+        onViewportRefreshApplied: @escaping @MainActor (UInt64) -> Void
+    ) {
+        self.presentation = presentation
+        self.isActive = isActive
+        self.surfaceTapIsEnabled = surfaceTapIsEnabled
+        self.viewportRefreshRevision = viewportRefreshRevision
+        self.onViewportRefreshApplied = onViewportRefreshApplied
+    }
 
     @State private var subtitleSurface = PlaybackSubtitleSurface()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
@@ -222,7 +234,7 @@ struct PlaybackVideoSurface: View {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
     }
     @ViewBuilder
-    var body: some View {
+    public var body: some View {
         ZStack {
             visionSurface
 

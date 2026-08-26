@@ -1,9 +1,7 @@
 import DesignSystem
-import PlaybackFeature
-import PlaybackPresentation
 import SwiftUI
 
-enum PlaybackTopSecondaryMenu: String {
+public enum PlaybackTopSecondaryMenu: String {
     case dock
     case videoFormat
 }
@@ -458,7 +456,7 @@ struct PlaybackVideoFormatEditor: View {
     }
 }
 
-struct PlaybackTopActions: View {
+public struct PlaybackTopActions: View {
     private let controlsVisible: Bool
     private let immersiveEntryTarget: PlaybackPresentation?
     private let canApplyFormat: Bool
@@ -478,7 +476,7 @@ struct PlaybackTopActions: View {
 
     @State private var state: PlaybackTopActionsState
 
-    init(
+    public init(
         initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
         controlsVisible: Bool = true,
         immersiveEntryTarget: PlaybackPresentation? = .docked,
@@ -527,7 +525,7 @@ struct PlaybackTopActions: View {
         )
     }
 
-    var body: some View {
+    public var body: some View {
         // Both secondary menus are system popovers anchored to their buttons, so
         // the row only ever lays out the buttons. The popover is its own scene:
         // it sizes itself to the panel and is not clipped by the playback window.

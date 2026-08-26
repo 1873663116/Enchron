@@ -1,8 +1,7 @@
-import PlaybackPresentation
 import SwiftUI
 
-enum PlaybackPresentationRendererBindingPolicy {
-    static func shouldBindRenderer(
+public enum PlaybackPresentationRendererBindingPolicy {
+    public static func shouldBindRenderer(
         for presentation: PlaybackPresentation,
         previousPresentation: PlaybackPresentation?,
         targetPresentation: PlaybackPresentation?,
@@ -31,7 +30,7 @@ enum PlaybackPresentationRendererBindingPolicy {
     }
 }
 
-enum PlaybackPresentationTransitionAppearance {
+public enum PlaybackPresentationTransitionAppearance {
     static let sourceFadeDuration: TimeInterval = 2
     static let rendererTransferDelay: TimeInterval = 0.5
     static let targetFadeDuration: TimeInterval = 0.8
@@ -56,7 +55,7 @@ enum PlaybackPresentationTransitionAppearance {
         return hostedPresentation == settledPresentation ? 1 : 0
     }
 
-    static func windowSceneHostOpacity(
+    public static func windowSceneHostOpacity(
         for hostedPresentation: PlaybackPresentation,
         settledPresentation: PlaybackPresentation,
         transition: PlaybackPresentationTransition?,
@@ -106,7 +105,7 @@ enum PlaybackPresentationTransitionAppearance {
         return false
     }
 
-    static func acceptsInput(
+    public static func acceptsInput(
         for hostedPresentation: PlaybackPresentation,
         settledPresentation: PlaybackPresentation,
         transition: PlaybackPresentationTransition?
@@ -114,7 +113,7 @@ enum PlaybackPresentationTransitionAppearance {
         transition == nil && hostedPresentation == settledPresentation
     }
 
-    static func animation(for targetOpacity: Double) -> Animation {
+    public static func animation(for targetOpacity: Double) -> Animation {
         .easeInOut(
             duration: targetOpacity == 0
                 ? sourceFadeDuration

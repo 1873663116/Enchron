@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import PlaybackFeature
 
 public enum PresentationContentFamily: Equatable, Sendable {
     case flat
@@ -153,12 +152,12 @@ public struct PlaybackTransportAvailability: Equatable, Sendable {
     }
 }
 
-public enum PlaybackScreenSize {
+nonisolated public enum PlaybackScreenSize {
     public static let scaleRange = 0.5...2.5
     public static let scaleStep = 0.05
 }
 
-public struct PlaybackDockedPlacement: Equatable, Sendable {
+nonisolated public struct PlaybackDockedPlacement: Equatable, Sendable {
     public static let defaultDistance = 4.0
     public static let defaultElevationDegrees = 0.0
     public static let distanceRange = 0.5...10.0

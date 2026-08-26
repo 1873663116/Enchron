@@ -1,7 +1,8 @@
-import PlaybackPresentation
+@testable import Playback
 import Testing
 
 @Suite("Playback presentation edges")
+@MainActor
 struct PlaybackPresentationEdgeTests {
     @Test("Presentations map to their content families")
     func presentationsMapToTheirContentFamilies() {

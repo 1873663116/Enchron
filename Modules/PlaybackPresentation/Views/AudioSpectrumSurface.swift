@@ -4,10 +4,14 @@ import PlaybackCore
 import SwiftUI
 import UIKit
 
-struct AudioSpectrumSurface: View {
+public struct AudioSpectrumSurface: View {
     let frame: AudioSpectrumFrame
 
-    var body: some View {
+    public init(frame: AudioSpectrumFrame) {
+        self.frame = frame
+    }
+
+    public var body: some View {
         AudioSpectrumMetalView(bands: frame.bands)
             .padding(.horizontal, DesignTokens.AudioSpectrum.horizontalInset)
             .padding(.vertical, DesignTokens.AudioSpectrum.verticalInset)

@@ -6,7 +6,7 @@ public enum MediaFormatProvenance: String, Codable, Sendable, Equatable {
     case userOverride
 }
 
-public enum MediaProjection: String, CaseIterable, Codable, Sendable {
+nonisolated public enum MediaProjection: String, CaseIterable, Codable, Sendable {
     case flat
     case equirectangular180
     case equirectangular360
@@ -34,7 +34,7 @@ public enum MediaProjection: String, CaseIterable, Codable, Sendable {
     }
 }
 
-public enum PanoramaHorizontalCoverage {
+nonisolated public enum PanoramaHorizontalCoverage {
     public static let range = 180...360
     public static let step = 10
     public static let defaultCustomAngle = 200
@@ -49,13 +49,13 @@ public enum PanoramaHorizontalCoverage {
     }
 }
 
-public enum MediaStereoLayout: String, CaseIterable, Codable, Sendable {
+nonisolated public enum MediaStereoLayout: String, CaseIterable, Codable, Sendable {
     case mono
     case sideBySide
     case topBottom
 }
 
-public struct MediaFormat: Codable, Equatable, Sendable {
+nonisolated public struct MediaFormat: Codable, Equatable, Sendable {
     public var projection: MediaProjection
     public var horizontalFieldOfViewDegrees: Int?
     public var stereoLayout: MediaStereoLayout

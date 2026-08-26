@@ -1,9 +1,7 @@
 import Foundation
-import PlaybackFeature
-import PlaybackPresentation
 
 
-enum PlaybackInfoFormatter {
+public enum PlaybackInfoFormatter {
     static func frameRate(_ frameRate: Double) -> String {
         guard frameRate > 0 else {
             return "Unknown"
@@ -60,8 +58,8 @@ enum PlaybackInfoFormatter {
 }
 
 
-enum PlaybackTimeFormatter {
-    static func clock(_ seconds: Double) -> String {
+public enum PlaybackTimeFormatter {
+    public static func clock(_ seconds: Double) -> String {
         let h = Int(seconds) / 3600
         let m = (Int(seconds) % 3600) / 60
         let s = Int(seconds) % 60

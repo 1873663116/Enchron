@@ -1,10 +1,10 @@
-public enum PlaybackEndBehavior: Sendable, Hashable {
+nonisolated public enum PlaybackEndBehavior: Sendable, Hashable {
     case stop
     case repeatOne
     case playNext
 }
 
-public enum ResumePolicy: Sendable, Hashable {
+nonisolated public enum ResumePolicy: Sendable, Hashable {
     case askEveryTime
     case alwaysResume
     case alwaysStartFromBeginning

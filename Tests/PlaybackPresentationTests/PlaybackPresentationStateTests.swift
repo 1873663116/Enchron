@@ -1,7 +1,6 @@
 import Foundation
 import PlaybackCore
-import PlaybackPresentation
-@testable import PlaybackFeature
+@testable import Playback
 import RealityKit
 import Testing
 @testable import Enchron

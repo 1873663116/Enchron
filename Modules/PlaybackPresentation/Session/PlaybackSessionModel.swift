@@ -1,7 +1,6 @@
 import SwiftUI
 import Observation
 import OSLog
-import PlaybackPresentation
 import CoreGraphics
 
 public struct PlaybackWindowSceneIdentity: Codable, Hashable {
@@ -590,11 +589,11 @@ public final class PlaybackSessionModel {
         return identity
     }
 
-    func recordPlaybackWindowSceneAppeared(_ identity: PlaybackWindowSceneIdentity) {
+    public func recordPlaybackWindowSceneAppeared(_ identity: PlaybackWindowSceneIdentity) {
         activePlaybackWindowSceneIdentity = identity
     }
 
-    func recordPlaybackWindowSceneDisappeared(_ identity: PlaybackWindowSceneIdentity) {
+    public func recordPlaybackWindowSceneDisappeared(_ identity: PlaybackWindowSceneIdentity) {
         guard activePlaybackWindowSceneIdentity == identity else { return }
         activePlaybackWindowSceneIdentity = nil
     }

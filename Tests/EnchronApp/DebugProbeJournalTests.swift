@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import Enchron
+@testable import Playback
 
 #if DEBUG
 nonisolated final class DebugProbeJournalTests: XCTestCase {
