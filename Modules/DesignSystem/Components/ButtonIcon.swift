@@ -44,16 +44,16 @@ public struct ButtonSymbol: View {
     }
 }
 
-public struct ButtonIconLabel: View {
+struct ButtonIconLabel: View {
     let title: String
     let systemName: String
 
-    public init(title: String, systemName: String) {
+    init(title: String, systemName: String) {
         self.title = title
         self.systemName = systemName
     }
 
-    public var body: some View {
+    var body: some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             ButtonSymbol(systemName: systemName, tier: .label)
             Text(title)

@@ -74,14 +74,14 @@ public struct AppearanceModeButton: View {
 
 /// Half-light / half-dark circular glyph used by appearance mode controls.
 /// Callers decide which product mode maps to the selected visual state.
-public struct AppearanceModeGlyph: View {
+struct AppearanceModeGlyph: View {
     let isActive: Bool
 
-    public init(isActive: Bool) {
+    init(isActive: Bool) {
         self.isActive = isActive
     }
 
-    public var body: some View {
+    var body: some View {
         GeometryReader { proxy in
             let size = min(proxy.size.width, proxy.size.height)
             let color = isActive ? Color.black : Color.white

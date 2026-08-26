@@ -136,16 +136,16 @@ public struct GlassToggle: View {
     }
 }
 
-public struct BoundGlassToggle: View {
+struct BoundGlassToggle: View {
     @Binding var isOn: Bool
     var isEnabled = true
 
-    public init(isOn: Binding<Bool>, isEnabled: Bool = true) {
+    init(isOn: Binding<Bool>, isEnabled: Bool = true) {
         _isOn = isOn
         self.isEnabled = isEnabled
     }
 
-    public var body: some View {
+    var body: some View {
         Button {
             withAnimation(DesignTokens.AnimationToken.selection) {
                 isOn.toggle()
