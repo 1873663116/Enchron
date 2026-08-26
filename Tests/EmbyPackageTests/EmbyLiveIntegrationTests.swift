@@ -2,7 +2,14 @@ import Foundation
 import Testing
 @testable import Emby
 
-@Suite(.serialized)
+private func embyCredentialsAreInstalled() -> Bool {
+    Bundle.module.url(
+        forResource: "EmbyServerCredentials",
+        withExtension: "local.json"
+    ) != nil
+}
+
+@Suite(.serialized, .enabled(if: embyCredentialsAreInstalled()))
 struct EmbyLiveIntegrationTests {
     @Test("Emby 4.9 public system info is reachable without authentication")
     func publicSystemInfo() async throws {
@@ -18,7 +25,7 @@ struct EmbyLiveIntegrationTests {
     func authenticatedEndpoints() async throws {
         let credentials = try loadCredentials()
         guard credentials.password.isEmpty == false else {
-            Issue.record("Fill the password in Tests/EmbyServerCredentials.local.json to run authenticated Emby integration tests.")
+            Issue.record("Fill the password in Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json to run authenticated Emby integration tests.")
             return
         }
         let client = makeLiveClient()
@@ -81,12 +88,12 @@ struct EmbyLiveIntegrationTests {
         do {
             data = try Data(contentsOf: url)
         } catch {
-            throw EmbyLiveTestError.credentials("Read Tests/EmbyServerCredentials.local.json before running Emby integration tests.")
+            throw EmbyLiveTestError.credentials("Read Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json before running Emby integration tests.")
         }
         do {
             return try JSONDecoder().decode(EmbyServerCredentials.self, from: data)
         } catch {
-            throw EmbyLiveTestError.credentials("Decode Tests/EmbyServerCredentials.local.json before running Emby integration tests.")
+            throw EmbyLiveTestError.credentials("Decode Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json before running Emby integration tests.")
         }
     }
 
