@@ -30,7 +30,10 @@ PLAYBACK_FORBIDDEN_IMPORTS = {
     "Emby",
     "MediaLibrary",
 }
-PLAYBACK_SOURCE_DIRECTORIES = ("PlaybackFeature", "PlaybackPresentation")
+MODULE_SOURCE_DIRECTORIES = {
+    "Playback": "Playback",
+    "MediaLibrary": "MediaLibrary",
+}
 SWIFT_IMPORT_PATTERN = re.compile(
     r"""
     ^[ \t]*
@@ -281,20 +284,26 @@ def playback_app_layer_references(
     return references
 
 
-def playback_excluded_sources(
+def module_excluded_sources(
     description: dict,
     repository_root: Path,
 ) -> list[str]:
-    compiled = {
-        path.relative_to(repository_root / "Modules").as_posix()
-        for path in target_sources(description, "Playback", repository_root)
-    }
-    expected = {
-        path.relative_to(repository_root / "Modules").as_posix()
-        for directory in PLAYBACK_SOURCE_DIRECTORIES
-        for path in (repository_root / "Modules" / directory).rglob("*.swift")
-    }
-    return sorted(expected - compiled)
+    missing = []
+    for target, directory in MODULE_SOURCE_DIRECTORIES.items():
+        root = repository_root / "Modules" / directory
+        if not root.is_dir():
+            missing.append(f"{directory} (source directory is absent)")
+            continue
+        compiled = {
+            path.relative_to(repository_root / "Modules").as_posix()
+            for path in target_sources(description, target, repository_root)
+        }
+        expected = {
+            path.relative_to(repository_root / "Modules").as_posix()
+            for path in root.rglob("*.swift")
+        }
+        missing.extend(sorted(expected - compiled))
+    return missing
 
 
 def main() -> int:
@@ -344,8 +353,8 @@ def main() -> int:
         description,
         repository_root,
     )
-    excluded_playback = playback_excluded_sources(description, repository_root)
-    if missing or stale or import_violations or playback_app_references or excluded_playback:
+    excluded_module_sources = module_excluded_sources(description, repository_root)
+    if missing or stale or import_violations or playback_app_references or excluded_module_sources:
         if missing:
             print("Package sources still compiled directly by Enchron:", file=sys.stderr)
             for path in missing:
@@ -362,9 +371,9 @@ def main() -> int:
             print("Playback sources that reference Apps/Enchron types:", file=sys.stderr)
             for path, name in playback_app_references:
                 print(f"  {path}: {name}", file=sys.stderr)
-        if excluded_playback:
-            print("Playback shadow sources missing from the merged target:", file=sys.stderr)
-            for path in excluded_playback:
+        if excluded_module_sources:
+            print("Module sources excluded from their own target:", file=sys.stderr)
+            for path in excluded_module_sources:
                 print(f"  {path}", file=sys.stderr)
         return 1
     print(f"Enchron excludes all {len(package_sources)} package-owned Swift sources")
