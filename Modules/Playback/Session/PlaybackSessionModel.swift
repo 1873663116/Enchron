@@ -209,6 +209,8 @@ public final class PlaybackSessionModel {
     private var presentationTransitionStartedAt: Date?
 
     public var showControls: Bool = false
+    public private(set) var windowTopChromeFraction: Float = 0
+    public private(set) var windowSecondaryMenuIsPresented = false
 #if DEBUG
     public var showBlackoutProbeWindow: Bool = false
     public var environmentCardDismissalRequestRevision: UInt64 = 0
@@ -601,6 +603,23 @@ public final class PlaybackSessionModel {
     public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {
         isControlsFocused = focused
         registerControlsInteraction(at: date)
+    }
+
+    public var windowChromeOcclusion: PlaybackWindowChromeOcclusion {
+        PlaybackWindowChromeOcclusion(
+            topFraction: windowTopChromeFraction,
+            secondaryMenuIsPresented: windowSecondaryMenuIsPresented
+        )
+    }
+
+    public func setWindowTopChromeFraction(_ fraction: Float) {
+        guard windowTopChromeFraction != fraction else { return }
+        windowTopChromeFraction = fraction
+    }
+
+    public func setWindowSecondaryMenuPresented(_ presented: Bool) {
+        guard windowSecondaryMenuIsPresented != presented else { return }
+        windowSecondaryMenuIsPresented = presented
     }
 
     public var canAutoHideControls: Bool {

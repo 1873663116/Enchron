@@ -84,6 +84,12 @@
       "removed": "2026-08-25",
       "commit": "unreleased",
       "replacement": "docs/archive/plans/04-regression-journeys/emby-poster-wall-scroll.md"
+    },
+    {
+      "path": "Tests/EmbyServerCredentials.local.json",
+      "removed": "2026-08-26",
+      "commit": "3af943b",
+      "replacement": "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json。凭据必须落在测试 target 的资源目录里才会被打进 bundle；旧位置从不在 bundle 中，Emby live 套件因此永远读不到它。"
     }
   ]
 }

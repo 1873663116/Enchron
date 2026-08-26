@@ -222,6 +222,7 @@ public struct PlaybackVideoSurface: View {
     @State private var componentRevision = 0
     @State private var surfaceRefreshTick = 0
     @State private var validVisionLayoutViewportRefreshRevision: UInt64?
+    @State private var surfaceVerticalFill: Float = 1
 
     private var videoEntity: Entity {
         playbackVideoEntityStore.hostedEntity(
@@ -508,7 +509,9 @@ public struct PlaybackVideoSurface: View {
         PlaybackWindowInteractionSurface.install(
             playbackVideoEntityStore.windowInteractionSurface,
             on: videoEntity,
-            screenSize: component?.playerScreenSize ?? .zero
+            screenSize: component?.playerScreenSize ?? .zero,
+            verticalFill: surfaceVerticalFill,
+            occlusion: appModel.windowChromeOcclusion
         )
         let videoEntityOpacity = PlaybackPresentationTransitionAppearance.windowVideoEntityOpacity(
             for: presentation,
@@ -594,6 +597,12 @@ public struct PlaybackVideoSurface: View {
             sceneCenter: layout.sceneCenter
         )
         entity.scale = .init(repeating: layout.scale)
+        let verticalFill = layout.availableSize.y > 0
+            ? layout.renderedSize.y / layout.availableSize.y
+            : 1
+        if verticalFill.isFinite, verticalFill > 0, surfaceVerticalFill != verticalFill {
+            surfaceVerticalFill = verticalFill
+        }
         let layoutSignature =
             "\(layout.sceneCenter)-\(layout.availableSize)-\(resolvedScreenSize)-\(layout.scale)"
         if componentObservation.shouldLogLayout(layoutSignature) {

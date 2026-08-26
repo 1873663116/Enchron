@@ -367,16 +367,28 @@ public enum PlaybackWindowInteractionSurface {
 
     static func makeEntity() -> Entity {
         let entity = Entity()
-        configure(entity, screenSize: fallbackScreenSize)
+        configure(
+            entity,
+            screenSize: fallbackScreenSize,
+            verticalFill: 1,
+            occlusion: .none
+        )
         return entity
     }
 
     static func install(
         _ interactionSurface: Entity,
         on videoEntity: Entity,
-        screenSize: SIMD2<Float>
+        screenSize: SIMD2<Float>,
+        verticalFill: Float,
+        occlusion: PlaybackWindowChromeOcclusion
     ) {
-        configure(interactionSurface, screenSize: screenSize)
+        configure(
+            interactionSurface,
+            screenSize: screenSize,
+            verticalFill: verticalFill,
+            occlusion: occlusion
+        )
         if interactionSurface.parent !== videoEntity {
             videoEntity.addChild(interactionSurface)
         }
@@ -384,20 +396,29 @@ public enum PlaybackWindowInteractionSurface {
 
     static func configure(
         _ entity: Entity,
-        screenSize: SIMD2<Float>
+        screenSize: SIMD2<Float>,
+        verticalFill: Float,
+        occlusion: PlaybackWindowChromeOcclusion
     ) {
-        let size = screenSize.x > 0 && screenSize.y > 0
-            ? screenSize
-            : fallbackScreenSize
         entity.name = entityName
-        entity.position = [0, 0, frontOffset]
         entity.orientation = .init()
         entity.scale = .one
+        guard let region = WindowPlaybackSurfaceGeometry.interactionRegion(
+            screenSize: screenSize,
+            verticalFill: verticalFill,
+            occlusion: occlusion,
+            thickness: thickness,
+            frontOffset: frontOffset
+        ) else {
+            entity.position = [0, 0, frontOffset]
+            entity.components.remove(InputTargetComponent.self)
+            entity.components.remove(CollisionComponent.self)
+            return
+        }
+        entity.position = region.center
         entity.components.set(InputTargetComponent())
         entity.components.set(
-            CollisionComponent(
-                shapes: [.generateBox(size: [size.x, size.y, thickness])]
-            )
+            CollisionComponent(shapes: [.generateBox(size: region.size)])
         )
     }
 

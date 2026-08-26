@@ -42,6 +42,29 @@ public enum WindowPlaybackSurfaceGeometry {
         return scale.isFinite && scale > 0 ? scale : nil
     }
 
+    nonisolated public static func interactionRegion(
+        screenSize: SIMD2<Float>,
+        verticalFill: Float,
+        occlusion: PlaybackWindowChromeOcclusion,
+        thickness: Float,
+        frontOffset: Float
+    ) -> PlaybackWindowInteractionRegion? {
+        guard occlusion.secondaryMenuIsPresented == false else { return nil }
+        let resolvedSize = screenSize.x > 0 && screenSize.y > 0
+            ? screenSize
+            : defaultSurfaceSize
+        let fill = verticalFill.isFinite && verticalFill > 0
+            ? min(verticalFill, 1)
+            : 1
+        let occludedHeight = resolvedSize.y * min(occlusion.topFraction / fill, 1)
+        let height = resolvedSize.y - occludedHeight
+        guard height > 0 else { return nil }
+        return PlaybackWindowInteractionRegion(
+            size: [resolvedSize.x, height, thickness],
+            center: [0, -occludedHeight / 2, frontOffset]
+        )
+    }
+
     nonisolated public static func layout(
         surfaceSize: SIMD2<Float>,
         sceneCenter: SIMD3<Float>,
@@ -82,6 +105,31 @@ public struct WindowPlaybackSurfaceLayout: Equatable, Sendable {
         self.availableSize = availableSize
         self.scale = scale
         self.renderedSize = renderedSize
+    }
+}
+
+public struct PlaybackWindowChromeOcclusion: Equatable, Sendable {
+    nonisolated public static let none = PlaybackWindowChromeOcclusion()
+
+    public let topFraction: Float
+    public let secondaryMenuIsPresented: Bool
+
+    nonisolated public init(
+        topFraction: Float = 0,
+        secondaryMenuIsPresented: Bool = false
+    ) {
+        self.topFraction = topFraction.isFinite ? min(max(topFraction, 0), 1) : 0
+        self.secondaryMenuIsPresented = secondaryMenuIsPresented
+    }
+}
+
+public struct PlaybackWindowInteractionRegion: Equatable, Sendable {
+    public let size: SIMD3<Float>
+    public let center: SIMD3<Float>
+
+    nonisolated public init(size: SIMD3<Float>, center: SIMD3<Float>) {
+        self.size = size
+        self.center = center
     }
 }
 

@@ -785,7 +785,9 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         PlaybackWindowInteractionSurface.install(
             interactionSurface,
             on: videoEntity,
-            screenSize: [2.4, 1]
+            screenSize: [2.4, 1],
+            verticalFill: 1,
+            occlusion: .none
         )
 
         XCTAssertTrue(interactionSurface.parent === videoEntity)
@@ -803,6 +805,123 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertEqual(
             shape.bounds.extents,
             [2.4, 1, PlaybackWindowInteractionSurface.thickness]
+        )
+    }
+
+    @MainActor
+    func testWindowInteractionSurfaceStopsBelowTheTopChrome() throws {
+        let videoEntity = Entity()
+        let store = PlaybackVideoEntityStore()
+        let interactionSurface = store.windowInteractionSurface
+
+        PlaybackWindowInteractionSurface.install(
+            interactionSurface,
+            on: videoEntity,
+            screenSize: [2.4, 1],
+            verticalFill: 1,
+            occlusion: PlaybackWindowChromeOcclusion(topFraction: 0.2)
+        )
+
+        let collision = try XCTUnwrap(
+            interactionSurface.components[CollisionComponent.self]
+        )
+        let shape = try XCTUnwrap(collision.shapes.first)
+        XCTAssertEqual(
+            shape.bounds.extents,
+            [2.4, 0.8, PlaybackWindowInteractionSurface.thickness]
+        )
+        XCTAssertEqual(
+            interactionSurface.position,
+            [0, -0.1, PlaybackWindowInteractionSurface.frontOffset]
+        )
+        XCTAssertEqual(
+            interactionSurface.position.y + shape.bounds.extents.y / 2,
+            0.3,
+            accuracy: 1e-6
+        )
+    }
+
+    @MainActor
+    func testWindowInteractionSurfaceScalesTheCutoutForALetterboxedVideo() throws {
+        let videoEntity = Entity()
+        let store = PlaybackVideoEntityStore()
+        let interactionSurface = store.windowInteractionSurface
+
+        PlaybackWindowInteractionSurface.install(
+            interactionSurface,
+            on: videoEntity,
+            screenSize: [2.4, 1],
+            verticalFill: 0.5,
+            occlusion: PlaybackWindowChromeOcclusion(topFraction: 0.2)
+        )
+
+        let collision = try XCTUnwrap(
+            interactionSurface.components[CollisionComponent.self]
+        )
+        let shape = try XCTUnwrap(collision.shapes.first)
+        XCTAssertEqual(
+            shape.bounds.extents,
+            [2.4, 0.6, PlaybackWindowInteractionSurface.thickness]
+        )
+    }
+
+    @MainActor
+    func testWindowInteractionSurfaceYieldsEveryHitToAPresentedSecondaryMenu() {
+        let videoEntity = Entity()
+        let store = PlaybackVideoEntityStore()
+        let interactionSurface = store.windowInteractionSurface
+
+        PlaybackWindowInteractionSurface.install(
+            interactionSurface,
+            on: videoEntity,
+            screenSize: [2.4, 1],
+            verticalFill: 1,
+            occlusion: PlaybackWindowChromeOcclusion(
+                topFraction: 0.2,
+                secondaryMenuIsPresented: true
+            )
+        )
+
+        XCTAssertNil(interactionSurface.components[InputTargetComponent.self])
+        XCTAssertNil(interactionSurface.components[CollisionComponent.self])
+    }
+
+    @MainActor
+    func testWindowInteractionSurfaceRestoresFullCoverageWhenChromeHides() throws {
+        let videoEntity = Entity()
+        let store = PlaybackVideoEntityStore()
+        let interactionSurface = store.windowInteractionSurface
+
+        PlaybackWindowInteractionSurface.install(
+            interactionSurface,
+            on: videoEntity,
+            screenSize: [2.4, 1],
+            verticalFill: 1,
+            occlusion: PlaybackWindowChromeOcclusion(
+                topFraction: 0.2,
+                secondaryMenuIsPresented: true
+            )
+        )
+        PlaybackWindowInteractionSurface.install(
+            interactionSurface,
+            on: videoEntity,
+            screenSize: [2.4, 1],
+            verticalFill: 1,
+            occlusion: .none
+        )
+
+        XCTAssertNotNil(interactionSurface.components[InputTargetComponent.self])
+        let collision = try XCTUnwrap(
+            interactionSurface.components[CollisionComponent.self]
+        )
+        let shape = try XCTUnwrap(collision.shapes.first)
+        XCTAssertEqual(
+            shape.bounds.extents,
+            [2.4, 1, PlaybackWindowInteractionSurface.thickness]
+        )
+        XCTAssertEqual(
+            interactionSurface.position,
+            [0, 0, PlaybackWindowInteractionSurface.frontOffset]
         )
     }
 

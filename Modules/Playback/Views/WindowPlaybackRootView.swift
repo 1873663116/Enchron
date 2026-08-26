@@ -251,6 +251,8 @@ public struct WindowPlaybackRootView<
 >: View {
     @State private var owningWindowScene: UIWindowScene?
     @State private var lastGeometryRefreshRevision: UInt64 = 0
+    @State private var surfaceHeight: CGFloat = 0
+    @State private var topChromeHeight: CGFloat = 0
     private let geometryPolicy: WindowPlaybackGeometryPolicy
     private let geometryRefreshRevision: UInt64
     private let preferredInitialSize: CGSize?
@@ -259,6 +261,7 @@ public struct WindowPlaybackRootView<
     private let hidesSurfaceFromAccessibility: Bool
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
+    private let onTopChromeOcclusionChange: (@MainActor (Float) -> Void)?
     private let videoContent: VideoContent
     private let topChrome: TopChrome
 
@@ -273,6 +276,7 @@ public struct WindowPlaybackRootView<
         onGeometryRefresh: @escaping @MainActor (
             WindowPlaybackGeometryRefreshEvent
         ) -> Void = { _ in },
+        onTopChromeOcclusionChange: (@MainActor (Float) -> Void)? = nil,
         @ViewBuilder videoContent: () -> VideoContent,
         @ViewBuilder topChrome: () -> TopChrome
     ) {
@@ -284,6 +288,7 @@ public struct WindowPlaybackRootView<
         self.hidesSurfaceFromAccessibility = hidesSurfaceFromAccessibility
         self.onWindowSceneChange = onWindowSceneChange
         self.onGeometryRefresh = onGeometryRefresh
+        self.onTopChromeOcclusionChange = onTopChromeOcclusionChange
         self.videoContent = videoContent()
         self.topChrome = topChrome()
     }
@@ -341,8 +346,23 @@ public struct WindowPlaybackRootView<
                     .allowsHitTesting(showsWindowChrome)
                     .accessibilityHidden(!showsWindowChrome)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                surfaceHeight = $0
+            }
+            .onChange(of: topChromeOcclusionFraction, initial: true) { _, fraction in
+                onTopChromeOcclusionChange?(fraction)
+            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("WindowPlayback-root")
+    }
+
+    private var topChromeOcclusionFraction: Float {
+        guard showsWindowChrome,
+              surfaceHeight > 0,
+              topChromeHeight > 0 else {
+            return 0
+        }
+        return Float(min(topChromeHeight / surfaceHeight, 1))
     }
 
     /// Window presentation assigns direct surface input to the video layer.
@@ -353,6 +373,9 @@ public struct WindowPlaybackRootView<
             .padding(.horizontal, DesignTokens.Spacing.xl)
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                topChromeHeight = $0
+            }
             .zIndex(2)
     }
 

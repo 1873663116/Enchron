@@ -153,6 +153,9 @@ def main() -> int:
     reality_presenter = read(
         "Modules/Playback/Views/PlaybackRealityPresenter.swift"
     )
+    surface_placement = read(
+        "Modules/Playback/Model/PlaybackSurfacePlacement.swift"
+    )
     playback_reality_adapter = read(
         "Modules/Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift"
     )
@@ -216,10 +219,29 @@ def main() -> int:
     )
     require(
         "entity.components.set(InputTargetComponent())" in window_interaction_surface
-        and "CollisionComponent(" in window_interaction_surface
-        and "entity.position = [0, 0, frontOffset]" in window_interaction_surface
-        and "size.x, size.y, thickness" in window_interaction_surface,
+        and "CollisionComponent(shapes: [.generateBox(size: region.size)])"
+        in window_interaction_surface
+        and "entity.position = region.center" in window_interaction_surface
+        and "WindowPlaybackSurfaceGeometry.interactionRegion(" in window_interaction_surface,
         "the window playback surface entity carries no viewer-facing collision input target",
+    )
+    require(
+        "entity.components.remove(InputTargetComponent.self)" in window_interaction_surface
+        and "entity.components.remove(CollisionComponent.self)" in window_interaction_surface,
+        "the window playback surface never yields its hit target to presented chrome",
+    )
+    interaction_region = region(
+        surface_placement,
+        "nonisolated public static func interactionRegion(",
+        "nonisolated public static func layout(",
+    )
+    require(
+        "guard occlusion.secondaryMenuIsPresented == false else { return nil }"
+        in interaction_region
+        and "resolvedSize.y * min(occlusion.topFraction / fill, 1)" in interaction_region
+        and "size: [resolvedSize.x, height, thickness]" in interaction_region
+        and "center: [0, -occludedHeight / 2, frontOffset]" in interaction_region,
+        "the window interaction region no longer subtracts chrome from the video area",
     )
     require(
         "PlaybackWindowInteractionSurface.install(" in surface

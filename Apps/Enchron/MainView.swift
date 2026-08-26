@@ -77,7 +77,6 @@ public struct MainView: View {
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
-    @State private var isWindowSecondaryMenuPresented = false
     private let sceneRole: MainViewSceneRole
     private let playbackSurfaceIsEnabled: Bool
 
@@ -449,7 +448,7 @@ public struct MainView: View {
             },
             showsWindowChrome: showsPlaybackChrome
                 && hostedPlaybackPresentation.usesMainWindow,
-            hidesSurfaceFromAccessibility: isWindowSecondaryMenuPresented,
+            hidesSurfaceFromAccessibility: playbackSession.windowSecondaryMenuIsPresented,
             onWindowSceneChange: { windowScene in
                 spatialPlatformEffectCoordinator.recordPlaybackWindowScene(
                     windowScene
@@ -468,6 +467,9 @@ public struct MainView: View {
                             + " error=\(message)"
                     )
                 }
+            },
+            onTopChromeOcclusionChange: {
+                playbackSession.setWindowTopChromeFraction($0)
             }
         ) {
             windowPlaybackCanvas
@@ -475,7 +477,7 @@ public struct MainView: View {
             PlayerInfoBarView(
                 controlsVisible: showsPlaybackChrome,
                 onSecondaryMenuVisibilityChange: {
-                    isWindowSecondaryMenuPresented = $0
+                    playbackSession.setWindowSecondaryMenuPresented($0)
                     playbackSession.setControlsFocused($0)
 #if DEBUG
                     playbackSession.recordSurfaceInputProbe(
@@ -523,7 +525,9 @@ public struct MainView: View {
                 AudioSpectrumSurface(frame: playbackRuntime.audioSpectrumFrame)
                     .contentShape(.interaction, Rectangle())
                     .onTapGesture {
-                        guard isWindowSecondaryMenuPresented == false else { return }
+                        guard playbackSession.windowSecondaryMenuIsPresented == false else {
+                            return
+                        }
                         withAnimation(DesignTokens.AnimationToken.controlsTransition) {
                             PlaybackSurfaceInputAction.perform(
                                 .windowSwiftUI,
@@ -535,7 +539,7 @@ public struct MainView: View {
                 PlaybackVideoSurface(
                     presentation: hostedPlaybackPresentation,
                     isActive: windowSurfaceIsActive,
-                    surfaceTapIsEnabled: isWindowSecondaryMenuPresented == false,
+                    surfaceTapIsEnabled: playbackSession.windowSecondaryMenuIsPresented == false,
                     viewportRefreshRevision: spatialPlatformEffectCoordinator
                         .mainWindowPlaybackSurfaceRefreshRevision,
                     onViewportRefreshApplied: {
