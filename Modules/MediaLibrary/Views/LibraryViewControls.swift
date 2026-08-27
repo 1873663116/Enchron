@@ -85,7 +85,7 @@ public struct ViewModeCapsuleControl: View {
     private let unselectedOpacity: Double = 0.45
 
     @Namespace private var indicatorNamespace
-    @State private var pressedIndex: Int? = nil
+    @State private var pressedIndex: Int?
     @State private var pressFeedbackTrigger = 0
 
     public var body: some View {

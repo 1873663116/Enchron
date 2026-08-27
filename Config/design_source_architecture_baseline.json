@@ -35,43 +35,13 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/MainView.swift",
-      "signature": ".font(.system(size: 1))",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/MainView.swift",
-      "signature": ".frame(width: 1, height: 1)",
-      "count": 3
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/MainView.swift",
       "signature": ".opacity(0.001)",
       "count": 3
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/Screens/FilesScreen.swift",
-      "signature": "HStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/Screens/FilesScreen.swift",
-      "signature": "VStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/Screens/SettingsScreen.swift",
       "signature": ".frame(maxWidth: 820, alignment: .leading)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/Screens/SettingsScreen.swift",
-      "signature": "HStack(spacing: 0) {",
       "count": 1
     },
     {
@@ -130,12 +100,6 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
-      "signature": "HStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift",
       "signature": ".frame(minWidth: 60, minHeight: 60)",
       "count": 1
@@ -184,12 +148,6 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
-      "signature": "VStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/MediaLibrary/Views/FolderListView.swift",
       "signature": ".frame(width: 40)",
       "count": 2
@@ -232,38 +190,8 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/LibraryListComponents.swift",
-      "signature": "VStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift",
-      "signature": "HStack(spacing: 0) {",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/MediaLibrary/Views/SourceSidebar.swift",
       "signature": ".frame(width: geometry.size.width * 0.3)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-      "signature": ".frame(width: 0, height: 0)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
-      "signature": ".font(.system(size: 1))",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift",
-      "signature": ".frame(width: 1, height: 1)",
       "count": 1
     },
     {
@@ -322,18 +250,6 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/EnvironmentComponents.swift",
-      "signature": "VStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackEdgeEmphasis.swift",
-      "signature": "HStack(spacing: 0) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/PlaybackEdgeEmphasis.swift",
       "signature": "color: .white.opacity(",
       "count": 1
@@ -366,12 +282,6 @@
       "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".padding(.top, 6)",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackPanel.swift",
-      "signature": "HStack(spacing: 0) {",
       "count": 2
     },
     {
@@ -439,12 +349,6 @@
       "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": "VStack(alignment: .leading, spacing: 2) {",
       "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackVideoSurface.swift",
-      "signature": ".frame(width: 1, height: 1)",
-      "count": 1
     },
     {
       "rule": "production-hardcoded-visual",

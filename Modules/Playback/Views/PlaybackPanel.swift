@@ -2,7 +2,6 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
-
 public struct FusedPlayerPanelLive {
     var presentation: PlaybackPresentation
     var mediaName: String
@@ -17,8 +16,8 @@ public struct FusedPlayerPanelLive {
     var stereoLayout: PlaybackModel.StereoLayout
     var usesDolbyVisionFallback: Bool = false
     var showsDolbyVisionFallback: Bool = false
-    var mediaFormatSummary: String? = nil
-    var overview: String? = nil
+    var mediaFormatSummary: String?
+    var overview: String?
     var unmetCapabilities: [UnmetCapability] = []
     var mediaFormatProvenance: MediaFormatProvenance
     var sourceMediaFormatSummary: String
@@ -221,7 +220,7 @@ enum PlaybackSeekPresentation {
     }
 }
 
-fileprivate enum PlaybackControlPanelSurface {
+private enum PlaybackControlPanelSurface {
     case windowOrnament
     case playerControlDock
 }

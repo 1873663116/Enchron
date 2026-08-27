@@ -96,7 +96,7 @@ final class PlaybackActivationObservation: @unchecked Sendable {
     static let delayedTaskMarkerPhases = [
         "delayedTask.enter",
         "delayedTask.sleepReturned",
-        "delayedTask.beforeStateRead",
+        "delayedTask.beforeStateRead"
     ]
     static let immediatePhases = [
         PlaybackActivationObservationPhase(
@@ -106,7 +106,7 @@ final class PlaybackActivationObservation: @unchecked Sendable {
         PlaybackActivationObservationPhase(
             phase: "call.returned",
             delayMilliseconds: 0
-        ),
+        )
     ]
     static let delayedPhases = [10, 50, 100, 500, 2_000].map {
         PlaybackActivationObservationPhase(
@@ -272,7 +272,7 @@ final class PlaybackActivationObservation: @unchecked Sendable {
                 .AVSampleBufferAudioRendererOutputConfigurationDidChange,
                 session.audioRenderer,
                 "notification.audioOutputConfigurationChanged"
-            ),
+            )
         ]
         let tokens = registrations.map { name, object, phase in
             notificationCenter.addObserver(
@@ -711,7 +711,7 @@ final class PlaybackActivationObservation: @unchecked Sendable {
                 "audioStreamEpoch": String(session.audioStreamEpoch),
                 "activationSequence": String(sequence),
                 "phase": phase,
-                "delayMs": String(delayMilliseconds),
+                "delayMs": String(delayMilliseconds)
             ]
         )
         return true
@@ -823,7 +823,7 @@ final class PlaybackActivationObservation: @unchecked Sendable {
             "audioAcceptedEpoch": String(coverage.1.epoch),
             "audioAcceptedMinPTSSeconds": seconds(coverage.1.minimumPresentationTime),
             "audioAcceptedMaxEndSeconds": seconds(coverage.1.maximumPresentationEnd),
-            "audioAcceptedCount": String(coverage.1.count),
+            "audioAcceptedCount": String(coverage.1.count)
         ]
         session.debugStore.emit(
             mediaSessionID: session.traceID,

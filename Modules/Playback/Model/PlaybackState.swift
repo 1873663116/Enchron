@@ -1,6 +1,5 @@
 import Foundation
 
-
 nonisolated extension PlaybackModel {
     public struct PlaybackPosition: Sendable, Equatable {
         public let seconds: Double
@@ -44,7 +43,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 public enum PlaybackError: Error, Sendable {
     case failedToLoad(URL)
     case unsupportedMedia
@@ -62,7 +60,6 @@ public enum PlaybackEvent: Sendable {
     case mediaProfileDetected(PlaybackModel.MediaProfile)
     case failed(PlaybackError)
 }
-
 
 public nonisolated protocol PlaybackEventListening: AnyObject {
     func playbackDidStart()

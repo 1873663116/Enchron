@@ -174,7 +174,7 @@ public final class PlaybackCoreController {
             outcome: .succeeded,
             details: [
                 "source": source.privacySafeSummary,
-                "provenance": provenance,
+                "provenance": provenance
             ]
         )
         session.debugStore.emit(
@@ -1117,7 +1117,7 @@ public final class PlaybackCoreController {
             outcome: .terminatedByCleanup,
             details: [
                 "callbackKind": kind,
-                "staleMediaSessionID": session.traceID,
+                "staleMediaSessionID": session.traceID
             ]
         )
     }

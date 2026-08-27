@@ -210,7 +210,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
             "mediaSessionID": session.traceID,
             "platform": platform,
             "events": eventsURL.path,
-            "snapshot": snapshotURL.path,
+            "snapshot": snapshotURL.path
         ]
         let data = try JSONSerialization.data(
             withJSONObject: manifest,

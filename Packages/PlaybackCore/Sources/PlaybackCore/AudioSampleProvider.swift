@@ -435,7 +435,7 @@ private func attachFFmpegAudioDiagnosticMetadata(
         "timeBaseNumerator": metadata.timeBaseNumerator,
         "timeBaseDenominator": metadata.timeBaseDenominator,
         "payloadByteCount": metadata.payloadByteCount,
-        "cookieSource": ffmpegAudioCookieSourceLabel(metadata.cookieSource),
+        "cookieSource": ffmpegAudioCookieSourceLabel(metadata.cookieSource)
     ]
     CMSetAttachment(
         sample,

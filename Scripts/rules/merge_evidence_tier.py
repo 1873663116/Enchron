@@ -26,35 +26,33 @@ W3 = "W3"
 TIERS = (W0, W1, W2, W3)
 FREE_MERGE_ENABLED_TIERS = (W0, W1)
 
-GAUNTLET_GREEN = "gauntlet-green"
+VERIFICATION_GREEN = "verification-green"
 SIMULATOR_E2E = "simulator-e2e"
 DEVICE_HUB_INPUT = "device-hub-input"
 PROBE_CONTRACT_SHAPE = "spatialTap entity=<entity> ... accepted=true"
 
 TIER_EVIDENCE = {
-    W0: (GAUNTLET_GREEN,),
-    W1: (GAUNTLET_GREEN,),
-    W2: (GAUNTLET_GREEN, SIMULATOR_E2E),
-    W3: (GAUNTLET_GREEN, SIMULATOR_E2E, DEVICE_HUB_INPUT),
+    W0: (VERIFICATION_GREEN,),
+    W1: (VERIFICATION_GREEN,),
+    W2: (VERIFICATION_GREEN, SIMULATOR_E2E),
+    W3: (VERIFICATION_GREEN, SIMULATOR_E2E, DEVICE_HUB_INPUT),
 }
 
 PATH_RULES = (
     ("docs/", W0),
     (".agents/skills/", W0),
-    ("Scripts/", W0),
-    ("Scripts/rules/", W3),
+    ("Scripts/", W1),
+    ("Config/", W1),
     ("Tests/", W1),
     ("Packages/PlaybackCore/Tests/", W1),
     ("Modules/DesignSystem/", W2),
     ("Modules/Emby/", W2),
     ("Modules/MediaLibrary/", W2),
-    ("Apps/Enchron/", W3),
-    ("Modules/MediaSource/", W3),
-    ("Modules/Playback/", W3),
-    ("Modules/Playback/", W3),
+    ("Modules/MediaSource/", W2),
     ("Packages/PlaybackCore/", W3),
+    ("Apps/Enchron/", W3),
+    ("Modules/Playback/", W3),
     ("Packages/RealityKitContent/", W3),
-    ("Config/", W3),
 )
 UNCLASSIFIED_RULE = "unclassified"
 UNCLASSIFIED_TIER = W3
@@ -207,15 +205,15 @@ def registered_device_hub_units() -> set[str]:
     }
 
 
-def gauntlet_complaints(entry: object) -> list[str]:
+def verification_complaints(entry: object) -> list[str]:
     if not isinstance(entry, dict):
-        return ["gauntlet evidence must be an object"]
+        return ["verification evidence must be an object"]
     complaints = []
     for key in ("runDirectory", "summary"):
         if not nonempty_string(entry.get(key)):
-            complaints.append(f"gauntlet.{key} must point at the run artifact")
+            complaints.append(f"verification.{key} must point at the run artifact")
     if entry.get("verdict") != "passed":
-        complaints.append("gauntlet.verdict must be 'passed'")
+        complaints.append("verification.verdict must be 'passed'")
     return complaints
 
 
@@ -297,7 +295,7 @@ def manifest_complaints(
     declared = payload.get("declaredTier")
     if declared not in TIERS:
         complaints.append(f"declaredTier must be one of {', '.join(TIERS)}")
-        complaints.extend(gauntlet_complaints(payload.get("gauntlet")))
+        complaints.extend(verification_complaints(payload.get("verification")))
         return complaints
     effective = declared
     if computed_tier is not None and tier_rank(declared) < tier_rank(computed_tier):
@@ -306,7 +304,7 @@ def manifest_complaints(
             "for the range; a manifest may only declare upward"
         )
         effective = computed_tier
-    complaints.extend(gauntlet_complaints(payload.get("gauntlet")))
+    complaints.extend(verification_complaints(payload.get("verification")))
     if tier_rank(effective) < tier_rank(W2):
         return complaints
     needs_simulator = True

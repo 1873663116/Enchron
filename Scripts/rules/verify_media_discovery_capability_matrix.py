@@ -25,7 +25,7 @@ from enchron_artifact_paths import artifact_root, evidence_root
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MATRIX = REPOSITORY_ROOT / "Config/media_discovery_capability_matrix.json"
 DEFAULT_TEST_MEDIA = REPOSITORY_ROOT.parent / "TestMedia"
-DEFAULT_SCRATCH = artifact_root() / "VerificationGauntlet/PlaybackCore"
+DEFAULT_SCRATCH = artifact_root() / "Verification/PlaybackCore"
 RANGE_SERVER = REPOSITORY_ROOT / "Scripts/fixtures/range-http-server.py"
 PROBE_PRODUCT = "PlaybackCoreRemoteMediaProbe"
 VIDEO_STAGES = (

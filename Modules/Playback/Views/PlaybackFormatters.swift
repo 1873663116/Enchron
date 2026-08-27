@@ -1,6 +1,5 @@
 import Foundation
 
-
 public enum PlaybackInfoFormatter {
     static func frameRate(_ frameRate: Double) -> String {
         guard frameRate > 0 else {
@@ -54,7 +53,6 @@ public enum PlaybackInfoFormatter {
         profile.dolbyVision?.label ?? profile.hdrType.label
     }
 }
-
 
 public enum PlaybackTimeFormatter {
     public static func clock(_ seconds: Double) -> String {

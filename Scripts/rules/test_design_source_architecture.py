@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 WORKTREE = Path(__file__).resolve().parents[2]
-CHECKER = WORKTREE / "Scripts" / "verification" / "verify_design_source_architecture.py"
+CHECKER = WORKTREE / "Scripts" / "rules" / "verify_design_source_architecture.py"
 
 
 class DesignSourceArchitectureTests(unittest.TestCase):

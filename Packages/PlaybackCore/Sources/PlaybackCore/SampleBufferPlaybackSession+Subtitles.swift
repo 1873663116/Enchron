@@ -85,7 +85,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "sourceID": source.id,
-                "trackCount": String(externalTracks.count),
+                "trackCount": String(externalTracks.count)
             ]
         )
         return externalTracks
@@ -132,7 +132,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "sourceID": sourceID,
-                "trackCount": String(removal.0),
+                "trackCount": String(removal.0)
             ]
         )
     }
@@ -160,7 +160,7 @@ extension SampleBufferPlaybackSession {
                 outcome: .succeeded,
                 details: [
                     "generation": String(state.0),
-                    "subtitleEpoch": String(state.1),
+                    "subtitleEpoch": String(state.1)
                 ]
             )
             return
@@ -224,7 +224,7 @@ extension SampleBufferPlaybackSession {
                     "trackID": selection.0.id,
                     "cueCount": String(cues.count),
                     "generation": String(selection.2),
-                    "subtitleEpoch": String(selection.3),
+                    "subtitleEpoch": String(selection.3)
                 ]
             )
         } catch {
@@ -257,7 +257,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "generation": String(state.0),
-                "subtitleEpoch": String(state.1),
+                "subtitleEpoch": String(state.1)
             ]
         )
         return state.1

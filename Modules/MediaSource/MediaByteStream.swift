@@ -614,7 +614,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let method = String(components[0])
         let path = String(components[1]).removingPercentEncoding ?? String(components[1])
         let token = path.split(separator: "/", omittingEmptySubsequences: true).first.map(String.init)
-        guard (method == "GET" || method == "HEAD"),
+        guard method == "GET" || method == "HEAD",
               let token,
               let registration = lock.withLock({ registrations[token] }) else {
             sendError(404, message: "Not Found", on: connection)
@@ -846,8 +846,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 contentContext: .defaultStream,
                 isComplete: false,
                 completion: .contentProcessed { error in
-                    if let error { continuation.resume(throwing: error) }
-                    else { continuation.resume(returning: ()) }
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume(returning: ()) }
                 }
             )
         }

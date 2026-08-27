@@ -668,7 +668,7 @@ struct SpatialPlaybackPresentationContractTests {
         try PresentationContract.completePendingEffect(presentationModel)
         #expect(
             presentationModel.environmentContext == EnvironmentContext.active(
-                environment: .scenicTwo,
+                environment: .scenicOne,
                 effect: .dark
             )
                 && presentationModel.immersiveSpaceResidency == .open,

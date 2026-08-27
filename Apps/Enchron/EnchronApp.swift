@@ -486,7 +486,7 @@ private final class AcousticCalibrationTonePlayer {
             "engineError=\(error?.localizedDescription ?? "none")",
             "playerStatus=\(player.isPlaying ? "playing" : "stopped")",
             "audioSessionMode=\(audioSessionMode.rawValue)",
-            "calibrationSessionID=\(calibrationSessionID ?? "notPrepared")",
+            "calibrationSessionID=\(calibrationSessionID ?? "notPrepared")"
         ].joined(separator: ";")
     }
 
@@ -957,7 +957,7 @@ private enum AcousticToneManifest {
         let rampFrames = 480
         let phases = [
             Phase(frequencyHz: 997, startFrame: 0, endFrame: 24_000),
-            Phase(frequencyHz: 1_499, startFrame: 36_000, endFrame: 60_000),
+            Phase(frequencyHz: 1_499, startFrame: 36_000, endFrame: 60_000)
         ]
         let requestedPlaybackRate = "1.0"
     }
@@ -1153,7 +1153,7 @@ private final class SampleBufferAcousticCalibrationTonePlayer {
             "rendererError=\(renderer.error?.localizedDescription ?? "none")",
             "rendererVolume=\(renderer.volume)",
             "rendererMuted=\(renderer.isMuted)",
-            "audioSessionMode=\(audioSessionMode.rawValue)",
+            "audioSessionMode=\(audioSessionMode.rawValue)"
         ].joined(separator: ";")
     }
 

@@ -19,7 +19,7 @@ public struct FileListGroup: View {
         public struct ContextAction: Identifiable {
             public let title: String
             public let systemName: String
-            public var role: ButtonRole? = nil
+            public var role: ButtonRole?
             public let action: () -> Void
             public var id: String { "\(title)-\(systemName)" }
 

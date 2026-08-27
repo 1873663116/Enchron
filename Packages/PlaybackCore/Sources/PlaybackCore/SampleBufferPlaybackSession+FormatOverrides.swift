@@ -46,7 +46,7 @@ extension SampleBufferPlaybackSession {
                 "stereoLayout": stereoLayout?.rawValue ?? "source",
                 "projection": projection?.diagnosticLabel ?? "source",
                 "dynamicRange": dynamicRange?.rawValue ?? "source",
-                "formatRevision": String(change.revision),
+                "formatRevision": String(change.revision)
             ]
         )
         guard change.awaitsSample else {
@@ -60,7 +60,7 @@ extension SampleBufferPlaybackSession {
                     "projection": projection?.diagnosticLabel ?? "source",
                     "dynamicRange": dynamicRange?.rawValue ?? "source",
                     "formatRevision": String(change.revision),
-                    "boundary": "beforeFirstSample",
+                    "boundary": "beforeFirstSample"
                 ]
             )
             return change.revision
@@ -89,7 +89,7 @@ extension SampleBufferPlaybackSession {
                     details: [
                         "stereoLayout": stereoLayout?.rawValue ?? "source",
                         "projection": projection?.diagnosticLabel ?? "source",
-                        "dynamicRange": dynamicRange?.rawValue ?? "source",
+                        "dynamicRange": dynamicRange?.rawValue ?? "source"
                     ]
                 )
                 throw error
@@ -129,7 +129,7 @@ extension SampleBufferPlaybackSession {
                     "projection": projection?.diagnosticLabel ?? "source",
                     "dynamicRange": dynamicRange?.rawValue ?? "source",
                     "rollback": rollbackState,
-                    "error": error.localizedDescription,
+                    "error": error.localizedDescription
                 ]
             )
             throw error
@@ -144,7 +144,7 @@ extension SampleBufferPlaybackSession {
                 "stereoLayout": stereoLayout?.rawValue ?? "source",
                 "projection": projection?.diagnosticLabel ?? "source",
                 "dynamicRange": dynamicRange?.rawValue ?? "source",
-                "formatRevision": String(effectiveRevision),
+                "formatRevision": String(effectiveRevision)
             ]
         )
         return effectiveRevision
@@ -210,7 +210,7 @@ extension SampleBufferPlaybackSession {
             details: [
                 "formatRevision": String(revision),
                 "targetSeconds": String(time.seconds),
-                "rendererIdentity": PlaybackTrace.identity(renderer),
+                "rendererIdentity": PlaybackTrace.identity(renderer)
             ]
         )
         try await seek(
@@ -226,7 +226,7 @@ extension SampleBufferPlaybackSession {
             details: [
                 "formatRevision": String(revision),
                 "streamEpoch": String(streamEpoch),
-                "rendererIdentity": PlaybackTrace.identity(renderer),
+                "rendererIdentity": PlaybackTrace.identity(renderer)
             ]
         )
     }
@@ -338,7 +338,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "layout": layout?.rawValue ?? "source",
-                "formatRevision": String(change.revision),
+                "formatRevision": String(change.revision)
             ]
         )
         guard change.awaitsSample else {
@@ -350,7 +350,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "layout": layout?.rawValue ?? "source",
                     "formatRevision": String(change.revision),
-                    "boundary": "beforeFirstSample",
+                    "boundary": "beforeFirstSample"
                 ]
             )
             return change.revision
@@ -394,7 +394,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "layout": layout?.rawValue ?? "source",
                     "rollback": rollbackState,
-                    "error": error.localizedDescription,
+                    "error": error.localizedDescription
                 ]
             )
             throw error
@@ -407,7 +407,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "layout": layout?.rawValue ?? "source",
-                "formatRevision": String(effectiveRevision),
+                "formatRevision": String(effectiveRevision)
             ]
         )
         return effectiveRevision
@@ -563,7 +563,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "projection": projection?.diagnosticLabel ?? "source",
-                "formatRevision": String(change.revision),
+                "formatRevision": String(change.revision)
             ]
         )
         guard change.awaitsSample else {
@@ -575,7 +575,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "projection": projection?.diagnosticLabel ?? "source",
                     "formatRevision": String(change.revision),
-                    "boundary": "beforeFirstSample",
+                    "boundary": "beforeFirstSample"
                 ]
             )
             return change.revision
@@ -619,7 +619,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "projection": projection?.diagnosticLabel ?? "source",
                     "rollback": rollbackState,
-                    "error": error.localizedDescription,
+                    "error": error.localizedDescription
                 ]
             )
             throw error
@@ -632,7 +632,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "projection": projection?.diagnosticLabel ?? "source",
-                "formatRevision": String(effectiveRevision),
+                "formatRevision": String(effectiveRevision)
             ]
         )
         return effectiveRevision

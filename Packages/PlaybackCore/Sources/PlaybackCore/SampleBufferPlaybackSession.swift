@@ -603,7 +603,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                         "streamIndex": String(info.streamIndex),
                         "codec": info.codecName,
                         "sampleRate": String(info.sampleRate),
-                        "channels": String(info.channelCount),
+                        "channels": String(info.channelCount)
                     ]
                 )
             }
@@ -693,7 +693,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 "provider": provider.info.providerKind,
                 "codec": provider.info.codecName,
                 "codecTag": provider.info.codecTag,
-                "dimensions": provider.info.dimensions,
+                "dimensions": provider.info.dimensions
             ]
         )
         let trackRecord = VideoTrackRecord(
@@ -1006,6 +1006,5 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         finishActiveOperation(.completed)
         onStatusChange?(rate == 0 ? .paused : .playing)
     }
-
 
 }

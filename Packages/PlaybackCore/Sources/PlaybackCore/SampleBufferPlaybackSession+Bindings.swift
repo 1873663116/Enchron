@@ -144,7 +144,7 @@ extension SampleBufferPlaybackSession {
             outcome: .terminatedByCleanup,
             details: [
                 "operationID": operation.operationID,
-                "targetSeconds": String(targetSeconds),
+                "targetSeconds": String(targetSeconds)
             ]
         )
     }
@@ -235,7 +235,7 @@ extension SampleBufferPlaybackSession {
             outcome: attached ? .succeeded : .terminatedByCleanup,
             details: [
                 "realityView": realityViewIdentity,
-                "platform": platform,
+                "platform": platform
             ]
         )
         if attached, activeOperation?.kind == .open {
@@ -270,7 +270,7 @@ extension SampleBufferPlaybackSession {
                 "desiredViewingMode": eventValue(record.desiredViewingMode),
                 "actualViewingMode": eventValue(record.actualViewingMode),
                 "desiredSpatialVideoMode": eventValue(record.desiredSpatialVideoMode),
-                "actualSpatialVideoMode": eventValue(record.actualSpatialVideoMode),
+                "actualSpatialVideoMode": eventValue(record.actualSpatialVideoMode)
             ]
         )
     }

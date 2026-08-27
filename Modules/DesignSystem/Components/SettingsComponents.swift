@@ -630,9 +630,9 @@ public struct SettingListGroup: View {
         public let id: String
         public let title: String
         public let systemName: String?
-        public var supportingText: String? = nil
-        public var detail: String? = nil
-        public var keyValueDetail: [KeyValue]? = nil
+        public var supportingText: String?
+        public var detail: String?
+        public var keyValueDetail: [KeyValue]?
         public var expansion: ExpansionOrigin = .top
         public var accessory: Accessory = .automatic
         public var embeddedControl: EmbeddedControl?
@@ -953,7 +953,6 @@ struct SettingListGroupRow: View {
         .frame(maxWidth: .infinity)
         .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
     }
-
 
     private var rowContent: some View {
         HStack(spacing: DesignTokens.Spacing.md) {

@@ -1,7 +1,6 @@
 import Foundation
 import MediaSource
 
-
 nonisolated extension FileBrowsingDomain {
     public struct MediaFile: Sendable, Equatable, Identifiable {
         public let id: UUID
@@ -32,7 +31,6 @@ nonisolated extension FileBrowsingDomain {
     }
 }
 
-
 nonisolated extension FileBrowsingDomain {
     public struct MediaFolder: Sendable, Equatable, Identifiable {
         public let id: String
@@ -56,7 +54,6 @@ nonisolated extension FileBrowsingDomain {
     }
 }
 
-
 nonisolated extension FileBrowsingDomain {
     public struct MediaDiscoveryAdmissionPolicy: Sendable, Equatable {
         public let allowedExtensions: Set<String>
@@ -73,7 +70,6 @@ nonisolated extension FileBrowsingDomain {
         )
     }
 }
-
 
 nonisolated extension FileBrowsingDomain {
     public struct FileFilter: Sendable, Equatable {
@@ -96,7 +92,6 @@ nonisolated extension FileBrowsingDomain {
         )
     }
 }
-
 
 nonisolated extension FileBrowsingDomain {
     public struct SortCriteria: Sendable, Equatable {
@@ -143,7 +138,6 @@ nonisolated extension FileBrowsingDomain {
     }
 }
 
-
 public nonisolated protocol FileProviding: Sendable {
     func listFiles(
         in folder: FileBrowsingDomain.MediaFolder,
@@ -169,7 +163,6 @@ public nonisolated extension FileProviding {
     }
 }
 
-
 public nonisolated protocol DataSourceConnecting: Sendable {
     func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws
     func disconnect()
@@ -180,7 +173,6 @@ public nonisolated protocol DataSourceConnecting: Sendable {
 
     var connectionStatus: FileBrowsingDomain.ConnectionStatus { get }
 }
-
 
 public nonisolated protocol LocalFileSource: AnyObject, FileProviding, DataSourceConnecting {
     var ownerDataSourceID: UUID { get set }

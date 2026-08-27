@@ -13,7 +13,7 @@ import tempfile
 import time
 import unittest
 
-import run_verification_gauntlet as gauntlet
+import run_verification as verification
 
 
 @contextlib.contextmanager
@@ -37,20 +37,20 @@ class StepSilenceGuardTests(unittest.TestCase):
     """
 
     def test_a_step_that_stops_emitting_is_terminated_with_its_subtree(self) -> None:
-        original = gauntlet.STEP_SILENCE_SECONDS
-        gauntlet.STEP_SILENCE_SECONDS = 2
-        marker = f"gauntlet-silence-probe-{os.getpid()}"
+        original = verification.STEP_SILENCE_SECONDS
+        verification.STEP_SILENCE_SECONDS = 2
+        marker = f"verification-silence-probe-{os.getpid()}"
         try:
             with tempfile.TemporaryDirectory() as scratch, captured():
                 started = time.monotonic()
-                code, output = gauntlet.run_logged(
+                code, output = verification.run_logged(
                     "silence probe",
                     ["/bin/sh", "-c", f"echo alive; exec sleep 600 # {marker}"],
                     Path(scratch) / "step.log",
                     os.environ.copy(),
                 )
         finally:
-            gauntlet.STEP_SILENCE_SECONDS = original
+            verification.STEP_SILENCE_SECONDS = original
 
         self.assertEqual(code, 124)
         self.assertLess(time.monotonic() - started, 30)
@@ -65,7 +65,7 @@ class StepSilenceGuardTests(unittest.TestCase):
 
     def test_a_step_that_finishes_normally_is_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as scratch, captured():
-            code, output = gauntlet.run_logged(
+            code, output = verification.run_logged(
                 "fast probe",
                 ["/bin/echo", "done"],
                 Path(scratch) / "step.log",
@@ -77,11 +77,11 @@ class StepSilenceGuardTests(unittest.TestCase):
 
 class LockWaitGuardTests(unittest.TestCase):
     def test_a_held_lock_names_its_holder_and_gives_up(self) -> None:
-        original = gauntlet.LOCK_WAIT_SECONDS
-        gauntlet.LOCK_WAIT_SECONDS = 2
+        original = verification.LOCK_WAIT_SECONDS
+        verification.LOCK_WAIT_SECONDS = 2
         try:
             with tempfile.TemporaryDirectory() as scratch:
-                lock_path = Path(scratch) / ".gauntlet.lock"
+                lock_path = Path(scratch) / ".verification.lock"
                 holder = subprocess.Popen(
                     [
                         sys.executable,
@@ -99,21 +99,21 @@ class LockWaitGuardTests(unittest.TestCase):
                     self.assertEqual(holder.stderr.readline().strip(), "ready")
                     with captured() as complaint:
                         with lock_path.open("a+", encoding="utf-8") as lock:
-                            self.assertFalse(gauntlet.acquire_lock(lock, lock_path))
+                            self.assertFalse(verification.acquire_lock(lock, lock_path))
                     self.assertIn(str(holder.pid), complaint.getvalue())
                 finally:
                     holder.kill()
                     holder.wait()
                     holder.stderr.close()
         finally:
-            gauntlet.LOCK_WAIT_SECONDS = original
+            verification.LOCK_WAIT_SECONDS = original
 
     def test_a_free_lock_is_taken_without_waiting(self) -> None:
         with tempfile.TemporaryDirectory() as scratch, captured():
-            lock_path = Path(scratch) / ".gauntlet.lock"
+            lock_path = Path(scratch) / ".verification.lock"
             with lock_path.open("a+", encoding="utf-8") as lock:
                 started = time.monotonic()
-                self.assertTrue(gauntlet.acquire_lock(lock, lock_path))
+                self.assertTrue(verification.acquire_lock(lock, lock_path))
                 self.assertLess(time.monotonic() - started, 1)
                 fcntl.flock(lock, fcntl.LOCK_UN)
 

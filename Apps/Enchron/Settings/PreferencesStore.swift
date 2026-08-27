@@ -1,7 +1,6 @@
 import Foundation
 import Playback
 
-
 public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
     private let defaults: UserDefaults
     private let playbackSpeedOverride: Double?
@@ -88,7 +87,6 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         )
     }
 }
-
 
 public nonisolated final class FakePreferencesStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
     private let lock = NSLock()

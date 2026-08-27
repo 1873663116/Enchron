@@ -277,7 +277,7 @@ extension SampleBufferPlaybackSession {
                             outcome: .succeeded,
                             details: [
                                 "eventKind": providerEventKind(event),
-                                "sampleOrdinal": String(sampleOrdinal),
+                                "sampleOrdinal": String(sampleOrdinal)
                             ]
                         )
                     }
@@ -414,7 +414,7 @@ extension SampleBufferPlaybackSession {
                             "decodeTimeSeconds": String(decodeTime.seconds),
                             "immediate": String(requiresImmediateDecoderBootstrap),
                             "presentationTimeSeconds": String(presentationTime.seconds),
-                            "sampleOrdinal": String(sampleOrdinal),
+                            "sampleOrdinal": String(sampleOrdinal)
                         ]
                     )
                 }
@@ -472,7 +472,7 @@ extension SampleBufferPlaybackSession {
                         outcome: .succeeded,
                         details: [
                             "result": String(describing: outcome),
-                            "sampleOrdinal": String(sampleOrdinal),
+                            "sampleOrdinal": String(sampleOrdinal)
                         ]
                     )
                 }
@@ -684,7 +684,7 @@ extension SampleBufferPlaybackSession {
                     outcome: .succeeded,
                     details: [
                         "timelineConfiguredBeforeFirstEnqueue": String(hasStartedTimeline),
-                        "sourceEventID": lastSourceEventID,
+                        "sourceEventID": lastSourceEventID
                     ]
                 )
                 PlaybackTrace.event(
@@ -744,7 +744,7 @@ extension SampleBufferPlaybackSession {
                 ),
                 "requiredAudioEndSeconds": String(requirement.audioEnd.seconds),
                 "requiredVideoEndSeconds": String(requirement.videoEnd.seconds),
-                "timelineSeconds": String(timelineTime.seconds),
+                "timelineSeconds": String(timelineTime.seconds)
             ]
         )
         publishTargetTimelineState(at: timelineTime)
@@ -840,7 +840,7 @@ extension SampleBufferPlaybackSession {
                         outcome: .succeeded,
                         details: [
                             "hasSample": String(nextSample != nil),
-                            "sampleOrdinal": String(sampleOrdinal),
+                            "sampleOrdinal": String(sampleOrdinal)
                         ]
                     )
                 }
@@ -961,7 +961,7 @@ extension SampleBufferPlaybackSession {
                         outcome: .succeeded,
                         details: [
                             "result": String(describing: outcome),
-                            "sampleOrdinal": String(sampleOrdinal),
+                            "sampleOrdinal": String(sampleOrdinal)
                         ]
                     )
                 }
@@ -1513,7 +1513,7 @@ extension SampleBufferPlaybackSession {
                 record.postRecoveryMediaTimeSeconds.map { "\($0)" } ?? "none",
             "directRate": "\(record.directRate)",
             "effectiveRate": "\(record.effectiveRate)",
-            "flushCount": "\(record.flushCount)",
+            "flushCount": "\(record.flushCount)"
         ]
         debugStore.emit(
             mediaSessionID: traceID,
@@ -1539,7 +1539,7 @@ extension SampleBufferPlaybackSession {
             "presentationTimeSeconds": presentationTime.flatMap { numericSeconds($0) }
                 .map { String($0) } ?? "unavailable",
             "decodeTimeSeconds": decodeTime.flatMap { numericSeconds($0) }
-                .map { String($0) } ?? "unavailable",
+                .map { String($0) } ?? "unavailable"
         ]
         if let outcome {
             details["outcome"] = outcome
@@ -1591,7 +1591,7 @@ extension SampleBufferPlaybackSession {
                         "rendererStatus": audioRendererStatusLabel,
                         "rendererError": audioRenderer.error?.localizedDescription
                             ?? currentAudioRendererError
-                            ?? "none",
+                            ?? "none"
                     ]
                 )
                 return
@@ -1728,7 +1728,7 @@ extension SampleBufferPlaybackSession {
     func audioSampleFormatDetails(_ sample: CMSampleBuffer) -> [String: String] {
         var details: [String: String] = [
             "sampleCount": String(CMSampleBufferGetNumSamples(sample)),
-            "dataReady": String(CMSampleBufferDataIsReady(sample)),
+            "dataReady": String(CMSampleBufferDataIsReady(sample))
         ]
         if let dataBuffer = CMSampleBufferGetDataBuffer(sample) {
             details["dataByteCount"] = String(CMBlockBufferGetDataLength(dataBuffer))
@@ -1870,7 +1870,7 @@ extension SampleBufferPlaybackSession {
                     "status": rendererStatus,
                     "error": rendererError ?? "none",
                     "volume": String(audioRenderer.volume),
-                    "muted": String(audioRenderer.isMuted),
+                    "muted": String(audioRenderer.isMuted)
                 ]
             )
         }
@@ -1896,7 +1896,7 @@ extension SampleBufferPlaybackSession {
                 "rendererStatus": audioRendererStatusLabel,
                 "rendererError": audioRenderer.error?.localizedDescription
                     ?? currentAudioRendererError
-                    ?? "none",
+                    ?? "none"
             ]
         )
     }
@@ -1913,7 +1913,6 @@ extension SampleBufferPlaybackSession {
             "unrecognized"
         }
     }
-
 
     func finishDelivery() {
         markVideoProviderEnded()
@@ -1971,7 +1970,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "streamEpoch": String(streamEpoch),
-                "formatRevision": String(formatRevision),
+                "formatRevision": String(formatRevision)
             ]
         )
         didRecordFormat = false

@@ -12,7 +12,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         "Genres",
         "Studios",
         "People",
-        "ProductionLocations",
+        "ProductionLocations"
     ].joined(separator: ",")
 
     private let session: URLSession
@@ -111,7 +111,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             server: server,
             query: query,
             additionalQueryItems: [
-                URLQueryItem(name: "ParentId", value: viewID.rawValue),
+                URLQueryItem(name: "ParentId", value: viewID.rawValue)
             ]
         )
     }
@@ -126,7 +126,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             queryItems: [
                 URLQueryItem(name: "Fields", value: Self.itemFields),
                 URLQueryItem(name: "EnableImages", value: "true"),
-                URLQueryItem(name: "EnableUserData", value: "true"),
+                URLQueryItem(name: "EnableUserData", value: "true")
             ]
         )
         let result: ItemDTO = try await response(for: request)
@@ -157,7 +157,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             server: server,
             query: query,
             additionalQueryItems: [
-                URLQueryItem(name: "ParentId", value: parent.metadata.id.rawValue),
+                URLQueryItem(name: "ParentId", value: parent.metadata.id.rawValue)
             ],
             forcedItemTypes: itemTypes
         )
@@ -184,7 +184,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             URLQueryItem(name: "ParentId", value: viewID.rawValue),
             URLQueryItem(name: "Fields", value: Self.itemFields),
             URLQueryItem(name: "EnableImages", value: "true"),
-            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true")
         ]
         if let limit {
             queryItems.append(URLQueryItem(name: "Limit", value: String(limit)))
@@ -217,7 +217,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         items.append(contentsOf: [
             URLQueryItem(name: "Fields", value: Self.itemFields),
             URLQueryItem(name: "EnableImages", value: "true"),
-            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true")
         ])
         let request = try authorizedRequest(
             server: server,
@@ -241,7 +241,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             server: server,
             query: query,
             additionalQueryItems: [
-                URLQueryItem(name: "SearchTerm", value: searchTerm),
+                URLQueryItem(name: "SearchTerm", value: searchTerm)
             ]
         )
     }
@@ -256,7 +256,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             queryItems: [
                 URLQueryItem(name: "Fields", value: Self.itemFields),
                 URLQueryItem(name: "EnableImages", value: "true"),
-                URLQueryItem(name: "EnableUserData", value: "true"),
+                URLQueryItem(name: "EnableUserData", value: "true")
             ]
         )
         let data = try await data(for: request)
@@ -277,7 +277,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             URLQueryItem(name: "UserId", value: server.userID.rawValue),
             URLQueryItem(name: "Fields", value: Self.itemFields),
             URLQueryItem(name: "EnableImages", value: "true"),
-            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true")
         ]
         if let limit {
             queryItems.append(URLQueryItem(name: "Limit", value: String(limit)))
@@ -473,7 +473,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             URLQueryItem(name: "Recursive", value: query.recursive ? "true" : "false"),
             URLQueryItem(name: "Fields", value: Self.itemFields),
             URLQueryItem(name: "EnableImages", value: "true"),
-            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true")
         ])
         let request = try authorizedRequest(server: server, path: path, queryItems: queryItems)
         let result: ItemQueryResultDTO = try await response(for: request)
@@ -614,7 +614,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             queryItems: [
                 URLQueryItem(name: "Static", value: "true"),
                 URLQueryItem(name: "MediaSourceId", value: id),
-                URLQueryItem(name: "api_key", value: server.accessToken),
+                URLQueryItem(name: "api_key", value: server.accessToken)
             ]
         )
         let streams = mapStreams(source.mediaStreams)
@@ -800,7 +800,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             "Client=\"\(clientIdentity.name)\"",
             "Device=\"\(clientIdentity.deviceName)\"",
             "DeviceId=\"\(clientIdentity.deviceID)\"",
-            "Version=\"\(clientIdentity.version)\"",
+            "Version=\"\(clientIdentity.version)\""
         ]
         if let userID {
             values.insert("UserId=\"\(userID)\"", at: 0)

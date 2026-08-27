@@ -542,7 +542,7 @@ enum PlaybackPanoramaInteractionSurface {
                 position: [0, -distance, 0],
                 orientation: .init(angle: .pi / 2, axis: [1, 0, 0]),
                 size: [extent, extent, thickness]
-            ),
+            )
         ]
         let frontHalfPanels: [PanelConfiguration] = [
             .init(
@@ -574,7 +574,7 @@ enum PlaybackPanoramaInteractionSurface {
                 position: [0, -distance, -distance / 2],
                 orientation: .init(angle: .pi / 2, axis: [1, 0, 0]),
                 size: [extent, distance, thickness]
-            ),
+            )
         ]
         let panels = coverage == .front180 ? frontHalfPanels : fullPanels
         for configuration in panels {
@@ -885,7 +885,7 @@ final class PlaybackModeRequestRetry {
         let nextSignature = [
             presentation.rawValue,
             desiredImmersiveViewingMode,
-            desiredSpatialVideoMode,
+            desiredSpatialVideoMode
         ].joined(separator: "|")
         if requestSignature != nextSignature {
             requestSignature = nextSignature

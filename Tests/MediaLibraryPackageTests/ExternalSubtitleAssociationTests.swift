@@ -15,8 +15,8 @@ struct ExternalSubtitleAssociationTests {
                     .init("Movie.forced.VTT", gigabytes: 0.001, daysAgo: 1),
                     .init("Movie2.srt", gigabytes: 0.001, daysAgo: 1),
                     .init("Movie notes.ssa", gigabytes: 0.001, daysAgo: 1),
-                    .init("Other.Movie.srt", gigabytes: 0.001, daysAgo: 1),
-                ],
+                    .init("Other.Movie.srt", gigabytes: 0.001, daysAgo: 1)
+                ]
             ],
             folderNamesByPath: [:]
         )
@@ -35,7 +35,7 @@ struct ExternalSubtitleAssociationTests {
         #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
             "Movie.forced.VTT",
             "Movie.srt",
-            "Movie.zh-CN.ass",
+            "Movie.zh-CN.ass"
         ])
         #expect(playbackItem.externalSubtitleSources.allSatisfy {
             $0.url.deletingLastPathComponent() == video.url.deletingLastPathComponent()
@@ -84,7 +84,7 @@ struct ExternalSubtitleAssociationTests {
         let playbackItem = try #require(capturedItem)
 
         #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
-            "Episode 01.zh-CN.srt",
+            "Episode 01.zh-CN.srt"
         ])
         #expect(playbackItem.externalSubtitleSources.first?.url.standardizedFileURL
             == matchingSubtitle.standardizedFileURL)
@@ -101,8 +101,8 @@ struct ExternalSubtitleAssociationTests {
                 "/": [
                     .init("Remote Movie.mkv", gigabytes: 1, daysAgo: 1),
                     .init("Remote Movie.en.srt", gigabytes: 0.001, daysAgo: 1),
-                    .init("Remote Movie commentary.srt", gigabytes: 0.001, daysAgo: 1),
-                ],
+                    .init("Remote Movie commentary.srt", gigabytes: 0.001, daysAgo: 1)
+                ]
             ],
             folderNamesByPath: [:]
         )
@@ -153,7 +153,7 @@ struct ExternalSubtitleAssociationTests {
         let playbackItem = try #require(capturedItem)
 
         #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
-            "Remote Movie.en.srt",
+            "Remote Movie.en.srt"
         ])
     }
 

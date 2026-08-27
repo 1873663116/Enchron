@@ -53,12 +53,6 @@ nonisolated extension FileBrowsingDomain {
         let rootFolderID: UUID
         let sourceIdentity: String
         let bookmark: Data
-
-        init(rootFolderID: UUID, sourceIdentity: String, bookmark: Data) {
-            self.rootFolderID = rootFolderID
-            self.sourceIdentity = sourceIdentity
-            self.bookmark = bookmark
-        }
     }
 
     public struct MediaLibrary: Sendable, Equatable, Codable {

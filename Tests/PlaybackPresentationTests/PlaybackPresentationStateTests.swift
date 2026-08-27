@@ -445,7 +445,7 @@ struct PlaybackPresentationStateTests {
     func missingSystemImmersiveSpaceReconcilesSettledPlayback() throws {
         for presentation in [
             PlaybackPresentation.docked,
-            .panorama,
+            .panorama
         ] {
             #expect(
                 SpatialPlatformImmersiveSpaceReconciliationPolicy
@@ -2282,7 +2282,7 @@ struct PlaybackPresentationStateTests {
             (.progressBar, .ended, .pause),
             (.skip, .ended, .pause),
             (.precisionTimeline, .ended, .pause),
-            (.frameStep, .ended, .pause),
+            (.frameStep, .ended, .pause)
         ]
         for (event, lifecycle, expected) in cases {
             #expect(
@@ -2301,7 +2301,7 @@ struct PlaybackPresentationStateTests {
             for lifecycle in [
                 ProductPlaybackLifecycle.playing,
                 .paused,
-                .ended,
+                .ended
             ] {
                 #expect(
                     PlaybackSeekPolicy.intent(

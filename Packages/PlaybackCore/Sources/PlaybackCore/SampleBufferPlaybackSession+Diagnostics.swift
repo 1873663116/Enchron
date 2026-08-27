@@ -117,7 +117,7 @@ extension SampleBufferPlaybackSession {
                     "optimizedCompositingFrames": String(
                         metrics.numberOfFramesDisplayedUsingOptimizedCompositing
                     ),
-                    "accumulatedFrameDelay": String(metrics.totalAccumulatedFrameDelay),
+                    "accumulatedFrameDelay": String(metrics.totalAccumulatedFrameDelay)
                 ]
             } else {
                 details = ["availability": "none"]
@@ -178,7 +178,7 @@ extension SampleBufferPlaybackSession {
                     "conversionStatus": String(conversionStatus),
                     "format": fourCC(format),
                     "height": String(height),
-                    "width": String(width),
+                    "width": String(width)
                 ])
                 return
             }
@@ -211,7 +211,7 @@ extension SampleBufferPlaybackSession {
                     "conversionStatus": "cgContextUnavailable",
                     "format": fourCC(format),
                     "height": String(height),
-                    "width": String(width),
+                    "width": String(width)
                 ])
                 return
             }
@@ -236,7 +236,7 @@ extension SampleBufferPlaybackSession {
                 "lumaMinimum": String(Double(minimum) / 256),
                 "lumaRange": String(Double(maximum - minimum) / 256),
                 "sampleCount": String(sampleCount),
-                "width": String(width),
+                "width": String(width)
             ])
         }
     }
@@ -357,7 +357,7 @@ extension SampleBufferPlaybackSession {
                 outcome: .succeeded,
                 details: [
                     "inputKind": RendererInputKind.compressed.rawValue,
-                    "mediaSubtype": sampleRecord.mediaSubtype,
+                    "mediaSubtype": sampleRecord.mediaSubtype
                 ]
             )
         }
@@ -696,7 +696,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "rate": String(timelineStartRate),
-                "time": String(time.seconds),
+                "time": String(time.seconds)
             ]
         )
         onStatusChange?(timelineStartRate == 0 ? .paused : .playing)

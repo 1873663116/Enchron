@@ -24,12 +24,10 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
     }
 }
 
-
 public nonisolated protocol PreferencesStoring: Sendable {
     func loadPreferences() -> UserPreferences
     func savePreferences(_ preferences: UserPreferences)
 }
-
 
 @MainActor
 @Observable

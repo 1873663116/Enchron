@@ -16,7 +16,7 @@ Modules/DesignSystem/        公共名词：设计 token 与多消费者组件
 Packages/PlaybackCore/       播放引擎，独立 Package
 Packages/RealityKitContent/  RealityKit 内容 Package
 Tests/                       Package 测试、App 测试、UI 测试与检查器自测
-Scripts/rules/               规则本体、自测、gauntlet 入口与分级器（W3）
+Scripts/rules/               规则本体、自测、verification 入口与分级器（W3）
 Scripts/verification/        驱动器、探针与清单生成器（W0）
 docs/                        术语与外部约束
 Config/                      检查器的基线与清单
@@ -113,6 +113,6 @@ flowchart LR
 
 `EnchronAppTests` 对应 [`Tests/EnchronApp`](Tests/EnchronApp)，`EnchronAppUITests` 对应 [`Tests/EnchronAppUI`](Tests/EnchronAppUI)。测试计划见仓根四个 `.xctestplan`。引擎自身的测试在 [`Packages/PlaybackCore/Tests`](Packages/PlaybackCore/Tests)，字节流一致性套件是独立 Package [`Tests/MediaByteStreamConformance`](Tests/MediaByteStreamConformance)。
 
-规则本体、它们的自测、gauntlet 入口与分级器都在 [`Scripts/rules`](Scripts/rules)，基线与清单在 [`Config`](Config)。这四类的共同点是改坏了不会自己暴露：放松一条规则、从 gauntlet 的清单里删一行、改宽一个自测、动一下分级表，都静默通过，因此整个目录归 W3。[`Scripts/verification`](Scripts/verification) 留下驱动器、探针与清单生成器，它们改坏了当场跑不动，归 W0。另有一部分检查器测试在 [`Tests/Infrastructure`](Tests/Infrastructure)。端到端调试与回归读 [`.agents/skills/vp-e2e`](.agents/skills/vp-e2e)。
+规则本体、它们的自测、W0 与 W1 的入口 [`run_verification.py`](Scripts/rules/run_verification.py) 与分级器都在 [`Scripts/rules`](Scripts/rules)，基线与清单在 [`Config`](Config)。放进这个目录的 `test_*.py` 由入口扫描执行，不需要登记；[`verify_scripts_inventory.py`](Scripts/rules/verify_scripts_inventory.py) 要求每个脚本都落进已声明的类别，且文件名与内容一致。[`Scripts/verification`](Scripts/verification) 留下驱动器、探针与清单生成器。端到端调试与回归读 [`.agents/skills/vp-e2e`](.agents/skills/vp-e2e)，级别定义读 [`docs/CONTEXT.md`](docs/CONTEXT.md)。
 
 改动模块目录结构时，有一批文件按路径锚定，必须同一个 commit 一起改：[`Config/design_source_architecture_inputs.xcfilelist`](Config/design_source_architecture_inputs.xcfilelist)、`Enchron.xcodeproj` 的 membershipExceptions、[`Config/reachability_operation_inventory.json`](Config/reachability_operation_inventory.json)，以及 [`Scripts/verification`](Scripts/verification) 下按源码位置或符号取锚的检查器。

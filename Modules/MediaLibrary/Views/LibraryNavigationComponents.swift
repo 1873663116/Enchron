@@ -123,7 +123,7 @@ public struct CategorySidebar: View {
     @Binding var selection: String
     var title: String = "Categories"
     var width: CGFloat = DesignTokens.SourceSidebar.width
-    var height: CGFloat? = nil
+    var height: CGFloat?
     var containerIdentifier: String = "CategorySidebar"
     var identifierPrefix: String = "CategorySidebar"
 

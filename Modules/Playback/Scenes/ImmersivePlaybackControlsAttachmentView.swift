@@ -233,7 +233,7 @@ public enum PlaybackStateAccessibility {
             "rendererCorruptedFrames=\(diagnostics.rendererCorruptedFrameCount.map { String($0) } ?? "none")",
             "rendererOptimizedFrames=\(diagnostics.rendererOptimizedCompositingFrameCount.map { String($0) } ?? "none")",
             "rendererAccumulatedFrameDelay=\(diagnostics.rendererAccumulatedFrameDelaySeconds.map { String($0) } ?? "none")",
-            "rendererMetricsObservations=\(diagnostics.rendererPerformanceMetricsObservationCount)",
+            "rendererMetricsObservations=\(diagnostics.rendererPerformanceMetricsObservationCount)"
         ]
     }
 

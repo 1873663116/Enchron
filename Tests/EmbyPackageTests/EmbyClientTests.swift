@@ -308,7 +308,7 @@ struct EmbyClientTests {
             "/emby/Users/user-1/Views",
             "/emby/Users/user-1/Items/Resume",
             "/emby/Shows/NextUp",
-            "/emby/Users/user-1/Items",
+            "/emby/Users/user-1/Items"
         ])
         let nextUpQuery = URLComponents(
             url: try #require(recorder.requests[2].url),
@@ -362,7 +362,7 @@ struct EmbyClientTests {
         #expect(recorder.requests.compactMap(\.url?.path) == [
             "/emby/Users/user-1/Items/Latest",
             "/emby/Users/user-1/Items/movie-1/SpecialFeatures",
-            "/emby/Items/movie-1/Similar",
+            "/emby/Items/movie-1/Similar"
         ])
         #expect(backdrop.path == "/emby/Items/movie-1/Images/Backdrop/0")
         let latestQuery = URLComponents(
@@ -536,7 +536,7 @@ struct EmbyClientTests {
         #expect(paths == [
             "/emby/Sessions/Playing",
             "/emby/Sessions/Playing/Progress",
-            "/emby/Sessions/Playing/Stopped",
+            "/emby/Sessions/Playing/Stopped"
         ])
         for request in recorder.requests {
             let body = try #require(request.httpBody)

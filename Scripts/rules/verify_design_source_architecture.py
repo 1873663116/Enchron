@@ -42,6 +42,7 @@ NON_OPACITY_ENDPOINT_LITERAL = (
     r"(?!(?:0(?:\.0+)?|1(?:\.0+)?)(?![\d.]))"
     r"-?\d+(?:\.\d+)?(?![A-Za-z0-9_])"
 )
+NON_TRIVIAL_LITERAL = NON_OPACITY_ENDPOINT_LITERAL
 NON_IDENTITY_SCALE_LITERAL = (
     r"(?<![A-Za-z0-9_.])"
     r"(?!(?:1(?:\.0+)?)(?![\d.]))"
@@ -50,23 +51,23 @@ NON_IDENTITY_SCALE_LITERAL = (
 VISUAL_LITERAL_PATTERNS = (
     re.compile(
         r"\.(?:frame|padding|offset|cornerRadius|blur|shadow)"
-        rf"\s*\([^)]*{NUMERIC_LITERAL}"
+        rf"\s*\([^)]*{NON_TRIVIAL_LITERAL}"
     ),
     re.compile(rf"\.opacity\s*\([^)]*{NON_OPACITY_ENDPOINT_LITERAL}"),
     re.compile(rf"\.scaleEffect\s*\([^)]*{NON_IDENTITY_SCALE_LITERAL}"),
     re.compile(
         r"\b(?:VStack|HStack|ZStack|LazyVGrid|LazyHGrid|Grid)\s*"
-        rf"\([^)]*\bspacing:\s*{NUMERIC_LITERAL}"
+        rf"\([^)]*\bspacing:\s*{NON_TRIVIAL_LITERAL}"
     ),
     re.compile(
         r"\b(?:RoundedRectangle|UnevenRoundedRectangle)\s*"
-        rf"\([^)]*\bcornerRadius:\s*{NUMERIC_LITERAL}"
+        rf"\([^)]*\bcornerRadius:\s*{NON_TRIVIAL_LITERAL}"
     ),
     re.compile(
-        rf"\.font\s*\(\s*\.system\s*\([^)]*\bsize:\s*{NUMERIC_LITERAL}"
+        rf"\.font\s*\(\s*\.system\s*\([^)]*\bsize:\s*{NON_TRIVIAL_LITERAL}"
     ),
     re.compile(
-        rf"\.stroke(?:Border)?\s*\([^)]*\blineWidth:\s*{NUMERIC_LITERAL}"
+        rf"\.stroke(?:Border)?\s*\([^)]*\blineWidth:\s*{NON_TRIVIAL_LITERAL}"
     ),
 )
 PRODUCTION_GLASS_CAPSULE_PATTERN = re.compile(
@@ -495,6 +496,22 @@ def main() -> int:
     if not arguments.xcode_inputs:
         findings += find_xcode_build_input_violations(root)
     if arguments.write_baseline:
+        existing = read_baseline(baseline_path) if baseline_path.is_file() else set()
+        arriving = sorted(
+            f"{finding.rule} {finding.path} {finding.signature}"
+            for finding in findings
+            if f"{finding.rule} {finding.path} {finding.signature}" not in {
+                f"{rule} {path} {signature}" for rule, path, signature, *_ in
+                (entry if isinstance(entry, tuple) else (entry,) for entry in existing)
+            }
+        ) if existing else []
+        if arriving:
+            print(
+                "refusing to widen the baseline; fix the code or argue the rule:\n  "
+                + "\n  ".join(arriving),
+                file=sys.stderr,
+            )
+            return 1
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
         baseline_path.write_text(
             json.dumps(baseline_payload(findings), indent=2, ensure_ascii=False) + "\n",

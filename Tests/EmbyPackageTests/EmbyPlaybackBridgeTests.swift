@@ -47,7 +47,7 @@ struct EmbyPlaybackBridgeTests {
             container: "mkv",
             streams: [
                 mediaStream(index: 3, kind: .subtitle, external: false),
-                mediaStream(index: 4, kind: .subtitle, external: true, deliveryURL: "/subtitle/4"),
+                mediaStream(index: 4, kind: .subtitle, external: true, deliveryURL: "/subtitle/4")
             ]
         )
         let client = FakeEmbyClient(

@@ -1016,8 +1016,6 @@ private struct PlaybackAutomationStateProbe: View {
     }
 }
 
-
-
 enum PlaybackIssuePresentationScope {
     case location(PlaybackIssuePresentationLocation)
     case immersiveResident

@@ -8,7 +8,7 @@ struct EmbyItemPresentationTests {
         let badges = EmbyTechnicalBadges(source: source(streams: [
             stream(.video, codec: "hevc", width: 3840, height: 1604, videoRange: "DolbyVision"),
             stream(.audio, codec: "eac3", language: "jpn", channelLayout: "5.1", isDefault: true),
-            stream(.subtitle, codec: "subrip", language: "eng"),
+            stream(.subtitle, codec: "subrip", language: "eng")
         ]))
 
         #expect(badges.labels == ["4K", "Dolby Vision", "Dolby Digital Plus 5.1", "CC"])
@@ -18,7 +18,7 @@ struct EmbyItemPresentationTests {
     func badgesOmitNeutralValues() {
         let badges = EmbyTechnicalBadges(source: source(streams: [
             stream(.video, codec: "h264", width: 1920, height: 1080, videoRange: "SDR"),
-            stream(.audio, codec: "aac", language: "eng", channelLayout: "stereo", isDefault: true),
+            stream(.audio, codec: "aac", language: "eng", channelLayout: "stereo", isDefault: true)
         ]))
 
         #expect(badges.labels == ["HD", "AAC stereo"])
@@ -36,7 +36,7 @@ struct EmbyItemPresentationTests {
             stream(.audio, codec: "eac3", language: "jpn", displayLanguage: "Japanese", channelLayout: "5.1", isDefault: true),
             stream(.audio, codec: "eac3", language: "eng", displayLanguage: "English", channelLayout: "5.1"),
             stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English"),
-            stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English", isHearingImpaired: true),
+            stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English", isHearingImpaired: true)
         ]
         let sections = EmbyAboutSections(metadata: metadata(), sources: [source(streams: streams)])
 
@@ -54,7 +54,7 @@ struct EmbyItemPresentationTests {
         let streams = [
             stream(.audio, codec: "dts", language: "jpn", displayLanguage: "Japanese", channelLayout: "5.1", bitRate: 1_536_000, sampleRate: 48000, isDefault: true),
             stream(.audio, codec: "ac3", language: "chi", displayLanguage: "Chinese", channelLayout: "stereo", bitRate: 192_000, sampleRate: 48000, title: "Mandarin"),
-            stream(.subtitle, codec: "PGSSUB", language: "eng", displayLanguage: "English"),
+            stream(.subtitle, codec: "PGSSUB", language: "eng", displayLanguage: "English")
         ]
         let sections = EmbyAboutSections(metadata: metadata(), sources: [source(streams: streams)])
 
@@ -85,7 +85,7 @@ struct EmbyItemPresentationTests {
 
         #expect(sections.video.map(\.label) == [
             "Resolution", "Codec", "Profile", "Dynamic Range", "Bit Depth",
-            "Frame Rate", "Aspect Ratio", "Video Bitrate",
+            "Frame Rate", "Aspect Ratio", "Video Bitrate"
         ])
         #expect(sections.video[0].value == "1920 × 1080")
         #expect(sections.video[5].value == "23.976 fps")

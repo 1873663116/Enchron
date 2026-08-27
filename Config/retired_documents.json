@@ -23,13 +23,13 @@
       "path": "docs/acceptance/verification-system.md",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": ".agents/skills/vp-e2e/SKILL.md 与 Scripts/rules/run_verification_gauntlet.py。"
+      "replacement": ".agents/skills/vp-e2e/SKILL.md 与 Scripts/rules/run_verification.py。"
     },
     {
       "path": "docs/quality_gates.md",
       "removed": "2026-08-06",
       "commit": "7fe3af96",
-      "replacement": "Scripts/rules/run_verification_gauntlet.py 与 Config/verification_gauntlet_baseline.json 是当前的证据阶梯。"
+      "replacement": "Scripts/rules/run_verification.py 与 Config/verification_baseline.json 是当前的证据阶梯。"
     },
     {
       "path": "docs/plans/active/",

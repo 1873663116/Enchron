@@ -27,9 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 from enchron_artifact_paths import artifact_root, evidence_root
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-BASELINE_PATH = REPOSITORY_ROOT / "Config/verification_gauntlet_baseline.json"
-DEFAULT_LOG_ROOT = artifact_root() / "VerificationGauntlet/runs"
-PLAYBACK_CORE_SCRATCH = artifact_root() / "VerificationGauntlet/PlaybackCore"
+BASELINE_PATH = REPOSITORY_ROOT / "Config/verification_baseline.json"
+DEFAULT_LOG_ROOT = artifact_root() / "Verification/runs"
+PLAYBACK_CORE_SCRATCH = artifact_root() / "Verification/PlaybackCore"
 TEST_FAILURE = re.compile(
     r"\bTest (?P<name>[A-Za-z_][A-Za-z0-9_]*)"
     r"(?:\([^)]*\))? (?:recorded an issue|failed after)"
@@ -39,8 +39,8 @@ TEST_SUMMARY = re.compile(
     r"(?P<verdict>passed|failed) after"
 )
 RUN_DIRECTORY = re.compile(r"^\d{8}T\d{6}Z-\d+$")
-LOCK_WAIT_SECONDS = float(os.environ.get("GAUNTLET_LOCK_WAIT_SECONDS", 1800))
-STEP_SILENCE_SECONDS = float(os.environ.get("GAUNTLET_STEP_SILENCE_SECONDS", 900))
+LOCK_WAIT_SECONDS = float(os.environ.get("VERIFICATION_LOCK_WAIT_SECONDS", 1800))
+STEP_SILENCE_SECONDS = float(os.environ.get("VERIFICATION_STEP_SILENCE_SECONDS", 900))
 
 
 @dataclass(frozen=True)
@@ -143,6 +143,11 @@ STRUCTURE_CHECKS = (
         "media-byte-stream-foundation",
         "verify_media_byte_stream_foundation.py",
     ),
+    StructureCheck(
+        "organic-architecture-xcode",
+        "verify_organic_architecture_xcode.sh",
+    ),
+    StructureCheck("swiftlint", "verify_swiftlint.py"),
 )
 
 
@@ -284,6 +289,15 @@ def relative_log(path: Path, run_directory: Path) -> str:
     return path.relative_to(run_directory).as_posix()
 
 
+def structure_check_command(filename: str) -> list[str]:
+    path = structure_check_path(filename)
+    if path.suffix == ".swift":
+        return ["swift", str(path)]
+    if path.suffix in (".sh", ".zsh"):
+        return ["zsh", str(path)]
+    return [sys.executable, str(path)]
+
+
 def discovered_test_checks() -> tuple[StructureCheck, ...]:
     discovered: list[StructureCheck] = []
     for directory in SCRIPT_DIRECTORIES:
@@ -310,10 +324,7 @@ def run_structure_checks(
         log = run_directory / "structure" / f"{check.identifier}.log"
         code, _ = run_logged(
             f"structure: {check.identifier}",
-            [
-                sys.executable,
-                str(structure_check_path(check.filename)),
-            ],
+            structure_check_command(check.filename),
             log,
             environment,
         )
@@ -503,6 +514,66 @@ def judge_source_parity(
         True,
         f"{len(results)} media results, 0 transport differences, "
         f"{accepted} known media states",
+    )
+
+
+def visionos_simulator_identifier(environment: dict[str, str]) -> str | None:
+    listing = subprocess.run(
+        ["xcrun", "simctl", "list", "devices", "available", "--json"],
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    if listing.returncode != 0:
+        return None
+    catalogue = json.loads(listing.stdout).get("devices", {})
+    booted = None
+    shutdown = None
+    for runtime, devices in catalogue.items():
+        if "xrOS" not in runtime and "visionOS" not in runtime:
+            continue
+        for device in devices:
+            if device.get("state") == "Booted" and booted is None:
+                booted = device["udid"]
+            elif shutdown is None:
+                shutdown = device["udid"]
+    return booted or shutdown
+
+
+def run_domain_tests(run_directory: Path, environment: dict[str, str]) -> LayerResult:
+    log = run_directory / "domain-tests.log"
+    identifier = visionos_simulator_identifier(environment)
+    if identifier is None:
+        return LayerResult(
+            "Domain tests",
+            "FAIL",
+            "no visionOS simulator is available to run EnchronDomainTests",
+        )
+    command = [
+        "xcodebuild",
+        "test",
+        "-project",
+        str(REPOSITORY_ROOT / "Enchron.xcodeproj"),
+        "-scheme",
+        "EnchronDomainTests",
+        "-testPlan",
+        "EnchronDomain",
+        "-destination",
+        f"id={identifier}",
+        "-derivedDataPath",
+        str(artifact_root() / "DerivedData/DomainTests"),
+    ]
+    code, output = run_logged("domain tests", command, log, environment)
+    summary = TEST_SUMMARY.search(output)
+    logs = (relative_log(log, run_directory),)
+    if summary is None:
+        return LayerResult("Domain tests", "FAIL", f"no test summary; exited {code}", logs)
+    if summary.group("verdict") != "passed":
+        failures = sorted({match.group("name") for match in TEST_FAILURE.finditer(output)})
+        detail = ", ".join(failures) if failures else "see the log"
+        return LayerResult("Domain tests", "FAIL", f"failures: {detail}", logs)
+    return LayerResult(
+        "Domain tests", "PASS", f"{summary.group('count')} tests passed", logs
     )
 
 
@@ -724,7 +795,7 @@ def write_summary(
 
 
 def print_summary(results: list[LayerResult], run_directory: Path) -> bool:
-    print("\n== Verification gauntlet summary ==")
+    print("\n== Verification summary ==")
     for result in results:
         print(f"[{result.state}] {result.name}: {result.detail}")
     failed = any(result.state == "FAIL" for result in results)
@@ -809,7 +880,7 @@ def main() -> int:
     arguments = parse_arguments()
     log_root = arguments.log_root.resolve()
     log_root.mkdir(parents=True, exist_ok=True)
-    lock_path = log_root / ".gauntlet.lock"
+    lock_path = log_root / ".verification.lock"
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ") + f"-{os.getpid()}"
     run_directory = log_root / run_id
@@ -850,6 +921,7 @@ def main() -> int:
         if arguments.quick:
             results.extend(
                 [
+                    skipped("Domain tests"),
                     skipped("Source parity"),
                     skipped("Media discovery capability matrix"),
                     skipped("Feature evidence coverage"),
@@ -857,6 +929,10 @@ def main() -> int:
                 ]
             )
         else:
+            try:
+                results.append(run_domain_tests(run_directory, environment))
+            except (OSError, subprocess.SubprocessError) as error:
+                results.append(LayerResult("Domain tests", "FAIL", str(error)))
             results.append(run_source_parity(run_directory, environment, baseline))
             results.append(
                 run_media_discovery_capability_matrix(run_directory, environment)

@@ -19,9 +19,11 @@ class FormatDescriptionIdentityTests(unittest.TestCase):
             {
                 "prores-limited-range-default": 8,
                 "prores-frame-matrix": 5,
-                "h264-unspecified-range-default": 1,
+                "h264-unspecified-range-default": 2,
                 "unsupported-prores-raw": 1,
-                "unsupported-mpeg4-part-2": 1,
+                "unsupported-mpeg4-part-2": 3,
+                "unsupported-mpeg2-video": 1,
+                "unsupported-vp9": 1,
             },
         )
         for rule in (

@@ -5,7 +5,7 @@
 A checker that nothing invokes reports nothing, and the list that decides what
 runs cannot notice its own omissions. This walks the directory instead: it
 classifies each file from its syntax tree, then holds the file name and the
-gauntlet's table to that classification. Unclassified is an error, so a new
+verification's table to that classification. Unclassified is an error, so a new
 file cannot arrive unnoticed.
 """
 
@@ -20,7 +20,7 @@ import sys
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_ROOT = REPOSITORY_ROOT / "Scripts"
-GAUNTLET = REPOSITORY_ROOT / "Scripts/rules/run_verification_gauntlet.py"
+VERIFICATION = REPOSITORY_ROOT / "Scripts/rules/run_verification.py"
 TEST_PREFIX = "test_"
 RULE_PREFIXES = ("verify_", "check_")
 
@@ -92,7 +92,18 @@ def is_executable(tree: ast.Module) -> bool:
     return False
 
 
+def classify_non_python(path: Path) -> Script:
+    if not path.name.startswith(RULE_PREFIXES):
+        return Script(path, "tool", "runnable entry point")
+    source = path.read_text(encoding="utf-8", errors="replace")
+    if "exit 64" in source:
+        return Script(path, "parameterised", "checker that takes an input")
+    return Script(path, "rule", "checker that runs over the whole repository")
+
+
 def classify(path: Path) -> Script:
+    if path.suffix != ".py":
+        return classify_non_python(path)
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
     except SyntaxError as error:
@@ -109,10 +120,10 @@ def classify(path: Path) -> Script:
 
 
 def registered_filenames() -> set[str]:
-    source = GAUNTLET.read_text(encoding="utf-8")
+    source = VERIFICATION.read_text(encoding="utf-8")
     if "STRUCTURE_CHECKS = (" not in source:
-        raise ValueError(f"no STRUCTURE_CHECKS table in {GAUNTLET}")
-    return set(re.findall(r"([A-Za-z0-9_]+\.py)", source))
+        raise ValueError(f"no STRUCTURE_CHECKS table in {VERIFICATION}")
+    return set(re.findall(r"([A-Za-z0-9_]+\.(?:py|swift|sh|zsh))", source))
 
 
 def cited(path: Path) -> bool:
@@ -133,7 +144,12 @@ def cited(path: Path) -> bool:
 
 
 def discover() -> list[Script]:
-    return [classify(path) for path in sorted(SCRIPTS_ROOT.rglob("*.py"))]
+    paths = [
+        path
+        for suffix in (".py", ".swift", ".sh", ".zsh")
+        for path in SCRIPTS_ROOT.rglob(f"*{suffix}")
+    ]
+    return [classify(path) for path in sorted(paths)]
 
 
 def violations(scripts: list[Script], registered: set[str]) -> list[str]:
@@ -154,7 +170,7 @@ def violations(scripts: list[Script], registered: set[str]) -> list[str]:
             )
         elif script.kind == "rule" and script.path.name not in registered:
             found.append(
-                f"{script.relative}: is a checker that no gauntlet layer runs; "
+                f"{script.relative}: is a checker that no verification layer runs; "
                 "register it in STRUCTURE_CHECKS or delete it"
             )
         elif script.kind == "parameterised" and not cited(script.path):

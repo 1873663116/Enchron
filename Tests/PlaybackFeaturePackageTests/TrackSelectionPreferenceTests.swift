@@ -342,7 +342,7 @@ struct TrackSelectionPreferenceTests {
         let firstRuntime = TrackSelectionRuntime(
             audioTracks: [
                 .init(id: "audio.main", languageCode: "en", displayName: "English", isDefault: true),
-                preferredTrack,
+                preferredTrack
             ]
         )
         let firstCoordinator = PlaybackLaunchCoordinator(
@@ -386,7 +386,7 @@ struct TrackSelectionPreferenceTests {
                 displayName: "English",
                 isDefault: true
             ),
-            preferredTrack,
+            preferredTrack
         ]
 
         let firstRuntime = TrackSelectionRuntime(subtitleTracks: tracks)
@@ -874,7 +874,7 @@ struct TrackSelectionPreferenceTests {
             id: "audio.commentary",
             languageCode: "en",
             displayName: "English Commentary"
-        ),
+        )
     ]
 
     private static let subtitleTracks = [
@@ -888,7 +888,7 @@ struct TrackSelectionPreferenceTests {
             id: "subtitle.zh-hans",
             languageCode: "zh-Hans",
             displayName: "简体中文"
-        ),
+        )
     ]
 
     private static func coordinator(

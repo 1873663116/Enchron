@@ -63,7 +63,7 @@ final class MediaReferenceResolver {
             let mediaURL = root.url.appending(path: relativePath).standardizedFileURL
             let mediaValues = try mediaURL.resourceValues(forKeys: [
                 .fileSizeKey,
-                .contentModificationDateKey,
+                .contentModificationDateKey
             ])
             let mediaFile = FileBrowsingDomain.MediaFile(
                 name: mediaURL.lastPathComponent,
@@ -78,7 +78,7 @@ final class MediaReferenceResolver {
                 includingPropertiesForKeys: [
                     .isRegularFileKey,
                     .fileSizeKey,
-                    .contentModificationDateKey,
+                    .contentModificationDateKey
                 ],
                 options: [.skipsHiddenFiles]
             )
@@ -87,7 +87,7 @@ final class MediaReferenceResolver {
                       let values = try? url.resourceValues(forKeys: [
                         .isRegularFileKey,
                         .fileSizeKey,
-                        .contentModificationDateKey,
+                        .contentModificationDateKey
                       ]),
                       values.isRegularFile == true else { return nil }
                 return FileBrowsingDomain.MediaFile(

@@ -50,7 +50,7 @@ enum ImportedDirectoryScanner {
         let rootURL = selectedURL.standardizedFileURL
         let rootValues = try rootURL.resourceValues(forKeys: [
             .isDirectoryKey,
-            .fileResourceIdentifierKey,
+            .fileResourceIdentifierKey
         ])
         guard rootValues.isDirectory == true,
               let sourceIdentity = VersionedMediaIdentity.localIdentity(rootURL)?.storageKey else {
@@ -65,7 +65,7 @@ enum ImportedDirectoryScanner {
             .isSymbolicLinkKey,
             .isPackageKey,
             .fileSizeKey,
-            .contentModificationDateKey,
+            .contentModificationDateKey
         ]
         var enumerationError: (any Error)?
         guard let enumerator = FileManager.default.enumerator(

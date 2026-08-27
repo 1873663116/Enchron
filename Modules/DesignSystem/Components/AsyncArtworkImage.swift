@@ -119,7 +119,7 @@ private struct ArtworkPlaceholder: View {
                 colors: [
                     DesignTokens.Theme.accent.opacity(0.58),
                     DesignTokens.Surface.overlay,
-                    DesignTokens.Theme.surfaceContainerHighest,
+                    DesignTokens.Theme.surfaceContainerHighest
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

@@ -421,14 +421,14 @@ private extension MediaSourceStreamInformation {
         guard let audio, audio.sampleRate > 0, audio.channelCount > 0 else { return false }
         return [
             "aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "vorbis", "flac",
-            "dca", "truehd", "apac",
+            "dca", "truehd", "apac"
         ].contains(codecName) || codecName.hasPrefix("pcm_")
     }
 
     var supportsPlaybackSubtitle: Bool {
         [
             "ass", "ssa", "subrip", "webvtt", "mov_text", "hdmv_pgs_subtitle",
-            "dvd_subtitle", "dvb_subtitle",
+            "dvd_subtitle", "dvb_subtitle"
         ].contains(codecName)
     }
 }

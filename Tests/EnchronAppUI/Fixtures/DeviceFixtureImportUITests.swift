@@ -3024,7 +3024,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             "rendererCorruptedFrames=\(corruptedFrames)",
             "lifetimeDroppedFramesAtBaseline=\(baselineDroppedFrames)",
             "lifetimeCorruptedFramesAtBaseline=\(baselineCorruptedFrames)",
-            "accumulatedFrameDelaySeconds=\(String(format: "%.6f", accumulatedDelay))",
+            "accumulatedFrameDelaySeconds=\(String(format: "%.6f", accumulatedDelay))"
         ].joined(separator: "\n")
         let attachment = XCTAttachment(string: report)
         attachment.name = evidenceName
@@ -3095,11 +3095,11 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                current.bool("displayedPixel") == true,
                (current.uint64("videoSamples") ?? 0) > 0,
                (current.uint64("rendererInputs") ?? 0) > 0,
-               (usesMainWindow || current.bool("surfaceSettled") == true),
-               (presentation != "portal"
+               usesMainWindow || current.bool("surfaceSettled") == true,
+               presentation != "portal"
                    || (current.bool("videoVisible") == true
                        && current.string("actualImmersiveMode")?.lowercased()
-                           == "portal")) {
+                           == "portal") {
                 state = current
             }
             if current.string("lifecycle")?

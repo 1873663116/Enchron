@@ -1,11 +1,9 @@
 import Foundation
 
-
 nonisolated protocol SavedDataSourceRecordStoring: Sendable {
     func loadSavedDataSourceRecords() -> Data?
     func saveSavedDataSourceRecords(_ data: Data?)
 }
-
 
 nonisolated final class SavedDataSourceStore: SavedDataSourceRecordStoring, @unchecked Sendable {
     private let defaults: UserDefaults

@@ -14,7 +14,7 @@ nonisolated extension SpatialSceneDomain {
         public static let scenicEnvironments: [Self] = [
             .scenicOne,
             .scenicTwo,
-            .scenicThree,
+            .scenicThree
         ]
 
         public init?(preferenceValue: String?) {

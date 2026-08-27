@@ -24,7 +24,7 @@ extension SampleBufferPlaybackSession {
                 "graphRevision": String(revision),
                 "departingRenderer": PlaybackTrace.identity(departing),
                 "renderer": PlaybackTrace.identity(replacement),
-                "currentSeconds": String(currentTime().seconds),
+                "currentSeconds": String(currentTime().seconds)
             ]
         )
         return replacement
@@ -48,7 +48,7 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: [
                 "graphRevision": String(graphRevision),
-                "departingRenderer": PlaybackTrace.identity(departing),
+                "departingRenderer": PlaybackTrace.identity(departing)
             ]
         )
     }

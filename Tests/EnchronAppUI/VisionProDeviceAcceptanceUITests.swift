@@ -900,7 +900,7 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
             "invalidatedByRateChange",
             "invalidatedByEpochChange",
             "invalidatedByStop",
-            "invalidatedByClose",
+            "invalidatedByClose"
         ])
         let deadline = Date().addingTimeInterval(5)
         var latest = PlaybackCheckpoint(rawValue: "")

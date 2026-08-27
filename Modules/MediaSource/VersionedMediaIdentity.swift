@@ -51,7 +51,7 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
             "file",
             resourceIdentifier.base64EncodedString(),
             String(sizeInBytes),
-            String(modifiedAt.timeIntervalSince1970.bitPattern),
+            String(modifiedAt.timeIntervalSince1970.bitPattern)
         ])
     }
 
@@ -63,7 +63,7 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
         make(components: [
             "remote-metadata",
             String(modifiedAt.timeIntervalSince1970.bitPattern),
-            String(sizeInBytes),
+            String(sizeInBytes)
         ])
     }
 
@@ -202,7 +202,7 @@ enum LocalMediaVersionResolver {
               let values = try? url.resourceValues(forKeys: [
                 .fileResourceIdentifierKey,
                 .fileSizeKey,
-                .contentModificationDateKey,
+                .contentModificationDateKey
             ]),
               let resourceIdentifier = values.fileResourceIdentifier,
               let size = values.fileSize,

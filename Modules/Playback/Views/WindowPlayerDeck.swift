@@ -8,8 +8,8 @@ public struct WindowPlayerDeckView: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    var presentationOverride: PlaybackPresentation? = nil
-    var onExitPlayback: (() -> Void)? = nil
+    var presentationOverride: PlaybackPresentation?
+    var onExitPlayback: (() -> Void)?
 
     public init(
         presentationOverride: PlaybackPresentation? = nil,

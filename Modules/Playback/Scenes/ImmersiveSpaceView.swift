@@ -244,7 +244,7 @@ struct PortalToPanoramaRevealTarget: Equatable {
 }
 
 struct PortalToPanoramaTargetRevealState: Equatable {
-    private(set) var revealedTarget: PortalToPanoramaRevealTarget? = nil
+    private(set) var revealedTarget: PortalToPanoramaRevealTarget?
 
     mutating func admit(
         _ target: PortalToPanoramaRevealTarget,
@@ -489,7 +489,7 @@ private final class SpatialDisplayLinkProbe {
                 "pixelBuffer",
                 "hash=\(CFHash(pixelBuffer))",
                 "width=\(CVPixelBufferGetWidth(pixelBuffer))",
-                "height=\(CVPixelBufferGetHeight(pixelBuffer))",
+                "height=\(CVPixelBufferGetHeight(pixelBuffer))"
             ].joined(separator: ":")
         } else {
             rawPixelReturn = "nil"
@@ -505,7 +505,7 @@ private final class SpatialDisplayLinkProbe {
             "targetAvailable=\(targetIsAvailable)",
             "displayedPixelBufferReturned=\(pixelBuffer != nil)",
             "realityViewUpdateCount=\(realityViewUpdateCount)",
-            "lastRealityViewUpdateElapsed=\(lastRealityViewUpdateAt.map { $0.timeIntervalSince(startedAt ?? $0) } ?? -1)",
+            "lastRealityViewUpdateElapsed=\(lastRealityViewUpdateAt.map { $0.timeIntervalSince(startedAt ?? $0) } ?? -1)"
         ].joined(separator: ",")
         let chain = enablementChain(for: entity)
         if chain != lastEnablementChain {
@@ -1373,7 +1373,7 @@ public struct ImmersiveSpaceView: View {
                     "parentEnabled=\(parent?.isEnabled.description ?? "none")",
                     "parentActive=\(parent?.isActive.description ?? "none")",
                     "worldEnabled=\(world.entity?.isEnabled.description ?? "none")",
-                    "worldActive=\(world.entity?.isActive.description ?? "none")",
+                    "worldActive=\(world.entity?.isActive.description ?? "none")"
                 ].joined(separator: ",")
             )
             return
@@ -1661,7 +1661,7 @@ public struct ImmersiveSpaceView: View {
             "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
             "componentBound=\(playbackRuntime.renderer.map { component.videoRenderer === $0 } ?? false)",
             "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")",
-            "retiring=\(playbackRuntime.retiringTechnicalSessionCount)",
+            "retiring=\(playbackRuntime.retiringTechnicalSessionCount)"
         ]
         let settlementBreakdown = settlementFields.joined(separator: ",")
         let fastChangingFieldPrefixes = [
@@ -1676,7 +1676,7 @@ public struct ImmersiveSpaceView: View {
             "backpressureCount=",
             "audioSampleBufferCount=",
             "audioRendererEnqueuedSampleBufferCount=",
-            "displayedFrameObservationCount=",
+            "displayedFrameObservationCount="
         ]
         let settlementSignature = settlementFields
             .filter { field in
@@ -2046,7 +2046,7 @@ public struct ImmersiveSpaceView: View {
             requestedPresentation.rawValue,
             playbackRuntime.activeTechnicalSessionID ?? "sessionNone",
             String(playbackRuntime.videoComponentRevision),
-            entityID(for: requestedPresentation),
+            entityID(for: requestedPresentation)
         ].joined(separator: "|")
     }
 

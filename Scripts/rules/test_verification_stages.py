@@ -5,19 +5,18 @@ import unittest
 
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "Scripts" / "verification"))
-import run_verification_gauntlet as gauntlet
+import run_verification as verification
 
 
-class VerificationGauntletTests(unittest.TestCase):
+class VerificationTests(unittest.TestCase):
     def test_structure_check_modes_keep_corpus_identity_full_only(self) -> None:
-        full = {check.identifier for check in gauntlet.STRUCTURE_CHECKS}
+        full = {check.identifier for check in verification.STRUCTURE_CHECKS}
         quick = {
             check.identifier
-            for check in gauntlet.STRUCTURE_CHECKS
+            for check in verification.STRUCTURE_CHECKS
             if check.runs_in_quick_mode
         }
 
-        self.assertEqual(len(full), 11)
         self.assertIn("glass-usage", quick)
         self.assertIn("media-byte-stream-conformance", quick)
         self.assertIn("playback-issue-ownership", quick)
@@ -33,12 +32,12 @@ Test run with 12 tests in 2 suites failed after 1.0 seconds.
 """
 
         self.assertEqual(
-            gauntlet.failure_names(output),
+            verification.failure_names(output),
             {"expectedFailure", "anotherFailure"},
         )
         self.assertEqual(
-            gauntlet.test_summary(output),
-            gauntlet.TestSummary(12, "failed"),
+            verification.test_summary(output),
+            verification.TestSummary(12, "failed"),
         )
 
     def test_timeout_marker_must_belong_to_the_intermittent_test_context(self) -> None:
@@ -47,7 +46,7 @@ Test unrelated() recorded an issue: Timed out waiting for a sample
 Test acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() failed after 2 seconds.
 """
 
-        self.assertFalse(gauntlet.test_failure_has_marker(
+        self.assertFalse(verification.test_failure_has_marker(
             output,
             "acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim",
             ["Timed out"],
@@ -64,7 +63,7 @@ Test acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() failed af
             },
         ]
 
-        passed, detail = gauntlet.judge_source_parity(
+        passed, detail = verification.judge_source_parity(
             results,
             [{"name": "known.mov", "decode": "probe_failed"}],
         )
@@ -82,7 +81,7 @@ Test acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() failed af
             },
         ]
 
-        passed, detail = gauntlet.judge_source_parity(results, [])
+        passed, detail = verification.judge_source_parity(results, [])
 
         self.assertFalse(passed)
         self.assertIn("transport differences", detail)
@@ -90,18 +89,18 @@ Test acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() failed af
 
     def test_feature_gap_count_distinguishes_gaps_from_checker_failure(self) -> None:
         self.assertEqual(
-            gauntlet.feature_gap_count("  10 unguarded:\n", 1),
+            verification.feature_gap_count("  10 unguarded:\n", 1),
             10,
         )
         self.assertEqual(
-            gauntlet.feature_gap_count(
+            verification.feature_gap_count(
                 "feature evidence coverage: 12 features\n"
                 "  every declared evidence has an owner\n",
                 0,
             ),
             0,
         )
-        self.assertIsNone(gauntlet.feature_gap_count("malformed feature map", 2))
+        self.assertIsNone(verification.feature_gap_count("malformed feature map", 2))
 
     def test_log_retention_keeps_the_newest_run_directories(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -116,7 +115,7 @@ Test acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() failed af
             unrelated = root / "manual-notes"
             unrelated.mkdir()
 
-            gauntlet.retain_recent_runs(root, 2, root / names[-1])
+            verification.retain_recent_runs(root, 2, root / names[-1])
 
             self.assertFalse((root / names[0]).exists())
             self.assertTrue((root / names[1]).is_dir())

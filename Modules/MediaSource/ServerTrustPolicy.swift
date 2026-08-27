@@ -53,8 +53,7 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
         defer {
             lock.withLock {
                 let remaining = (connectionApprovalDepth[address] ?? 1) - 1
-                if remaining == 0 { connectionApprovalDepth.removeValue(forKey: address) }
-                else { connectionApprovalDepth[address] = remaining }
+                if remaining == 0 { connectionApprovalDepth.removeValue(forKey: address) } else { connectionApprovalDepth[address] = remaining }
             }
         }
         return try await operation()

@@ -661,7 +661,7 @@ public struct PlaybackVideoSurface: View {
             let attachProbeSignature = [
                 "windowSurfaceAttached",
                 presentation.rawValue,
-                playbackRuntime.activeTechnicalSessionID ?? "none",
+                playbackRuntime.activeTechnicalSessionID ?? "none"
             ].joined(separator: "|")
             if componentObservation.shouldLogAttach(attachProbeSignature) {
                 appModel.recordSurfaceInputProbe(
@@ -886,7 +886,7 @@ public struct PlaybackVideoSurface: View {
             "gotViewing=\(component.viewingMode.map { String(describing: $0) } ?? "none")",
             "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
             "panoramic=\(playbackRuntime.effectiveContentIsPanoramic)",
-            "lifecycle=\(playbackRuntime.productLifecycle)",
+            "lifecycle=\(playbackRuntime.productLifecycle)"
         ]
         let breakdown = settlementFields.joined(separator: ",")
         let settlementSignature = PlaybackSettlementProbeSignature.make(

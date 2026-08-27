@@ -10,16 +10,6 @@ public struct PlaybackEndedContinuity: Equatable, Sendable {
     public let reason: PlaybackEndReason
     public let logicalPosition: CMTime
     public let finalVideoPresentationTime: CMTime
-
-    init(
-        reason: PlaybackEndReason,
-        logicalPosition: CMTime,
-        finalVideoPresentationTime: CMTime
-    ) {
-        self.reason = reason
-        self.logicalPosition = logicalPosition
-        self.finalVideoPresentationTime = finalVideoPresentationTime
-    }
 }
 
 public enum PlaybackStatus: Equatable, Sendable {

@@ -1,6 +1,5 @@
 import Foundation
 
-
 public enum PlaybackOperationKind: String, Codable, Sendable {
     case open
     case play

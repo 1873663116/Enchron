@@ -570,7 +570,6 @@ public final class SpatialPlatformEffectCoordinator {
             case .succeeded:
                 lastExecutionCheckpoint = "before-effect-transport-completed"
                 lastPlatformOperation = "before-effect-transport-completed"
-                break
             case .invalidated:
                 return
             case .failed(let reason):

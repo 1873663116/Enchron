@@ -1,6 +1,5 @@
 import Foundation
 
-
 private enum PlaybackDebugSnapshotV1CodingKey: String, CodingKey {
     case schemaVersion
     case generatedAt

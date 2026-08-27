@@ -63,7 +63,7 @@ func proResHasNoDecoderOnThisDevice() throws {
         kCMVideoCodecType_AppleProRes422,
         kCMVideoCodecType_AppleProRes422HQ,
         kCMVideoCodecType_AppleProRes4444,
-        kCMVideoCodecType_AppleProRes4444XQ,
+        kCMVideoCodecType_AppleProRes4444XQ
     ]
     let report = try (proRes + [kCMVideoCodecType_H264]).map { codec in
         "\(fourCharacterCode(codec))=\(try decoderStatus(for: codec))"
@@ -95,7 +95,7 @@ func videoDecoderMatrixIsRecorded() throws {
         ("ProRes 422", kCMVideoCodecType_AppleProRes422),
         ("ProRes 422 HQ", kCMVideoCodecType_AppleProRes422HQ),
         ("ProRes 4444", kCMVideoCodecType_AppleProRes4444),
-        ("ProRes 4444 XQ", kCMVideoCodecType_AppleProRes4444XQ),
+        ("ProRes 4444 XQ", kCMVideoCodecType_AppleProRes4444XQ)
     ]
     let rows = try codecs.map { name, codec -> String in
         let status = try decoderStatus(for: codec)

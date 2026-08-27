@@ -1,6 +1,5 @@
 import SwiftUI
 
-
 public enum EnchronHoverStyle {
     case automatic
     case lift
@@ -179,7 +178,6 @@ public extension View {
         frame(depth: depth)
     }
 }
-
 
 private struct EnchronScreenAppearance: ViewModifier {
     @State private var hasAppeared = false

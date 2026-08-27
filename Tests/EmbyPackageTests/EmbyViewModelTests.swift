@@ -31,7 +31,7 @@ struct EmbyViewModelTests {
         #expect(viewModel.shelves.map { $0.title } == [
             "Continue Watching",
             "Next Up",
-            "Recently Added in Movies",
+            "Recently Added in Movies"
         ])
     }
 
@@ -100,17 +100,17 @@ struct EmbyViewModelTests {
         let season = seasonItem(id: "season-1", seriesID: "series")
         let episodes = [
             episode(id: "episode-1", seasonID: "season-1"),
-            episode(id: "episode-2", seasonID: "season-1"),
+            episode(id: "episode-2", seasonID: "season-1")
         ]
         let source = playableSource(id: "episode-source", itemID: "episode-1")
         let client = ViewModelFakeEmbyClient(
             itemByID: [
                 series.metadata.id: series,
-                episodes[0].metadata.id: .episode(episodes[0]),
+                episodes[0].metadata.id: .episode(episodes[0])
             ],
             childrenByID: [
                 series.metadata.id: [.season(season)],
-                season.metadata.id: episodes.map(EmbyLibraryItem.episode),
+                season.metadata.id: episodes.map(EmbyLibraryItem.episode)
             ],
             playbackByID: [episodes[0].metadata.id: EmbyPlaybackSession(
                 id: EmbyPlaySessionID(rawValue: "session"),
@@ -145,7 +145,7 @@ struct EmbyViewModelTests {
             childrenByID: [
                 series.metadata.id: [.season(first), .season(second)],
                 first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
-                second.metadata.id: [.episode(episode(id: "episode-2", seasonID: "season-2"))],
+                second.metadata.id: [.episode(episode(id: "episode-2", seasonID: "season-2"))]
             ]
         )
         let detail = EmbyDetailViewModel(

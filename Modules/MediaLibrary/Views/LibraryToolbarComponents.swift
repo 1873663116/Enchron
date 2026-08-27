@@ -85,7 +85,7 @@ public struct SortMenuButton: View {
                             title: "Size",
                             isSelected: sortKey == .size,
                             select: { sortKey = .size }
-                        ),
+                        )
                     ]
                 )
             case .sortOrder:
@@ -104,7 +104,7 @@ public struct SortMenuButton: View {
                             title: "Descending",
                             isSelected: sortOrder == .descending,
                             select: { sortOrder = .descending }
-                        ),
+                        )
                     ]
                 )
             default:

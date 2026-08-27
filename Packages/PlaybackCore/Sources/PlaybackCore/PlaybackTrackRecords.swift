@@ -1,6 +1,5 @@
 import Foundation
 
-
 public struct VideoTrackRecord: Codable, Equatable, Sendable {
     public var mediaSessionID: String
     public var videoTrackID: String

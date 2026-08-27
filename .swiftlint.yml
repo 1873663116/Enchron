@@ -16,12 +16,21 @@ excluded:
 opt_in_rules:
   - force_unwrapping
 
+
 disabled_rules:
   - trailing_whitespace
   - type_body_length
   - file_length
   - function_body_length
   - cyclomatic_complexity
+  # 以下四条是关于「多大算大」的意见，跟已被证伪的净行数指标同类：
+  # 它们无法给出「改成多少才对」的判据，只会长出豁免表。
+  - type_name
+  - function_parameter_count
+  - nesting
+  - large_tuple
+  # 闭包参数换行位置，纯排版且 --fix 修不掉，不值得让 CI 变红。
+  - closure_parameter_position
 
 # 放宽内置规则，避免误报
 identifier_name:

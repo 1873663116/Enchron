@@ -36,5 +36,22 @@
 
 ## 验证
 
+**W0–W3**：一个改动在合并前必须跑到的最高验证阶段。级别按改动路径判定，四级逐级包含，低级是高级的前置。
+
+| 级 | 跑什么 | 要什么 |
+|---|---|---|
+| W0 | 静态检查：结构规则、SwiftLint、脚本清单 | 只读源码，不构建 |
+| W1 | W0 加构建与测试：Xcode 产品构建、PlaybackCore、领域测试、源解析对拍 | 工具链与 TestMedia |
+| W2 | W1 加模拟器 Journey | 模拟器 |
+| W3 | W2 加 Device Hub 真实输入 Journey | 真机注视与捏合 |
+
+W0 与 W1 由 `Scripts/rules/run_verification.py` 执行，是 PR 上那个会红的检查。W2 与 W3 由驱动者实时判读，产出证据清单。
+
+**Structure Check**：W0 里的一项，读源码判定一条结构约束，不构建也不运行产品。`run_verification.py` 逐项执行并各写一份日志。
+
+**Self-test**：给规则本身写的测试，喂已知正确与已知错误的样本，断言规则对前者放行、对后者拦截。没有它，规则报绿分不清是仓库干净还是规则坏了。命名 `test_*.py`，放进 `Scripts/rules/` 即被扫描执行，不需要登记。
+
+**Ratchet**：只能收紧不能放松的基线。`--write-baseline` 拒绝任何基线里尚不存在的条目，所以新违规的唯一出路是改代码或论证规则不成立。`design_source_architecture_baseline.json` 与 `swiftlint_baseline.json` 都按此约束。
+
 **Journey**：按用户真实使用顺序编写的回归单元，声明前置状态、有序步骤、每步的证明目标与终态判据。每条 Journey 从干净状态开始，Journey 之间不传递状态。它组织行为层回归；送达事实由可达性矩阵回答。
 **Unguarded Evidence Point**：特性声明了但尚无看守者的证据格。它不是失败，是「绿」不覆盖的已知范围，回归报告必须逐项列出。

@@ -1,6 +1,5 @@
 import Foundation
 
-
 public nonisolated enum FileBrowsingDomain {}
 
 nonisolated extension FileBrowsingDomain {
@@ -57,7 +56,6 @@ nonisolated extension FileBrowsingDomain {
         public var alwaysShowsCredentials: Bool { self == .webDAV }
     }
 }
-
 
 nonisolated extension FileBrowsingDomain {
     public struct ConnectionInfo: Sendable, Equatable, Codable {
@@ -160,7 +158,7 @@ nonisolated extension FileBrowsingDomain {
                 normalizedScheme,
                 normalizedHost,
                 String(normalizedPort),
-                accountNamespace,
+                accountNamespace
             ]
                 .joined(separator: ":")
         }
@@ -252,7 +250,6 @@ nonisolated extension FileBrowsingDomain {
         case failed(String)
     }
 }
-
 
 nonisolated extension FileBrowsingDomain {
     public struct DataSource: Sendable, Equatable, Identifiable, Codable {

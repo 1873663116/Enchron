@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,23 +26,25 @@ class PathTierTests(unittest.TestCase):
         if rule is not None:
             self.assertEqual(found.rule, rule, path)
 
-    def test_docs_skills_and_scripts_are_w0(self) -> None:
+    def test_prose_is_w0(self) -> None:
         self.assertTier("docs/CONTEXT.md", tiers.W0)
         self.assertTier(".agents/skills/vp-e2e/SKILL.md", tiers.W0)
-        self.assertTier("Scripts/verification/journey_units.py", tiers.W0)
 
-    def test_test_code_is_w1(self) -> None:
+    def test_what_the_build_and_test_stage_covers_is_w1(self) -> None:
         self.assertTier("Tests/PlaybackPresentationTests/File.swift", tiers.W1)
         self.assertTier("Packages/PlaybackCore/Tests/CoreTests/File.swift", tiers.W1)
+        self.assertTier("Scripts/verification/journey_units.py", tiers.W1, "Scripts/")
+        self.assertTier("Scripts/rules/verify_glass_usage.py", tiers.W1, "Scripts/")
+        self.assertTier("Config/verification_baseline.json", tiers.W1, "Config/")
 
-    def test_feature_modules_off_the_playback_pipeline_are_w2(self) -> None:
+    def test_what_a_simulator_journey_can_settle_is_w2(self) -> None:
         self.assertTier("Modules/Emby/EmbyClient.swift", tiers.W2)
         self.assertTier("Modules/MediaLibrary/Views/Grid.swift", tiers.W2)
         self.assertTier("Modules/DesignSystem/DesignTokens.swift", tiers.W2)
+        self.assertTier("Modules/MediaSource/MediaByteStream.swift", tiers.W2)
 
-    def test_playback_presentation_and_immersion_are_w3(self) -> None:
+    def test_what_needs_real_input_or_real_decoding_is_w3(self) -> None:
         self.assertTier("Apps/Enchron/MainView.swift", tiers.W3)
-        self.assertTier("Modules/MediaSource/MediaByteStream.swift", tiers.W3)
         self.assertTier("Modules/Playback/PlaybackRuntime.swift", tiers.W3)
         self.assertTier("Modules/Playback/Scenes/A.swift", tiers.W3)
         self.assertTier("Packages/PlaybackCore/Sources/Core/A.swift", tiers.W3)
@@ -49,11 +52,9 @@ class PathTierTests(unittest.TestCase):
 
     def test_config_is_enforcement_state_and_never_w0(self) -> None:
         self.assertTier(
-            "Config/journey_operation_coverage.json", tiers.W3, "Config/"
+            "Config/journey_operation_coverage.json", tiers.W1, "Config/"
         )
-        self.assertTier(
-            "Config/verification_gauntlet_baseline.json", tiers.W3, "Config/"
-        )
+        self.assertTier("Config/swiftlint_baseline.json", tiers.W1, "Config/")
 
     def test_an_unmapped_path_up_levels_to_w3(self) -> None:
         self.assertTier("Mystery/file.txt", tiers.W3, tiers.UNCLASSIFIED_RULE)
@@ -97,7 +98,7 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(verdict.free_merge)
         rendered = "\n".join(tiers.render(verdict))
         self.assertIn(tiers.REVIEW_PHRASE, rendered)
-        self.assertIn(tiers.GAUNTLET_GREEN, rendered)
+        self.assertIn(tiers.VERIFICATION_GREEN, rendered)
         self.assertIn(tiers.SIMULATOR_E2E, rendered)
         self.assertIn(tiers.PROBE_CONTRACT_SHAPE, rendered)
 
@@ -115,18 +116,18 @@ class VerdictTests(unittest.TestCase):
 
     def test_the_evidence_table_matches_the_approved_tiers(self) -> None:
         self.assertEqual(
-            tiers.TIER_EVIDENCE[tiers.W0], (tiers.GAUNTLET_GREEN,)
+            tiers.TIER_EVIDENCE[tiers.W0], (tiers.VERIFICATION_GREEN,)
         )
         self.assertEqual(
-            tiers.TIER_EVIDENCE[tiers.W1], (tiers.GAUNTLET_GREEN,)
+            tiers.TIER_EVIDENCE[tiers.W1], (tiers.VERIFICATION_GREEN,)
         )
         self.assertEqual(
             tiers.TIER_EVIDENCE[tiers.W2],
-            (tiers.GAUNTLET_GREEN, tiers.SIMULATOR_E2E),
+            (tiers.VERIFICATION_GREEN, tiers.SIMULATOR_E2E),
         )
         self.assertEqual(
             tiers.TIER_EVIDENCE[tiers.W3],
-            (tiers.GAUNTLET_GREEN, tiers.SIMULATOR_E2E, tiers.DEVICE_HUB_INPUT),
+            (tiers.VERIFICATION_GREEN, tiers.SIMULATOR_E2E, tiers.DEVICE_HUB_INPUT),
         )
         self.assertEqual(
             tiers.FREE_MERGE_ENABLED_TIERS, (tiers.W0, tiers.W1)
@@ -143,9 +144,9 @@ def w3_manifest() -> dict[str, object]:
         "version": 1,
         "range": "a..b",
         "declaredTier": "W3",
-        "gauntlet": {
-            "runDirectory": ".scratch/VerificationGauntlet/runs/20260825T000000Z-1",
-            "summary": ".scratch/VerificationGauntlet/runs/20260825T000000Z-1/summary.json",
+        "verification": {
+            "runDirectory": ".scratch/Verification/runs/20260825T000000Z-1",
+            "summary": ".scratch/Verification/runs/20260825T000000Z-1/summary.json",
             "verdict": "passed",
             "mode": "quick",
         },
@@ -236,11 +237,11 @@ class ManifestTests(unittest.TestCase):
         complaints = tiers.manifest_complaints(manifest, tiers.W3)
         self.assertTrue(any("realDeviceDecode[0]" in item for item in complaints))
 
-    def test_a_failed_gauntlet_is_never_evidence(self) -> None:
+    def test_a_failed_verification_is_never_evidence(self) -> None:
         manifest = w3_manifest()
-        manifest["gauntlet"]["verdict"] = "failed"
+        manifest["verification"]["verdict"] = "failed"
         complaints = tiers.manifest_complaints(manifest, tiers.W3)
-        self.assertTrue(any("gauntlet.verdict" in item for item in complaints))
+        self.assertTrue(any("verification.verdict" in item for item in complaints))
 
     def test_declaring_below_the_computed_tier_is_rejected(self) -> None:
         manifest = w3_manifest()
@@ -251,13 +252,13 @@ class ManifestTests(unittest.TestCase):
     def test_declaring_above_the_computed_tier_is_allowed(self) -> None:
         self.assertEqual(tiers.manifest_complaints(w3_manifest(), tiers.W0), [])
 
-    def test_a_w0_manifest_needs_only_the_gauntlet(self) -> None:
+    def test_a_w0_manifest_needs_only_the_verification(self) -> None:
         manifest = {
             "version": 1,
             "declaredTier": "W0",
-            "gauntlet": {
-                "runDirectory": ".scratch/VerificationGauntlet/runs/x",
-                "summary": ".scratch/VerificationGauntlet/runs/x/summary.json",
+            "verification": {
+                "runDirectory": ".scratch/Verification/runs/x",
+                "summary": ".scratch/Verification/runs/x/summary.json",
                 "verdict": "passed",
             },
         }
@@ -372,10 +373,10 @@ class CommitRangeTests(unittest.TestCase):
         self.assertEqual(payload["tier"], "W3")
         self.assertFalse(payload["freeMerge"])
 
-    def test_a_scripts_and_config_range_leaves_w0(self) -> None:
+    def test_a_scripts_and_config_range_lands_on_w1(self) -> None:
         code, payload = self.classify(f"{self.revisions[4]}..{self.revisions[5]}")
         self.assertEqual(code, 0)
-        self.assertEqual(payload["tier"], "W3")
+        self.assertEqual(payload["tier"], "W1")
         rules = {entry["path"]: entry["rule"] for entry in payload["paths"]}
         self.assertEqual(rules["Config/some_baseline.json"], "Config/")
         self.assertEqual(rules["Scripts/verification/tool.py"], "Scripts/")
@@ -423,9 +424,9 @@ class CommitRangeTests(unittest.TestCase):
                 {
                     "version": 1,
                     "declaredTier": "W0",
-                    "gauntlet": {
-                        "runDirectory": ".scratch/VerificationGauntlet/runs/x",
-                        "summary": ".scratch/VerificationGauntlet/runs/x/summary.json",
+                    "verification": {
+                        "runDirectory": ".scratch/Verification/runs/x",
+                        "summary": ".scratch/Verification/runs/x/summary.json",
                         "verdict": "passed",
                     },
                 }
@@ -465,13 +466,13 @@ class CommitRangeTests(unittest.TestCase):
         self.assertIn("only declare upward", insufficient.stdout)
 
 
-class GauntletRegistrationTests(unittest.TestCase):
-    def test_the_gauntlet_runs_the_classifier_and_its_tests_in_quick_mode(self) -> None:
-        import run_verification_gauntlet as gauntlet
+class VerificationRegistrationTests(unittest.TestCase):
+    def test_the_verification_runs_the_classifier_and_its_tests_in_quick_mode(self) -> None:
+        import run_verification as verification
 
         registered = {
             check.identifier: check
-            for check in gauntlet.STRUCTURE_CHECKS + gauntlet.discovered_test_checks()
+            for check in verification.STRUCTURE_CHECKS + verification.discovered_test_checks()
         }
         self.assertIn("merge-evidence-tier", registered)
         self.assertIn("test-merge-evidence-tier", registered)
@@ -486,14 +487,31 @@ class GauntletRegistrationTests(unittest.TestCase):
         self.assertTrue(registered["test-merge-evidence-tier"].runs_in_quick_mode)
 
     def test_the_gate_never_turns_a_w3_range_into_a_failure(self) -> None:
+        repository = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, repository, ignore_errors=True)
+        run = lambda *arguments: subprocess.run(
+            ["git", *arguments], cwd=repository, capture_output=True, text=True, check=True
+        )
+        run("init", "--quiet")
+        run("config", "user.email", "verification@enchron.invalid")
+        run("config", "user.name", "verification")
+        for name, body in (
+            ("README.md", "seed"),
+            ("Modules/Playback/PlaybackRuntime.swift", "pipeline"),
+        ):
+            path = repository / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body, encoding="utf-8")
+            run("add", "--all")
+            run("commit", "--quiet", "--message", name)
+
         completed = subprocess.run(
-            [sys.executable, str(TOOL), "d69ee38^..d69ee38"],
+            [sys.executable, str(TOOL), "--repository", str(repository), "HEAD^..HEAD"],
             capture_output=True,
             text=True,
         )
-        if completed.returncode == 2:
-            self.skipTest("range is not in this clone's history")
         self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("W3", completed.stdout)
         self.assertIn(tiers.REVIEW_PHRASE, completed.stdout)
 
 

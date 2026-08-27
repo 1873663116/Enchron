@@ -311,7 +311,7 @@ public struct SourceSidebar: View {
                     title: "SMB",
                     isSelected: false,
                     select: { performAddSource(.smb) }
-                ),
+                )
             ]
             if onImportFolder != nil {
                 items.insert(
@@ -332,7 +332,7 @@ public struct SourceSidebar: View {
                     title: "Refresh",
                     isSelected: false,
                     select: { performRefresh() }
-                ),
+                )
             ]
             if hasDeletableSources {
                 items.append(

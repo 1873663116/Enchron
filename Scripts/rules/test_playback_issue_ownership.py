@@ -11,7 +11,7 @@ import verify_playback_issue_ownership as ownership
 class PlaybackIssueOwnershipTests(unittest.TestCase):
     def create_owner(self, root: Path, declaration: str = "public private(set)") -> None:
         owner = root / ownership.OWNER
-        owner.parent.mkdir(parents=True)
+        owner.parent.mkdir(parents=True, exist_ok=True)
         owner.write_text(
             f"""public final class PlaybackRuntime {{
     {declaration} var userVisibleIssue: PlaybackUserVisibleIssue?
@@ -36,7 +36,7 @@ class PlaybackIssueOwnershipTests(unittest.TestCase):
             root = Path(directory)
             self.create_owner(root)
             source = root / "Apps/Enchron/UnexpectedWriter.swift"
-            source.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True, exist_ok=True)
             source.write_text("runtime.userVisibleIssue = issue\n", encoding="utf-8")
 
             rules = {violation.rule for violation in ownership.audit_repository(root)}
@@ -48,7 +48,7 @@ class PlaybackIssueOwnershipTests(unittest.TestCase):
             root = Path(directory)
             self.create_owner(root)
             source = root / "Apps/Enchron/NonCode.swift"
-            source.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True, exist_ok=True)
             source.write_text(
                 """// runtime.userVisibleIssue = issue
 let example = "runtime.userVisibleIssue = issue"
@@ -63,7 +63,7 @@ let example = "runtime.userVisibleIssue = issue"
             root = Path(directory)
             self.create_owner(root)
             source = root / "Modules/Playback/Legacy.swift"
-            source.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True, exist_ok=True)
             source.write_text("var subtitleErrorMessage: String?\n", encoding="utf-8")
 
             rules = {violation.rule for violation in ownership.audit_repository(root)}

@@ -69,7 +69,7 @@ extension SampleBufferPlaybackSession {
                 "totalMilliseconds":
                     Self.milliseconds(from: teardownStarted, to: rendererFlushed),
                 "leadFrames": String(videoLeadFrames),
-                "framesInFlight": String(framesInFlightAtTeardown),
+                "framesInFlight": String(framesInFlightAtTeardown)
             ]
         )
         resetDecoderBootstrap()
@@ -102,7 +102,7 @@ extension SampleBufferPlaybackSession {
                 "audioRendererStatus": audioRendererStatusLabel,
                 "audioRendererError": audioRenderer.error?.localizedDescription
                     ?? currentAudioRendererError
-                    ?? "none",
+                    ?? "none"
             ]
         )
 
@@ -134,7 +134,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "targetSeconds": String(target),
                     "streamEpoch": String(streamEpoch),
-                    "endReason": PlaybackEndReason.seekToEnd.rawValue,
+                    "endReason": PlaybackEndReason.seekToEnd.rawValue
                 ]
             )
             finishActiveOperation(.completed)
@@ -256,7 +256,7 @@ extension SampleBufferPlaybackSession {
                 videoReachedTarget = videoReachedTarget
                     || latestSampleReachedTarget
                     || maximumPresentationTimeReachedTarget
-                if (latestSampleReachedTarget || maximumPresentationTimeReachedTarget),
+                if latestSampleReachedTarget || maximumPresentationTimeReachedTarget,
                    audioReady {
                     debugStore.emit(
                         mediaSessionID: traceID,
@@ -273,7 +273,7 @@ extension SampleBufferPlaybackSession {
                             "totalMilliseconds": Self.milliseconds(
                                 from: teardownStarted,
                                 to: ContinuousClock.now
-                            ),
+                            )
                         ]
                     )
                     completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
@@ -346,7 +346,7 @@ extension SampleBufferPlaybackSession {
                     "totalMilliseconds": Self.milliseconds(
                         from: teardownStarted,
                         to: ContinuousClock.now
-                    ),
+                    )
                 ]
             )
             completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
@@ -615,7 +615,7 @@ extension SampleBufferPlaybackSession {
                 details: [
                     "streamIndex": String(streamIndex),
                     "rollback": "restored",
-                    "error": replacementError.localizedDescription,
+                    "error": replacementError.localizedDescription
                 ]
             )
             throw replacementError

@@ -1,6 +1,5 @@
 import Foundation
 
-
 public enum MediaEventKind: String, Codable, Sendable {
     case sample
     case formatChanged

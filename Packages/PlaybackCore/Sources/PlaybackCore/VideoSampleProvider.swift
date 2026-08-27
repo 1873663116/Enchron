@@ -166,7 +166,7 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
         let configurationAtoms = [
             PBFFmpegReaderFormatHasHvcC(reader.pointer) ? "hvcC" : nil,
             PBFFmpegReaderFormatHasDvcC(reader.pointer) ? "dvcC" : nil,
-            PBFFmpegReaderFormatHasDvvC(reader.pointer) ? "dvvC" : nil,
+            PBFFmpegReaderFormatHasDvvC(reader.pointer) ? "dvvC" : nil
         ].compactMap(\.self)
         return VideoSampleProviderInfo(
             providerKind: "FFmpegCompressed",

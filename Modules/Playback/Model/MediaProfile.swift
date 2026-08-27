@@ -2,7 +2,6 @@ import Foundation
 
 public nonisolated enum PlaybackModel {}
 
-
 nonisolated extension PlaybackModel {
     public enum SourceVideoContentKind: String, Sendable, Equatable, Codable {
         case rectilinear
@@ -35,7 +34,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 nonisolated extension PlaybackModel {
     public enum HDRType: String, Sendable, CaseIterable, Codable {
         case sdr
@@ -45,7 +43,6 @@ nonisolated extension PlaybackModel {
         case hlg
     }
 }
-
 
 nonisolated extension PlaybackModel {
     public struct DolbyVision: Sendable, Equatable, Codable {
@@ -74,7 +71,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 nonisolated extension PlaybackModel.HDRType {
     public var label: String {
         switch self {
@@ -86,7 +82,6 @@ nonisolated extension PlaybackModel.HDRType {
         }
     }
 }
-
 
 nonisolated extension PlaybackModel {
     public enum ProjectionType: String, Sendable, CaseIterable, Codable {
@@ -112,7 +107,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 nonisolated extension PlaybackModel {
     public enum StereoLayout: String, Sendable, CaseIterable, Codable {
         case mono
@@ -123,7 +117,7 @@ nonisolated extension PlaybackModel {
         public static let userSelectableCases: [Self] = [
             .mono,
             .sideBySide,
-            .topBottom,
+            .topBottom
         ]
 
         public struct UVRect: Sendable, Equatable {
@@ -192,7 +186,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 nonisolated extension PlaybackModel {
     public struct AudioTrack: Sendable, Equatable, Identifiable {
         public let id: String
@@ -209,7 +202,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 nonisolated extension PlaybackModel {
     public struct SubtitleTrack: Sendable, Equatable, Identifiable {
         public let id: String
@@ -225,7 +217,6 @@ nonisolated extension PlaybackModel {
         }
     }
 }
-
 
 nonisolated extension PlaybackModel {
     public struct MediaProfile: Sendable, Equatable, Codable {
@@ -316,7 +307,6 @@ nonisolated extension PlaybackModel {
         }
     }
 }
-
 
 public nonisolated protocol MediaProfileDetecting: AnyObject {
     func didDetectMediaProfile(_ profile: PlaybackModel.MediaProfile)
