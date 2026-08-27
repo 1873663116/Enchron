@@ -378,6 +378,20 @@ def test_failure_has_marker(
     return False
 
 
+def discard_playback_core_scratch() -> bool:
+    """Throw away the shared build directory after a step failed to report.
+
+    A terminated `swift test` leaves that directory wedged, and every later run
+    inherits it: the suite then fails a different handful of timing-sensitive
+    tests each time, which reads as a flaky product rather than as stale state.
+    Rebuilding costs minutes; a poisoned directory costs every run after it.
+    """
+    if not PLAYBACK_CORE_SCRATCH.exists():
+        return False
+    shutil.rmtree(PLAYBACK_CORE_SCRATCH, ignore_errors=True)
+    return not PLAYBACK_CORE_SCRATCH.exists()
+
+
 def run_playback_core_tests(
     run_directory: Path,
     environment: dict[str, str],
@@ -397,10 +411,12 @@ def run_playback_core_tests(
     logs = [relative_log(log, run_directory)]
     summary = test_summary(output)
     if summary is None:
+        discarded = discard_playback_core_scratch()
         return LayerResult(
             "PlaybackCore tests",
             "FAIL",
-            f"full test summary is missing; command exited {code}",
+            f"full test summary is missing; command exited {code}"
+            + ("; discarded the shared build directory" if discarded else ""),
             tuple(logs),
         )
 
@@ -918,6 +934,7 @@ def main() -> int:
             )
         except (OSError, subprocess.SubprocessError) as error:
             results.append(LayerResult("PlaybackCore tests", "FAIL", str(error)))
+        results.append(run_guard_selftests(run_directory, environment))
         if arguments.quick:
             results.extend(
                 [
@@ -925,7 +942,6 @@ def main() -> int:
                     skipped("Source parity"),
                     skipped("Media discovery capability matrix"),
                     skipped("Feature evidence coverage"),
-                    skipped("Guard self-tests"),
                 ]
             )
         else:
@@ -938,7 +954,6 @@ def main() -> int:
                 run_media_discovery_capability_matrix(run_directory, environment)
             )
             results.append(run_feature_coverage(run_directory, environment))
-            results.append(run_guard_selftests(run_directory, environment))
 
         write_summary(
             run_directory,

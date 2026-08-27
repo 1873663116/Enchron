@@ -132,8 +132,9 @@ def cited(path: Path) -> bool:
             continue
         if candidate.suffix not in (".py", ".sh", ".zsh", ".md", ".yml", ".json"):
             continue
-        if any(part.startswith(".") and part != "." for part in candidate.parts):
-            if ".agents" not in candidate.parts and ".github" not in candidate.parts:
+        parts = candidate.relative_to(REPOSITORY_ROOT).parts
+        if any(part.startswith(".") for part in parts):
+            if ".agents" not in parts and ".github" not in parts:
                 continue
         try:
             if path.name in candidate.read_text(encoding="utf-8", errors="replace"):
