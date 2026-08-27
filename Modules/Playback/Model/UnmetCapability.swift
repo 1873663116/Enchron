@@ -1,22 +1,10 @@
 import Foundation
 
-/// Something the media asked for that this build or this device did not deliver.
-///
-/// `PlaybackError` cannot carry these. Its cases are all terminal, so a title that
-/// played with its second view missing, or played silently because the audio codec
-/// was refused, had nowhere to be recorded and reached the wearer as an unexplained
-/// picture. The distinction that decides where one of these is shown is whether
-/// playback happened at all, so that is the only axis here. Anything finer, a
-/// severity ladder for instance, would be a classification the surfaces cannot use.
 public struct UnmetCapability: Sendable, Equatable, Identifiable {
     public let id: String
-    /// What the media asked for, in the wearer's terms.
     public let requested: String
-    /// What playback produced instead.
     public let delivered: String
-    /// Why the substitution happened.
     public let reason: String
-    /// True when there is no picture, which is the only case that interrupts.
     public let preventsPlayback: Bool
 
     public init(
@@ -33,17 +21,11 @@ public struct UnmetCapability: Sendable, Equatable, Identifiable {
         self.preventsPlayback = preventsPlayback
     }
 
-    /// One sentence for a surface with no room for three fields.
     public var summary: String {
         preventsPlayback ? reason : "\(requested). \(delivered)."
     }
 }
 
-/// The facts a judgement needs, named so the judgement can be tested without a session.
-///
-/// Every field here is already published by PlaybackCore. Nothing in this file probes
-/// the device; a capability that is not visible in these facts is a gap in the facts,
-/// not something to infer from a heuristic.
 public struct PlaybackCapabilityFacts: Sendable, Equatable {
     public var codecName: String
     public var sourceIsMultiview: Bool
@@ -70,9 +52,6 @@ public struct PlaybackCapabilityFacts: Sendable, Equatable {
 }
 
 extension UnmetCapability {
-    /// This device reports no decoder for any ProRes variant, measured through
-    /// VTDecompressionSessionCreate rather than inferred from the renderer's error.
-    /// See `Tests/EnchronApp/VideoDecoderAvailabilityTests.swift`.
     static let codecsWithoutDeviceDecoder = ["prores", "prores_raw"]
 
     public static func all(from facts: PlaybackCapabilityFacts) -> [UnmetCapability] {

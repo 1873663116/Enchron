@@ -1,6 +1,7 @@
 import Foundation
 import MediaSource
 @testable @_spi(Testing) import Playback
+import PlaybackCore
 import Synchronization
 import Testing
 
@@ -1022,6 +1023,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
             override: activeMediaFormatProvenance == .source ? nil : .standard
         )
     }
+    var mediaKind: PlaybackMediaKind = .video
     var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind = .rectilinear
     var sourceMediaFormatSummary = "Flat · Mono"
     var effectiveContentIsPanoramic = false

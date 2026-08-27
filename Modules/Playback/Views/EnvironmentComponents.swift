@@ -333,8 +333,6 @@ struct EnvironmentCardCarousel: View {
     var defaultEffect: SpatialSceneDomain.EnvironmentEffect = .inactiveFallback
     var onEffectChange:
         (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
-    /// Center-card expand (enter immersive). Forwarded from the focused card's
-    /// expand control; defaults to no-op for Canvas review (ENV-18).
     var onExpand:
         (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
 
@@ -674,10 +672,3 @@ struct EnvironmentCardCarousel: View {
         let environment: FeaturedEnvironment
     }
 }
-
-// MARK: - Row items
-
-// MARK: - File List Group
-
-/// A file-browsing list group that shares the common row shell while owning
-/// media-specific icons, metadata and gaze behavior.

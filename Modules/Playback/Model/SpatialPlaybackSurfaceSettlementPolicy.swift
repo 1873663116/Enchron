@@ -47,11 +47,6 @@ public enum SpatialPlaybackSurfaceSettlementPolicy {
         }
     }
 
-    /// Confirms a user override without depending on ContentTypeDidChange.
-    /// That event is classification evidence when delivered, but RealityKit
-    /// does not replay it for every fresh component. The accepted renderer
-    /// description plus RealityKit's actual projection and eye modes form the
-    /// equivalent adoption proof for an explicit override.
     public nonisolated static func explicitOverrideAdoptionIsConfirmed(
         projection: PlaybackModel.ProjectionType,
         stereoLayout: PlaybackModel.StereoLayout,

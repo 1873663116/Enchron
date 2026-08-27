@@ -15,7 +15,7 @@ public enum ButtonIconTier {
         }
     }
 
-    var font: Font {
+    public var font: Font {
         switch self {
         case .compact: DesignTokens.SymbolSize.compact
         case .standard: DesignTokens.SymbolSize.control

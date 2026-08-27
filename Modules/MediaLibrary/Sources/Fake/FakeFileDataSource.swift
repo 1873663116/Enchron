@@ -1,21 +1,10 @@
 import Foundation
 import MediaSource
 
-/// In-memory file source fixture for UI tests and previews.
-///
-/// Conforms to the same `FileProviding` + `DataSourceConnecting` ports as the
-/// production `LocalDataSourceAdapter`, but serves a fixed in-memory catalog
-/// instead of touching disk or the network. This lets the browsing UI run
-/// end-to-end against deterministic data; the App's dependency assembly swaps in a real
-/// adapter in production.
-///
-/// Optional `latency` and `failureMode` drive the loading / disconnect use
-/// cases (UC-FILE-24 / UC-FILE-28) without real I/O.
 nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable {
 
     public enum FailureMode: Sendable {
         case none
-        /// Every listing call throws, simulating a dropped connection (UC-FILE-28).
         case listingFails(message: String)
     }
 
@@ -37,8 +26,6 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
         self.failureMode = failureMode
         self.catalog = catalog
     }
-
-    // MARK: - DataSourceConnecting
 
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
         connectionStatus = .connecting
@@ -76,8 +63,6 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
         item.url
     }
 
-    // MARK: - FileProviding
-
     public func listFiles(
         in folder: FileBrowsingDomain.MediaFolder,
         sortBy: FileBrowsingDomain.SortCriteria
@@ -94,11 +79,7 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
         ResolvedMediaSource(url: file.url)
     }
 
-    // MARK: - Helpers
-
     private static func normalize(_ path: String) -> String {
-        // The browsing view-model queries the local root as "." (and remote
-        // roots as ""); both map to the catalog root key "/".
         (path.isEmpty || path == ".") ? "/" : path
     }
 
@@ -127,11 +108,8 @@ public nonisolated enum FakeFileDataSourceError: LocalizedError {
     }
 }
 
-// MARK: - Catalog
-
 nonisolated extension FakeFileDataSource {
 
-    /// A deterministic in-memory directory tree keyed by normalized path.
     public struct Catalog: Sendable {
         let filesByPath: [String: [FileSeed]]
         let folderNamesByPath: [String: [String]]
@@ -157,8 +135,6 @@ nonisolated extension FakeFileDataSource {
             }
         }
 
-        /// Root holds the nine demo films plus two subfolders; one subfolder is
-        /// intentionally empty for the empty-directory use case (UC-FILE-23).
         public static let demo = Catalog(
             filesByPath: [
                 "/": [
@@ -182,11 +158,6 @@ nonisolated extension FakeFileDataSource {
             ]
         )
 
-        /// A deep, multi-branch tree for exercising in/out navigation, breadcrumb,
-        /// back/forward, and empty-directory handling. Four levels at the deepest
-        /// branch (`/Movies/Sci-Fi/Series`), several sibling branches, and two
-        /// empty folders at different depths (`/Empty` at root, `/Concerts/Empty
-        /// Nested` deeper down). Folders with no catalog entry list as empty.
         public static let demoDeep = Catalog(
             filesByPath: [
                 "/": [
@@ -232,15 +203,12 @@ nonisolated extension FakeFileDataSource {
         )
     }
 
-    /// A lightweight seed for one fake media file. Sizes and dates are fixed so
-    /// sort and listing tests are deterministic.
     public struct FileSeed: Sendable {
         let name: String
         let sizeInBytes: Int64
         let modifiedAt: Date
         let fileExtension: String
 
-        /// Fixed epoch base (2024-01-01) so `daysAgo` yields stable dates.
         private static let epochBase = Date(timeIntervalSince1970: 1_704_067_200)
 
         init(_ name: String, gigabytes: Double, daysAgo: Int) {

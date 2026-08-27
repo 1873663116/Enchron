@@ -331,9 +331,6 @@ private final class SpatialPresentationObservation {
             }
         ]
         if let contentTypeSessionID {
-            // ContentTypeDidChange doesn't expose its source Entity. Capture
-            // the current session while leaving the subscription intact across
-            // accepted format revisions; RealityKit doesn't promise a replay.
             subscriptions.append(
                 content.subscribe(to: VideoPlayerEvents.ContentTypeDidChange.self) { event in
                     let contentType = String(describing: event.contentType)
@@ -647,10 +644,6 @@ private final class SpatialDisplayLinkProbe {
 }
 
 public struct ImmersiveSpaceView: View {
-    // Apple's own immersive-media sample receives the controls-summoning
-    // pinch on an invisible collision entity with an input target; the
-    // transparent SwiftUI attachment was never hit by real gaze (8/8 wearer
-    // pinches arrived untargeted, 2026-08-10), so the shell is the receiver.
     private static let collisionShellInputShelved = false
 #if DEBUG
     private static let headInputProbeIsEnabled =
@@ -708,8 +701,6 @@ public struct ImmersiveSpaceView: View {
     }
 
 #if DEBUG
-    /// Opt-in diagnostic collider locked to the wearer's head. Ordinary Debug
-    /// runs leave it absent so it cannot mask the panorama interaction shell.
     @State private var headInputProbe: Entity = {
         let anchor = AnchorEntity(.head, trackingMode: .continuous)
         let panel = Entity()
@@ -772,10 +763,6 @@ public struct ImmersiveSpaceView: View {
                 )
             }
         }
-        // realityScripting installs its own targeted SpatialTapGesture to feed
-        // TapGestureEvent to scripts. It sits inside this view, so an ordinary
-        // .gesture here loses every pinch to it; recognizing simultaneously is
-        // what lets both the script system and playback see the tap.
         .realityScripting()
         .simultaneousGesture(spatialSurfaceTapGesture)
         .allowsHitTesting(spatialPresentationAcceptsInput)
@@ -863,9 +850,6 @@ public struct ImmersiveSpaceView: View {
         _ content: RealityViewContent
     ) {
         let revision = surfaceRefreshTick
-        // Read observable presentation inputs inside RealityView's update
-        // transaction. Reading them only from the deferred task prevents
-        // SwiftUI from scheduling another update when either value changes.
         let dockedPlacement = currentDockedSurfaceTransform
         let spatialPresentationOpacity = spatialPresentationOpacity
         realityViewUpdateScheduler.schedule {
@@ -1216,11 +1200,6 @@ public struct ImmersiveSpaceView: View {
             dockedAnchor = nil
         }
 
-        // RealityKit activates an entity asynchronously after it enters the
-        // scene. Establish ownership before inserting the entity, then install
-        // the renderer component only after the entity has its final topology.
-        // This keeps RealityKit from occasionally accepting an off-scene
-        // VideoPlayerComponent without committing its renderer target.
         do {
             try playbackRuntime.claimRendererConsumer(
                 presentation: presentation,
@@ -1380,10 +1359,6 @@ public struct ImmersiveSpaceView: View {
         } ?? false
         logSpatialSurfaceReadiness(reason: "attachCheck")
         guard presentation.usesImmersiveSpace else { return }
-        // Mirror of the window surface's ownership rule: the runtime
-        // attachment belongs to the transition's target presentation, so a
-        // departing immersive surface must not re-attach over the returning
-        // window surface.
         let owningPresentation =
             appModel.presentationTransition?.targetPresentation
                 ?? appModel.playbackPresentation
@@ -1426,10 +1401,6 @@ public struct ImmersiveSpaceView: View {
             entityID: entityID(for: presentation)
         )
         if let component = videoEntity.components[VideoPlayerComponent.self] {
-            // On visionOS 27, moving this entity between RealityView scenes can
-            // leave the previous current mode in place while the requested mode
-            // remains unchanged. Reapply the request for a bounded interval after
-            // activation so RealityKit can begin the transition in the new scene.
             let recoveryAction = presentationObservation.modeRecoveryAction(
                 to: videoEntity,
                 presentation: presentation,
@@ -1693,9 +1664,6 @@ public struct ImmersiveSpaceView: View {
             "retiring=\(playbackRuntime.retiringTechnicalSessionCount)",
         ]
         let settlementBreakdown = settlementFields.joined(separator: ",")
-        // Clock and counter fields advance every frame; keeping them in the
-        // dedup signature made every settlement line unique, which grew the
-        // probe file fast enough to wedge container copies mid-run.
         let fastChangingFieldPrefixes = [
             "synchronizerTime=",
             "timebaseSourceTime=",
@@ -1844,10 +1812,6 @@ public struct ImmersiveSpaceView: View {
             guard applyRequestedEnvironmentAppearance(to: entity) else {
                 throw EnvironmentSceneEffectError.skyboxMissing
             }
-            // RealityKit does not activate the empty transform marker when it
-            // remains inside this compiled environment resource. Keep the
-            // marker's stable identity and authored world transform, but make
-            // it a live RealityView root so its playback child can activate.
             anchor.removeFromParent()
             content.add(entity)
             content.add(anchor)
@@ -2205,9 +2169,6 @@ public struct ImmersiveSpaceView: View {
             + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
     }
 
-    /// An opened Immersive Space keeps driving its idempotent attach path
-    /// while the requested media session is viable. High-resolution startup
-    /// latency is not evidence that RealityKit rejected the target surface.
     private var spatialSurfaceAttachmentCanStillSettle: Bool {
         guard requestedPresentation.usesImmersiveSpace,
               playbackRuntime.hasActivePlaybackRequest else {
@@ -2333,9 +2294,6 @@ public struct ImmersiveSpaceView: View {
         )
         dockedChildFrontProbe.name =
             PlaybackDockedInteractionSurface.childFrontProbeName
-        // The docked video faces the viewer along local -Z. This probe is the
-        // nearest collider so one targeted tap distinguishes child hit testing
-        // from the sibling fallback behind it.
         dockedChildFrontProbe.position = [0, 0, -0.10]
 
         PlaybackDockedInteractionSurface.configure(

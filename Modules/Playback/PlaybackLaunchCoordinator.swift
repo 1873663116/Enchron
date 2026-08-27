@@ -371,8 +371,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         notifyEffectiveMediaFormatApplied()
     }
 
-    /// Persists only the normalized Window/Panorama playback-mode family for
-    /// the current media revision. Media Format remains a separate preference.
     public func savePlaybackMode(_ mode: PersistedPlaybackMode) {
         guard let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity else {
             return
@@ -879,6 +877,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             break
         }
         guard generation == expectedGeneration else { return false }
+        guard playbackRuntime.mediaKind == .video else {
+            notifyEffectiveMediaFormatApplied()
+            return true
+        }
         if savedFormat != nil, formatWasAppliedDuringOpen {
             notifyEffectiveMediaFormatApplied()
             return true

@@ -1,7 +1,6 @@
 import SwiftUI
 
 public struct GridCard: View {
-    /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
     private enum Variant {
         case video(
             artworkURL: URL?,
@@ -76,11 +75,6 @@ public struct GridCard: View {
     private let selectionEnabled: Bool
     private let isSelected: Bool
     private let isSkeleton: Bool
-    /// When set, the whole card is a real interactive control (same contract as
-    /// `FileListGroup.Item.action`). When `nil`, the card is display-only — used
-    /// by showcase previews. This is what unifies grid and list interaction:
-    /// both drive the same routing instead of the grid bolting on an external
-    /// `.onTapGesture`, which hit-tested unreliably over the card's own gestures.
     private let action: (() -> Void)?
 
     private init(
@@ -101,15 +95,12 @@ public struct GridCard: View {
         self.action = action
     }
 
-    // MARK: 变体工厂
-
     public static func video(
         title: String,
         artworkURL: URL? = nil,
         fileSize: String,
         duration: String,
         badges: [String] = [],
-        /// 0…1 已观看进度;`nil` 表示未看过(不画底部进度描边)。
         watchedProgress: Double? = nil,
         accessibilityIdentifier: String? = nil,
         selectionEnabled: Bool = false,
@@ -174,8 +165,6 @@ public struct GridCard: View {
         )
     }
 
-    /// The still fills the whole card and the caption sits on top of it, the way the Apple TV app
-    /// lays out an episode. Nothing hangs below the artwork.
     public static func episode(
         title: String,
         numberLabel: String? = nil,
@@ -238,8 +227,6 @@ public struct GridCard: View {
         )
     }
 
-    // MARK: 无障碍派生
-
     private var variantKey: String {
         switch variant {
         case .video: return "video"
@@ -256,8 +243,6 @@ public struct GridCard: View {
     private var resolvedLabel: String {
         "\(title), \(variantKey)"
     }
-
-    // MARK: 悬停组(@Namespace 按实例隔离,id 字面量可复用)
 
     private var hoverActivationGroup: EnchronHoverGroup {
         EnchronHoverGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .activatesGroup)
@@ -308,21 +293,9 @@ public struct GridCard: View {
         let shape = DesignTokens.ShapeToken.card
         return ZStack {
             VStack(alignment: .leading, spacing: 0) {
-                // Both dimensions are pinned before the clip. Constraining only the height lets an
-                // aspect-filled still grow past the card's width and spill onto its neighbours,
-                // because the outer width frame centres the oversized thumbnail instead of cutting it.
                 thumbnailContent(shape)
                     .frame(width: cardWidth, height: thumbnailHeight)
                     .clipShape(shape)
-                    // No glass behind the thumbnail. `glassBackgroundEffect` promotes the card into
-                    // its own render layer, which no ancestor can clip, mask or occlude: the card
-                    // then draws outside the window at a scroll boundary and pops out of existence
-                    // instead of sliding under the sidebar. The thumbnail carries its own fill, so
-                    // the glass only ever showed through behind a placeholder.
-                    //
-                    // The highlight belongs to the artwork alone. Carried by the whole card it also
-                    // plates the caption strip underneath, which reads as a panel appearing out of
-                    // nowhere around the card's lower half.
                     .enchronHoverContentShape(shape)
                     .enchronHoverEffect(.highlight, in: hoverActivationGroup)
                     .overlay(alignment: .topTrailing) {
@@ -385,8 +358,6 @@ public struct GridCard: View {
         }
     }
 
-    /// What the card is called underneath its artwork. An episode is captioned by its number alone:
-    /// its title and description belong to the still, where they appear on hover.
     private var captionBelowThumbnail: String? {
         switch variant {
         case .episode(let episode): episode.numberLabel
@@ -487,7 +458,6 @@ public struct GridCard: View {
         }
     }
 
-    // 集信息与其压暗渐变一起随卡片 hover 组显隐;未 hover 时整张剧照干净无遮挡。
     private func episodeCaption(_ episode: EpisodeState) -> some View {
         ZStack(alignment: .bottomLeading) {
             LinearGradient(
@@ -500,8 +470,6 @@ public struct GridCard: View {
                 endPoint: .bottom
             )
 
-            // 集号、标题与时长必须完整可读,简介让出行数直到整块放得下,所以候选按简介
-            // 行数递减排列,最后一个完全不显示简介。
             ViewThatFits(in: .vertical) {
                 episodeCaptionText(episode, overviewLineLimit: 6)
                 episodeCaptionText(episode, overviewLineLimit: 5)
@@ -512,9 +480,6 @@ public struct GridCard: View {
                 episodeCaptionText(episode, overviewLineLimit: 0)
             }
         }
-        // Pinned to the card's own box and anchored at its bottom leading corner. Left to size itself
-        // around its text, the caption ends up wider than the card and centred over it, which pushes
-        // its first characters past the card's leading edge and into the clip.
         .frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)
         .clipped()
         .enchronHoverOpacity(
@@ -538,15 +503,11 @@ public struct GridCard: View {
 
             if let overview = episode.overview, overviewLineLimit > 0 {
                 Text(overview)
-                    // Tighter line height than the title's, so the description reads as one block of
-                    // secondary text rather than as more lines of the same weight.
                     .font(DesignTokens.Typography.metadata.leading(.tight))
                     .foregroundStyle(DesignTokens.Surface.supportingText)
                     .lineLimit(overviewLineLimit)
             }
 
-            // The number is carried by the caption under the card, so the still shows only what
-            // that caption cannot: the episode's title, its description and its runtime.
             if let duration = episode.duration {
                 Label(duration, systemImage: "play.fill")
                     .labelStyle(.titleAndIcon)
@@ -555,12 +516,7 @@ public struct GridCard: View {
             }
         }
         .multilineTextAlignment(.leading)
-        // The text column is measured, not inferred. `ViewThatFits` gives its candidates no width to
-        // work with, so a column that asks for the space it is offered ends up wider than the card
-        // and hangs off both sides, losing its first characters to the card's clip.
         .frame(width: cardWidth - 2 * DesignTokens.Spacing.sm, alignment: .leading)
-        // Enough to clear the corner curve at the bottom, and no more: the still is small, so every
-        // point spent on margin is a point the description loses.
         .padding(.horizontal, DesignTokens.Spacing.sm)
         .padding(.bottom, DesignTokens.Spacing.sm)
         .padding(.top, DesignTokens.Spacing.xs)
@@ -623,8 +579,6 @@ public struct GridCard: View {
             .enchronGlassBadge()
     }
 
-    // 底部已观看进度描边(UC-FILE-26)。嵌入卡片底边:thin 描边随缩略图 clipShape 贴合圆角,
-    // 仅 hover 时随缩略图 hover 组显隐;未 hover 不显示。视觉本体见 `watchedEdgeProgressVisual`。
     private func watchedProgressBar(_ progress: Double) -> some View {
         watchedEdgeProgressVisual(progress)
             .enchronHoverOpacity(
@@ -635,14 +589,12 @@ public struct GridCard: View {
             )
     }
 
-    // 居中占位图标:无缩略图时的视频/文件夹标识。视频与文件夹共用同一尺寸与前景色,避免分叉。
     private func thumbnailPlaceholderIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
             .font(.system(size: DesignTokens.Card.placeholderIconSize))
             .foregroundStyle(DesignTokens.Surface.supportingText)
     }
 
-    // 元数据与占位图标统一用 Surface.supportingText(token);视频与文件夹一致。
     private func thumbnailMetadata(_ text: String) -> some View {
         Text(text)
             .font(DesignTokens.Typography.metadata)
@@ -650,11 +602,6 @@ public struct GridCard: View {
     }
 }
 
-// 已观看进度描边的纯视觉本体(无 hover 门控):把卡片当作【直角矩形】画满整条底边
-// (全宽,贴底,高 = watchedEdgeHeight 的 `Theme.accent` 细线),圆角交给卡片的
-// `clipShape` 收口——超出圆角的部分被系统自动裁掉,描边两端顺圆角自然收尾。
-// 进度从左铺,width = 全宽 × progress,100% 占满整条底边。无未看段 track。
-// 整体填满卡片尺寸,作 `.overlay { }` 叠在缩略图上(clipShape 在 overlay 之后,故会裁)。
 func watchedEdgeProgressVisual(_ progress: Double) -> some View {
     let clamped = max(0, min(1, progress))
     let lineWidth = DesignTokens.ProgressBar.watchedEdgeHeight
@@ -663,7 +610,6 @@ func watchedEdgeProgressVisual(_ progress: Double) -> some View {
             .fill(DesignTokens.Theme.accent)
             .frame(width: proxy.size.width * clamped, height: lineWidth)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            // 自己按卡片圆角 clip:全宽直线在圆角处被弧线切掉,两端顺圆角收口,不外溢。
             .clipShape(DesignTokens.ShapeToken.card)
     }
     .allowsHitTesting(false)

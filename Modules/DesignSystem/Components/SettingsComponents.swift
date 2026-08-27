@@ -1,66 +1,5 @@
 import SwiftUI
 
-// MARK: - Shared components used by the Design System review pages
-
-// MARK: - Reusable controls
-
-/// A noninteractive top wash that lifts window chrome off the picture.
-/// Strongest under the buttons, easing out downward and toward the sides so
-/// the wash never paints the window's rounded corners.
-public struct PlaybackEdgeEmphasis: View {
-    public init() {}
-
-    public var body: some View {
-        Rectangle()
-            .fill(.black)
-            .mask(verticalFade)
-            .mask(horizontalFade)
-            .opacity(DesignTokens.PlaybackEdge.peakOpacity)
-            .blur(radius: DesignTokens.PlaybackEdge.blurRadius)
-            .padding(DesignTokens.PlaybackEdge.blurRadius)
-            .frame(maxWidth: .infinity)
-            .frame(height: DesignTokens.PlaybackEdge.depth)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    private var verticalFade: LinearGradient {
-        LinearGradient(
-            stops: [
-                .init(color: .white, location: 0),
-                .init(
-                    color: .white.opacity(
-                        DesignTokens.PlaybackEdge.midOpacity
-                            / max(DesignTokens.PlaybackEdge.peakOpacity, 0.001)
-                    ),
-                    location: DesignTokens.PlaybackEdge.midLocation
-                ),
-                .init(color: .clear, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private var horizontalFade: some View {
-        HStack(spacing: 0) {
-            LinearGradient(
-                colors: [.clear, .white],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: DesignTokens.PlaybackEdge.sideFadeWidth)
-            Color.white
-            LinearGradient(
-                colors: [.white, .clear],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: DesignTokens.PlaybackEdge.sideFadeWidth)
-        }
-    }
-}
-
 public struct GlassCapsuleIconLabelButton: View {
     let title: String
     let systemName: String
@@ -112,7 +51,7 @@ public struct GlassCapsuleIconLabelButton: View {
             )
         )
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
+        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignSystem-button-\(title)")
     }
 }
 
@@ -155,7 +94,7 @@ public struct GlassCircleIconLabel: View {
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
             .accessibilityLabel(accessibilityLabel)
-            .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-label-\(systemName)")
+            .accessibilityIdentifier(accessibilityIdentifier ?? "DesignSystem-label-\(systemName)")
             .opacity(isEnabled ? 1 : 0.32)
     }
 }
@@ -173,12 +112,10 @@ public struct GlassCircleIconButton: View {
             }
         }
 
-        /// Stable fallback identifier for a stateful button. The symbol changes,
-        /// but the control remains the same accessibility element across states.
         var accessibilityIdentifier: String {
             switch self {
             case .expandCollapse:
-                return "DesignPreview-button-expand-collapse"
+                return "DesignSystem-button-expand-collapse"
             }
         }
     }
@@ -191,16 +128,10 @@ public struct GlassCircleIconButton: View {
     var targetSize: CGFloat = DesignTokens.Interactive.large
     var iconTier: ButtonIconTier = .standard
     private let symbolState: SymbolState?
-    /// When set, the glyph angle follows expansion: open clockwise, close
-    /// counterclockwise — derived from the Bool, not an internal turn counter.
     private let iconExpansion: Bool?
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityPrefersCrossFadeTransitions) private var accessibilityPrefersCrossFadeTransitions
-
-    // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
-    // 原生 Button 负责唯一的激活与辅助功能语义;视觉 label 自己限定 hover 圆,
-    // 外层 frame 只扩大静默命中区。
 
     public init(
         systemName: String,
@@ -270,7 +201,7 @@ public struct GlassCircleIconButton: View {
     private var resolvedAccessibilityIdentifier: String {
         accessibilityIdentifier
             ?? symbolState?.accessibilityIdentifier
-            ?? "DesignPreview-button-\(systemName)"
+            ?? "DesignSystem-button-\(systemName)"
     }
 
     private var symbolContentTransition: ContentTransition {
@@ -333,8 +264,6 @@ public struct GlassCircleIconButton: View {
         .accessibilityIdentifier(resolvedAccessibilityIdentifier)
     }
 
-    // MARK: 具名图标预设(组装约定:优先调预设;没有预设才传裸 systemName,且顺手补一个预设)
-
     public static func back(
         accessibilityLabel: String = "Back",
         action: @escaping () -> Void = {},
@@ -374,12 +303,6 @@ public struct GlassCircleIconButton: View {
         )
     }
 
-    /// A single expand/collapse control whose symbol content follows product state.
-    ///
-    /// The outer `Button`, action, accessibility element, and hit target stay
-    /// stable while only the inner symbol changes. This keeps state ownership at
-    /// the feature call site and lets SwiftUI apply a content transition instead
-    /// of replacing two separate controls.
     public static func expandCollapse(
         isExpanded: Bool,
         accessibilityLabel: String,
@@ -479,11 +402,6 @@ public struct GlassCircleIconButton: View {
     }
 }
 
-/// System `Menu` that reuses the same glass-circle chrome as `GlassCircleIconButton`.
-///
-/// The menu contents stay system-owned. Press scale and icon-only sensory
-/// feedback match the ordinary glass circle button; presentation chrome stays
-/// with the system `Menu`.
 public struct GlassCircleIconMenu<Content: View>: View {
     let systemName: String
     let accessibilityLabel: String
@@ -543,22 +461,12 @@ public struct GlassCircleIconMenu<Content: View>: View {
         )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(
-            accessibilityIdentifier ?? "DesignPreview-menu-\(systemName)"
+            accessibilityIdentifier ?? "DesignSystem-menu-\(systemName)"
         )
     }
 }
 
 public extension View {
-    /// Presents a system confirmation alert for a destructive or sensitive action.
-    ///
-    /// Built on visionOS's native `.alert`, so the system owns presentation,
-    /// centering, glass material, background dimming, and the default focus on
-    /// Cancel. The confirm button's red comes from `ButtonRole.destructive`,
-    /// resolved at render time by the alert container — no color is authored here,
-    /// so no color token is involved. Title and description are shown; the Cancel
-    /// button is fixed, only the confirm label is configurable.
-    ///
-    /// Alert sizing is system-managed; this surface intentionally exposes no size.
     func enchronDestructiveConfirmation(
         _ title: String,
         message: String,
@@ -568,26 +476,21 @@ public extension View {
     ) -> some View {
         alert(title, isPresented: isPresented) {
             Button(confirmTitle, role: .destructive, action: onConfirm)
-                .accessibilityIdentifier("DesignPreview-destructiveConfirmation-confirm")
+                .accessibilityIdentifier("DesignSystem-destructiveConfirmation-confirm")
             Button("Cancel", role: .cancel) {}
-                .accessibilityIdentifier("DesignPreview-destructiveConfirmation-cancel")
+                .accessibilityIdentifier("DesignSystem-destructiveConfirmation-cancel")
         } message: {
             Text(message)
         }
     }
 
-    /// Non-destructive two-action error dialog (e.g. File Browser / playback load
-    /// failures): a primary retry action plus a dismiss action, presented from the
-    /// same system `.alert` surface as `enchronDestructiveConfirmation`. No colors
-    /// are authored here; the system resolves button styling. Sizing is system
-    /// managed, so no size is exposed.
     func enchronErrorDialog(
         _ title: String,
         message: String,
         primaryTitle: String,
         secondaryTitle: String,
         isPresented: Binding<Bool>,
-        identifierPrefix: String = "DesignPreview-errorDialog",
+        identifierPrefix: String = "DesignSystem-errorDialog",
         onPrimary: @escaping () -> Void = {},
         onSecondary: @escaping () -> Void = {}
     ) -> some View {
@@ -603,9 +506,6 @@ public extension View {
 }
 
 public extension View {
-    /// The material-and-edge treatment used by inset list-group containers.
-    /// The generic form lets feature components reuse the exact same recessed
-    /// surface without introducing a glass background.
     func enchronListGroupSurface<S: InsettableShape>(
         in shape: S,
         material: Material = .regular
@@ -621,9 +521,6 @@ public extension View {
             }
     }
 
-    /// A translucent rounded-rect surface with a system material and divider.
-    /// `SettingListGroup` keeps the regular default; content that needs stronger
-    /// separation can explicitly request a thicker system material.
     func enchronListGroupSurface(
         cornerRadius: CGFloat = DesignTokens.Radius.element,
         material: Material = .regular
@@ -634,11 +531,6 @@ public extension View {
 }
 
 public struct SettingListGroup: View {
-    /// Where an expanding row's detail panel visually originates. A row near the
-    /// top of a container grows *downward* from its top edge; one near the bottom
-    /// grows *upward* from its bottom edge; a middle row scales out from its
-    /// centre. Only the disclosure motion differs — the panel always lays out
-    /// below the row header.
     public enum ExpansionOrigin {
         case top
         case bottom
@@ -683,14 +575,9 @@ public struct SettingListGroup: View {
             role: ActionRole,
             action: () -> Void
         )
-        /// Trailing glass toggle. The initial state seeds `GlassToggle`, which owns
-        /// the flip interaction.
         case toggle(isOn: Bool)
         case boundToggle(isOn: Binding<Bool>, isEnabled: Bool, marker: String?)
-        /// Read-only trailing value (e.g. a cache size or version string).
         case value(String)
-        /// Read-only value paired with a trailing action chip (e.g. version + Copy).
-        /// On tap the value position briefly shows `feedback`.
         case valueAction(
             value: String,
             actionTitle: String,
@@ -719,11 +606,6 @@ public struct SettingListGroup: View {
             trailingSystemImage: String,
             accessibilityLabel: String
         )
-        /// Leading-origin continuous slider over an arbitrary `range`, paired with
-        /// a numeric readout (`decimals` places, optional trailing `unit`). Shares
-        /// the `GlassSliderRail` visual with `centerSlider` and the timeline zoom
-        /// slider; unlike `centerSlider` it is not detented and carries its own
-        /// value domain rather than the fixed -5…5 detents.
         case rangeSlider(
             value: Binding<Double>,
             range: ClosedRange<Double>,
@@ -733,7 +615,6 @@ public struct SettingListGroup: View {
         )
     }
 
-    /// One row of an expandable key-value detail panel (diagnostic disclosures).
     public struct KeyValue: Identifiable {
         public let key: String
         public let value: String
@@ -750,11 +631,7 @@ public struct SettingListGroup: View {
         public let title: String
         public let systemName: String?
         public var supportingText: String? = nil
-        /// Descriptive copy revealed when the row expands. `nil` keeps the row a
-        /// plain tappable entry that fires `action` instead of disclosing.
         public var detail: String? = nil
-        /// Key-value rows revealed when the row expands, used for diagnostic
-        /// disclosures. Takes precedence over `detail` when both are set.
         public var keyValueDetail: [KeyValue]? = nil
         public var expansion: ExpansionOrigin = .top
         public var accessory: Accessory = .automatic
@@ -786,7 +663,7 @@ public struct SettingListGroup: View {
         }
     }
 
-    public var accessibilityIdentifier: String = "DesignPreview-SettingListGroup"
+    public var accessibilityIdentifier: String = "DesignSystem-SettingListGroup"
     let items: [Item]
 
     private var cornerRadius: CGFloat {
@@ -797,13 +674,10 @@ public struct SettingListGroup: View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    // Shared across all rows so each separator can follow the gaze hover of
-    // *both* of its neighbouring rows (cross-row coordination needs a common
-    // namespace; visionOS does not expose gaze hover state to app code).
     @Namespace private var hoverNamespace
 
     public init(
-        accessibilityIdentifier: String = "DesignPreview-SettingListGroup",
+        accessibilityIdentifier: String = "DesignSystem-SettingListGroup",
         items: [Item]
     ) {
         self.accessibilityIdentifier = accessibilityIdentifier
@@ -839,14 +713,6 @@ public struct SettingListGroup: View {
     }
 }
 
-/// Shared row chrome for list groups (settings rows & file rows): concentric
-/// corner gaze highlight, cross-row separator fade, optional whole-row button.
-/// The row content is supplied by the caller; this shell owns only the
-/// hover / divider / hit-target chrome so every list group reads identically.
-///
-/// The content closure receives this row's `followsGroup` handle so a child
-/// (e.g. a file row's trailing metadata) can fade in sync with the same gaze
-/// the shell highlights on.
 public struct ListGroupRowShell<Content: View>: View {
     let index: Int
     let count: Int
@@ -863,9 +729,6 @@ public struct ListGroupRowShell<Content: View>: View {
     private var isLast: Bool { index == count - 1 }
     private var showsDivider: Bool { !isLast }
 
-    // Concentric corner rounding: round only the outer corners (matching the
-    // container clip) so the highlight aligns with the group edge and sits
-    // square against the separators on its inner edges.
     private var highlightShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(
             topLeadingRadius: isFirst ? cornerRadius : 0,
@@ -876,8 +739,6 @@ public struct ListGroupRowShell<Content: View>: View {
         )
     }
 
-    /// The hover-effect group owned by the row at `rowIndex`. A row *activates*
-    /// its own group when gazed; a separator (or trailing metadata) *follows* it.
     private func rowGroup(_ rowIndex: Int, _ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
         guard let hoverNamespace else { return nil }
         return EnchronHoverGroup(id: "listGroupRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
@@ -930,9 +791,6 @@ public struct ListGroupRowShell<Content: View>: View {
                 .contentShape(.interaction, highlightShape)
                 .enchronHoverEffect(.highlight)
                 .enchronHoverScale(active: 1.006)
-                // No-op trigger: gazing this row activates its own group so the
-                // separators on both sides (which follow this group) fade in sync
-                // with the highlight — same system-composited phase, same timing.
                 .enchronHoverActivation(in: rowGroup(index, .activatesGroup))
                 .background(alignment: .bottom) { divider }
         } else {
@@ -946,8 +804,6 @@ public struct ListGroupRowShell<Content: View>: View {
         if showsDivider {
             SettingListGroupDivider()
                 .padding(.horizontal, DesignTokens.Spacing.lg)
-                // Follows both bordering rows: row `index` (above) and
-                // row `index + 1` (below). Either one's hover fades it.
                 .enchronHoverOpacity(
                     active: 0,
                     inactive: 1,
@@ -991,8 +847,6 @@ struct SettingListGroupRow: View {
         }
         return false
     }
-    // centerSlider 自带标题行 + 轨道 + 标点,内部已有纵向结构,外层只需较紧的
-    // 留白;cardSelection 等仍用标准 lg 留白。
     private var embeddedVerticalPadding: CGFloat {
         switch embeddedControl {
         case .centerSlider?, .rangeSlider?:
@@ -1097,8 +951,6 @@ struct SettingListGroupRow: View {
             }
         }
         .frame(maxWidth: .infinity)
-        // Drives the height change of this row and the rows it pushes down with
-        // the same bouncy spring the detail panel animates in on.
         .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
     }
 
@@ -1133,8 +985,6 @@ struct SettingListGroupRow: View {
         .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)
     }
 
-    /// The menu's current value, named by its title. The row is told what it currently reads as, and
-    /// each option carries the action that changes it, so the title is the only identity they share.
     private func menuSelection(
         title: String,
         options: [SettingListGroup.MenuOption]
@@ -1159,8 +1009,6 @@ struct SettingListGroupRow: View {
             Image(systemName: "chevron.right")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.tertiary)
-                // Expandable rows rotate the chevron to point down when open;
-                // plain navigation rows keep it static as a forward affordance.
                 .rotationEffect(isExpandable && isExpanded ? .degrees(90) : .zero)
 
         case .menu(let title, let options, let role):
@@ -1172,9 +1020,6 @@ struct SettingListGroupRow: View {
                         MenuSelectionRow(
                             option.title,
                             isSelected: (selectedMenuTitle ?? title) == option.title,
-                            // Not "Settings-menu-…", which would be
-                            // indistinguishable from the host row of a setting
-                            // whose own id happens to contain a hyphen.
                             identifier: "Settings-menuOption-\(id)-\(option.id)"
                         ) {
                             selectedMenuTitle = option.title
@@ -1200,10 +1045,6 @@ struct SettingListGroupRow: View {
                     trailing: 0
                 )
             )
-            // The hover shape above only styles the hover effect. Without an
-            // interaction shape the menu's hit region stays undefined across the
-            // padded frame, so the host reports not hittable and the only way in
-            // was a debug command that skipped the menu entirely.
             .contentShape(Capsule())
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
@@ -1252,8 +1093,6 @@ struct SettingListGroupRow: View {
                     .foregroundStyle(DesignTokens.Surface.accessoryText)
                     .lineLimit(1)
 
-                // Two rows both title this button "Copy", so a label match is
-                // ambiguous and lands on whichever comes first in the tree.
                 SettingListAccessoryButton(accessibilityLabel: actionTitle) {
                     action()
                     showFeedback(feedback)
@@ -1326,10 +1165,6 @@ struct SettingListGroupRow: View {
         .padding(.bottom, DesignTokens.Spacing.md)
     }
 
-    /// The disclosure motion: a small anchored scale
-    /// plus opacity and an edge slide on insertion, fading out on removal. The
-    /// anchor/edge follow `expansion`, so top rows grow down, bottom rows grow
-    /// up, and middle rows scale out from their centre.
     private var expansionTransition: AnyTransition {
         let scaled = AnyTransition
             .scale(scale: 0.96, anchor: expansion.anchor)
@@ -1449,9 +1284,6 @@ private struct SettingListCenterSliderRow: View {
     @State private var rowWidth: CGFloat = 0
     @State private var isDragging = false
 
-    // CenterSlider 两侧各有一个图标列(Interactive.compact)与一段 spacing(md),
-    // 轨道宽 = 行宽 - 左右 padding(lg×2) - 两图标列 - 两段 spacing。据此让轨道
-    // 撑满到与 HDR 行相同的左右边距;detentDots / 旋钮按 trackWidth 自动延展。
     private var resolvedTrackWidth: CGFloat {
         let sidePadding = DesignTokens.Spacing.lg * 2
         let iconColumns = DesignTokens.Interactive.compact * 2
@@ -1460,8 +1292,6 @@ private struct SettingListCenterSliderRow: View {
     }
 
     var body: some View {
-        // 标题不再占据左侧固定列,而是浮在滑轨正上方、注视时淡入。这一行始终
-        // 预留一行标题高度,避免淡入/淡出时把滑块顶上顶下。
         VStack(spacing: DesignTokens.Spacing.xs) {
             Text(title)
                 .font(DesignTokens.Typography.selectionHeader)
@@ -1501,10 +1331,6 @@ private struct SettingListCenterSliderRow: View {
     }
 }
 
-/// Embedded-control row for `EmbeddedControl.rangeSlider`. Mirrors
-/// `SettingListCenterSliderRow`'s gaze-revealed title + full-width track
-/// resolution, but pairs the track with a numeric readout and uses the
-/// leading-origin continuous `RangeSlider` instead of the detented centre slider.
 private struct SettingListRangeSliderRow: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
@@ -1517,9 +1343,6 @@ private struct SettingListRangeSliderRow: View {
     @State private var rowWidth: CGFloat = 0
     @State private var isDragging = false
 
-    // Same track-width arithmetic as the centre slider row so both fill to an
-    // identical inset; the range slider has no end-icon columns, so it only
-    // subtracts the side padding.
     private var resolvedTrackWidth: CGFloat {
         let sidePadding = DesignTokens.Spacing.lg * 2
         return max(rowWidth - sidePadding, 200)

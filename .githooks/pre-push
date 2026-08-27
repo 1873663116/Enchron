@@ -3,4 +3,4 @@
 set -euo pipefail
 
 repository_root=$(git rev-parse --show-toplevel)
-exec "$repository_root/Scripts/verification/run_verification_gauntlet.py" --quick
+exec "$repository_root/Scripts/rules/run_verification_gauntlet.py" --quick

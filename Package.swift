@@ -13,7 +13,6 @@ let package = Package(
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "MediaLibrary", targets: ["MediaLibrary"]),
         .library(name: "Playback", targets: ["Playback"]),
-        .executable(name: "EnchronDomainChecks", targets: ["EnchronDomainChecks"]),
     ],
     dependencies: [
         .package(url: "https://github.com/amosavian/AMSMB2.git", from: "4.0.3"),
@@ -54,21 +53,13 @@ let package = Package(
                 .product(name: "RealityKitScripting", package: "realitykitscripting"),
             ],
             path: "Modules/Playback",
-            exclude: [
-                "Resources",
-            ],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
             ]
         ),
-        .executableTarget(
-            name: "EnchronDomainChecks",
-            dependencies: ["MediaSource", "MediaLibrary", "Playback"],
-            path: "Scripts/domain-checks"
-        ),
         .testTarget(
             name: "MediaLibraryTests",
-            dependencies: ["MediaLibrary"],
+            dependencies: ["MediaLibrary", "MediaSource"],
             path: "Tests/MediaLibraryPackageTests"
         ),
         .testTarget(
@@ -81,7 +72,11 @@ let package = Package(
         ),
         .testTarget(
             name: "PlaybackFeatureTests",
-            dependencies: ["Playback", "MediaSource"],
+            dependencies: [
+                "Playback",
+                "MediaSource",
+                .product(name: "PlaybackCore", package: "PlaybackCore"),
+            ],
             path: "Tests/PlaybackFeaturePackageTests"
         ),
     ]

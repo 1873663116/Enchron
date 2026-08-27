@@ -210,9 +210,7 @@ public struct EmbyMediaSourceDescription: Equatable, Hashable, Sendable, Identif
     public let id: EmbyMediaSourceID
     public let displayName: String
     public let container: String?
-    /// The file's size on the server.
     public let sizeInBytes: Int64?
-    /// Bits per second across every stream in the file together.
     public let bitrate: Int?
     public let mediaStreams: [EmbyMediaStream]
 
@@ -387,8 +385,6 @@ public struct EmbyLibraryView: Equatable, Hashable, Sendable {
         self.imageTags = imageTags
     }
 
-    /// A library's top level shows whole titles. Emby's recursive item query returns every
-    /// descendant, so without this filter a show's seasons stand beside the show itself.
     public var topLevelItemKinds: [EmbyItemKind] {
         switch collectionType?.lowercased() {
         case "tvshows": [.series]
@@ -410,7 +406,6 @@ public struct EmbyItemPage: Equatable, Hashable, Sendable {
 
 public enum EmbyItemSort: String, Codable, CaseIterable, Sendable {
     case sortName = "SortName"
-    /// Position within a parent: the season's number inside a series, the episode's inside a season.
     case indexNumber = "IndexNumber"
     case dateCreated = "DateCreated"
     case premiereDate = "PremiereDate"
@@ -508,23 +503,15 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
     public let width: Int?
     public let height: Int?
     public let videoRange: String?
-    /// Which high dynamic range system the picture is carried by, named apart from the codec: the
-    /// codec profile describes the bitstream, this describes what is layered on top of it.
     public let extendedVideoType: String?
-    /// The server's own reading of that system's variant, such as "Profile 7.6 (Bluray)".
     public let extendedVideoSubTypeDescription: String?
-    /// Bits per second the stream itself runs at, as the server measured it.
     public let bitRate: Int?
-    /// Bits per colour sample for video, per audio sample for lossless audio.
     public let bitDepth: Int?
-    /// Audio samples per second.
     public let sampleRate: Int?
-    /// The codec's own profile name, such as "Main 10" or "DTS".
     public let profile: String?
     public let averageFrameRate: Double?
     public let aspectRatio: String?
     public let pixelFormat: String?
-    /// The track's own name, which is how a release distinguishes tracks that share a language.
     public let title: String?
     public let isDefault: Bool
     public let isForced: Bool

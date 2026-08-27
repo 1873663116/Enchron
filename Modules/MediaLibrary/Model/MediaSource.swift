@@ -87,11 +87,6 @@ nonisolated extension FileBrowsingDomain {
             self.rootPath = Self.normalizedPath(rootPath)
         }
 
-        /// Creates a remote connection info.
-        ///
-        /// For SMB, `address` identifies one server by host name or IP address.
-        ///
-        /// For WebDAV: `address` is a full URL or host:port/path.
         public static func remote(
             sourceType: SourceType,
             address: String,
@@ -121,7 +116,6 @@ nonisolated extension FileBrowsingDomain {
                 )
             }
 
-            // WebDAV: parse as URL
             let preparedAddress = canonicalAddress(for: sourceType, rawAddress: trimmed)
             guard let components = URLComponents(string: preparedAddress),
                   let host = components.host,

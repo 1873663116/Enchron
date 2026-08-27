@@ -63,8 +63,6 @@ struct FakeFileDataSourceTests {
         }
     }
 
-    // MARK: - Deep catalog (in/out navigation harness)
-
     @Test("demoDeep root lists the four top-level folders")
     func demoDeepRootFolders() async throws {
         let source = FakeFileDataSource(catalog: .demoDeep)
@@ -85,10 +83,8 @@ struct FakeFileDataSourceTests {
     @Test("demoDeep exposes empty folders at root and nested depth (UC-FILE-23)")
     func demoDeepEmptyFolders() async throws {
         let source = FakeFileDataSource(catalog: .demoDeep)
-        // Root-level empty folder.
         #expect(try await source.listContents(at: "/Empty").isEmpty)
         #expect(try await source.listFolders(at: "/Empty").isEmpty)
-        // Nested empty folder, reachable only by descending into /Concerts.
         #expect(try await source.listFolders(at: "/Concerts").map(\.name) == ["Empty Nested"])
         #expect(try await source.listContents(at: "/Concerts/Empty Nested").isEmpty)
         #expect(try await source.listFolders(at: "/Concerts/Empty Nested").isEmpty)
@@ -96,9 +92,6 @@ struct FakeFileDataSourceTests {
 
     @Test("demoDeep round-trips the logical root key the browser falls back to")
     func demoDeepRootKeyConsistency() async throws {
-        // The browser lists the local root via "." (empty stack) and, after
-        // popping back from a subfolder, via "/" — both must surface the same
-        // root listing or back/forward navigation lands on an empty page.
         let source = FakeFileDataSource(catalog: .demoDeep)
         let viaDot = try await source.listFolders(at: ".").map(\.name)
         let viaSlash = try await source.listFolders(at: "/").map(\.name)

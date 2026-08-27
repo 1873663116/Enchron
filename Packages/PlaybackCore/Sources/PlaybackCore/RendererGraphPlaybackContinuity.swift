@@ -1,7 +1,5 @@
 import Foundation
 
-/// Facts sampled after a renderer graph is replaced. They deliberately keep
-/// accepted input, the synchronizer's actual rate, and display progress apart.
 public struct RendererGraphPlaybackObservation: Codable, Equatable, Sendable {
     public var graphRevision: UInt64
     public var acceptedInputCount: UInt64
@@ -21,7 +19,6 @@ public struct RendererGraphPlaybackObservation: Codable, Equatable, Sendable {
     }
 }
 
-/// The first unmet condition after an explicit Play command starts a renderer graph.
 public enum RendererGraphPlaybackContinuity: String, Codable, Equatable, Sendable {
     case ready
     case wrongGraphRevision
@@ -29,10 +26,6 @@ public enum RendererGraphPlaybackContinuity: String, Codable, Equatable, Sendabl
     case awaitingActualTimebaseRate
     case awaitingDisplayedFrameAdvance
 
-    /// A displayed pixel buffer can retain the same IOSurface identity while
-    /// later frames overwrite its contents. Accepted input and an advancing
-    /// timebase therefore keep an explicit Play command valid when that
-    /// identity is the only fact still awaiting stronger visual evidence.
     public var explicitPlayMayContinue: Bool {
         switch self {
         case .ready, .awaitingDisplayedFrameAdvance:

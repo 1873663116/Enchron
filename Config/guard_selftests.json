@@ -3,7 +3,7 @@
   "checks": [
     {
       "id": "package-membership-rejects-missing-production-input",
-      "guard": "Scripts/verification/verify_package_membership.py",
+      "guard": "Scripts/rules/verify_package_membership.py",
       "defect": {
         "type": "remove-xcfilelist-entry",
         "entry": "$(SRCROOT)/Apps/Enchron/AppModel.swift"
@@ -16,23 +16,8 @@
       }
     },
     {
-      "id": "package-membership-rejects-design-preview-app-layer-reference",
-      "guard": "Scripts/verification/verify_package_membership.py",
-      "defect": {
-        "type": "add-app-layer-reference",
-        "entry": "Playback/Views/PlaybackTopActions.swift"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "Modules sources in DesignPreview that reference Apps/Enchron types:",
-          "Modules/Playback/Views/PlaybackTopActions.swift: AppModel"
-        ]
-      }
-    },
-    {
       "id": "playback-structure-rejects-unbaselined-gap",
-      "guard": "Scripts/verification/verify_playback_surface_structure.py",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "remove-playback-gap-baseline-entry",
         "name": "window camera is missing"
@@ -46,7 +31,7 @@
     },
     {
       "id": "playback-issue-ownership-rejects-second-writer",
-      "guard": "Scripts/verification/verify_playback_issue_ownership.py",
+      "guard": "Scripts/rules/verify_playback_issue_ownership.py",
       "defect": {
         "type": "add-playback-issue-write"
       },

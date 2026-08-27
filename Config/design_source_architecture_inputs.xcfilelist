@@ -10,11 +10,8 @@ $(SRCROOT)/Apps/Enchron/Screens/SettingsScreen.swift
 $(SRCROOT)/Apps/Enchron/Settings/PreferencesStore.swift
 $(SRCROOT)/Apps/Enchron/Settings/SettingsModel.swift
 $(SRCROOT)/Apps/Enchron/TestCommandChannel.swift
-$(SRCROOT)/Modules/DesignSystem/Components/AnimatedDirectionalIconButton.swift
-$(SRCROOT)/Modules/DesignSystem/Components/AppearanceModeButton.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AsyncArtworkImage.swift
 $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
-$(SRCROOT)/Modules/DesignSystem/Components/CollapsibleBlock.swift
 $(SRCROOT)/Modules/DesignSystem/Components/GridCard.swift
 $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/MenuSelectionRow.swift
@@ -26,6 +23,7 @@ $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift
 $(SRCROOT)/Modules/DesignSystem/View+Platform.swift
 $(SRCROOT)/Modules/DesignSystem/View+PressFeedback.swift
+$(SRCROOT)/Modules/Emby/CollapsibleBlock.swift
 $(SRCROOT)/Modules/Emby/EmbyClient.swift
 $(SRCROOT)/Modules/Emby/EmbyClientProtocol.swift
 $(SRCROOT)/Modules/Emby/EmbyItemPresentation.swift
@@ -113,9 +111,13 @@ $(SRCROOT)/Modules/Playback/Session/PlaybackPresentationChrome.swift
 $(SRCROOT)/Modules/Playback/Session/PlaybackSessionModel.swift
 $(SRCROOT)/Modules/Playback/Session/SurfaceInputProbes.swift
 $(SRCROOT)/Modules/Playback/Storage/ScreenPositionStore.swift
+$(SRCROOT)/Modules/Playback/Views/AnimatedDirectionalIconButton.swift
+$(SRCROOT)/Modules/Playback/Views/AppearanceModeButton.swift
 $(SRCROOT)/Modules/Playback/Views/AudioSpectrumSurface.swift
+$(SRCROOT)/Modules/Playback/Views/DetentedRangeSlider.swift
 $(SRCROOT)/Modules/Playback/Views/DragRotationModifier.swift
 $(SRCROOT)/Modules/Playback/Views/EnvironmentComponents.swift
+$(SRCROOT)/Modules/Playback/Views/PlaybackEdgeEmphasis.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackFormatters.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackPanel.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackRealityPresenter.swift

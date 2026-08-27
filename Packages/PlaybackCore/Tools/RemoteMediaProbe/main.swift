@@ -197,8 +197,6 @@ func openSharedSession(source: String, monitor: OpaquePointer) throws -> String 
         + "audio_stream=\(PBFFmpegAudioReaderGetStreamIndex(audioReader))"
 }
 
-/// Reads the exact compressed format PlaybackCore would hand to its renderer,
-/// without requiring the host machine to provide a decoder for that codec.
 func inspectFormat(source: String, monitor: OpaquePointer) throws -> String {
     var error = [CChar](repeating: 0, count: 512)
     guard let videoReader = PBFFmpegReaderAllocate() else {
@@ -255,9 +253,6 @@ final class DecodeTally: @unchecked Sendable {
     var firstFailureStatus: OSStatus { lock.withLock { firstFailure } }
 }
 
-/// Decodes the compressed samples PlaybackCore would hand its renderer. The bridge
-/// only produces compressed samples, so whether VideoToolbox accepts a format is not
-/// observable anywhere else in this package.
 func decodeSamples(
     source: String,
     monitor: OpaquePointer,
@@ -313,9 +308,6 @@ func decodeSamples(
     var failedFrames = 0
     var sampleBytes = 0
     var sampleCount = 0
-    // Sources whose first sample carries a non-zero presentation time, such as the
-    // Apple projected-media examples starting near ten seconds, would satisfy an
-    // absolute bound before delivering a second frame.
     var firstSeconds: Double?
     var elapsedSeconds = 0.0
     while true {
@@ -364,9 +356,6 @@ func decodeSamples(
         + "\(colorFacts) decode=\(verdict)"
 }
 
-// The color interpretation the renderer will receive, read back from the one
-// format description PlaybackCore constructs. `none` means the extension is
-// absent, which the decoder resolves by guessing.
 func formatColorFacts(_ format: CMVideoFormatDescription) -> String {
     let extensions = (CMFormatDescriptionGetExtensions(format) as? [String: Any]) ?? [:]
     func value(_ key: CFString) -> String {
@@ -482,8 +471,6 @@ func measurePlayback(
     var audioSampleCount = 0
     var videoReachedLimit = false
     var audioReachedLimit = !hasAudio
-    // Measured from the first presentation time, not from zero, so a source that
-    // starts at a non-zero timestamp still delivers the requested span.
     var originSeconds: Double?
     while !videoEnded || !audioEnded {
         if let limitSeconds, let origin = originSeconds {

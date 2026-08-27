@@ -1,17 +1,12 @@
 #if DEBUG
 import Foundation
 
-/// Opens a named Emby screen straight from the launch environment.
-///
-/// The visionOS simulator exposes no UI automation and this toolchain ships no Simulator window, so
-/// a screenshot is the only way to see a screen and a launch argument is the only way to reach one.
 public struct EmbyLaunchRoute: Equatable, Sendable {
     public let address: String
     public let username: String
     public let password: String
     public let libraryID: EmbyItemID?
     public let itemID: EmbyItemID?
-    /// Detail-page section to scroll to, so sections below the fold can be photographed.
     public let sectionName: String?
     public let sidebarIsVisible: Bool
 

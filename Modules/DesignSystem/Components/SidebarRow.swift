@@ -7,18 +7,7 @@ private enum SourceSidebarRowGeometry {
     )
 }
 
-// MARK: - Sidebar rows
-//
-// 侧栏的行，从 MediaLibrary 原地搬来，行为与视觉逐字保留，只放宽了访问级别，
-// 让 Emby 侧栏用同一件而不是另抄一份。`EditableSourceSidebarRow` 把选中底色、
-// 圆角裁切与 hover 形状统一在同一个矩形上，重排与滑动删除按需关闭。
-
 public extension View {
-    /// The surface every browsing sidebar sits on. Part of the window's own surface rather than a
-    /// plate floating inside it: a floating plate carries its own glass rim, and its bottom edge sits
-    /// above the window's, which leaves a band of page showing between the two. Square, full height,
-    /// with a theme-accent rim on the trailing edge marking where the sidebar ends and the content area
-    /// begins. The leading edge needs no rim: it lands on the window's own boundary.
     func enchronSidebarSurface() -> some View {
         background(.thickMaterial)
             .overlay(alignment: .trailing) {
@@ -29,7 +18,7 @@ public extension View {
     }
 }
 
-public struct SourceSidebarRow: View {
+struct SourceSidebarRow: View {
     let icon: String
     let title: String
     var isSelected = false
@@ -37,7 +26,7 @@ public struct SourceSidebarRow: View {
     var isActiveSource = false
     var showsSelectionBackground = true
 
-    public init(
+    init(
         icon: String,
         title: String,
         isSelected: Bool = false,
@@ -53,7 +42,7 @@ public struct SourceSidebarRow: View {
         self.showsSelectionBackground = showsSelectionBackground
     }
 
-    public var body: some View {
+    var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: icon)
                 .font(DesignTokens.Typography.headline)

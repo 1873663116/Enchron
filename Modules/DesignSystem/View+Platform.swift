@@ -69,9 +69,6 @@ public extension View {
         contentShape(.hoverEffect, shape)
     }
 
-    /// Clip drawing and hover to the visual shape, then keep hit-testing on the
-    /// current bounds. `insets` is the silent margin between the visible control
-    /// and the expanded target; hover must not paint into that margin.
     @ViewBuilder
     func enchronHoverContentShape<S: InsettableShape>(
         _ shape: S,
@@ -184,9 +181,6 @@ public extension View {
 }
 
 
-/// Fades a screen up as it is mounted. The tab bar swaps whole view trees itself, so the outgoing
-/// screen is already gone by the time the incoming one exists: no cross-fade is reachable from here,
-/// and the fade-in alone is what removes the cut. Opacity only, so the window never rescales.
 private struct EnchronScreenAppearance: ViewModifier {
     @State private var hasAppeared = false
 

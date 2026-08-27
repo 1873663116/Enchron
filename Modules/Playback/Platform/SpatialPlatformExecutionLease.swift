@@ -176,10 +176,6 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
         return id
     }
 
-    /// A scene that disappears cannot accept another platform request. Its
-    /// active lease remains valid so the same execution can continue through a
-    /// newly registered scene root, while `currentCapability` stops exposing the
-    /// retired scene's actions immediately.
     private mutating func removeRetiredCapabilityAfterExecutionEnds(
         _ capabilityID: UUID
     ) {
@@ -360,8 +356,6 @@ enum PlaybackWindowSessionReconciliationPolicy {
     }
 }
 
-/// Both ways out of Panorama land in the same retained Portal viewport, so
-/// app-requested exits and system collapses refresh it alike.
 enum PortalPlaybackViewportRefreshPolicy {
     static func requiresRefresh(
         for transition: SpatialPlatformPlaybackWindowTransition

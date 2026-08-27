@@ -48,10 +48,6 @@ public struct SenseZoneVolumeRoot: View {
             case .open, .opening:
                 sceneLifetimeIsOpen = true
             case .closed where sceneLifetimeIsOpen:
-                // The Window scene owns this lifetime boundary. Resetting only
-                // after its closed fact lets a future scene lifetime reveal
-                // again without replaying while the singleton Volume is merely
-                // focused.
                 sceneLifetimeIsOpen = false
                 revealCompleted = false
             case .closed:

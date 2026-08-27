@@ -34,7 +34,7 @@ TODOS.md
 logs/
 
 # RCP immersive scene binary (~42MB) — local-only per ADR-0008, not committed
-Modules/PlaybackPresentation/Resources/Immersive_Space.reality
+Modules/Playback/Resources/Immersive_Space.reality
 
 # Plaintext device-test credentials, local-only
 .env

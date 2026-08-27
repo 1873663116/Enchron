@@ -177,11 +177,6 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
         stereoLayout: VideoStereoLayout?,
         projection: VideoProjectionOverride?
     ) -> CMSampleBuffer {
-        // Compressed SBS/OU remains one codec sample whose packing and
-        // projection live in its CMVideoFormatDescription. RealityKit's
-        // tagged-buffer contract describes decoded pixel buffers; wrapping a
-        // compressed sample in a CMTaggedBufferGroup can make the renderer
-        // reject or crash on otherwise valid high-resolution HEVC input.
         guard CMSampleBufferGetImageBuffer(sampleBuffer) != nil else {
             return sampleBuffer
         }

@@ -94,10 +94,6 @@ public enum PlaybackBlockingCapability: String, CaseIterable, Sendable, Equatabl
     case videoDecoderUnavailable
 }
 
-/// A product decision about a playback problem, not the technical error that caused it.
-///
-/// Associated values are bounded product facts. An `Error` or arbitrary diagnostic string
-/// cannot enter this type, so presentation code never needs to decide whether text is safe.
 public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     case mediaOpeningFailed
     case mediaRequestFailed

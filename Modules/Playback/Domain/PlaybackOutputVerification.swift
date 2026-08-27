@@ -22,8 +22,6 @@ public enum PlaybackOutputBoundary: String, Codable, Sendable, Equatable {
     case ready
 }
 
-/// A read-only projection of one instant in the production playback path.
-/// It diagnoses the first incomplete boundary without owning playback state.
 public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
     public var capturedAt: Date
     public var mediaSessionID: String?

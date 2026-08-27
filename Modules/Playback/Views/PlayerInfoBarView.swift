@@ -3,8 +3,6 @@ import OSLog
 import PlaybackCore
 import SwiftUI
 
-/// Window playback chrome. Navigation and presentation actions stay over the
-/// video while media information belongs to the bottom Player Controls ornament.
 public struct PlayerInfoBarView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerInfoBar")
     @Environment(PlaybackSessionModel.self) private var appModel

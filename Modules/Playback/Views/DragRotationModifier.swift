@@ -2,13 +2,6 @@ import SwiftUI
 import RealityKit
 
 extension View {
-    /// Enables people to drag a RealityKit entity to rotate the scene,
-    /// with optional pitch limit and configurable sensitivity.
-    ///
-    /// Adapted from Apple's HelloWorld DragRotationModifier pattern for
-    /// Enchron's immersive and panorama playback presentations.
-    /// Uses `.interactiveSpring` during drag and `.spring` with predicted
-    /// end translation for inertia on release.
     func dragRotation(
         pitchLimit: Angle? = Angle(degrees: 30),
         sensitivity: Double = 0.005
@@ -22,8 +15,6 @@ extension View {
     }
 }
 
-/// Converts drag gestures on RealityKit entities into scene rotation,
-/// and pinch-to-zoom into scene scale. Drag and Magnify run simultaneously.
 private struct DragRotationModifier: ViewModifier {
     var pitchLimit: Angle?
     var sensitivity: Double
@@ -88,8 +79,6 @@ private struct DragRotationModifier: ViewModifier {
             )
     }
 
-    /// Calculates the rotation angle during an active drag.
-    /// When limited, uses atan() for rubber-band damping at the edges.
     private func spin(
         displacement: Double,
         base: Double,
@@ -102,8 +91,6 @@ private struct DragRotationModifier: ViewModifier {
         }
     }
 
-    /// Calculates the final rotation with inertia from predicted end translation.
-    /// Returns to zero when pitch-limited (spring-back effect).
     private func finalSpin(
         displacement: Double,
         predictedDisplacement: Double,

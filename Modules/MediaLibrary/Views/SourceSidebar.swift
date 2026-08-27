@@ -2,13 +2,6 @@ import DesignSystem
 import MediaLibrary
 import SwiftUI
 
-// MARK: - Source Sidebar
-//
-// 可复用的来源侧栏组件，从 MainWindowPage 抽取而来，行为与视觉逐字保留。
-// 编排能力（重排 / 滑动删除 / 选择模式 / 添加来源）通过 `Capabilities` 逐项开关，
-// `viewOnly` 时退化为纯展示的列表。底层行复用 `EditableSourceSidebarRow` 与
-// `SourceSidebarRow`，样式与动效全部走 `DesignTokens.SourceSidebar`。
-
 public struct SidebarSourceItem: Identifiable, Equatable, Sendable {
     public let id: String
     public let icon: String
@@ -53,9 +46,6 @@ public struct SourceSidebar: View {
     var title: String = "Sources"
     var containerIdentifier: String = "SourceSidebar"
     var identifierPrefix: String = "SourceSidebar"
-    /// Invoked when a source row is tapped (not in selection/swipe mode). Optional so
-    /// the DesignPreview mock can stay view-only; the app passes it to drive the
-    /// view-model's source switching (UC-FILE-16).
     var onSelectSource: ((SidebarSourceItem.ID) -> Void)?
     var onAddSource: ((FileBrowsingDomain.SourceType) -> Void)?
     var onImportFolder: (() -> Void)?
@@ -193,7 +183,6 @@ public struct SourceSidebar: View {
             .minimumScaleFactor(0.8)
     }
 
-    // 底部存储条:内置。DesignPreview 是 fake UX,存储数字写死 mock,不开放为参数。
     private var sidebarStorageMeter: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
             HStack {
@@ -257,7 +246,7 @@ public struct SourceSidebar: View {
                         } label: {
                             Label("Add One", systemImage: "plus.circle")
                         }
-                        .accessibilityIdentifier("DesignPreview-SourcesSidebar-addDebug")
+                        .accessibilityIdentifier("DesignSystem-SourcesSidebar-addDebug")
                     }
                 } label: {
                     Label("Add", systemImage: "plus")
@@ -417,8 +406,6 @@ public struct SourceSidebar: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
-    // MARK: Selection
-
     private func toggleSidebarSelectionMode() {
         withAnimation(DesignTokens.AnimationToken.selection) {
             isSelectingSidebarItems.toggle()
@@ -506,8 +493,6 @@ public struct SourceSidebar: View {
             }
         }
     }
-
-    // MARK: Swipe & reorder
 
     private func expandSourceSwipe(_ id: SidebarSourceItem.ID) {
         withAnimation(DesignTokens.AnimationToken.selection) {
@@ -660,8 +645,3 @@ public struct SourceSidebar: View {
         self.showsStorageMeter = showsStorageMeter
     }
 }
-
-// MARK: - Editable row
-//
-// 逐字保留自 MainWindowPage；唯一新增是可选的 `allowsSwipe`（默认 true，保持原行为），
-// 用于让 `SourceSidebar.Capabilities` 关闭滑动删除。Settings 侧栏仍直接复用本行。

@@ -10,7 +10,6 @@ public struct ArtworkKey: Sendable, Equatable, Hashable {
         storageKey = "media-\(mediaIdentity.storageKey)"
     }
 
-    /// Emby keeps using its image endpoint. The server image tag is part of the key.
     public init(serverID: String, itemID: String, imageTag: String) {
         let input = "emby|\(serverID)|\(itemID)|\(imageTag)"
         storageKey = SHA256.hash(data: Data(input.utf8))
@@ -64,7 +63,6 @@ public final class ArtworkStore: @unchecked Sendable {
         return queue.sync { FileManager.default.fileExists(atPath: url.path) ? url : nil }
     }
 
-    /// Completes the atomic disk write before exposing the image in memory.
     public func store(_ image: CGImage, for key: ArtworkKey) throws {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(

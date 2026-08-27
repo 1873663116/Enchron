@@ -71,27 +71,14 @@ public struct EmbyAboutSections: Equatable, Sendable {
         public var id: String { label + value }
     }
 
-    /// Genres are not here: the About block prints them under the title, the way the Apple TV app
-    /// does, so repeating them as an Information row would say the same thing twice.
     public let information: [Entry]
-    /// Which languages the release carries. What each track is made of belongs to ``audio`` and
-    /// ``subtitles``, so neither column repeats the other.
     public let languages: [Entry]
     public let accessibility: [Entry]
-    /// How the picture is encoded, read off the stream the server measured.
     public let video: [Entry]
-    /// One row per audio track, labelled by the track's own name where a release gives one, because
-    /// that is what tells two tracks of the same language apart.
     public let audio: [Entry]
-    /// One row per subtitle track.
     public let subtitles: [Entry]
-    /// The file the streams live in.
     public let file: [Entry]
 
-    /// A title that plays carries one media source and describes itself. A series or a season
-    /// carries none: Emby puts the streams on the episodes. Passing the episodes' sources here is
-    /// what lets those pages say the same things a film's page says, with every distinct value the
-    /// run holds rather than one episode's taken for all of them.
     public init(metadata: EmbyItemMetadata, sources: [EmbyMediaSourceDescription]) {
         var information: [Entry] = []
         if let year = metadata.productionYear {
@@ -149,7 +136,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         self.accessibility = accessibility
 
         self.video = Self.videoEntries(streams.filter { $0.kind == .video })
-        // Deduplicated, because a season repeats the same track list once per episode.
         self.audio = Self.uniqued(audioStreams.map { stream in
             let name = Self.trackName(stream)
             return Entry(label: name, value: Self.audioDescription(stream, omittingLanguage: name))
@@ -161,9 +147,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         self.file = Self.fileEntries(sources)
     }
 
-    /// One row per property, carrying every distinct value the given streams hold. A season whose
-    /// episodes were all encoded alike reads exactly like a film; one with a remastered episode in
-    /// it says so, instead of picking a stream and speaking for the rest.
     private static func videoEntries(_ streams: [EmbyMediaStream]) -> [Entry] {
         var entries: [Entry] = []
         func add(_ label: String, _ values: [String?]) {
@@ -177,11 +160,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         add("Codec", streams.map { $0.codec?.nonEmptyValue?.uppercased() })
         add("Profile", streams.map { $0.profile?.nonEmptyValue })
         add("Dynamic Range", streams.map { $0.videoRange?.nonEmptyValue?.uppercased() })
-        // Dolby Vision's profile is a different thing from the codec profile above it: that one
-        // names the bitstream's coding tools, this one names how the Dolby Vision layers and their
-        // metadata are packaged, and whether a player that does not understand them still gets a
-        // correct picture. Every Dolby Vision release is also Main 10, so the codec profile alone
-        // never distinguishes them.
         add("Dolby Vision", streams.map { stream in
             guard stream.extendedVideoType?.caseInsensitiveCompare("DolbyVision") == .orderedSame
             else { return nil }
@@ -195,8 +173,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return entries
     }
 
-    /// A single file can name its size, its overall bitrate and its release. A season is not a file,
-    /// so those are dropped there and only what every episode shares, its container, is kept.
     private static func fileEntries(_ sources: [EmbyMediaSourceDescription]) -> [Entry] {
         guard sources.isEmpty == false else { return [] }
         var entries: [Entry] = []
@@ -218,14 +194,10 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return entries
     }
 
-    /// A release names its tracks when the language alone would not tell them apart, which is the
-    /// case whenever it carries two dubs of one language.
     private static func trackName(_ stream: EmbyMediaStream) -> String {
         stream.title?.nonEmptyValue ?? languageName(stream) ?? "Track \(stream.index)"
     }
 
-    /// Bits per second as the unit that keeps the number readable: kilobits under ten megabits,
-    /// megabits above.
     private static func bitrate(_ bitsPerSecond: Int) -> String {
         if bitsPerSecond >= 10_000_000 {
             return "\((Double(bitsPerSecond) / 1_000_000).formatted(.number.precision(.fractionLength(0)))) Mbps"
@@ -236,8 +208,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return "\(bitsPerSecond / 1000) kbps"
     }
 
-    /// Film rates are repeating decimals, so they are shown to three places and trailing zeros are
-    /// dropped: 23.976 stays exact and 25 does not become 25.000.
     private static func frameRate(_ rate: Double) -> String {
         "\(rate.formatted(.number.precision(.fractionLength(0...3)))) fps"
     }
@@ -246,8 +216,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         stream.displayLanguage?.nonEmptyValue ?? stream.language?.nonEmptyValue
     }
 
-    /// What one audio track is made of, in the order a listener would ask: which codec, how many
-    /// channels, how much data, at what sample rate.
     private static func audioDescription(
         _ stream: EmbyMediaStream,
         omittingLanguage label: String
@@ -288,8 +256,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return haystack.contains { $0.contains("description") || $0.contains(" ad") }
     }
 
-    /// Emby lists one stream per track, so the same language recurs; the About block reads as a
-    /// language list, not a track list.
     private static func joined(_ values: [String]) -> String {
         uniqued(values).joined(separator: ", ")
     }

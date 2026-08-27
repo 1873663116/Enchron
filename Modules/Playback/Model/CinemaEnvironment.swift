@@ -23,8 +23,6 @@ nonisolated extension SpatialSceneDomain {
                 self = environment
                 return
             }
-            // Migrate the former single placeholder environment to the first
-            // stable Scenic identity. Skybox is intentionally never a default.
             if preferenceValue == "enchron" {
                 self = .defaultScenic
                 return

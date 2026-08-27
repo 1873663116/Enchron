@@ -121,8 +121,6 @@ struct SettingsScreen: View {
         }
     }
 
-    // MARK: - Playback
-
     private var playbackItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
@@ -187,8 +185,6 @@ struct SettingsScreen: View {
         ]
     }
 
-    // MARK: - Storage & Privacy
-
     private var storagePrivacyItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
@@ -241,8 +237,6 @@ struct SettingsScreen: View {
         ]
     }
 
-    // MARK: - About
-
     private var aboutItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
@@ -271,8 +265,6 @@ struct SettingsScreen: View {
             )
         ]
     }
-
-    // MARK: - Value mappings
 
     private func setResume(_ value: ResumePolicy) {
         viewModel.update { $0.resumePolicy = value }

@@ -97,10 +97,6 @@ final class EnchronApplication {
         if let mediaStateSuiteName,
            mediaStateSuiteName != preferencesSuiteName,
            let mediaStateDefaults = UserDefaults(suiteName: mediaStateSuiteName) {
-            // A spatial acceptance test starts with isolated playback state,
-            // but a process relaunch inside that same test must preserve the
-            // format it is explicitly verifying. A new reset token marks a
-            // new test; the same token marks a cold relaunch within that test.
             let resetToken = environment[
                 "ENCHRON_TEST_MEDIA_STATE_RESET_TOKEN"
             ]
@@ -258,8 +254,6 @@ final class EnchronApplication {
                     )
                 }
             } catch {
-                // The core format already succeeded. Report only the distinct
-                // presentation failure and keep that effective interpretation.
                 Self.logger.error(
                     "format presentation resolution failed error=\(error.localizedDescription, privacy: .public)"
                 )

@@ -21,33 +21,24 @@ public final class FileBrowsingViewModel {
     public var savedDataSources: [FileBrowsingDomain.DataSource] = []
     public var activeDataSource: FileBrowsingDomain.DataSource?
 
-    /// Set by the app layer when navigating to the detail page for a file.
-    /// The detail view reads this to know which file is being inspected.
     public var detailNavigationRequest: MediaPlaybackItem?
 
-    /// Last-known viewing state loaded in one folder-entry background pass.
     public private(set) var fileViewingStates: [UUID: VideoCardViewingState] = [:]
 
-    /// Live search query (UC-FILE-33). Filters the displayed file/folder lists by
-    /// name; the underlying `files`/`folders` arrays are untouched, so clearing the
-    /// query restores the full listing.
     public var searchText: String = ""
 
-    /// Files after applying the live search filter (UC-FILE-33).
     public var displayedFiles: [FileBrowsingDomain.MediaFile] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return files }
         return files.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
-    /// Folders after applying the live search filter (UC-FILE-33).
     public var displayedFolders: [FileBrowsingDomain.MediaFolder] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return folders }
         return folders.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
-    /// True when a level popped by `navigateUp` can be redone via `navigateForward` (UC-FILE-37).
     public private(set) var canNavigateForward: Bool = false
 
     private let localDataSource: any LocalFileSource
@@ -66,18 +57,12 @@ public final class FileBrowsingViewModel {
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
     private var remotePathStack: [String] = []
-    /// Levels popped by `navigateUp`, available to redo via `navigateForward` (UC-FILE-37).
     private var forwardPathStack: [String] = []
     private var reconnectAttempted: Bool = false
     private var sourceGeneration: UInt64 = 0
     private var playbackCollection: [FileBrowsingDomain.MediaFile] = []
     private var currentPlaybackFileID: UUID?
 
-    /// Injectable remote-adapter factory (FILE-10 / 44 / 46 testability). It receives
-    /// the credential view used for this connection, including any uncommitted overlay. When nil,
-    /// `connectToDataSource` builds the real WebDAV / SMB adapters; tests
-    /// inject a fake that times out / rejects credentials / succeeds deterministically.
-    /// Returns nil to fall through to the built-in adapters (e.g. for `.local`).
     private let makeRemoteAdapter: (@MainActor (
         FileBrowsingDomain.DataSource,
         any CredentialStoring
@@ -184,8 +169,6 @@ public final class FileBrowsingViewModel {
         credential: StorageCredential? = nil
     ) async {
         let generation = beginSourceGeneration()
-        // Immediately update UI state so the caller sees a skeleton screen
-        // rather than stale content from the previous data source.
         activeDataSource = ds
         isLoading = true
         files = []
@@ -210,8 +193,6 @@ public final class FileBrowsingViewModel {
         }
 
         let adapter: any DataSourceConnecting & FileProviding
-        // FILE-10/44/46: an injected factory overrides the real adapters (e.g. a
-        // fake that times out / rejects / succeeds). Returning nil falls through.
         if let injected = makeRemoteAdapter?(ds, adapterCredentialStore) {
             adapter = injected
         } else {
@@ -308,8 +289,6 @@ public final class FileBrowsingViewModel {
                 let newFolders = try await remoteAdapter.listFolders(at: currentRemotePath)
                 guard sourceGeneration == generation,
                       activeDataSource?.id == dataSourceID else { return }
-                // §5.7c: Incremental update — replace with new data only on success,
-                // preserving stable UUIDs so SwiftUI diffs without rebuilding the whole list.
                 mergeFiles(newFiles)
                 mergeFolders(newFolders)
                 lastErrorMessage = nil
@@ -324,13 +303,10 @@ public final class FileBrowsingViewModel {
                     reconnectAttempted = false
                     return
                 }
-                // §5.7c: On failure, keep existing files/folders visible so the list
-                // does not jump to empty. Only surface the error message.
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
             applySortToFiles()
             loadProgressForFiles()
-            // §5.6: Warm metadata cache for all video files in this remote folder.
             return
         }
 
@@ -344,49 +320,35 @@ public final class FileBrowsingViewModel {
             let newFiles = try await localDataSource.listContents(at: localPath)
             let newFolders = try await localDataSource.listFolders(at: localPath)
             guard sourceGeneration == generation, activeDataSource == nil else { return }
-            // §5.7c: Same incremental merge for local data source.
             mergeFiles(newFiles)
             mergeFolders(newFolders)
             lastErrorMessage = nil
         } catch {
             guard sourceGeneration == generation, activeDataSource == nil else { return }
-            // §5.7c: On failure, preserve current list and surface the error.
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
         }
         applySortToFiles()
         loadProgressForFiles()
-        // §5.6: Warm metadata cache for all video files in this local folder.
     }
 
-    /// §5.7c: Diff-update the files array in-place.
-    /// - Removes entries no longer present in the new list.
-    /// - Appends new entries not already in the current list.
-    /// - Updates metadata (name, size, modifiedAt) for existing entries by UUID.
-    /// Preserves the UUID identity SwiftUI relies on for stable diffing.
     private func mergeFiles(_ newFiles: [FileBrowsingDomain.MediaFile]) {
-        // Use uniquingKeysWith to avoid a crash when the data source returns duplicate IDs.
         let newByID = Dictionary(newFiles.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         let oldIDs = Set(files.map(\.id))
         let newIDs = Set(newFiles.map(\.id))
 
-        // Remove stale entries
         files.removeAll { !newIDs.contains($0.id) }
 
-        // Update existing entries in-place (metadata may have changed)
         files = files.map { oldFile in
             newByID[oldFile.id] ?? oldFile
         }
 
-        // Append brand-new entries
         for file in newFiles where !oldIDs.contains(file.id) {
             files.append(file)
         }
     }
 
-    /// §5.7c: Diff-update the folders array in-place using the same strategy.
     private func mergeFolders(_ newFolders: [FileBrowsingDomain.MediaFolder]) {
-        // Use uniquingKeysWith to avoid a crash when the data source returns duplicate IDs.
         let newByID = Dictionary(newFolders.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         let oldIDs = Set(folders.map(\.id))
         let newIDs = Set(newFolders.map(\.id))
@@ -748,18 +710,11 @@ public final class FileBrowsingViewModel {
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
         if remotePathStack.isEmpty {
-            // First navigation: push the root as the stack's base entry. The stack
-            // holds logical query keys, not display paths — so the local base must
-            // be the same logical root the loader uses on the initial (empty-stack)
-            // listing, not the filesystem `rootURL.path`. Seeding the absolute path
-            // here made `navigateUp`/`navigateForward`/breadcrumb-to-root query a key
-            // the source doesn't recognize, returning an empty root.
             remotePathStack.append(activeRemoteAdapter != nil ? currentRemotePath : "/")
         }
         remotePathStack.append(folder.path)
         currentRemotePath = folder.path
         canNavigateUp = remotePathStack.count > 1
-        // Descending into a folder starts a new branch — the forward history is gone.
         forwardPathStack.removeAll()
         canNavigateForward = false
         currentRootDisplayName = folder.name
@@ -769,7 +724,6 @@ public final class FileBrowsingViewModel {
     public func navigateUp() async {
         guard remotePathStack.count > 1 else { return }
         let leftLevel = remotePathStack.removeLast()
-        // Remember the level we left so `navigateForward` can redo it (UC-FILE-37).
         forwardPathStack.append(leftLevel)
         canNavigateForward = true
         let previousPath = remotePathStack.last ?? "/"
@@ -788,7 +742,6 @@ public final class FileBrowsingViewModel {
         await loadFiles()
     }
 
-    /// Redo the most recently popped level (UC-FILE-37). No-op at the head of history.
     public func navigateForward() async {
         guard let next = forwardPathStack.popLast() else { return }
         remotePathStack.append(next)
@@ -800,19 +753,13 @@ public final class FileBrowsingViewModel {
         await loadFiles()
     }
 
-    // MARK: - Breadcrumb Path
-
-    /// Path segments for breadcrumb navigation.
-    /// Each segment is (displayName, stackIndex) where tapping navigates to that level.
     public var breadcrumbSegments: [(name: String, index: Int)] {
         guard !remotePathStack.isEmpty else {
-            // At root with no navigation history
             return [(currentRootDisplayName, 0)]
         }
 
         var segments: [(name: String, index: Int)] = []
 
-        // Root segment (data source name or local folder name)
         let rootName: String
         if let ds = activeDataSource {
             rootName = ds.name
@@ -822,7 +769,6 @@ public final class FileBrowsingViewModel {
         }
         segments.append((rootName, 0))
 
-        // Intermediate and current segments from path stack (skip index 0 = root)
         for i in 1..<remotePathStack.count {
             let path = remotePathStack[i]
             let name = (path as NSString).lastPathComponent
@@ -832,10 +778,8 @@ public final class FileBrowsingViewModel {
         return segments
     }
 
-    /// Navigate to a specific breadcrumb level by stack index.
     public func navigateToBreadcrumb(index: Int) async {
         guard index >= 0, index < remotePathStack.count else { return }
-        // Pop all entries after the target index
         remotePathStack = Array(remotePathStack.prefix(index + 1))
         let targetPath = remotePathStack.last ?? "/"
         currentRemotePath = targetPath

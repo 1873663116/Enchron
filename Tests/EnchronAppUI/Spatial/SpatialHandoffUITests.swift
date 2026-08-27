@@ -609,9 +609,6 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             "Video Format panel remained visible after Cancel."
         )
 
-        // This fixture is intentionally only 30 seconds long. Rewind after
-        // proving Cancel semantics so the round trip tests active-session
-        // replacement instead of racing the natural end of the media.
         let rewind = app.buttons[
             "PlayerPanel-button-rewind"
         ].firstMatch
@@ -1466,10 +1463,6 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 )
                 : nil
             let windowExists = originalSurface.exists
-            // Once the target control plane appears, committing the transition
-            // can dismiss the source Window between an `exists` query and a
-            // later `value` query. The target state is authoritative from that
-            // point, so don't ask XCUI for a disappearing element's snapshot.
             let windowValue = windowExists && targetStateExists == false
                 ? (originalSurface.value as? String ?? "value-unavailable")
                 : (windowExists ? "not-read-after-target-appeared" : "element-absent")

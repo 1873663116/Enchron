@@ -16,7 +16,6 @@ public enum PlaybackAfterSeekIntent: Sendable, Equatable {
     case ended
 }
 
-/// Resolves product-level seek semantics without teaching PlaybackCore about UI controls.
 public enum PlaybackSeekPolicy {
     public static func intent(
         for event: PlaybackSeekEvent,

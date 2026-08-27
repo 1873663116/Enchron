@@ -179,18 +179,6 @@ private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
     )
 }
 
-/// A qualified MOV stream table lets the open skip `avformat_find_stream_info`,
-/// and the fields that probe would have filled stay at their zero value. The
-/// renderer lead budget spends both of these, and a silent zero reads as "this
-/// frame costs nothing", which hands an 8K stream the ceiling meant for 720p.
-///
-/// The Sony clip is the known gap. It is 4:2:2 ten-bit H.264, whose true cost is
-/// four bytes a pixel, but the H.264 decoder picks no pixel format until it
-/// decodes a frame and the `avcC` atom alone does not carry the chroma format
-/// back. The estimate falls to 4:2:0 eight-bit, which overstates the budget for
-/// that stream rather than starving it. Forcing the probe would buy the exact
-/// number by reading media bytes on every open, which is the cost this path
-/// exists to avoid.
 @Test(arguments: [
     ("TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4", 1.5, 2),
     ("TestVectors/Enchron/Calibration/Sources/equirect_grid.mp4", 1.5, 2),
@@ -216,10 +204,6 @@ func skippingTheProbeStillDescribesWhatAFrameCosts(
     #expect(video.reorderDepth == expectedReorderDepth)
 }
 
-/// CoreMedia expands the SPS color declaration only inside the parameter-set
-/// constructor `create_h264_format_from_avcc` calls. Each fixture here declares
-/// primaries, transfer, matrix and range nowhere but its SPS, so a description
-/// built from the `avcC` atom instead loses all four.
 @Test(arguments: [
     (
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4",

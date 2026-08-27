@@ -1,8 +1,6 @@
 #if DEBUG
 import Foundation
 
-/// Product menu hosts that permit the UI-test command channel to invoke the
-/// same selection closure as a system-owned Menu or Picker.
 public enum DebugMenuSelectionHost: String, CaseIterable, Sendable {
     case playerUI
     case playerPanel
@@ -12,7 +10,6 @@ public enum DebugMenuSelectionHost: String, CaseIterable, Sendable {
     case settings
 }
 
-/// Product-owned selection groups exposed by system Menu and Picker controls.
 public enum DebugMenuSelectionFamily: String, CaseIterable, Sendable {
     case subtitles
     case audio

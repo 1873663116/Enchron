@@ -26,35 +26,21 @@ struct PlaybackPrerollRequirement: Equatable {
 }
 
 enum PlaybackBufferingPolicy {
-    /// MPV's 0.2-second audio output buffer is the starting point for seek startup.
-    /// TrueHD on Vision Pro arrives in 0.1-second buffers, so this admits two buffers.
     static let seekAudioLeadSeconds = 0.2
 
-    /// The 2026-08-17 Vision Pro baseline recovered bounded delivery at 0.527–0.873
-    /// seconds late. Keep the 0.5-second trigger that arrested unbounded lag.
     static let deliveryLagRecoveryTriggerSeconds = 0.5
 
-    /// MPV's one-second underrun recovery reference is the starting point. The
-    /// 2026-08-17 Vision Pro baseline showed that a five-second target caused
-    /// 6.8–13.1-second pauses on remote 4K HEVC with TrueHD.
     static let deliveryLagRecoveryLeadSeconds = 1.0
 
-    /// Audio samples the delivery loop may run ahead of the timeline, in media
-    /// seconds. Decoded audio is small and its renderer flush is cheap, so the
-    /// unit that was wrong for video frames is the right one here.
     #if os(visionOS)
         static let opportunisticAudioMaximumLeadSeconds = 6.0
     #else
         static let opportunisticAudioMaximumLeadSeconds = 1.0
     #endif
 
-    /// Five seconds bounds provider or renderer failure; it is not buffered-media
-    /// policy. The 5-millisecond poll keeps activation responsive within that bound.
     static let audioPrerollTimeout: Duration = .seconds(5)
     static let audioPrerollPollInterval: Duration = .milliseconds(5)
 
-    /// Seek coordination already used a five-second failure bound. Name it so it
-    /// cannot be confused with the removed five-second media reserve.
     static let seekTargetCoordinationTimeout: Duration = .seconds(5)
 
     static func seekRequirement(
@@ -72,22 +58,12 @@ enum PlaybackBufferingPolicy {
         )
     }
 
-    /// Recovery stops the timeline and refuses to resume until each lane is
-    /// buffered a lead past it, and each lane's delivery gate measures the same
-    /// span from the same reference. A video requirement above what the frame
-    /// gate admits is one no sample can reach, so the frame budget caps it. The
-    /// audio gate still bounds in media seconds, so audio keeps the full lead.
     static func deliveryLagRecoveryRequirement(
         timelineTime: CMTime,
         durationSeconds: Double,
         leadFrames: Int,
         nominalFrameRate: Double
     ) -> PlaybackPrerollRequirement {
-        // The gate holds at most `leadFrames` frames whose presentation end sits
-        // past the timeline. A frame straddling `timelineTime` ends less than one
-        // frame after it, so the deepest end those frames can reach is one frame
-        // short of `leadFrames / nominalFrameRate`. Asking for the full span is a
-        // requirement the gate can never satisfy.
         var videoLeadSeconds = deliveryLagRecoveryLeadSeconds
         if nominalFrameRate > 0, leadFrames > 1 {
             videoLeadSeconds = min(
@@ -125,7 +101,6 @@ enum PlaybackBufferingPolicy {
     }
 }
 
-/// Exposes one media session's renderer, read-only facts, and consumer binding evidence.
 public final class SampleBufferPlaybackSession: @unchecked Sendable {
     struct EndState {
         var requiresAudio = false
@@ -156,10 +131,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     public let traceID: String
     public private(set) var mediaKind: PlaybackMediaKind = .video
-    /// A presentation conversion needs a renderer its new RealityView Entity has
-    /// never bound, which is a different renderer graph on the same timeline and
-    /// the same open source. `videoRendererGraph` is the only mutable part of the
-    /// session, so a conversion replaces it instead of the session.
     private struct VideoRendererGraph {
         var renderer: AVSampleBufferVideoRenderer
         var sink: RendererInputSink
@@ -194,8 +165,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
     #endif
 
-    /// Callers must have suspended video sample delivery, so the departing sink
-    /// has no enqueue in flight when the replacement takes its place.
     func adoptVideoRendererGraph(
         renderer: AVSampleBufferVideoRenderer,
         sink: RendererInputSink,
@@ -667,10 +636,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             ? (sourceInformation?.durationSeconds ?? 0)
             : provider.info.durationSeconds
         diagnostics.nominalFrameRate = mediaKind == .audioOnly ? 0 : provider.info.nominalFrameRate
-        // The reader picks its video stream with av_find_best_stream and reports
-        // which one as `stream:<index>`. A file whose first video stream is an
-        // attached picture or a preview would otherwise describe a frame the
-        // decoder never produces.
         let selectedStreamIndex = provider.info.selectedRawTrackMapping.value
             .flatMap { $0.hasPrefix("stream:") ? Int($0.dropFirst(7)) : nil }
         let videoStreams = sourceInformation?.streams.filter { $0.video != nil } ?? []
@@ -970,15 +935,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         beginOperation(.play, targetRate: preferredPlaybackRate)
-        // Play can arrive after the renderer timeline is anchored but before
-        // decoder bootstrap activates it. Keep that pending activation aligned
-        // with the latest transport intent so bootstrap cannot restore the
-        // session's earlier starts-paused state.
         timelineStartRate = preferredPlaybackRate
         let resumeTime = synchronizer.currentTime()
-        // On visionOS, a media-time-only rate change can leave the underlying
-        // timebase stopped after a pause. Bind the same media time to a near
-        // future host time so the synchronizer has an explicit resume edge.
         setRateAtHostTime(
             preferredPlaybackRate,
             time: resumeTime,
@@ -1001,8 +959,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         try admitTimelineControl(.pause)
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByPause)
         beginOperation(.pause, targetRate: 0)
-        // Pause is also the authoritative intent for a timeline whose decoder
-        // bootstrap has not finished yet.
         timelineStartRate = 0
         setTimelineStopped(reason: .pause)
         updateLifecycle(.paused)
@@ -1032,8 +988,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         timelineStartRate = rate
         if rate > 0 {
             let rateChangeTime = synchronizer.currentTime()
-            // Keep rate changes on the same visionOS-safe host-time activation
-            // path as play(). The current synchronizer time is the anchor.
             setRateAtHostTime(rate, time: rateChangeTime, reason: .rateChange)
             recordAudioRateActivation(rate: rate, time: rateChangeTime, reason: "setRate")
         } else {

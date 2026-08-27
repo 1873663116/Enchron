@@ -1,162 +1,68 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Design Tokens
-
-/// Enchron design system — the single source of truth for all visual constants.
-///
-/// Layers:
-///   1. Primitives (Spacing, Radius, Stroke) — raw values on a grid
-///   2. Semantics (Surface, AnimationToken, HoverStyle, Interactive) — intent
-///   3. Components (Card, Menu, ControlBar) — assembled from 1 + 2
-///
-/// Usage: `DesignTokens.Spacing.md`, `DesignTokens.Card.paddingH`, etc.
 public enum DesignTokens {
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Spacing (8pt grid)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// 8pt grid with 4pt half-step. Covers all layout spacing needs.
     public enum Spacing {
-        /// 4 — hover gap, micro adjustment
         public static let xxs: CGFloat = 4
-        /// 8 — compact padding, icon gaps
         public static let xs: CGFloat = 8
-        /// 12 — medium padding, list item spacing
         public static let sm: CGFloat = 12
-        /// 16 — standard padding (SwiftUI default `.padding()`)
         public static let md: CGFloat = 16
-        /// 20 — panel padding, section spacing
         public static let lg: CGFloat = 20
-        /// 24 — large gaps
         public static let xl: CGFloat = 24
-        /// 32 — section dividers
         public static let xxl: CGFloat = 32
-        /// 48 — extra-large margins
         public static let xxxl: CGFloat = 48
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Radius (concentric: inner = outer − padding)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Three-tier concentric corner radius system (8pt grid).
-    ///
-    /// `panel(40) → card(32) → element(24)`
-    /// Each tier = outer − 8pt padding, ensuring perfect concentric nesting.
-    /// Example: Menu container (card 32) with 8pt glassPadding → MenuItem (element 24).
-    ///
-    /// Window chrome is system-managed — do not set window corner radius manually.
-    /// For non-standard nesting, use `concentric(outer:padding:)`.
     public enum Radius {
-        /// 40 — large panels, settings pages, detail views
         public static let panel: CGFloat = 40
-        /// 32 — cards, menus, mid-level containers (= panel − 8)
         public static let card: CGFloat = 32
-        /// 24 — menu items, toolbar, inner containers (= card − 8)
         public static let element: CGFloat = 24
-        /// 12 — small rounded backgrounds (tags, thumbnails). Not part of
-        ///       the concentric hierarchy; use Capsule() for badge glass.
         public static let small: CGFloat = 12
-        /// ∞ — circles, capsules
         public static let full: CGFloat = .greatestFiniteMagnitude
 
-        /// Concentric inner radius for nested rounded containers.
         public static func concentric(outer: CGFloat, padding: CGFloat) -> CGFloat {
             max(outer - padding, 0)
         }
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Shape Tokens (concrete Shape objects)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Pre-built shape objects for the three-tier hierarchy.
-    ///
-    /// Use these instead of manually constructing `RoundedRectangle(cornerRadius:)`
-    /// at each call site. This ensures clip, glass, hover, and hit-test shapes
-    /// are always identical.
-    ///
-    /// For badges/tags, use `Capsule()` directly — no ShapeToken needed.
     public enum ShapeToken {
-        /// Large panels, settings, detail views (40pt)
         public static let panel = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
-        /// Cards, menu containers (32pt)
         public static let card = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-        /// Menu items, toolbar, inner containers (24pt)
         public static let element = RoundedRectangle(cornerRadius: Radius.element, style: .continuous)
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Interactive (tap target sizes — Apple HIG visionOS)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Button visual sizes per Apple HIG. All must achieve ≥60pt effective target.
     public enum Interactive {
-        /// 28 — disclosure, auxiliary controls (needs 60pt surrounding space)
         public static let mini: CGFloat = 28
-        /// 36 — compact scrubbers and dense icon controls (needs surrounding clearance)
         public static let compact: CGFloat = 36
-        /// 44 — standard buttons (needs ≥8pt clearance each side)
         public static let regular: CGFloat = 44
-        /// 60 — navigation buttons, self-sufficient target
         public static let large: CGFloat = 60
-        /// 64 — primary action (Play/Pause)
         public static let xl: CGFloat = 64
-        /// 60 — menu/list row minimum height
         public static let rowHeight: CGFloat = 60
-        /// 16 — minimum spacing between stacked buttons (Apple HIG)
         public static let buttonSpacing: CGFloat = 16
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Animation
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Semantic animation presets covering all transition scenarios.
     public enum AnimationToken {
-        /// Controls show/hide (showControls toggle)
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
-        /// Panel expand/collapse (timeline, accordion). The middle of the three steps
-        /// in `PlaybackPanelExpansion`, carrying the empty shell to its new size.
         public static let panelSpring: Animation = .spring(duration: 0.35, bounce: 0.15)
-        /// The panel's contents leaving before its shell resizes. Short, because the
-        /// wearer is waiting on the resize and this only has to clear the way.
         public static let panelContentExit: Animation = .easeOut(duration: 0.12)
-        /// The panel's contents returning once its shell has arrived.
         public static let panelContentEntrance: Animation = .easeIn(duration: 0.18)
-        /// Menu/popover popup (same curve as panel, independent tuning)
         public static let menuPopup: Animation = .spring(duration: 0.35, bounce: 0.15)
-        /// Selection state change
         public static let selection: Animation = .spring(.bouncy(duration: 0.4, extraBounce: 0.1))
-        /// Insert/delete list row mutation.
         public static let listMutation: Animation = .spring(response: 0.34, dampingFraction: 0.86)
-        /// Play/pause state
         public static let playback: Animation = .spring(response: 0.45, dampingFraction: 0.85)
-        /// Cinema environment switch
         public static let scene: Animation = .spring(response: 0.3, dampingFraction: 0.7)
-        /// Spatial scene card stack settling.
         public static let sceneCarouselSettle: Animation = .spring(response: 0.34, dampingFraction: 0.94)
-        /// Content fade-in
         public static let fadeIn: Animation = .easeIn(duration: 0.25)
-        /// Read-only information revealed by gaze or pointer hover.
         public static let informationReveal: Animation = .easeOut(duration: 0.2)
-        /// Skeleton loading pulse
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
 
-        /// Shared SF Symbol rotate speed for skip arrows and settings gear.
         public static let symbolRotateSpeed: Double = 2.0
-        /// Whole-glyph spin paced like `symbolRotateSpeed` (about 1s at 1×).
         public static var symbolRotateSpin: Animation {
             .spring(response: 1.0 / symbolRotateSpeed, dampingFraction: 0.86)
         }
     }
 
-    /// Material circular indeterminate (advance) motion constants.
-    /// Sourced from `CircularIndeterminateAdvanceAnimatorDelegate` in
-    /// material-components-android; kept here so timing stays shared with
-    /// Design Preview without re-encoding the cycle in the view.
     public enum LoadingSpinner {
         public static let cycleDuration: Duration = .milliseconds(5400)
         public static let cycleDurationMilliseconds: Double = 5400
@@ -169,14 +75,6 @@ public enum DesignTokens {
         public static let collapseDelaysMilliseconds: [Double] = [667, 2017, 3367, 4717]
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Theme
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Enchron's single theme accent, used for focused and active states.
-    /// The accent is the app icon's background pink (#F4E0E8) — the midpoint of
-    /// the icon's vertical gradient — so the product's signal colour and its
-    /// launcher tile read as the same hue.
     public enum Theme {
         public static let accent: Color = Color(red: 0.957, green: 0.878, blue: 0.910)
         public static let surfaceContainerHighest: Color = .white.opacity(0.12)
@@ -191,12 +89,6 @@ public enum DesignTokens {
         public static let barColor: Color = Theme.accent
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Press Feedback
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Press feedback spec used by interactive surfaces that need explicit tap
-    /// response outside the system ButtonStyle pipeline.
     public struct PressFeedbackSpec: @unchecked Sendable {
         public let pressedScale: CGFloat
         public let maximumVisualInset: CGFloat
@@ -236,9 +128,7 @@ public enum DesignTokens {
         }
     }
 
-    /// Explicit press feedback tiers for cards, rows, controls, and icons.
     public enum PressFeedback {
-        /// Broad surfaces should move subtly so the card remains spatially stable.
         public static let card = PressFeedbackSpec(
             pressedScale: 0.97,
             maximumVisualInset: 4,
@@ -250,7 +140,6 @@ public enum DesignTokens {
             holdDurationLabel: "150ms"
         )
 
-        /// Rows need a smaller movement to avoid making dense lists feel jumpy.
         public static let row = PressFeedbackSpec(
             pressedScale: 0.985,
             maximumVisualInset: 2,
@@ -262,7 +151,6 @@ public enum DesignTokens {
             holdDurationLabel: "110ms"
         )
 
-        /// Control capsules can respond more clearly because they are isolated.
         public static let control = PressFeedbackSpec(
             pressedScale: 0.96,
             maximumVisualInset: 3,
@@ -274,7 +162,6 @@ public enum DesignTokens {
             holdDurationLabel: "140ms"
         )
 
-        /// Individual icons use the strongest scale cue, matching spatial capsule controls.
         public static let icon = PressFeedbackSpec(
             pressedScale: 0.90,
             maximumVisualInset: 3.5,
@@ -287,175 +174,88 @@ public enum DesignTokens {
         )
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Surface (translucent layers on glass)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Elevation tiers for subtle depth on glass backgrounds.
     public enum Surface {
-        /// Card background
         public static let card: Color = .primary.opacity(0.03)
-        /// Elevated panel background
         public static let elevated: Color = .primary.opacity(0.04)
-        /// Overlay / brighter surface
         public static let overlay: Color = .primary.opacity(0.06)
-        /// Selected state background
         public static let selected: Color = .primary.opacity(0.08)
-        /// Subtle border
         public static let border: Color = .primary.opacity(0.05)
-        /// Visible separators inside translucent list containers.
         public static let divider: Color = .primary.opacity(0.14)
-        /// Secondary explanatory text that must remain readable on material lists.
         public static let supportingText: Color = .primary.opacity(0.72)
-        /// Trailing values, chips, and metadata that should read above descriptions.
         public static let accessoryText: Color = .primary.opacity(0.88)
-        /// Bright selection-row labels using the section header text scale.
         public static let selectionHeaderText: Color = .primary
-        /// Focused input/control border, using Enchron's single theme accent.
         public static let focusBorder: Color = Theme.accent
-        /// Shared opacity for chrome and list-group edge strokes.
         public static let edgeStrokeOpacity: Double = 0.25
-        /// The rim bounding app chrome — buttons, the sidebar's trailing edge, and
-        /// list-group containers. Theme accent at quarter strength so a window full
-        /// of edges does not read as a grid of bright outlines.
         public static let chromeBorder: Color = Theme.accent.opacity(edgeStrokeOpacity)
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Stroke
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Line width tiers for borders and timeline marks.
     public enum Stroke {
-        /// Hairline used by chrome rims, list-group edges, and unselected card borders.
         public static let subtle: CGFloat = 0.5
-        /// Timeline major ticks
         public static let regular: CGFloat = 1.0
-        /// Playhead, selected state borders
         public static let bold: CGFloat = 1.5
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Layout
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Shared layout dimension tokens.
     public enum Layout {
-        /// Width available to the PlayerControls content before outer padding.
-        /// The progress bar and the transport row both span it, so they share the
-        /// deck's left and right edges.
         public static let playerControlsContentWidth: CGFloat = 680
-        /// Shared width for Precision Timeline and expanded playback settings.
         public static let expandedPlayerControlsContentWidth: CGFloat = 880
-        /// Compact height of the read-only playback media-information well.
         public static let playbackMediaInfoHeight: CGFloat = 72
-        /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
-        /// Softens content clipping at the top and bottom of the main WindowGroup.
         public static let windowEdgeFadeHeight: CGFloat = 64
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Typography
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Semantic font mapping — always use these instead of `.system(size:)`.
-    /// System Text Styles handle Dynamic Type and visionOS viewing distance automatically.
     public enum Typography {
-        /// Video titles, page headings
         public static let title: Font = .title2
-        /// Card titles, section labels
         public static let headline: Font = .headline
-        /// Resolution, file size, date metadata
         public static let metadata: Font = .caption
-        /// Section headers like "SOURCES", "VIDEO METADATA"
         public static let sectionHeader: Font = .caption2
-        /// Selection-row labels for compact setting rows.
         public static let selectionHeader: Font = .body
-        /// Badge labels: MV-HEVC, HDR10+
         public static let badge: Font = .caption
-        /// Monospaced timecode/ruler text (9pt medium monospaced)
         public static let monospacedDetail: Font = .system(size: 9, weight: .medium, design: .monospaced)
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Symbol Sizes
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
     public enum ButtonIcon {
-        /// 36pt compact button with 10pt optical padding on each edge.
         public static let compactArtwork: CGFloat = 16
-        /// 44pt standard button with 12pt optical padding on each edge.
         public static let standardArtwork: CGFloat = 20
-        /// 64pt primary button with 16pt optical padding on each edge.
         public static let primaryArtwork: CGFloat = 32
-        /// Icon paired with text inside a 44pt-high button.
         public static let labelArtwork: CGFloat = 14
     }
 
-    /// SF Symbol font tokens — centralized sizing for icon consistency.
     public enum SymbolSize {
-        /// Compact icon-only buttons (16pt semibold).
         public static let compact: Font = .system(
             size: ButtonIcon.compactArtwork,
             weight: .semibold
         )
-        /// Standard icon-only controls (20pt semibold).
         public static let control: Font = .system(
             size: ButtonIcon.standardArtwork,
             weight: .semibold
         )
-        /// Icons paired with text inside buttons (14pt semibold).
         public static let label: Font = .system(
             size: ButtonIcon.labelArtwork,
             weight: .semibold
         )
-        /// Setting list row leading icons, slightly larger than selection-row labels.
         public static let selectionHeaderIcon: Font = .system(size: 22, weight: .regular)
-        /// Card and folder icons (36pt)
         public static let card: Font = .system(size: 36)
-        /// Play/pause primary action (32pt medium).
         public static let action: Font = .system(
             size: ButtonIcon.primaryArtwork,
             weight: .medium
         )
-        /// Scene selector, large UI icons (44pt)
         public static let feature: Font = .system(size: 44)
-        /// Hero detail view icons (48pt)
         public static let hero: Font = .system(size: 48)
-        /// Empty state placeholder icons (60pt)
         public static let giant: Font = .system(size: 60)
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // MARK: - Component Standards (assembled from primitives)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    /// Video/folder card standard dimensions.
     public enum Card {
-        /// Horizontal padding inside card text area
-        public static let paddingH: CGFloat = Spacing.md        // 16
-        /// Vertical padding inside card text area (project-wide constant)
+        public static let paddingH: CGFloat = Spacing.md
         public static let paddingV: CGFloat = 14
-        /// Adaptive grid minimum card width for landscape thumbnails.
         public static let gridMin: CGFloat = 224
-        /// Poster card width. A 2:3 poster reads at a smaller width than a 16:9 thumbnail because
-        /// its height carries the recognition, so it does not share `gridMin`.
         public static let posterWidth: CGFloat = 180
-        /// Landscape still card, used wherever a frame from the video itself is the subject:
-        /// an episode in a season, an item in Continue Watching. The caption sits on top of the
-        /// still, so the frame is a little taller than 16:9 to give the caption room.
         public static let stillWidth: CGFloat = 304
         public static let stillHeight: CGFloat = 205
-        /// Thumbnail height for grid cards
         public static let thumbnailHeight: CGFloat = 140
-        /// Grid inter-item spacing
-        public static let gridSpacing: CGFloat = Spacing.md     // 16
-        /// Centered placeholder icon size for grid card thumbnails (no preview)
+        public static let gridSpacing: CGFloat = Spacing.md
         public static let placeholderIconSize: CGFloat = 45
     }
 
-    /// Stable visual geometry and atmospheric treatment for one Environment Card.
     public enum EnvironmentCard {
         public static let width: CGFloat = 500
         public static let height: CGFloat = 548
@@ -475,7 +275,6 @@ public enum DesignTokens {
         public static let atmosphericBlurRadius: CGFloat = 2.6
     }
 
-    /// Spatial card stack used by the Environment Card volume.
     public enum EnvironmentCarousel {
         public static let volumeWidthMeters: CGFloat = 2.20
         public static let volumeHeightMeters: CGFloat = 0.115
@@ -515,7 +314,6 @@ public enum DesignTokens {
         public static let zIndexDistanceStep: Double = 10
     }
 
-    /// Stable presentation values for remote source connection panels.
     public enum SourceConnection {
         public static let panelWidth: CGFloat = 420
         public static let credentialRevealDelay: Double = 0.18
@@ -526,11 +324,7 @@ public enum DesignTokens {
         public static let successColor: Color = Theme.accent
     }
 
-    /// Layout for the media-server detail page, whose hero fills the panel behind its header
-    /// content rather than sitting above it.
     public enum EmbyDetail {
-        /// The hero claims most of the panel on arrival, so it grows with the window rather than
-        /// holding a fixed height that would shrink to a band as the window enlarges.
         public static let heroHeightFraction: CGFloat = 0.82
         public static let heroMinimumHeight: CGFloat = 520
         public static let logoMaxWidth: CGFloat = 460
@@ -538,298 +332,155 @@ public enum DesignTokens {
         public static let overviewMaxWidth: CGFloat = 720
         public static let creditMaxWidth: CGFloat = 320
         public static let aboutCardWidth: CGFloat = 520
-        /// The narrowest an About column may be before the page lays out one fewer of them. Wide
-        /// enough for a track's whole description to sit on two lines.
         public static let aboutColumnWidth: CGFloat = 260
-        /// Pixels asked of the server for the page-filling backdrop. The original is a full-size
-        /// production still, and decoding one of those is what stalls the page on the way in.
         public static let backdropRequestWidth = 2048
-        /// How dark the wash behind the title makes the picture at its centre. It multiplies with the
-        /// backdrop, so this is a proportion of what is already there rather than a colour of its own.
         public static let titleWashStrength: Double = 0.4
-        /// How far the wash reaches beyond the text it is there to lift, as a multiple of the text
-        /// block. Wide and weak, so the picture darkens without the wash showing an edge.
         public static let titleWashSpread: CGFloat = 1.7
-        /// The room the page holds open at its top edge. The back control floats there, and the
-        /// sections come to rest below it rather than under it.
         public static let topContentInset: CGFloat = DesignTokens.Interactive.large + Spacing.lg * 2
-        /// The fraction of the hero's travel over which the backdrop fades. Short of 1, so the
-        /// picture is gone by the time the content reaches the top rather than exactly as it lands.
         public static let backdropFadeFraction: CGFloat = 0.7
-        /// Past this much of the travel, letting go settles the page at the top instead of returning
-        /// it to the hero.
         public static let heroSettleFraction: CGFloat = 0.35
     }
 
-    /// A block that holds more than its room, and the panel that opens when one is tapped.
     public enum Collapsible {
-        /// How tall a block may stand before it collapses. Deep enough that a short list is simply
-        /// shown, shallow enough that one long list cannot set the height of the row it sits in.
         public static let collapsedHeight: CGFloat = 200
         public static let expandedWidth: CGFloat = 420
         public static let expandedMaxHeight: CGFloat = 520
     }
 
     public enum SourceSidebar {
-        /// Files page source sidebar glass panel width.
         public static let width: CGFloat = 280
-        /// Distance between the sidebar glass panel and the WindowGroup container edge.
         public static let windowInset: CGFloat = Spacing.xs
-        /// Distance from the sidebar glass panel edge to the first content control.
         public static let trailingContentGap: CGFloat = Spacing.lg
-        /// Inner horizontal padding between sidebar content and its glass panel.
         public static let contentPaddingH: CGFloat = Spacing.lg
-        /// Horizontal inset for source row groups inside the glass panel.
         public static let listPaddingH: CGFloat = Spacing.md
-        /// Inner vertical padding between sidebar content and its glass panel.
         public static let contentPaddingV: CGFloat = Spacing.xl
-        /// Distance from the section header row to the first source row. Gaze needs
-        /// the header's own target cleared before the list starts.
         public static let headerContentGap: CGFloat = Spacing.lg
-        /// Visual height for source rows.
         public static let rowHeight: CGFloat = Interactive.rowHeight
-        /// Adjacent 60pt source rows touch, so their centers remain 60pt apart while
-        /// selection backgrounds form one compact grouped list.
         public static let rowSpacing: CGFloat = .zero
-        /// Inner horizontal padding for source rows.
         public static let rowPaddingH: CGFloat = Spacing.xs
-        /// A row is inset 16pt from the 40pt panel edge, yielding a concentric 24pt radius.
         public static let rowCornerRadius = Radius.concentric(
             outer: Radius.panel,
             padding: listPaddingH
         )
-        /// Section labels inside the source sidebar.
         public static let sectionTitleFont: Font = Typography.headline.weight(.bold)
-        /// Unchecked selection indicator color inside the source sidebar.
         public static let selectionIndicator: Color = .white.opacity(0.34)
-        /// Width of swipe action buttons revealed behind source rows.
         public static let swipeActionWidth: CGFloat = 56
-        /// Movement needed before a source row commits to horizontal swipe.
         public static let swipeActivationDistance: CGFloat = Spacing.xs
-        /// Movement tolerated while waiting for reorder long press activation.
         public static let reorderPressSlop: CGFloat = Spacing.xs
-        /// Long press duration before source rows enter reorder mode.
         public static let reorderLongPressDuration: Double = 0.35
-        /// Momentary scale cue when a source row enters reorder mode.
         public static let reorderActivationScale: CGFloat = 1.045
-        /// Duration of the reorder activation cue before settling into the lifted drag scale.
         public static let reorderActivationCueDuration: Duration = .milliseconds(160)
-        /// Delay before row hover returns after reorder settles.
         public static let reorderHoverRestoreDelay: Duration = .milliseconds(420)
-        /// Vertical offset used while a newly inserted source row animates in.
         public static let rowInsertionOffset: CGFloat = Spacing.sm
-        /// Fraction of a row a drag must cross before the reorder placeholder moves.
         public static let reorderSwitchThreshold: CGFloat = 0.5
-        /// Fraction used when dragging back toward the original slot to avoid midpoint jitter.
         public static let reorderReturnThreshold: CGFloat = 0.65
-        /// Subtle lift scale while a source row is being reordered.
         public static let reorderLiftScale: CGFloat = 1.02
-        /// Files page source sidebar glass container shape.
         public static let shape = ShapeToken.panel
     }
 
-    /// Menu/popover panel standard dimensions.
     public enum Menu {
-        /// Glass inset padding
-        public static let glassPadding: CGFloat = Spacing.xs    // 8
-        /// Main menu panel width
+        public static let glassPadding: CGFloat = Spacing.xs
         public static let panelWidth: CGFloat = 190
-        /// Submenu panel width
         public static let submenuWidth: CGFloat = 200
     }
 
-    /// Player control bar standard dimensions.
     public enum ControlBar {
-        /// Width available to controls inside the ornament capsule.
         public static let contentWidth: CGFloat = Layout.playerControlsContentWidth
-        /// Spacing between control buttons (≥16pt per Apple HIG)
         public static let buttonSpacing: CGFloat = Spacing.xl
-        /// Horizontal padding inside player control capsule.
         public static let paddingH: CGFloat = Spacing.xxl
-        /// Vertical padding inside player control capsule.
         public static let paddingV: CGFloat = Spacing.sm
-        /// Rendered width of the complete ornament capsule.
         public static let outerWidth: CGFloat = contentWidth + paddingH * 2
-        /// Primary play button fill.
         public static let primaryFill: Color = .white.opacity(0.72)
-        /// Primary play symbol color.
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
     public enum PlaybackEdge {
-        /// Covers the top button row and eases out before the picture's midpoint.
         public static let depth: CGFloat = 168
-        /// Softens the wash so the fade has no hard edge of its own.
         public static let blurRadius: CGFloat = 18
-        /// Wash strength under the buttons.
         public static let peakOpacity: CGFloat = 0.38
-        /// Mid-stop of the ease-out, past the button row.
         public static let midLocation: CGFloat = 0.42
         public static let midOpacity: CGFloat = 0.14
-        /// Softens the wash's own left and right edges. Corner clearance is
-        /// the lifted view's inset, not this fade.
         public static let sideFadeWidth: CGFloat = blurRadius + Spacing.md
-        /// Keeps a z-lifted wash's layout bounds off the window's rounded corners.
         public static let spatialInset: CGFloat = Radius.panel
     }
 
-    /// Playback progress bar dimensions.
     public enum ProgressBar {
-        /// Resting track height.
         public static let inactiveTrackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 0.75
-        /// Activated track height.
         public static let trackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 1.25
-        /// The scrubber aligns exactly with the activated track.
         public static let thumbDiameter: CGFloat = trackHeight
-        /// Scale from the activated track to its resting height.
         public static let inactiveScale: CGFloat = inactiveTrackHeight / trackHeight
-        /// Width of the region that accepts a grab, centred on the scrubber. The
-        /// thumb is drawn at track height so it reads as part of the rail, which
-        /// is far under the gaze target a wearer can hit; the region that starts
-        /// a scrub and shows the gaze highlight is this wide instead.
         public static let thumbGrabWidth: CGFloat = Interactive.large
-        /// Maximum translation that still counts as a tap rather than a drag.
-        /// Distinct from grab radius (thumbGrabWidth) and the historical hold slop;
-        /// kept small so any intentional drag exceeds it.
         public static let tapDragThreshold: CGFloat = 6
-        /// Watched-progress edge stroke height on grid cards — sits on the card's
-        /// bottom edge like a thin stroke (hover-revealed), not a full track.
         public static let watchedEdgeHeight: CGFloat = 3
-        /// Compact interactive strip containing hover target, track, and scrubber.
         public static let hitHeight: CGFloat = Interactive.regular
-        /// Review/demo width for player progress components.
         public static let previewWidth: CGFloat = ControlBar.contentWidth
-        /// Height reserved above the track for hover time readout.
         public static let timeBubbleOffset: CGFloat = Spacing.xl
-        /// Padding inside hover time readout.
         public static let timeBubblePaddingH: CGFloat = Spacing.xs
-        /// Padding inside hover time readout.
         public static let timeBubblePaddingV: CGFloat = Spacing.xxs
-        /// Corner radius for hover time readout.
         public static let timeBubbleRadius: CGFloat = Radius.small
-        /// Scrubber thumb edge, separating the button from the bright track.
         public static let thumbStroke: Color = .black.opacity(0.18)
-        /// Scrubber thumb edge width.
         public static let thumbStrokeWidth: CGFloat = Stroke.regular
-        /// Played portion in normal state.
         public static let playedColor: Color = .white.opacity(0.72)
-        /// Played portion in hover/drag state.
         public static let playedHoverColor: Color = .white.opacity(0.95)
     }
 
-    /// DesignPreview precision timeline prototype.
     public enum PrecisionTimeline {
-        /// Expanded precision timeline width. 贴近窗口可用宽(1280 窗 − 左右 xxl 边距
-        /// − deck padding),让展开的时间轴/胶片接近窗口边缘。
         public static let expandedWidth: CGFloat = 1152
-        /// Expanded precision timeline height.
         public static let expandedHeight: CGFloat = 220
-        /// Vertical gap between the primary progress bar and expanded timeline.
         public static let expansionGap: CGFloat = Spacing.lg
-        /// Space outside the expanded panel that accepts dismiss taps in DesignPreview.
         public static let dismissMargin: CGFloat = Spacing.xxxl
-        /// Panel inner padding.
         public static let panelPadding: CGFloat = Spacing.lg
-        /// Height reserved for the timecode and frame controls.
         public static let headerHeight: CGFloat = 64
-        /// Time ruler height.
         public static let rulerHeight: CGFloat = 44
-        /// Film strip height.
         public static let filmStripHeight: CGFloat = 72
-        /// Film strip sprocket hole width.
         public static let sprocketWidth: CGFloat = Spacing.xs
-        /// Film strip sprocket hole height.
         public static let sprocketHeight: CGFloat = Spacing.xxs
-        /// Film strip sprocket spacing.
         public static let sprocketSpacing: CGFloat = Spacing.sm
-        /// Film strip image inset from sprocket rows.
         public static let filmImageInset: CGFloat = Spacing.sm
-        /// Zoom rail width.
         public static let zoomRailWidth: CGFloat = 360
-        /// Zoom rail height.
         public static let zoomRailHeight: CGFloat = 22.5
-        /// Zoom rail thumb size.
         public static let zoomRailThumbSize: CGFloat = 19.5
-        /// Zoom control button size.
         public static let zoomButtonSize: CGFloat = Interactive.compact
-        /// Frame-step button visual size.
         public static let frameButtonSize: CGFloat = Interactive.regular
-        /// Effective frame-step button hit target.
         public static let frameButtonHitSize: CGFloat = Interactive.large
-        /// Horizontal space around the center playhead for frame-step buttons.
         public static let frameButtonCenterGap: CGFloat = Spacing.xxl
-        /// Center playhead line width.
         public static let playheadWidth: CGFloat = 2
-        /// Major tick height.
         public static let majorTickHeight: CGFloat = Spacing.lg
-        /// Minor tick height.
         public static let minorTickHeight: CGFloat = Spacing.xs
-        /// Thumbnail segment height separator width.
         public static let thumbnailSeparatorWidth: CGFloat = Stroke.subtle
-        /// Thumbnail segment minimum width.
         public static let thumbnailMinWidth: CGFloat = Interactive.large
-        /// Thumbnail segment width at one second per 12pt.
         public static let thumbnailSecondsScale: CGFloat = Spacing.sm
-        /// Ruler target spacing for major labels.
         public static let majorTickTargetSpacing: CGFloat = 96
-        /// Ruler target spacing for minor ticks.
         public static let minorTickTargetSpacing: CGFloat = 18
-        /// Safety floor for zoom scale in pixels per second when duration is
-        /// unavailable. Runtime zoom also raises this to the viewport-fit value
-        /// so the film strip never shrinks narrower than the visible track.
         public static let minPixelsPerSecond: CGFloat = 0.04
-        /// Maximum zoom scale in pixels per second, enough for frame-level dragging at 24fps.
         public static let maxPixelsPerSecond: CGFloat = 288
-        /// Initial zoom scale in pixels per second for the DesignPreview fixture.
         public static let initialPixelsPerSecond: CGFloat = 2.4
-        /// Increment ratio used by explicit zoom buttons.
         public static let zoomStepRatio: CGFloat = 1.28
-        /// Initial DesignPreview fixture duration, in seconds.
         public static let previewDuration: Double = 8_894
-        /// DesignPreview fixture frame rate.
         public static let previewFrameRate: Double = 24
-        /// Scale used when the expanded timeline grows out of the progress bar.
         public static let collapsedScale: CGFloat = 0.72
-        /// Timecode foreground.
         public static let timecodeColor: Color = .white.opacity(0.92)
-        /// Secondary timeline text foreground.
         public static let secondaryTextColor: Color = .white.opacity(0.46)
-        /// Minor tick color.
         public static let minorTickColor: Color = .white.opacity(0.22)
-        /// Major tick color.
         public static let majorTickColor: Color = .white.opacity(0.46)
-        /// Center playhead color.
         public static let playheadColor: Color = .white.opacity(0.95)
-        /// Timeline center accent.
         public static let playheadAccent: Color = Theme.accent
-        /// Subtle viewport tint beneath the thick timeline container.
         public static let viewportFill: Color = .white.opacity(0.025)
-        /// Baseline lift that matches the former hover-highlight luminance.
         public static let viewportRestingBrightness: Double = 0.06
-        /// Inner occlusion that makes the viewport read as inset.
         public static let viewportInnerShadow: Color = .black.opacity(0.09)
         public static let viewportInnerShadowWidth: CGFloat = 3
         public static let viewportInnerShadowRadius: CGFloat = 1.5
         public static let viewportInnerShadowOffsetY: CGFloat = 1
-        /// Rightward cast shadow for the playhead line.
         public static let playheadShadow: Color = .black.opacity(0.5)
         public static let playheadShadowRadius: CGFloat = 0.5
         public static let playheadShadowOffsetX: CGFloat = 1.5
-        /// Film strip top highlight.
         public static let filmStripHighlight: Color = .white.opacity(0.092)
-        /// Film strip body fill.
         public static let filmStripBase: Color = .black.opacity(0.38)
-        /// Dark perforated bands above and below the image area.
         public static let filmStripBand: Color = .black.opacity(0.472)
-        /// Film strip sprocket fill.
         public static let sprocketFill: Color = .black.opacity(0.648)
-        /// Film strip separator.
         public static let filmStripSeparator: Color = .black.opacity(0.348)
-        /// Zoom rail fill.
         public static let zoomRailFill: Color = .white.opacity(0.12)
-        /// Zoom rail active fill.
         public static let zoomRailActiveFill: Color = Theme.accent.opacity(0.72)
-        /// Simulated thumbnail palette.
         public static let thumbnailPalette: [Color] = [
             Color(red: 0.104, green: 0.244, blue: 0.324),
             Color(red: 0.228, green: 0.176, blue: 0.324),

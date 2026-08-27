@@ -2,8 +2,6 @@ import DesignSystem
 import MediaLibrary
 import SwiftUI
 
-/// Tappable path breadcrumb showing the current navigation hierarchy.
-/// Each segment navigates to that folder level when tapped.
 struct BreadcrumbView: View {
     @Environment(FileBrowsingViewModel.self) private var viewModel
 

@@ -90,7 +90,6 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
 }
 
 
-/// In-memory `PreferencesStoring` fixture for tests and previews.
 public nonisolated final class FakePreferencesStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
     private let lock = NSLock()
     private var preferences: UserPreferences

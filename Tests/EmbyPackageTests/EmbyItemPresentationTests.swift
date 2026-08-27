@@ -44,7 +44,6 @@ struct EmbyItemPresentationTests {
         #expect(sections.information.first?.value == "2025")
         #expect(sections.languages.map(\.label) == ["Original Audio", "Audio", "Subtitles"])
         #expect(sections.languages[0].value == "Japanese")
-        // The Languages column names languages; what a track is made of is the Audio column's job.
         #expect(sections.languages[1].value == "Japanese, English")
         #expect(sections.languages[2].value == "English")
         #expect(sections.accessibility.map(\.label) == ["SDH"])

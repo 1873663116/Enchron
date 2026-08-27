@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "rules"))
 from probe_emby_direct_play import authenticate, request
 from verify_source_parity_matrix import probe_binary
 

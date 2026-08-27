@@ -2,19 +2,6 @@ import Foundation
 import MediaSource
 import Testing
 
-/// The executable media byte-range contract.
-///
-/// `MediaByteStreamAttributes.contentLength` is a pre-open hint. Directory metadata,
-/// including zero and stale sizes, cannot decide whether an HTTP range is satisfiable.
-/// Only `MediaByteRangeRead.contentLength`, returned by the byte source itself, can
-/// establish the representation length and its end. The server must apply that answer
-/// before it emits a status, `Content-Range`, `Content-Length`, or body byte.
-///
-/// Every request shape runs against every source shape through the public loopback HTTP
-/// endpoint. Named regressions retain the three historical failure shapes: a false zero
-/// length, an open range stopped at the first response body, and a source that pads reads
-/// past the representation end. A truncated range is also retained as a permanent bad
-/// upstream sample.
 @Suite(.serialized)
 struct MediaByteStreamConformanceTests {
     @Test(

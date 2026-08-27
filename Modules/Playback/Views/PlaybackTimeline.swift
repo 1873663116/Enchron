@@ -37,10 +37,6 @@ struct PrecisionTimelineView: View {
     private var zoomTrackHeight: CGFloat { DesignTokens.PrecisionTimeline.zoomRailHeight }
     private var zoomKnobSize: CGFloat { DesignTokens.PrecisionTimeline.zoomRailThumbSize }
 
-    // Four-row card: zoom slider, timecode, then ruler + film strip. The card
-    // surface is shared with `SettingListGroup` (no extra glass layer). The
-    // transport row above lives on the deck, not here.
-    // Film-strip scrub stays silent. Zoom keeps press / release / end stops only.
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             zoomSlider
@@ -75,7 +71,7 @@ struct PrecisionTimelineView: View {
             .font(DesignTokens.Typography.headline)
             .monospacedDigit()
             .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
-            .accessibilityIdentifier("DesignPreview-PrecisionTimeline-timecode")
+            .accessibilityIdentifier("DesignSystem-PrecisionTimeline-timecode")
     }
 
     private var zoomSlider: some View {
@@ -84,9 +80,6 @@ struct PrecisionTimelineView: View {
         let knobOffsetX = -travel / 2 + normalized * travel
         let radius = zoomTrackHeight / 2
         let leftEdge = -zoomTrackWidth / 2
-        // Leading-origin lit fill. The right cap is centred on the knob (extend
-        // the fill by the track radius) so the rounded cap sits *under* the knob
-        // with no seam — the same trick `CenterSlider` uses.
         let rightEdge = knobOffsetX + radius
         let litWidth = rightEdge - leftEdge
         let litCenterX = (leftEdge + rightEdge) / 2
@@ -115,7 +108,7 @@ struct PrecisionTimelineView: View {
         }
         .font(.body)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("DesignPreview-PrecisionTimeline-zoom")
+        .accessibilityIdentifier("DesignSystem-PrecisionTimeline-zoom")
         .accessibilityLabel("Timeline zoom")
         .accessibilityValue("\(Int(normalized * 100))%")
     }
@@ -373,8 +366,6 @@ struct PrecisionTimelineView: View {
             pixelsPerSecond * DesignTokens.PrecisionTimeline.thumbnailSecondsScale
         )
         let visibleStart = max(-leadingX, 0)
-        // 唯一事实是 contentWidth(= duration×pps),拖拽极限/标尺/胶片末端都以它为准,
-        // 不再单独截短整体(那会与拖拽极限脱节,且最小缩放时一格≈数十秒,白白丢失可拖范围)。
         let visibleEnd = min(viewportWidth - leadingX, contentWidth)
         guard visibleStart < visibleEnd else { return }
 
@@ -408,9 +399,6 @@ struct PrecisionTimelineView: View {
             with: .color(DesignTokens.PrecisionTimeline.filmStripBand)
         )
 
-        // segmentWidth 不整除 contentWidth 时,末尾会余下一截。把它并入最后一个完整格
-        // (lastDrawIndex 的右边界钉到 contentWidth),让胶片干净收在内容边界上——既不
-        // 切到方块中间,也不留半格细条;余量较大(≥半格)时则自成一格。
         let fullCount = Int(floor(contentWidth / segmentWidth))
         let remainder = contentWidth - CGFloat(fullCount) * segmentWidth
         let lastDrawIndex = (remainder >= segmentWidth * 0.5) ? fullCount : max(fullCount - 1, 0)
@@ -424,7 +412,6 @@ struct PrecisionTimelineView: View {
 
         for index in startIndex...endIndex {
             let leftContentX = CGFloat(index) * segmentWidth
-            // 最后一格的右边界永远钉在 contentWidth,与底板/拖拽极限对齐。
             let rightContentX = (index == lastDrawIndex)
                 ? contentWidth
                 : CGFloat(index + 1) * segmentWidth
@@ -489,7 +476,6 @@ struct PrecisionTimelineView: View {
         let step = holeWidth + DesignTokens.PrecisionTimeline.sprocketSpacing
         guard step > 0 else { return }
 
-        // 只画完整落在 [visibleStart, visibleEnd] 内的齿孔,避免右边界外冒出半截/孤立的孔。
         let startIndex = max(Int(ceil(visibleStart / step)), 0)
         let endIndex = Int(floor((visibleEnd - holeWidth) / step))
         guard startIndex <= endIndex else { return }
@@ -574,9 +560,6 @@ struct PrecisionTimelineView: View {
     }
 
     private var availableTimelineWidth: CGFloat {
-        // Fused player panel hosts the expanded timeline at
-        // `Layout.expandedPlayerControlsContentWidth`, not the standalone
-        // `PrecisionTimeline.expandedWidth` preview token.
         DesignTokens.Layout.expandedPlayerControlsContentWidth
             - DesignTokens.PrecisionTimeline.panelPadding * 2
     }
@@ -610,8 +593,6 @@ struct PrecisionTimelineView: View {
         min(max(time, 0), duration)
     }
 
-    /// Zoom-out floor: never thinner than the absolute token, and never thinner
-    /// than fitting the full duration into the visible timeline width.
     private var effectiveMinPixelsPerSecond: CGFloat {
         guard duration > 0 else {
             return DesignTokens.PrecisionTimeline.minPixelsPerSecond
@@ -656,9 +637,6 @@ private enum PrecisionTimelineFormatter {
     }
 }
 
-// MARK: - Loading spinner
-
-/// Arc spanning `start`…`end` as fractions of a full turn (values may exceed 1).
 private struct SpinnerArc: Shape {
     var start: CGFloat
     var end: CGFloat
@@ -676,10 +654,6 @@ private struct SpinnerArc: Shape {
     }
 }
 
-/// Material circular indeterminate advance segment math.
-/// Mirrors `CircularIndeterminateAdvanceAnimatorDelegate` from
-/// material-components-android: constant rotation plus four expand/collapse
-/// pairs using FastOutSlowIn (cubic-bezier 0.4, 0, 0.2, 1).
 private enum MaterialCircularIndeterminateAdvance {
     static func segmentFractions(animationFraction: CGFloat) -> (start: CGFloat, end: CGFloat) {
         let tokens = DesignTokens.LoadingSpinner.self
@@ -711,7 +685,6 @@ private enum MaterialCircularIndeterminateAdvance {
         CGFloat(max(0, min(1, (Double(playtime) - delay) / duration)))
     }
 
-    /// FastOutSlowIn: cubic-bezier(0.4, 0.0, 0.2, 1.0).
     private static func fastOutSlowIn(_ t: CGFloat) -> CGFloat {
         guard t > 0 else { return 0 }
         guard t < 1 else { return 1 }
@@ -737,7 +710,6 @@ private enum MaterialCircularIndeterminateAdvance {
     }
 
     private static func bezierSample(_ t: CGFloat, a: CGFloat, b: CGFloat) -> CGFloat {
-        // (1-t)^3*0 + 3(1-t)^2*t*a + 3(1-t)*t^2*b + t^3*1
         let u = 1 - t
         return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t
     }

@@ -2,8 +2,6 @@ import XCTest
 import Playback
 @testable import Enchron
 
-/// Verifies the extended `UserPreferences` fields survive a save→load round-trip
-/// through the real `UserDefaultsStore` (SET-12: settings persist across launches).
 nonisolated final class PreferencesPersistenceTests: XCTestCase {
     func testUserDefaultsStoreRoundTripsExtendedFields() {
         let suite = "xrplayer.tests.preferences"
@@ -24,7 +22,6 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         prefs.controlsAutoHideSeconds = 15
         store.savePreferences(prefs)
 
-        // A fresh store reading the same backing store simulates a relaunch.
         let reloaded = UserDefaultsStore(defaults: defaults).loadPreferences()
         XCTAssertEqual(reloaded, prefs)
     }

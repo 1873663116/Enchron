@@ -88,10 +88,6 @@ struct PlaybackActivationReapplyVerificationHooks: @unchecked Sendable {
         Float,
         CMTime
     ) -> Void = { session, rate, anchorTime in
-        // This verification path must exercise the same rate application
-        // primitive as normal playback. On visionOS, a media-time-only setter
-        // can report a requested rate while leaving the effective timebase at
-        // zero after the renderers are already fed.
         session.setRateAtHostTime(rate, time: anchorTime)
     }
 }

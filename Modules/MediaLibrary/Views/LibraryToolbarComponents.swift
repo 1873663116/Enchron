@@ -17,9 +17,8 @@ public enum SortMenuOrder {
 public struct SortMenuButton: View {
     @Binding var sortKey: SortMenuKey
     @Binding var sortOrder: SortMenuOrder
-    var accessibilityIdentifier: String = "DesignPreview-menu-sort"
+    var accessibilityIdentifier: String = "DesignSystem-menu-sort"
 
-    // 锁死:图标恒 .secondary,不暴露。
     private let iconColor: Color = .secondary
 
     private func keyRow(_ title: String, _ key: SortMenuKey, _ id: String) -> some View {
@@ -45,8 +44,6 @@ public struct SortMenuButton: View {
             accessibilityIdentifier: accessibilityIdentifier,
             iconColor: iconColor
         ) {
-            // A Section swallows the identifiers of every row inside it, so the
-            // two groups are separated by a divider instead. Measured on device.
             keyRow("Name", .name, "name")
             keyRow("Date Modified", .modifiedDate, "modifiedDate")
             keyRow("Size", .size, "size")
@@ -120,7 +117,7 @@ public struct SortMenuButton: View {
     public init(
         sortKey: Binding<SortMenuKey>,
         sortOrder: Binding<SortMenuOrder>,
-        accessibilityIdentifier: String = "DesignPreview-menu-sort"
+        accessibilityIdentifier: String = "DesignSystem-menu-sort"
     ) {
         self._sortKey = sortKey
         self._sortOrder = sortOrder

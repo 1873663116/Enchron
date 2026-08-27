@@ -1025,9 +1025,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             "\(context) produced an unusable seek target."
         )
 
-        // PlaybackSeekPresentation accepts the renderer position within 2% of
-        // duration. DeviceRegressionSupport.waitForState polls every 0.1 s, so
-        // a Playing snapshot can advance by one poll after reaching the target.
         let allowedDelta = duration * 0.02 + abs(actualRate) * 0.1
         try requireMatrix(
             abs(position - target) <= allowedDelta,
@@ -1064,9 +1061,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             "\(evidenceSlug) unexpectedly exposed frame-step mode."
         )
 
-        // Read the accessibility state immediately before the tap. Using the
-        // playback value returned by an earlier continuity wait would shift a
-        // Playing relative-seek target by however long UI setup took.
         let baselineRawValue = try requireMatrix(
             playback.stateElement.value as? String,
             "\(evidenceSlug) did not expose current playback state before tap."
@@ -1100,8 +1094,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         )
         button.tap()
 
-        // Predicate only on the epoch so later natural playback cannot turn a
-        // wrong transport target into a passing result.
         let firstAdvancedEpoch = try requireMatrix(
             waitForState(playback.stateElement, timeout: 15) {
                 ($0.uint64("streamEpoch") ?? 0) > baselineEpoch
@@ -2932,9 +2924,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         print("ENCHRON_TIMING name=\(name) elapsedSeconds=\(value)")
     }
 
-    /// Records the renderer's supported processing/drop metrics over one
-    /// source-second. Lifetime counters keep intentional startup catch-up
-    /// separate from drops added during settled visible playback.
     @MainActor
     private func attachRendererFramePerformance(
         in stateElement: XCUIElement,
@@ -3065,10 +3054,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         var hasObservedActivePlayback = false
         while Date() < deadline {
             if usesMainWindow {
-                // Panorama and Dock deliberately close the Main Window. Do not
-                // read its accessibility value while that Scene is departing;
-                // it can disappear between `exists` and `value`, which XCTest
-                // reports as an application failure instead of a missing node.
                 let applicationStateElement = app.descendants(matching: .any)[
                     "PlayerUI-application-state"
                 ].firstMatch

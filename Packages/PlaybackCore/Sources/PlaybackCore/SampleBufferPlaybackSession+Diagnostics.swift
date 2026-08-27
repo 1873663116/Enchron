@@ -505,8 +505,6 @@ extension SampleBufferPlaybackSession {
         )
     }
 
-    /// Reads the presentation tags from the exact renderer input while retaining
-    /// codec and color facts from the compressed sample wrapped by the tag group.
     func rendererInputFormatSignalingSummary(
         for sample: CMSampleBuffer
     ) -> VideoFormatSignalingSummary {
@@ -996,9 +994,6 @@ extension SampleBufferPlaybackSession {
         ))
     }
 
-    /// A non-nil displayed pixel buffer only proves that one image exists. A
-    /// changed Core Video identity records that this renderer graph presented a
-    /// later frame; the transfer gate requires two such changes.
     func observeDisplayedFrame() -> UInt64? {
         guard let pixelBuffer = renderer.displayedPixelBuffer() else { return nil }
         let identity: UInt64

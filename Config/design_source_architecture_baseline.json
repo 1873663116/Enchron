@@ -3,114 +3,6 @@
   "purpose": "Exact historical design source-architecture violations. New occurrences are forbidden; remove entries when the underlying code is fixed.",
   "allowances": [
     {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": ".frame(height: 420)",
-      "count": 1
-    },
-    {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": ".opacity(configuration.isPressed ? 0.6 : 1.0)",
-      "count": 1
-    },
-    {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": ".frame(width: 580)",
-      "count": 4
-    },
-    {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": ".frame(width: 720)",
-      "count": 1
-    },
-    {
-      "rule": "preview-parallel-style",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "private struct BareButtonStyle: ButtonStyle {",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button {",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Add SMB Server...\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Add WebDAV Server...\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Choose Folder...\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Disconnect\", role: .destructive) {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Import Video...\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Remove Source\") { isPresented = true }",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"SMB://NAS\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"Use App Documents\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Button(\"WebDAV://Drive\") {}",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Menu {",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentLibrary.swift",
-      "signature": "Menu(\"Reconnect\") {",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": "Button(buttonTitle, action: action)",
-      "count": 1
-    },
-    {
       "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/EnchronApp.swift",
       "signature": ".font(.system(size: 54))",
@@ -382,6 +274,24 @@
     },
     {
       "rule": "production-hardcoded-visual",
+      "path": "Modules/Playback/Views/AnimatedDirectionalIconButton.swift",
+      "signature": ".opacity(isEnabled ? 1 : 0.32)",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/Playback/Views/AppearanceModeButton.swift",
+      "signature": ".frame(",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/Playback/Views/AppearanceModeButton.swift",
+      "signature": ".frame(width: size / 2, height: size)",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": ".init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.34), location: 0.08),",
       "count": 1
@@ -414,6 +324,18 @@
       "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/EnvironmentComponents.swift",
       "signature": "VStack(spacing: 0) {",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/Playback/Views/PlaybackEdgeEmphasis.swift",
+      "signature": "HStack(spacing: 0) {",
+      "count": 1
+    },
+    {
+      "rule": "production-hardcoded-visual",
+      "path": "Modules/Playback/Views/PlaybackEdgeEmphasis.swift",
+      "signature": "color: .white.opacity(",
       "count": 1
     },
     {

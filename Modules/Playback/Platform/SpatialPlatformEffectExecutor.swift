@@ -1031,12 +1031,6 @@ public final class SpatialPlatformEffectCoordinator {
             )
             return
         }
-        // The target surface normally starts the cutover itself the moment it
-        // proves its pixels carry the current identity, which is what makes the
-        // exit fast. Settlement here is the same proof arriving one round trip
-        // later, so when the surface did not get the chance — no further
-        // RealityView update, or the transition changed underneath it — this
-        // starts the cutover instead of leaving the transition uncommitted.
         if appModel.presentationVisualCutoverMayBegin == false {
             guard appModel.beginPresentationVisualCutover() else { return }
             appModel.recordSurfaceInputProbe(
@@ -1142,8 +1136,6 @@ public final class SpatialPlatformEffectCoordinator {
         guard await dismissImmersiveSpace(execution: execution) else { return }
         _ = await complete(execution, outcome: .succeeded)
     }
-
-    // MARK: - Guarded platform operations
 
     private func executionIsLive(
         _ execution: Execution,
@@ -1405,9 +1397,6 @@ public final class SpatialPlatformEffectCoordinator {
         _ window: SpatialPlatformWindowIdentity,
         execution: Execution
     ) async -> Bool {
-        // A freshly created WindowGroup instance is already the foreground
-        // result of openWindow. Re-activating its UIKit scene caused a system
-        // presentation crash on visionOS and provides no additional contract.
         guard windowObservation.residency(for: window) == .open else {
             return false
         }
@@ -1434,10 +1423,6 @@ public final class SpatialPlatformEffectCoordinator {
         return true
     }
 
-    /// A renderer cannot cross RealityView roots until UIKit disconnects the
-    /// source Window Scene. Runtime ownership release is necessary but does not
-    /// prove that RealityKit removed its asynchronous video target. SwiftUI's
-    /// root `onDisappear` is not a Window lifecycle contract on visionOS.
     private func dismissWindowAndWaitForDisappearance(
         _ window: SpatialPlatformWindowIdentity,
         execution: Execution
@@ -1686,9 +1671,6 @@ public final class SpatialPlatformEffectCoordinator {
                 await actions.dismissImmersiveSpace()
                 guard self.executionIsLive(execution) else { return false }
 
-                // The awaited scene action is the platform completion boundary.
-                // SwiftUI doesn't guarantee that the ImmersiveSpace content's
-                // onDisappear callback runs before that action returns.
                 if self.immersiveSpaceObservation.confirms(
                     .closed,
                     after: observationRevision
@@ -1901,9 +1883,6 @@ public final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    /// A playing transfer must advance the replacement renderer before
-    /// RealityKit can confirm a first displayed pixel in every presentation.
-    /// Paused transfers have no after-success intent and remain paused.
     private func restoreTargetPlaybackIntentBeforeSettlement(
         _ execution: Execution,
         restoresMainWindowOnFailure: Bool = false
@@ -1973,8 +1952,6 @@ public final class SpatialPlatformEffectCoordinator {
             return false
         }
     }
-
-    // MARK: - Execution settlement
 
     @discardableResult
     private func complete(

@@ -2,20 +2,14 @@ import DesignSystem
 import MediaLibrary
 import SwiftUI
 
-/// Finder-style sidebar for the file browser NavigationSplitView.
-/// Shows data sources (Local + saved remotes) with a storage bar pinned to the bottom.
 struct FileBrowserSidebar: View {
 
-    /// Hashable selection model bridging List(selection:) with the existing
-    /// `activeDataSource: DataSource?` ViewModel state.
     enum SidebarItem: Hashable {
         case local
         case remote(UUID)
     }
 
     @Environment(FileBrowsingViewModel.self) private var viewModel
-
-    // MARK: - Local storage capacity
 
     @State private var localStorageUsed: Int64 = 0
     @State private var localStorageTotal: Int64 = 0
@@ -24,7 +18,6 @@ struct FileBrowserSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             List(selection: $sidebarSelection) {
-                // Single section, no header — the navigation title "Sources" serves as the header.
                 Section {
                     localSourceRow
                         .tag(SidebarItem.local)
@@ -49,7 +42,6 @@ struct FileBrowserSidebar: View {
             }
             .navigationTitle("Sources")
 
-            // Storage bar pinned to sidebar bottom
             if localStorageTotal > 0 {
                 storageFooter
                     .padding(.horizontal, 20)
@@ -82,9 +74,6 @@ struct FileBrowserSidebar: View {
         }
     }
 
-    // MARK: - Source Rows (compact, like HTML reference)
-
-    /// Local storage: icon + name + green dot when selected.
     private var localSourceRow: some View {
         HStack {
             Label("Local Storage", systemImage: "internaldrive")
@@ -97,7 +86,6 @@ struct FileBrowserSidebar: View {
         }
     }
 
-    /// Remote source: icon + name + status dot.
     private func remoteSourceRow(_ ds: FileBrowsingDomain.DataSource) -> some View {
         HStack {
             Label(
@@ -112,9 +100,6 @@ struct FileBrowserSidebar: View {
         }
     }
 
-    // MARK: - Storage Footer
-
-    /// Bottom-pinned storage indicator: "Storage    X.X GB / Y GB" + progress bar.
     private var storageFooter: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -141,8 +126,6 @@ struct FileBrowserSidebar: View {
         if ratio > 0.75 { return .orange }
         return .accentColor
     }
-
-    // MARK: - Helpers
 
     private func iconName(for sourceType: FileBrowsingDomain.SourceType) -> String {
         sourceType.connectionIcon

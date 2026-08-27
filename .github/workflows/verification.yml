@@ -1,0 +1,36 @@
+name: verification
+
+on:
+  pull_request:
+  push:
+    branches: [perf/presentation-switch-source-reopen]
+
+concurrency:
+  group: verification
+  cancel-in-progress: false
+
+jobs:
+  gauntlet:
+    runs-on: self-hosted
+    steps:
+      - name: Run the gauntlet at the revision under review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          WORKSPACE=/Volumes/Cortisol/DevSpace/EnchronWorkspace
+          MAIN="$WORKSPACE/Enchron"
+          REPO="$WORKSPACE/wt-ci"
+          if [ ! -d "$REPO" ]; then
+            git -C "$MAIN" worktree add --detach "$REPO" HEAD
+          fi
+          AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64)
+          git -C "$REPO" -c credential.helper= \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
+            fetch --no-tags --force origin \
+              '+refs/heads/*:refs/remotes/origin/*' \
+              '+refs/pull/*/merge:refs/remotes/origin/pull/*/merge'
+          git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
+          git -C "$REPO" clean -ffdx
+          "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
+          python3 "$REPO/Scripts/rules/run_verification_gauntlet.py"

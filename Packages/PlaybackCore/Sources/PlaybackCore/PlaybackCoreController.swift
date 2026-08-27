@@ -16,7 +16,6 @@ enum PlaybackDebugRecorderMode: Equatable, Sendable {
     }
 }
 
-/// Owns PlaybackCore's single current media slot and the only product playback control path.
 @MainActor
 public final class PlaybackCoreController {
     public private(set) var activeSession: SampleBufferPlaybackSession?
@@ -101,7 +100,6 @@ public final class PlaybackCoreController {
         self.debugRecorderMode = debugRecorderMode
     }
 
-    /// Opens one media session after pending cleanup, applying initial rate and format before playback starts.
     @discardableResult
     public func open(
         _ url: URL,
@@ -262,9 +260,6 @@ public final class PlaybackCoreController {
         try activeSession.play(armingFirstVideoFrameDeadline: false)
     }
 
-    /// Waits until the first delivered sample has anchored the renderer
-    /// synchronizer. A prepared and attached session can report `ready`
-    /// before that asynchronous media-time boundary exists.
     public func waitUntilTimelineReadyForControl() async throws {
         guard let expectedSession = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
@@ -326,10 +321,6 @@ public final class PlaybackCoreController {
         activeSession.resumeVideoSampleDelivery()
     }
 
-    /// Hands the caller a renderer its next RealityView Entity has never bound,
-    /// leaving the source open and the timeline running. Video sample delivery
-    /// stays suspended until the caller has bound the renderer and calls
-    /// `restartVideoSampleDelivery(at:)`.
     public func replaceVideoRendererGraph() async throws -> AVSampleBufferVideoRenderer {
         guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
         let replacement = try await activeSession.replaceVideoRendererGraph()
@@ -339,8 +330,6 @@ public final class PlaybackCoreController {
         return replacement
     }
 
-    /// Removes the renderer the previous Scene was presenting. Call it once that
-    /// Scene has gone, not before, so the transition never shows an empty surface.
     public func retireDepartingVideoRendererGraph() async {
         await activeSession?.retireDepartingVideoRendererGraph()
     }
@@ -391,8 +380,6 @@ public final class PlaybackCoreController {
         }
     }
 
-    /// Applies an explicit Play command, then proves that the current renderer
-    /// graph accepts later input, runs its timebase, and displays later frames.
     public func playAndVerifyRendererGraphContinuity(
         timeout: Duration = .seconds(3)
     ) async throws -> RendererGraphPlaybackContinuity {
@@ -441,7 +428,6 @@ public final class PlaybackCoreController {
         try await updateProjectionOverride(nil)
     }
 
-    /// Applies projection and stereo interpretation at one renderer-input revision.
     @discardableResult
     public func setFormatOverrides(
         stereoLayout: VideoStereoLayout?,
@@ -580,9 +566,6 @@ public final class PlaybackCoreController {
         activeSession?.selectedSubtitleTrackID
     }
 
-    /// Includes the active decoder graph and every graph still completing its
-    /// destructive retirement. This is the physical overlap count used when
-    /// profiling high-resolution presentation changes.
     public var liveTechnicalSessionCount: Int {
         (activeSession == nil ? 0 : 1) + replacementRetirementTasks.count
     }
@@ -664,7 +647,6 @@ public final class PlaybackCoreController {
         }
     }
 
-    /// Seeks the current media session and applies an explicit after-seek playback behavior.
     public func seek(
         to time: CMTime,
         after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
@@ -743,7 +725,6 @@ public final class PlaybackCoreController {
         }
     }
 
-    /// Seeks relative to the latest requested position and applies an explicit after-seek behavior.
     public func seek(
         by offset: CMTime,
         after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
@@ -759,14 +740,6 @@ public final class PlaybackCoreController {
         try await seek(to: target, after: behavior)
     }
 
-    /// Move one frame and stay paused there.
-    ///
-    /// Stepping forward lands on a frame the renderer is still holding, so it is
-    /// a timeline move and costs nothing beyond it. Stepping backward, or
-    /// stepping forward when nothing is queued past the timeline, falls back to
-    /// the seek that rebuilds the delivery chain.
-    /// Returns where the timeline landed, which the queue knows exactly and a
-    /// nominal frame rate only approximates.
     @discardableResult
     public func stepFrame(_ direction: PlaybackFrameStepDirection) async throws -> CMTime {
         guard let session = activeSession else {
@@ -789,13 +762,11 @@ public final class PlaybackCoreController {
         return target
     }
 
-    /// Preserves source compatibility while callers migrate from the nullable pause flag.
     @available(*, deprecated, message: "Use seek(to:after:) with PlaybackAfterSeekBehavior.")
     public func seek(to time: CMTime, startsPaused: Bool?) async throws {
         try await seek(to: time, after: Self.afterSeekBehavior(startsPaused: startsPaused))
     }
 
-    /// Preserves source compatibility while callers migrate from the nullable pause flag.
     @available(*, deprecated, message: "Use seek(by:after:) with PlaybackAfterSeekBehavior.")
     public func seek(by offset: CMTime, startsPaused: Bool?) async throws {
         try await seek(by: offset, after: Self.afterSeekBehavior(startsPaused: startsPaused))
@@ -908,10 +879,6 @@ public final class PlaybackCoreController {
         await waitForReplacementRetirements()
     }
 
-    /// Irreversibly removes the current technical session from the control
-    /// slot, then releases its decoder graph in the background. A replacement
-    /// may be opened immediately; callers must never try to reactivate the
-    /// retiring instance.
     @discardableResult
     public func retireActiveSessionForReplacement() -> Task<Void, Never>? {
         failedCleanupTask?.cancel()

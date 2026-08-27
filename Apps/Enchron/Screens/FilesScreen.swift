@@ -394,8 +394,6 @@ struct FilesScreen: View {
         }
     }
 
-    // MARK: - Sidebar
-
     private var sidebar: some View {
         SourceSidebar(
             items: $sourceItems,
@@ -569,8 +567,6 @@ struct FilesScreen: View {
 
     private let mediaLibrarySourceID = "media-library"
 
-    // MARK: - Content
-
     private var contentArea: some View {
         VStack(spacing: 0) {
             topBar
@@ -590,10 +586,6 @@ struct FilesScreen: View {
     private var filesBody: some View {
         ZStack {
             currentFolderContent
-                // Each folder is its own identity, so changing path cross-fades the
-                // listing in/out instead of hard-cutting — the same quick fade used
-                // elsewhere. View-mode (grid/list) keeps the identity, so toggling it
-                // is unaffected.
                 .id(isBrowsingSource ? viewModel.currentRemotePath : mediaLibrary.currentFolderID?.uuidString ?? "media-library-root")
                 .transition(.opacity)
         }
@@ -640,8 +632,6 @@ struct FilesScreen: View {
         .accessibilityIdentifier("FileBrowsing-FilesScreen-emptyState")
         .accessibilityLabel("No media")
     }
-
-    // MARK: - Top bar
 
     private var topBar: some View {
         HStack(alignment: .center) {
@@ -830,8 +820,6 @@ struct FilesScreen: View {
         .padding(.bottom, DesignTokens.Spacing.lg)
     }
 
-    // MARK: - Grid / List
-
     private var grid: some View {
         ScrollView {
             LazyVGrid(
@@ -991,8 +979,6 @@ struct FilesScreen: View {
             )
         }
     }
-
-    // MARK: - Helpers
 
     private var sidebarVisibilityBinding: Binding<Bool> {
         Binding(

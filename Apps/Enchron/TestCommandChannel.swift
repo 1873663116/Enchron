@@ -486,11 +486,6 @@ final class TestCommandChannel {
             )
 #endif
         case "resetState":
-            // TestMediaInbox is harness-owned staging, not app state; clearing
-            // it here would force a re-push of every media file per cell.
-            // The in-memory library must go first: it re-persists itself on
-            // mutation and on termination, so leaving it populated resurrects
-            // the references this reset just deleted.
             let references = allReferences
             for reference in references {
                 mediaLibrary.remove(reference)
@@ -500,9 +495,6 @@ final class TestCommandChannel {
             for folder in folders.reversed() {
                 mediaLibrary.remove(folder)
             }
-            // Remembered server certificates are app state under their own
-            // prefix, and the product has no forget entry: leaving them makes
-            // the trust prompt unrepeatable after the first acceptance.
             let keys = defaults.dictionaryRepresentation().keys.filter {
                 $0.hasPrefix("enchron.")
                     || $0.hasPrefix("server-certificate-fingerprint.")
@@ -517,9 +509,6 @@ final class TestCommandChannel {
                     throw CommandError(message: detail)
                 }
             }
-            // A reset is only useful if the caller can see the state it
-            // established. Reporting the deletions alone hides the one thing
-            // the next unit depends on, which is what the library now holds.
             return Response(
                 id: request.id,
                 ok: true,
@@ -674,9 +663,6 @@ final class TestCommandChannel {
         )
     }
 
-    /// The precision timeline opens on a double press of the scrubber, which a
-    /// synthetic tap cannot reproduce, so the frame-step buttons are otherwise
-    /// unreachable from a test.
     private func stepFrame(_ request: Request) throws -> Response {
         guard let direction = request.args["direction"],
               ["forward", "backward"].contains(direction) else {

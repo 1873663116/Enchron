@@ -64,8 +64,6 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     }
 }
 
-/// The address admitted by the playback boundary. Remote callers must first
-/// register a byte source, so an arbitrary network URL cannot bypass MediaSource.
 public nonisolated struct PlaybackAddress: @unchecked Sendable, Equatable {
     public enum AddressError: LocalizedError {
         case notLocalFile

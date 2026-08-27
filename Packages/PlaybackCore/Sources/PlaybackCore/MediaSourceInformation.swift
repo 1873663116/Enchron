@@ -18,9 +18,7 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
     public let width: Int
     public let height: Int
     public let nominalFrameRate: Double
-    /// Frames the encoder may hold before output order catches up.
     public let reorderDepth: Int
-    /// Bytes one decoded pixel occupies on the platform's output surface.
     public let decodedBytesPerPixel: Double
     public let colorPrimaries: String
     public let transferFunction: String

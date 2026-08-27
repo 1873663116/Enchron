@@ -27,26 +27,18 @@ func theFallbackFollowsTheBaseLayer() {
     #expect(hlgBase.label == "Dolby Vision Profile 7.6 Fallback to HLG")
 }
 
-/// Measured on Patterns_Of_Nature_HLG-P8.4, whose record reads level 1 and cross
-/// compatibility 4. Naming it from the level called it Profile 8.1, which is the
-/// HDR10-compatible variant of a file that is the HLG one.
 @Test("the second digit is the cross compatibility, not the level")
 func theSecondDigitIsTheCrossCompatibility() {
     let hlgCompatible = PlaybackModel.DolbyVision(profile: 8, crossCompatibilityID: 4)
     #expect(hlgCompatible.label == "Dolby Vision Profile 8.4")
 }
 
-/// Measured on P81_GlassBlowing2, whose record reads level 5 and cross compatibility
-/// 1. The two fields disagree in the opposite direction here, so a label built from
-/// the level called it Profile 8.5, a name no profile carries.
 @Test("a high level does not invent a profile that does not exist")
 func aHighLevelDoesNotInventAProfile() {
     let hdr10Compatible = PlaybackModel.DolbyVision(profile: 8, crossCompatibilityID: 1)
     #expect(hdr10Compatible.label == "Dolby Vision Profile 8.1")
 }
 
-/// Profile 5 is compatible with nothing else and its record reads cross compatibility
-/// 0, so its name has no second component to write.
 @Test("a profile compatible with nothing has no second digit")
 func aProfileCompatibleWithNothingHasNoSecondDigit() {
     let profileFive = PlaybackModel.DolbyVision(profile: 5, crossCompatibilityID: 0)
@@ -106,7 +98,5 @@ func theProfilePrefersTheDolbyVisionLabel() {
         resolution: .init(width: 3840, height: 2160)
     )
     #expect(profile.dolbyVision?.label == "Dolby Vision Profile 7.6 Fallback to HDR10")
-    // The delivered range stays HDR10, because that is the picture, and a surface with
-    // no room for the profile can still say something true.
     #expect(profile.hdrType == .hdr10)
 }

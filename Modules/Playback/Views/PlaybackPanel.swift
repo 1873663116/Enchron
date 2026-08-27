@@ -3,10 +3,6 @@ import Foundation
 import SwiftUI
 
 
-// MARK: - Fused player panel
-
-/// Playback and presentation bindings. A nil value lets DesignPreview render
-/// the panel without constructing a playback session.
 public struct FusedPlayerPanelLive {
     var presentation: PlaybackPresentation
     var mediaName: String
@@ -22,9 +18,6 @@ public struct FusedPlayerPanelLive {
     var usesDolbyVisionFallback: Bool = false
     var showsDolbyVisionFallback: Bool = false
     var mediaFormatSummary: String? = nil
-    /// Present when the source describes the title beyond its filename. A local file
-    /// has none and an Emby item does, which is what makes the information well
-    /// expandable without the well ever asking where the title came from.
     var overview: String? = nil
     var unmetCapabilities: [UnmetCapability] = []
     var mediaFormatProvenance: MediaFormatProvenance
@@ -166,8 +159,6 @@ public struct FusedPlayerPanelLive {
     }
 }
 
-/// Presentation-only rules for holding a scrubber at its requested position
-/// while the runtime's asynchronous seek result catches up.
 enum PlaybackSeekPresentation {
     static let targetMatchTolerance: CGFloat = 0.02
 
@@ -391,8 +382,6 @@ public struct FusedPlayerPanel: View {
         )
     }
 
-    /// Settings are not offered for every presentation, so a caller asking to open
-    /// them where they do not exist gets the collapsed panel rather than an empty one.
     private static func resolvedInitialLayout(
         _ requested: PlaybackPanelExpansion.Layout,
         presentation: PlaybackPresentation
@@ -408,7 +397,6 @@ public struct FusedPlayerPanel: View {
     @State private var videoFormatEditing: PlaybackVideoFormatEditingState
     @State private var mediaInfoHovered = false
 
-    // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
     @State private var isDragging = false
     @State private var isTimelineDragging = false
@@ -416,8 +404,6 @@ public struct FusedPlayerPanel: View {
     @State private var scrubberActivation: ScrubberActivation = .idle
     @State private var seekOrigin: CGPoint?
     @State private var dragStartProgress: CGFloat = 0.45
-    /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
-    /// 避免"跳回旧位再闪到目标"。live 追上(或超时兜底)即释放。
     @State private var pendingSeekTarget: CGFloat?
     @State private var scrubFeedbackTrigger = 0
     @State private var scrubReleaseTrigger = 0
@@ -426,7 +412,6 @@ public struct FusedPlayerPanel: View {
     @State private var rewindIconAnimationTrigger = 0
     @State private var forwardIconAnimationTrigger = 0
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
-    // ⋯ 菜单 Canvas mock 选择态(live 为 nil 时)。
     @State private var selectedSpeed = "1×"
     @State private var placementTrackWidth: CGFloat = 280
     @Namespace private var hoverNamespace
@@ -436,8 +421,6 @@ public struct FusedPlayerPanel: View {
         case seeking
     }
 
-    // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
-    // 锁存期内钉在 pendingSeekTarget;live 为 nil 退化纯本地 @State(Canvas mock)。
     private var displayProgress: CGFloat {
         PlaybackSeekPresentation.displayProgress(
             isDragging: isDragging,
@@ -493,7 +476,6 @@ public struct FusedPlayerPanel: View {
             handleDebugMenuSelection(request, live: live)
         }
 #endif
-        // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .enchronScrubSensoryFeedback(
             pressTrigger: scrubFeedbackTrigger,
             releaseTrigger: scrubReleaseTrigger,
@@ -507,7 +489,6 @@ public struct FusedPlayerPanel: View {
             }
         }
         .onChange(of: live?.progress) { _, newValue in
-            // 锁存释放:player 报告的位置追上(容差内)目标即放行。
             guard let target = pendingSeekTarget, let newValue else { return }
             if PlaybackSeekPresentation.target(target, matches: newValue) {
                 pendingSeekTarget = nil
@@ -590,8 +571,6 @@ public struct FusedPlayerPanel: View {
             - DesignTokens.Spacing.sm
     }
 
-    /// The rail runs the deck's full content width, which is also what the
-    /// transport row spans, so the two share the deck's left and right edges.
     private var compactProgressBarWidth: CGFloat {
         clusterWidth
     }
@@ -746,9 +725,6 @@ public struct FusedPlayerPanel: View {
         changeExpansion(to: .collapsed)
     }
 
-    /// Runs a change through its three ordered steps. Each step's completion starts
-    /// the next, so the order follows the animations themselves rather than durations
-    /// repeated here that could drift from the ones in `DesignTokens`.
     private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
         withAnimation(DesignTokens.AnimationToken.panelContentExit) {
             expansion.request(layout)
@@ -822,9 +798,6 @@ public struct FusedPlayerPanel: View {
                     .font(DesignTokens.Typography.headline)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                // Indication only. Gaze resolves to a coarser point than a cursor,
-                // so a small target inside this well's target would take the taps
-                // meant for the well.
                 if persistentCapabilities.isEmpty == false {
                     Image(systemName: "exclamationmark.circle")
                         .foregroundStyle(.secondary)
@@ -886,8 +859,6 @@ public struct FusedPlayerPanel: View {
         (live?.unmetCapabilities ?? []).filter { $0.preventsPlayback == false }
     }
 
-    /// A mark the wearer cannot open is worse than no mark, so anything the well
-    /// would show when expanded also makes it expandable.
     private var mediaInformationIsExpandable: Bool {
         live != nil
     }
@@ -1165,7 +1136,6 @@ public struct FusedPlayerPanel: View {
         }
     }
 
-    // ⋯ 菜单:玻璃圆作系统 Menu label,内容 live 注入时来自产品层、否则 mock。
     private var moreMenu: some View {
         GlassCircleIconMenu(
             systemName: "ellipsis",
@@ -1181,7 +1151,6 @@ public struct FusedPlayerPanel: View {
         .accessibilityLabel("More playback settings")
     }
 
-    /// 逐帧步进:live 注入时回调产品层;否则在 mock 本地 progress 上挪一帧。
     private func stepFrame(_ direction: Double) {
         if let live {
             live.onFrameStep(direction < 0 ? -1 : 1)
@@ -1357,8 +1326,6 @@ public struct FusedPlayerPanel: View {
         }
     }
 
-    // MARK: Timeline(展开态)
-
     private var timelineBlock: some View {
         PrecisionTimelineView(
             currentTime: timelineCurrentTime,
@@ -1419,8 +1386,6 @@ public struct FusedPlayerPanel: View {
         isTimelineDragging = true
         onInteraction()
     }
-
-    // MARK: Progress bar(收起态;双击展开时间轴)—— 整套抄自 PlayerControlDeck
 
     private var trackScale: CGFloat {
         if isDragging || isProgressHovered { return 1 }
@@ -1617,9 +1582,6 @@ public struct FusedPlayerPanel: View {
             .accessibilityLabel("Playback position thumb")
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect()
-            // The lift above hugs the drawn thumb. This outer capsule is the
-            // catchment: it matches `isThumbHit`, so wherever a gaze lands and
-            // lights the control is also where a pinch starts a scrub.
             .frame(width: DesignTokens.ProgressBar.thumbGrabWidth,
                    height: DesignTokens.ProgressBar.hitHeight)
             .enchronHoverContentShape(Capsule())
@@ -1648,7 +1610,6 @@ public struct FusedPlayerPanel: View {
                     resetScrubberActivation()
                     return
                 }
-                // The exclusive tap gesture owns a press without travel.
                 guard hypot(value.translation.width, value.translation.height)
                         > DesignTokens.ProgressBar.tapDragThreshold else {
                     resetScrubberActivation()
@@ -1780,17 +1741,11 @@ public struct FusedPlayerPanel: View {
         onInteraction()
     }
 
-    /// Only the horizontal distance is tested. The gesture is attached to the
-    /// strip, so a start location has already passed the strip's interaction
-    /// shape vertically, and on a horizontal rail the axis that decides whether
-    /// the wearer meant this scrubber is the one along the rail.
     private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
         abs(location.x - thumbX) <= DesignTokens.ProgressBar.thumbGrabWidth / 2
     }
 }
 
-/// One Docked Settings placement row: local draft while dragging so the knob
-/// stays followable, then clears draft when the gesture ends.
 private struct DockedPlacementSliderRow: View {
     let title: String
     let liveValue: Double

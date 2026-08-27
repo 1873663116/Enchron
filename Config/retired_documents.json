@@ -1,5 +1,5 @@
 {
-  "comment": "Documents that were removed, and where the reader should go now. A decision record keeps the name it was written with; this file is how that name still resolves. Checked by Scripts/verification/verify_documentation_references.py.",
+  "comment": "Documents that were removed, and where the reader should go now. A decision record keeps the name it was written with; this file is how that name still resolves. Checked by Scripts/rules/verify_documentation_references.py.",
   "retired": [
     {
       "path": "docs/product-requirements.md",
@@ -23,13 +23,13 @@
       "path": "docs/acceptance/verification-system.md",
       "removed": "2026-08-07",
       "commit": "dc8bf6c1",
-      "replacement": ".agents/skills/vp-e2e/SKILL.md 与 Scripts/verification/run_verification_gauntlet.py。"
+      "replacement": ".agents/skills/vp-e2e/SKILL.md 与 Scripts/rules/run_verification_gauntlet.py。"
     },
     {
       "path": "docs/quality_gates.md",
       "removed": "2026-08-06",
       "commit": "7fe3af96",
-      "replacement": "Scripts/verification/run_verification_gauntlet.py 与 Config/verification_gauntlet_baseline.json 是当前的证据阶梯。"
+      "replacement": "Scripts/rules/run_verification_gauntlet.py 与 Config/verification_gauntlet_baseline.json 是当前的证据阶梯。"
     },
     {
       "path": "docs/plans/active/",
@@ -90,6 +90,18 @@
       "removed": "2026-08-26",
       "commit": "3af943b",
       "replacement": "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json。凭据必须落在测试 target 的资源目录里才会被打进 bundle；旧位置从不在 bundle 中，Emby live 套件因此永远读不到它。"
+    },
+    {
+      "path": "Apps/DesignPreview/",
+      "removed": "2026-08-27",
+      "commit": "ae91d9db",
+      "replacement": "无。预览宿主已删除，组件的唯一展示面是产品 App 自身。"
+    },
+    {
+      "path": "Apps/DesignPreview/AGENTS.md",
+      "removed": "2026-08-27",
+      "commit": "ae91d9db",
+      "replacement": "ARCHITECTURE.md 的归属判据，以及 docs/DESIGN_SYSTEM_CONSTRAINTS.md。"
     }
   ]
 }

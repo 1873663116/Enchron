@@ -558,11 +558,6 @@ struct PlaybackPresentationStateTests {
         #expect(fullNames.contains("EnchronPanoramaInput.back"))
     }
 
-    /// The Immersive Space origin sits on the floor beneath the wearer, so a
-    /// gaze ray starts about a person's height above it. Every eye position a
-    /// seated or standing wearer can occupy has to fall inside the shell and
-    /// outside each individual panel. That combination is what lets the ray
-    /// leave the shell through one panel and register a hit.
     @Test("Panorama tap shell surrounds the eye positions a wearer can occupy")
     @MainActor
     func panoramaTapShellSurroundsWearerEyePositions() throws {
@@ -605,9 +600,6 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    /// The authored `PlaybackSurfaceAnchor` carries the wearer's nominal eye
-    /// height, and its distance from the origin is the default screen distance.
-    /// Docking at the default placement therefore has to land on the anchor.
     @Test("Default docked placement lands on the authored surface anchor")
     @MainActor
     func defaultDockedPlacementLandsOnTheAuthoredAnchor() {
@@ -658,10 +650,6 @@ struct PlaybackPresentationStateTests {
         #expect(abs(placed.z - -4 * cos(.pi / 6)) < 0.001)
     }
 
-    /// The caller of this wait holds a platform execution lease for its whole
-    /// duration. A surface that never settles must release the wait so the
-    /// lease can be finished; otherwise every later spatial platform request is
-    /// refused for the rest of the process lifetime.
     @Test("A surface that never settles releases its wait instead of hanging")
     @MainActor
     func unsettledPresentationReleasesItsWait() async {
@@ -676,10 +664,6 @@ struct PlaybackPresentationStateTests {
         #expect(settled == false)
     }
 
-    /// A component whose renderer was replaced mid-transition can report no
-    /// immersive viewing mode at all and never move again. Waiting is correct
-    /// while RealityKit classifies, which takes about a second on device, but an
-    /// unbounded wait leaves the surface unrecoverable for the whole session.
     @Test("An unreported immersive viewing mode is re-requested once it stalls")
     @MainActor
     func stalledImmersiveViewingModeIsRequestedAgain() {
@@ -704,8 +688,6 @@ struct PlaybackPresentationStateTests {
         #expect(action(at: PlaybackModeRequestRetry.unreportedModeWindow) == .requestModesAgain)
     }
 
-    /// Classification in progress must not be restarted, which is what a repeat
-    /// request does. The stall window is the only thing separating the two.
     @Test("A mode reported before the stall window keeps the wait intact")
     @MainActor
     func reportedImmersiveViewingModeClearsTheStall() {

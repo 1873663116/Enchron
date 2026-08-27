@@ -139,8 +139,6 @@ struct WindowPlaybackPageGeometryTests {
 
     @Test("Portal locks the chrome window to the fallback aspect, not the video's")
     func portalWindowLocksToTheFallbackAspect() {
-        // In Portal the window carries chrome while the video lives in the
-        // portal, so window geometry must not follow the video's aspect.
         let videoLayout = WindowPlaybackLayout(aspectRatio: 1)
 
         #expect(

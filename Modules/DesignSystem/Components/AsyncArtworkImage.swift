@@ -24,8 +24,6 @@ public struct AsyncArtworkImage: View {
                 ArtworkPlaceholder()
             }
         }
-        // Artwork arrives whenever the decode finishes, which is a different moment for every image
-        // on a page. Fading each one in turns that scatter into an entrance.
         .animation(DesignTokens.AnimationToken.fadeIn, value: loadedImage?.url)
         .task(id: url) {
             loadedImage = nil
@@ -79,10 +77,6 @@ private struct LoadedImage {
 }
 
 private enum ArtworkImageLoader {
-    /// Decoded bitmaps, keyed by URL. `URLCache` already keeps the compressed bytes on disk; what
-    /// repeats on every reappearance is the decode, and its result can only live in memory. Emby
-    /// puts the image's content tag in the URL, so a changed artwork is a different key.
-    /// `NSCache` is thread-safe, so the shared instance needs no further isolation.
     nonisolated(unsafe) private static let decoded: NSCache<NSURL, CGImage> = {
         let cache = NSCache<NSURL, CGImage>()
         cache.totalCostLimit = 64 * 1024 * 1024
@@ -139,14 +133,8 @@ private struct ArtworkPlaceholder: View {
     }
 }
 
-/// Decodes artwork ahead of the screen that shows it, so a page opens with its images already in
-/// memory instead of decoding a screenful at once while the user waits.
 public enum ArtworkPrefetch {
-    /// How many images one warm-up pass will decode. The decoded cache is bounded too, so a larger
-    /// budget would only evict what it just loaded.
     public static let budget = 60
-    /// Decodes running at once. Enough to keep the network busy without competing with the frames
-    /// of whatever is on screen while this runs.
     private static let concurrency = 4
 
     public static func warm(_ urls: [URL]) async {

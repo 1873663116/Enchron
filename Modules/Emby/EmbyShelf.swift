@@ -1,12 +1,8 @@
 import DesignSystem
 import SwiftUI
 
-/// One horizontally scrolling row of cards. The episode row carries its season control instead of
-/// a title, so the title is optional.
 public struct EmbyShelf<Content: View>: View {
     private let title: String?
-    /// Where a card comes to rest, measured from the page edge, so a row lines up with its title.
-    /// The scroll view itself runs edge to edge and the window does the cutting.
     private let inset: CGFloat
     private let content: Content
 

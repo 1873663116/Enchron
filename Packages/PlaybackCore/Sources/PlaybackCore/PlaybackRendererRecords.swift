@@ -140,8 +140,6 @@ public struct RendererInputRecord: Codable, Equatable, Sendable {
     public var timelineConfiguredBeforeFirstEnqueue: Bool
     public var action: String
     public var outcome: RendererInputOutcome
-    /// Signaling read from the exact sample buffer submitted to the renderer.
-    /// This differs from the decoded source sample when presentation tags wrap it.
     public var formatSignaling: VideoFormatSignalingSummary?
 
     public init(

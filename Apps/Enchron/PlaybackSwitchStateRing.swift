@@ -42,8 +42,6 @@ nonisolated struct PlaybackSwitchStateRecord: Codable, Equatable, Sendable {
     var graphRevision: UInt64
     var lifecycle: PlaybackLifecycle
     var acceptedInputCount: UInt64
-    /// This advances only when the observed displayed pixel-buffer identity changes.
-    /// A stable IOSurface can still carry new contents, so no advance is conservative evidence.
     var displayedFrameObservationCount: UInt64
     var requestedRate: Float
     var actualTimebaseRate: Float

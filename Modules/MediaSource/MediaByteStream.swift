@@ -24,18 +24,12 @@ private struct MediaByteStreamDebugCounterState: Sendable {
 #endif
 
 public enum MediaByteBufferDepth: Sendable, Equatable {
-    /// Non-cache mode. The demuxer fills to its short duration target unless
-    /// the forward byte safety limit is reached first.
     case none
-    /// Cache mode. Its effectively unbounded duration target makes the forward
-    /// byte limit the normal stopping condition.
     case automatic
-    /// Cache mode with a source-specific forward byte limit.
     case bytes(Int64)
 }
 
 public struct MediaByteStreamAttributes: Sendable, Equatable {
-    /// A pre-open hint. A range read's `contentLength` is authoritative.
     public let contentLength: Int64?
     public let supportsSeeking: Bool
     public let isLive: Bool
@@ -53,7 +47,6 @@ public struct MediaByteStreamAttributes: Sendable, Equatable {
 
 public struct MediaByteRangeRead: Sendable, Equatable {
     public let data: Data
-    /// The source's current answer, not a size retained from directory browsing.
     public let contentLength: Int64?
     public let supportsSeeking: Bool
 
@@ -71,7 +64,6 @@ public protocol MediaByteRangeSource: AnyObject, Sendable {
 
 public final class MediaByteStreamHandle: @unchecked Sendable {
     public let url: URL
-    /// The demux policy captured when this playable source was registered.
     public let preferredBufferDepth: MediaByteBufferDepth
 
     private weak var server: MediaByteStreamServer?
@@ -95,7 +87,6 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
         server?.configureContainerIndex(token: token, revision: revision)
     }
 
-    /// Ends the only interval whose bytes are container-open input. Reads after this call are media.
     public func finishContainerIndex() {
         server?.finishContainerIndex(token: token)
     }

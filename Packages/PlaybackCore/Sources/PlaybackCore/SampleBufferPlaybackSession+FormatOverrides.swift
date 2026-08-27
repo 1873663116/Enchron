@@ -197,10 +197,6 @@ extension SampleBufferPlaybackSession {
         return change
     }
 
-    /// Establishes a decoder discontinuity for a live format revision without
-    /// replacing the renderer graph. The provider's backward seek restarts the
-    /// compressed stream from a decodable sync boundary, while the renderer flush
-    /// removes all samples classified under the previous presentation format.
     private func rebuildRendererInputForFormatOverride(
         at time: CMTime,
         startsPaused: Bool,

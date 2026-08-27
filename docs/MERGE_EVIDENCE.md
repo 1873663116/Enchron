@@ -1,6 +1,6 @@
 # PR 证据分级与免读合并门
 
-本文是 PR 免读合并的分级标准、每级所需证据、证据清单（manifest）格式与 gauntlet 门语义的真相源。分级器与 manifest 校验器是 `Scripts/verification/merge_evidence_tier.py`，自测是 `Scripts/verification/test_merge_evidence_tier.py`。Device Hub 词汇（`device-hub` 驱动、spatialTap 探针契约）复用 `Scripts/verification/journey_units.py`，本文不定义平行概念。
+本文是 PR 免读合并的分级标准、每级所需证据、证据清单（manifest）格式与 gauntlet 门语义的真相源。分级器与 manifest 校验器是 `Scripts/rules/merge_evidence_tier.py`，自测是 `Scripts/rules/test_merge_evidence_tier.py`。Device Hub 词汇（`device-hub` 驱动、spatialTap 探针契约）复用 `Scripts/verification/journey_units.py`，本文不定义平行概念。
 
 当前阶段（Phase 1）只启用 W0/W1 的免读判定；W2/W3 的免读判定在 Phase 3 启用，在此之前门对 W2/W3 输出「非免读，需证据清单」，改动走人审。
 
@@ -21,13 +21,13 @@
 |---|---|---|
 | `docs/` | W0 | 文档 |
 | `.agents/skills/` | W0 | 技能指令 |
-| `Scripts/` | W0 | 脚本（含验证脚本；见「已知张力」） |
+| `Scripts/` | W0 | 驱动器、探针、素材：改坏了当场跑不动，自暴露 |
+| `Scripts/rules/` | W3 | 规则本体：改松了静默放行，不自暴露 |
 | `Tests/` | W1 | 仓库根测试代码 |
 | `Packages/PlaybackCore/Tests/` | W1 | 播放核心包的测试代码 |
 | `Modules/DesignSystem/` | W2 | 单 feature，不触播放管线 |
 | `Modules/Emby/` | W2 | 单 feature，不触播放管线 |
 | `Modules/MediaLibrary/` | W2 | 单 feature，不触播放管线 |
-| `Apps/DesignPreview/` | W2 | 设计预览壳，被结构检查禁止引用 App 层 |
 | `Apps/Enchron/` | W3 | App 壳持有呈现切换与沉浸场景生命周期 |
 | `Modules/MediaSource/` | W3 | 字节流供给播放管线 |
 | `Modules/Playback/` | W3 | 播放管线 |
@@ -41,7 +41,7 @@
 
 ## 门的语义
 
-`Scripts/verification/run_verification_gauntlet.py` 的 structure 层运行两个检查：`merge-evidence-tier` 对当前范围输出分级裁决，`merge-evidence-tier-tests` 运行分级器自测。两者在 quick 与 full 模式都运行。
+`Scripts/rules/run_verification_gauntlet.py` 的 structure 层运行两个检查：`merge-evidence-tier` 对当前范围输出分级裁决，`merge-evidence-tier-tests` 运行分级器自测。两者在 quick 与 full 模式都运行。
 
 门回答的问题是「这个范围是否免读合并」，不是「这个提交是否合法」。因此：
 
@@ -107,7 +107,7 @@ W3 的判定规则：`deviceHubInput` 非空，或 `realDeviceDecode` 非空（�
 交付约定：manifest 不入库，以 PR 附件交付——PR 描述中的 evidence-manifest 代码块，或附件文件 merge_evidence_manifest.json。入库会让每个 PR 的 manifest 路径反过来参与自身分级。合并前在本地校验：
 
 ```
-python3 Scripts/verification/merge_evidence_tier.py <base>..<head> --manifest <manifest.json>
+python3 Scripts/rules/merge_evidence_tier.py <base>..<head> --manifest <manifest.json>
 ```
 
 校验器输出逐项缺失并以退出码表达充分与否；`--json` 给出机器可读报告。

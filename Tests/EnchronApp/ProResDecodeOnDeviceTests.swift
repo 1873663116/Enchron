@@ -4,14 +4,6 @@ import Foundation
 import Testing
 import VideoToolbox
 
-/// Whether this device decodes a real ProRes file, asked of AVFoundation and VideoToolbox
-/// rather than of the renderer.
-///
-/// The sample buffer renderer accepts every ProRes sample and then reports
-/// readyWithDecodeFailures with "Cannot Decode", which does not say whether the device
-/// lacks a decoder or the rendering path will not take this codec. These cases separate
-/// the two. The fixture is whatever the harness last pushed into the app container, so
-/// the test reports its absence rather than failing on it.
 private func pushedProResFixture() -> URL? {
     let inbox = URL.documentsDirectory.appending(path: "TestMediaInbox")
     let contents = try? FileManager.default.contentsOfDirectory(
@@ -61,9 +53,6 @@ func proResFailsThroughAVFoundation() async throws {
         atomically: true,
         encoding: .utf8
     )
-    // The renderer error alone could not tell a missing decoder from a rendering
-    // path that will not take this codec. AVAssetReader is neither, so its failure
-    // places the limit in the device.
     #expect(started == false)
     #expect(decodedFrames == 0)
     #expect(reader.status == .failed)

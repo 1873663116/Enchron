@@ -898,8 +898,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
-            // A remote first PTS would block on bounded lead and test the watchdog,
-            // not whether the seek keeps the session and commits its target epoch.
             provider: FakeVideoSampleProvider(
                 events: [
                     .sample(initialSample),
@@ -993,8 +991,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                // Every generation must be able to reach its requested position;
-                // a lone PTS 20 sample stalls in bounded lead before ownership is tested.
                 events: [
                     .sample(initialSample),
                     .sample(firstSeekSample),
@@ -1057,8 +1053,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                // Reachable samples keep the test on controller generation ordering;
-                // a lone PTS 20 sample instead waits for the first-frame watchdog.
                 events: [
                     .sample(initialSample),
                     .sample(firstSeekSample),
@@ -1067,11 +1061,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                     .sample(holdingSample),
                     .end,
                 ],
-                // The three seeks are issued 20ms apart and must all still be
-                // in flight when the newest arrives. Under parallel-suite load
-                // a 20ms sleep overruns far past 150ms, letting the first seek
-                // finish preparing and claim a stream epoch of its own, so the
-                // window carries an order of magnitude of margin.
                 seekPrepareDelay: .seconds(2),
                 seekPrepareIgnoresCancellation: true
             ),
@@ -1133,8 +1122,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                // The half-second margin covers the live base time while remaining
-                // inside bounded lead, so this test reaches relative accumulation.
                 events: [
                     .sample(initialSample),
                     .sample(firstSeekSample),
@@ -1320,8 +1307,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @Test func theLeadBudgetSpendsDecodedBytesRatherThanMediaSeconds() {
-    // 8-bit 4:2:0 costs one and a half bytes a pixel, so an 8192x4096 frame is
-    // 50.3 MB and a 1280x720 one is 1.4 MB. Seconds cannot tell those apart.
     let eightK = RendererLeadBudget.frames(
         reorderDepth: 2,
         encodedWidth: 8192,
@@ -1340,8 +1325,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         Double(eightK) * 8192 * 4096 * 1.5 <= RendererLeadBudget.maximumDecodedBytes
     )
 
-    // Ten-bit components land in sixteen-bit words, doubling the frame, and the
-    // budget halves where the reorder floor leaves room to spend.
     let fourK = RendererLeadBudget.frames(
         reorderDepth: 2,
         encodedWidth: 3840,
@@ -1356,10 +1339,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     #expect(fourKTenBit * 2 == fourK)
 
-    // At 8K there is no room left to spend: one ten-bit frame costs 100 MB, so
-    // the byte ceiling asks for less than the encoder's reordering needs and the
-    // floor decides. That stream pays more per seek than its bytes would allow,
-    // and this is the stated cost of never starving the decoder.
     let eightKTenBit = RendererLeadBudget.frames(
         reorderDepth: 2,
         encodedWidth: 8192,
@@ -1371,8 +1350,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @Test func theLeadBudgetNeverSitsBelowTheEncoderReorderDepth() {
-    // A queue shallower than the encoder's reordering starves the decoder, so
-    // the floor outranks both ceilings however expensive the frames are.
     let absurdlyExpensive = RendererLeadBudget.frames(
         reorderDepth: 16,
         encodedWidth: 8192,
@@ -1381,7 +1358,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     #expect(absurdlyExpensive == 16 + RendererLeadBudget.schedulingSlackFrames)
 
-    // A stream whose decoded size is unknown keeps the frame ceiling.
     let unmeasured = RendererLeadBudget.frames(
         reorderDepth: 0,
         encodedWidth: 0,
@@ -1392,9 +1368,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @Test func steppingForwardLandsOnTheNextQueuedFrameWithoutANominalRate() {
-    // A variable-rate stream has no single frame duration, so a step derived
-    // from a nominal rate lands between frames. The queue holds the exact
-    // moment each frame gives way to the one behind it.
     var inFlight = RendererFramesInFlight()
     for end in [0.5, 0.9, 1.6, 1.7] {
         inFlight.record(presentationEnd: end)
@@ -1404,14 +1377,10 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(inFlight.nextRetirement(after: 0.9) == 1.6)
     #expect(inFlight.nextRetirement(after: 1.6) == 1.7)
 
-    // Once the timeline has passed everything queued, only a seek can produce
-    // the next frame, and the step has to say so rather than invent a landing.
     #expect(inFlight.nextRetirement(after: 1.7) == nil)
 }
 
 @Test func framesInFlightRetireInDisplayOrderNotDeliveryOrder() {
-    // Presentation ends arrive in decode order when the stream carries B
-    // frames, so the frame the timeline retires next is the earliest of them.
     var inFlight = RendererFramesInFlight()
     for end in [1.0, 4.0, 2.0, 3.0] {
         inFlight.record(presentationEnd: end)
@@ -1429,7 +1398,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @Test func deliveryLagRecoveryNeverAsksForMoreThanTheGateAdmits() {
     let timelineTime = CMTime(seconds: 30, preferredTimescale: 60_000)
 
-    // With room to spare the recovery lead is the measured one second.
     let ample = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
         timelineTime: timelineTime,
         durationSeconds: 120,
@@ -1439,8 +1407,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(ample.videoEnd.seconds == 31)
     #expect(ample.audioEnd.seconds == 31)
 
-    // An 8K stream is gated at a handful of frames. Asking for a full second
-    // there is a requirement no sample can reach, so the budget caps it.
     let gated = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
         timelineTime: timelineTime,
         durationSeconds: 120,
@@ -1449,15 +1415,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     #expect(gated.videoEnd.seconds < 31)
     #expect(gated.videoEnd.seconds > 30)
-    // Audio is bounded in media seconds by its own gate, so capping it against
-    // the video frame budget would give up the measured recovery reserve on
-    // exactly the streams whose reads are slowest.
     #expect(gated.audioEnd.seconds == 31)
 
-    // The gate holds frames whose end is past the timeline, and a frame
-    // straddling it ends less than one frame later. Simulate the deepest queue
-    // the gate ever permits and check recovery asks for something inside it,
-    // for the worst-case alignment where the first frame ends just after T.
     for (budget, rate) in [(4, 60.0), (4, 23.976), (12, 30.0), (48, 24.0), (2, 60.0)] {
         let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
             timelineTime: timelineTime,
@@ -1625,8 +1584,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         Issue.record("the renderer was holding a frame the step should have used")
         return
     }
-    // The whole point: the frame was already in the renderer, so nothing was
-    // flushed and no sample had to be decoded again.
     #expect(sink.flushCount == flushesBeforeStep)
     #expect(sink.immediateEnqueueCount >= enqueuedBeforeStep)
     #expect(landing.seconds > timeBeforeStep)
@@ -1847,9 +1804,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         startsPaused: true
     )
 
-    // The timeline is left stopped on the target, so no rate activation runs in
-    // delivery. Without an explicit report the session keeps announcing the
-    // lifecycle it had before the seek and the transport button never flips.
     #expect(statuses.withLock { $0.last } == .paused)
     #expect(session.debugSnapshot().lifecycle == .paused)
 }
@@ -3746,9 +3700,6 @@ func terminalRendererFailurePublishesFailedOnce(
 
     monitor.send(fact)
 
-    // Retirement publishes hasAudio before the failure and renderer-state
-    // records land in the store; synchronize on the last store write the
-    // assertions below read, not on the intermediate flag.
     let deadline = ContinuousClock.now + .seconds(2)
     while ContinuousClock.now < deadline,
         session.debugSnapshot().audioRendererState?.error != fact.message {

@@ -391,8 +391,6 @@ public struct WindowPlayerDeckView: View {
     }
 }
 
-/// Production More menu shared by the window chrome. Its label uses the
-/// DesignSystem circle control while the menu contents remain feature-owned.
 struct ProductionPlaybackMoreMenu: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackMoreMenu")
     @Environment(PlaybackSessionModel.self) private var appModel
@@ -614,10 +612,6 @@ struct ProductionPlaybackMoreMenu: View {
     }
 }
 
-// MARK: - Resume decision (UC-PLAY-02)
-
-/// The pre-play decision remains part of the media-opening flow. Playback
-/// failures use a system alert instead of sharing this product-owned surface.
 public struct ResumeDecisionCard: View {
     let message: String
     let onResume: () -> Void

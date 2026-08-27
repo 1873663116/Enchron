@@ -5,8 +5,6 @@ import PlaybackCore
 import RealityKit
 import SwiftUI
 
-/// Stable identity for one RealityView host, independent of the shared Entity
-/// that the host may carry.
 struct PlaybackRealityViewHostIdentity: Equatable, Sendable, CustomStringConvertible {
     private let id: UUID
 
@@ -25,9 +23,6 @@ enum PlaybackRealityViewTopologyWriteDecision: Equatable {
     case entityOwnedByAnotherActiveHost
 }
 
-/// A shared playback Entity can move only from an inactive chain into the
-/// active RealityView that is executing the update. `Entity.isActive` covers
-/// its complete ancestor chain, so no lifecycle callback is required.
 enum PlaybackRealityViewTopologyWritePolicy {
     static func decision(
         currentHostIsActive: Bool,
@@ -42,10 +37,6 @@ enum PlaybackRealityViewTopologyWritePolicy {
     }
 }
 
-/// Identifies the accepted renderer input to which RealityKit's cached content
-/// classification belongs. Format semantics are deliberately absent: Runtime
-/// publishes the accepted revision before it publishes the matching semantic
-/// fields, and including both would invalidate the same classification twice.
 public struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
     let sessionID: String
     let technicalSessionID: String
@@ -158,9 +149,6 @@ public final class PlaybackVideoEntityStore {
             && realityViewUsesImmersiveSpace == presentation.usesImmersiveSpace
     }
 
-    /// RealityKit's classification belongs to one technical playback instance.
-    /// A new decoder/renderer/component session always receives a fresh scope,
-    /// even while the logical media session remains continuous.
     func synchronizeRealityKitContentTypeScope(
         _ scope: PlaybackRealityKitContentTypeScope?
     ) {
@@ -169,8 +157,6 @@ public final class PlaybackVideoEntityStore {
         realityKitContentType = "unobserved"
     }
 
-    /// Records a scene-level event only while its captured media scope is
-    /// current. This is the entity substitute Apple's event does not provide.
     func recordRealityKitContentType(
         _ contentType: String,
         for scope: PlaybackRealityKitContentTypeScope
@@ -183,7 +169,6 @@ public final class PlaybackVideoEntityStore {
         onRealityKitContentTypeChanged?(contentType, scope)
     }
 
-    /// Rejects callbacks captured by a technical session that has been retired.
     func recordRealityKitContentType(
         _ contentType: String,
         forTechnicalSessionID technicalSessionID: String
@@ -208,9 +193,6 @@ public final class PlaybackVideoEntityStore {
         synchronizeRealityKitContentTypeScope(nil)
     }
 
-    /// Removes RealityKit's video target while retaining the accepted renderer
-    /// identity and media-format scope for the target RealityView. The target
-    /// will rebuild the Entity after the source Scene has disappeared.
     func releasePlaybackComponentForRealityViewTransfer() {
         dockedInteractionSurface.removeFromParent()
         windowInteractionSurface.removeFromParent()
@@ -273,9 +255,6 @@ final class PlaybackSurfaceActivation {
         }
     }
 
-    /// RealityKit can publish activation before the renderer or format
-    /// projection is ready (and vice versa). Re-run the idempotent attach
-    /// check for a bounded window so either ordering can converge.
     func requestRetry() {
         guard retryTask == nil, onActivate != nil else { return }
         retryTask = Task { @MainActor [weak self] in
@@ -299,9 +278,6 @@ final class PlaybackSurfaceActivation {
     }
 }
 
-/// Routes accessibility and spatial surface activation through one control
-/// dispatcher. Panorama uses a dedicated invisible interaction surface rather
-/// than depending on a collision volume around its projected video.
 @MainActor
 public enum PlaybackSurfaceInputAction {
     public enum Source {
@@ -463,9 +439,6 @@ enum PlaybackDockedInteractionSurface {
             ? screenSize
             : fallbackScreenSize
         entity.name = entityName
-        // PlaybackSurfaceRealityKitAdapter.dock uses look(at:from:relativeTo:),
-        // whose default forward direction is local -Z. The child collider is in
-        // front of the video only when its positive offset magnitude moves -Z.
         entity.position = [0, 0, -frontOffset]
         entity.orientation = .init()
         entity.scale = .one
@@ -508,16 +481,8 @@ enum PlaybackPanoramaInteractionSurface {
         return root
     }
 
-    /// The Immersive Space origin sits on the floor beneath the wearer, so the
-    /// shell has to reach well past standing eye height and ordinary room-scale
-    /// movement. Every eye position the wearer can occupy stays inside the
-    /// shell and outside each individual panel.
     static let shellRadius: Float = 8
 
-    /// Builds an inward-facing collision shell around the viewer. A 180-degree
-    /// projection owns only the front half; 360-degree projection owns every
-    /// direction. Thin panels keep the viewer outside each individual collider,
-    /// so a gaze ray leaving the shell crosses exactly one of them.
     static func configure(
         _ root: Entity,
         projection: PlaybackModel.ProjectionType,
@@ -823,11 +788,6 @@ final class PlaybackVideoRendererTargetObservation {
                     return
                 }
                 onEvent("targetConfirmation source=\(source)")
-                // A component mutation only proves that RealityKit accepted the
-                // component value. Give the target one bounded commit interval,
-                // but don't debounce on later VideoPlayerComponent changes:
-                // Panorama mode negotiation legitimately keeps changing the
-                // component while the same renderer target remains in use.
                 self.bindingSettlement.schedule { [weak self] in
                     guard let self,
                           self.entityID == nextEntityID,
@@ -859,10 +819,6 @@ final class PlaybackVideoRendererTargetObservation {
                 confirm("componentDidChange")
             }
         ]
-        // Reparenting the stable playback entity does not add or replace its
-        // VideoPlayerComponent, so a component event is not guaranteed. The
-        // active-entity guard at attachment still prevents an inactive target
-        // scene from being reported as ready.
         confirm("observationStarted")
     }
 
@@ -886,8 +842,6 @@ enum PlaybackModeRecoveryAction {
 final class PlaybackModeRequestRetry {
     static let retryWindow: TimeInterval = 3
     static let minimumRequestInterval: TimeInterval = 0.25
-    /// How long an unreported immersive viewing mode stays a wait state before
-    /// it is treated as a stalled classification worth re-requesting.
     static let unreportedModeWindow: TimeInterval = 8
 
     private var requestSignature: String?
@@ -906,23 +860,12 @@ final class PlaybackModeRequestRetry {
         requiresImmersiveViewingModeSettlement: Bool = false,
         now: Date = Date()
     ) -> PlaybackModeRecoveryAction {
-        // A newly installed component legitimately reports no current mode while
-        // RealityKit classifies its renderer target, and writing the same
-        // desired values again restarts that classification. Waiting is
-        // therefore right at first, but only for as long as classification
-        // plausibly takes. Measured on device, a settling surface reports its
-        // mode within about a second; a surface handed a replacement technical
-        // session mid-transition can instead report nil forever, and without a
-        // bound nothing ever retries it.
         if actualImmersiveViewingMode == nil {
             let startedAt = unreportedModeSince ?? now
             guard now.timeIntervalSince(startedAt) >= Self.unreportedModeWindow else {
                 unreportedModeSince = startedAt
                 return .none
             }
-            // Opening a fresh request episode; the stall is measured again from
-            // here, so a surface that stays unreported is re-requested at the
-            // stall interval rather than every evaluation.
             unreportedModeSince = now
             requestSignature = nil
         } else {

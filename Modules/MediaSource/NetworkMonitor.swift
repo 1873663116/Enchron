@@ -5,7 +5,6 @@ public nonisolated protocol NetworkConnectivityWaiting: Sendable {
     func waitForConnection(timeout: Duration) async -> Bool
 }
 
-/// Observes network connectivity via NWPathMonitor.
 nonisolated final class NetworkMonitor: NetworkConnectivityWaiting, @unchecked Sendable {
     public var isConnected: Bool {
         stateLock.withLock { _isConnected }
@@ -27,7 +26,6 @@ nonisolated final class NetworkMonitor: NetworkConnectivityWaiting, @unchecked S
         monitor.cancel()
     }
 
-    /// Suspends until the network becomes available, or returns immediately if already connected.
     func waitForConnection(timeout: Duration) async -> Bool {
         if isConnected { return true }
         let deadline = ContinuousClock.now + timeout

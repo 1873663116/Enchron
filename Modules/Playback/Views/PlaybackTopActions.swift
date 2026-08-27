@@ -371,8 +371,6 @@ struct PlaybackVideoFormatEditor: View {
         }
     }
 
-    /// The angle in force, or nothing at all when the projection is not the custom one: an angle is
-    /// only the current selection while the projection it belongs to is the one being used.
     private var customAngleSelection: Binding<Int?> {
         Binding(
             get: { projection == .customAngle ? horizontalFieldOfViewDegrees : nil },
@@ -526,9 +524,6 @@ public struct PlaybackTopActions: View {
     }
 
     public var body: some View {
-        // Both secondary menus are system popovers anchored to their buttons, so
-        // the row only ever lays out the buttons. The popover is its own scene:
-        // it sizes itself to the panel and is not clipped by the playback window.
         topButtonRow
             .onAppear {
                 onSecondaryMenuVisibilityChange?(state.presentedMenu != nil)
@@ -747,8 +742,6 @@ public struct PlaybackTopActions: View {
 
     private func applyVideoFormat() {
         guard let selection = state.finishVideoFormatEditing(.apply) else { return }
-        // The runtime remains authoritative until the async core operation
-        // succeeds. This also restores the visible committed value if it fails.
         state.synchronizeCommittedVideoFormat(committedVideoFormatSelection)
         onApplyFormat?(
             selection.projection,
@@ -811,9 +804,6 @@ public struct PlaybackTopActions: View {
 
 }
 
-/// Opens an inline panel in the same SwiftUI tree. The label owns hover feedback,
-/// while the outer button remains plain so inserting the panel does not interrupt
-/// an in-flight scale animation on the label.
 private struct PlaybackTopSecondaryPanelButton: View {
     let systemName: String
     let accessibilityLabel: String

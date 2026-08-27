@@ -380,11 +380,6 @@ extension SampleBufferPlaybackSession {
                     reason: .initialTimelineAnchor
                 )
                 hasStartedTimeline = true
-                // The timeline must remain stopped until decoder bootstrap and,
-                // when present, audio preroll have both crossed the start point.
-                // This is also required when the first video PTS equals the
-                // requested start: a nonzero PTS/DTS decode pipeline can still
-                // need the bootstrap gate.
                 isPrerolling = true
                 recordTimelineControlState()
                 beginDecoderBootstrap(
@@ -449,11 +444,6 @@ extension SampleBufferPlaybackSession {
                     decodeTime: decodeTime
                 )
                 outcome = try rendererSink.enqueueImmediately(input)
-                // A delivery task cancelled by a seek can still be inside this
-                // call when the seek clears the ledger. Recording afterwards
-                // would leave a pre-seek frame counted against the new stream,
-                // and on a backward seek it would sit there until the timeline
-                // reached it again.
                 if outcome != .cancelledByFlush, isCurrentVideoDelivery(generation) {
                     recordVideoFrameInFlight(presentationEnd: presentationEnd)
                 }
@@ -519,9 +509,6 @@ extension SampleBufferPlaybackSession {
             let targetReached = requiredVideoEnd.isNumeric == false
                 || presentationTime >= requiredVideoEnd
                 || presentationEnd >= requiredVideoEnd
-            // Skip host-time activation while the start rate is still 0.
-            // Rebuild entry opens startsPaused; scheduling setRate(0, atHostTime:)
-            // here can fire after a later play() and stop the running timeline.
             if isPrerolling, bootstrap.complete, targetReached {
                 if timelineStartRate == 0 {
                     if activeOperation?.kind == .seek {
@@ -540,8 +527,6 @@ extension SampleBufferPlaybackSession {
                         publishDiagnostics(at: activationTime, force: true)
                     }
                 } else if synchronizer.rate == timelineStartRate {
-                    // play() already started the timebase. Re-stopping it here
-                    // plants a rate-0 mapping that can win about a second later.
                     isPrerolling = false
                     clearPrerollRequirement()
                     recordTimelineControlState()
@@ -584,12 +569,6 @@ extension SampleBufferPlaybackSession {
                     requestedRate: timelineStartRate,
                     anchorTime: activationTime
                 )
-                // Re-anchor the stopped timebase immediately before activation
-                // so the rate change is applied to the same media position after
-                // the preroll queues have been populated. Applying it against a
-                // near-future host time avoids the visionOS race where an
-                // asynchronous media-time update leaves the underlying timebase
-                // stopped even though synchronizer.rate already reports 1.
                 setTimelineStopped(
                     at: activationTime,
                     reason: .decoderBootstrapPreActivation,
@@ -627,9 +606,6 @@ extension SampleBufferPlaybackSession {
                     requestedRate: timelineStartRate,
                     anchorTime: activationTime
                 )
-                // A normal open has no future timeline target to preroll toward.
-                // Start the synchronizer after the first accepted sample, matching
-                // the established AVSampleBufferRenderSynchronizer startup path.
                 setRateAtHostTime(
                     timelineStartRate,
                     time: activationTime,
@@ -723,10 +699,6 @@ extension SampleBufferPlaybackSession {
         presentationEnd: CMTime,
         generation: UInt64
     ) {
-        // Recovery stops the timeline and asks for a media-time span of video.
-        // Expressing what the frame gate admits needs a frame rate, so a stream
-        // that reports none cannot be sized and is left to run rather than
-        // stopped against a requirement it may never reach.
         guard presentationEnd.isNumeric,
               diagnostics.nominalFrameRate > 0,
               timelineStartRate > 0,
@@ -1168,9 +1140,6 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    /// Frames this stream may hold in the renderer. The reorder depth and the
-    /// decoded frame size both come from the stream itself, so an unopened or
-    /// audio-only session falls back to the frame ceiling.
     var videoLeadFrames: Int {
         let dimensions = diagnostics.videoGeometry?.encodedDimensions
         return RendererLeadBudget.frames(
@@ -1188,15 +1157,8 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    /// Move the timeline onto the next frame the renderer is already holding.
-    /// The queue knows when that frame becomes current, so nothing here consults
-    /// a nominal frame rate and a variable-rate stream steps exactly.
     func stepForwardOneFrame() -> PlaybackFrameStepOutcome {
         guard !isClosed, !isResetting else { return .needsSeek }
-        // Opening paused leaves the session prerolling until something starts
-        // the timeline, which is exactly the state a step happens in. What the
-        // step actually needs is a decoder that has bootstrapped, because only
-        // then is a queued frame displayable.
         guard decoderBootstrapLock.withLock({ decoderBootstrapComplete }) else {
             return .needsSeek
         }
@@ -1208,8 +1170,6 @@ extension SampleBufferPlaybackSession {
         guard let next, next.isFinite, next > now.seconds else { return .needsSeek }
         let target = CMTime(seconds: next, preferredTimescale: 60_000)
         timelineStartRate = 0
-        // Asking to sit on a chosen frame supersedes preroll's pending
-        // activation, which would otherwise re-anchor the timeline underneath it.
         isPrerolling = false
         clearPrerollRequirement()
         setTimelineStopped(at: target, reason: .frameStep)
@@ -1288,10 +1248,6 @@ extension SampleBufferPlaybackSession {
         )
     }
 
-    /// The timeline advances at a known rate, so the moment the gate opens is
-    /// arithmetic rather than something to poll for. A stopped timeline retires
-    /// nothing, and only a state change can unblock it, so it falls back to a
-    /// coarse interval.
     private func leadRetryDelay(
         until openSeconds: Double?,
         from referenceSeconds: Double,

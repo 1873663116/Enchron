@@ -73,11 +73,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var currentSeconds = 0.0
     public var durationSeconds = 0.0
     public var nominalFrameRate = 0.0
-    /// Frames the encoder may hold before output order catches up. The renderer
-    /// lead can never sit below it without starving the decoder.
     public var videoReorderDepth = 0
-    /// Bytes one decoded pixel occupies on the output surface, which turns the
-    /// encoded dimensions into the decoded frame size the lead budget spends.
     public var decodedBytesPerPixel = 0.0
     public var enqueuedSampleCount = 0
     public var timelineConfiguredBeforeFirstEnqueue: Bool?
@@ -102,27 +98,17 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var destinationBufferHasMasteringDisplayMetadata = false
     public var destinationBufferHasContentLightLevelMetadata = false
     public var formatHasHvcC = false
-    /// Read from every video stream in the source, because Dolby Vision Profile 7
-    /// keeps its configuration record on the enhancement stream rather than on the
-    /// base layer that gets decoded. Zero means the source claims no Dolby Vision.
     public var dolbyVisionProfile = 0
     public var dolbyVisionCrossCompatibilityID = 0
-    /// A two-layer source delivers only its base layer, so this is what separates the
-    /// Dolby Vision a source claims from the picture the wearer receives.
     public var dolbyVisionHasEnhancementLayer = false
     public var formatHasDvcC = false
     public var formatHasDvvC = false
     public var formatHasAmbientViewingEnvironment = false
     public var rendererStatus = "unknown"
     public var rendererError = "none"
-    /// Whether the exact sample accepted by the video renderer still carries
-    /// both eye views. Nil means no renderer input has published this fact yet.
     public var rendererInputIsMultiview: Bool?
-    /// Audio can leave the active graph while video continues.
     public var audioRetired = false
     public var audioRetirementReason: String?
-    /// A video renderer failure is separate from its diagnostic error text so
-    /// product surfaces never need to interpret framework wording.
     public var rendererFailedToDecode = false
     public var rendererTotalFrameCount: Int?
     public var rendererDroppedFrameCount: Int?

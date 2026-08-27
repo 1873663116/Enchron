@@ -699,8 +699,6 @@ struct DemuxNetworkResilienceTests {
     )
 }
 
-/// A successful open proves only that FFmpeg read the container header. Drain every
-/// track to prove its default HTTP path also reaches the media end.
 @Test func httpPlaybackReadsTheWholeSourceWithoutStalling() throws {
     setFFmpegLogLevel(-8)
     let payload = try Data(contentsOf: tailMoovFixture)
@@ -736,8 +734,6 @@ struct DemuxNetworkResilienceTests {
         Comment(rawValue: reportedError(error))
     )
 
-    // A stalled read blocks inside FFmpeg's socket read, which cooperative
-    // cancellation cannot interrupt, so the read runs where it can be abandoned.
     let outcome = DrainOutcome()
     let finished = DispatchSemaphore(value: 0)
     DispatchQueue.global().async {
@@ -779,8 +775,6 @@ struct DemuxNetworkResilienceTests {
     }
 
     if finished.wait(timeout: .now() + 30) != .success {
-        // The readers are destroyed by this scope's defers, so the stalled thread has
-        // to leave them before it returns. Cancelling unblocks the in-flight read.
         PBFFmpegReaderCancel(videoReader)
         PBFFmpegAudioReaderCancel(audioReader)
         let drained = finished.wait(timeout: .now() + 30) == .success

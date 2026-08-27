@@ -4,8 +4,6 @@ public nonisolated enum PlaybackModel {}
 
 
 nonisolated extension PlaybackModel {
-    /// Describes the immutable presentation metadata discovered in the source.
-    /// User projection overrides deliberately remain a separate type.
     public enum SourceVideoContentKind: String, Sendable, Equatable, Codable {
         case rectilinear
         case spatialVideo
@@ -50,23 +48,9 @@ nonisolated extension PlaybackModel {
 
 
 nonisolated extension PlaybackModel {
-    /// The Dolby Vision a source claims, alongside the picture it actually produced.
-    ///
-    /// `HDRType` cannot carry this on its own. It names one dynamic range, and a
-    /// Profile 7 source has two answers at once: it is Dolby Vision, and what reaches
-    /// the wearer is its base layer. The profile is stored separately from the layers
-    /// because the layers are what decide the fallback, while the profile number is
-    /// only a name.
     public struct DolbyVision: Sendable, Equatable, Codable {
         public let profile: Int
-        /// The digit after the profile in a Dolby Vision name, which is the dynamic
-        /// range the base layer is also readable as. Profile 8 with a cross
-        /// compatibility of 4 is the HLG-compatible Profile 8.4, and the same profile
-        /// with 1 is the HDR10-compatible Profile 8.1. This is deliberately not the
-        /// level, which counts resolution and bitrate tiers and takes its own values.
         public let crossCompatibilityID: Int
-        /// The picture delivered in place of Dolby Vision, set only when the source
-        /// stores its picture across two layers and just the base layer arrives.
         public let fallbackTo: HDRType?
 
         public init(profile: Int, crossCompatibilityID: Int, fallbackTo: HDRType? = nil) {
@@ -75,17 +59,10 @@ nonisolated extension PlaybackModel {
             self.fallbackTo = fallbackTo
         }
 
-        /// A single-layer source with a compatible base layer can be presented
-        /// without its Dolby Vision configuration. A source whose base layer has
-        /// already been selected is already in its fallback presentation.
         public var offersUserSelectableFallback: Bool {
             crossCompatibilityID != 0 && fallbackTo == nil
         }
 
-        /// Reads the way the rest of the dynamic range labels do, so a title that fell
-        /// back sits in the same sentence as one that did not. A profile compatible
-        /// with nothing else is named without a second digit, so Profile 5 is written
-        /// the way its own specification writes it.
         public var label: String {
             var name = "Dolby Vision Profile \(profile)"
             if crossCompatibilityID > 0 {
@@ -293,9 +270,6 @@ nonisolated extension PlaybackModel {
 
         public let projectionType: ProjectionType
         public let stereoLayout: StereoLayout
-        /// The dynamic range of the picture that reaches the wearer. A Profile 7
-        /// source reports the base layer here and its Dolby Vision claim in
-        /// `dolbyVision`.
         public let hdrType: HDRType
         public let dolbyVision: DolbyVision?
         public let resolution: Resolution

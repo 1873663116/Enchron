@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import PlaybackCore
 
 public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
     case idle
@@ -43,6 +44,7 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var dolbyVisionFallbackIsAvailable: Bool { get }
     var dolbyVisionFallbackIsEnabled: Bool { get }
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation { get }
+    var mediaKind: PlaybackMediaKind { get }
     var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind { get }
     var sourceMediaFormatSummary: String { get }
     var effectiveContentIsPanoramic: Bool { get }

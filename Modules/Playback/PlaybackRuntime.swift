@@ -134,8 +134,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
     public var attachedRealityViewID: String? { attachment?.realityViewID }
-    /// The first RealityView presentation that received the active technical
-    /// playback instance. This resets whenever that instance is replaced.
     public private(set) var firstAttachedPresentationForActiveTechnicalSession:
         PlaybackPresentation?
     public private(set) var rendererConsumerPresentation: PlaybackPresentation?
@@ -236,9 +234,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard let dolbyVision = displayMediaProfile?.dolbyVision else { return false }
         return dolbyVision.offersUserSelectableFallback
     }
-    /// The projection description accepted by the current renderer input.
-    /// User overrides must prove this boundary before RealityKit mode changes
-    /// can be treated as adoption of the override.
     public var acceptedRendererProjectionKind: String? {
         session?.debugSnapshot().lastAcceptedRendererInput?
             .formatSignaling?.projectionKind.value
@@ -311,17 +306,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
     private var lastBoundVideoRendererEntityID: String?
     private var releasedRendererConsumer: ReleasedRendererConsumer?
-    /// Counts renderer replacements. It advances only where `renderer` itself
-    /// changes, never on a media-request generation bump, because a replacement
-    /// is prepared long before its renderer is installed and the consumer that
-    /// still holds the old renderer is legitimate for that whole window.
     private var rendererEpoch = 0
-    /// The renderer epoch the consumer record describes. The record names an
-    /// Entity that consumes one specific renderer, and the entity store mints a
-    /// new Entity whenever that renderer is replaced, so a record from an
-    /// earlier epoch names an Entity nothing can present again. Carrying the
-    /// epoch lets such a record be recognised as spent instead of outliving its
-    /// renderer and refusing every later claim.
     private var rendererConsumerEpoch: Int?
     private var technicalSessionReplacementIsInFlight = false
     private var preparedTechnicalSessionReplacement: PreparedTechnicalSessionReplacement?
@@ -371,11 +356,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let presentation: PlaybackPresentation
     }
 
-    /// Carries the serial handoff boundary after the source RealityView has
-    /// removed its VideoPlayerComponent. A cross-RealityView handoff must use
-    /// a new Entity because RealityKit does not reliably reactivate the same
-    /// Entity and renderer graph after it moves between Window and Immersive
-    /// roots. Transfers within one RealityView ownership class keep identity.
     private struct ReleasedRendererConsumer {
         let presentation: PlaybackPresentation
         let entityID: String
@@ -415,8 +395,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             self?.receive(diagnostics)
         }
         controller.onAcceptedVideoFormatRevisionChange = { [weak self] revision in
-            // Accepted input can publish newly observed source signaling, but
-            // never triggers renderer, component, or Entity replacement.
             guard let self,
                   effectiveVideoFormatRevision.map({ revision >= $0 }) ?? true else {
                 return
@@ -828,13 +806,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    /// Drops a consumer record left by an earlier media request. Ownership is
-    /// serialised between RealityViews that share one renderer; once the
-    /// renderer has been replaced there is nothing left to serialise, and the
-    /// Entity identity the record is keyed by can no longer be presented by
-    /// anyone. Without this the record refuses every claim on the new renderer
-    /// and the surface retries forever, because the only code that could clear
-    /// it is guarded by the identity the entity store has already replaced.
     private func discardRendererConsumerRecordFromASpentEpoch() {
         guard let rendererConsumerEpoch,
               rendererConsumerEpoch != rendererEpoch else { return }
@@ -855,8 +826,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         clearVideoComponentBindingObservation()
     }
 
-    /// Shortens an Entity identity for the ownership probe. Only the object
-    /// address distinguishes two `EnchronVideo#ObjectIdentifier(...)` values.
     static func probeEntity(_ entityID: String?) -> String {
         guard let entityID else { return "none" }
         return String(entityID.suffix(10))
@@ -1010,10 +979,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    /// Starts a playing replacement session while its target Entity is still
-    /// attaching. The presentation settlement gate supplies the displayed-
-    /// pixel proof, so this path must not require that proof before Play can
-    /// begin.
     public func beginPlaybackForPresentationSettlement(
         mediaSessionID: String
     ) async throws {
@@ -1240,8 +1205,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    /// Adds the already-owned sidecar sources to a prepared controller without
-    /// transferring their access leases away from the active logical session.
     private func prepareExternalSubtitleSources(
         _ sources: [ResolvedExternalSubtitleSource],
         on replacementController: PlaybackCoreController
@@ -1318,9 +1281,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 playbackFormatSwitchHandler?()
             }
         #endif
-        // The override becomes renderer input only when a fresh technical
-        // session is assembled. Mutating the live renderer would allow
-        // RealityKit to retain its previous projection classification.
         effectiveVideoFormatRevision = nil
     }
 
@@ -1354,10 +1314,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         technicalSessionReplacementIsInFlight = true
 
-        // A conversion that keeps the format needs only a renderer the target
-        // Entity has never bound, and the live session can hand one out. Opening
-        // the source again would repeat its track enumeration, its demuxer and,
-        // on a network source, every one of those as a fresh connection.
         if technicalSessionFormatReplacementIsPending == false, session != nil {
             presentationConversionReusesMediaSession = true
             technicalSessionReplacementStage = .installingRenderer
@@ -1726,8 +1682,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         mediaFormatIsKnown = true
     }
 
-    /// Source discovery records the file's facts without taking precedence
-    /// over a persisted user override supplied to this technical session.
     func publishEffectiveFormatAfterSourceDiscovery(
         _ initialFormat: MediaFormat?
     ) {
@@ -1905,15 +1859,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    /// Waits for RealityKit to adopt the replacement session instead of
-    /// converting device speed into a presentation failure. A presentation
-    /// transfer ends only when its requested surface settles, the media
-    /// pipeline reports a real failure, or the operation is cancelled.
-    /// A surface that has not settled within this window is not merely slow to
-    /// start; it is stuck. The caller holds a platform execution lease for the
-    /// whole wait, and an unbounded wait leaves that lease claimed forever, so
-    /// every later spatial request is refused until the app is relaunched.
-    /// High-resolution panoramic startup is the reason the bound is generous.
     public static let presentationSettlementDeadline = Duration.seconds(30)
 
     public func waitUntilPresentationSettled(
@@ -2030,10 +1975,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard let session else { return false }
         let snapshot = session.debugSnapshot()
         let record = PresentationStateRecord(
-            // Presentation observations describe the Entity owned by this
-            // technical playback instance. The logical media identity remains
-            // stable across handoff, but PlaybackCore must reject observations
-            // from a retired renderer graph.
             mediaSessionID: session.traceID,
             requestedMode: presentation.rawValue,
             phase: phase.rawValue,
@@ -2266,8 +2207,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         return true
     }
 
-    /// Releases Runtime's record of RealityKit's old VideoPlayerComponent
-    /// consumer before the presentation layer installs the replacement graph.
     private func releaseRendererConsumerForVideoComponentReplacement() {
         if let rendererConsumerEntityID {
             session?.recordRealityKitBinding(
@@ -2451,15 +2390,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    /// Every fact here is published by PlaybackCore. Reading the debug snapshot
-    /// instead would cost a struct copy and several timebase queries on a value
-    /// the playback deck recomputes on every redraw, and it would give two
-    /// sources for one fact that can disagree.
     static func capabilityFacts(from diagnostics: PlaybackDiagnostics) -> PlaybackCapabilityFacts {
         PlaybackCapabilityFacts(
             codecName: diagnostics.codecName,
-            // A title is only reported as flattened once a renderer input has said
-            // what it carried. Before that the answer is unknown, not "one view".
             sourceIsMultiview: diagnostics.isMVHEVC
                 && diagnostics.rendererInputIsMultiview != nil,
             deliveredIsMultiview: diagnostics.rendererInputIsMultiview == true,
@@ -2765,8 +2698,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             return prefetchedMetadata?.mediaProfile
         }
         let transfer = diagnostics.transferFunction.lowercased()
-        // The base layer's own signalling, which is the picture the wearer receives
-        // whenever the Dolby Vision is stored across two layers.
         let baseLayer: PlaybackModel.HDRType
         if transfer.contains("2084") || transfer.contains("pq") {
             baseLayer = .hdr10

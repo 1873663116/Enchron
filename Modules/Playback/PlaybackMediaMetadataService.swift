@@ -58,8 +58,6 @@ actor PlaybackMediaMetadataService {
         return metadata
     }
 
-    /// Returns the cached metadata for a given file identifier, or nil if not cached.
-    /// Used by the prefetch service to skip already-detected files.
     func cachedProfile(for fileIdentifier: PlaybackFileIdentifier) async -> PlaybackMediaMetadata? {
         await store.loadMetadata(for: fileIdentifier.rawValue)
     }

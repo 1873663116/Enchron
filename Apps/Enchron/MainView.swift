@@ -12,14 +12,6 @@ enum PlaybackSurfaceMountPolicy {
     }
 }
 
-/// While playback is hosted off-window the main glass stays empty only for
-/// the moments a scene operation is genuinely in flight. Once the immersive
-/// space is closed and no transition is active, a presented main window
-/// belongs to the wearer: the system can dismiss the space (crown press)
-/// while the app has no scene left alive, and the window the wearer then
-/// summons from the Home View must not be a blank pane. A pending platform
-/// effect is deliberately not consulted because the closed, transition-free
-/// main window must remain usable.
 enum BrowserWindowSurfacePolicy {
     static func showsBrowser(
         hasActivePlaybackRequest: Bool,
@@ -192,14 +184,10 @@ public struct MainView: View {
         return "地址：\(certificate.address)\n证书名：\(certificate.certificateName)\n指纹：\(certificate.sha256Fingerprint)\n有效期：\(validFrom) – \(validUntil)"
     }
 
-    /// Keep the controls ornament attached while this window hosts playback.
-    /// Detaching it for chrome visibility rebuilds the RealityKit viewport and
-    /// costs a black frame; browser content still carries no ornament geometry.
     private var hostsPlaybackOrnament: Bool {
         showsWindowPlayback && playbackSession.playbackPresentation.usesMainWindow
     }
 
-    /// Player Controls and top chrome only after presentable video is up.
     private var showsPlaybackChrome: Bool {
         let issueRequiresPlayerDeck = playbackRuntime.userVisibleIssue?
             .canPresent(at: .playerDeck) == true
@@ -214,11 +202,7 @@ public struct MainView: View {
                             && windowPlaybackIssue?.interruptsPlayback != true
                     )
             )
-        // #region agent log
-        // Publish gate inputs into the control-plane value so XCUI can prove
-        // whether chrome stayed hidden after a successful showControls toggle.
         _ = chrome
-        // #endregion
         return chrome
     }
 
@@ -385,8 +369,6 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
-        // Loads the Emby home page at launch rather than when its tab is first opened, so its
-        // artwork is already decoded and the page does not stall on the way in.
         .task {
             guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
             await embyHome.refresh()
@@ -511,9 +493,6 @@ public struct MainView: View {
     }
 
     private var windowPlaybackCanvas: some View {
-        // Keep the same RealityView mounted while loading. The system Window
-        // owns the outer glass; this layer adds only the product spinner until
-        // the surface reports presentable video (or a load failure).
         let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
             hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
             presentationState: playbackRuntime.presentationState,

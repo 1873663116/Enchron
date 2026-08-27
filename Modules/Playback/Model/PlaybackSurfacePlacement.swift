@@ -5,18 +5,8 @@ public enum WindowPlaybackSurfaceGeometry {
     nonisolated public static let defaultSurfaceSize =
         SIMD2<Float>(16.0 / 9.0, unitHeight)
     nonisolated public static let flatWindowDepth: CGFloat = 0
-    /// Projected Portal video needs spatial extent inside its Window scene.
-    /// The value is in SwiftUI scene units and matches Apple's immersive-media
-    /// PlayerWindow contract; a zero-depth host can leave the component loading.
     nonisolated public static let projectedPortalDepth: CGFloat = 1
     nonisolated public static let backgroundSortOrder: Int32 = 0
-    /// The window video mesh is coincident with the Window's SwiftUI plane and
-    /// carries `ModelSortGroup.planarUIInline`, which orders it by z rather
-    /// than by the view tree. Chrome drawn over the video therefore needs a
-    /// forward step, or the mesh wins the tie and the chrome never appears.
-    /// Apply this only to views whose layout bounds sit inside the window's
-    /// rounded corners; a full-window offset leaves the 2D clip and shows as
-    /// a sharp rectangle around the glass.
     nonisolated public static let coincidentChromeDepth: CGFloat = .ulpOfOne
 
     nonisolated public static func realityViewDepth(

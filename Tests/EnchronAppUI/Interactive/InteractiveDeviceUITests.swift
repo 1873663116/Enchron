@@ -2,8 +2,6 @@ import Foundation
 import XCTest
 
 nonisolated final class InteractiveDeviceUITests: XCTestCase {
-    // An abandoned resident session keeps testmanagerd staging evidence on the
-    // headset until the test returns, so idle sessions must end themselves.
     private static let maximumIdleInterval: TimeInterval = 30 * 60
 
     @MainActor
@@ -25,9 +23,6 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
-        // xcodebuild forwards TEST_RUNNER_ENCHRON_* into this process with the
-        // prefix stripped, which is the only way a caller can reach the app's
-        // environment through a resident runner it does not relaunch.
         for (name, value) in ProcessInfo.processInfo.environment
         where name.hasPrefix("ENCHRON_") {
             app.launchEnvironment[name] = value
@@ -156,8 +151,6 @@ private final class InteractiveDeviceUIChannel {
         case .snapshot:
             return (true, "Current UI state captured.")
         case .activate:
-            // Restores scene input ownership lost after an immersive-space
-            // dismissal without relaunching away the app's current state.
             app.activate()
             return (true, "Application activated.")
         case .tap:
@@ -170,8 +163,6 @@ private final class InteractiveDeviceUIChannel {
             element.tap()
             return (true, "Element tapped.")
         case .tapSequence:
-            // Auto-hiding chrome outlives one controller round-trip but not
-            // four, so menu sequences must land inside a single command.
             guard let identifiers = command.identifiers,
                   identifiers.isEmpty == false else {
                 return (false, "tapSequence requires identifiers.")
@@ -238,10 +229,6 @@ private final class InteractiveDeviceUIChannel {
         case .swipeUp, .swipeDown, .swipeLeft, .swipeRight:
             let surface: XCUIElement
             if command.identifier == nil {
-                // The Application element belongs to no single visionOS Scene,
-                // so synthesizing against it fails Scene lookup and the failure
-                // ends this long-lived test method, tearing the app down. Fail
-                // the command instead of taking the session with it.
                 return (
                     false,
                     "A swipe requires --identifier or --label:"
@@ -318,11 +305,6 @@ private final class InteractiveDeviceUIChannel {
         return element.exists ? element : nil
     }
 
-    /// SwiftUI drops `.accessibilityIdentifier` from a `TextField` inside an
-    /// `.alert`, while keeping it on the buttons of that same alert. The field
-    /// then has no handle but its placeholder, so typing falls back to the
-    /// label predicate every other verb already accepts and finally to the
-    /// placeholder, rather than leaving the operation undrivable.
     private func textInputElement(
         for command: InteractiveDeviceUICommand
     ) -> XCUIElement? {
@@ -350,9 +332,6 @@ private final class InteractiveDeviceUIChannel {
         return nil
     }
 
-    /// `XCUIScreen.main` answers with a 1x1 image on this visionOS build, which reads
-    /// as a black frame rather than a capture failure. The application element still
-    /// captures, so a degenerate screen image falls back to it.
     private func capturedScreenPNG() -> Data {
         let screen = XCUIScreen.main.screenshot()
         if screen.image.size.width > 1, screen.image.size.height > 1 {

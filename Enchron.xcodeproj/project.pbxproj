@@ -12,7 +12,6 @@
 		A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
 		B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
-		C3D4A1012F90000100DA0D16 /* Apps/DesignPreview/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C3D4A1002F90000100DA0D16 /* Apps/DesignPreview/Assets.xcassets */; };
 		D00000300000000000D0A1A1 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = D00000200000000000D0A1A1 /* MediaSource */; };
 		D00000310000000000D0A1A1 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = D00000210000000000D0A1A1 /* Emby */; };
 		D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D00000220000000000D0A1A1 /* MediaLibrary */; };
@@ -24,12 +23,7 @@
 		E10000062FA1000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* PlaybackFeature */; };
 		E10000072FA1000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E10000042FA1000100E1C001 /* PlaybackPresentation */; };
 		E10000132FA1000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
-		E10000152FA1000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000122FA1000100E1C001 /* DesignSystem */; };
 		E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
-		E20000062FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000032FA2000100E1C001 /* MediaLibrary */; };
-		E21000032FA2000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E21000012FA2000100E1C001 /* PlaybackFeature */; };
-		E21000042FA2000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E21000022FA2000100E1C001 /* PlaybackPresentation */; };
-		E22000022FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000012FA4000100E1C001 /* Emby */; };
 		E22000032FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
 /* End PBXBuildFile section */
 
@@ -82,41 +76,14 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		C3A35AB32F85429300DA0D16 /* DesignPreview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DesignPreview.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9802F5726B30064596E /* Enchron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchron.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
-		C3D4A1002F90000100DA0D16 /* Apps/DesignPreview/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Apps/DesignPreview/Assets.xcassets; sourceTree = "<group>"; };
 		D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronDomainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C3A35AC72F85434200DA0D16 /* Exceptions for "Modules" folder in "DesignPreview" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				MediaLibrary/Views/LibraryListComponents.swift,
-				MediaLibrary/Views/LibraryNavigationComponents.swift,
-				MediaLibrary/Views/LibraryToolbarComponents.swift,
-				MediaLibrary/Views/LibraryViewControls.swift,
-				MediaLibrary/Views/SourceSidebar.swift,
-			);
-			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
-		};
-		C3A35ACF2F85C29900DA0D16 /* Exceptions for "Apps/DesignPreview" folder in "DesignPreview" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				ComponentLibrary.swift,
-				ComponentPreviews.swift,
-				Components/EmptyPanelWindowContent.swift,
-				ContentView.swift,
-				DesignPreviewApp.swift,
-				EmbyPosterComponentsPreview.swift,
-				TokenPreviews.swift,
-				WindowPlaybackPreview.swift,
-			);
-			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
-		};
 		E10000162FA1000100E1C001 /* Exceptions for "Modules" folder in "Enchron" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -124,11 +91,8 @@
 				"DesignSystem/View+Platform.swift",
 				"DesignSystem/View+PressFeedback.swift",
 				"MediaLibrary/Storage/CredentialStoring+ConnectionInfo.swift",
-				DesignSystem/Components/AnimatedDirectionalIconButton.swift,
-				DesignSystem/Components/AppearanceModeButton.swift,
 				DesignSystem/Components/AsyncArtworkImage.swift,
 				DesignSystem/Components/ButtonIcon.swift,
-				DesignSystem/Components/CollapsibleBlock.swift,
 				DesignSystem/Components/GridCard.swift,
 				DesignSystem/Components/InputComponents.swift,
 				DesignSystem/Components/MenuSelectionRow.swift,
@@ -137,6 +101,7 @@
 				DesignSystem/Components/SidebarToggleButton.swift,
 				DesignSystem/DebugMenuSelection.swift,
 				DesignSystem/DesignTokens.swift,
+				Emby/CollapsibleBlock.swift,
 				Emby/EmbyClient.swift,
 				Emby/EmbyClientProtocol.swift,
 				Emby/EmbyItemPresentation.swift,
@@ -223,9 +188,13 @@
 				Playback/Session/PlaybackSessionModel.swift,
 				Playback/Session/SurfaceInputProbes.swift,
 				Playback/Storage/ScreenPositionStore.swift,
+				Playback/Views/AnimatedDirectionalIconButton.swift,
+				Playback/Views/AppearanceModeButton.swift,
 				Playback/Views/AudioSpectrumSurface.swift,
+				Playback/Views/DetentedRangeSlider.swift,
 				Playback/Views/DragRotationModifier.swift,
 				Playback/Views/EnvironmentComponents.swift,
+				Playback/Views/PlaybackEdgeEmphasis.swift,
 				Playback/Views/PlaybackFormatters.swift,
 				Playback/Views/PlaybackPanel.swift,
 				Playback/Views/PlaybackRealityPresenter.swift,
@@ -246,17 +215,8 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E10000162FA1000100E1C001 /* Exceptions for "Modules" folder in "Enchron" target */,
-				C3A35AC72F85434200DA0D16 /* Exceptions for "Modules" folder in "DesignPreview" target */,
 			);
 			path = Modules;
-			sourceTree = "<group>";
-		};
-		C3A35AA12F85415E00DA0D16 /* Apps/DesignPreview */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				C3A35ACF2F85C29900DA0D16 /* Exceptions for "Apps/DesignPreview" folder in "DesignPreview" target */,
-			);
-			path = Apps/DesignPreview;
 			sourceTree = "<group>";
 		};
 		C3B0F9822F5726B30064596E /* Apps/Enchron */ = {
@@ -317,18 +277,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		C3A35AB02F85429300DA0D16 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E10000152FA1000100E1C001 /* DesignSystem in Frameworks */,
-				E22000022FA4000100E1C001 /* Emby in Frameworks */,
-				E20000062FA2000100E1C001 /* MediaLibrary in Frameworks */,
-				E21000032FA2000100E1C001 /* PlaybackFeature in Frameworks */,
-				E21000042FA2000100E1C001 /* PlaybackPresentation in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C3B0F97D2F5726B30064596E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -377,21 +325,12 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		C38F115C2FC16A0700843A5C /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				C3D4A1002F90000100DA0D16 /* Apps/DesignPreview/Assets.xcassets */,
-			);
-			name = "Recovered References";
-			sourceTree = "<group>";
-		};
 		C3B0F9772F5726B30064596E = {
 			isa = PBXGroup;
 			children = (
 				C3B0F9822F5726B30064596E /* Apps/Enchron */,
 				A70000010000000000ABCDEF /* Modules */,
 				C3B0F9832F5726B30064596E /* Packages */,
-				C3A35AA12F85415E00DA0D16 /* Apps/DesignPreview */,
 				F1A0000C00000000DEADBEEF /* Tests/EnchronApp */,
 				E2E0000C00000000DEADBEEF /* Tests/EnchronAppUI */,
 				D00000100000000000D0A1A1 /* Tests/MediaLibraryPackageTests */,
@@ -403,7 +342,6 @@
 				D00000170000000000D0A1A1 /* Tests/MediaSourceTests */,
 				D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */,
 				C3B0F9812F5726B30064596E /* Products */,
-				C38F115C2FC16A0700843A5C /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -414,7 +352,6 @@
 				F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */,
 				E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */,
 				D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */,
-				C3A35AB32F85429300DA0D16 /* DesignPreview.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -430,30 +367,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		C3A35AB22F85429300DA0D16 /* DesignPreview */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = C3A35ABF2F85429300DA0D16 /* Build configuration list for PBXNativeTarget "DesignPreview" */;
-			buildPhases = (
-				E30000012FA3000100E1C001 /* Design Source Architecture */,
-				C3A35AAF2F85429300DA0D16 /* Sources */,
-				C3A35AB02F85429300DA0D16 /* Frameworks */,
-				C3A35AB12F85429300DA0D16 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = DesignPreview;
-			packageProductDependencies = (
-				E10000122FA1000100E1C001 /* DesignSystem */,
-				E22000012FA4000100E1C001 /* Emby */,
-				E20000032FA2000100E1C001 /* MediaLibrary */,
-				E21000012FA2000100E1C001 /* Playback */,
-			);
-			productName = DesignPreview;
-			productReference = C3A35AB32F85429300DA0D16 /* DesignPreview.app */;
-			productType = "com.apple.product-type.application";
-		};
 		C3B0F97F2F5726B30064596E /* Enchron */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3B0F9992F5726B40064596E /* Build configuration list for PBXNativeTarget "Enchron" */;
@@ -578,9 +491,6 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
-					C3A35AB22F85429300DA0D16 = {
-						CreatedOnToolsVersion = 26.2;
-					};
 					C3B0F97F2F5726B30064596E = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -621,21 +531,12 @@
 				C3B0F97F2F5726B30064596E /* Enchron */,
 				F1A0000100000000DEADBEEF /* EnchronAppTests */,
 				E2E0000100000000DEADBEEF /* EnchronAppUITests */,
-				C3A35AB22F85429300DA0D16 /* DesignPreview */,
 				D00000010000000000D0A1A1 /* EnchronDomainTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C3A35AB12F85429300DA0D16 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				C3D4A1012F90000100DA0D16 /* Apps/DesignPreview/Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C3B0F97E2F5726B30064596E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -691,43 +592,6 @@
 			shellPath = /bin/sh;
 			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
 		};
-		E30000012FA3000100E1C001 /* Design Source Architecture */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
-			);
-			inputPaths = (
-				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
-				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
-				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
-				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
-				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
-				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
-				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
-				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
-				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
-				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
-				"$(SRCROOT)/Apps/DesignPreview/EmbyPosterComponentsPreview.swift",
-				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
-				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
-				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
-				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
-				"$(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift",
-				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
-			);
-			name = "Design Source Architecture";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
-		};
 		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -742,19 +606,11 @@
 				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
 				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
 				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
-				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
-				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
-				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
-				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
-				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
-				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
-				"$(SRCROOT)/Apps/DesignPreview/EmbyPosterComponentsPreview.swift",
-				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
-				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
+				"$(SRCROOT)/Scripts/rules/verify_format_description_ownership.py",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
 				"$(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift",
-				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
+				"$(SRCROOT)/Scripts/rules/verify_design_source_architecture.py",
 			);
 			name = "Design Source Architecture";
 			outputFileListPaths = (
@@ -763,18 +619,11 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "python3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		C3A35AAF2F85429300DA0D16 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C3B0F97C2F5726B30064596E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -824,65 +673,6 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		C3A35AC02F85429300DA0D16 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = JFLYK8F636;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Apps/DesignPreview/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer.DesignPreview;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "xros xrsimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 7;
-			};
-			name = Debug;
-		};
-		C3A35AC12F85429300DA0D16 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = JFLYK8F636;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Apps/DesignPreview/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer.DesignPreview;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "xros xrsimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 7;
-			};
-			name = Release;
-		};
 		C3B0F99A2F5726B40064596E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1203,15 +993,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		C3A35ABF2F85429300DA0D16 /* Build configuration list for PBXNativeTarget "DesignPreview" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				C3A35AC02F85429300DA0D16 /* Debug */,
-				C3A35AC12F85429300DA0D16 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		C3B0F97B2F5726B30064596E /* Build configuration list for PBXProject "Enchron" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1359,30 +1140,10 @@
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = DesignSystem;
 		};
-		E10000122FA1000100E1C001 /* DesignSystem */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = DesignSystem;
-		};
 		E20000012FA2000100E1C001 /* MediaLibrary */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = MediaLibrary;
-		};
-		E20000032FA2000100E1C001 /* MediaLibrary */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = MediaLibrary;
-		};
-		E21000012FA2000100E1C001 /* Playback */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = Playback;
-		};
-		E22000012FA4000100E1C001 /* Emby */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = Emby;
 		};
 		E22000042FA4000100E1C001 /* Emby */ = {
 			isa = XCSwiftPackageProductDependency;

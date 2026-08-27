@@ -1,5 +1,4 @@
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -15,7 +14,6 @@ class DesignSourceArchitectureTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
-        (self.root / "Apps/DesignPreview").mkdir(parents=True)
         (self.root / "Apps/Enchron").mkdir(parents=True)
         (self.root / "Modules/DesignSystem").mkdir(parents=True)
         (self.root / "Config").mkdir()
@@ -36,7 +34,7 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(contents, encoding="utf-8")
 
-    def invoke(self, *arguments, expected_code=0, environment=None):
+    def invoke(self, *arguments, expected_code=0):
         result = subprocess.run(
             [
                 sys.executable,
@@ -49,24 +47,16 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             ],
             text=True,
             capture_output=True,
-            env=environment,
         )
         self.assertEqual(result.returncode, expected_code, result.stderr or result.stdout)
         return result
 
-    def xcode_environment(self, *relative_inputs):
-        environment = os.environ.copy()
-        environment["SCRIPT_INPUT_FILE_COUNT"] = str(len(relative_inputs))
-        for index, relative_path in enumerate(relative_inputs):
-            environment[f"SCRIPT_INPUT_FILE_{index}"] = str(self.root / relative_path)
-        return environment
-
     def test_production_component_composition_passes(self):
         self.write(
-            "Apps/DesignPreview/CardPreview.swift",
+            "Apps/Enchron/CardScreen.swift",
             "import DesignSystem\n"
             "import SwiftUI\n"
-            "struct CardPreview: View {\n"
+            "struct CardScreen: View {\n"
             "    var body: some View { ProductionCard.sample() }\n"
             "}\n",
         )
@@ -226,23 +216,7 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             "    }\n"
             "}\n",
         )
-        self.write(
-            "Apps/DesignPreview/CardPreview.swift",
-            "import DesignSystem\n"
-            "import SwiftUI\n"
-            "struct CardPreview: View {\n"
-            "    var body: some View { ProductionCard.sample() }\n"
-            "}\n",
-        )
-        result = self.invoke(
-            "--xcode-inputs",
-            expected_code=1,
-            environment=self.xcode_environment(
-                "Apps/DesignPreview/CardPreview.swift",
-                "Config/baseline.json",
-                "Modules/DesignSystem/DesignTokens.swift",
-            ),
-        )
+        result = self.invoke("--xcode-inputs", expected_code=1)
         self.assertIn("[production-parallel-glass-component]", result.stderr)
 
     def test_xcode_mode_also_checks_production_visual_literals(self):
@@ -256,50 +230,8 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             "    }\n"
             "}\n",
         )
-        self.write(
-            "Apps/DesignPreview/CardPreview.swift",
-            "import DesignSystem\n"
-            "import SwiftUI\n"
-            "struct CardPreview: View {\n"
-            "    var body: some View { ProductionCard.sample() }\n"
-            "}\n",
-        )
-        result = self.invoke(
-            "--xcode-inputs",
-            expected_code=1,
-            environment=self.xcode_environment(
-                "Apps/DesignPreview/CardPreview.swift",
-                "Config/baseline.json",
-                "Modules/DesignSystem/DesignTokens.swift",
-            ),
-        )
+        result = self.invoke("--xcode-inputs", expected_code=1)
         self.assertIn("[production-hardcoded-visual]", result.stderr)
-
-    def test_parallel_style_raw_control_and_literal_report_file_and_line(self):
-        self.write(
-            "Apps/DesignPreview/CardPreview.swift",
-            "import DesignSystem\n"
-            "import SwiftUI\n"
-            "private struct LocalStyle: ButtonStyle {\n"
-            "    func makeBody(configuration: Configuration) -> some View {\n"
-            "        Button(\"Parallel\") {}\n"
-            "            .frame(width: 44)\n"
-            "    }\n"
-            "}\n",
-        )
-        result = self.invoke(expected_code=1)
-        self.assertIn(
-            "Apps/DesignPreview/CardPreview.swift:3: error: [preview-parallel-style]",
-            result.stderr,
-        )
-        self.assertIn(
-            "Apps/DesignPreview/CardPreview.swift:5: error: [preview-raw-control]",
-            result.stderr,
-        )
-        self.assertIn(
-            "Apps/DesignPreview/CardPreview.swift:6: error: [preview-hardcoded-visual]",
-            result.stderr,
-        )
 
     def test_design_tokens_cannot_define_view_structure(self):
         self.write(
@@ -321,17 +253,14 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             result.stderr,
         )
 
-    def test_multiline_control_and_visual_literal_cannot_bypass_the_check(self):
+    def test_multiline_visual_literal_cannot_bypass_the_check(self):
         self.write(
-            "Apps/DesignPreview/CardPreview.swift",
+            "Apps/Enchron/CardScreen.swift",
             "import DesignSystem\n"
             "import SwiftUI\n"
-            "struct CardPreview: View {\n"
+            "struct CardScreen: View {\n"
             "    var body: some View {\n"
-            "        Button\n"
-            "        {\n"
-            "        }\n"
-            "        label: { Text(\"Parallel\") }\n"
+            "        Text(\"Card\")\n"
             "        .frame(\n"
             "            width: 44\n"
             "        )\n"
@@ -340,113 +269,73 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         )
         result = self.invoke(expected_code=1)
         self.assertIn(
-            "Apps/DesignPreview/CardPreview.swift:5: error: [preview-raw-control]",
-            result.stderr,
-        )
-        self.assertIn(
-            "Apps/DesignPreview/CardPreview.swift:9: error: [preview-hardcoded-visual]",
+            "Apps/Enchron/CardScreen.swift:6: error: [production-hardcoded-visual]",
             result.stderr,
         )
 
-    def test_xcode_mode_rejects_a_design_preview_directory_input(self):
-        result = self.invoke(
-            "--xcode-inputs",
-            expected_code=1,
-            environment=self.xcode_environment(
-                "Apps/DesignPreview",
-                "Config/baseline.json",
-                "Modules/DesignSystem/DesignTokens.swift",
-            ),
-        )
-        self.assertIn("[xcode-input-scope]", result.stderr)
-        self.assertIn("must name Swift files", result.stderr)
-
-    def test_xcode_mode_reads_declared_swift_files_without_entering_assets(self):
+    def test_xcode_mode_passes_on_a_clean_production_tree(self):
         self.write(
-            "Apps/DesignPreview/CardPreview.swift",
+            "Apps/Enchron/CardScreen.swift",
             "import DesignSystem\n"
             "import SwiftUI\n"
-            "struct CardPreview: View {\n"
+            "struct CardScreen: View {\n"
             "    var body: some View { ProductionCard.sample() }\n"
             "}\n",
         )
-        self.write("Apps/DesignPreview/Assets.xcassets/Contents.json", "{}\n")
-        environment = self.xcode_environment(
-            "Apps/DesignPreview/CardPreview.swift",
-            "Config/baseline.json",
-            "Modules/DesignSystem/DesignTokens.swift",
-        )
-        result = self.invoke("--xcode-inputs", environment=environment)
+        result = self.invoke("--xcode-inputs")
         self.assertIn("Design source architecture passed", result.stdout)
 
-    def test_xcode_mode_still_blocks_a_declared_source_violation(self):
-        self.write(
-            "Apps/DesignPreview/CardPreview.swift",
-            "import DesignSystem\n"
-            "import SwiftUI\n"
-            "struct CardPreview: View {\n"
-            "    var body: some View { Button(\"Parallel\") {} }\n"
-            "}\n",
-        )
-        environment = self.xcode_environment(
-            "Apps/DesignPreview/CardPreview.swift",
-            "Config/baseline.json",
-            "Modules/DesignSystem/DesignTokens.swift",
-        )
-        result = self.invoke(
-            "--xcode-inputs",
-            expected_code=1,
-            environment=environment,
-        )
-        self.assertIn("[preview-raw-control]", result.stderr)
-
-    def test_repository_mode_rejects_a_build_phase_source_list_drift(self):
-        self.write(
-            "Apps/DesignPreview/CardPreview.swift",
-            "import DesignSystem\n"
-            "import SwiftUI\n"
-            "struct CardPreview: View {\n"
-            "    var body: some View { ProductionCard.sample() }\n"
-            "}\n",
-        )
-        phase = (
-            "E30000012FA3000100E1C001 /* Design Source Architecture */ = {\n"
-            "    inputPaths = (\n"
-            '        "$(SRCROOT)/Apps/DesignPreview/OldPreview.swift",\n'
-            "    );\n"
-            '    shellScript = "python3 checker.py --xcode-inputs";\n'
-            "};\n"
-        )
+    def test_repository_mode_requires_a_design_source_architecture_phase(self):
         self.write(
             "Enchron.xcodeproj/project.pbxproj",
-            phase + phase.replace("001 /*", "002 /*") + phase.replace("001 /*", "003 /*"),
+            "// !$*UTF8*$!\n{\n}\n",
         )
         result = self.invoke(expected_code=1)
         self.assertIn("[xcode-build-inputs]", result.stderr)
-        self.assertIn("CardPreview.swift", result.stderr)
+        self.assertIn(
+            "the Enchron target must run one Design Source Architecture build phase",
+            result.stderr,
+        )
+
+    def test_repository_mode_rejects_a_phase_that_skips_the_sandbox_contract(self):
+        self.write(
+            "Enchron.xcodeproj/project.pbxproj",
+            "E30000012FA3000100E1C001 /* Design Source Architecture */ = {\n"
+            "    inputPaths = (\n"
+            "    );\n"
+            '    shellScript = "python3 checker.py";\n'
+            "};\n",
+        )
+        result = self.invoke(expected_code=1)
+        self.assertIn("[xcode-build-inputs]", result.stderr)
+        self.assertIn("shell script does not use --xcode-inputs", result.stderr)
+        self.assertIn("missing production input list", result.stderr)
 
     def test_exact_baseline_allows_history_but_rejects_an_added_occurrence(self):
         self.write(
-            "Apps/DesignPreview/CardPreview.swift",
-            "import DesignSystem\n"
+            "Apps/Enchron/CardScreen.swift",
             "import SwiftUI\n"
-            "struct CardPreview: View {\n"
-            "    var body: some View { Button(\"Legacy\") {} }\n"
+            "struct CardScreen: View {\n"
+            "    var body: some View {\n"
+            "        Text(\"Card\")\n"
+            "            .padding(.horizontal, 17)\n"
+            "    }\n"
             "}\n",
         )
         self.invoke("--write-baseline")
         self.invoke()
 
-        path = self.root / "Apps/DesignPreview/CardPreview.swift"
+        path = self.root / "Apps/Enchron/CardScreen.swift"
         path.write_text(
             path.read_text(encoding="utf-8").replace(
-                "Button(\"Legacy\") {}",
-                "VStack { Button(\"Legacy\") {}; Button(\"Legacy\") {} }",
+                "            .padding(.horizontal, 17)\n",
+                "            .padding(.horizontal, 17)\n"
+                "            .padding(.horizontal, 17)\n",
             ),
             encoding="utf-8",
         )
         result = self.invoke(expected_code=1)
-        self.assertIn("[preview-raw-control]", result.stderr)
+        self.assertIn("[production-hardcoded-visual]", result.stderr)
 
     def test_baseline_signature_survives_unrelated_line_movement(self):
         self.write(
@@ -478,9 +367,9 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             "version": 1,
             "allowances": [
                 {
-                    "rule": "preview-raw-control",
-                    "path": "Apps/DesignPreview/RemovedPreview.swift",
-                    "signature": 'Button("Old") {}',
+                    "rule": "production-hardcoded-visual",
+                    "path": "Apps/Enchron/RemovedScreen.swift",
+                    "signature": ".padding(.horizontal, 17)",
                     "count": 1,
                 }
             ],

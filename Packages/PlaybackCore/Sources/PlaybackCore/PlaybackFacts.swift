@@ -36,7 +36,6 @@ public enum FactAvailability: String, Codable, Sendable {
     case notAvailable
 }
 
-/// Names the reasons an observed fact has no value; known facts use init(known:) instead.
 public enum FactUnavailability: String, Codable, Sendable {
     case none
     case unknown
@@ -72,7 +71,6 @@ public enum RendererInputKind: String, Codable, Sendable {
     case pixelBuffer
 }
 
-/// Records a string fact as either one known value or one explicit unavailability reason.
 public struct ObservedStringFact: Codable, Equatable, Sendable {
     private enum Storage: Equatable, Sendable {
         case known(String)
@@ -81,7 +79,6 @@ public struct ObservedStringFact: Codable, Equatable, Sendable {
 
     private let storage: Storage
 
-    /// Reports whether a string fact is known without allowing availability and value to diverge.
     public var availability: FactAvailability {
         switch storage {
         case .known: .known
@@ -89,18 +86,15 @@ public struct ObservedStringFact: Codable, Equatable, Sendable {
         }
     }
 
-    /// Returns the observed string only when availability is known.
     public var value: String? {
         guard case .known(let value) = storage else { return nil }
         return value
     }
 
-    /// Creates an observed string whose value is known.
     public init(known value: String) {
         storage = .known(value)
     }
 
-    /// Creates an unavailable observed string fact.
     public init(_ unavailability: FactUnavailability) {
         storage = .unavailable(unavailability)
     }
@@ -137,7 +131,6 @@ public struct ObservedStringFact: Codable, Equatable, Sendable {
     }
 }
 
-/// Records a Boolean fact as either one known value or one explicit unavailability reason.
 public struct ObservedBooleanFact: Codable, Equatable, Sendable {
     private enum Storage: Equatable, Sendable {
         case known(Bool)
@@ -146,7 +139,6 @@ public struct ObservedBooleanFact: Codable, Equatable, Sendable {
 
     private let storage: Storage
 
-    /// Reports whether a Boolean fact is known without allowing availability and value to diverge.
     public var availability: FactAvailability {
         switch storage {
         case .known: .known
@@ -154,18 +146,15 @@ public struct ObservedBooleanFact: Codable, Equatable, Sendable {
         }
     }
 
-    /// Returns the observed Boolean only when availability is known.
     public var value: Bool? {
         guard case .known(let value) = storage else { return nil }
         return value
     }
 
-    /// Creates an observed Boolean whose value is known.
     public init(known value: Bool) {
         storage = .known(value)
     }
 
-    /// Creates an unavailable observed Boolean fact.
     public init(_ unavailability: FactUnavailability) {
         storage = .unavailable(unavailability)
     }

@@ -75,7 +75,6 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
     case videoRendererWarning = "videoRenderer.warning"
     case audioRendererWarning = "audioRenderer.warning"
 
-    /// Resolves an operation kind to one complete, searchable started-event name.
     static func operationStarted(_ kind: PlaybackOperationKind) -> Self {
         switch kind {
         case .open: .operationOpenStarted
@@ -90,7 +89,6 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         }
     }
 
-    /// Resolves an operation kind and terminal state to one complete event name.
     static func operationFinished(
         _ kind: PlaybackOperationKind,
         as state: PlaybackOperationState
@@ -131,7 +129,6 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         }
     }
 
-    /// Resolves a rejected control to one complete, searchable event name.
     static func controlRejected(_ kind: PlaybackOperationKind) -> Self {
         switch kind {
         case .open: .controlOpenRejected
@@ -146,7 +143,6 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         }
     }
 
-    /// Resolves provider control events without constructing their names dynamically.
     static func providerControl(_ kind: MediaEventKind) -> Self {
         switch kind {
         case .formatChanged: .providerFormatChanged
@@ -158,7 +154,6 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         }
     }
 
-    /// Resolves renderer failures and warnings without constructing their names dynamically.
     static func renderer(
         _ kind: RendererFailureKind,
         warning: Bool
@@ -237,8 +232,6 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
     public var rendererError: String?
     public var inputModel: String?
     public var displayedPixelBuffer: Bool
-    /// Counts distinct displayed pixel-buffer identities for this renderer graph.
-    /// It is intentionally separate from accepted input and timeline progression.
     public var displayedFrameObservationCount: UInt64?
     public var flushCount: UInt64
 

@@ -67,7 +67,6 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
         ])
     }
 
-    /// Emby 4.9.5 PlaybackInfo exposes source size but no media-source ETag, so the item's ETag and source size form the strongest available content signal.
     public static func emby(itemEntityTag: String, sizeInBytes: Int64) -> Self {
         make(components: ["emby", itemEntityTag, String(sizeInBytes)])
     }

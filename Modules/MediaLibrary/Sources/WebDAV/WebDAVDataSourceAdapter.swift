@@ -31,7 +31,6 @@ public nonisolated enum WebDAVError: LocalizedError, Sendable {
 }
 
 nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
-    /// Stable DataSource ID for folder identity pass-through.
     public var ownerDataSourceID: UUID = UUID()
     private var baseURL: URL?
     private var authHeader: String?
@@ -312,7 +311,6 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             return "Basic \(token)"
         }
 
-        // Fallback: use username from ConnectionInfo without password (anonymous)
         guard let username = info.username, !username.isEmpty else {
             return nil
         }

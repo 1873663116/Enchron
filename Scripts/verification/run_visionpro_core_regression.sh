@@ -68,7 +68,7 @@ if [[ -z "$media_card_ids" || "$media_card_ids" != *,* ]]; then
     exit 64
 fi
 
-python3 "$repository_root/Scripts/verification/verify_visionpro_core_regression_plan.py"
+python3 "$repository_root/Scripts/rules/verify_visionpro_core_regression_plan.py"
 
 device_lock_status() {
     local lock_state_file

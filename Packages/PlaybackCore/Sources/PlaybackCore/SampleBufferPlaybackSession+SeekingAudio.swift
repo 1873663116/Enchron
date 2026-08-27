@@ -31,9 +31,6 @@ extension SampleBufferPlaybackSession {
         )
 
         let teardownStarted = ContinuousClock.now
-        // Teardown is only the first half of a seek. The rest is reopening the
-        // demuxer at the target and decoding forward to it, and until this was
-        // split out nothing said which half a seek actually spends its time in.
         var videoProviderReopened: ContinuousClock.Instant?
         let framesInFlightAtTeardown = videoFramesInFlightLock.withLock {
             videoFramesInFlight.count(timelineSeconds: timelineClockReading().mediaTime.seconds)
@@ -281,12 +278,6 @@ extension SampleBufferPlaybackSession {
                     )
                     completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
                     finishActiveOperation(.completed)
-                    // A seek that resolves to paused leaves the timeline stopped
-                    // on the target, so delivery never reaches a rate activation
-                    // and nothing else reports the settled state. Publishing it
-                    // here is what tells the product it is now paused; otherwise
-                    // the pre-seek lifecycle stands and the transport button
-                    // keeps offering the action that already happened.
                     if preservedRate == 0 {
                         publishTargetTimelineState(
                             at: CMTime(seconds: target, preferredTimescale: 60_000)

@@ -6,11 +6,7 @@ public struct WindowPlaybackLayout: Equatable {
     public static let fallbackAspectRatio: CGFloat = 16.0 / 9.0
     public static let fallback = WindowPlaybackLayout(aspectRatio: fallbackAspectRatio)
 
-    /// The control bar hangs below the window at a fixed 728pt, so a narrower
-    /// window would wear a bar wider than itself.
     static let minimumWidth: CGFloat = 750
-    /// One ceiling for both axes, so a very tall video and a very flat one are
-    /// bounded by the same number.
     static let maximumExtent: CGFloat = 1_808
 
     private static let minimumArea: CGFloat = 912 * 513
@@ -69,13 +65,6 @@ public struct WindowPlaybackLayout: Equatable {
             && size.height <= maximumSize.height + tolerance
     }
 
-    /// Each tier is a target area, not a bounding box. A box carries a shape of
-    /// its own and starves whatever does not share it, which is how a
-    /// side-by-side override on a mono source used to ask for a window
-    /// thousands of points tall. Height is always taken from the width and the
-    /// video's own ratio, and both clamps scale the whole rectangle, so the
-    /// window can never disagree with the picture and earn a band of empty
-    /// glass.
     private func size(area: CGFloat) -> CGSize {
         let width = (area * aspectRatio).squareRoot().rounded()
         return withinCeiling(atLeastMinimumWidth(sizeFrom(width: width)))
@@ -97,8 +86,6 @@ public struct WindowPlaybackLayout: Equatable {
     }
 }
 
-/// The window range the browser asks for. It has no video to match, so its
-/// shape is fixed at 16:9 and owes nothing to playback's.
 public enum BrowserWindowLayout {
     static let minimumSize = CGSize(width: 1_088, height: 612)
     public static let defaultSize = CGSize(width: 1_536, height: 864)
@@ -106,9 +93,6 @@ public enum BrowserWindowLayout {
 }
 
 extension View {
-    /// Every surface that can own the window states its own range. None of them restores a system
-    /// default on the way out, so the order in which one surface disappears and the next appears
-    /// cannot leave the window unconstrained.
     public func browserWindowGeometry() -> some View {
         background {
             WindowPlaybackSceneReader { windowScene in
@@ -125,8 +109,6 @@ extension View {
     }
 }
 
-/// Every playback presentation, Portal included, locks the window to the
-/// video's aspect tiers. Portal owns no sizing rule of its own.
 public enum WindowPlaybackGeometryPolicy: Equatable {
     case aspectLocked(WindowPlaybackLayout)
     case audioOnly
@@ -241,10 +223,6 @@ struct WindowPlaybackSpatialActions<
     }
 }
 
-/// The production composition for playback inside a system-owned window.
-///
-/// The App owns the `Window` scene and injects live content. DesignPreview
-/// injects deterministic fixtures into this same composition.
 public struct WindowPlaybackRootView<
     VideoContent: View,
     TopChrome: View
@@ -365,9 +343,6 @@ public struct WindowPlaybackRootView<
         return Float(min(topChromeHeight / surfaceHeight, 1))
     }
 
-    /// Window presentation assigns direct surface input to the video layer.
-    /// The top chrome occupies only the height of its controls and any visible
-    /// secondary menu, leaving the remaining video area to that surface owner.
     private var topChromePlane: some View {
         topChrome
             .padding(.horizontal, DesignTokens.Spacing.xl)

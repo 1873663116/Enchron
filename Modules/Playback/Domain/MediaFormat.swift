@@ -20,9 +20,6 @@ nonisolated public enum MediaProjection: String, CaseIterable, Codable, Sendable
         case Self.equirectangular180.rawValue: .equirectangular180
         case Self.equirectangular360.rawValue: .equirectangular360
         case Self.customAngle.rawValue: .customAngle
-        // Older builds exposed an Apple-metadata-specific option that is no
-        // longer a user-selectable projection. Preserve playback by opening it
-        // as ordinary rectangular video.
         case "fisheye": .flat
         default: .flat
         }
@@ -111,9 +108,6 @@ nonisolated public struct MediaFormat: Codable, Equatable, Sendable {
     public static let standard = Self(projection: .flat, stereoLayout: .mono)
 }
 
-/// Immutable media-signaling facts captured when the current source opens.
-/// User interpretation never mutates these values; Automatic resolves back to
-/// this fact instead of manufacturing a flat fallback.
 public struct SourceMediaFormatFact: Equatable, Sendable {
     public let contentKind: PlaybackModel.SourceVideoContentKind
     public let projection: PlaybackModel.ProjectionType
@@ -133,9 +127,6 @@ public struct SourceMediaFormatFact: Equatable, Sendable {
     }
 }
 
-/// The single session-facing interpretation used by both source signaling and
-/// a persisted user override. Presentation policy consumes this value without
-/// re-reading mutable runtime fields.
 public struct EffectiveMediaFormatInterpretation: Equatable, Sendable {
     public let source: SourceMediaFormatFact
     public let provenance: MediaFormatProvenance
@@ -169,8 +160,6 @@ public struct EffectiveMediaFormatInterpretation: Equatable, Sendable {
     }
 }
 
-/// Resolves source facts and an optional user override through one pure rule.
-/// Passing `nil` is the meaning of Automatic.
 public enum MediaFormatInterpretationResolver {
     public static func resolve(
         source: SourceMediaFormatFact,

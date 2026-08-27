@@ -39,14 +39,12 @@ public struct FileListGroup: View {
         public let id: String
         public let kind: Kind
         public let title: String
-        /// Trailing metadata revealed on gaze.
         public let metadata: String?
         public var action: () -> Void = {}
         public var contextActions: [ContextAction] = []
         public var selectionEnabled = false
         public var isSelected = false
 
-        /// Video file variant — gaze reveals `badges · size · duration`.
         public static func video(
             id: String? = nil,
             title: String,
@@ -70,7 +68,6 @@ public struct FileListGroup: View {
             )
         }
 
-        /// Folder variant — gaze reveals the item count.
         public static func folder(
             id: String? = nil,
             title: String,
@@ -89,11 +86,11 @@ public struct FileListGroup: View {
         }
     }
 
-    public var accessibilityIdentifier: String = "DesignPreview-FileListGroup"
+    public var accessibilityIdentifier: String = "DesignSystem-FileListGroup"
     public let items: [Item]
 
     public init(
-        accessibilityIdentifier: String = "DesignPreview-FileListGroup",
+        accessibilityIdentifier: String = "DesignSystem-FileListGroup",
         items: [Item]
     ) {
         self.items = items
@@ -213,5 +210,3 @@ public struct FileListGroupRow: View {
         }
     }
 }
-
-// MARK: - Small elements

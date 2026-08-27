@@ -142,8 +142,6 @@ public final class EmbyHomeViewModel {
         }
     }
 
-    /// Decodes the home shelves' artwork before the page is opened. Without this the first visit
-    /// decodes a screenful at once, which is what makes the page stall on the way in.
     private func warmArtwork(of shelves: [EmbyHomeShelf], on server: EmbyAuthenticatedServer) async {
         let urls = shelves.flatMap { shelf -> [URL] in
             let isStill = shelf.kind == .continueWatching
@@ -231,8 +229,6 @@ public final class EmbyLibraryViewModel {
         }
     }
 
-    /// Changes the sort without waiting on the server, so the control's indicator can move with the
-    /// tap. The caller reloads separately.
     public func setSort(_ sort: EmbyLibrarySort) {
         self.sort = sort
     }
@@ -282,9 +278,6 @@ public final class EmbySearchViewModel {
     }
 }
 
-/// What a detail page browses below its hero. Each Emby container kind reaches its contents
-/// differently, so the page has one state to switch on instead of several arrays whose empty
-/// combinations would be meaningless.
 public enum EmbyDetailChildren: Equatable, Sendable {
     case none
     case seasons(all: [EmbySeason], selected: EmbyItemID?, episodes: [EmbyEpisode])
@@ -320,9 +313,6 @@ public final class EmbyDetailViewModel {
     private let client: any EmbyClientProtocol
     private let session: EmbySessionViewModel
 
-    /// `knownItem` is the item the page was opened from. The list already holds its name, its images
-    /// and its rating, so the page can draw its header on the first frame instead of showing an empty
-    /// panel until the server answers.
     public init(
         itemID: EmbyItemID,
         client: any EmbyClientProtocol,
@@ -345,15 +335,12 @@ public final class EmbyDetailViewModel {
         defer { isLoading = false }
         do {
             let freshItem = try await client.item(withID: itemID, on: server)
-            // Published before the rest of the page is fetched. Everything the header shows is in
-            // this one response, and the shelves below it arrive on their own schedule.
             item = freshItem
             let availableSources = freshItem.metadata.mediaSources
             if availableSources.contains(where: { $0.id == selectedMediaSourceID }) == false {
                 selectedMediaSourceID = availableSources.first?.id
             }
 
-            // Three independent requests, so they run together rather than one after another.
             async let features = client.specialFeatures(for: itemID, on: server)
             async let related = client.similarItems(to: itemID, on: server, limit: 20)
             let loadedChildren = try await loadChildren(of: freshItem, on: server)
@@ -373,8 +360,6 @@ public final class EmbyDetailViewModel {
               selected != seasonID,
               let season = all.first(where: { $0.metadata.id == seasonID }),
               let server = session.server else { return }
-        // The episodes on screen stay there while the new season loads. Emptying the row first
-        // collapses it, which drops everything below the row up and then back down again.
         children = .seasons(all: all, selected: seasonID, episodes: shown)
         do {
             children = .seasons(
@@ -440,8 +425,6 @@ public final class EmbyDetailViewModel {
         of season: EmbyLibraryItem,
         on server: EmbyAuthenticatedServer
     ) async throws -> [EmbyEpisode] {
-        // Ordered by the episode's number in its season. Sorting by name puts "Episode 10" before
-        // "Episode 2" and, where episodes carry real titles, produces an order with no meaning at all.
         try await childPage(of: season, on: server, sortBy: [.indexNumber])
             .items
             .compactMap(\.episode)

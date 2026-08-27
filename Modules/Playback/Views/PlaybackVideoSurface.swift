@@ -41,9 +41,6 @@ private final class PlaybackVideoComponentObservation {
     private var subscriptions: [EventSubscription] = []
     private var lastLayoutSignature: String?
     private var lastStateSignature: String?
-    // One slot per log kind. Sharing a slot between the per-frame surface facts
-    // and the attach probe meant neither ever repeated its own last value, so
-    // the attach probe fired every frame and flooded the probe file.
     private var lastAttachSignature: String?
     private var lastPhaseSignature: String?
     private var lastPhaseEmission: Date?
@@ -99,9 +96,6 @@ private final class PlaybackVideoComponentObservation {
             }
         ]
         if let contentTypeSessionID {
-            // Apple's ContentTypeDidChange event doesn't identify its Entity.
-            // Keep one subscription for the session so a format change never
-            // depends on RealityKit replaying the event after resubscription.
             subscriptions.append(
                 content.subscribe(to: VideoPlayerEvents.ContentTypeDidChange.self) { event in
                     let contentType = String(describing: event.contentType)
@@ -380,9 +374,6 @@ public struct PlaybackVideoSurface: View {
         }
     }
 
-    /// Slow first frames remain eligible to attach for the lifetime of the
-    /// active media request. Only product state, not elapsed wall-clock time,
-    /// can prove that this RealityView will never settle.
     private var surfaceAttachmentCanStillSettle: Bool {
         guard isActive, playbackRuntime.hasActivePlaybackRequest else {
             return false
@@ -438,11 +429,6 @@ public struct PlaybackVideoSurface: View {
             videoComponentRevision: videoComponentRevision
         )
 
-        // A technical-session replacement inside one presentation has no Scene
-        // disappearance to retire the previous video entity. Leaving it parented
-        // keeps its VideoPlayerComponent feeding the last frame above the new
-        // surface, and every retained renderer keeps its decode pipeline alive
-        // in mediaplaybackd until the daemon hits its memory ceiling.
         if appModel.presentationTransition == nil,
            let departingEntity = playbackVideoEntityStore.departingEntity,
            departingEntity !== videoEntity {
@@ -631,13 +617,6 @@ public struct PlaybackVideoSurface: View {
     @MainActor
     private func attachSurfaceIfReady() {
         logSurfaceFacts(reason: "attachCheck")
-        // The runtime attachment belongs to the transition's target
-        // presentation (the settled one when no transition is running). The
-        // departing window surface stays mounted while the main window
-        // dismissal completes, and re-attaching it on the replacement
-        // technical session steals the attachment back from the immersive
-        // surface, after which settlement can never commit and the open
-        // rolls back at the executor deadline.
         let owningPresentation =
             appModel.presentationTransition?.targetPresentation
                 ?? appModel.playbackPresentation
@@ -679,9 +658,6 @@ public struct PlaybackVideoSurface: View {
                 realityViewID: realityViewID,
                 presentation: presentation
             )
-            // The immersive-open race is only visible as the order of this
-            // attach against the immersive surface's, so it must reach the
-            // probe file, deduplicated per technical session.
             let attachProbeSignature = [
                 "windowSurfaceAttached",
                 presentation.rawValue,

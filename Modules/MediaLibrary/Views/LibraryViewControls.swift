@@ -7,7 +7,7 @@ public struct NavBackForwardCapsuleControl: View {
     let canGoForward: Bool
     var onBack: () -> Void = {}
     var onForward: () -> Void = {}
-    var accessibilityIdentifier: String = "DesignPreview-control-navBackForward"
+    var accessibilityIdentifier: String = "DesignSystem-control-navBackForward"
 
     private let iconColor: Color = .white
     private let disabledOpacity: Double = 0.45
@@ -66,7 +66,7 @@ public struct NavBackForwardCapsuleControl: View {
         canGoForward: Bool,
         onBack: @escaping () -> Void = {},
         onForward: @escaping () -> Void = {},
-        accessibilityIdentifier: String = "DesignPreview-control-navBackForward"
+        accessibilityIdentifier: String = "DesignSystem-control-navBackForward"
     ) {
         self.canGoBack = canGoBack
         self.canGoForward = canGoForward
@@ -78,10 +78,9 @@ public struct NavBackForwardCapsuleControl: View {
 
 public struct ViewModeCapsuleControl: View {
     @Binding var selection: Int
-    var accessibilityIdentifier: String = "DesignPreview-control-viewMode"
+    var accessibilityIdentifier: String = "DesignSystem-control-viewMode"
     var accessibilityLabel: String = "View Mode"
 
-    // 锁死:图标恒白、未选透明度 0.45,不暴露给调用点。
     private let iconColor: Color = .white
     private let unselectedOpacity: Double = 0.45
 
@@ -147,7 +146,7 @@ public struct ViewModeCapsuleControl: View {
 
     public init(
         selection: Binding<Int>,
-        accessibilityIdentifier: String = "DesignPreview-control-viewMode",
+        accessibilityIdentifier: String = "DesignSystem-control-viewMode",
         accessibilityLabel: String = "View Mode"
     ) {
         self._selection = selection
@@ -155,9 +154,3 @@ public struct ViewModeCapsuleControl: View {
         self.accessibilityLabel = accessibilityLabel
     }
 }
-
-// MARK: - Cards
-
-/// 文件浏览网格里的一张卡:玻璃缩略图 + 标题,悬停浮出补充信息。
-/// 视频与文件夹是同一张卡的两个变体,经 `GridCard.video(...)` / `GridCard.folder(...)` 构造。
-/// 宽高、缩略图、玻璃、悬停动画、按压反馈全部锁死(token 驱动),组装时只填数据。

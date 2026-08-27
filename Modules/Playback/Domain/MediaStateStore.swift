@@ -1,9 +1,6 @@
 import Foundation
 import MediaSource
 
-/// The playback-mode family restored on the next launch. This is deliberately
-/// independent from Media Format: projection and stereo interpretation remain
-/// in `formatPreference`.
 nonisolated public enum PersistedPlaybackMode: String, Codable, Equatable, Sendable {
     case window
     case panorama
@@ -44,8 +41,6 @@ package actor MediaStateStore {
         self.defaults = suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
     }
 
-    /// Opening-time read that validates the current content revision and removes
-    /// state that belongs to replaced media bytes.
     package func loadValidated(
         for identity: VersionedMediaIdentity
     ) -> PersistedMediaState? {
@@ -71,9 +66,6 @@ package actor MediaStateStore {
         )
     }
 
-    /// Returns the last known viewing state for browser decoration without
-    /// validating or mutating the stored content revision. Revision validation
-    /// remains an opening-time responsibility of `loadValidated(for:)`.
     package func viewingProjection(for identity: MediaIdentity) -> ViewingStatus? {
         let key = storageKey(for: identity)
         guard let data = defaults.data(forKey: key),

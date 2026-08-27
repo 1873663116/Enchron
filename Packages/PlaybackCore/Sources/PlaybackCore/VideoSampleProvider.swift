@@ -782,9 +782,6 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     ) -> VideoSampleProviderInfo {
         var updated = info
         let extensions = CMFormatDescriptionGetExtensions(sourceFormat) as? [String: Any] ?? [:]
-        // These facts let the product reject Apple Immersive Video before
-        // renderer publication. They do not authorize source format substitution;
-        // codec payload and aggregate provenance remain owned by the bridge.
         updated.formatSignaling.projectionKind = stringFact(
             extensions[kCMFormatDescriptionExtension_ProjectionKind as String]
         )

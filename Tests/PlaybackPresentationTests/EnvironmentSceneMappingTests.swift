@@ -2,7 +2,6 @@ import Playback
 import Testing
 @testable import Enchron
 
-/// Verifies the four Environment identities and the narrower Scenic default set.
 @MainActor
 struct EnvironmentSceneMappingTests {
 

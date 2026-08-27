@@ -6,7 +6,7 @@ import SwiftUI
 public struct PathBreadcrumbMenu: View {
     let path: [String]
     var onSelectLevel: (Int) -> Void = { _ in }
-    var accessibilityIdentifier = "DesignPreview-breadcrumb-current"
+    var accessibilityIdentifier = "DesignSystem-breadcrumb-current"
 
     private var currentFolder: String {
         path.last ?? ""
@@ -70,7 +70,7 @@ public struct PathBreadcrumbMenu: View {
     public init(
         path: [String],
         onSelectLevel: @escaping (Int) -> Void = { _ in },
-        accessibilityIdentifier: String = "DesignPreview-breadcrumb-current"
+        accessibilityIdentifier: String = "DesignSystem-breadcrumb-current"
     ) {
         self.path = path
         self.onSelectLevel = onSelectLevel
@@ -81,7 +81,7 @@ public struct PathBreadcrumbMenu: View {
 public struct SearchInputCapsule: View {
     @Binding var text: String
     var placeholder = "Search"
-    var accessibilityIdentifier = "DesignPreview-input-search"
+    var accessibilityIdentifier = "DesignSystem-input-search"
 
     public var body: some View {
         GlassSearchField(
@@ -94,7 +94,7 @@ public struct SearchInputCapsule: View {
     public init(
         text: Binding<String>,
         placeholder: String = "Search",
-        accessibilityIdentifier: String = "DesignPreview-input-search"
+        accessibilityIdentifier: String = "DesignSystem-input-search"
     ) {
         self._text = text
         self.placeholder = placeholder
@@ -102,9 +102,6 @@ public struct SearchInputCapsule: View {
     }
 }
 
-// MARK: - Category sidebar
-
-/// 分类器条目:图标 + 标题 + 稳定 id。
 public struct CategorySidebarItem: Identifiable, Equatable {
     public let id: String
     public let icon: String
@@ -121,9 +118,6 @@ public struct CategorySidebarItem: Identifiable, Equatable {
     }
 }
 
-/// 通用静态大类分类器侧栏:在 Settings 页面 / Panel 面板中选一个大类。
-/// 天生无重排、无删除、无 footer——就是个可选中的静态列表。行视觉复用纯视觉行 `SourceSidebarRow`。
-/// 本件是唯一暴露尺寸(`width`/`height` 成对)的标准件,因 Settings 满宽 vs Panel 紧凑,容器管不了。
 public struct CategorySidebar: View {
     let items: [CategorySidebarItem]
     @Binding var selection: String
@@ -204,6 +198,3 @@ public struct CategorySidebar: View {
         self.identifierPrefix = identifierPrefix
     }
 }
-
-/// 播放 deck 的一个菜单条目(字幕 / 音轨 / 倍速 / 剧集任一项)。
-/// 选中态与动作由组合阶段(产品层)提供,deck 只负责呈现与打勾。

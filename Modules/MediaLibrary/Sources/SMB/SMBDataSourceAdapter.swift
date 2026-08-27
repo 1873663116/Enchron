@@ -36,7 +36,6 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
     private var serverConnection: SMBServerConnection?
-    /// Stable DataSource ID for folder identity pass-through.
     public var ownerDataSourceID: UUID = UUID()
     public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
     private var connectionInfo: FileBrowsingDomain.ConnectionInfo? {
@@ -53,7 +52,6 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         disconnect()
     }
 
-    /// Connect and authenticate to the server. Shares remain folders at root.
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
         connectionStatus = .connecting
 
@@ -76,21 +74,17 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         }
     }
 
-    /// List available shares on the connected server.
-    /// Must be called after `connect(with:)` succeeds.
     public func listShares() async throws -> [String] {
         guard let connection = serverConnection else {
             throw SMBError.notConnected
         }
         let shares = try await connection.listShares()
-        // Filter out administrative/hidden shares (ending with $)
         return shares
             .map(\.name)
             .filter { !$0.hasSuffix("$") }
             .sorted()
     }
 
-    /// Connect to a share while preserving the server as the source root.
     public func selectShare(_ shareName: String) async throws {
         guard let connection = serverConnection else {
             throw SMBError.notConnected
@@ -282,7 +276,6 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         return .protocolFailed(reason)
     }
 
-    /// Convert the full rootPath-based path to a path relative to the share.
     private func smbRelativePath(from path: String) -> String {
         guard let info = connectionInfo else { return Self.normalizeAbsolutePath(path) }
         return Self.shareRelativePath(for: path, rootPath: info.rootPath)
@@ -292,7 +285,6 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         guard let (shareName, relativePath) = Self.shareAndRelativePath(for: path) else {
             throw SMBError.noShareSelected
         }
-        // `connectShare` verifies the pooled connection and reconnects when needed.
         try await selectShare(shareName)
         return relativePath
     }

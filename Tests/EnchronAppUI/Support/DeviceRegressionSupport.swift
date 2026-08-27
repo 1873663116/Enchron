@@ -224,10 +224,6 @@ extension XCTestCase {
             return false
         }
 
-        // SwiftUI Menu can report isHittable=false on physical visionOS while
-        // still accepting its semantic XCTest tap. The observable contract is
-        // an enabled menu followed by an enabled public option and the changed
-        // setting title, so isHittable alone must not reject this system control.
         let defaultEnvironmentMenu = app.buttons[currentTitle].firstMatch
         guard defaultEnvironmentMenu.waitForExistence(timeout: 10),
               defaultEnvironmentMenu.isEnabled else {
@@ -279,8 +275,6 @@ extension XCTestCase {
             return nil
         }
 
-        // A previous launch can restore an arbitrary scroll offset. Normalize at
-        // the beginning of the library before searching in its stable sort order.
         for _ in 0..<8 where Date() < deadline {
             libraryScrollView.swipeDown()
             if card.exists, card.isEnabled, card.isHittable {
@@ -761,7 +755,6 @@ extension XCTestCase {
     }
 
     func writeAcceptanceShot(_ screenshot: XCUIScreenshot, name: String) {
-        // Tests/EnchronAppUI/Support/<this file> is four levels below the checkout.
         let shots = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()

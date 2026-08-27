@@ -2,18 +2,6 @@
 import Foundation
 
 extension SampleBufferPlaybackSession {
-    /// Puts a renderer no RealityView Entity has bound in front of the same open
-    /// source, so a presentation conversion costs one intra-file refill instead
-    /// of a second demuxer, a second track enumeration and a second network open.
-    ///
-    /// The replacement leaves video sample delivery suspended, because
-    /// `AVSampleBufferVideoRenderer` rejects an enqueue until a video target is
-    /// added. The caller binds the returned renderer to its new Entity and then
-    /// refills through `restartVideoSampleDelivery(at:)`.
-    ///
-    /// The departing renderer stays on the synchronizer presenting its last frame
-    /// until `retireDepartingVideoRendererGraph()`, so the outgoing Scene has
-    /// something to show for the length of the transition.
     func replaceVideoRendererGraph() async throws -> AVSampleBufferVideoRenderer {
         guard !isClosed else { throw PlaybackControlError.noActiveMediaSession }
         let departing = renderer

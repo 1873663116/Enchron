@@ -12,8 +12,6 @@ public enum EnchronPressSensoryFeedback {
     case selectionOn
 }
 
-/// Seek scrub sensory: press, release, and end stops only. Mid-track dragging
-/// intentionally stays silent — continuous ticks are not part of this family.
 public enum EnchronScrubBoundary: Equatable, Sendable {
     case none
     case minimum
@@ -54,12 +52,6 @@ public extension View {
         }
     }
 
-    /// Press / release for a scrubbing control, plus selection min/max when the
-    /// value lands on an end stop. Mid-range scrubbing does not play ticks.
-    ///
-    /// Hosts should keep `boundary` mirrored while idle so the first drag frame
-    /// does not jump from a stale value and fire a false end cue. Pass
-    /// `boundariesEnabled` only while the gesture is actively scrubbing.
     func enchronScrubSensoryFeedback(
         pressTrigger: Int,
         releaseTrigger: Int,
@@ -140,8 +132,6 @@ public struct EnchronPressFeedbackButtonStyle: ButtonStyle {
         self.playsSensoryFeedback = playsSensoryFeedback
     }
 
-    /// Icon chrome for system `Menu` labels: same press scale as
-    /// `GlassCircleIconButton`, plus explicit icon-only sensory feedback.
     public static func menuIcon() -> EnchronPressFeedbackButtonStyle {
         EnchronPressFeedbackButtonStyle(.icon, playsSensoryFeedback: true)
     }

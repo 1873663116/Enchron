@@ -81,7 +81,6 @@ struct EnchronApp: App {
         } defaultValue: {
             PlaybackWindowSceneIdentity()
         }
-        // The app opens on the browser, so the launch size is the browser's, not playback's.
         .defaultSize(
             width: BrowserWindowLayout.defaultSize.width,
             height: BrowserWindowLayout.defaultSize.height
@@ -1020,8 +1019,6 @@ private enum AcousticToneManifest {
     }
 }
 
-// This DEBUG-only path isolates the AVSampleBufferAudioRenderer hardware route
-// from PlaybackCore's demuxed compressed samples and product playback state.
 private struct SampleBufferAcousticCalibrationView: View {
     @State private var status = "ready"
     @State private var rendererSnapshot = "rendererStatus=unknown;rendererError=none"
