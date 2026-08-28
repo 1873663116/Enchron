@@ -51,6 +51,10 @@ W0 与 W1 由 `Scripts/rules/run_verification.py` 执行，是 PR 上那个会�
 
 **Self-test**：给规则本身写的测试，喂已知正确与已知错误的样本，断言规则对前者放行、对后者拦截。没有它，规则报绿分不清是仓库干净还是规则坏了。命名 `test_*.py`，放进 `Scripts/rules/` 即被扫描执行，不需要登记。
 
+**Known Bad Sample**：一份被判定为「应当被拒绝」的样本，喂给某条规则，断言它确实拒绝、且拒绝的理由正确。样本以声明式的文本变异写在 `Config/guard_selftests.json`：指定文件、要替换的原文、替换后的内容与期望的报错。`verify_guard_selftests.py` 把当前工作树复制一份，在副本上施加变异，跑副本里的那条规则，再还原。五条护栏保证样本不空转——原文必须出现且次数吻合、变异必须真的改变了被断言的内容、未变异时规则必须先通过、规则必须拒绝、且拒绝时输出的理由必须是期望的那一条。
+
+**Mutation Coverage Mandate**：每条登记在 `STRUCTURE_CHECKS` 里的检查，都必须有一条坏样本、一份 `test_*.py` 自测，或一条写明理由的 `externalSubject` 声明；三者皆无即失败。声明用于判定对象不在仓库文本里的检查——真实媒体、xcodebuild 的行为、真机输入——它们的坏样本无法由改仓库文本构造。理由留空同样失败，所以没有静默豁免。
+
 **Ratchet**：只能收紧不能放松的基线。`--write-baseline` 拒绝任何基线里尚不存在的条目，所以新违规的唯一出路是改代码或论证规则不成立。`design_source_architecture_baseline.json` 与 `swiftlint_baseline.json` 都按此约束。
 
 **Journey**：按用户真实使用顺序编写的回归单元，声明前置状态、有序步骤、每步的证明目标与终态判据。每条 Journey 从干净状态开始，Journey 之间不传递状态。它组织行为层回归；送达事实由可达性矩阵回答。

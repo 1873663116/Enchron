@@ -20,7 +20,7 @@ __pycache__/
 .scratch/
 
 # Xcode local build output
-build/
+/build/
 **/xcuserdata/
 
 # Local validation output
