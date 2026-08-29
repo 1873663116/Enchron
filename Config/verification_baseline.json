@@ -1,8 +1,6 @@
 {
   "version": 1,
   "playbackCoreExpectedFailures": [
-    "appleMVHEVCFixtureIsDistinguishedFromOrdinaryHEVC",
-    "appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat",
     "controllerRejectsSecondOpenAndRecordsTheRejection"
   ],
   "playbackCoreIntermittentTimeout": {

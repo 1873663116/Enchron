@@ -121,6 +121,34 @@ class PoisonedBuildDirectoryTests(unittest.TestCase):
                 self.assertNotIn("discarded", result.detail)
                 self.assertTrue(scratch.exists())
 
+    def test_playback_core_suite_is_forced_to_run_serially(self) -> None:
+        recorded: list[str] = []
+
+        def run_logged(*arguments, **keywords):
+            recorded.extend(arguments[1])
+            return (
+                1,
+                "Test controllerRejectsSecondOpenAndRecordsTheRejection() "
+                "failed after 0.1 seconds with 1 issue.\n"
+                "Test run with 1 test in 1 suite failed after 0.1 seconds.\n",
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            original_scratch = verification.PLAYBACK_CORE_SCRATCH
+            original_run_logged = verification.run_logged
+            verification.PLAYBACK_CORE_SCRATCH = Path(directory) / "PlaybackCore"
+            verification.run_logged = run_logged
+            try:
+                result = verification.run_playback_core_tests(
+                    Path(directory), {}, verification.load_baseline()
+                )
+            finally:
+                verification.PLAYBACK_CORE_SCRATCH = original_scratch
+                verification.run_logged = original_run_logged
+
+        self.assertEqual(result.state, "PASS")
+        self.assertIn("--no-parallel", recorded)
+
 
 class LockWaitGuardTests(unittest.TestCase):
     def test_a_held_lock_names_its_holder_and_gives_up(self) -> None:

@@ -756,7 +756,7 @@ def main() -> int:
                 flags=re.MULTILINE,
             )
         ) == 1
-        and "updateActiveSessionID(newSession.traceID)" in runtime
+        and "updateActiveSessionID(sessionResource.sessionID)" in runtime
         and "updateActiveSessionID(nil)" in runtime
         and "playbackSessionLifecycleChanged" in platform_executor
         and "setSessionLifecycleHandler" in application,

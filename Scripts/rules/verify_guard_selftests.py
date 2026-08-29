@@ -166,7 +166,14 @@ class WorkingTreeSnapshot:
         if self.populated:
             return self.root
         listing = subprocess.run(
-            ["git", "ls-files", "-z"],
+            [
+                "git",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
             cwd=REPOSITORY_ROOT,
             capture_output=True,
             text=True,
