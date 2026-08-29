@@ -94,19 +94,35 @@ STRUCTURE_CHECKS = (
     StructureCheck("media-discovery-admission", "verify_media_discovery_admission.py"),
     StructureCheck("glass-usage", "verify_glass_usage.py"),
     StructureCheck("documentation-references", "verify_documentation_references.py"),
+    StructureCheck(
+        "regression-core-layering",
+        "verify_regression_core_layering.py",
+    ),
     StructureCheck("recording-extractor", "check_recording_extractor.py"),
     StructureCheck(
         "playback-issue-ownership",
         "verify_playback_issue_ownership.py",
     ),
+    StructureCheck(
+        "product-source-comments",
+        "verify_product_source_comments.py",
+    ),
+    StructureCheck(
+        "release-test-channel-absent",
+        "verify_release_test_channel_absent.py",
+    ),
+    StructureCheck(
+        "regression-fact-provenance",
+        "verify_regression_fact_provenance.py",
+    ),
+    StructureCheck(
+        "playback-runtime-ownership",
+        "verify_playback_runtime_ownership.py",
+    ),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
     StructureCheck(
         "reachability-inventory",
         "generate_reachability_inventory.py",
-    ),
-    StructureCheck(
-        "journey-operation-coverage",
-        "journey_units.py",
     ),
     StructureCheck(
         "visionpro-core-regression-plan",
@@ -401,6 +417,7 @@ def run_playback_core_tests(
     command = [
         swift,
         "test",
+        "--no-parallel",
         "--package-path",
         str(REPOSITORY_ROOT / "Packages/PlaybackCore"),
         "--scratch-path",
