@@ -99,7 +99,7 @@ struct EmbyClientTests {
         )
         let address = try #require(URL(string: "http://media.local:8096"))
 
-        await #expect(throws: RemoteConnectionError.self) {
+        await #expect(throws: RemoteConnectionFailure.requiresHTTPS) {
             try await client.authenticate(
                 address: address,
                 username: "Cortisol",

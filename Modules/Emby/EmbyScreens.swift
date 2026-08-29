@@ -3,6 +3,252 @@ import Foundation
 import SwiftUI
 
 #if DEBUG
+public struct EmbyAccessibilityEvidence: Equatable, Sendable {
+    public static let productDeadlineSeconds = 45
+    public static let harnessLivenessDeadlineSeconds = 90
+
+    public struct Document: Codable, Equatable, Sendable {
+        public struct Account: Codable, Equatable, Sendable {
+            public let serverID: String
+            public let userID: String
+        }
+
+        public struct Navigation: Codable, Equatable, Sendable {
+            public let destination: String
+            public let pathItemIDs: [String]
+        }
+
+        public struct Library: Codable, Equatable, Sendable {
+            public let id: String
+            public let name: String
+            public let collectionType: EmbyObservation<String>
+        }
+
+        public struct ShelfItem: Codable, Equatable, Sendable {
+            public let itemID: String
+            public let itemKind: String
+            public let serverProgressTicks: EmbyObservation<Int64>
+        }
+
+        public struct Shelf: Codable, Equatable, Sendable {
+            public let kind: String
+            public let libraryID: String?
+            public let title: String
+            public let items: [ShelfItem]
+        }
+
+        public struct Home: Codable, Equatable, Sendable {
+            public let isLoading: Bool
+            public let error: EmbyObservation<String>
+            public let shelves: [Shelf]
+            public let activations: [EmbyHomeActivationEvidence]
+        }
+
+        public struct PreparedPlayback: Codable, Equatable, Sendable {
+            public let serverID: String
+            public let userID: String
+            public let itemID: String
+            public let mediaSourceID: String
+            public let playSessionID: String
+            public let requestedAction: String
+            public let freshServerProgressTicks: EmbyObservation<Int64>
+            public let appliedStartTicks: Int64
+        }
+
+        public struct AcceptedReport: Codable, Equatable, Sendable {
+            public let event: String
+            public let positionTicks: Int64
+        }
+
+        public struct PlaybackSession: Codable, Equatable, Sendable {
+            public let serverID: String
+            public let userID: String
+            public let itemID: String
+            public let mediaSourceID: String
+            public let playSessionID: String
+            public let acceptedReports: [AcceptedReport]
+            public let totalAcceptedReportCount: Int
+            public let acceptedReportsWereTruncated: Bool
+            public let latestPositionTicks: Int64
+            public let exitPositionTicks: EmbyObservation<Int64>
+            public let serverReadbackProgressTicks: EmbyObservation<Int64>
+        }
+
+        public let schema: String
+        public let account: Account
+        public let navigation: Navigation
+        public let libraries: [Library]
+        public let home: Home
+        public let detail: EmbyObservation<EmbyDetailEvidence>
+        public let seasonTransitions: [EmbySeasonTransitionEvidence]
+        public let preparedPlaybacks: [PreparedPlayback]
+        public let playbackSessions: [PlaybackSession]
+        public let artworkLoads: [EmbyArtworkEvidence]
+        public let fixtureDigest: EmbyObservation<String>
+        public let localViewingStateWriteCount: EmbyObservation<Int>
+        public let productDeadlineSeconds: Int
+        public let harnessLivenessDeadlineSeconds: Int
+    }
+
+    public let document: Document
+
+    @MainActor
+    public init(
+        server: EmbyAuthenticatedServer,
+        navigation: EmbyNavigationModel,
+        libraries: [EmbyLibraryView],
+        shelves: [EmbyHomeShelf],
+        homeIsLoading: Bool,
+        homeErrorMessage: String?,
+        journal: EmbyEvidenceJournal
+    ) {
+        document = Document(
+            schema: "enchron.emby.accessibility-evidence@2",
+            account: Document.Account(
+                serverID: server.id.rawValue,
+                userID: server.userID.rawValue
+            ),
+            navigation: Document.Navigation(
+                destination: navigation.destination.id,
+                pathItemIDs: navigation.path.map { $0.metadata.id.rawValue }
+            ),
+            libraries: libraries.map { library in
+                Document.Library(
+                    id: library.id.rawValue,
+                    name: library.name,
+                    collectionType: library.collectionType.map(EmbyObservation.observed)
+                        ?? .unavailable("server-did-not-declare-collection-type")
+                )
+            },
+            home: Document.Home(
+                isLoading: homeIsLoading,
+                error: homeErrorMessage.map(EmbyObservation.observed)
+                    ?? .notApplicable("home-refresh-has-no-error"),
+                shelves: shelves.map(Self.shelfDocument),
+                activations: journal.homeActivations
+            ),
+            detail: journal.detail.map(EmbyObservation.observed)
+                ?? .unavailable("no-detail-refresh-observed"),
+            seasonTransitions: journal.seasonTransitions,
+            preparedPlaybacks: journal.preparedPlaybacks.map { evidence in
+                Document.PreparedPlayback(
+                    serverID: evidence.serverID.rawValue,
+                    userID: evidence.userID.rawValue,
+                    itemID: evidence.itemID.rawValue,
+                    mediaSourceID: evidence.mediaSourceID.rawValue,
+                    playSessionID: evidence.playSessionID.rawValue,
+                    requestedAction: evidence.requestedAction.rawValue,
+                    freshServerProgressTicks: evidence.freshServerProgressTicks
+                        .map(EmbyObservation.observed)
+                        ?? .unavailable("fresh-item-response-omitted-user-progress"),
+                    appliedStartTicks: evidence.appliedStartTicks
+                )
+            },
+            playbackSessions: journal.playbackSessions.map { evidence in
+                Document.PlaybackSession(
+                    serverID: evidence.serverID.rawValue,
+                    userID: evidence.userID.rawValue,
+                    itemID: evidence.itemID.rawValue,
+                    mediaSourceID: evidence.mediaSourceID.rawValue,
+                    playSessionID: evidence.playSessionID.rawValue,
+                    acceptedReports: evidence.acceptedReports.map {
+                        Document.AcceptedReport(
+                            event: $0.event.rawValue,
+                            positionTicks: $0.positionTicks
+                        )
+                    },
+                    totalAcceptedReportCount: evidence.totalAcceptedReportCount,
+                    acceptedReportsWereTruncated: evidence.acceptedReportsWereTruncated,
+                    latestPositionTicks: evidence.latestPositionTicks,
+                    exitPositionTicks: evidence.exitPositionTicks
+                        .map(EmbyObservation.observed)
+                        ?? .unavailable("server-has-not-accepted-stopped-report"),
+                    serverReadbackProgressTicks: .unavailable(
+                        "post-report-item-readback-not-observed"
+                    )
+                )
+            },
+            artworkLoads: journal.artworkLoads,
+            fixtureDigest: .unavailable("fixture-identity-is-host-runner-authority"),
+            localViewingStateWriteCount: .unavailable(
+                "local-viewing-storage-is-outside-emby-authority"
+            ),
+            productDeadlineSeconds: Self.productDeadlineSeconds,
+            harnessLivenessDeadlineSeconds: Self.harnessLivenessDeadlineSeconds
+        )
+    }
+
+    public var accessibilityValue: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(document),
+              let value = String(data: data, encoding: .utf8) else {
+            preconditionFailure("Emby accessibility evidence must encode")
+        }
+        return value
+    }
+
+    private static func shelfDocument(_ shelf: EmbyHomeShelf) -> Document.Shelf {
+        let kind: String
+        let libraryID: String?
+        switch shelf.kind {
+        case .continueWatching:
+            kind = "continueWatching"
+            libraryID = nil
+        case .nextUp:
+            kind = "nextUp"
+            libraryID = nil
+        case .recentlyAdded(let id):
+            kind = "recentlyAdded"
+            libraryID = id.rawValue
+        }
+        return Document.Shelf(
+            kind: kind,
+            libraryID: libraryID,
+            title: shelf.title,
+            items: shelf.items.map { item in
+                Document.ShelfItem(
+                    itemID: item.metadata.id.rawValue,
+                    itemKind: itemKind(item),
+                    serverProgressTicks: (item.metadata.userData?.playbackPositionTicks)
+                        .map(EmbyObservation.observed)
+                        ?? .unavailable("server-item-omitted-user-progress")
+                )
+            }
+        )
+    }
+
+    private static func itemKind(_ item: EmbyLibraryItem) -> String {
+        switch item {
+        case .movie: "movie"
+        case .series: "series"
+        case .season: "season"
+        case .episode: "episode"
+        case .boxSet: "boxSet"
+        }
+    }
+}
+
+public struct EmbyAccessibilityEvidenceSurface: View {
+    private let evidence: EmbyAccessibilityEvidence
+
+    public init(evidence: EmbyAccessibilityEvidence) {
+        self.evidence = evidence
+    }
+
+    public var body: some View {
+        Text("Emby evidence")
+            .font(.system(size: 1))
+            .foregroundStyle(.clear)
+            .frame(width: 1, height: 1)
+            .accessibilityLabel("Emby product evidence")
+            .accessibilityValue(evidence.accessibilityValue)
+            .accessibilityIdentifier("Emby-Evidence")
+    }
+}
+#endif
+
+#if DEBUG
 @MainActor
 public final class EmbyReachabilityScrollRequest {
     public enum Direction: String {
@@ -158,6 +404,13 @@ public struct EmbyScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Root")
 #if DEBUG
+        .overlay(alignment: .bottomTrailing) {
+            if let evidence = accessibilityEvidence {
+                EmbyAccessibilityEvidenceSurface(evidence: evidence)
+            }
+        }
+#endif
+#if DEBUG
         .task { await openLaunchRoute() }
 #endif
     }
@@ -166,6 +419,21 @@ public struct EmbyScreen: View {
         warmDetailArtwork(for: item, session: session)
         navigation.open(item)
     }
+
+#if DEBUG
+    private var accessibilityEvidence: EmbyAccessibilityEvidence? {
+        guard let server = session.server else { return nil }
+        return EmbyAccessibilityEvidence(
+            server: server,
+            navigation: navigation,
+            libraries: home.libraries,
+            shelves: home.shelves,
+            homeIsLoading: home.isLoading,
+            homeErrorMessage: home.errorMessage,
+            journal: session.evidenceJournal
+        )
+    }
+#endif
 
 #if DEBUG
     private func openLaunchRoute() async {
@@ -369,26 +637,36 @@ private struct EmbyConnectionScreen: View {
 private struct EmbyHomeScreen: View {
     @Environment(EmbyHomeViewModel.self) private var viewModel
     @Environment(EmbySessionViewModel.self) private var session
+    @Environment(EmbyNavigationModel.self) private var navigation
     let sidebarIsVisible: Binding<Bool>?
     let onSelect: (EmbyLibraryItem) -> Void
     @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
+    @State private var initialRefreshCompleted = false
 
     var body: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-                ForEach(viewModel.shelves) { shelf in
-                    EmbyShelf(title: shelf.title) {
-                        ForEach(shelf.items, id: \.metadata.id) { item in
-                            if shelf.kind == .continueWatching {
-                                stillCard(item, session: session, onSelect: onSelect)
-                            } else {
-                                posterCard(item, session: session, onSelect: onSelect)
+                if initialRefreshCompleted {
+                    ForEach(viewModel.shelves) { shelf in
+                        EmbyShelf(title: shelf.title) {
+                            ForEach(shelf.items, id: \.metadata.id) { item in
+                                if shelf.kind == .continueWatching {
+                                    stillCard(item, session: session) {
+                                        select($0, from: shelf)
+                                    }
+                                } else {
+                                    posterCard(item, session: session) {
+                                        select($0, from: shelf)
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                if viewModel.shelves.isEmpty, viewModel.isLoading == false {
+                if initialRefreshCompleted,
+                   viewModel.shelves.isEmpty,
+                   viewModel.isLoading == false {
                     ContentUnavailableView("No Emby titles", systemImage: "film.stack")
                         .padding(.horizontal, DesignTokens.Spacing.xxl)
                 }
@@ -416,8 +694,33 @@ private struct EmbyHomeScreen: View {
         .overlay(alignment: .top) {
             EmbyPageHeader(title: "Home", sidebarIsVisible: sidebarIsVisible) { EmptyView() }
         }
-        .task { await viewModel.refresh() }
+        .task {
+            initialRefreshCompleted = false
+            await viewModel.refresh()
+            initialRefreshCompleted = true
+        }
         .accessibilityIdentifier("Emby-Home")
+    }
+
+    private func select(_ item: EmbyLibraryItem, from shelf: EmbyHomeShelf) {
+        onSelect(item)
+#if DEBUG
+        guard let resultingItemID = navigation.path.last?.metadata.id else { return }
+        let surface: EmbyHomeCardSurface = switch shelf.kind {
+        case .continueWatching: .continueWatching
+        case .nextUp: .nextUp
+        case .recentlyAdded: .poster
+        }
+        let cardPrefix = shelf.kind == .continueWatching
+            ? "Emby-StillCard-"
+            : "Emby-PosterCard-"
+        session.recordHomeActivation(
+            surface: surface,
+            cardIdentifier: cardPrefix + item.metadata.id.rawValue,
+            item: item,
+            resultingItemID: resultingItemID
+        )
+#endif
     }
 }
 
@@ -606,7 +909,14 @@ private struct EmbyDetailScreen: View {
                 )
             }
         }
-        .task { await viewModel.refresh() }
+        .task {
+            await viewModel.refresh()
+#if DEBUG
+            if let item = viewModel.item {
+                session.recordDetail(item: item, children: viewModel.children)
+            }
+#endif
+        }
         .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
     }
 
@@ -1084,7 +1394,36 @@ private struct EmbyDetailScreen: View {
 #if DEBUG
                 session.recordReachability("season.select.\(value.rawValue)")
 #endif
-                Task { await viewModel.selectSeason(value) }
+                Task {
+#if DEBUG
+                    let before = viewModel.children
+#endif
+                    await viewModel.selectSeason(value)
+#if DEBUG
+                    guard let item = viewModel.item else { return }
+                    session.recordDetail(item: item, children: viewModel.children)
+                    guard case .series = item,
+                          case .seasons(
+                              let declaredSeasons,
+                              let beforeSelectedSeasonID,
+                              let beforeEpisodes
+                          ) = before,
+                          case .seasons(
+                              _,
+                              let afterSelectedSeasonID,
+                              let afterEpisodes
+                          ) = viewModel.children else { return }
+                    session.recordSeasonTransition(
+                        seriesID: item.metadata.id,
+                        declaredSeasons: declaredSeasons,
+                        requestedSeasonID: value,
+                        beforeSelectedSeasonID: beforeSelectedSeasonID,
+                        beforeEpisodes: beforeEpisodes,
+                        afterSelectedSeasonID: afterSelectedSeasonID,
+                        afterEpisodes: afterEpisodes
+                    )
+#endif
+                }
             }
         )
     }

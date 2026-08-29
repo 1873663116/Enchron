@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import MediaSource
 import Playback
@@ -232,7 +233,9 @@ struct EmbyViewModelTests {
         #expect(successSession.server == authenticatedServer)
         #expect(successStore.savedServer == authenticatedServer)
 
-        let failureClient = ViewModelFakeEmbyClient(authenticationError: .httpStatus(401))
+        let failureClient = ViewModelFakeEmbyClient(
+            authenticationError: EmbyError.httpStatus(401)
+        )
         let failureSession = EmbySessionViewModel(
             client: failureClient,
             store: RecordingServerStore()
@@ -245,6 +248,124 @@ struct EmbyViewModelTests {
         #expect(failureSession.server == nil)
         #expect(failure.errorMessage != nil)
     }
+
+    @Test("connection presents stable remote failure messages")
+    func connectionRemoteFailureMessages() async {
+        let scenarios: [(RemoteConnectionFailure, String)] = [
+            (
+                .credentialsRejected,
+                "Credentials rejected. Check your username and password."
+            ),
+            (
+                .requiresHTTPS,
+                "This server requires HTTPS. Add https:// to the address and try again."
+            ),
+            (
+                .serverUnreachable,
+                "Server unreachable. Check the address and your network connection."
+            )
+        ]
+
+        for (failure, expectedMessage) in scenarios {
+            let client = ViewModelFakeEmbyClient(authenticationError: failure)
+            let session = EmbySessionViewModel(
+                client: client,
+                store: RecordingServerStore()
+            )
+            let connection = EmbyConnectionViewModel(session: session)
+            connection.address = "http://example.test:8096"
+
+            #expect(await connection.connect() == false)
+            #expect(connection.errorMessage == expectedMessage)
+        }
+    }
+
+#if DEBUG
+    @Test("automation account preparation verifies the real fixture before persistence")
+    func automationAccountPreparation() async throws {
+        let item = movie(id: "episode-regression", mediaSourceID: "source-regression")
+        let streamIndex = 9
+        let source = playableSource(
+            id: "source-regression",
+            itemID: item.metadata.id.rawValue,
+            streams: [externalSubtitleStream(index: streamIndex)]
+        )
+        let client = ViewModelFakeEmbyClient(
+            authenticatedServer: authenticatedServer,
+            itemByID: [item.metadata.id: item],
+            playbackByID: [item.metadata.id: EmbyPlaybackSession(
+                id: EmbyPlaySessionID(rawValue: "fixture-play-session"),
+                mediaSources: [source]
+            )]
+        )
+        let store = RecordingServerStore()
+        let session = EmbySessionViewModel(client: client, store: store)
+        let identityData = try automationIdentityData()
+        let digest = "sha256:" + SHA256.hash(data: identityData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        let receipt = try await session.prepareAutomationAccount(
+            identityData: identityData,
+            expectedIdentityDigest: digest,
+            fixture: EmbyAutomationFixtureExpectation(
+                itemID: item.metadata.id,
+                mediaSourceID: source.id,
+                externalSubtitleStreamIndex: streamIndex
+            )
+        )
+
+        #expect(receipt.schema == "enchron.regression.emby-account-preparation@1")
+        #expect(receipt.identityDigest == digest)
+        #expect(receipt.serverID == authenticatedServer.id.rawValue)
+        #expect(receipt.userID == authenticatedServer.userID.rawValue)
+        #expect(receipt.itemID == item.metadata.id.rawValue)
+        #expect(receipt.mediaSourceID == source.id.rawValue)
+        #expect(receipt.externalSubtitleStreamIndex == streamIndex)
+        #expect(receipt.externalSubtitleSourceID == "emby.subtitle.\(streamIndex)")
+        #expect(receipt.persisted)
+        #expect(store.savedServer == authenticatedServer)
+        #expect(session.server == authenticatedServer)
+    }
+
+    @Test("automation account preparation rejects fixture drift before persistence")
+    func automationAccountPreparationRejectsFixtureDrift() async throws {
+        let item = movie(id: "episode-regression", mediaSourceID: "source-regression")
+        let source = playableSource(
+            id: "source-regression",
+            itemID: item.metadata.id.rawValue,
+            streams: [externalSubtitleStream(index: 9)]
+        )
+        let client = ViewModelFakeEmbyClient(
+            authenticatedServer: authenticatedServer,
+            itemByID: [item.metadata.id: item],
+            playbackByID: [item.metadata.id: EmbyPlaybackSession(
+                id: EmbyPlaySessionID(rawValue: "fixture-play-session"),
+                mediaSources: [source]
+            )]
+        )
+        let store = RecordingServerStore()
+        let session = EmbySessionViewModel(client: client, store: store)
+        let identityData = try automationIdentityData()
+        let digest = "sha256:" + SHA256.hash(data: identityData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        await #expect(throws: EmbyAutomationAccountPreparationError.self) {
+            try await session.prepareAutomationAccount(
+                identityData: identityData,
+                expectedIdentityDigest: digest,
+                fixture: EmbyAutomationFixtureExpectation(
+                    itemID: item.metadata.id,
+                    mediaSourceID: source.id,
+                    externalSubtitleStreamIndex: 10
+                )
+            )
+        }
+        #expect(store.savedServer == nil)
+        #expect(session.server == nil)
+    }
+#endif
 }
 
 private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
@@ -255,7 +376,7 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
 
     private let state = Mutex(State())
     private let authenticatedServer: EmbyAuthenticatedServer?
-    private let authenticationError: EmbyError?
+    private let authenticationError: (any Error & Sendable)?
     private let viewValues: [EmbyLibraryView]
     private let itemValues: [EmbyLibraryItem]
     private let resumeValues: [EmbyLibraryItem]
@@ -267,7 +388,7 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
 
     init(
         authenticatedServer: EmbyAuthenticatedServer? = nil,
-        authenticationError: EmbyError? = nil,
+        authenticationError: (any Error & Sendable)? = nil,
         views: [EmbyLibraryView] = [],
         items: [EmbyLibraryItem] = [],
         resume: [EmbyLibraryItem] = [],
@@ -498,13 +619,17 @@ private func itemMetadata(
     )
 }
 
-private func playableSource(id: String, itemID: String) -> EmbyMediaSource {
+private func playableSource(
+    id: String,
+    itemID: String,
+    streams: [EmbyMediaStream] = []
+) -> EmbyMediaSource {
     EmbyMediaSource(
         id: EmbyMediaSourceID(rawValue: id),
         displayName: "Version",
         container: "mkv",
         sizeInBytes: 1_000,
-        mediaStreams: [],
+        mediaStreams: streams,
         defaultStreamIndexes: EmbyDefaultStreamIndexes(video: 0, audio: nil, subtitle: nil),
         directPlayURL: URL(string: "http://example.test/video.mkv")!,
         versionedIdentity: VersionedMediaIdentity.emby(
@@ -517,3 +642,31 @@ private func playableSource(id: String, itemID: String) -> EmbyMediaSource {
         )
     )
 }
+
+#if DEBUG
+private func externalSubtitleStream(index: Int) -> EmbyMediaStream {
+    EmbyMediaStream(
+        index: index,
+        kind: .subtitle,
+        codec: "subrip",
+        language: "zho",
+        displayTitle: "Enchron external sidecar SubRip",
+        channels: nil,
+        isDefault: false,
+        isForced: false,
+        isExternal: true,
+        deliveryURL: "/Videos/episode-regression/Subtitles/\(index)/Stream.srt"
+    )
+}
+
+private func automationIdentityData() throws -> Data {
+    try JSONSerialization.data(withJSONObject: [
+        "schema": "enchron.regression.emby-runtime-identity@1",
+        "address": "http://example.test:8096",
+        "username": "regression-user",
+        "password": "runtime-password-that-must-never-leak",
+        "serverID": authenticatedServer.id.rawValue,
+        "userID": authenticatedServer.userID.rawValue
+    ], options: [.sortedKeys])
+}
+#endif

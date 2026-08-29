@@ -143,6 +143,32 @@ public final class EmbyHomeViewModel {
     }
 
     private func warmArtwork(of shelves: [EmbyHomeShelf], on server: EmbyAuthenticatedServer) async {
+#if DEBUG
+        let requests = shelves.flatMap { shelf -> [EmbyArtworkLoadRequest] in
+            let isStill = shelf.kind == .continueWatching
+            let width = Int((isStill ? DesignTokens.Card.stillWidth : DesignTokens.Card.posterWidth) * 2)
+            return shelf.items.compactMap { item -> EmbyArtworkLoadRequest? in
+                let metadata = item.metadata
+                let type: EmbyImageType = isStill && metadata.imageTags.thumb != nil ? .thumb : .primary
+                let tag = type == .thumb ? metadata.imageTags.thumb : metadata.imageTags.primary
+                guard let tag,
+                      let url = try? client.imageURL(
+                    for: metadata.id,
+                    type: type,
+                    tag: tag,
+                    size: try? EmbyImageSize.width(width),
+                    on: server
+                      ) else { return nil }
+                return EmbyArtworkLoadRequest(
+                    itemID: metadata.id,
+                    imageType: type,
+                    imageTag: tag,
+                    url: url
+                )
+            }
+        }
+        await session.warmArtwork(requests)
+#else
         let urls = shelves.flatMap { shelf -> [URL] in
             let isStill = shelf.kind == .continueWatching
             let width = Int((isStill ? DesignTokens.Card.stillWidth : DesignTokens.Card.posterWidth) * 2)
@@ -161,6 +187,7 @@ public final class EmbyHomeViewModel {
             }
         }
         await ArtworkPrefetch.warm(urls)
+#endif
     }
 }
 
