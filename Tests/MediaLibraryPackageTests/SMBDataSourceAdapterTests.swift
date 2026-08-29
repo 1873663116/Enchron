@@ -43,7 +43,7 @@ struct SMBDataSourceAdapterTests {
         let store = FixedCredentialStore(
             credentials: [
                 alice.credentialSourceID: StorageCredential(username: "alice", password: "alice-secret"),
-                bob.credentialSourceID: StorageCredential(username: "bob", password: "bob-secret"),
+                bob.credentialSourceID: StorageCredential(username: "bob", password: "bob-secret")
             ]
         )
         let adapter = SMBDataSourceAdapter(credentialStore: store)
