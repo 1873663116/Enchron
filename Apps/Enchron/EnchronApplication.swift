@@ -36,6 +36,53 @@ enum EffectiveMediaFormatPresentationResolver {
 }
 
 @MainActor
+final class ServerCertificateChangePlaybackBoundary {
+    private let hasActivePlayback: () -> Bool
+    private let isPlaybackPlaying: () -> Bool
+    private let pausePlayback: () -> Void
+    private let setUserVisibleIssue: (PlaybackUserVisibleIssue?) -> Void
+    private let recordDiagnostic: (String) -> Void
+    private var protectsCertificateChangeIssue = false
+
+    init(
+        hasActivePlayback: @escaping () -> Bool,
+        isPlaybackPlaying: @escaping () -> Bool,
+        pausePlayback: @escaping () -> Void,
+        setUserVisibleIssue: @escaping (PlaybackUserVisibleIssue?) -> Void,
+        recordDiagnostic: @escaping (String) -> Void
+    ) {
+        self.hasActivePlayback = hasActivePlayback
+        self.isPlaybackPlaying = isPlaybackPlaying
+        self.pausePlayback = pausePlayback
+        self.setUserVisibleIssue = setUserVisibleIssue
+        self.recordDiagnostic = recordDiagnostic
+    }
+
+    func receive(_ change: ServerCertificateChange) {
+        protectsCertificateChangeIssue = hasActivePlayback()
+        recordDiagnostic(
+            "certificateBoundary changed previous=\(change.previousFingerprint)"
+                + " new=\(change.currentFingerprint)"
+        )
+        if isPlaybackPlaying() {
+            pausePlayback()
+        }
+        setUserVisibleIssue(.serverCertificateChanged)
+    }
+
+    func receive(_ observation: PlaybackRuntimeObservation) {
+        switch observation.event {
+        case .activeFailure where protectsCertificateChangeIssue:
+            setUserVisibleIssue(.serverCertificateChanged)
+        case .stopped:
+            protectsCertificateChangeIssue = false
+        case .diagnostics, .lifecycle, .activeFailure, .seekCompleted:
+            break
+        }
+    }
+}
+
+@MainActor
 @Observable
 final class EnchronApplication {
     private static let logger = Logger(subsystem: "app.enchron", category: "Application")
@@ -55,6 +102,7 @@ final class EnchronApplication {
     let settingsViewModel: SettingsViewModel
     let modalPresentationCoordinator: AppModalPresentationCoordinator
     let certificateTrustPrompt: CertificateTrustPrompt
+    private let certificateChangePlaybackBoundary: ServerCertificateChangePlaybackBoundary
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
     #if DEBUG
         let playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
@@ -150,8 +198,19 @@ final class EnchronApplication {
         let certificateTrustPrompt = CertificateTrustPrompt(
             modalPresentationCoordinator: modalPresentationCoordinator
         )
-        ServerTrustPolicy.shared.approvalHandler = { [weak certificateTrustPrompt] certificate in
-            await certificateTrustPrompt?.requestApproval(for: certificate) ?? false
+        ServerTrustPolicy.shared.approvalHandler = {
+            [weak certificateTrustPrompt, weak playbackRuntime] certificate in
+            let phase = playbackRuntime?.currentLaunchRequest == nil
+                ? "connection"
+                : "playback"
+            SurfaceInputProbes.record(
+                "certificateBoundary promptRequested phase=\(phase)"
+                    + " address=\(certificate.address)"
+                    + " fingerprint=\(certificate.sha256Fingerprint)",
+                retention: .evidence
+            )
+            return await certificateTrustPrompt?.requestApproval(for: certificate)
+                ?? false
         }
         let playbackVideoEntityStore = PlaybackVideoEntityStore()
         let launcher = PlaybackLaunchCoordinator(
@@ -159,6 +218,33 @@ final class EnchronApplication {
             mediaStateSuiteName: mediaStateSuiteName,
             preferencesProvider: preferencesStore
         )
+        let certificateChangePlaybackBoundary = ServerCertificateChangePlaybackBoundary(
+            hasActivePlayback: { [weak playbackRuntime] in
+                playbackRuntime?.currentLaunchRequest != nil
+            },
+            isPlaybackPlaying: { [weak playbackRuntime] in
+                playbackRuntime?.productLifecycle == .playing
+            },
+            pausePlayback: { [weak playbackRuntime] in
+                playbackRuntime?.pause()
+            },
+            setUserVisibleIssue: { [weak playbackRuntime] issue in
+                playbackRuntime?.setUserVisibleIssue(issue)
+            },
+            recordDiagnostic: {
+                SurfaceInputProbes.record($0, retention: .evidence)
+            }
+        )
+        let launcherPlaybackObservationHandler = playbackRuntime.onPlaybackObservation
+        playbackRuntime.onPlaybackObservation = {
+            [weak certificateChangePlaybackBoundary] observation in
+            launcherPlaybackObservationHandler?(observation)
+            certificateChangePlaybackBoundary?.receive(observation)
+        }
+        ServerTrustPolicy.shared.certificateChangeHandler = {
+            [weak certificateChangePlaybackBoundary] change in
+            certificateChangePlaybackBoundary?.receive(change)
+        }
         let embyClient = EmbyClient(clientIdentity: EmbyClientIdentity(
             name: "Enchron",
             version: Bundle.main.object(
@@ -370,6 +456,7 @@ final class EnchronApplication {
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
         self.certificateTrustPrompt = certificateTrustPrompt
+        self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
         #if DEBUG
             playbackSessionModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
@@ -468,6 +555,16 @@ private extension MediaCollectionSnapshot {
         PlaybackQueueSnapshot(entries: entries.map {
             PlaybackQueueEntry(id: $0.id, displayName: $0.displayName, isCurrent: $0.isCurrent)
         })
+    }
+}
+
+extension EnchronApplication {
+    convenience init() {
+        let environment = ProcessInfo.processInfo.environment
+        self.init(environment: environment)
+        #if DEBUG
+            installTestCommandChannelIfEnabled(environment: environment)
+        #endif
     }
 }
 
