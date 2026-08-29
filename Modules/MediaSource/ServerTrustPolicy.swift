@@ -25,8 +25,32 @@ public struct ServerCertificateInfo: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct ServerCertificateChange: Sendable, Equatable, Hashable {
+    public let address: String
+    public let previousFingerprint: String
+    public let currentFingerprint: String
+
+    public init(
+        address: String,
+        previousFingerprint: String,
+        currentFingerprint: String
+    ) {
+        self.address = address
+        self.previousFingerprint = previousFingerprint
+        self.currentFingerprint = currentFingerprint
+    }
+}
+
+enum ServerTrustChallengeDecision: Sendable, Equatable {
+    case useStoredCredential
+    case requestApproval
+    case reject
+}
+
 public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked Sendable {
     public typealias ApprovalHandler = @MainActor @Sendable (ServerCertificateInfo) async -> Bool
+    public typealias CertificateChangeHandler =
+        @MainActor @Sendable (ServerCertificateChange) -> Void
 
     public static let shared = ServerTrustPolicy()
 
@@ -34,10 +58,17 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
     private let defaults: UserDefaults
     private var connectionApprovalDepth: [String: Int] = [:]
     private var storedApprovalHandler: ApprovalHandler?
+    private var storedCertificateChangeHandler: CertificateChangeHandler?
+    private var observedCertificateChanges: Set<ServerCertificateChange> = []
 
     public var approvalHandler: ApprovalHandler? {
         get { lock.withLock { storedApprovalHandler } }
         set { lock.withLock { storedApprovalHandler = newValue } }
+    }
+
+    public var certificateChangeHandler: CertificateChangeHandler? {
+        get { lock.withLock { storedCertificateChangeHandler } }
+        set { lock.withLock { storedCertificateChangeHandler = newValue } }
     }
 
     public init(defaults: UserDefaults = .standard) {
@@ -70,22 +101,30 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
             completionHandler(.performDefaultHandling, nil)
             return
         }
-        if SecTrustEvaluateWithError(trust, nil) {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-
         let address = Self.address(
             host: challenge.protectionSpace.host,
             port: challenge.protectionSpace.port
         )
         let fingerprint = Self.fingerprint(of: certificate)
-        if defaults.string(forKey: Self.fingerprintKey(address: address)) == fingerprint {
-            completionHandler(.useCredential, URLCredential(trust: trust))
+        if defaults.string(forKey: Self.fingerprintKey(address: address)) == nil,
+           SecTrustEvaluateWithError(trust, nil) {
+            completionHandler(.performDefaultHandling, nil)
             return
         }
-        let mayAsk = lock.withLock { (connectionApprovalDepth[address] ?? 0) > 0 }
-        guard mayAsk, let approvalHandler else {
+        switch resolveUntrustedCertificate(
+            address: address,
+            currentFingerprint: fingerprint
+        ) {
+        case .useStoredCredential:
+            completionHandler(.useCredential, URLCredential(trust: trust))
+            return
+        case .reject:
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        case .requestApproval:
+            break
+        }
+        guard let approvalHandler else {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
@@ -101,11 +140,60 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
         Task { @MainActor [defaults] in
             if await approvalHandler(info) {
                 defaults.set(fingerprint, forKey: Self.fingerprintKey(address: address))
+                lock.withLock {
+                    observedCertificateChanges = Set(
+                        observedCertificateChanges.filter { $0.address != address }
+                    )
+                }
                 completionHandler(.useCredential, URLCredential(trust: trust))
             } else {
                 completionHandler(.cancelAuthenticationChallenge, nil)
             }
         }
+    }
+
+    func resolveUntrustedCertificate(
+        address: String,
+        currentFingerprint: String
+    ) -> ServerTrustChallengeDecision {
+        let previousFingerprint = defaults.string(
+            forKey: Self.fingerprintKey(address: address)
+        )
+        if previousFingerprint == currentFingerprint {
+            return .useStoredCredential
+        }
+
+        let approvalContext = lock.withLock {
+            (
+                isActive: (connectionApprovalDepth[address] ?? 0) > 0,
+                hasHandler: storedApprovalHandler != nil
+            )
+        }
+        if approvalContext.isActive {
+            return approvalContext.hasHandler ? .requestApproval : .reject
+        }
+
+        guard let previousFingerprint else { return .reject }
+        let change = ServerCertificateChange(
+            address: address,
+            previousFingerprint: previousFingerprint,
+            currentFingerprint: currentFingerprint
+        )
+        let handler = lock.withLock { () -> CertificateChangeHandler? in
+            guard let handler = storedCertificateChangeHandler else {
+                return nil
+            }
+            guard observedCertificateChanges.insert(change).inserted else {
+                return nil
+            }
+            return handler
+        }
+        if let handler {
+            Task { @MainActor in
+                handler(change)
+            }
+        }
+        return .reject
     }
 
     private static func fingerprint(of certificate: SecCertificate) -> String {

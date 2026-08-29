@@ -1,6 +1,7 @@
 import Foundation
 import Network
 #if DEBUG
+import CryptoKit
 import os
 #endif
 
@@ -9,11 +10,18 @@ public struct MediaByteStreamDebugCounters: Sendable, Equatable {
     public var scope: UInt64
     public var acceptedConnectionCount: UInt64
     public var requestCount: UInt64
+    public var containerIndexOpen: MediaByteStreamContainerIndexDebugSnapshot?
 
-    public init(scope: UInt64, acceptedConnectionCount: UInt64, requestCount: UInt64) {
+    public init(
+        scope: UInt64,
+        acceptedConnectionCount: UInt64,
+        requestCount: UInt64,
+        containerIndexOpen: MediaByteStreamContainerIndexDebugSnapshot? = nil
+    ) {
         self.scope = scope
         self.acceptedConnectionCount = acceptedConnectionCount
         self.requestCount = requestCount
+        self.containerIndexOpen = containerIndexOpen
     }
 }
 
@@ -27,6 +35,129 @@ public enum MediaByteBufferDepth: Sendable, Equatable {
     case none
     case automatic
     case bytes(Int64)
+}
+
+public enum MediaSourceReadFailure: Error, Sendable, Equatable {
+    case transportInterrupted
+    case resourceMissing
+    case accessDenied
+    case invalidData
+
+    public init?(classifying error: any Error) {
+        if let failure = error as? Self {
+            self = failure
+            return
+        }
+
+        var current: NSError? = error as NSError
+        var visited: Set<ObjectIdentifier> = []
+        while let candidate = current {
+            let identity = ObjectIdentifier(candidate)
+            guard visited.insert(identity).inserted else { return nil }
+            if let failure = Self(classifying: candidate) {
+                self = failure
+                return
+            }
+            current = candidate.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return nil
+    }
+
+    public init?(httpStatusCode: Int) {
+        switch httpStatusCode {
+        case 401, 403:
+            self = .accessDenied
+        case 404, 410:
+            self = .resourceMissing
+        case 408, 502, 503, 504:
+            self = .transportInterrupted
+        case 416:
+            self = .invalidData
+        default:
+            return nil
+        }
+    }
+
+    private init?(classifying error: NSError) {
+        switch error.domain {
+        case NSURLErrorDomain:
+            switch URLError.Code(rawValue: error.code) {
+            case .timedOut, .cannotFindHost, .cannotConnectToHost,
+                 .networkConnectionLost, .dnsLookupFailed,
+                 .notConnectedToInternet, .cannotLoadFromNetwork, .dataNotAllowed,
+                 .internationalRoamingOff, .callIsActive,
+                 .backgroundSessionWasDisconnected, .secureConnectionFailed:
+                self = .transportInterrupted
+            case .fileDoesNotExist, .resourceUnavailable:
+                self = .resourceMissing
+            case .noPermissionsToReadFile:
+                self = .accessDenied
+            case .cannotDecodeRawData, .cannotDecodeContentData:
+                self = .invalidData
+            default:
+                return nil
+            }
+        case NSPOSIXErrorDomain:
+            guard let code = POSIXErrorCode(rawValue: Int32(error.code)) else {
+                return nil
+            }
+            switch code {
+            case .ECONNRESET, .ECONNABORTED, .ENETDOWN, .ENETRESET,
+                 .ENETUNREACH, .ENOTCONN, .ETIMEDOUT, .EHOSTDOWN,
+                 .EHOSTUNREACH, .EPIPE:
+                self = .transportInterrupted
+            case .ENOENT, .ENOTDIR, .ESTALE:
+                self = .resourceMissing
+            case .EACCES, .EPERM:
+                self = .accessDenied
+            case .EBADMSG:
+                self = .invalidData
+            default:
+                return nil
+            }
+        case NSCocoaErrorDomain:
+            switch CocoaError.Code(rawValue: error.code) {
+            case .fileNoSuchFile, .fileReadNoSuchFile:
+                self = .resourceMissing
+            case .fileReadNoPermission:
+                self = .accessDenied
+            case .fileReadCorruptFile:
+                self = .invalidData
+            default:
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
+}
+
+public struct MediaSourceReadFailureObservation: Sendable, Equatable {
+    public let sequence: UInt64
+    public let failure: MediaSourceReadFailure
+
+    public init(sequence: UInt64, failure: MediaSourceReadFailure) {
+        self.sequence = sequence
+        self.failure = failure
+    }
+}
+
+private final class MediaSourceReadFailureState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var latest: MediaSourceReadFailureObservation?
+
+    func record(_ failure: MediaSourceReadFailure) {
+        lock.withLock {
+            latest = MediaSourceReadFailureObservation(
+                sequence: (latest?.sequence ?? 0) &+ 1,
+                failure: failure
+            )
+        }
+    }
+
+    func snapshot() -> MediaSourceReadFailureObservation? {
+        lock.withLock { latest }
+    }
 }
 
 public struct MediaByteStreamAttributes: Sendable, Equatable {
@@ -68,6 +199,7 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
 
     private weak var server: MediaByteStreamServer?
     private let token: String
+    private let readFailureState: MediaSourceReadFailureState
     private let lock = NSLock()
     private var isReleased = false
 
@@ -75,12 +207,18 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
         url: URL,
         preferredBufferDepth: MediaByteBufferDepth,
         token: String,
+        readFailureState: MediaSourceReadFailureState,
         server: MediaByteStreamServer
     ) {
         self.url = url
         self.preferredBufferDepth = preferredBufferDepth
         self.token = token
+        self.readFailureState = readFailureState
         self.server = server
+    }
+
+    public func latestReadFailure() -> MediaSourceReadFailureObservation? {
+        readFailureState.snapshot()
     }
 
     public func useContainerIndex(for revision: ContentRevision?) {
@@ -97,7 +235,7 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
 
     #if DEBUG
         public func debugCounters() -> MediaByteStreamDebugCounters? {
-            server?.debugCounters()
+            server?.debugCounters(token: token)
         }
     #endif
 
@@ -115,6 +253,170 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
     }
 }
 
+#if DEBUG
+public struct ContainerIndexDebugRange: Codable, Sendable, Equatable {
+    public let lowerBound: Int64
+    public let upperBoundExclusive: Int64
+    public let bytes: Int64
+
+    public init(lowerBound: Int64, upperBoundExclusive: Int64, bytes: Int64) {
+        self.lowerBound = lowerBound
+        self.upperBoundExclusive = upperBoundExclusive
+        self.bytes = bytes
+    }
+}
+
+public struct ContainerIndexDebugEntry: Codable, Sendable, Equatable {
+    public let contentRevision: String
+    public let digest: String
+    public let bytes: Int64
+    public let contentLength: Int64?
+    public let ranges: [ContainerIndexDebugRange]
+    public let invalidFileCount: Int
+
+    public init(
+        contentRevision: String,
+        digest: String,
+        bytes: Int64,
+        contentLength: Int64?,
+        ranges: [ContainerIndexDebugRange],
+        invalidFileCount: Int
+    ) {
+        self.contentRevision = contentRevision
+        self.digest = digest
+        self.bytes = bytes
+        self.contentLength = contentLength
+        self.ranges = ranges
+        self.invalidFileCount = invalidFileCount
+    }
+}
+
+public struct ContainerIndexDebugSnapshot: Codable, Sendable, Equatable {
+    public static let schemaValue = "enchron.regression.container-index-state@1"
+
+    public let schema: String
+    public let cacheIdentity: String
+    public let digest: String
+    public let entryCount: Int
+    public let entries: [ContainerIndexDebugEntry]
+    public let totalBytes: Int64
+
+    public init(
+        cacheIdentity: String,
+        digest: String,
+        entries: [ContainerIndexDebugEntry]
+    ) {
+        self.schema = Self.schemaValue
+        self.cacheIdentity = cacheIdentity
+        self.digest = digest
+        self.entryCount = entries.count
+        self.entries = entries
+        self.totalBytes = entries.reduce(0) { $0 + $1.bytes }
+    }
+}
+
+public struct MediaByteStreamContainerIndexDebugSnapshot: Codable, Sendable, Equatable {
+    public static let schemaValue =
+        "enchron.regression.media-byte-stream-container-index-open@1"
+
+    public let schema: String
+    public let scope: String
+    public let contentRevision: String
+    public let containerIndexFinished: Bool
+    public let cacheHitRanges: [ContainerIndexDebugRange]
+    public let sourceReadRanges: [ContainerIndexDebugRange]
+    public let recordedRanges: [ContainerIndexDebugRange]
+
+    public init(
+        scope: String,
+        contentRevision: String,
+        containerIndexFinished: Bool,
+        cacheHitRanges: [ContainerIndexDebugRange],
+        sourceReadRanges: [ContainerIndexDebugRange],
+        recordedRanges: [ContainerIndexDebugRange]
+    ) {
+        self.schema = Self.schemaValue
+        self.scope = scope
+        self.contentRevision = contentRevision
+        self.containerIndexFinished = containerIndexFinished
+        self.cacheHitRanges = Self.sorted(cacheHitRanges)
+        self.sourceReadRanges = Self.sorted(sourceReadRanges)
+        self.recordedRanges = Self.sorted(recordedRanges)
+    }
+
+    private static func sorted(
+        _ ranges: [ContainerIndexDebugRange]
+    ) -> [ContainerIndexDebugRange] {
+        ranges.sorted {
+            ($0.lowerBound, $0.upperBoundExclusive, $0.bytes)
+                < ($1.lowerBound, $1.upperBoundExclusive, $1.bytes)
+        }
+    }
+}
+
+private struct MediaByteStreamContainerIndexDebugState: Sendable {
+    let scope: String
+    var contentRevision: String?
+    var containerIndexFinished = false
+    var cacheHitRanges: [ContainerIndexDebugRange] = []
+    var sourceReadRanges: [ContainerIndexDebugRange] = []
+    var recordedRanges: [ContainerIndexDebugRange] = []
+
+    mutating func configure(revision: ContentRevision?) {
+        contentRevision = revision.map { "sha256:\($0.storageKey)" }
+        containerIndexFinished = false
+        cacheHitRanges.removeAll(keepingCapacity: true)
+        sourceReadRanges.removeAll(keepingCapacity: true)
+        recordedRanges.removeAll(keepingCapacity: true)
+    }
+
+    mutating func recordCacheHit(offset: Int64, byteCount: Int) {
+        if let range = Self.range(offset: offset, byteCount: byteCount) {
+            cacheHitRanges.append(range)
+        }
+    }
+
+    mutating func recordSourceRead(offset: Int64, byteCount: Int) {
+        if let range = Self.range(offset: offset, byteCount: byteCount) {
+            sourceReadRanges.append(range)
+        }
+    }
+
+    mutating func recordIndexWrite(offset: Int64, byteCount: Int) {
+        if let range = Self.range(offset: offset, byteCount: byteCount) {
+            recordedRanges.append(range)
+        }
+    }
+
+    func snapshot() -> MediaByteStreamContainerIndexDebugSnapshot? {
+        guard let contentRevision else { return nil }
+        return MediaByteStreamContainerIndexDebugSnapshot(
+            scope: scope,
+            contentRevision: contentRevision,
+            containerIndexFinished: containerIndexFinished,
+            cacheHitRanges: cacheHitRanges,
+            sourceReadRanges: sourceReadRanges,
+            recordedRanges: recordedRanges
+        )
+    }
+
+    private static func range(
+        offset: Int64,
+        byteCount: Int
+    ) -> ContainerIndexDebugRange? {
+        guard offset >= 0, byteCount > 0 else { return nil }
+        let bytes = Int64(byteCount)
+        let upperBound = offset.addingReportingOverflow(bytes)
+        guard upperBound.overflow == false else { return nil }
+        return ContainerIndexDebugRange(
+            lowerBound: offset,
+            upperBoundExclusive: upperBound.partialValue,
+            bytes: bytes
+        )
+    }
+}
+#endif
+
 public final class ContainerIndexCache: @unchecked Sendable {
     public static let shared = ContainerIndexCache()
 
@@ -127,6 +429,146 @@ public final class ContainerIndexCache: @unchecked Sendable {
         rootURL = caches.appending(path: "container-indexes", directoryHint: .isDirectory)
         try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
     }
+
+    #if DEBUG
+        public init(debugRootURL: URL, fileManager: FileManager = .default) {
+            rootURL = debugRootURL
+            try? fileManager.createDirectory(
+                at: rootURL,
+                withIntermediateDirectories: true
+            )
+        }
+
+        public func debugSnapshot(
+            fileManager: FileManager = .default
+        ) -> ContainerIndexDebugSnapshot {
+            queue.sync { [rootURL] in
+                let candidates = (try? fileManager.contentsOfDirectory(
+                    at: rootURL,
+                    includingPropertiesForKeys: [.isDirectoryKey],
+                    options: [.skipsHiddenFiles]
+                )) ?? []
+                let entries: [ContainerIndexDebugEntry] = candidates.compactMap {
+                    directoryURL -> ContainerIndexDebugEntry? in
+                    let key = directoryURL.lastPathComponent
+                    guard Self.isRevisionKey(key),
+                          (try? directoryURL.resourceValues(
+                            forKeys: [.isDirectoryKey]
+                          ).isDirectory) == true else { return nil }
+                    let resourceKeys: Set<URLResourceKey> = [
+                        .isRegularFileKey,
+                        .fileSizeKey
+                    ]
+                    let files = ((fileManager.enumerator(
+                        at: directoryURL,
+                        includingPropertiesForKeys: Array(resourceKeys),
+                        options: [.skipsHiddenFiles]
+                    )?.allObjects as? [URL]) ?? [])
+                    .filter {
+                        (try? $0.resourceValues(forKeys: resourceKeys)
+                            .isRegularFile) == true
+                    }
+                    .sorted { $0.path < $1.path }
+                    var hasher = SHA256()
+                    var bytes: Int64 = 0
+                    var contentLength: Int64?
+                    var ranges: [ContainerIndexDebugRange] = []
+                    var invalidFileCount = 0
+                    for fileURL in files {
+                        guard let data = try? Data(contentsOf: fileURL) else {
+                            return nil
+                        }
+                        let relativePath = String(
+                            fileURL.path.dropFirst(directoryURL.path.count + 1)
+                        )
+                        hasher.update(data: Data(relativePath.utf8))
+                        hasher.update(data: Data([0]))
+                        hasher.update(data: data)
+                        hasher.update(data: Data([0]))
+                        bytes += Int64(data.count)
+
+                        if relativePath == "length.txt" {
+                            if let text = String(bytes: data, encoding: .utf8),
+                               let parsed = Int64(text),
+                               parsed >= 0 {
+                                contentLength = parsed
+                            } else {
+                                invalidFileCount += 1
+                            }
+                            continue
+                        }
+                        guard fileURL.pathExtension == "bin",
+                              let range = Self.debugRange(
+                                fileName: fileURL.deletingPathExtension().lastPathComponent,
+                                actualBytes: data.count
+                              ) else {
+                            invalidFileCount += 1
+                            continue
+                        }
+                        ranges.append(range)
+                    }
+                    ranges.sort {
+                        ($0.lowerBound, $0.upperBoundExclusive)
+                            < ($1.lowerBound, $1.upperBoundExclusive)
+                    }
+                    return ContainerIndexDebugEntry(
+                        contentRevision: "sha256:\(key)",
+                        digest: Self.digest(hasher.finalize()),
+                        bytes: bytes,
+                        contentLength: contentLength,
+                        ranges: ranges,
+                        invalidFileCount: invalidFileCount
+                    )
+                }
+                .sorted { $0.contentRevision < $1.contentRevision }
+                var snapshotHasher = SHA256()
+                for entry in entries {
+                    snapshotHasher.update(data: Data(entry.contentRevision.utf8))
+                    snapshotHasher.update(data: Data([0]))
+                    snapshotHasher.update(data: Data(entry.digest.utf8))
+                    snapshotHasher.update(data: Data([0]))
+                    snapshotHasher.update(data: Data(String(entry.bytes).utf8))
+                    snapshotHasher.update(data: Data([10]))
+                }
+                return ContainerIndexDebugSnapshot(
+                    cacheIdentity: Self.digest(
+                        SHA256.hash(data: Data(rootURL.standardizedFileURL.path.utf8))
+                    ),
+                    digest: Self.digest(snapshotHasher.finalize()),
+                    entries: entries
+                )
+            }
+        }
+
+        private static func debugRange(
+            fileName: String,
+            actualBytes: Int
+        ) -> ContainerIndexDebugRange? {
+            let parts = fileName.split(separator: "-", omittingEmptySubsequences: false)
+            guard parts.count == 2,
+                  let lowerBound = Int64(parts[0]),
+                  let declaredBytes = Int64(parts[1]),
+                  lowerBound >= 0,
+                  declaredBytes > 0,
+                  declaredBytes == Int64(actualBytes),
+                  lowerBound <= Int64.max - declaredBytes else { return nil }
+            return ContainerIndexDebugRange(
+                lowerBound: lowerBound,
+                upperBoundExclusive: lowerBound + declaredBytes,
+                bytes: declaredBytes
+            )
+        }
+
+        private static func isRevisionKey(_ value: String) -> Bool {
+            value.utf8.count == 64 && value.utf8.allSatisfy {
+                (48...57).contains($0) || (97...102).contains($0)
+            }
+        }
+
+        private static func digest(_ digest: SHA256.Digest) -> String {
+            "sha256:" + digest.map { String(format: "%02x", $0) }.joined()
+        }
+    #endif
 
     public func diskUsageInBytes() async -> Int64 {
         await withCheckedContinuation { continuation in
@@ -215,11 +657,13 @@ private final class ContainerIndexSession: @unchecked Sendable {
         return (Data(data[lower..<upper]), cached.1)
     }
 
-    func record(_ data: Data, at offset: Int64, contentLength: Int64?) {
+    @discardableResult
+    func record(_ data: Data, at offset: Int64, contentLength: Int64?) -> Bool {
         lock.withLock {
-            guard recordsReads, data.isEmpty == false else { return }
+            guard recordsReads, data.isEmpty == false else { return false }
             pending[offset] = data
             if let contentLength { authoritativeContentLength = contentLength }
+            return true
         }
     }
 
@@ -286,13 +730,22 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     private final class Registration: @unchecked Sendable {
         let source: any MediaByteRangeSource
         let filename: String
+        let readFailureState = MediaSourceReadFailureState()
         let lock = NSLock()
         var indexSession: ContainerIndexSession?
         var authoritativeContentLength: Int64?
+        #if DEBUG
+            var containerIndexDebugState: MediaByteStreamContainerIndexDebugState
+        #endif
 
-        init(source: any MediaByteRangeSource, filename: String) {
+        init(source: any MediaByteRangeSource, filename: String, token: String) {
             self.source = source
             self.filename = filename
+            #if DEBUG
+                containerIndexDebugState = MediaByteStreamContainerIndexDebugState(
+                    scope: "media-byte-stream:\(token.lowercased())"
+                )
+            #endif
         }
     }
 
@@ -411,6 +864,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     public static let shared = MediaByteStreamServer()
 
     private let readChunkSize: Int64
+    private let containerIndexCache: ContainerIndexCache
     private let queue = DispatchQueue(label: "app.enchron.media-byte-stream")
     private let lock = NSLock()
     private var listener: NWListener?
@@ -428,7 +882,18 @@ public final class MediaByteStreamServer: @unchecked Sendable {
 
     public init(readChunkSize: Int64 = 1_048_576) {
         self.readChunkSize = max(1, readChunkSize)
+        self.containerIndexCache = .shared
     }
+
+    #if DEBUG
+        init(
+            readChunkSize: Int64 = 1_048_576,
+            debugContainerIndexCache: ContainerIndexCache
+        ) {
+            self.readChunkSize = max(1, readChunkSize)
+            self.containerIndexCache = debugContainerIndexCache
+        }
+    #endif
 
     public func register(
         source: any MediaByteRangeSource,
@@ -437,7 +902,8 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     ) async throws -> MediaByteStreamHandle {
         let port = try await ensureStarted()
         let token = UUID().uuidString
-        lock.withLock { registrations[token] = Registration(source: source, filename: filename) }
+        let registration = Registration(source: source, filename: filename, token: token)
+        lock.withLock { registrations[token] = registration }
         let escapedName = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "media"
         guard let url = URL(string: "http://127.0.0.1:\(port.rawValue)/\(token)/\(escapedName)") else {
             unregister(token: token)
@@ -447,6 +913,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             url: url,
             preferredBufferDepth: preferredBufferDepth,
             token: token,
+            readFailureState: registration.readFailureState,
             server: self
         )
     }
@@ -456,12 +923,19 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     }
 
     #if DEBUG
-        fileprivate func debugCounters() -> MediaByteStreamDebugCounters {
-            debugCounterState.withLock { counters in
+        fileprivate func debugCounters(token: String) -> MediaByteStreamDebugCounters {
+            let containerIndexOpen = lock.withLock { registrations[token] }
+                .flatMap { registration in
+                    registration.lock.withLock {
+                        registration.containerIndexDebugState.snapshot()
+                    }
+                }
+            return debugCounterState.withLock { counters in
                 MediaByteStreamDebugCounters(
                     scope: UInt64(UInt(bitPattern: ObjectIdentifier(self))),
                     acceptedConnectionCount: counters.acceptedConnectionCount,
-                    requestCount: counters.requestCount
+                    requestCount: counters.requestCount,
+                    containerIndexOpen: containerIndexOpen
                 )
             }
         }
@@ -486,18 +960,39 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     fileprivate func configureContainerIndex(token: String, revision: ContentRevision?) {
         guard let registration = lock.withLock({ registrations[token] }) else { return }
         registration.lock.withLock {
-            registration.indexSession = revision.map { ContainerIndexCache.shared.session(for: $0) }
+            registration.indexSession = revision.map { containerIndexCache.session(for: $0) }
+            #if DEBUG
+                registration.containerIndexDebugState.configure(revision: revision)
+            #endif
         }
     }
 
     fileprivate func finishContainerIndex(token: String) {
         guard let registration = lock.withLock({ registrations[token] }) else { return }
-        registration.lock.withLock { registration.indexSession }?.finish()
+        guard let session = registration.lock.withLock({ registration.indexSession }) else {
+            return
+        }
+        session.finish()
+        #if DEBUG
+            registration.lock.withLock {
+                guard registration.indexSession === session else { return }
+                registration.containerIndexDebugState.containerIndexFinished = true
+            }
+        #endif
     }
 
     fileprivate func discardContainerIndex(token: String) {
         guard let registration = lock.withLock({ registrations[token] }) else { return }
-        registration.lock.withLock { registration.indexSession }?.discard()
+        guard let session = registration.lock.withLock({ registration.indexSession }) else {
+            return
+        }
+        session.discard()
+        #if DEBUG
+            registration.lock.withLock {
+                guard registration.indexSession === session else { return }
+                registration.containerIndexDebugState.containerIndexFinished = false
+            }
+        #endif
     }
 
     fileprivate func unregister(token: String) {
@@ -700,8 +1195,14 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             initialRange = discoveryRange
         }
 
+        let first: MediaByteRangeRead
         do {
-            let first = try await read(initialRange, registration: registration)
+            first = try await read(initialRange, registration: registration)
+        } catch {
+            sendError(502, message: "Bad Gateway", on: connection)
+            return
+        }
+        do {
             guard let actualLength = first.contentLength ?? knownLength,
                   actualLength >= 0 else {
                 guard request.canUseSequentialTransfer, initialRange.lowerBound == 0 else {
@@ -775,6 +1276,15 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     ) async throws -> MediaByteRangeRead {
         let session = registration.lock.withLock { registration.indexSession }
         if let cached = session?.data(in: range) {
+            #if DEBUG
+                registration.lock.withLock {
+                    guard registration.indexSession === session else { return }
+                    registration.containerIndexDebugState.recordCacheHit(
+                        offset: range.lowerBound,
+                        byteCount: cached.data.count
+                    )
+                }
+            #endif
             return MediaByteRangeRead(
                 data: cached.data,
                 contentLength: cached.contentLength
@@ -782,17 +1292,53 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 supportsSeeking: true
             )
         }
-        let result = try await registration.source.read(in: range)
+        let result: MediaByteRangeRead
+        do {
+            result = try await registration.source.read(in: range)
+        } catch {
+            if let failure = MediaSourceReadFailure(classifying: error) {
+                registration.readFailureState.record(failure)
+            }
+            throw error
+        }
         if let contentLength = result.contentLength, contentLength >= 0 {
             registration.lock.withLock {
                 registration.authoritativeContentLength = contentLength
             }
         }
-        session?.record(
-            result.data,
-            at: range.lowerBound,
-            contentLength: result.contentLength
-        )
+        #if DEBUG
+            if let session {
+                registration.lock.withLock {
+                    guard registration.indexSession === session else { return }
+                    registration.containerIndexDebugState.recordSourceRead(
+                        offset: range.lowerBound,
+                        byteCount: result.data.count
+                    )
+                }
+            }
+        #endif
+        #if DEBUG
+            let recorded = session?.record(
+                result.data,
+                at: range.lowerBound,
+                contentLength: result.contentLength
+            ) ?? false
+            if recorded, let session {
+                registration.lock.withLock {
+                    guard registration.indexSession === session else { return }
+                    registration.containerIndexDebugState.recordIndexWrite(
+                        offset: range.lowerBound,
+                        byteCount: result.data.count
+                    )
+                }
+            }
+        #else
+            session?.record(
+                result.data,
+                at: range.lowerBound,
+                contentLength: result.contentLength
+            )
+        #endif
         return result
     }
 
@@ -817,7 +1363,10 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             }
             while true {
                 try Task.checkCancellation()
-                let result = try await registration.source.read(in: offset..<(offset + readChunkSize))
+                let result = try await read(
+                    offset..<(offset + readChunkSize),
+                    registration: registration
+                )
                 guard result.data.isEmpty == false else { break }
                 try await sendChunk(result.data, on: connection)
                 offset += Int64(result.data.count)

@@ -12,20 +12,29 @@ public struct RemoteConnectionEndpoint: Sendable, Equatable {
     }
 }
 
-public enum RemoteConnectionFailureDiagnosis: Sendable, Equatable {
-    case requiresHTTPS
-    case unclassified
-}
-
-public enum RemoteConnectionError: LocalizedError, Sendable {
+public enum RemoteConnectionFailure: LocalizedError, Sendable, Equatable, CaseIterable {
+    case credentialsRejected
+    case serverUnreachable
+    case invalidAddress
     case requiresHTTPS
 
     public var errorDescription: String? {
         switch self {
+        case .credentialsRejected:
+            "Credentials rejected. Check your username and password."
+        case .serverUnreachable:
+            "Server unreachable. Check the address and your network connection."
+        case .invalidAddress:
+            "Invalid address. Check the server address and try again."
         case .requiresHTTPS:
-            "该地址需要使用 HTTPS。请在服务器地址前添加 https:// 后重试。"
+            "This server requires HTTPS. Add https:// to the address and try again."
         }
     }
+}
+
+public enum RemoteConnectionResult: Sendable, Equatable {
+    case connected
+    case failed(RemoteConnectionFailure)
 }
 
 public struct RemoteConnectionFailureDiagnoser: Sendable {
@@ -44,41 +53,46 @@ public struct RemoteConnectionFailureDiagnoser: Sendable {
     public func diagnose(
         _ error: any Error,
         attemptedURL: URL
-    ) async -> RemoteConnectionFailureDiagnosis {
-        if Self.containsURLFailure(
-            error,
-            code: NSURLErrorAppTransportSecurityRequiresSecureConnection
-        ) {
+    ) async -> RemoteConnectionFailure {
+        guard let urlFailureCode = Self.urlFailureCode(in: error) else {
+            return .serverUnreachable
+        }
+
+        if urlFailureCode == NSURLErrorAppTransportSecurityRequiresSecureConnection {
             return .requiresHTTPS
         }
 
-        guard attemptedURL.scheme?.lowercased() == "http",
-              Self.containsURLFailure(error),
-              let endpoint = RemoteConnectionEndpoint(httpURL: attemptedURL)
-        else {
-            return .unclassified
+        switch URLError.Code(rawValue: urlFailureCode) {
+        case .userAuthenticationRequired, .userCancelledAuthentication:
+            return .credentialsRejected
+        case .badURL, .unsupportedURL:
+            return .invalidAddress
+        default:
+            break
         }
 
-        return await tlsProbe(endpoint) ? .requiresHTTPS : .unclassified
+        if attemptedURL.scheme?.lowercased() == "http",
+           let endpoint = RemoteConnectionEndpoint(httpURL: attemptedURL),
+           await tlsProbe(endpoint) {
+            return .requiresHTTPS
+        }
+
+        return .serverUnreachable
     }
 
-    private static func containsURLFailure(
-        _ error: any Error,
-        code expectedCode: Int? = nil
-    ) -> Bool {
+    private static func urlFailureCode(in error: any Error) -> Int? {
         var current: NSError? = error as NSError
         var visited: Set<ObjectIdentifier> = []
 
         while let candidate = current {
             let identity = ObjectIdentifier(candidate)
-            guard visited.insert(identity).inserted else { return false }
-            if candidate.domain == NSURLErrorDomain,
-               expectedCode == nil || candidate.code == expectedCode {
-                return true
+            guard visited.insert(identity).inserted else { return nil }
+            if candidate.domain == NSURLErrorDomain {
+                return candidate.code
             }
             current = candidate.userInfo[NSUnderlyingErrorKey] as? NSError
         }
-        return false
+        return nil
     }
 }
 

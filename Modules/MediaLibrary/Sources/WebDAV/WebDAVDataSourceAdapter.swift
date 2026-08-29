@@ -53,24 +53,16 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
 
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
         connectionStatus = .connecting
+        var attemptedURL: URL?
 
         do {
             let rootURL = try buildBaseURL(from: info)
+            attemptedURL = rootURL
             authHeader = try buildAuthHeader(info: info)
-            let validatedURL: URL
-            do {
-                validatedURL = try await MediaSourceNetwork.shared.withConnectionApproval(
-                    to: rootURL
-                ) { [self] in
-                    try await validateConnection(startingAt: rootURL)
-                }
-            } catch {
-                switch await failureDiagnoser.diagnose(error, attemptedURL: rootURL) {
-                case .requiresHTTPS:
-                    throw RemoteConnectionError.requiresHTTPS
-                case .unclassified:
-                    throw error
-                }
+            let validatedURL = try await MediaSourceNetwork.shared.withConnectionApproval(
+                to: rootURL
+            ) { [self] in
+                try await validateConnection(startingAt: rootURL)
             }
 
             baseURL = validatedURL
@@ -78,9 +70,42 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
 
             connectionStatus = .connected
         } catch {
-            connectionStatus = .failed(error.localizedDescription)
-            throw error
+            let failure = await connectionFailure(for: error, attemptedURL: attemptedURL)
+            connectionStatus = .failed(failure)
+            throw failure
         }
+    }
+
+    private func connectionFailure(
+        for error: any Error,
+        attemptedURL: URL?
+    ) async -> RemoteConnectionFailure {
+        if let failure = error as? RemoteConnectionFailure {
+            return failure
+        }
+
+        if let webDAVError = error as? WebDAVError {
+            switch webDAVError {
+            case .requestFailed(let statusCode) where statusCode == 401 || statusCode == 403:
+                return .credentialsRejected
+            case .requestFailed(let statusCode) where statusCode == 404 || statusCode == 410:
+                return .invalidAddress
+            case .invalidConnectionInfo:
+                return .invalidAddress
+            case .notConnected, .invalidResponse, .requestFailed, .malformedResponse,
+                 .emptyDirectoryListing, .streamingFailed:
+                return .serverUnreachable
+            }
+        }
+
+        if let attemptedURL {
+            return await failureDiagnoser.diagnose(
+                error,
+                attemptedURL: attemptedURL
+            )
+        }
+
+        return .serverUnreachable
     }
 
     public func disconnect() {
@@ -489,7 +514,7 @@ private nonisolated final class WebDAVByteRangeSource: MediaByteRangeSource, @un
 
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse else {
-            throw WebDAVError.invalidResponse
+            throw MediaSourceReadFailure.invalidData
         }
         if response.statusCode == 200 {
             return MediaByteRangeRead(
@@ -501,13 +526,18 @@ private nonisolated final class WebDAVByteRangeSource: MediaByteRangeSource, @un
             )
         }
         guard response.statusCode == 206 else {
+            if let failure = MediaSourceReadFailure(
+                httpStatusCode: response.statusCode
+            ) {
+                throw failure
+            }
             throw WebDAVError.requestFailed(response.statusCode)
         }
         let expectedContentRange = "bytes \(range.lowerBound)-"
         guard response.value(forHTTPHeaderField: "Content-Range")?
             .lowercased()
             .hasPrefix(expectedContentRange) == true else {
-            throw WebDAVError.streamingFailed("The server returned a mismatched byte range.")
+            throw MediaSourceReadFailure.invalidData
         }
         return MediaByteRangeRead(
             data: data,
