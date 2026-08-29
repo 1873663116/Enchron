@@ -204,6 +204,7 @@ public struct VideoFormatSignalingSummary: Codable, Equatable, Sendable {
     public var masteringDisplayMetadata: ObservedBooleanFact
     public var contentLightLevelMetadata: ObservedBooleanFact
     public var hvcC: ObservedBooleanFact
+    public var lhvC: ObservedBooleanFact
     public var dvcC: ObservedBooleanFact
     public var dvvC: ObservedBooleanFact
     public var ambientViewingEnvironment: ObservedBooleanFact
@@ -221,6 +222,7 @@ public struct VideoFormatSignalingSummary: Codable, Equatable, Sendable {
         masteringDisplayMetadata: ObservedBooleanFact = .init(.notExposed),
         contentLightLevelMetadata: ObservedBooleanFact = .init(.notExposed),
         hvcC: ObservedBooleanFact = .init(.notExposed),
+        lhvC: ObservedBooleanFact = .init(.notExposed),
         dvcC: ObservedBooleanFact = .init(.notExposed),
         dvvC: ObservedBooleanFact = .init(.notExposed),
         ambientViewingEnvironment: ObservedBooleanFact = .init(.notExposed)
@@ -237,6 +239,7 @@ public struct VideoFormatSignalingSummary: Codable, Equatable, Sendable {
         self.masteringDisplayMetadata = masteringDisplayMetadata
         self.contentLightLevelMetadata = contentLightLevelMetadata
         self.hvcC = hvcC
+        self.lhvC = lhvC
         self.dvcC = dvcC
         self.dvvC = dvvC
         self.ambientViewingEnvironment = ambientViewingEnvironment
@@ -255,6 +258,7 @@ public struct VideoFormatSignalingSummary: Codable, Equatable, Sendable {
         case masteringDisplayMetadata
         case contentLightLevelMetadata
         case hvcC
+        case lhvC
         case dvcC
         case dvvC
         case ambientViewingEnvironment
@@ -292,6 +296,10 @@ public struct VideoFormatSignalingSummary: Codable, Equatable, Sendable {
             forKey: .contentLightLevelMetadata
         )
         hvcC = try values.decode(ObservedBooleanFact.self, forKey: .hvcC)
+        lhvC = try values.decodeIfPresent(
+            ObservedBooleanFact.self,
+            forKey: .lhvC
+        ) ?? .init(.notExposed)
         dvcC = try values.decode(ObservedBooleanFact.self, forKey: .dvcC)
         dvvC = try values.decode(ObservedBooleanFact.self, forKey: .dvvC)
         ambientViewingEnvironment = try values.decode(

@@ -191,6 +191,7 @@ struct PBFFmpegReader {
     double durationSeconds;
     double nominalFrameRate;
     char codecName[64];
+    bool unsupportedVideoCodec;
     char codecTag[5];
     char containerFormat[64];
     char colorPrimaries[64];
@@ -210,6 +211,7 @@ struct PBFFmpegReader {
     size_t pendingHEVCParameterSetSize;
     bool inputEnded;
     bool filterDrained;
+    PBFFmpegActiveFailureCause lastActiveFailureCause;
 };
 
 struct PBFFmpegAudioReader {
@@ -250,6 +252,12 @@ struct PBFFmpegAudioReader {
     CMAudioFormatDescriptionRef formatDescription;
     char codecName[64];
     AVCodecParameters *codecParameters;
+    uint64_t trueHDDecoderInputPacketCount;
+    uint64_t trueHDDecoderBatchCount;
+    uint64_t trueHDAggregatedDecoderBatchCount;
+    uint64_t trueHDOutputSampleBufferCount;
+    uint32_t trueHDLastDecoderBatchInputPacketCount;
+    PBFFmpegActiveFailureCause lastActiveFailureCause;
 };
 
 static void publish_source_bytes(PBFFmpegSourceReadContext *context) {
@@ -1157,6 +1165,46 @@ static void set_av_error(char *buffer, size_t size, const char *operation, int c
     av_strerror(code, detail, sizeof(detail));
     if (buffer == NULL || size == 0) return;
     snprintf(buffer, size, "%s: %s (%d)", operation, detail, code);
+}
+
+static PBFFmpegActiveFailureCause active_failure_cause_for_av_error(int code) {
+    switch (code) {
+        case AVERROR(ECONNABORTED):
+        case AVERROR(ECONNRESET):
+        case AVERROR(ENETDOWN):
+        case AVERROR(ENETRESET):
+        case AVERROR(ENETUNREACH):
+        case AVERROR(ENOTCONN):
+        case AVERROR(ETIMEDOUT):
+        case AVERROR(EHOSTDOWN):
+        case AVERROR(EHOSTUNREACH):
+        case AVERROR(EPIPE):
+            return PBFFmpegActiveFailureCauseConnectionInterrupted;
+        case AVERROR(ENOENT):
+        case AVERROR(ENOTDIR):
+        case AVERROR(ESTALE):
+        case AVERROR_HTTP_NOT_FOUND:
+            return PBFFmpegActiveFailureCauseSourceFileMissing;
+        case AVERROR(EACCES):
+        case AVERROR(EPERM):
+        case AVERROR_HTTP_UNAUTHORIZED:
+        case AVERROR_HTTP_FORBIDDEN:
+            return PBFFmpegActiveFailureCauseSourceAccessDenied;
+        case AVERROR_INVALIDDATA:
+            return PBFFmpegActiveFailureCauseMediaDataCorrupt;
+        default:
+            return PBFFmpegActiveFailureCauseNone;
+    }
+}
+
+static PBFFmpegActiveFailureCause active_failure_cause_for_decoder_error(int code) {
+    switch (code) {
+        case AVERROR(EINVAL):
+        case AVERROR_INVALIDDATA:
+            return PBFFmpegActiveFailureCauseMediaDataCorrupt;
+        default:
+            return PBFFmpegActiveFailureCauseNone;
+    }
 }
 
 // The bridge has historically exposed Apple's 'apac' MOV sample entry as
@@ -4094,6 +4142,7 @@ static bool configure_video_reader(
         }
         OSType compressedType = codec_type(stream->codecpar);
         if (!compressed_codec_is_renderable(compressedType)) {
+            reader->unsupportedVideoCodec = true;
             char message[256];
             snprintf(
                 message,
@@ -4665,6 +4714,8 @@ static PBFFmpegReadResult copy_compressed_sample(
                     "Read demuxed video packet",
                     readResult
                 );
+                reader->lastActiveFailureCause =
+                    active_failure_cause_for_av_error(readResult);
                 return PBFFmpegReadResultError;
             }
             return PBFFmpegReadResultEnd;
@@ -4773,7 +4824,16 @@ PBFFmpegReadResult PBFFmpegReaderCopyNextSample(
         return PBFFmpegReadResultError;
     }
     *sampleOut = NULL;
+    reader->lastActiveFailureCause = PBFFmpegActiveFailureCauseNone;
     return copy_compressed_sample(reader, sampleOut, errorBuffer, errorBufferSize);
+}
+
+PBFFmpegActiveFailureCause PBFFmpegReaderGetLastActiveFailureCause(
+    const PBFFmpegReader *reader
+) {
+    return reader
+        ? reader->lastActiveFailureCause
+        : PBFFmpegActiveFailureCauseNone;
 }
 
 double PBFFmpegReaderGetDurationSeconds(const PBFFmpegReader *reader) {
@@ -4786,6 +4846,12 @@ double PBFFmpegReaderGetNominalFrameRate(const PBFFmpegReader *reader) {
 
 const char *PBFFmpegReaderGetCodecName(const PBFFmpegReader *reader) {
     return reader ? reader->codecName : "unknown";
+}
+
+bool PBFFmpegReaderOpenFailedWithUnsupportedVideoCodec(
+    const PBFFmpegReader *reader
+) {
+    return reader && reader->unsupportedVideoCodec;
 }
 
 const char *PBFFmpegReaderGetCodecTag(const PBFFmpegReader *reader) {
@@ -5191,7 +5257,8 @@ static int aggregate_truehd_decoder_packet(PBFFmpegAudioReader *reader) {
         if (result < 0) {
             reader->inputEnded = true;
             reader->inputReadResult = result;
-            return result == AVERROR_EOF ? 0 : result;
+            if (result == AVERROR_EOF) break;
+            return result;
         }
         if (reader->decoderBatchPacket->stream_index != reader->audioStreamIndex) {
             av_packet_unref(reader->decoderBatchPacket);
@@ -5216,6 +5283,10 @@ static int aggregate_truehd_decoder_packet(PBFFmpegAudioReader *reader) {
         packetCount++;
         av_packet_unref(reader->decoderBatchPacket);
     }
+    reader->trueHDDecoderInputPacketCount += packetCount;
+    reader->trueHDDecoderBatchCount++;
+    if (packetCount > 1) reader->trueHDAggregatedDecoderBatchCount++;
+    reader->trueHDLastDecoderBatchInputPacketCount = packetCount;
     return 0;
 }
 
@@ -5294,6 +5365,10 @@ static PBFFmpegReadResult emit_pending_decoded_audio_sample(
         return PBFFmpegReadResultError;
     }
 
+    bool isTrueHD = reader->codecParameters &&
+        reader->codecParameters->codec_id == AV_CODEC_ID_TRUEHD;
+    if (isTrueHD) reader->trueHDOutputSampleBufferCount++;
+
     if (metadataOut) {
         *metadataOut = reader->pendingPCMMetadata;
         metadataOut->packetDuration = av_rescale_q(
@@ -5302,6 +5377,18 @@ static PBFFmpegReadResult emit_pending_decoded_audio_sample(
             reader->timeBase
         );
         metadataOut->payloadByteCount = reader->pendingPCMByteCount;
+        if (isTrueHD) {
+            metadataOut->trueHDDecoderInputPacketCount =
+                reader->trueHDDecoderInputPacketCount;
+            metadataOut->trueHDDecoderBatchCount =
+                reader->trueHDDecoderBatchCount;
+            metadataOut->trueHDAggregatedDecoderBatchCount =
+                reader->trueHDAggregatedDecoderBatchCount;
+            metadataOut->trueHDOutputSampleBufferCount =
+                reader->trueHDOutputSampleBufferCount;
+            metadataOut->trueHDLastDecoderBatchInputPacketCount =
+                reader->trueHDLastDecoderBatchInputPacketCount;
+        }
     }
     reader->pendingPCMByteCount = 0;
     reader->pendingPCMFrameCount = 0;
@@ -5659,9 +5746,15 @@ static PBFFmpegReadResult create_audio_sample(
     int formatResult = ensure_audio_format(
         reader, parameters, errorBuffer, errorBufferSize
     );
-    if (formatResult < 0) return PBFFmpegReadResultError;
+    if (formatResult < 0) {
+        reader->lastActiveFailureCause =
+            active_failure_cause_for_av_error(formatResult);
+        return PBFFmpegReadResultError;
+    }
     if (packet->size <= 0 || packet->data == NULL) {
         set_error(errorBuffer, errorBufferSize, "Compressed audio packet is empty");
+        reader->lastActiveFailureCause =
+            PBFFmpegActiveFailureCauseMediaDataCorrupt;
         return PBFFmpegReadResultError;
     }
     size_t byteCount = (size_t)packet->size;
@@ -5964,10 +6057,14 @@ static PBFFmpegReadResult create_decoded_audio_sample(
             frame->nb_samples
         );
         set_error(errorBuffer, errorBufferSize, message);
+        reader->lastActiveFailureCause =
+            PBFFmpegActiveFailureCauseMediaDataCorrupt;
         return PBFFmpegReadResultError;
     }
     if (inputSampleRate != reader->sampleRate) {
         set_error(errorBuffer, errorBufferSize, "Decoded audio changed the declared sample rate");
+        reader->lastActiveFailureCause =
+            PBFFmpegActiveFailureCauseMediaDataCorrupt;
         return PBFFmpegReadResultError;
     }
 
@@ -6064,6 +6161,7 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
     }
     *sampleOut = NULL;
     if (metadataOut) memset(metadataOut, 0, sizeof(*metadataOut));
+    reader->lastActiveFailureCause = PBFFmpegActiveFailureCauseNone;
     if (cancellation_requested(&reader->cancelled)) {
         return PBFFmpegReadResultCancelled;
     }
@@ -6143,12 +6241,16 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                         "Read demuxed audio packet",
                         reader->inputReadResult
                     );
+                    reader->lastActiveFailureCause =
+                        active_failure_cause_for_av_error(reader->inputReadResult);
                     return PBFFmpegReadResultError;
                 }
                 return PBFFmpegReadResultEnd;
             }
             if (result != AVERROR(EAGAIN)) {
                 set_av_error(errorBuffer, errorBufferSize, "Decode audio frame", result);
+                reader->lastActiveFailureCause =
+                    active_failure_cause_for_decoder_error(result);
                 return PBFFmpegReadResultError;
             }
             if (reader->inputEnded) {
@@ -6157,6 +6259,8 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                     reader->decoderDrained = true;
                     if (result < 0 && result != AVERROR_EOF) {
                         set_av_error(errorBuffer, errorBufferSize, "Finish FFmpeg audio decoder", result);
+                        reader->lastActiveFailureCause =
+                            active_failure_cause_for_decoder_error(result);
                         return PBFFmpegReadResultError;
                     }
                     continue;
@@ -6174,6 +6278,7 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
             if (reader->decoder) continue;
             if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
             set_av_error(errorBuffer, errorBufferSize, "Read demuxed audio packet", result);
+            reader->lastActiveFailureCause = active_failure_cause_for_av_error(result);
             return PBFFmpegReadResultError;
         }
         if (reader->packet->stream_index != reader->audioStreamIndex) {
@@ -6195,6 +6300,8 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                     "Aggregate FFmpeg TrueHD decoder packet",
                     result
                 );
+                reader->lastActiveFailureCause =
+                    active_failure_cause_for_av_error(result);
                 return PBFFmpegReadResultError;
             }
             result = avcodec_send_packet(reader->decoder, reader->packet);
@@ -6209,6 +6316,8 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                     reader->codecName
                 );
                 set_av_error(errorBuffer, errorBufferSize, operation, result);
+                reader->lastActiveFailureCause =
+                    active_failure_cause_for_decoder_error(result);
                 return PBFFmpegReadResultError;
             }
             continue;
@@ -6231,6 +6340,14 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
         av_packet_unref(reader->packet);
         return readResult;
     }
+}
+
+PBFFmpegActiveFailureCause PBFFmpegAudioReaderGetLastActiveFailureCause(
+    const PBFFmpegAudioReader *reader
+) {
+    return reader
+        ? reader->lastActiveFailureCause
+        : PBFFmpegActiveFailureCauseNone;
 }
 
 int PBFFmpegAudioReaderGetStreamIndex(const PBFFmpegAudioReader *reader) {

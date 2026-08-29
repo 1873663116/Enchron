@@ -303,7 +303,12 @@ extension SampleBufferPlaybackSession {
                     provider.cancel()
                     recordMediaErrorEvent()
                     recordFailure(error, node: .mediaEventStream, kind: "provider.readFailed")
-                    onStatusChange?(.failed(error.localizedDescription))
+                    publishFailureStatus(
+                        error,
+                        context: .sourceRead(
+                            (error as? PlaybackProviderError)?.activeFailureCause
+                        )
+                    )
                     return
                 }
             }
@@ -815,7 +820,12 @@ extension SampleBufferPlaybackSession {
                             node: .mediaEventStream,
                             kind: "audioProvider.readFailed"
                         )
-                        onStatusChange?(.failed(error.localizedDescription))
+                        publishFailureStatus(
+                            error,
+                            context: .sourceRead(
+                                (error as? PlaybackProviderError)?.activeFailureCause
+                            )
+                        )
                         return
                     }
                     retireAudio(
@@ -886,6 +896,9 @@ extension SampleBufferPlaybackSession {
                         self?.enqueueAudioSpectrumFrame(frame)
                     }
                 }
+                let timestampObservation = recordAudioDeliveryPresentationTime(
+                    presentationTime
+                )
                 let record = AudioSampleRecord(
                     mediaSessionID: traceID,
                     audioTrackID: trackID,
@@ -896,7 +909,13 @@ extension SampleBufferPlaybackSession {
                     sampleRate: audioInfo?.sampleRate ?? 0,
                     channelCount: audioInfo?.channelCount ?? 0,
                     sampleCount: CMSampleBufferGetNumSamples(sample),
-                    payloadOwnershipState: "retainedCMSampleBuffer"
+                    payloadOwnershipState: "retainedCMSampleBuffer",
+                    deliveryObservation: audioDeliveryObservation(
+                        for: sample,
+                        providerInfo: audioInfo,
+                        timestampsMonotonic: timestampObservation.monotonic,
+                        timestampObservationCount: timestampObservation.count
+                    )
                 )
                 debugStore.recordAudioSample(record)
                 if sampleOrdinal <= 64 {
@@ -1275,9 +1294,21 @@ extension SampleBufferPlaybackSession {
         presentationTime: CMTime,
         reading: PlaybackTimelineClockReading
     ) {
-        let decision = timelineProgressRecoveryLock.withLock {
+        let mediaState = deliveryContinuityMediaState()
+        let result: (
+            decision: PlaybackTimelineProgressDecision,
+            continuity: PlaybackDeliveryContinuityObservation?
+        ) = timelineProgressRecoveryLock.withLock {
             if !isBlocked {
-                return timelineProgressRecovery.observeProgress(reading)
+                let decision = timelineProgressRecovery.observeProgress(reading)
+                let continuity = timelineProgressRecovery.currentRun.flatMap { run in
+                    deliveryContinuity.observeProgress(
+                        run: run,
+                        reading: reading,
+                        mediaState: mediaState
+                    )
+                }
+                return (decision, continuity)
             }
             guard timelineProgressRecoveryIsEligible,
                   timelineProgressRecovery.matches(
@@ -1285,16 +1316,27 @@ extension SampleBufferPlaybackSession {
                     audioStreamEpoch: audioStreamEpoch,
                     requestedRate: timelineStartRate
                   ) else {
-                return .none
+                return (.none, nil)
             }
-            return timelineProgressRecovery.observeBlockedLane(
+            let decision = timelineProgressRecovery.observeBlockedLane(
                 lane,
                 blockedPresentationTime: presentationTime,
                 reading: reading,
                 requiredLanes: timelineProgressRequiredLanes
             )
+            let continuity = timelineProgressRecovery.currentRun.flatMap { run in
+                deliveryContinuity.observeProgress(
+                    run: run,
+                    reading: reading,
+                    mediaState: mediaState
+                )
+            }
+            return (decision, continuity)
         }
-        handleTimelineProgressDecision(decision)
+        if let continuity = result.continuity {
+            publishDeliveryContinuity(continuity)
+        }
+        handleTimelineProgressDecision(result.decision)
     }
 
     var timelineProgressRequiredLanes: Set<PlaybackDeliveryLane> {
@@ -1328,17 +1370,31 @@ extension SampleBufferPlaybackSession {
     }
 
     func receiveTimelineProgressWatchdogTick(run: PlaybackTimelineProgressRun) {
-        let decision = timelineProgressRecoveryLock.withLock {
+        let reading = timelineClockReading()
+        let mediaState = deliveryContinuityMediaState()
+        let result: (
+            decision: PlaybackTimelineProgressDecision,
+            continuity: PlaybackDeliveryContinuityObservation?
+        ) = timelineProgressRecoveryLock.withLock {
             guard timelineProgressWatchdogIsEligible,
                   timelineProgressRecovery.matches(run) else {
-                return PlaybackTimelineProgressDecision.none
+                return (.none, nil)
             }
-            return timelineProgressRecovery.observeHostWatchdog(
+            let decision = timelineProgressRecovery.observeHostWatchdog(
                 run: run,
-                reading: timelineClockReading()
+                reading: reading
             )
+            let continuity = deliveryContinuity.observeProgress(
+                run: run,
+                reading: reading,
+                mediaState: mediaState
+            )
+            return (decision, continuity)
         }
-        handleTimelineProgressDecision(decision)
+        if let continuity = result.continuity {
+            publishDeliveryContinuity(continuity)
+        }
+        handleTimelineProgressDecision(result.decision)
     }
 
     func timelineClockReading() -> PlaybackTimelineClockReading {
@@ -1367,7 +1423,8 @@ extension SampleBufferPlaybackSession {
         case .reanchor(let incident):
             let result = timelineProgressRecoveryLock.withLock { () -> (
                 PlaybackTimelineProgressIncident,
-                PlaybackTimelineClockReading
+                PlaybackTimelineClockReading,
+                PlaybackDeliveryContinuityObservation?
             )? in
                 guard timelineProgressDecisionIsEligible(
                         incident: incident,
@@ -1404,9 +1461,16 @@ extension SampleBufferPlaybackSession {
                     incident,
                     at: hostTime
                 ) else { return nil }
-                return (applied, fresh)
+                let continuity = deliveryContinuity.observeIncident(
+                    applied,
+                    mediaState: deliveryContinuityMediaState()
+                )
+                return (applied, fresh, continuity)
             }
             guard let result else { return }
+            if let continuity = result.2 {
+                publishDeliveryContinuity(continuity)
+            }
             recordTimelineProgressRecovery(
                 outcome: .stalled,
                 incident: result.0,
@@ -1522,6 +1586,83 @@ extension SampleBufferPlaybackSession {
             outcome: outcome == .notResumed ? .failed : .succeeded,
             details: details
         )
+    }
+
+    func deliveryContinuityMediaState() -> PlaybackDeliveryContinuityMediaState {
+        endStateLock.withLock {
+            let requiredLanes: Set<PlaybackDeliveryLane>
+            if mediaKind == .audioOnly {
+                requiredLanes = [.audio]
+            } else if endState.requiresAudio && !endState.audioProviderEnded {
+                requiredLanes = [.video, .audio]
+            } else {
+                requiredLanes = [.video]
+            }
+            var providerEndedLanes: Set<PlaybackDeliveryLane> = []
+            if endState.videoProviderEnded {
+                providerEndedLanes.insert(.video)
+            }
+            if endState.audioProviderEnded {
+                providerEndedLanes.insert(.audio)
+            }
+            var presentationEndByLane: [PlaybackDeliveryLane: CMTime] = [:]
+            presentationEndByLane[.video] = endState.videoPresentationEnd
+            presentationEndByLane[.audio] = endState.audioPresentationEnd
+            return PlaybackDeliveryContinuityMediaState(
+                requiredLanes: requiredLanes,
+                providerEndedLanes: providerEndedLanes,
+                presentationEndByLane: presentationEndByLane
+            )
+        }
+    }
+
+    func observeDeliveryContinuityAfterMediaDelivery() {
+        let isStarved = timelineProgressRecoveryLock.withLock {
+            deliveryContinuity.isStarved
+        }
+        guard isStarved else { return }
+        let mediaState = deliveryContinuityMediaState()
+        let reading = timelineClockReading()
+        let observation: PlaybackDeliveryContinuityObservation? =
+            timelineProgressRecoveryLock.withLock {
+            guard let run = timelineProgressRecovery.currentRun else { return nil }
+            return deliveryContinuity.observeProgress(
+                run: run,
+                reading: reading,
+                mediaState: mediaState
+            )
+        }
+        if let observation {
+            publishDeliveryContinuity(observation)
+        }
+    }
+
+    func publishDeliveryContinuity(
+        _ observation: PlaybackDeliveryContinuityObservation
+    ) {
+        debugStore.recordDeliveryContinuity(observation)
+        let evidence = observation.evidence
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "deliveryContinuity.\(observation.phase.rawValue)",
+            outcome: .succeeded,
+            details: [
+                "incidentID": evidence.map { String($0.incidentID) } ?? "none",
+                "detectionSource": evidence?.detectionSource.rawValue ?? "none",
+                "requiredLanes": evidence?.requiredLanes.joined(separator: "+") ?? "none",
+                "rateApplicationGeneration": evidence.map {
+                    String($0.rateApplicationGeneration)
+                } ?? "none",
+                "frozenMediaTimeSeconds": evidence.map {
+                    String($0.frozenMediaTimeSeconds)
+                } ?? "none",
+                "recoveredMediaTimeSeconds": evidence?.recoveredMediaTimeSeconds.map {
+                    String($0)
+                } ?? "none"
+            ]
+        )
+        onDeliveryContinuityChange?(observation)
     }
 
     func emitPlaybackDeliveryStage(
@@ -1794,6 +1935,102 @@ extension SampleBufferPlaybackSession {
         details["duration.value"] = String(CMSampleBufferGetDuration(sample).value)
         details["duration.timescale"] = String(CMSampleBufferGetDuration(sample).timescale)
         return details
+    }
+
+    func recordAudioDeliveryPresentationTime(
+        _ presentationTime: CMTime
+    ) -> (monotonic: Bool, count: UInt64) {
+        audioDeliveryObservationLock.withLock {
+            if audioDeliveryObservationEpoch != audioStreamEpoch {
+                audioDeliveryObservationEpoch = audioStreamEpoch
+                lastAudioDeliveryPresentationTime = nil
+                audioDeliveryTimestampsMonotonic = true
+                audioDeliveryTimestampObservationCount = 0
+            }
+            audioDeliveryTimestampObservationCount &+= 1
+            if presentationTime.isNumeric {
+                if let previous = lastAudioDeliveryPresentationTime,
+                   CMTimeCompare(presentationTime, previous) <= 0 {
+                    audioDeliveryTimestampsMonotonic = false
+                }
+                lastAudioDeliveryPresentationTime = presentationTime
+            } else {
+                audioDeliveryTimestampsMonotonic = false
+            }
+            return (
+                audioDeliveryTimestampsMonotonic,
+                audioDeliveryTimestampObservationCount
+            )
+        }
+    }
+
+    func audioDeliveryObservation(
+        for sample: CMSampleBuffer,
+        providerInfo: AudioSampleProviderInfo?,
+        timestampsMonotonic: Bool,
+        timestampObservationCount: UInt64
+    ) -> AudioDeliveryObservation? {
+        guard let format = CMSampleBufferGetFormatDescription(sample),
+              let stream = CMAudioFormatDescriptionGetStreamBasicDescription(format) else {
+            return nil
+        }
+        let value = stream.pointee
+        var channelLayoutSize = 0
+        let channelLayout = CMAudioFormatDescriptionGetChannelLayout(
+            format,
+            sizeOut: &channelLayoutSize
+        )
+        let isLinearPCM = value.mFormatID == kAudioFormatLinearPCM
+        let ffmpegMetadata = CMGetAttachment(
+            sample,
+            key: "com.enchron.playbackcore.ffmpegAudioMetadata" as CFString,
+            attachmentModeOut: nil
+        ) as? [String: Any]
+        func uint64Metadata(_ key: String) -> UInt64? {
+            (ffmpegMetadata?[key] as? NSNumber)?.uint64Value
+        }
+        func uint32Metadata(_ key: String) -> UInt32? {
+            (ffmpegMetadata?[key] as? NSNumber)?.uint32Value
+        }
+        return AudioDeliveryObservation(
+            providerKind: providerInfo?.providerKind ?? "unknown",
+            sourceCodecName: providerInfo?.codecName ?? "unknown",
+            mediaSubtype: fourCC(CMFormatDescriptionGetMediaSubType(format)),
+            formatID: fourCC(value.mFormatID),
+            formatFlags: value.mFormatFlags,
+            sourceSampleRate: providerInfo?.sampleRate ?? 0,
+            deliveredSampleRate: value.mSampleRate,
+            sourceChannelCount: providerInfo?.channelCount ?? 0,
+            deliveredChannelCount: value.mChannelsPerFrame,
+            bitsPerChannel: value.mBitsPerChannel,
+            bytesPerFrame: value.mBytesPerFrame,
+            framesPerPacket: value.mFramesPerPacket,
+            isFloatPCM: isLinearPCM
+                && value.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+            isInterleaved: isLinearPCM
+                ? value.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0
+                : nil,
+            channelLayoutTag: channelLayout.map {
+                $0.pointee.mChannelLayoutTag
+            },
+            presentationTimestampsMonotonic: timestampsMonotonic,
+            timestampObservationCount: timestampObservationCount,
+            trueHDDecoderInputPacketCount: uint64Metadata(
+                "trueHDDecoderInputPacketCount"
+            ),
+            trueHDDecoderBatchCount: uint64Metadata(
+                "trueHDDecoderBatchCount"
+            ),
+            trueHDAggregatedDecoderBatchCount: uint64Metadata(
+                "trueHDAggregatedDecoderBatchCount"
+            ),
+            trueHDOutputSampleBufferCount: uint64Metadata(
+                "trueHDOutputSampleBufferCount"
+            ),
+            trueHDLastDecoderBatchInputPacketCount: uint32Metadata(
+                "trueHDLastDecoderBatchInputPacketCount"
+            )
+        )
     }
 
     func stableDiagnosticHash(_ bytes: UnsafeRawBufferPointer) -> String {
@@ -2097,6 +2334,7 @@ extension SampleBufferPlaybackSession {
                 endState.videoPresentationEnd = presentationEnd
             }
         }
+        observeDeliveryContinuityAfterMediaDelivery()
     }
 
     func targetEpochEndedBeforeVideoPresentation(_ targetSeconds: Double) -> Bool {
@@ -2118,6 +2356,7 @@ extension SampleBufferPlaybackSession {
             }
             endState.audioPresentationEnd = presentationEnd
         }
+        observeDeliveryContinuityAfterMediaDelivery()
     }
 
     func markVideoProviderEnded() {

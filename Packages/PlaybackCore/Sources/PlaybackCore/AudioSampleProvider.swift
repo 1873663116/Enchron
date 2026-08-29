@@ -140,7 +140,16 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
         case PBFFmpegReadResultCancelled:
             return .cancelled
         default:
-            throw AudioSampleProviderError.read(ffmpegErrorMessage(error))
+            let message = ffmpegErrorMessage(error)
+            if let failure = PlaybackProviderError(
+                bridgeCause: PBFFmpegAudioReaderGetLastActiveFailureCause(
+                    reader.pointer
+                ),
+                message: message
+            ) {
+                throw failure
+            }
+            throw AudioSampleProviderError.read(message)
         }
     }
 
@@ -435,7 +444,12 @@ private func attachFFmpegAudioDiagnosticMetadata(
         "timeBaseNumerator": metadata.timeBaseNumerator,
         "timeBaseDenominator": metadata.timeBaseDenominator,
         "payloadByteCount": metadata.payloadByteCount,
-        "cookieSource": ffmpegAudioCookieSourceLabel(metadata.cookieSource)
+        "cookieSource": ffmpegAudioCookieSourceLabel(metadata.cookieSource),
+        "trueHDDecoderInputPacketCount": metadata.trueHDDecoderInputPacketCount,
+        "trueHDDecoderBatchCount": metadata.trueHDDecoderBatchCount,
+        "trueHDAggregatedDecoderBatchCount": metadata.trueHDAggregatedDecoderBatchCount,
+        "trueHDOutputSampleBufferCount": metadata.trueHDOutputSampleBufferCount,
+        "trueHDLastDecoderBatchInputPacketCount": metadata.trueHDLastDecoderBatchInputPacketCount
     ]
     CMSetAttachment(
         sample,

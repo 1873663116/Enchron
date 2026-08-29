@@ -282,6 +282,7 @@ extension SampleBufferPlaybackSession {
         let atoms = extensions[kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String]
             as? [String: Any] ?? [:]
         diagnostics.formatHasHvcC = atoms["hvcC"] != nil
+        diagnostics.formatHasLhvC = atoms["lhvC"] != nil
         diagnostics.formatHasDvcC = atoms["dvcC"] != nil
         diagnostics.formatHasDvvC = atoms["dvvC"] != nil
         diagnostics.formatHasAmbientViewingEnvironment =
@@ -289,7 +290,8 @@ extension SampleBufferPlaybackSession {
             atoms["amve"] != nil
         PlaybackTrace.event(
             "session.compressedFormat id=\(traceID) subtype=\(diagnostics.destinationPixelFormat) " +
-            "hvcC=\(diagnostics.formatHasHvcC) dvcC=\(diagnostics.formatHasDvcC) " +
+            "hvcC=\(diagnostics.formatHasHvcC) lhvC=\(diagnostics.formatHasLhvC) " +
+            "dvcC=\(diagnostics.formatHasDvcC) " +
             "dvvC=\(diagnostics.formatHasDvvC) amve=\(diagnostics.formatHasAmbientViewingEnvironment)"
         )
     }
@@ -495,6 +497,7 @@ extension SampleBufferPlaybackSession {
                     ?? formatExtensions[kCMFormatDescriptionExtension_ContentLightLevelInfo as String]
             ),
             hvcC: decoded ? .init(.notAvailable) : presenceFact(atoms["hvcC"]),
+            lhvC: decoded ? .init(.notAvailable) : presenceFact(atoms["lhvC"]),
             dvcC: decoded ? .init(.notAvailable) : presenceFact(atoms["dvcC"]),
             dvvC: decoded ? .init(.notAvailable) : presenceFact(atoms["dvvC"]),
             ambientViewingEnvironment: presenceFact(
@@ -801,6 +804,7 @@ extension SampleBufferPlaybackSession {
         diagnostics.rendererError = fact.message
         onDiagnosticsChange?(diagnostics)
         updateLifecycle(.failed)
+        let activeFailureCause = Self.activeFailureCause(for: fact)
         let stage = PlaybackArtifactEventName.renderer(
             fact.rendererKind,
             warning: false
@@ -824,6 +828,7 @@ extension SampleBufferPlaybackSession {
                 "error": fact.message,
                 "errorType": fact.errorType,
                 "rendererKind": fact.rendererKind.rawValue,
+                "activeFailureCause": activeFailureCause.rawValue,
                 "requiresFlushToResumeDecoding": fact.requiresFlushToResumeDecoding
                     .map { String($0) } ?? "notAvailable"
             ]
@@ -834,7 +839,25 @@ extension SampleBufferPlaybackSession {
         recordRendererState(at: currentTime())
         recordAudioRendererState()
         logger.error("Renderer failed kind=\(fact.rendererKind.rawValue, privacy: .public) error=\(fact.message, privacy: .public)")
-        onStatusChange?(.failed(fact.message))
+        publishFailureStatus(
+            AudioRendererRetirementError(message: fact.message),
+            context: .decoder(activeFailureCause)
+        )
+    }
+
+    static func activeFailureCause(
+        for fact: RendererFailureFact
+    ) -> PlaybackCoreActiveFailureCause {
+        if fact.requiresFlushToResumeDecoding == true {
+            return .rendererRequiresFlush
+        }
+        let evidence = "\(fact.errorType) \(fact.message)".lowercased()
+        let mediaServicesWereReset = evidence.contains("mediaserviceswerereset")
+            || (
+                evidence.contains(AVFoundationErrorDomain.lowercased())
+                    && evidence.contains("-11819")
+            )
+        return mediaServicesWereReset ? .mediaServicesReset : .rendererFailed
     }
 
     func startRendererFailureMonitoring() {
