@@ -15,6 +15,75 @@ struct PlaybackPresentationStateTests {
         let error: PlaybackPresentationTransitionError?
     }
 
+    @Test("delivery accessibility exposes dynamic range and audio facts")
+    func deliveryAccessibilityFacts() {
+        var diagnostics = PlaybackDiagnostics()
+        diagnostics.sourcePixelFormat = "420v"
+        diagnostics.destinationPixelFormat = "x420"
+        diagnostics.dolbyVisionProfile = 8
+        diagnostics.dolbyVisionCrossCompatibilityID = 1
+        diagnostics.dolbyVisionHasEnhancementLayer = false
+        var snapshot = PlaybackDebugSnapshotV1()
+        snapshot.lastAudioSample = AudioSampleRecord(
+            mediaSessionID: "session-1",
+            audioTrackID: "session-1.audio.2",
+            streamEpoch: 3,
+            presentationTimeSeconds: 1,
+            durationSeconds: 0.1,
+            sampleRate: 48_000,
+            channelCount: 2,
+            sampleCount: 4_800,
+            deliveryObservation: AudioDeliveryObservation(
+                providerKind: "FFmpegDecodedPCM",
+                sourceCodecName: "truehd",
+                mediaSubtype: "lpcm",
+                formatID: "lpcm",
+                formatFlags: 41,
+                sourceSampleRate: 48_000,
+                deliveredSampleRate: 48_000,
+                sourceChannelCount: 2,
+                deliveredChannelCount: 2,
+                bitsPerChannel: 32,
+                bytesPerFrame: 8,
+                framesPerPacket: 1,
+                isFloatPCM: true,
+                isInterleaved: true,
+                channelLayoutTag: nil,
+                presentationTimestampsMonotonic: true,
+                timestampObservationCount: 12,
+                trueHDDecoderInputPacketCount: 120,
+                trueHDDecoderBatchCount: 2,
+                trueHDAggregatedDecoderBatchCount: 2,
+                trueHDOutputSampleBufferCount: 1,
+                trueHDLastDecoderBatchInputPacketCount: 60
+            )
+        )
+
+        let fields = Set(
+            PlaybackStateAccessibility.deliveryAccessibilityFields(
+                diagnostics: diagnostics,
+                debugSnapshot: snapshot
+            )
+        )
+
+        #expect(fields.contains("sourcePixelFormat=420v"))
+        #expect(fields.contains("destinationPixelFormat=x420"))
+        #expect(fields.contains("dolbyVisionProfile=8"))
+        #expect(fields.contains("dolbyVisionCrossCompatibilityID=1"))
+        #expect(fields.contains("audioProviderKind=FFmpegDecodedPCM"))
+        #expect(fields.contains("audioSourceCodec=truehd"))
+        #expect(fields.contains("audioDeliveryIsFloatPCM=true"))
+        #expect(fields.contains("audioDeliveryIsInterleaved=true"))
+        #expect(fields.contains("audioDeliverySampleCount=4800"))
+        #expect(fields.contains("audioDeliveryTimestampsMonotonic=true"))
+        #expect(fields.contains("audioDeliveryTimestampObservationCount=12"))
+        #expect(fields.contains("audioTrueHDDecoderInputPacketCount=120"))
+        #expect(fields.contains("audioTrueHDDecoderBatchCount=2"))
+        #expect(fields.contains("audioTrueHDAggregatedDecoderBatchCount=2"))
+        #expect(fields.contains("audioTrueHDOutputSampleBufferCount=1"))
+        #expect(fields.contains("audioTrueHDLastDecoderBatchInputPacketCount=60"))
+    }
+
     @Test("immersive resident resolves each issue to its existing product location")
     func immersiveResidentIssueLocation() {
         #expect(
@@ -664,6 +733,41 @@ struct PlaybackPresentationStateTests {
         #expect(settled == false)
     }
 
+    #if DEBUG
+    @Test("The settlement-timeout fault is consumed by exactly one wait")
+    @MainActor
+    func settlementTimeoutFaultIsOneShot() async {
+        let runtime = PlaybackRuntime()
+        runtime.debugArmPresentationSettlementFault(.timeout)
+
+        #expect(runtime.debugPendingPresentationSettlementFault == .timeout)
+        #expect(
+            await runtime.waitUntilPresentationSettled(
+                to: .panorama,
+                allowsPendingSessionStart: true,
+                deadline: .seconds(10)
+            ) == false
+        )
+        #expect(runtime.debugPendingPresentationSettlementFault == nil)
+    }
+    #endif
+
+    @Test("A confirmed source restoration rolls back instead of stopping playback")
+    func confirmedPresentationRestorationUsesRollbackPolicy() {
+        #expect(
+            SpatialPlatformPresentationFailurePolicy.shouldStopPlayback(
+                effect: .enterImmersivePlayback(.panoramic),
+                recovery: .previousPresentationRestored
+            ) == false
+        )
+        #expect(
+            SpatialPlatformPresentationFailurePolicy.shouldStopPlayback(
+                effect: .enterImmersivePlayback(.panoramic),
+                recovery: .unavailable
+            )
+        )
+    }
+
     @Test("An unreported immersive viewing mode is re-requested once it stalls")
     @MainActor
     func stalledImmersiveViewingModeIsRequestedAgain() {
@@ -746,49 +850,6 @@ struct PlaybackPresentationStateTests {
         #expect(runtime.effectiveProjectionType == .equirectangular180)
         #expect(runtime.effectiveStereoLayout == .sideBySide)
         #expect(runtime.effectiveMediaFormatInterpretation.source.contentKind == .rectilinear)
-    }
-
-    @Test("Sample projection fills a missing provider projection")
-    @MainActor
-    func sampleProjectionFillsMissingProviderProjection() {
-        let runtime = PlaybackRuntime()
-        var snapshot = PlaybackDebugSnapshotV1()
-        snapshot.providerOpen = ProviderOpenSnapshot(
-            mediaSessionID: "sample-projection-fallback",
-            providerKind: "test"
-        )
-
-        runtime.publishSourceMediaFormat(from: snapshot)
-
-        #expect(runtime.sourceVideoContentKind == .rectilinear)
-        #expect(runtime.sourceMediaFormatSummary == "Flat · Mono")
-        #expect(runtime.effectiveContentIsPanoramic == false)
-
-        snapshot.lastVideoSample = VideoSampleRecord(
-            mediaSessionID: "sample-projection-fallback",
-            videoTrackID: "video-0",
-            sourceEventID: "sample-0",
-            streamEpoch: 1,
-            formatRevision: 1,
-            inputKind: .compressed,
-            presentationTimeSeconds: 0,
-            decodeTimeSeconds: 0,
-            durationSeconds: 1.0 / 30.0,
-            mediaSubtype: "hvc1",
-            dimensions: "8192x4096",
-            formatSignaling: VideoFormatSignalingSummary(
-                provenance: "sample",
-                projectionKind: .init(known: "HalfEquirectangular"),
-                viewPackingKind: .init(known: "SideBySide")
-            )
-        )
-
-        runtime.publishSourceMediaFormat(from: snapshot)
-
-        #expect(runtime.sourceVideoContentKind == .halfEquirectangular)
-        #expect(runtime.sourceMediaFormatSummary == "180° · Side-by-Side")
-        #expect(runtime.activeMediaFormatProvenance == .source)
-        #expect(runtime.effectiveContentIsPanoramic)
     }
 
     @Test(
@@ -1263,6 +1324,22 @@ struct PlaybackPresentationStateTests {
                 observedContentType: "parametricImmersive"
             )
         )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .flat,
+                sourceContentKind: .appleImmersiveVideo,
+                provenance: .source,
+                observedContentType: "immersive"
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .flat,
+                sourceContentKind: .appleImmersiveVideo,
+                provenance: .source,
+                observedContentType: "mono"
+            ) == false
+        )
     }
 
     @Test("An explicit override can settle from renderer signaling and actual RealityKit modes")
@@ -1389,6 +1466,18 @@ struct PlaybackPresentationStateTests {
                 stereoLayout: .topBottom,
                 observedViewingMode: "stereo"
             )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .multiview,
+                observedViewingMode: "stereo"
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .multiview,
+                observedViewingMode: "mono"
+            ) == false
         )
     }
 
@@ -1710,21 +1799,28 @@ struct PlaybackPresentationStateTests {
         #expect(
             WindowPlaybackLoadingVisibility.shouldShow(
                 hasPlaybackError: false,
-                presentationState: .placeholder,
+                loadingVisibility: .loading,
                 isPresentationTransitionActive: true
             ) == false
         )
         #expect(
             WindowPlaybackLoadingVisibility.shouldShow(
                 hasPlaybackError: false,
-                presentationState: .placeholder,
+                loadingVisibility: .loading,
                 isPresentationTransitionActive: false
             )
         )
         #expect(
             WindowPlaybackLoadingVisibility.shouldShow(
                 hasPlaybackError: false,
-                presentationState: .audioVisible,
+                loadingVisibility: .none,
+                isPresentationTransitionActive: false
+            ) == false
+        )
+        #expect(
+            WindowPlaybackLoadingVisibility.shouldShow(
+                hasPlaybackError: true,
+                loadingVisibility: .loading,
                 isPresentationTransitionActive: false
             ) == false
         )

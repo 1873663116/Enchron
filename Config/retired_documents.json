@@ -102,6 +102,60 @@
       "removed": "2026-08-27",
       "commit": "ae91d9db",
       "replacement": "ARCHITECTURE.md 的归属判据，以及 docs/DESIGN_SYSTEM_CONSTRAINTS.md。"
+    },
+    {
+      "path": ".agents/skills/vp-e2e/references/journeys/",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Regression/journeys/ 与 Config/regression/catalog-v2.json。"
+    },
+    {
+      "path": ".agents/skills/vp-e2e/references/operation-units.md",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Regression/operations/、Regression/rubrics/ 与编译后的执行计划。"
+    },
+    {
+      "path": "Scripts/verification/regression_journeys.py",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Scripts/regression/runctl.py 与 Regression/journeys/。"
+    },
+    {
+      "path": "Scripts/verification/journey_units.py",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Scripts/verification/regression_operation_adapter.py 与 Regression/operations/。"
+    },
+    {
+      "path": "Config/journey_operation_coverage.json",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Config/regression/catalog-v2.json 中闭合的 Operation Call 与 producer 绑定。"
+    },
+    {
+      "path": ".claude/hooks/regression_journey_stop_gate.py",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Scripts/regression/runctl.py 生成的运行台账与终态收据。"
+    },
+    {
+      "path": "Apps/Enchron/Screens/FilesScreen.swift",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Modules/MediaLibrary/Views/FilesScreen.swift 与 Apps/Enchron/Screens/FilesScreenHost.swift。"
+    },
+    {
+      "path": "Scripts/regression/human_coverage.py",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Regression/semantic-authority.json 与 Scripts/regression/review_stage.py 的派生 HumanCoverage 收据。"
+    },
+    {
+      "path": "Scripts/regression/human_coveragectl.py",
+      "removed": "2026-08-29",
+      "commit": "unreleased",
+      "replacement": "Scripts/regression/reviewctl.py derive-human。"
     }
   ]
 }
