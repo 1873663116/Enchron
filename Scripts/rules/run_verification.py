@@ -119,6 +119,10 @@ STRUCTURE_CHECKS = (
         "playback-runtime-ownership",
         "verify_playback_runtime_ownership.py",
     ),
+    StructureCheck(
+        "regression-oracle-producers",
+        "verify_regression_oracle_producers.py",
+    ),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
     StructureCheck(
         "reachability-inventory",
