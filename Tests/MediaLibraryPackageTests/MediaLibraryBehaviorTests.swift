@@ -98,7 +98,7 @@ struct MediaLibraryBehaviorTests {
         #expect(library.references(in: nil) == [unselected])
     }
 
-    @Test("removing a folder removes its virtual subtree and references")
+    @Test("removing a folder removes its virtual subtree")
     func removingFolderRemovesVirtualSubtree() throws {
         var library = FileBrowsingDomain.MediaLibrary()
         let parent = try library.createFolder(named: "Series")
@@ -114,6 +114,30 @@ struct MediaLibraryBehaviorTests {
         #expect(library.folder(id: parent.id) == nil)
         #expect(library.folder(id: child.id) == nil)
         #expect(library.references(in: child.id).isEmpty)
+    }
+
+    @Test("removing a folder rehomes references from its subtree to its parent")
+    func removingFolderRehomesSubtreeReferencesToParent() throws {
+        var library = FileBrowsingDomain.MediaLibrary()
+        let destination = try library.createFolder(named: "Library")
+        let removedRoot = try library.createFolder(named: "Series", in: destination.id)
+        let descendant = try library.createFolder(named: "Season 1", in: removedRoot.id)
+        let directReference = FileBrowsingDomain.MediaReference(
+            name: "Special.mkv",
+            locator: .sourceItem(dataSourceID: UUID(), path: "/Series/Special.mkv")
+        )
+        let nestedReference = FileBrowsingDomain.MediaReference(
+            name: "Episode 01.mkv",
+            locator: .sourceItem(dataSourceID: UUID(), path: "/Series/Season 1/Episode 01.mkv")
+        )
+        try library.add(directReference, to: removedRoot.id)
+        try library.add(nestedReference, to: descendant.id)
+
+        library.removeFolder(removedRoot.id)
+
+        #expect(library.folder(id: removedRoot.id) == nil)
+        #expect(library.folder(id: descendant.id) == nil)
+        #expect(library.references(in: destination.id) == [directReference, nestedReference])
     }
 
     @Test("folder organization persists through the production store")

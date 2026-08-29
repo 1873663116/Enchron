@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 
 public nonisolated enum FileBrowsingDomain {}
 
@@ -247,7 +248,7 @@ nonisolated extension FileBrowsingDomain {
         case disconnected
         case connecting
         case connected
-        case failed(String)
+        case failed(RemoteConnectionFailure)
     }
 }
 

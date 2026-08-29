@@ -167,10 +167,11 @@ public final class FileBrowsingViewModel {
     public func connectToDataSource(
         _ ds: FileBrowsingDomain.DataSource,
         credential: StorageCredential? = nil
-    ) async {
+    ) async -> RemoteConnectionResult {
         let generation = beginSourceGeneration()
         activeDataSource = ds
         isLoading = true
+        lastErrorMessage = nil
         files = []
         folders = []
         currentRootDisplayName = ds.name
@@ -207,7 +208,7 @@ public final class FileBrowsingViewModel {
                 adapter = smb
             case .local:
                 await useDefaultFolder()
-                return
+                return .connected
             }
         }
 
@@ -216,7 +217,7 @@ public final class FileBrowsingViewModel {
             try await adapter.connect(with: ds.connectionInfo)
             guard isCurrentSource(generation, dataSourceID: ds.id) else {
                 adapter.disconnect()
-                return
+                return .connected
             }
             activeRemoteAdapter = adapter
 
@@ -224,53 +225,76 @@ public final class FileBrowsingViewModel {
             let remoteFolders = try await adapter.listFolders(at: rootPath)
             guard isCurrentSource(generation, dataSourceID: ds.id) else {
                 adapter.disconnect()
-                return
+                return .connected
             }
             files = remoteFiles
             folders = remoteFolders
             currentRootDisplayName = ds.name
             lastErrorMessage = nil
             isLoading = false
+            return .connected
         } catch {
             adapter.disconnect()
-            guard isCurrentSource(generation, dataSourceID: ds.id) else { return }
+            let result = RemoteConnectionResult.failed(Self.connectionFailure(for: error))
+            guard isCurrentSource(generation, dataSourceID: ds.id) else { return result }
             isLoading = false
             activeRemoteAdapter = nil
-            lastErrorMessage = Self.friendlyErrorMessage(for: error)
+            return result
         }
     }
 
-    private static func friendlyErrorMessage(for error: Error) -> String {
-        if let connectionError = error as? RemoteConnectionError {
-            return connectionError.localizedDescription
+    static func connectionFailure(for error: any Error) -> RemoteConnectionFailure {
+        if let failure = error as? RemoteConnectionFailure {
+            return failure
         }
+
+        if error is FileBrowsingDomain.ConnectionInfoError {
+            return .invalidAddress
+        }
+
         if let webDAVError = error as? WebDAVError {
             switch webDAVError {
             case .requestFailed(let code) where code == 401 || code == 403:
-                return "Authentication failed. Please check your username and password."
-            case .requestFailed(let code):
-                return "Server returned error (HTTP \(code))."
+                return .credentialsRejected
             case .invalidConnectionInfo:
-                return "Invalid server address or connection settings."
-            default:
-                return "Connection failed: \(error.localizedDescription)"
+                return .invalidAddress
+            case .notConnected, .invalidResponse, .requestFailed, .malformedResponse,
+                 .emptyDirectoryListing, .streamingFailed:
+                return .serverUnreachable
             }
         }
-        if error is SMBError {
-            return error.localizedDescription
+
+        if let smbError = error as? SMBError {
+            return SMBDataSourceAdapter.connectionFailure(for: smbError)
         }
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            switch nsError.code {
-            case NSURLErrorTimedOut:
-                return "Connection timed out. Please check the server address and network."
-            case NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost:
-                return "Cannot reach server. Please check the address and your network connection."
+
+        if let code = urlFailureCode(in: error) {
+            switch URLError.Code(rawValue: code) {
+            case .userAuthenticationRequired, .userCancelledAuthentication:
+                return .credentialsRejected
+            case .badURL, .unsupportedURL:
+                return .invalidAddress
             default:
-                return "Network error: \(error.localizedDescription)"
+                return .serverUnreachable
             }
         }
-        return "Connection failed: \(error.localizedDescription)"
+
+        return .serverUnreachable
+    }
+
+    private static func urlFailureCode(in error: any Error) -> Int? {
+        var current: NSError? = error as NSError
+        var visited: Set<ObjectIdentifier> = []
+
+        while let candidate = current {
+            guard visited.insert(ObjectIdentifier(candidate)).inserted else { return nil }
+            if candidate.domain == NSURLErrorDomain {
+                return candidate.code
+            }
+            current = candidate.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+
+        return nil
     }
 
     public func loadFiles() async {
@@ -299,7 +323,7 @@ public final class FileBrowsingViewModel {
                    Self.isNetworkRecoverableError(error),
                    let ds = activeDataSource {
                     reconnectAttempted = true
-                    await connectToDataSource(ds)
+                    await reconnectAndSurfaceFailure(to: ds)
                     reconnectAttempted = false
                     return
                 }
@@ -311,7 +335,7 @@ public final class FileBrowsingViewModel {
         }
 
         if let dataSource = activeDataSource {
-            await connectToDataSource(dataSource)
+            await reconnectAndSurfaceFailure(to: dataSource)
             return
         }
 
@@ -330,6 +354,17 @@ public final class FileBrowsingViewModel {
         }
         applySortToFiles()
         loadProgressForFiles()
+    }
+
+    private func reconnectAndSurfaceFailure(
+        to dataSource: FileBrowsingDomain.DataSource
+    ) async {
+        let result = await connectToDataSource(dataSource)
+        guard case .failed(let failure) = result,
+              activeDataSource?.id == dataSource.id,
+              activeRemoteAdapter == nil,
+              isLoading == false else { return }
+        lastErrorMessage = failure.localizedDescription
     }
 
     private func mergeFiles(_ newFiles: [FileBrowsingDomain.MediaFile]) {

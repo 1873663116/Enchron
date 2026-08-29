@@ -1,103 +1,84 @@
 import DesignSystem
-import MediaLibrary
 import MediaSource
-import Playback
 import SwiftUI
-import UniformTypeIdentifiers
 
-#if DEBUG
-@MainActor
-final class FileBrowserReachabilityErrorRequest {
-    let message: String
-    private(set) var wasHandled = false
-
-    init(message: String) {
-        self.message = message
-    }
-
-    func handle(show: (String) -> Void) {
-        guard wasHandled == false else { return }
-        show(message)
-        wasHandled = true
-    }
-}
-
-@MainActor
-final class FileBrowserAlertFieldRequest {
-    enum Field: String {
-        case newFolderName
-        case renameFolderName
-    }
-
-    let field: Field
-    let value: String
-    private(set) var wasHandled = false
-
-    init(field: Field, value: String) {
-        self.field = field
-        self.value = value
-    }
-
-    func handle(
-        field expectedField: Field,
-        isPresented: Bool,
-        binding: Binding<String>
-    ) {
-        guard wasHandled == false,
-              field == expectedField,
-              isPresented else { return }
-        binding.wrappedValue = value
-        wasHandled = true
-    }
-}
-
-extension Notification.Name {
-    static let fileBrowserReachabilityError = Notification.Name(
-        "app.enchron.debug.file-browser-reachability-error"
-    )
-    static let fileBrowserAlertField = Notification.Name(
-        "app.enchron.debug.file-browser-alert-field"
-    )
-}
-#endif
-
-struct FilesScreen: View {
-    private enum ManageAction: String, CaseIterable {
-        case addFiles
-        case addFolder
-        case newFolder
-        case selectMultiple
-
-        var title: String {
-            switch self {
-            case .addFiles: "Add Files"
-            case .addFolder: "Add Folder"
-            case .newFolder: "New Library Folder"
-            case .selectMultiple: "Select Multiple"
-            }
-        }
-    }
+public struct FilesScreen: View {
+    static let removeFolderConfirmation = "Remove this library folder and its subfolders? Their media references will move to the parent location. Original media will not be changed."
 
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @Environment(MediaLibraryViewModel.self) private var mediaLibrary
     @Environment(MediaLibraryUIState.self) private var uiState
-    @Environment(AppModalPresentationCoordinator.self)
-    private var modalPresentationCoordinator
+    @Bindable private var state: FilesScreenViewState
 
-    @State private var sourceItems: [SidebarSourceItem] = []
-    @State private var presentedSourceConnection: SourceConnectionKind?
-    @State private var sourceConnectionDraft = SourceConnectionDraft()
-    @State private var sourceConnectionDraftKind: SourceConnectionKind?
-    @State private var isCreatingFolder = false
-    @State private var newFolderName = ""
-    @State private var folderToRename: FileBrowsingDomain.LibraryFolder?
-    @State private var renamedFolderName = ""
-    @State private var folderToRemove: FileBrowsingDomain.LibraryFolder?
-    @State private var fileSelectionKind: FileSelectionKind = .files
-    @State private var isFileImporterPresented = false
-    @State private var mediaReferenceSelectionIsActive = false
-    @State private var selectedMediaReferenceIDs: Set<UUID> = []
-    @State private var isBatchRemoveConfirmationPresented = false
+    private let inputs: FilesScreenInputs
+
+    public init(
+        state: FilesScreenViewState,
+        inputs: FilesScreenInputs
+    ) {
+        self.state = state
+        self.inputs = inputs
+    }
+
+    private var sourceItems: [SidebarSourceItem] {
+        get { state.sourceItems }
+        nonmutating set { state.sourceItems = newValue }
+    }
+
+    private var presentedSourceConnection: SourceConnectionKind? {
+        get { state.presentedSourceConnection }
+        nonmutating set { state.presentedSourceConnection = newValue }
+    }
+
+    private var sourceConnectionDraft: SourceConnectionDraft {
+        get { state.sourceConnectionDraft }
+        nonmutating set { state.sourceConnectionDraft = newValue }
+    }
+
+    private var sourceConnectionDraftKind: SourceConnectionKind? {
+        get { state.sourceConnectionDraftKind }
+        nonmutating set { state.sourceConnectionDraftKind = newValue }
+    }
+
+    private var isCreatingFolder: Bool {
+        get { state.isCreatingFolder }
+        nonmutating set { state.isCreatingFolder = newValue }
+    }
+
+    private var newFolderName: String {
+        get { state.newFolderName }
+        nonmutating set { state.newFolderName = newValue }
+    }
+
+    private var folderToRename: FileBrowsingDomain.LibraryFolder? {
+        get { state.folderToRename }
+        nonmutating set { state.folderToRename = newValue }
+    }
+
+    private var renamedFolderName: String {
+        get { state.renamedFolderName }
+        nonmutating set { state.renamedFolderName = newValue }
+    }
+
+    private var folderToRemove: FileBrowsingDomain.LibraryFolder? {
+        get { state.folderToRemove }
+        nonmutating set { state.folderToRemove = newValue }
+    }
+
+    private var mediaReferenceSelectionIsActive: Bool {
+        get { state.mediaReferenceSelectionIsActive }
+        nonmutating set { state.mediaReferenceSelectionIsActive = newValue }
+    }
+
+    private var selectedMediaReferenceIDs: Set<UUID> {
+        get { state.selectedMediaReferenceIDs }
+        nonmutating set { state.selectedMediaReferenceIDs = newValue }
+    }
+
+    private var isBatchRemoveConfirmationPresented: Bool {
+        get { state.isBatchRemoveConfirmationPresented }
+        nonmutating set { state.isBatchRemoveConfirmationPresented = newValue }
+    }
 
     private var sourceSelection: MediaLibraryUIState.SourceSelection {
         get { uiState.sourceSelection }
@@ -110,7 +91,7 @@ struct FilesScreen: View {
         Binding(
             get: { newFolderName },
             set: {
-                recordReachability("newFolder.name")
+                recordReachability(.newFolderNameChanged)
                 newFolderName = $0
             }
         )
@@ -120,7 +101,7 @@ struct FilesScreen: View {
         Binding(
             get: { renamedFolderName },
             set: {
-                recordReachability("renameFolder.name")
+                recordReachability(.renameFolderNameChanged)
                 renamedFolderName = $0
             }
         )
@@ -171,7 +152,7 @@ struct FilesScreen: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         HStack(spacing: 0) {
             if uiState.sidebarIsVisible {
                 sidebar
@@ -193,55 +174,26 @@ struct FilesScreen: View {
             endMediaReferenceSelection()
         }
 #if DEBUG
-        .onReceive(
-            NotificationCenter.default.publisher(for: .fileBrowserReachabilityError)
-        ) { notification in
-            guard let request = notification.object as? FileBrowserReachabilityErrorRequest else {
-                return
+        .onChange(of: state.debugMenuDeliveryRevision) { _, _ in
+            for request in state.takeDebugMenuSelections() {
+                handleDebugMenuSelection(request)
             }
-            request.handle { viewModel.lastErrorMessage = $0 }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .fileBrowserAlertField)
-        ) { notification in
-            guard let request = notification.object as? FileBrowserAlertFieldRequest else {
-                return
-            }
-            request.handle(
-                field: .newFolderName,
-                isPresented: isCreatingFolder,
-                binding: newFolderNameBinding
-            )
-            request.handle(
-                field: .renameFolderName,
-                isPresented: folderToRename != nil,
-                binding: renamedFolderNameBinding
-            )
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .debugMenuSelection)
-        ) { notification in
-            guard let request = notification.object as? DebugMenuSelectionRequest else {
-                return
-            }
-            handleDebugMenuSelection(request)
         }
 #endif
-        .sequencedSheet(
-            item: $presentedSourceConnection,
-            coordinator: modalPresentationCoordinator,
-            id: .sourceConnection,
+        .sheet(
+            item: $state.presentedSourceConnection,
             onDismiss: {
+                inputs.onModalEvent(.sourceConnectionDismissed)
                 sourceConnectionDraft.clearAfterDismissal()
             },
             content: { kind in
                 ConnectionFormPanel(
                     kind: kind,
-                    name: $sourceConnectionDraft.name,
-                    address: $sourceConnectionDraft.address,
-                    username: $sourceConnectionDraft.username,
-                    password: $sourceConnectionDraft.password,
-                    connectsAsGuest: $sourceConnectionDraft.connectsAsGuest,
+                    name: $state.sourceConnectionDraft.name,
+                    address: $state.sourceConnectionDraft.address,
+                    username: $state.sourceConnectionDraft.username,
+                    password: $state.sourceConnectionDraft.password,
+                    connectsAsGuest: $state.sourceConnectionDraft.connectsAsGuest,
                     accessibilityIdentifierPrefix: kind == .smb
                         ? "FileBrowsing-SourceConnection-smb"
                         : "FileBrowsing-SourceConnection-webDAV",
@@ -249,30 +201,37 @@ struct FilesScreen: View {
                     onConnect: connect,
                     onCancel: {
                         recordReachability(
-                            "sourceConnection.\(kind.rawValue).cancel"
+                            .sourceConnection(kind, .cancel)
                         )
                         dismissSourceConnection()
                     },
                     onConnected: completeSourceConnection
                 )
+                .onAppear {
+                    inputs.onModalEvent(
+                        .sourceConnectionPresented(
+                            dismiss: { state.presentedSourceConnection = nil }
+                        )
+                    )
+                }
                 .onChange(of: sourceConnectionDraft.name) { _, _ in
-                    recordReachability("sourceConnection.\(kind.rawValue).name")
+                    recordReachability(.sourceConnection(kind, .name))
                 }
                 .onChange(of: sourceConnectionDraft.address) { _, _ in
-                    recordReachability("sourceConnection.\(kind.rawValue).address")
+                    recordReachability(.sourceConnection(kind, .address))
                 }
                 .onChange(of: sourceConnectionDraft.username) { _, _ in
-                    recordReachability("sourceConnection.\(kind.rawValue).username")
+                    recordReachability(.sourceConnection(kind, .username))
                 }
                 .onChange(of: sourceConnectionDraft.password) { _, _ in
-                    recordReachability("sourceConnection.\(kind.rawValue).password")
+                    recordReachability(.sourceConnection(kind, .password))
                 }
                 .onChange(of: sourceConnectionDraft.connectsAsGuest) { _, _ in
-                    recordReachability("sourceConnection.\(kind.rawValue).guest")
+                    recordReachability(.sourceConnection(kind, .guest))
                 }
             }
         )
-        .alert("New Library Folder", isPresented: $isCreatingFolder) {
+        .alert("New Library Folder", isPresented: $state.isCreatingFolder) {
             TextField(
                 "Folder name",
                 text: newFolderNameBinding
@@ -281,7 +240,7 @@ struct FilesScreen: View {
             Button("Cancel") { newFolderName = "" }
                 .accessibilityIdentifier("MediaLibrary-NewFolder-cancel")
             Button("Create") {
-                recordReachability("newFolder.create")
+                recordReachability(.newFolderCreate)
                 mediaLibrary.createFolder(named: newFolderName)
                 newFolderName = ""
             }
@@ -302,7 +261,7 @@ struct FilesScreen: View {
             Button("Cancel") { folderToRename = nil }
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-cancel")
             Button("Rename") {
-                recordReachability("renameFolder.confirm")
+                recordReachability(.renameFolderConfirm)
                 if let folderToRename {
                     mediaLibrary.rename(folderToRename, to: renamedFolderName)
                 }
@@ -311,7 +270,7 @@ struct FilesScreen: View {
             .accessibilityIdentifier("MediaLibrary-RenameFolder-confirm")
         }
         .confirmationDialog(
-            "Remove this library folder and its references? Original media will not be changed.",
+            Self.removeFolderConfirmation,
             isPresented: Binding(
                 get: { folderToRemove != nil },
                 set: { if !$0 { folderToRemove = nil } }
@@ -328,32 +287,16 @@ struct FilesScreen: View {
         }
         .confirmationDialog(
             "Remove \(selectedMediaReferenceIDs.count) selected items from the Media Library? Original media will not be changed.",
-            isPresented: $isBatchRemoveConfirmationPresented,
+            isPresented: $state.isBatchRemoveConfirmationPresented,
             titleVisibility: .visible
         ) {
             Button("Delete Selected", role: .destructive) {
-                recordReachability("multiSelect.confirmDelete")
+                recordReachability(.multiSelection(.confirmDelete))
                 mediaLibrary.removeReferences(withIDs: selectedMediaReferenceIDs)
                 endMediaReferenceSelection()
             }
             .accessibilityIdentifier("MediaLibrary-MultiSelect-confirmDelete")
             Button("Cancel", role: .cancel) {}
-        }
-        .fileImporter(
-            isPresented: $isFileImporterPresented,
-            allowedContentTypes: fileSelectionKind.allowedContentTypes,
-            allowsMultipleSelection: fileSelectionKind == .files
-        ) { result in
-            switch result {
-            case .success(let urls):
-                if fileSelectionKind == .folder, let folder = urls.first {
-                    Task { await mediaLibrary.addFolder(folder) }
-                } else {
-                    mediaLibrary.addFiles(urls)
-                }
-            case .failure(let error):
-                mediaLibrary.lastErrorMessage = error.localizedDescription
-            }
         }
         .enchronErrorDialog(
             "File Browser Error",
@@ -366,11 +309,11 @@ struct FilesScreen: View {
             ),
             identifierPrefix: "FileBrowsing-error",
             onPrimary: {
-                recordReachability("fileBrowserError.primary")
+                recordReachability(.fileBrowserError(.primary))
                 Task { await viewModel.loadFiles() }
             },
             onSecondary: {
-                recordReachability("fileBrowserError.secondary")
+                recordReachability(.fileBrowserError(.secondary))
                 viewModel.dismissCurrentError()
             }
         )
@@ -382,7 +325,7 @@ struct FilesScreen: View {
             )
         ) {
             Button("OK") {
-                recordReachability("mediaLibraryError.dismiss")
+                recordReachability(.mediaLibraryErrorDismiss)
                 mediaLibrary.lastErrorMessage = nil
             }
                 .accessibilityIdentifier("MediaLibrary-error-dismiss")
@@ -396,29 +339,29 @@ struct FilesScreen: View {
 
     private var sidebar: some View {
         SourceSidebar(
-            items: $sourceItems,
+            items: $state.sourceItems,
             title: "Library & Sources",
             containerIdentifier: "FileBrowsing-MainWindow-sidebar",
             identifierPrefix: "FileBrowsing-SourcesSidebar",
             onSelectSource: { id in
-                recordReachability("sidebar.select.\(id)")
+                recordReachability(.sidebarSelect(id))
                 select(sourceID: id)
             },
             onAddSource: { type in
-                recordReachability("sidebar.add.\(type.rawValue)")
+                recordReachability(.sidebarAddSource(type))
                 presentConnection(for: type)
             },
             onImportFolder: {
-                recordReachability("sidebar.addFolder")
+                recordReachability(.sidebarAddFolder)
                 presentFolderImporter()
             },
             onRefresh: {
-                recordReachability("sidebar.refresh")
+                recordReachability(.sidebarRefresh)
                 Task { await viewModel.loadFiles() }
             },
             onDeleteSources: deleteSources,
             onReachabilityAction: { action in
-                recordReachability("sourceSidebar.\(action)")
+                recordReachability(.sourceSidebar(action))
             }
         )
     }
@@ -457,7 +400,13 @@ struct FilesScreen: View {
         guard let ds = viewModel.savedDataSources.first(where: { $0.id.uuidString == sourceID }) else { return }
         sourceSelection = .dataSource(ds.id)
         syncSourceItems()
-        Task { await viewModel.connectToDataSource(ds) }
+        Task {
+            let result = await viewModel.connectToDataSource(ds)
+            if case .failed(let failure) = result,
+               viewModel.activeDataSource?.id == ds.id {
+                viewModel.lastErrorMessage = failure.sourceConnectionMessage
+            }
+        }
     }
 
     private func presentConnection(for sourceType: FileBrowsingDomain.SourceType) {
@@ -469,14 +418,63 @@ struct FilesScreen: View {
             }
             presentedSourceConnection = sourceType
         case .fileImporter:
-            fileSelectionKind = .files
-            isFileImporterPresented = true
+            requestFileImport(.mediaFiles)
         }
     }
 
     private func presentFolderImporter() {
-        fileSelectionKind = .folder
-        isFileImporterPresented = true
+        requestFileImport(.folder)
+    }
+
+    private func requestFileImport(_ kind: FilesScreenFileImportKind) {
+        inputs.requestProductEntry(.fileImporter(kind)) { result in
+            switch result {
+            case .success(let urls):
+                switch kind.action(for: urls) {
+                case .addFiles(let files):
+#if DEBUG
+                    let referenceIDsBeforeImport = Set(mediaLibrary.references.map(\.id))
+#endif
+                    mediaLibrary.addFiles(files)
+#if DEBUG
+                    SystemImportDeliveryDiagnostics.recordPersistentLibraryDelivery(
+                        deliveredURLs: files,
+                        newReferences: mediaLibrary.references.filter {
+                            referenceIDsBeforeImport.contains($0.id) == false
+                        },
+                        errorDescription: mediaLibrary.lastErrorMessage
+                    )
+#endif
+                case .addFolder(let folder):
+                    Task { await mediaLibrary.addFolder(folder) }
+                }
+            case .failure(let error):
+                mediaLibrary.lastErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func requestPhotosImport() {
+        inputs.requestProductEntry(.photos) { result in
+            switch result {
+            case .success(let urls):
+#if DEBUG
+                let referenceIDsBeforeImport = Set(mediaLibrary.references.map(\.id))
+#endif
+                mediaLibrary.addFiles(urls)
+#if DEBUG
+                SystemImportDeliveryDiagnostics.recordPersistentLibraryDelivery(
+                    deliveredURLs: urls,
+                    newReferences: mediaLibrary.references.filter {
+                        referenceIDsBeforeImport.contains($0.id) == false
+                    },
+                    errorDescription: mediaLibrary.lastErrorMessage
+                )
+#endif
+            case .failure(let error):
+                mediaLibrary.lastErrorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func dismissSourceConnection() {
@@ -491,9 +489,9 @@ struct FilesScreen: View {
 
     private func connect(
         _ request: SourceConnectionRequest
-    ) async -> SourceConnectionOutcome {
+    ) async -> RemoteConnectionResult {
         recordReachability(
-            "sourceConnection.\(request.kind.rawValue).connect"
+            .sourceConnection(request.kind, .connect)
         )
         do {
             let connection = try FileBrowsingDomain.ConnectionInfo.remote(
@@ -510,16 +508,15 @@ struct FilesScreen: View {
                 username: request.connectsAsGuest ? "guest" : request.username,
                 password: request.connectsAsGuest ? "" : request.password
             )
-            await viewModel.connectToDataSource(source, credential: credential)
-
-            guard viewModel.activeDataSource?.id == source.id,
-                  viewModel.lastErrorMessage == nil
-            else {
-                let message = viewModel.lastErrorMessage ?? "Connection failed."
-                viewModel.dismissCurrentError()
-                return message.localizedCaseInsensitiveContains("timed out")
-                    ? .timedOut(message: message)
-                    : .failed(message: message)
+            let result = await viewModel.connectToDataSource(
+                source,
+                credential: credential
+            )
+            guard result == .connected else {
+                return result
+            }
+            guard viewModel.activeDataSource?.id == source.id else {
+                return .connected
             }
 
             do {
@@ -536,8 +533,12 @@ struct FilesScreen: View {
             sourceSelection = .dataSource(source.id)
             syncSourceItems()
             return .connected
+        } catch is FileBrowsingDomain.ConnectionInfoError {
+            return .failed(.invalidAddress)
+        } catch let failure as RemoteConnectionFailure {
+            return .failed(failure)
         } catch {
-            return .failed(message: error.localizedDescription)
+            return .failed(.serverUnreachable)
         }
     }
 
@@ -647,7 +648,7 @@ struct FilesScreen: View {
                     ? viewModel.canNavigateForward
                     : mediaLibrary.canNavigateForward,
                 onBack: {
-                    recordReachability("files.nav.back")
+                    recordReachability(.navigate(.back))
                     if isBrowsingSource {
                         Task { await viewModel.navigateUp() }
                     } else {
@@ -655,7 +656,7 @@ struct FilesScreen: View {
                     }
                 },
                 onForward: {
-                    recordReachability("files.nav.forward")
+                    recordReachability(.navigate(.forward))
                     if isBrowsingSource {
                         Task { await viewModel.navigateForward() }
                     } else {
@@ -683,7 +684,7 @@ struct FilesScreen: View {
                     text: Binding(
                         get: { viewModel.searchText },
                         set: {
-                            recordReachability("files.search")
+                            recordReachability(.search)
                             viewModel.searchText = $0
                         }
                     ),
@@ -701,7 +702,7 @@ struct FilesScreen: View {
             return PathBreadcrumbMenu(
                 path: ["Media Library"] + folders.map(\.name),
                 onSelectLevel: { position in
-                    recordReachability("breadcrumb.mediaLibrary")
+                    recordReachability(.breadcrumb(.mediaLibrary))
                     if position == 0 {
                         mediaLibrary.navigateToRoot()
                     } else if folders.indices.contains(position - 1) {
@@ -716,7 +717,7 @@ struct FilesScreen: View {
             path: segments.map(\.name),
             onSelectLevel: { position in
                 guard position >= 0, position < segments.count else { return }
-                recordReachability("breadcrumb.files")
+                recordReachability(.breadcrumb(.files))
                 let stackIndex = segments[position].index
                 Task { await viewModel.navigateToBreadcrumb(index: stackIndex) }
             },
@@ -733,6 +734,12 @@ struct FilesScreen: View {
                     Label("Add Files", systemImage: "doc.badge.plus")
                 }
                 .accessibilityIdentifier("MediaLibrary-Manage-addFiles")
+                Button {
+                    performManageAction(.addPhotos)
+                } label: {
+                    Label("Add from Photos", systemImage: "photo.badge.plus")
+                }
+                .accessibilityIdentifier("MediaLibrary-Manage-addPhotos")
                 Button {
                     performManageAction(.addFolder)
                 } label: {
@@ -757,7 +764,7 @@ struct FilesScreen: View {
                     .accessibilityIdentifier("MediaLibrary-Manage-selectMultiple")
                 }
             }
-            .onAppear { recordReachability("manage.open") }
+            .onAppear { recordReachability(.manageOpened) }
         } label: {
             GlassCircleIconLabel(
                 systemName: "ellipsis",
@@ -793,7 +800,7 @@ struct FilesScreen: View {
             .accessibilityIdentifier("MediaLibrary-MultiSelect-move")
 
             Button(role: .destructive) {
-                recordReachability("multiSelect.delete")
+                recordReachability(.multiSelection(.delete))
                 isBatchRemoveConfirmationPresented = true
             } label: {
                 Label("Delete", systemImage: "trash")
@@ -802,7 +809,7 @@ struct FilesScreen: View {
             .accessibilityIdentifier("MediaLibrary-MultiSelect-delete")
 
             Button("Done") {
-                recordReachability("multiSelect.done")
+                recordReachability(.multiSelection(.done))
                 endMediaReferenceSelection()
             }
             .accessibilityIdentifier("MediaLibrary-MultiSelect-done")
@@ -836,7 +843,7 @@ struct FilesScreen: View {
                             count: nil,
                             accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)",
                             action: {
-                                recordReachability("remote.folder")
+                                recordReachability(.remoteFolder)
                                 Task { await viewModel.navigateToFolder(folder) }
                             }
                         )
@@ -850,7 +857,7 @@ struct FilesScreen: View {
                             watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
                             accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
                             action: {
-                                recordReachability("remote.video")
+                                recordReachability(.remoteVideo)
                                 viewModel.selectFile(file)
                             }
                         )
@@ -874,7 +881,7 @@ struct FilesScreen: View {
                                 + mediaLibrary.library.references(in: folder.id).count,
                             accessibilityIdentifier: "MediaLibrary-grid-folder-\(folder.name)",
                             action: {
-                                recordReachability("library.folder")
+                                recordReachability(.libraryFolder)
                                 mediaLibrary.open(folder)
                             }
                         )
@@ -904,9 +911,8 @@ struct FilesScreen: View {
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { previous, current in
             guard abs(current - previous) >= 1 else { return }
-            SurfaceInputProbes.record(
-                "reachability fileScroll kind=grid offset=\(current)",
-                retention: .evidence
+            inputs.onReachabilityEvent(
+                .scroll(layout: .grid, offset: Double(current))
             )
         }
 #endif
@@ -927,9 +933,8 @@ struct FilesScreen: View {
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { previous, current in
             guard abs(current - previous) >= 1 else { return }
-            SurfaceInputProbes.record(
-                "reachability fileScroll kind=list offset=\(current)",
-                retention: .evidence
+            inputs.onReachabilityEvent(
+                .scroll(layout: .list, offset: Double(current))
             )
         }
 #endif
@@ -984,7 +989,7 @@ struct FilesScreen: View {
         Binding(
             get: { uiState.sidebarIsVisible },
             set: {
-                recordReachability("files.sidebarToggle")
+                recordReachability(.sidebarToggle)
                 uiState.sidebarIsVisible = $0
             }
         )
@@ -994,7 +999,7 @@ struct FilesScreen: View {
         Binding(
             get: { uiState.viewMode == .grid ? 0 : 1 },
             set: {
-                recordReachability("files.viewMode")
+                recordReachability(.viewMode)
                 uiState.viewMode = $0 == 0 ? .grid : .list
             }
         )
@@ -1010,7 +1015,7 @@ struct FilesScreen: View {
                 }
             },
             set: { key in
-                recordReachability("files.sort")
+                recordReachability(.sort)
                 let domainKey: FileBrowsingDomain.SortCriteria.Key = switch key {
                 case .name: .name
                 case .modifiedDate: .modifiedDate
@@ -1033,7 +1038,7 @@ struct FilesScreen: View {
                 }
             },
             set: { order in
-                recordReachability("files.sort")
+                recordReachability(.sort)
                 let domainOrder: FileBrowsingDomain.SortCriteria.Order = switch order {
                 case .ascending: .ascending
                 case .descending: .descending
@@ -1075,9 +1080,12 @@ struct FilesScreen: View {
     }
 
     private func activateMediaReference(_ reference: FileBrowsingDomain.MediaReference) {
-        recordReachability("library.video")
-        SurfaceInputProbes.record(
-            "libraryTap name=\(reference.name) selectionActive=\(mediaReferenceSelectionIsActive)"
+        recordReachability(.libraryVideo)
+        inputs.onReachabilityEvent(
+            .libraryTap(
+                name: reference.name,
+                selectionActive: mediaReferenceSelectionIsActive
+            )
         )
         guard mediaReferenceSelectionIsActive else {
             mediaLibrary.play(reference)
@@ -1094,16 +1102,17 @@ struct FilesScreen: View {
     }
 
     private func selectMoveDestination(_ folderID: UUID?) {
-        recordReachability("multiSelect.move")
+        recordReachability(.multiSelection(.move))
         moveSelectedMediaReferences(to: folderID)
     }
 
-    private func performManageAction(_ action: ManageAction) {
-        recordReachability("manage.\(action.rawValue)")
+    private func performManageAction(_ action: FilesScreenManageAction) {
+        recordReachability(.manage(action))
         switch action {
         case .addFiles:
-            fileSelectionKind = .files
-            isFileImporterPresented = true
+            requestFileImport(.mediaFiles)
+        case .addPhotos:
+            requestPhotosImport()
         case .addFolder:
             presentFolderImporter()
         case .newFolder:
@@ -1119,7 +1128,7 @@ struct FilesScreen: View {
     ) {
         switch (request.host, request.family) {
         case (.files, .manage):
-            let actions = ManageAction.allCases.filter {
+            let actions = FilesScreenManageAction.allCases.filter {
                 $0 != .selectMultiple || isBrowsingSource == false
             }
             request.handle(
@@ -1184,12 +1193,9 @@ struct FilesScreen: View {
     }
 #endif
 
-    private func recordReachability(_ action: String) {
+    private func recordReachability(_ action: FilesScreenReachabilityAction) {
 #if DEBUG
-        SurfaceInputProbes.record(
-            "reachability files delivered action=\(action)",
-            retention: .evidence
-        )
+        inputs.onReachabilityEvent(.action(action))
 #endif
     }
 
@@ -1210,7 +1216,7 @@ struct FilesScreen: View {
         _ reference: FileBrowsingDomain.MediaReference,
         to folderID: UUID?
     ) {
-        recordReachability("libraryReference.move")
+        recordReachability(.libraryReferenceMove)
         mediaLibrary.move(reference, to: folderID)
     }
 
@@ -1282,21 +1288,4 @@ struct FilesScreen: View {
         folderToRename = folder
     }
 
-}
-
-private enum FileSelectionKind {
-    case files
-    case folder
-
-    var allowedContentTypes: [UTType] {
-        switch self {
-        case .folder:
-            return [.folder]
-        case .files:
-            return FileBrowsingDomain.MediaDiscoveryAdmissionPolicy.mediaFiles
-                .allowedExtensions
-                .sorted()
-                .compactMap { UTType(filenameExtension: $0) }
-        }
-    }
 }

@@ -1,5 +1,6 @@
 import DesignSystem
 import Foundation
+import MediaSource
 import SwiftUI
 
 public typealias SourceConnectionKind = FileBrowsingDomain.SourceType
@@ -27,12 +28,6 @@ public struct SourceConnectionRequest: Sendable, Equatable {
         self.password = password
         self.connectsAsGuest = connectsAsGuest
     }
-}
-
-public enum SourceConnectionOutcome: Sendable, Equatable {
-    case connected
-    case failed(message: String)
-    case timedOut(message: String)
 }
 
 public struct SourceConnectionDraft: Sendable, Equatable {
@@ -68,13 +63,12 @@ public struct SourceConnectionDraft: Sendable, Equatable {
 public struct ConnectionFormPanel: View {
     public typealias ConnectAction = @MainActor (
         SourceConnectionRequest
-    ) async -> SourceConnectionOutcome
+    ) async -> RemoteConnectionResult
 
     private enum Phase: Equatable {
         case idle
         case connecting
-        case failed(String)
-        case timedOut(String)
+        case failed(RemoteConnectionFailure)
         case connected
     }
 
@@ -272,18 +266,11 @@ public struct ConnectionFormPanel: View {
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(DesignTokens.Surface.supportingText)
                 }
-            case .failed(let message):
+            case .failed(let failure):
                 statusLine(
-                    systemImage: "exclamationmark.triangle.fill",
-                    text: message,
-                    tint: DesignTokens.SourceConnection.failureColor,
-                    accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-error"
-                )
-            case .timedOut(let message):
-                statusLine(
-                    systemImage: "clock.badge.exclamationmark",
-                    text: message,
-                    tint: DesignTokens.SourceConnection.timeoutColor,
+                    systemImage: failure.sourceConnectionSystemImage,
+                    text: failure.sourceConnectionMessage,
+                    tint: failure.sourceConnectionTint,
                     accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-error"
                 )
             case .connected:
@@ -359,10 +346,8 @@ public struct ConnectionFormPanel: View {
                 try? await Task.sleep(for: DesignTokens.SourceConnection.successHoldDuration)
                 guard !Task.isCancelled else { return }
                 onConnected()
-            case .failed(let message):
-                phase = .failed(message)
-            case .timedOut(let message):
-                phase = .timedOut(message)
+            case .failed(let failure):
+                phase = .failed(failure)
             }
         }
     }
@@ -374,5 +359,40 @@ public struct ConnectionFormPanel: View {
 
     private func trimmed(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+public extension RemoteConnectionFailure {
+    var sourceConnectionMessage: String {
+        switch self {
+        case .credentialsRejected:
+            return "Credentials rejected. Check your username and password."
+        case .serverUnreachable:
+            return "Server unreachable. Check the address and your network connection."
+        case .invalidAddress:
+            return "Invalid address. Check the server address and try again."
+        case .requiresHTTPS:
+            return "This server requires HTTPS. Add https:// to the address and try again."
+        }
+    }
+}
+
+private extension RemoteConnectionFailure {
+    var sourceConnectionSystemImage: String {
+        switch self {
+        case .serverUnreachable:
+            return "network.slash"
+        case .credentialsRejected, .invalidAddress, .requiresHTTPS:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var sourceConnectionTint: Color {
+        switch self {
+        case .serverUnreachable:
+            return DesignTokens.SourceConnection.timeoutColor
+        case .credentialsRejected, .invalidAddress, .requiresHTTPS:
+            return DesignTokens.SourceConnection.failureColor
+        }
     }
 }

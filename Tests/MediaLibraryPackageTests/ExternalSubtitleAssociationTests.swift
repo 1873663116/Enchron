@@ -43,27 +43,96 @@ struct ExternalSubtitleAssociationTests {
     }
 
     @MainActor
-    @Test("folder-bookmark playback keeps matching subtitle access with the media session")
+    @Test("directory-imported playback keeps matching subtitle access with the media session")
     func folderBookmarkPlaybackResolvesMatchingExternalSubtitles() async throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "enchron-sidecars-\(UUID().uuidString)", directoryHint: .isDirectory)
         let season = root.appending(path: "Season 1", directoryHint: .isDirectory)
         let video = season.appending(path: "Episode 01.mkv")
-        let matchingSubtitle = season.appending(path: "Episode 01.zh-CN.srt")
+        let matchingSRT = season.appending(path: "Episode 01.zh-CN.srt")
+        let matchingASS = season.appending(path: "Episode 01.styled.ass")
         let unrelatedSubtitle = season.appending(path: "Episode 02.srt")
         try FileManager.default.createDirectory(at: season, withIntermediateDirectories: true)
         try Data("video".utf8).write(to: video)
-        try Data("subtitle".utf8).write(to: matchingSubtitle)
+        try Data("srt subtitle".utf8).write(to: matchingSRT)
+        try Data("ass subtitle".utf8).write(to: matchingASS)
         try Data("unrelated".utf8).write(to: unrelatedSubtitle)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var capturedItem: MediaPlaybackItem?
+        let viewModel = MediaLibraryViewModel(
+            store: EmptyMediaLibraryStore(),
+            resolver: MediaReferenceResolver(),
+            onPlay: { capturedItem = $0 }
+        )
+
+        await viewModel.addFolder(root)
+        #expect(viewModel.lastErrorMessage == nil)
+        #expect(viewModel.folders.count == 1)
+        let importedRoot = try #require(viewModel.folders.first)
+        viewModel.open(importedRoot)
+        #expect(viewModel.folders.count == 1)
+        let importedSeason = try #require(viewModel.folders.first)
+        viewModel.open(importedSeason)
+        #expect(viewModel.references.count == 1)
+        let reference = try #require(viewModel.references.first)
+        guard case .file(let bookmark, let relativePath) = reference.locator else {
+            Issue.record("The imported media did not retain its directory bookmark locator.")
+            return
+        }
+        #expect(relativePath == "Season 1/Episode 01.mkv")
+        var bookmarkIsStale = false
+        let bookmarkRoot = try URL(
+            resolvingBookmarkData: bookmark,
+            options: [],
+            relativeTo: nil,
+            bookmarkDataIsStale: &bookmarkIsStale
+        )
+        #expect(bookmarkIsStale == false)
+        #expect(bookmarkRoot.standardizedFileURL == root.standardizedFileURL)
+
+        viewModel.play(reference)
+        let deadline = ContinuousClock.now + .seconds(2)
+        while capturedItem == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let playbackItem = try #require(capturedItem)
+
+        #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
+            "Episode 01.styled.ass",
+            "Episode 01.zh-CN.srt"
+        ])
+        #expect(playbackItem.externalSubtitleSources.map { $0.url.standardizedFileURL } == [
+            matchingASS.standardizedFileURL,
+            matchingSRT.standardizedFileURL
+        ])
+        #expect(Set(playbackItem.externalSubtitleSources.map(\.id)).count == 2)
+        #expect(playbackItem.externalSubtitleSources.allSatisfy {
+            $0.id.isEmpty == false && $0.versionedIdentity != nil
+        })
+        playbackItem.accessLease?.release()
+        playbackItem.externalSubtitleSources.forEach { $0.accessLease?.release() }
+    }
+
+    @MainActor
+    @Test("single-file bookmark cannot claim sibling subtitle authorization")
+    func singleFileBookmarkDoesNotResolveSiblingExternalSubtitles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "enchron-single-file-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let video = root.appending(path: "Movie.mkv")
+        let subtitle = root.appending(path: "Movie.srt")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("video".utf8).write(to: video)
+        try Data("subtitle".utf8).write(to: subtitle)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let reference = FileBrowsingDomain.MediaReference(
             name: video.lastPathComponent,
             locator: .file(
-                bookmark: try root.bookmarkData(
+                bookmark: try video.bookmarkData(
                     options: SecurityScopedFileReferenceResolver.bookmarkCreationOptions
                 ),
-                relativePath: "Season 1/Episode 01.mkv"
+                relativePath: ""
             )
         )
         var library = FileBrowsingDomain.MediaLibrary()
@@ -83,13 +152,10 @@ struct ExternalSubtitleAssociationTests {
         }
         let playbackItem = try #require(capturedItem)
 
-        #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
-            "Episode 01.zh-CN.srt"
-        ])
-        #expect(playbackItem.externalSubtitleSources.first?.url.standardizedFileURL
-            == matchingSubtitle.standardizedFileURL)
+        #expect(playbackItem.url.standardizedFileURL == video.standardizedFileURL)
+        #expect(playbackItem.externalSubtitleSources.isEmpty)
+        #expect(playbackItem.externalSubtitleResolutionFailed == false)
         playbackItem.accessLease?.release()
-        playbackItem.externalSubtitleSources.forEach { $0.accessLease?.release() }
     }
 
     @MainActor

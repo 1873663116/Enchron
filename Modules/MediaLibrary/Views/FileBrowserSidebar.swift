@@ -61,7 +61,13 @@ struct FileBrowserSidebar: View {
                 Task { await viewModel.useDefaultFolder() }
             case .remote(let id):
                 if let ds = viewModel.savedDataSources.first(where: { $0.id == id }) {
-                    Task { await viewModel.connectToDataSource(ds) }
+                    Task {
+                        let result = await viewModel.connectToDataSource(ds)
+                        if case .failed(let failure) = result,
+                           viewModel.activeDataSource?.id == ds.id {
+                            viewModel.lastErrorMessage = failure.sourceConnectionMessage
+                        }
+                    }
                 }
             }
         }
