@@ -21,11 +21,30 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     private struct ResolvedLaunch {
+        let launchGeneration: Int
         let request: PlaybackLaunchRequest
         let resumeSeconds: Double?
-        let savedFormat: MediaFormat?
-        let playbackMode: PersistedPlaybackMode
-        let trackSelectionPreference: TrackSelectionPreference?
+        var savedFormat: MediaFormat?
+        var playbackMode: PersistedPlaybackMode
+        var trackSelectionPreference: TrackSelectionPreference?
+    }
+
+    private struct ActiveFailureRecovery {
+        let failure: PlaybackActiveFailure
+        let resolvedLaunch: ResolvedLaunch
+    }
+
+    private struct ActiveFailureRetry {
+        let recovery: ActiveFailureRecovery
+        let launchGeneration: Int
+        let runtimeGeneration: UInt64
+        let request: PlaybackLaunchRequest
+        var launchConfigurationCompleted: Bool
+    }
+
+    private enum PlaybackRequestOrigin {
+        case userInitiated
+        case automaticContinuation
     }
 
     private struct MediaFormatRequestTarget: Equatable {
@@ -72,6 +91,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public var onPlaybackIntentStarted: (@MainActor () -> Void)?
     public var onPlaybackStopRequested: (@MainActor () -> Void)?
     public private(set) var pendingResumeDecision: ResumeDecision?
+    public private(set) var resumePromptPresentationCount = 0
+    public private(set) var automaticResumeBypassCount = 0
 
     private var launchTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
@@ -80,6 +101,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private var mediaFormatRequestID: UInt64 = 0
     private var generation = 0
     private var lastResolvedLaunch: ResolvedLaunch?
+    private var activeFailureRecovery: ActiveFailureRecovery?
+    private var activeFailureRetry: ActiveFailureRetry?
     private var mediaServerReportingSession: MediaServerReportingSession?
 
     public init(
@@ -110,8 +133,25 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         await mediaStateStore.viewingProjection(for: identity)
     }
 
+    #if DEBUG
+    public func debugViewingStateSnapshot() async -> ViewingStateDiagnosticSnapshot {
+        await mediaStateMutationTask?.value
+        return await mediaStateStore.debugSnapshot()
+    }
+    #endif
+
     public func requestPlayback(_ request: PlaybackLaunchRequest) {
+        requestPlayback(request, origin: .userInitiated)
+    }
+
+    private func requestPlayback(
+        _ request: PlaybackLaunchRequest,
+        origin: PlaybackRequestOrigin
+    ) {
         onPlaybackIntentStarted?()
+        activeFailureRecovery = nil
+        activeFailureRetry = nil
+        playbackRuntime.setUserVisibleIssue(nil)
         generation += 1
         let requestGeneration = generation
         pendingResumeDecision = nil
@@ -133,8 +173,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 } else {
                     seconds = 0
                 }
-                switch preferencesProvider.loadPlaybackPreferences().resumePolicy {
-                case .askEveryTime where seconds > 0:
+                switch (preferencesProvider.loadPlaybackPreferences().resumePolicy, origin) {
+                case (.askEveryTime, .userInitiated) where seconds > 0:
+                    resumePromptPresentationCount += 1
                     pendingResumeDecision = ResumeDecision(
                         request: request,
                         seconds: seconds,
@@ -142,7 +183,16 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                         playbackMode: playbackMode,
                         trackSelectionPreference: persistedState?.trackSelectionPreference
                     )
-                case .alwaysResume where seconds > 0:
+                case (.alwaysResume, _) where seconds > 0:
+                    launchResolvedPlayback(
+                        request,
+                        resumeAt: seconds,
+                        savedFormat: persistedState?.formatPreference,
+                        playbackMode: playbackMode,
+                        trackSelectionPreference: persistedState?.trackSelectionPreference
+                    )
+                case (.askEveryTime, .automaticContinuation) where seconds > 0:
+                    automaticResumeBypassCount += 1
                     launchResolvedPlayback(
                         request,
                         resumeAt: seconds,
@@ -207,6 +257,19 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func retryPlayback() {
+        if let failure = playbackRuntime.userVisibleIssue?.activePlaybackFailure {
+            guard let recovery = activeFailureRecovery,
+                  recovery.failure == failure else { return }
+            launchResolvedPlayback(
+                recovery.resolvedLaunch.request,
+                resumeAt: failure.causalPosition.seconds,
+                savedFormat: recovery.resolvedLaunch.savedFormat,
+                playbackMode: recovery.resolvedLaunch.playbackMode,
+                trackSelectionPreference: recovery.resolvedLaunch.trackSelectionPreference,
+                retrying: recovery
+            )
+            return
+        }
         guard let lastResolvedLaunch else { return }
         launchResolvedPlayback(
             lastResolvedLaunch.request,
@@ -243,22 +306,28 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         resumeAt seconds: Double?,
         savedFormat: MediaFormat?,
         playbackMode: PersistedPlaybackMode,
-        trackSelectionPreference: TrackSelectionPreference?
+        trackSelectionPreference: TrackSelectionPreference?,
+        retrying recovery: ActiveFailureRecovery? = nil
     ) {
+        if recovery == nil {
+            activeFailureRecovery = nil
+            activeFailureRetry = nil
+        }
         let isColdLaunch = playbackRuntime.currentLaunchRequest == nil
         let entryPlaybackMode = onPlaybackModeEntryStarted?(
             playbackMode,
             isColdLaunch
         ) ?? playbackMode
+        generation += 1
+        let launchGeneration = generation
         lastResolvedLaunch = ResolvedLaunch(
+            launchGeneration: launchGeneration,
             request: request,
             resumeSeconds: seconds,
             savedFormat: savedFormat,
             playbackMode: entryPlaybackMode,
             trackSelectionPreference: trackSelectionPreference
         )
-        generation += 1
-        let launchGeneration = generation
         saveCurrentArtwork()
         persistCurrentSession()
         launchTask?.cancel()
@@ -269,6 +338,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
         let preparedRequest = request.updating(metadata: request.initialMetadata)
         playbackRuntime.prepareForPlayback(preparedRequest)
+        if let recovery {
+            activeFailureRetry = ActiveFailureRetry(
+                recovery: recovery,
+                launchGeneration: launchGeneration,
+                runtimeGeneration: playbackRuntime.observationGeneration,
+                request: preparedRequest,
+                launchConfigurationCompleted: false
+            )
+        }
         armMediaServerReportingSession(
             for: preparedRequest,
             generation: launchGeneration
@@ -306,6 +384,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 ) else { return }
                 savePlaybackMode(entryPlaybackMode)
                 markMediaServerLaunchConfigurationCompleted()
+                completeActiveFailureRetry(
+                    recovery,
+                    expectedGeneration: launchGeneration,
+                    request: preparedRequest,
+                    launchConfigurationCompleted: true
+                )
             } catch {
                 guard generation == launchGeneration else { return }
                 if preparedRequest.source.isRemote,
@@ -317,14 +401,29 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     trackSelectionPreference: trackSelectionPreference,
                     generation: launchGeneration
                    ) {
+                    completeActiveFailureRetry(
+                        recovery,
+                        expectedGeneration: launchGeneration,
+                        request: preparedRequest,
+                        launchConfigurationCompleted: true
+                    )
                     return
                 }
                 guard generation == launchGeneration, !Task.isCancelled else { return }
                 finishMediaServerReportingSession()
+                if activeFailureRetry?.launchGeneration == launchGeneration {
+                    activeFailureRetry = nil
+                }
                 logger.error(
                     "playback launch failed error=\(error.localizedDescription, privacy: .public)"
                 )
-                if playbackRuntime.userVisibleIssue == nil {
+                if let recovery {
+                    if playbackRuntime.userVisibleIssue == nil {
+                        playbackRuntime.setUserVisibleIssue(
+                            .activePlaybackFailure(recovery.failure)
+                        )
+                    }
+                } else if playbackRuntime.userVisibleIssue == nil {
                     playbackRuntime.setUserVisibleIssue(.mediaOpeningFailed)
                 }
             }
@@ -356,6 +455,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         guard await persistMediaFormatMutationIfCurrent(target, mutation: { store, identity in
             await store.saveFormat(format, for: identity)
         }) else { return }
+        if lastResolvedLaunch?.launchGeneration == generation {
+            lastResolvedLaunch?.savedFormat = format
+        }
         notifyEffectiveMediaFormatApplied()
     }
 
@@ -368,10 +470,17 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         guard await persistMediaFormatMutationIfCurrent(target, mutation: { store, identity in
             await store.resetFormat(for: identity)
         }) else { return }
+        if lastResolvedLaunch?.launchGeneration == generation {
+            lastResolvedLaunch?.savedFormat = nil
+        }
         notifyEffectiveMediaFormatApplied()
     }
 
     public func savePlaybackMode(_ mode: PersistedPlaybackMode) {
+        if lastResolvedLaunch?.launchGeneration == generation,
+           lastResolvedLaunch?.request == playbackRuntime.currentLaunchRequest {
+            lastResolvedLaunch?.playbackMode = mode
+        }
         guard let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity else {
             return
         }
@@ -388,6 +497,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
               playbackRuntime.activeSessionID == sessionID,
               playbackRuntime.currentLaunchRequest == request,
               playbackRuntime.currentAudioTrackID == track.id else { return }
+        if lastResolvedLaunch?.launchGeneration == generation,
+           lastResolvedLaunch?.request == request {
+            var preference = lastResolvedLaunch?.trackSelectionPreference
+                ?? TrackSelectionPreference()
+            preference.audioTrackID = track.id
+            lastResolvedLaunch?.trackSelectionPreference = preference
+        }
         switch request.viewingStateAuthority {
         case .enchronPersistence:
             guard let identity = request.versionedIdentity else { return }
@@ -407,6 +523,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
               playbackRuntime.activeSessionID == sessionID,
               playbackRuntime.currentLaunchRequest == request,
               playbackRuntime.currentSubtitleTrackID == track?.id else { return }
+        if lastResolvedLaunch?.launchGeneration == generation,
+           lastResolvedLaunch?.request == request {
+            var preference = lastResolvedLaunch?.trackSelectionPreference
+                ?? TrackSelectionPreference()
+            preference.subtitleTrack = track.map {
+                .track(id: $0.id)
+            } ?? .off
+            lastResolvedLaunch?.trackSelectionPreference = preference
+        }
         switch request.viewingStateAuthority {
         case .enchronPersistence:
             guard let identity = request.versionedIdentity else { return }
@@ -426,12 +551,20 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public func stopPlayback() {
         onPlaybackStopRequested?()
         cancelPlaybackLaunchAndPersistProgress()
+        activeFailureRecovery = nil
+        activeFailureRetry = nil
+        lastResolvedLaunch = nil
+        playbackRuntime.setUserVisibleIssue(nil)
         playbackRuntime.stop(releasingSourceAccess: true)
     }
 
     public func stopPlaybackAndWait() async {
         onPlaybackStopRequested?()
         cancelPlaybackLaunchAndPersistProgress()
+        activeFailureRecovery = nil
+        activeFailureRetry = nil
+        lastResolvedLaunch = nil
+        playbackRuntime.setUserVisibleIssue(nil)
         await playbackRuntime.stopAndWait(releasingSourceAccess: true)
     }
 
@@ -481,7 +614,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             Task { [weak self] in
                 guard let self else { return }
                 if let next = await nextFileProvider?() {
-                    requestPlayback(next)
+                    requestPlayback(next, origin: .automaticContinuation)
                 } else {
                     onFallbackShowControls?()
                 }
@@ -563,6 +696,11 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     private func receivePlaybackObservation(_ observation: PlaybackRuntimeObservation) {
+        if case .activeFailure(let failure) = observation.event {
+            receiveActiveFailure(failure, observationGeneration: observation.generation)
+            return
+        }
+        completeActiveFailureRetryIfUsable(observation)
         guard var session = mediaServerReportingSession,
               session.generation == generation,
               session.runtimeGeneration == observation.generation else { return }
@@ -633,7 +771,73 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             finishMediaServerReportingSession(
                 expectedRuntimeGeneration: observation.generation
             )
+        case .activeFailure:
+            return
         }
+    }
+
+    private func receiveActiveFailure(
+        _ failure: PlaybackActiveFailure,
+        observationGeneration: UInt64
+    ) {
+        guard observationGeneration == failure.runtimeGeneration,
+              observationGeneration == playbackRuntime.observationGeneration,
+              failure.requestID == playbackRuntime.currentLaunchRequest?.id,
+              failure.mediaSessionID == playbackRuntime.activeSessionID,
+              let resolvedLaunch = lastResolvedLaunch,
+              resolvedLaunch.launchGeneration == generation,
+              resolvedLaunch.request.id == failure.requestID else { return }
+        activeFailureRecovery = ActiveFailureRecovery(
+            failure: failure,
+            resolvedLaunch: resolvedLaunch
+        )
+    }
+
+    private func completeActiveFailureRetry(
+        _ recovery: ActiveFailureRecovery?,
+        expectedGeneration: Int,
+        request: PlaybackLaunchRequest,
+        launchConfigurationCompleted: Bool
+    ) {
+        guard let recovery,
+              var retry = activeFailureRetry,
+              retry.recovery.failure == recovery.failure,
+              retry.launchGeneration == expectedGeneration,
+              retry.runtimeGeneration == playbackRuntime.observationGeneration,
+              retry.request == request,
+              generation == expectedGeneration,
+              activeFailureRecovery?.failure == recovery.failure,
+              playbackRuntime.currentLaunchRequest == request else { return }
+        if launchConfigurationCompleted {
+            retry.launchConfigurationCompleted = true
+            activeFailureRetry = retry
+        }
+        guard retry.launchConfigurationCompleted else { return }
+        switch playbackRuntime.productLifecycle {
+        case .ready, .playing, .paused:
+            activeFailureRetry = nil
+            activeFailureRecovery = nil
+            playbackRuntime.setUserVisibleIssue(
+                request.externalSubtitleResolutionFailed ? .externalSubtitleFailed : nil
+            )
+        case .idle, .loading, .ended, .failed:
+            break
+        }
+    }
+
+    private func completeActiveFailureRetryIfUsable(
+        _ observation: PlaybackRuntimeObservation
+    ) {
+        guard case .lifecycle(let lifecycle) = observation.event,
+              lifecycle == .ready || lifecycle == .playing || lifecycle == .paused,
+              let retry = activeFailureRetry,
+              observation.generation == retry.runtimeGeneration else { return }
+        completeActiveFailureRetry(
+            retry.recovery,
+            expectedGeneration: retry.launchGeneration,
+            request: retry.request,
+            launchConfigurationCompleted: false
+        )
     }
 
     private func reportImmediateMediaServerProgress(positionSeconds: Double? = nil) {
@@ -897,7 +1101,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             try await playbackRuntime.setFormat(
                 projection: Self.projection(from: format.projection),
                 horizontalFieldOfViewDegrees: format.horizontalFieldOfViewDegrees,
-                stereo: Self.stereo(from: format.stereoLayout)
+                stereo: Self.stereo(from: format.stereoLayout),
+                usesDolbyVisionFallback: false
             )
         }
         guard generation == expectedGeneration else { return false }

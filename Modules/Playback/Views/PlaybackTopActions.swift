@@ -281,7 +281,14 @@ struct PlaybackVideoFormatEditor: View {
 
             Picker(selection: customAngleSelection) {
                 ForEach(PanoramaHorizontalCoverage.selectableAngles, id: \.self) { degrees in
-                    Text("\(degrees)°").tag(Optional(degrees))
+                    Text("\(degrees)°")
+                        .tag(Optional(degrees))
+                        .accessibilityIdentifier(
+                            Self.customAngleAccessibilityIdentifier(
+                                for: degrees,
+                                identifierPrefix: identifierPrefix
+                            )
+                        )
                 }
             } label: {
                 Label(
@@ -359,6 +366,13 @@ struct PlaybackVideoFormatEditor: View {
             )
         }
 #endif
+    }
+
+    static func customAngleAccessibilityIdentifier(
+        for degrees: Int,
+        identifierPrefix: String
+    ) -> String {
+        "\(identifierPrefix)-CustomAngle-\(degrees)"
     }
 
     private func menuHeading(_ title: String, supporting: String) -> some View {

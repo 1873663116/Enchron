@@ -6,6 +6,14 @@ public enum PlaybackUserVisibleIssueCategory: String, CaseIterable, Sendable, Eq
     case unsupportedVideoCodec
     case sourceAccessUnavailable
     case playbackFailed
+    case serverCertificateChanged = "server-certificate-changed"
+    case connectionInterrupted = "connection-interrupted"
+    case sourceFileMissing = "source-file-missing"
+    case sourceAccessDenied = "source-access-denied"
+    case mediaDataCorrupt = "media-data-corrupt"
+    case rendererRequiresFlush = "renderer-requires-flush"
+    case mediaServicesReset = "media-services-reset"
+    case rendererFailed = "renderer-failed"
     case playbackControlFailed
     case mediaFormatChangeFailed
     case audioTrackSelectionFailed
@@ -71,12 +79,14 @@ public struct PlaybackUserVisibleIssuePolicy: Sendable, Equatable {
 public enum PlaybackUnsupportedVideoCodec: String, Sendable, Equatable {
     case vc1
     case mpeg2Video
+    case mpeg4Part2
     case other
 
     public init(codecName: String) {
-        switch codecName.lowercased().filter(\.isLetter) {
-        case "vc": self = .vc1
-        case "mpegvideo": self = .mpeg2Video
+        switch codecName.lowercased().filter({ $0.isLetter || $0.isNumber }) {
+        case "vc", "vc1": self = .vc1
+        case "mpegvideo", "mpeg2video": self = .mpeg2Video
+        case "mpeg4", "mpeg4video": self = .mpeg4Part2
         default: self = .other
         }
     }
@@ -85,6 +95,7 @@ public enum PlaybackUnsupportedVideoCodec: String, Sendable, Equatable {
         switch self {
         case .vc1: "VC-1 video"
         case .mpeg2Video: "MPEG-2 video"
+        case .mpeg4Part2: "MPEG-4 Part 2 video"
         case .other: nil
         }
     }
@@ -94,12 +105,46 @@ public enum PlaybackBlockingCapability: String, CaseIterable, Sendable, Equatabl
     case videoDecoderUnavailable
 }
 
+public struct PlaybackActiveFailure: Sendable, Equatable {
+    public enum Cause: String, CaseIterable, Sendable, Equatable {
+        case connectionInterrupted = "connection-interrupted"
+        case sourceFileMissing = "source-file-missing"
+        case sourceAccessDenied = "source-access-denied"
+        case mediaDataCorrupt = "media-data-corrupt"
+        case rendererRequiresFlush = "renderer-requires-flush"
+        case mediaServicesReset = "media-services-reset"
+        case rendererFailed = "renderer-failed"
+    }
+
+    public let cause: Cause
+    public let causalPosition: PlaybackModel.PlaybackPosition
+    public let runtimeGeneration: UInt64
+    public let requestID: URL
+    public let mediaSessionID: String
+
+    public init(
+        cause: Cause,
+        causalPosition: PlaybackModel.PlaybackPosition,
+        runtimeGeneration: UInt64,
+        requestID: URL,
+        mediaSessionID: String
+    ) {
+        self.cause = cause
+        self.causalPosition = causalPosition
+        self.runtimeGeneration = runtimeGeneration
+        self.requestID = requestID
+        self.mediaSessionID = mediaSessionID
+    }
+}
+
 public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     case mediaOpeningFailed
     case mediaRequestFailed
     case unsupportedVideoCodec(PlaybackUnsupportedVideoCodec)
     case sourceAccessUnavailable
     case playbackFailed
+    case serverCertificateChanged
+    case activePlaybackFailure(PlaybackActiveFailure)
     case playbackControlFailed
     case mediaFormatChangeFailed
     case audioTrackSelectionFailed
@@ -118,6 +163,17 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
         case .unsupportedVideoCodec: .unsupportedVideoCodec
         case .sourceAccessUnavailable: .sourceAccessUnavailable
         case .playbackFailed: .playbackFailed
+        case .serverCertificateChanged: .serverCertificateChanged
+        case .activePlaybackFailure(let failure):
+            switch failure.cause {
+            case .connectionInterrupted: .connectionInterrupted
+            case .sourceFileMissing: .sourceFileMissing
+            case .sourceAccessDenied: .sourceAccessDenied
+            case .mediaDataCorrupt: .mediaDataCorrupt
+            case .rendererRequiresFlush: .rendererRequiresFlush
+            case .mediaServicesReset: .mediaServicesReset
+            case .rendererFailed: .rendererFailed
+            }
         case .playbackControlFailed: .playbackControlFailed
         case .mediaFormatChangeFailed: .mediaFormatChangeFailed
         case .audioTrackSelectionFailed: .audioTrackSelectionFailed
@@ -149,6 +205,25 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
             "The original media source is no longer available. Choose it again to restore access."
         case .playbackFailed:
             "Playback could not continue."
+        case .serverCertificateChanged:
+            "The server certificate changed. Close playback before reconnecting."
+        case .activePlaybackFailure(let failure):
+            switch failure.cause {
+            case .connectionInterrupted:
+                "The connection to this media source was interrupted."
+            case .sourceFileMissing:
+                "The source file is no longer available."
+            case .sourceAccessDenied:
+                "Enchron no longer has permission to read the source file."
+            case .mediaDataCorrupt:
+                "Playback encountered unreadable media data."
+            case .rendererRequiresFlush:
+                "The video decoder needs to restart before playback can continue."
+            case .mediaServicesReset:
+                "The system media service restarted during playback."
+            case .rendererFailed:
+                "The video renderer could not continue."
+            }
         case .playbackControlFailed:
             "The playback command could not be completed."
         case .mediaFormatChangeFailed:
@@ -185,6 +260,11 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     }
 
     public var interruptsPlayback: Bool { category.policy.interruptsPlayback }
+
+    public var activePlaybackFailure: PlaybackActiveFailure? {
+        guard case .activePlaybackFailure(let failure) = self else { return nil }
+        return failure
+    }
 
     public func canPresent(at location: PlaybackIssuePresentationLocation) -> Bool {
         presentationLocations.contains(location)
@@ -226,7 +306,17 @@ public extension PlaybackUserVisibleIssueCategory {
                 presentationLocations: [.mainWindow, .immersiveSpace],
                 interruptsPlayback: true
             )
-        case .playbackFailed:
+        case .serverCertificateChanged:
+            .init(
+                title: "Server Certificate Changed",
+                messageStrategy: .fixedProductCopy,
+                allowedActions: [.close],
+                presentationLocations: [.mainWindow, .immersiveSpace],
+                interruptsPlayback: true
+            )
+        case .playbackFailed, .connectionInterrupted, .sourceFileMissing,
+             .sourceAccessDenied, .mediaDataCorrupt, .rendererRequiresFlush,
+             .mediaServicesReset, .rendererFailed:
             .init(
                 title: "Playback Error",
                 messageStrategy: .fixedProductCopy,

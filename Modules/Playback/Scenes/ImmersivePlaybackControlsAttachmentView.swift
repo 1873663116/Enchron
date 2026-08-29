@@ -81,12 +81,6 @@ struct ImmersivePlaybackControlsAttachmentView: View {
                 String(describing: $0.formatSignaling.transferFunction.availability)
             }
             ?? "none"
-        let sampleTransferFunction = debugSnapshot?.lastVideoSample?.formatSignaling
-            .transferFunction.value
-            ?? debugSnapshot?.lastVideoSample.map {
-                String(describing: $0.formatSignaling.transferFunction.availability)
-            }
-            ?? "none"
         let presentationRecord = debugSnapshot?.presentationState
         let displayedFrameObservations = (
             debugSnapshot?.rendererState?.displayedFrameObservationCount
@@ -150,7 +144,9 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             "providerCodecConfiguration=\(debugSnapshot?.providerOpen?.codecConfigurationSummary.value ?? "none")",
             "sampleMediaSubtype=\(debugSnapshot?.lastVideoSample?.mediaSubtype ?? "none")",
             "providerTransferFunction=\(providerTransferFunction)",
-            "sampleTransferFunction=\(sampleTransferFunction)",
+            "sampleHasLhvC=\(debugSnapshot?.lastVideoSample?.formatSignaling.lhvC.value.map(String.init) ?? "none")",
+            "rendererHasLhvC=\(debugSnapshot?.lastAcceptedRendererInput?.formatSignaling?.lhvC.value.map(String.init) ?? "none")",
+            "rendererInputIsMultiview=\(playbackRuntime.diagnostics.rendererInputIsMultiview.map(String.init) ?? "none")",
             "sampleHasDvcC=\(debugSnapshot?.lastVideoSample?.formatSignaling.dvcC.value.map(String.init) ?? "none")",
             "sampleHasDvvC=\(debugSnapshot?.lastVideoSample?.formatSignaling.dvvC.value.map(String.init) ?? "none")",
             "formatProvenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)",
@@ -206,6 +202,10 @@ struct ImmersivePlaybackControlsAttachmentView: View {
         fields.append(contentsOf: PlaybackStateAccessibility.rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
         ))
+        fields.append(contentsOf: PlaybackStateAccessibility.deliveryAccessibilityFields(
+            diagnostics: playbackRuntime.diagnostics,
+            debugSnapshot: debugSnapshot
+        ))
         return (fields + appModel.spatialPlaybackSurfaceObservation.accessibilityFields)
             .joined(separator: ";")
     }
@@ -223,6 +223,73 @@ struct ImmersivePlaybackControlsAttachmentView: View {
 }
 
 public enum PlaybackStateAccessibility {
+    public static func deliveryAccessibilityFields(
+        diagnostics: PlaybackDiagnostics,
+        debugSnapshot: PlaybackDebugSnapshotV1?
+    ) -> [String] {
+        let source = debugSnapshot?.providerOpen?.formatSignaling
+        let sample = debugSnapshot?.lastVideoSample?.formatSignaling
+        let renderer = debugSnapshot?.lastAcceptedRendererInput?.formatSignaling
+        let audioSample = debugSnapshot?.lastAudioSample
+        let audio = audioSample?.deliveryObservation
+        return [
+            "sourceFormatProvenance=\(source?.provenance ?? "none")",
+            "sourceColorPrimaries=\(stringFact(source?.colorPrimaries))",
+            "sourceTransferFunction=\(stringFact(source?.transferFunction))",
+            "sourceYCbCrMatrix=\(stringFact(source?.yCbCrMatrix))",
+            "sourceRange=\(stringFact(source?.range))",
+            "sourceMasteringDisplayMetadata=\(booleanFact(source?.masteringDisplayMetadata))",
+            "sourceContentLightLevelMetadata=\(booleanFact(source?.contentLightLevelMetadata))",
+            "sampleFormatProvenance=\(sample?.provenance ?? "none")",
+            "sampleColorPrimaries=\(stringFact(sample?.colorPrimaries))",
+            "sampleTransferFunction=\(stringFact(sample?.transferFunction))",
+            "sampleYCbCrMatrix=\(stringFact(sample?.yCbCrMatrix))",
+            "sampleRange=\(stringFact(sample?.range))",
+            "sampleMasteringDisplayMetadata=\(booleanFact(sample?.masteringDisplayMetadata))",
+            "sampleContentLightLevelMetadata=\(booleanFact(sample?.contentLightLevelMetadata))",
+            "rendererFormatProvenance=\(renderer?.provenance ?? "none")",
+            "rendererTransferFunction=\(stringFact(renderer?.transferFunction))",
+            "rendererColorPrimaries=\(stringFact(renderer?.colorPrimaries))",
+            "rendererYCbCrMatrix=\(stringFact(renderer?.yCbCrMatrix))",
+            "rendererRange=\(stringFact(renderer?.range))",
+            "rendererMasteringDisplayMetadata=\(booleanFact(renderer?.masteringDisplayMetadata))",
+            "rendererContentLightLevelMetadata=\(booleanFact(renderer?.contentLightLevelMetadata))",
+            "sourcePixelFormat=\(diagnostics.sourcePixelFormat)",
+            "destinationPixelFormat=\(diagnostics.destinationPixelFormat)",
+            "dolbyVisionProfile=\(diagnostics.dolbyVisionProfile)",
+            "dolbyVisionCrossCompatibilityID=\(diagnostics.dolbyVisionCrossCompatibilityID)",
+            "dolbyVisionHasEnhancementLayer=\(diagnostics.dolbyVisionHasEnhancementLayer)",
+            "sourceHasDvcC=\(booleanFact(source?.dvcC))",
+            "sourceHasDvvC=\(booleanFact(source?.dvvC))",
+            "rendererHasDvcC=\(booleanFact(renderer?.dvcC))",
+            "rendererHasDvvC=\(booleanFact(renderer?.dvvC))",
+            "audioProviderKind=\(audio?.providerKind ?? "none")",
+            "audioSourceCodec=\(audio?.sourceCodecName ?? "none")",
+            "audioSourceSampleRate=\(audio.map { String($0.sourceSampleRate) } ?? "none")",
+            "audioSourceChannelCount=\(audio.map { String($0.sourceChannelCount) } ?? "none")",
+            "audioDeliveryMediaSubtype=\(audio?.mediaSubtype ?? "none")",
+            "audioDeliveryFormatID=\(audio?.formatID ?? "none")",
+            "audioDeliveryFormatFlags=\(audio.map { String($0.formatFlags) } ?? "none")",
+            "audioDeliverySampleRate=\(audio.map { String($0.deliveredSampleRate) } ?? "none")",
+            "audioDeliveryChannelCount=\(audio.map { String($0.deliveredChannelCount) } ?? "none")",
+            "audioDeliveryBitsPerChannel=\(audio.map { String($0.bitsPerChannel) } ?? "none")",
+            "audioDeliveryBytesPerFrame=\(audio.map { String($0.bytesPerFrame) } ?? "none")",
+            "audioDeliveryFramesPerPacket=\(audio.map { String($0.framesPerPacket) } ?? "none")",
+            "audioDeliveryIsFloatPCM=\(audio.map { String($0.isFloatPCM) } ?? "none")",
+            "audioDeliveryIsInterleaved=\(audio?.isInterleaved.map(String.init) ?? "none")",
+            "audioDeliveryChannelLayoutTag=\(audio?.channelLayoutTag.map(String.init) ?? "none")",
+            "audioDeliverySampleCount=\(audioSample.map { String($0.sampleCount) } ?? "none")",
+            "audioDeliveryPresentationTime=\(audioSample.map { String($0.presentationTimeSeconds) } ?? "none")",
+            "audioDeliveryTimestampsMonotonic=\(audio.map { String($0.presentationTimestampsMonotonic) } ?? "none")",
+            "audioDeliveryTimestampObservationCount=\(audio.map { String($0.timestampObservationCount) } ?? "none")",
+            "audioTrueHDDecoderInputPacketCount=\(audio?.trueHDDecoderInputPacketCount.map(String.init) ?? "none")",
+            "audioTrueHDDecoderBatchCount=\(audio?.trueHDDecoderBatchCount.map(String.init) ?? "none")",
+            "audioTrueHDAggregatedDecoderBatchCount=\(audio?.trueHDAggregatedDecoderBatchCount.map(String.init) ?? "none")",
+            "audioTrueHDOutputSampleBufferCount=\(audio?.trueHDOutputSampleBufferCount.map(String.init) ?? "none")",
+            "audioTrueHDLastDecoderBatchInputPacketCount=\(audio?.trueHDLastDecoderBatchInputPacketCount.map(String.init) ?? "none")"
+        ]
+    }
+
     public static func rendererPerformanceAccessibilityFields(
         _ diagnostics: PlaybackDiagnostics
     ) -> [String] {
@@ -248,5 +315,16 @@ public enum PlaybackStateAccessibility {
         case .some(.active(let environment, let effect)):
             (environment.rawValue, effect?.rawValue ?? "none")
         }
+    }
+
+    private static func stringFact(_ fact: ObservedStringFact?) -> String {
+        guard let fact else { return "none" }
+        return fact.value ?? String(describing: fact.availability)
+    }
+
+    private static func booleanFact(_ fact: ObservedBooleanFact?) -> String {
+        guard let fact else { return "none" }
+        return fact.value.map(String.init)
+            ?? String(describing: fact.availability)
     }
 }
