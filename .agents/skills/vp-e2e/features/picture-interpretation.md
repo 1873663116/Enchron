@@ -42,7 +42,7 @@ Preconditions: 结构侧验证无需设备；物理侧的前置条件与 [clean-
 
 结构侧的终态是：构造入口唯一性检查通过；构造恒等检查中 Dolby Vision 语料零失效，其他家族的既有差异被逐项报告；来源 parity 矩阵逐字段没有传输差异。物理侧：立体与投影达到 `visual.verdict = content` 即为终态；动态范围由 Agent 判读采集帧得出结论，若判读者未通过阴阳样本自检，则本轮结论作废。感知侧的终态是佩戴者对每个动态范围家族做一次性确认。
 
-动态范围的物理判定由 Agent 阅读采集帧作出，具体判据与自检样本见 [判读模型](../../../../docs/plans/04-regression-journeys/draft.md)；验收片单记录在 `TestMedia/References/acceptance-clips.md`。Profile 5 曾经出现全程偏色而全套自动化仍然通过的情况，原因是当时结构证据无人验证、物理层没有判读者、感知验收从未执行过，三条证据线同时为空。
+动态范围的物理判定由 Agent 阅读采集帧作出，具体判据与自检样本见 [判读模型](../../../../docs/archive/plans/04-regression-journeys/draft.md)；验收片单记录在 `TestMedia/References/acceptance-clips.md`。Profile 5 曾经出现全程偏色而全套自动化仍然通过的情况，原因是当时结构证据无人验证、物理层没有判读者、感知验收从未执行过，三条证据线同时为空。
 
 ## Gotchas
 

@@ -4,8 +4,10 @@
 
 Documents split into two populations. Instructions carry paths an agent is
 expected to follow, so a path that no longer resolves sends the reader
-somewhere empty; those failures are errors. History records what was true when
-it was written, so its dead paths are reported and not enforced.
+somewhere empty; those failures are errors, including a path the retired
+registry can name a replacement for, because an instruction is maintained now
+and has no reason to keep the old name. History records what was true when it
+was written, so its dead paths are reported and not enforced.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ INSTRUCTION_ROOTS = (
     ".cursor/rules",
     ".github",
     "Config",
+    "Regression",
     "Scripts",
 )
 
@@ -40,9 +43,13 @@ SELF = ("Scripts/rules/verify_documentation_references.py",
 
 RETIRED_ARTIFACT_ROOT = "/Volumes/Cortisol/DevSpace/Xcode/Enchron"
 RETIRED_DOCUMENTS_PATH = REPOSITORY_ROOT / "Config/retired_documents.json"
+CATALOG_SOURCE_ROOT = "Config/regression/catalog-root"
+CATALOG_MATERIALIZED_ROOT = "Regression"
 
 TOP_LEVEL_SEGMENTS = frozenset(
-    entry.name for entry in REPOSITORY_ROOT.iterdir() if not entry.name.startswith(".git/")
+    entry.name
+    for entry in REPOSITORY_ROOT.iterdir()
+    if entry.name not in {".git", ".scratch", "DerivedData"}
 ) | {".agents", ".claude", ".github", ".githooks", ".audit", ".cursor"}
 
 MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
@@ -58,17 +65,29 @@ def retired_documents() -> dict[str, str]:
 
 def tracked_text_files() -> list[Path]:
     listing = subprocess.run(
-        ["git", "-C", str(REPOSITORY_ROOT), "ls-files", "-z"],
+        [
+            "git",
+            "-C",
+            str(REPOSITORY_ROOT),
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ],
         capture_output=True,
         text=True,
         check=True,
     )
     suffixes = {".md", ".mdc", ".json", ".py", ".sh", ".zsh", ".yml", ".yaml", ".swift", ".toml"}
-    return [
-        REPOSITORY_ROOT / name
-        for name in listing.stdout.split("\0")
-        if name and Path(name).suffix in suffixes
-    ]
+    excluded_directories = {".git", ".scratch", "DerivedData"}
+    repository_paths = (Path(name) for name in listing.stdout.split("\0") if name)
+    files = (
+        REPOSITORY_ROOT / path
+        for path in repository_paths
+        if path.suffix in suffixes and not excluded_directories.intersection(path.parts)
+    )
+    return sorted(path for path in files if path.is_file())
 
 
 def population(path: Path) -> str | None:
@@ -88,20 +107,39 @@ def strip_locator(candidate: str) -> str:
     return without_lines.rstrip(".,;、）)：:").strip()
 
 
+def materialized_document(document: Path) -> Path:
+    """Return where a source-catalog document's links are consumed."""
+    source_root = REPOSITORY_ROOT / CATALOG_SOURCE_ROOT
+    try:
+        relative = document.relative_to(source_root)
+    except ValueError:
+        return document
+    return REPOSITORY_ROOT / CATALOG_MATERIALIZED_ROOT / relative
+
+
 def repository_candidates(text: str, document: Path) -> set[str]:
     found: set[str] = set()
-    for match in list(MARKDOWN_LINK.finditer(text)) + list(BACKTICKED.finditer(text)):
-        candidate = strip_locator(match.group(1))
+
+    def add(candidate: str, implicit_relative: bool) -> None:
+        candidate = strip_locator(candidate)
         if not candidate or candidate.startswith(("http", "mailto:", "/")):
-            continue
+            return
         if "*" in candidate or "<" in candidate or "{" in candidate:
-            continue
-        if candidate.startswith(("./", "../")):
-            resolved = (document.parent / candidate).resolve()
-            if REPOSITORY_ROOT in resolved.parents:
-                found.add(resolved.relative_to(REPOSITORY_ROOT).as_posix())
-        elif candidate.split("/", 1)[0] in TOP_LEVEL_SEGMENTS and "/" in candidate:
+            return
+        if candidate.split("/", 1)[0] in TOP_LEVEL_SEGMENTS and "/" in candidate:
             found.add(candidate)
+            return
+        if not implicit_relative and not candidate.startswith(("./", "../")):
+            return
+        resolved = (document.parent / candidate).resolve()
+        if REPOSITORY_ROOT in resolved.parents:
+            found.add(resolved.relative_to(REPOSITORY_ROOT).as_posix())
+
+    markdown_document = document.suffix.lower() in {".md", ".mdc"}
+    for match in MARKDOWN_LINK.finditer(text):
+        add(match.group(1), implicit_relative=markdown_document)
+    for match in BACKTICKED.finditer(text):
+        add(match.group(1), implicit_relative=False)
     return found
 
 
@@ -111,6 +149,23 @@ def absolute_candidates(text: str) -> set[str]:
         for match in ABSOLUTE_VOLUME_PATH.finditer(text)
         if not any(character in match.group(0) for character in "*<[\\")
     }
+
+
+def is_generated_build_output(candidate: str) -> bool:
+    try:
+        Path(candidate).relative_to(REPOSITORY_ROOT / ".build")
+    except ValueError:
+        return False
+    return True
+
+
+def retired_replacement(candidate: str, retired: dict[str, str]) -> str | None:
+    for retired_path in sorted(retired, key=len, reverse=True):
+        if candidate == retired_path.rstrip("/"):
+            return retired[retired_path]
+        if retired_path.endswith("/") and candidate.startswith(retired_path):
+            return retired[retired_path]
+    return None
 
 
 def unresolved_references() -> tuple[list[str], list[str]]:
@@ -124,22 +179,24 @@ def unresolved_references() -> tuple[list[str], list[str]]:
         text = document.read_text(encoding="utf-8", errors="ignore")
         relative = document.relative_to(REPOSITORY_ROOT).as_posix()
         sink = errors if group == "instruction" else notes
-        for candidate in sorted(repository_candidates(text, document)):
+        resolution_document = materialized_document(document)
+        for candidate in sorted(repository_candidates(text, resolution_document)):
             if (REPOSITORY_ROOT / candidate).exists():
                 continue
             # .scratch holds what a check regenerates, so an absent path there
             # means nobody has run the generator yet, not that the doc is stale.
             if candidate == ".scratch" or candidate.startswith(".scratch/"):
                 continue
-            for retired_path in (candidate, candidate + "/"):
-                if retired_path in retired:
-                    notes.append(f"{relative}: {candidate} retired, now {retired[retired_path]}")
-                    break
-            else:
+            replacement = retired_replacement(candidate, retired)
+            if replacement is None:
                 sink.append(f"{relative}: {candidate} does not exist")
+            else:
+                sink.append(f"{relative}: {candidate} retired, now {replacement}")
         for candidate in sorted(absolute_candidates(text)):
             if candidate.startswith(RETIRED_ARTIFACT_ROOT):
                 sink.append(f"{relative}: {candidate} is the retired artifact root")
+            elif is_generated_build_output(candidate):
+                continue
             elif not Path(candidate).exists():
                 sink.append(f"{relative}: {candidate} does not exist")
     return errors, notes

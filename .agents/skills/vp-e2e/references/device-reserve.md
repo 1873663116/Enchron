@@ -40,7 +40,7 @@ fixture：`Samples/Spatial/MVHEVC-Apple-Official/spatial_lighthouse_flowers_wave
 
 | 类别 | 为什么不保留 | 依据 |
 |---|---|---|
-| 一切交互操作：控件、菜单、媒体库、设置、呈现切换、空间手势 | R5 裁决：命中与输入类证据来自 Device Hub 管线（真实注视加捏合），模拟器 lane 闭环 | [模拟器 lane](simulator.md) 的 Device Hub 一节与已跑通的四种呈现；[journeys/index.md](journeys/index.md) 的 P14 与 [J13](journeys/J13.md) |
+| 一切交互操作：控件、菜单、媒体库、设置、呈现切换、空间手势 | R5 裁决：命中与输入类证据来自 Device Hub 管线（真实注视加捏合），模拟器 lane 闭环 | [模拟器 lane](simulator.md) 的 Device Hub 一节与已跑通的四种呈现；[窗口播放表面的真实空间输入](../../../../Regression/journeys/window-spatial-input/journey.md) |
 | 旧用例里 `XCTSkip` 出模拟器的呈现类回归 | 这些 skip 的理由是空间呈现与交互（如 `Tests/EnchronAppUI/Journeys/WindowPlaybackRegressionUITests.swift`、`Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift`、`Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift` 的 "requires Apple Vision Pro"），不是解码；类别归属依本清单，用例与 testplan 的调整由其所有者执行 | R5；本清单 |
 | HDR10 与 HLG | 模拟器有 HEVC 解码器，PQ 与 HLG 是结构字段（transfer token 断言不分 lane）；显示观感属感知层，由佩戴者一次性验收加参照帧体系承接，那不是任何一条 lane 的自动化保留。PlaybackCore 唯一的模拟器编译分叉只是把 hardwareDisplayFacts 标为 notAvailable（`Packages/PlaybackCore/Sources/PlaybackCore/PlaybackCoreController.swift`），两侧都不以显示硬件事实作结构判据 | 解码矩阵实测；`/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia/References/README.md` |
 | Dolby Vision Profile 7 双层 | VideoToolbox 在真机同样以 −12910 拒绝 P7，产品拆出基础层按 HDR10 呈现，两 lane 行为一致 | 桥的 `requires_dolby_vision_base_layer_split`；[features/picture-interpretation.md](../features/picture-interpretation.md) 的 Gotchas |
