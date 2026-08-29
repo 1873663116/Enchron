@@ -154,8 +154,8 @@ def refuse_when_detached() -> None:
         "reachability_matrix was started detached. It holds the device's only "
         "resident runner, so nothing else can drive the device until it finishes, "
         "and no one is reading its verdicts while it does. Run it in the foreground, "
-        "or drive the operation units one at a time: "
-        "python3 Scripts/verification/journey_units.py list"
+        "or compile and drive the approved Catalog through "
+        "python3 Scripts/regression/runctl.py --help"
     )
 
 

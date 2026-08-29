@@ -1,0 +1,74 @@
+---
+{"actor":{"actorId":"checker:regression-review-stage","environmentDigest":"sha256:48fc7277d0f04ed213f7e132645361cc2afb30d3650fc8d8eb609e4407d92669"},"issuedAt":"2026-08-29T08:27:08Z","packetDigest":"sha256:deb2ee66f86a2d68f52fc47d9a206752d974690853762eb0ef218ba7d5a3078a","packetId":"review-packet:deterministic-deb2ee66f86a2d68","reviewer":"deterministic","schema":"enchron.regression.review-report","schemaVersion":1,"usage":{"inputTokens":5762,"reviewItems":5}}
+---
+
+# Deterministic Catalog review
+
+This report accepts `review-packet:deterministic-deb2ee66f86a2d68` (`sha256:deb2ee66f86a2d68f52fc47d9a206752d974690853762eb0ef218ba7d5a3078a`).
+
+## Catalog-wide checks
+
+- Catalog digest: `sha256:5aae7879e718bf2a8a5215f91eb3d9babadd32082e9bf113bc4684dade914ee2`
+- Review plan digest: `sha256:6d7ada9554d9d539cc0f1ae228b057f56d57ffb75d755e42c15b74139c1158eb`
+- Target Promises: `65`
+- Selected Scenarios: `65`
+- MainGate attempts: `simulator=scenario:local-media-lifecycle:clean-flat-playback-main-gate, device=scenario:local-media-lifecycle:clean-flat-playback-main-gate`
+- Journey ordering edges involving a MainGate: `0`
+- Verified Operation and Oracle locators: `46`
+
+## Implementation locators
+
+- `operation:accessibility.activate@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:accessibility.inspect@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:accessibility.type@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:app.relaunch@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:diagnostics.browse-hierarchy@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:diagnostics.playback-state@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:diagnostics.surface-probe@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:evidence.capture-audio@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:evidence.capture-frames@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:evidence.structural-test@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:format.apply@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:harness.assert-channels@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:harness.ensure-session@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:harness.reset-product-state@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:host.preflight@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:input.device-hub-pinch@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:input.device-hub-prepare@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:issue.present@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:library.snapshot@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:media.import-staged@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:media.open@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:media.stage-fixture@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:navigation.select-tab@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:playback.await-window-state@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:playback.seek@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:playback.select-subtitle@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:playback.wait-position@2` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:preparation.local-directory-subtitle-source@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:presentation.enter-docked-skybox@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:presentation.enter-panorama@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:presentation.exit-spatial@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:storage.clear@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:transition-trace.arm@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:transition-trace.disarm@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `operation:transition-trace.fetch@1` uses `Scripts/verification/regression_operation_adapter.py` at `sha256:7e53f393ef9bd5d549b126c3223be5b993d9ca78ae86d57916da332f126032dc`
+- `oracle:agent-audio@2` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-accessibility-tree@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-emby-range-log@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-interaction-trace@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-library-command@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-playback-probe@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-spatial-input@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-structural-test@2` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-transition@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-structured-window-control-plane@1` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+- `oracle:agent-visual@2` uses `Scripts/verification/regression_oracle_adapter.py` at `sha256:144adc9f94fe64e6bd951a2b59e8104ced342a2194ce0c793814fb146d9e3c5c`
+
+## Packet units
+
+- `preparation:preparation:local-aggregate-simulator` `sha256:9b736af3f042bcdad99662639fc3de34e924745cd7c4514202d5dc2cafc363d3` from `Regression/preparations/local-aggregate-simulator.md`
+- `preparation:preparation:presentation-fixtures-simulator` `sha256:dc051f939c24c4b1c9b8743bc2dcc260381f319a1e526967e27b67f550057793` from `Regression/preparations/presentation-fixtures-simulator.md`
+- `preparation:preparation:system-import-fixtures` `sha256:815c5dbd54d96cb32d108b5842aac0a78ee1e0e0d27e7e10311dbcf482173fac` from `Regression/preparations/system-import-fixtures.md`
+- `preparation:preparation:viewing-storage-fixtures-simulator` `sha256:a78fb29d1ba6f664f8b05ebbba642f156e3ea0443793503e40e0cc9a0dc3f91a` from `Regression/preparations/viewing-storage-fixtures-simulator.md`
+- `preparation:preparation:window-input-fixture` `sha256:0966f99204dc9d2ec3ce5891a0bbeb0d0dbe8bd77466b868de5b96989b17951c` from `Regression/preparations/window-input-fixture.md`

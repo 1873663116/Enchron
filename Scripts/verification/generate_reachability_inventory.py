@@ -157,6 +157,7 @@ DEBUG_MENU_EQUIVALENTS: dict[str, dict[str, object]] = {
 
 for identifier, family, target in (
     ("MediaLibrary-Manage-addFiles", "manage", "addFiles"),
+    ("MediaLibrary-Manage-addPhotos", "manage", "addPhotos"),
     ("MediaLibrary-Manage-addFolder", "manage", "addFolder"),
     ("MediaLibrary-Manage-newFolder", "manage", "newFolder"),
     ("MediaLibrary-Manage-selectMultiple", "manage", "selectMultiple"),
@@ -164,6 +165,7 @@ for identifier, family, target in (
     ("FileBrowsing-SourcesSidebar-addFolder", "sourceAdd", "folder"),
     ("FileBrowsing-SourcesSidebar-addWebDAV", "sourceAdd", "webDAV"),
     ("FileBrowsing-SourcesSidebar-addSMB", "sourceAdd", "smb"),
+    ("FileBrowsing-SourcesSidebar-add", "sourceAction", "add"),
     ("FileBrowsing-SourcesSidebar-refresh", "sourceAction", "refresh"),
     ("FileBrowsing-SourcesSidebar-delete", "sourceAction", "delete"),
 ):
@@ -174,6 +176,8 @@ for identifier, family, target in (
         "parentOperation": (
             "accessibility:FileBrowsing-Manage-button"
             if family == "manage"
+            else "accessibility:FileBrowsing-SourcesSidebar-add"
+            if family == "sourceAdd"
             else "accessibility:FileBrowsing-SourcesSidebar-sourceMore"
         ),
     }
@@ -783,6 +787,7 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "overview-expand",
             "-create",
             "-addfiles",
+            "-addphotos",
             "-addfolder",
             "-newfolder",
             "-selectmultiple",
@@ -814,6 +819,8 @@ CHAIN_CONTINUATION = re.compile(r"^[.}\)\],]")
 REVIEWED_OBSERVATIONS: dict[str, str] = {
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
     "identifier.",
+    "FileBrowsing-error": "The dialog prefix is not an element. Its primary and "
+    "secondary buttons have separate action identifiers.",
     "FileBrowsing-FilesScreen-itemCount": "A count label in a toolbar full of "
     "buttons.",
     "MediaLibrary-MultiSelect-count": "A count label beside the multi-select "
@@ -970,8 +977,8 @@ def presentation_derivation(
 
     browser_hosts = {
         "Emby": ("EmbyScreen {", "Apps/Enchron/MainView.swift"),
-        "FileBrowsing": ("FilesScreen()", "Apps/Enchron/MainView.swift"),
-        "MediaLibrary": ("FilesScreen()", "Apps/Enchron/MainView.swift"),
+        "FileBrowsing": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
+        "MediaLibrary": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
         "Navigation": ("private var browser: some View", "Apps/Enchron/MainView.swift"),
         "Settings": ("SettingsScreen()", "Apps/Enchron/MainView.swift"),
     }
@@ -1480,7 +1487,7 @@ def build_inventory() -> dict[str, object]:
             "kind": "scroll",
             "proofDomain": "browser",
             "proofContexts": [MAIN_WINDOW_BROWSER_CONTEXT],
-            "source": "Apps/Enchron/Screens/FilesScreen.swift",
+            "source": "Modules/MediaLibrary/Views/FilesScreen.swift",
         },
         {
             "id": "scroll:emby",
