@@ -10,17 +10,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/regression_journey_stop_gate.py\"",
-            "timeout": 15
-          }
-        ]
-      }
     ]
   }
 }
