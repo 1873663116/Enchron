@@ -28,6 +28,139 @@ struct SMBDataSourceAdapterTests {
         #expect(SMBDataSourceAdapter.childPath(named: "Season 1", in: "/Media/") == "/Media/Season 1")
     }
 
+    @Test("Same address with different credentials resolves to different sessions")
+    func sessionIdentitySeparatesCredentials() throws {
+        let alice = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20",
+            username: "alice"
+        )
+        let bob = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20",
+            username: "bob"
+        )
+        let store = FixedCredentialStore(
+            credentials: [
+                alice.credentialSourceID: StorageCredential(username: "alice", password: "alice-secret"),
+                bob.credentialSourceID: StorageCredential(username: "bob", password: "bob-secret"),
+            ]
+        )
+        let adapter = SMBDataSourceAdapter(credentialStore: store)
+
+        let first = try adapter.resolveSession(for: alice).identity
+        let second = try adapter.resolveSession(for: bob).identity
+
+        #expect(first != second)
+        #expect(first.host == second.host)
+        #expect(first.port == second.port)
+    }
+
+    @Test("Same account with a rotated password resolves to a different session")
+    func sessionIdentitySeparatesRotatedSecrets() throws {
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20",
+            username: "alice"
+        )
+        let before = SMBDataSourceAdapter(
+            credentialStore: FixedCredentialStore(
+                credentials: [info.credentialSourceID: StorageCredential(username: "alice", password: "old")]
+            )
+        )
+        let after = SMBDataSourceAdapter(
+            credentialStore: FixedCredentialStore(
+                credentials: [info.credentialSourceID: StorageCredential(username: "alice", password: "new")]
+            )
+        )
+
+        #expect(try before.resolveSession(for: info).identity != after.resolveSession(for: info).identity)
+    }
+
+    @Test("Identical credentials on the same server resolve to one session")
+    func sessionIdentityReusesMatchingCredentials() throws {
+        let byAddress = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "smb://192.168.1.20",
+            username: "alice"
+        )
+        let byHost = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20",
+            username: "alice"
+        )
+        var credentials: [String: StorageCredential] = [:]
+        credentials[byAddress.credentialSourceID] = StorageCredential(username: "alice", password: "shared")
+        credentials[byHost.credentialSourceID] = StorageCredential(username: "alice", password: "shared")
+        let adapter = SMBDataSourceAdapter(credentialStore: FixedCredentialStore(credentials: credentials))
+
+        #expect(try adapter.resolveSession(for: byAddress).identity == adapter.resolveSession(for: byHost).identity)
+    }
+
+    @Test("The identity carries a digest of the secret, never the secret")
+    func sessionIdentityDoesNotCarryTheSecret() throws {
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20",
+            username: "alice"
+        )
+        let adapter = SMBDataSourceAdapter(
+            credentialStore: FixedCredentialStore(
+                credentials: [info.credentialSourceID: StorageCredential(username: "alice", password: "alice-secret")]
+            )
+        )
+
+        let identity = try adapter.resolveSession(for: info).identity
+
+        #expect(identity.secretFingerprint != "alice-secret")
+        #expect(identity.secretFingerprint == SMBSessionIdentity.fingerprint(of: "alice-secret"))
+        #expect(identity.secretFingerprint.count == 64)
+    }
+
+    @Test("The identity is the pool key, so equal identities collapse and unequal ones do not")
+    func sessionIdentityIsAStableDictionaryKey() {
+        let alice = SMBSessionIdentity(
+            host: "192.168.1.20",
+            port: 445,
+            username: "alice",
+            secretFingerprint: SMBSessionIdentity.fingerprint(of: "alice-secret")
+        )
+        let aliceAgain = SMBSessionIdentity(
+            host: "192.168.1.20",
+            port: 445,
+            username: "alice",
+            secretFingerprint: SMBSessionIdentity.fingerprint(of: "alice-secret")
+        )
+        let bob = SMBSessionIdentity(
+            host: "192.168.1.20",
+            port: 445,
+            username: "bob",
+            secretFingerprint: SMBSessionIdentity.fingerprint(of: "bob-secret")
+        )
+        let otherPort = SMBSessionIdentity(
+            host: "192.168.1.20",
+            port: 4450,
+            username: "alice",
+            secretFingerprint: SMBSessionIdentity.fingerprint(of: "alice-secret")
+        )
+        let otherHost = SMBSessionIdentity(
+            host: "192.168.1.21",
+            port: 445,
+            username: "alice",
+            secretFingerprint: SMBSessionIdentity.fingerprint(of: "alice-secret")
+        )
+
+        var pool: [SMBSessionIdentity: String] = [:]
+        pool[alice] = "first"
+        pool[aliceAgain] = "second"
+        pool[bob] = "bob"
+        pool[otherPort] = "port"
+        pool[otherHost] = "host"
+
+        #expect(pool[alice] == "second")
+        #expect(pool.count == 4)
+    }
+
     @Test("SMB credentials are scoped to one server and account")
     func credentialIdentityUsesServerAndAccount() throws {
         let host = try FileBrowsingDomain.ConnectionInfo.remote(
@@ -411,4 +544,16 @@ private final class CancellationAwareByteRangeSource: MediaByteRangeSource, @unc
             throw error
         }
     }
+}
+
+nonisolated private struct FixedCredentialStore: CredentialStoring {
+    let credentials: [String: StorageCredential]
+
+    func saveCredential(for sourceID: String, credential: StorageCredential) throws {}
+
+    func loadCredential(for sourceID: String) throws -> StorageCredential? {
+        credentials[sourceID]
+    }
+
+    func deleteCredential(for sourceID: String) throws {}
 }
