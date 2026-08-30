@@ -411,7 +411,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         expected = {
             "preparation:audio-only-fixtures": preparations.REGRESSION_FIXTURE_SETS["audio-only"],
             "preparation:dynamic-range-corpus": preparations.REGRESSION_FIXTURE_SETS["dynamic-range"],
-            "preparation:format-corpus": preparations.REGRESSION_FIXTURE_SETS["format-corpus"],
+            "preparation:format-corpus": preparations.FORMAT_CORPUS_FIXTURES,
             "preparation:presentation-fixtures-device": tuple(
                 dict.fromkeys(
                     preparations.REGRESSION_FIXTURE_SETS["presentation-tour"]
@@ -451,6 +451,16 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                             for item in staged
                             if Path(preparations.STAGEABLE_FIXTURES[item].file_name).suffix.removeprefix(".").lower()
                             in preparations.PREPARATION_IMPORT_EXTENSIONS
+                            and (
+                                preparations.PREPARATION_REGISTRY[
+                                    identifier
+                                ].directory_source
+                                is None
+                                or item
+                                != preparations.PREPARATION_REGISTRY[
+                                    identifier
+                                ].directory_source.media_fixture_id
+                            )
                         ],
                     )
 
@@ -481,6 +491,40 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 and item.digest == binding.digest
                 for item in plan.prerequisites
             )
+        )
+
+    def test_format_corpus_imports_external_subtitles_with_their_media_directory(self) -> None:
+        plan = self.plans()["preparation:format-corpus"]
+        source_calls = [
+            call
+            for call in plan.calls
+            if call.operation_id
+            == "operation:preparation.local-directory-subtitle-source@1"
+        ]
+        self.assertEqual(len(source_calls), 1)
+        self.assertEqual(
+            dict(source_calls[0].arguments),
+            {
+                "directoryName": "format-corpus-multiaudio-avsync-30s-sidecars",
+                "mediaFileName": "sdr-bframe-multiaudio-avsync-30s.mp4",
+                "memberFileNames": [
+                    "sdr-bframe-multiaudio-avsync-30s.mp4",
+                    "sdr-bframe-multiaudio-avsync-30s.zh-CN.srt",
+                    "sdr-bframe-multiaudio-avsync-30s.styled.ass",
+                ],
+            },
+        )
+        imported = {
+            call.arguments["fileName"]
+            for call in plan.calls
+            if call.operation_id == "operation:media.import-staged@2"
+        }
+        self.assertTrue(
+            {
+                "sdr-bframe-multiaudio-avsync-30s.mp4",
+                "sdr-bframe-multiaudio-avsync-30s.zh-CN.srt",
+                "sdr-bframe-multiaudio-avsync-30s.styled.ass",
+            }.isdisjoint(imported)
         )
 
     def test_format_corpus_closes_the_reviewed_codec_and_container_manifest(self) -> None:

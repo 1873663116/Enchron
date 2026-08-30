@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:278f6350721a9faefb5bdccab467433ed36ac3ee2406c474c32a38d339927693",
+  "contentDigest": "sha256:6a55e14f10dd7b44a4dc3b1b3b97313c0bdce6bf6683b244f4ebc9e6e47fcb4e",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -951,7 +951,7 @@
       "title": "Prepare faultable remote source"
     },
     {
-      "contract": "The runtime Preparation adapter supplies this Preparation plan, implementation identity, readiness, blockers, and produced state.",
+      "contract": "The runtime Preparation adapter stages the registered format fixtures, imports product-admitted media, imports external subtitles as sidecars of their same-basename media directory, and produces reusable format corpus state.",
       "estimatedCostMillis": 60000,
       "filename": "format-corpus.md",
       "id": "preparation:format-corpus",

@@ -243,12 +243,35 @@
     },
     {
       "callId": "call:preparation:format-corpus:29",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:format-corpus:30",
+      "operation": "operation:preparation.local-directory-subtitle-source@1",
+      "arguments": {
+        "directoryName": "format-corpus-multiaudio-avsync-30s-sidecars",
+        "mediaFileName": "sdr-bframe-multiaudio-avsync-30s.mp4",
+        "memberFileNames": [
+          "sdr-bframe-multiaudio-avsync-30s.mp4",
+          "sdr-bframe-multiaudio-avsync-30s.zh-CN.srt",
+          "sdr-bframe-multiaudio-avsync-30s.styled.ass"
+        ]
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:format-corpus:31",
       "operation": "operation:library.snapshot@1",
       "arguments": {},
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:30",
+      "callId": "call:preparation:format-corpus:32",
       "operation": "operation:harness.assert-channels@2",
       "arguments": {},
       "maxInvocations": 1
@@ -258,7 +281,7 @@
     {
       "key": "format-corpus-ready",
       "schema": "fixture-set.format-corpus@2",
-      "producedByCall": "call:preparation:format-corpus:30",
+      "producedByCall": "call:preparation:format-corpus:32",
       "dependsOnTags": [
         "app.session",
         "audio.capture",
@@ -272,4 +295,4 @@
 ---
 # Prepare format corpus
 
-The runtime Preparation adapter supplies this Preparation plan, implementation identity, readiness, blockers, and produced state.
+The runtime Preparation adapter stages the registered format fixtures, imports product-admitted media, imports external subtitles as sidecars of their same-basename media directory, and produces reusable format corpus state.

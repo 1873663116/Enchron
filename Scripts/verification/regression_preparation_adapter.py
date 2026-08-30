@@ -393,6 +393,22 @@ if REGRESSION_FIXTURE_SETS["remote-aggregate"] != remote.AGGREGATE_FIXTURE_IDS:
         "remote source aggregate fixtures drifted from the registered regression set"
     )
 
+FORMAT_CORPUS_SUBTITLE_FIXTURES = (
+    "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+    "generated-external-subrip-zh-cn-v1",
+    "generated-external-ass-styled-v1",
+)
+FORMAT_CORPUS_FIXTURES = tuple(
+    dict.fromkeys(
+        REGRESSION_FIXTURE_SETS["format-corpus"]
+        + FORMAT_CORPUS_SUBTITLE_FIXTURES
+    )
+)
+FORMAT_CORPUS_SUBTITLE_SOURCE = DirectorySourceBinding(
+    directory_name="format-corpus-multiaudio-avsync-30s-sidecars",
+    media_fixture_id=FORMAT_CORPUS_SUBTITLE_FIXTURES[0],
+    member_fixture_ids=FORMAT_CORPUS_SUBTITLE_FIXTURES,
+)
 FORMAT_CORPUS_REQUIRED_FIXTURES = frozenset(
     (
         "generated-sdr-avc-bframe-audio-codec-matrix-15s-v1",
@@ -516,7 +532,9 @@ def _specs() -> tuple[PreparationSpec, ...]:
         PreparationSpec(
             "preparation:format-corpus", "device", "format-corpus-ready",
             "fixture-set.format-corpus@2", ("app.session", "audio.capture", "fixture.corpus", "lane.instance", "library.contents"),
-            fixture_ids=REGRESSION_FIXTURE_SETS["format-corpus"], import_staged=True,
+            fixture_ids=FORMAT_CORPUS_FIXTURES,
+            import_staged=True,
+            directory_source=FORMAT_CORPUS_SUBTITLE_SOURCE,
         ),
         PreparationSpec(
             "preparation:issue-fixtures", "device", "issue-fixtures-ready",
@@ -737,7 +755,15 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     {"fixtureID": fixture.identifier, "sourceRoot": FIXTURE_SOURCE_ROOT},
                 )
             )
-            if spec.import_staged and PurePosixPath(fixture.file_name).suffix.removeprefix(".").lower() in PREPARATION_IMPORT_EXTENSIONS:
+            if (
+                spec.import_staged
+                and PurePosixPath(fixture.file_name).suffix.removeprefix(".").lower()
+                in PREPARATION_IMPORT_EXTENSIONS
+                and (
+                    spec.directory_source is None
+                    or fixture.identifier != spec.directory_source.media_fixture_id
+                )
+            ):
                 calls.append(
                     _call(
                         spec.identifier,
