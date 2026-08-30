@@ -124,10 +124,18 @@
     },
     {
       "arguments": {
+        "includeViewingStorage": true
+      },
+      "callId": "call:emby-server-lifecycle:progress-authority-server:11",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:11",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:12",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -140,7 +148,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:progress-authority-server:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:progress-authority-server:11",
+      "producedByCall": "call:emby-server-lifecycle:progress-authority-server:12",
       "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o01@1"
     }
   ],

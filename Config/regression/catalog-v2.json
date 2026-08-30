@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:3ff6a89220de40ce4017a5311ff81d7d3f9988df8938c36426dc3c43d99f3b25",
+  "contentDigest": "sha256:9d72518c45fdb03aac81a34587fef82d4ce85e49bda96a7c7a3e1ee12485473f",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -1132,7 +1132,7 @@
       "id": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1",
       "negativeControls": [
         "A command exit code or test name without the structured assertion payload cannot satisfy the rubric.",
-        "Missing source identity, fixture digest, or compared field produces Indeterminate rather than Satisfied.",
+        "Missing artworkLoads[].itemID produces Indeterminate rather than Satisfied; an observed itemID that does not equal the prepared Emby fixture item is mixed-provenance evidence and violates the rubric.",
         "A loopback media endpoint request, item-id-only cache key, or stale reuse across tag changes violates the rubric."
       ],
       "title": "Artwork By Image Tag"
@@ -1146,7 +1146,7 @@
       "id": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o01@1",
       "negativeControls": [
         "A command exit code or test name without the structured assertion payload cannot satisfy the rubric.",
-        "Missing source identity, fixture digest, or compared field produces Indeterminate rather than Satisfied.",
+        "Missing artworkLoads[].itemID produces Indeterminate rather than Satisfied; an observed itemID that does not equal the prepared Emby fixture item is mixed-provenance evidence and violates the rubric.",
         "Any loopback artwork request, missing tag, or artwork bound to a different item violates the rubric."
       ],
       "title": "Emby Artwork Bypasses Loopback"
@@ -1198,13 +1198,13 @@
     {
       "criteria": [
         "The server reports an active session and advancing position for the opened item, then records the exit position within the five-second observed-position bound decided by HC-021.",
-        "No corresponding local viewing-state record exists for the Emby media identity."
+        "After exit, operation:diagnostics.surface-probe@1 runs with includeViewingStorage=true and viewingStorageObservation.snapshot.viewingState.entries contains no record for the Emby media identity derived from the bound playback session's serverID, itemID, and mediaSourceID."
       ],
       "filename": "rubric-emby-server-lifecycle-progress-authority-server-o01-1.md",
       "id": "rubric:emby-server-lifecycle.progress-authority-server.o01@1",
       "negativeControls": [
         "An action return value without the post-action application state cannot satisfy the rubric.",
-        "A missing required field, changed session identity where preservation is required, or stale snapshot produces a non-passing result.",
+        "Missing playbackSessions[].serverID, userID, or itemID produces Indeterminate rather than Satisfied; a serverID or userID that does not match account, or an itemID that does not match the prepared Emby fixture item, is mixed-provenance evidence and violates the rubric.",
         "Product-only progress without server state, server progress for another user or item, or a local fallback record violates the rubric."
       ],
       "title": "Progress Authority Server"
@@ -4993,7 +4993,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:progress-authority-server:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:progress-authority-server:11",
+          "producedByCall": "call:emby-server-lifecycle:progress-authority-server:12",
           "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o01@1"
         }
       ],
@@ -5094,10 +5094,18 @@
         },
         {
           "arguments": {
+            "includeViewingStorage": true
+          },
+          "callId": "call:emby-server-lifecycle:progress-authority-server:11",
+          "maxInvocations": 1,
+          "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence"
           },
-          "callId": "call:emby-server-lifecycle:progress-authority-server:11",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:12",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }

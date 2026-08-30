@@ -10,7 +10,7 @@
   ],
   "negativeControls": [
     "A command exit code or test name without the structured assertion payload cannot satisfy the rubric.",
-    "Missing source identity, fixture digest, or compared field produces Indeterminate rather than Satisfied.",
+    "Missing artworkLoads[].itemID produces Indeterminate rather than Satisfied; an observed itemID that does not equal the prepared Emby fixture item is mixed-provenance evidence and violates the rubric.",
     "A loopback media endpoint request, item-id-only cache key, or stale reuse across tag changes violates the rubric."
   ]
 }
