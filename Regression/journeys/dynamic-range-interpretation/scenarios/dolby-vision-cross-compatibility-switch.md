@@ -83,6 +83,7 @@
       "arguments": {
         "context": "window",
         "count": 3,
+        "includeHDRFallback": true,
         "minimumIntervalMillis": 1000
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06",
@@ -142,6 +143,7 @@
       "arguments": {
         "context": "window",
         "count": 3,
+        "includeHDRFallback": true,
         "minimumIntervalMillis": 1000
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12",
@@ -220,6 +222,7 @@
       "arguments": {
         "context": "window",
         "count": 3,
+        "includeHDRFallback": true,
         "minimumIntervalMillis": 1000
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
@@ -231,30 +234,30 @@
     {
       "artifactClass": "coverage",
       "caseKey": "profile-8-hdr10",
-      "evidenceSchema": "frame-sequence@2",
-      "evidenceType": "visual.frames",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-8-hdr10",
-      "oracle": "oracle:agent-visual@2",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06",
       "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "profile-8-hlg",
-      "evidenceSchema": "frame-sequence@2",
-      "evidenceType": "visual.frames",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-8-hlg",
-      "oracle": "oracle:agent-visual@2",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12",
       "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "profile-5-no-fallback",
-      "evidenceSchema": "frame-sequence@2",
-      "evidenceType": "visual.frames",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-5-no-fallback",
-      "oracle": "oracle:agent-visual@2",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
       "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
     }

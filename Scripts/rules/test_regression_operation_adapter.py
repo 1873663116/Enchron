@@ -809,7 +809,7 @@ class OperationAllowlistTests(unittest.TestCase):
             ):
                 spec.validate("device", invalid)
 
-    def test_browse_hierarchy_observes_current_level_without_navigation(self) -> None:
+    def test_browse_hierarchy_keeps_each_requested_level(self) -> None:
         backend = adapter.ResidentOperationBackend()
         arguments = {
             "context": "main-window-browser",
@@ -833,9 +833,33 @@ class OperationAllowlistTests(unittest.TestCase):
                 arguments, self.device
             )
 
-        controller.assert_called_once_with(self.device, "snapshot")
-        self.assertEqual(result["observationMode"], "read-only-current-hierarchy")
-        self.assertEqual(len(result["stages"]), 1)
+        self.assertEqual(
+            controller.call_args_list,
+            [
+                mock.call(self.device, "tap", "--label", "Family NAS"),
+                mock.call(self.device, "snapshot"),
+                mock.call(
+                    self.device,
+                    "tap",
+                    "--identifier",
+                    "FileBrowsing-grid-folder-Shared Movies",
+                ),
+                mock.call(self.device, "snapshot"),
+                mock.call(
+                    self.device,
+                    "tap",
+                    "--identifier",
+                    "FileBrowsing-grid-folder-TestVectors",
+                ),
+                mock.call(self.device, "snapshot"),
+            ],
+        )
+        self.assertEqual(result["observationMode"], "navigated-requested-hierarchy")
+        self.assertEqual(len(result["stages"]), 3)
+        self.assertEqual(
+            result["stages"][-1]["pathComponents"],
+            ["Shared Movies", "TestVectors"],
+        )
         self.assertEqual(result["stages"][0]["facts"]["itemCount"], 1)
         self.assertEqual(
             result["stages"][0]["facts"]["visibleCards"],
@@ -2211,6 +2235,7 @@ class OperationAllowlistTests(unittest.TestCase):
             "count": 3,
             "minimumIntervalMillis": 1000,
             "context": "portal",
+            "includeHDRFallback": True,
         }
         playback_states = [
             {
@@ -2314,6 +2339,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     },
                 )
             )
+        responses.append({"success": True, "matchedElement": None})
 
         with (
             mock.patch.object(backend, "_controller", side_effect=responses) as controller,
@@ -2342,6 +2368,7 @@ class OperationAllowlistTests(unittest.TestCase):
             )
         self.assertEqual(result["frames"][1]["playbackState"]["fields"]["error"], "decodeFailed")
         self.assertEqual(result["frames"][1]["controlPlane"]["fields"]["projection"], "flat")
+        self.assertFalse(result["hdrFallback"]["available"])
         self.assertEqual(
             controller.call_args_list,
             [
@@ -2362,6 +2389,15 @@ class OperationAllowlistTests(unittest.TestCase):
                         "--no-screenshot",
                     ),
                 )
+            ]
+            + [
+                mock.call(
+                    self.device,
+                    "snapshot",
+                    "--identifier",
+                    "PlayerUI-VideoFormat-HDRFallback",
+                    "--no-screenshot",
+                )
             ],
         )
 
@@ -2376,6 +2412,10 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(dict(spec.validate("device", arguments)), arguments)
         for invalid in (
             {**arguments, "remoteExpectation": "finite-backoff"},
+            {
+                **VALID_ARGUMENTS["operation:evidence.capture-frames@1"],
+                "includeHDRFallback": False,
+            },
             {
                 key: value
                 for key, value in arguments.items()
@@ -5004,7 +5044,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "PlayerUI-VideoFormat-apply",
         )
 
-    def test_browse_hierarchy_is_read_only_and_reports_current_state_only(self) -> None:
+    def test_browse_hierarchy_drives_and_records_the_requested_path(self) -> None:
         backend = adapter.ResidentOperationBackend()
         hierarchy = "\n".join(
             (
@@ -5026,10 +5066,28 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 self.device,
             )
 
-        controller.assert_called_once_with(self.device, "snapshot")
-        self.assertEqual(len(result["stages"]), 1)
+        self.assertEqual(
+            controller.call_args_list,
+            [
+                mock.call(
+                    self.device,
+                    "tap",
+                    "--label",
+                    "Enchron Regression SMB",
+                ),
+                mock.call(self.device, "snapshot"),
+                mock.call(
+                    self.device,
+                    "tap",
+                    "--identifier",
+                    "FileBrowsing-grid-folder-Media",
+                ),
+                mock.call(self.device, "snapshot"),
+            ],
+        )
+        self.assertEqual(len(result["stages"]), 2)
         self.assertEqual(result["stages"][0]["facts"]["itemCount"], 2)
-        self.assertEqual(result["observationMode"], "read-only-current-hierarchy")
+        self.assertEqual(result["observationMode"], "navigated-requested-hierarchy")
 
     def test_artwork_frame_capture_is_read_only(self) -> None:
         backend = adapter.ResidentOperationBackend()

@@ -281,6 +281,9 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
     generation = arguments.get("remoteGenerationToken")
     product_binding = arguments.get("productBindingDigest")
     artwork_expectation = arguments.get("artworkExpectation")
+    include_hdr_fallback = arguments.get("includeHDRFallback")
+    if include_hdr_fallback is not None and include_hdr_fallback is not True:
+        raise OperationAdapterError("includeHDRFallback may only request true")
     if artwork_expectation is not None:
         if (
             artwork_expectation != "exit-replaces-current-frame"
@@ -290,6 +293,7 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             or expectation is not None
             or generation is not None
             or product_binding is not None
+            or include_hdr_fallback is not None
         ):
             raise OperationAdapterError(
                 "artwork exit capture requires the exact four-frame local variant"
@@ -2181,6 +2185,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     required=False,
                     choices=_choices("exit-replaces-current-frame"),
                 ),
+                _field("includeHDRFallback", boolean, required=False),
             ),
             (
                 ("visual.frames", "frame-sequence@2"),
@@ -3064,6 +3069,14 @@ class ResidentOperationBackend:
             if artwork_before is not None
             else None
         )
+        hdr_fallback = (
+            capture_state(
+                "PlayerUI-VideoFormat-HDRFallback",
+                include_screenshot=False,
+            )
+            if arguments.get("includeHDRFallback") is True
+            else None
+        )
         return {
             "succeeded": True,
             "context": arguments["context"],
@@ -3071,6 +3084,7 @@ class ResidentOperationBackend:
             "frames": frames,
             "fields": frames[-1]["controlPlane"]["fields"],
             "response": frames[-1]["controlPlane"]["response"],
+            **({"hdrFallback": hdr_fallback} if hdr_fallback is not None else {}),
             "remoteObservation": remote_observation,
             "artworkObservation": (
                 {
@@ -3229,49 +3243,53 @@ class ResidentOperationBackend:
 
     def _diagnostics_browse_hierarchy_1(self, arguments, context):
         requested_components = [str(item) for item in arguments["pathComponents"]]
-        response = self._controller(context, "snapshot")
-        self._require_success(response, "browse hierarchy snapshot")
-        hierarchy = response.get("hierarchy")
-        if not isinstance(hierarchy, str) or not hierarchy:
-            raise OperationAdapterError(
-                "browse hierarchy snapshot omitted its complete hierarchy"
-            )
+        source_selection = self._controller(
+            context, "tap", "--label", str(arguments["sourceLabel"])
+        )
+        self._require_success(source_selection, "browse hierarchy source selection")
 
-        identifiers = re.findall(r"identifier: '([^']+)'", hierarchy)
-        visible_cards: list[dict[str, str]] = []
-        seen_cards: set[str] = set()
-        for identifier in identifiers:
-            match = re.fullmatch(r"FileBrowsing-grid-(folder|video)-(.+)", identifier)
-            if match is None or identifier in seen_cards:
-                continue
-            seen_cards.add(identifier)
-            visible_cards.append(
-                {
-                    "identifier": identifier,
-                    "kind": match.group(1),
-                    "name": match.group(2),
-                }
-            )
-
-        item_count_text = None
-        item_count = None
-        item_count_visible = False
-        for line in hierarchy.splitlines():
-            if "identifier: 'FileBrowsing-FilesScreen-itemCount'" not in line:
-                continue
-            item_count_visible = True
-            text_match = re.search(r"(?:label|value): '([^']*)'", line)
-            if text_match is not None:
-                item_count_text = text_match.group(1)
-                count_match = re.fullmatch(r"([0-9]+) items?", item_count_text)
-                if count_match is not None:
-                    item_count = int(count_match.group(1))
-            break
-
-        stages = [
-            {
-                "index": 0,
-                "pathComponents": requested_components,
+        def capture_stage(index: int, path: list[str]) -> dict[str, object]:
+            response = self._controller(context, "snapshot")
+            self._require_success(response, "browse hierarchy snapshot")
+            hierarchy = response.get("hierarchy")
+            if not isinstance(hierarchy, str) or not hierarchy:
+                raise OperationAdapterError(
+                    "browse hierarchy snapshot omitted its complete hierarchy"
+                )
+            identifiers = re.findall(r"identifier: '([^']+)'", hierarchy)
+            visible_cards: list[dict[str, str]] = []
+            seen_cards: set[str] = set()
+            for identifier in identifiers:
+                match = re.fullmatch(
+                    r"FileBrowsing-grid-(folder|video)-(.+)", identifier
+                )
+                if match is None or identifier in seen_cards:
+                    continue
+                seen_cards.add(identifier)
+                visible_cards.append(
+                    {
+                        "identifier": identifier,
+                        "kind": match.group(1),
+                        "name": match.group(2),
+                    }
+                )
+            item_count_text = None
+            item_count = None
+            item_count_visible = False
+            for line in hierarchy.splitlines():
+                if "identifier: 'FileBrowsing-FilesScreen-itemCount'" not in line:
+                    continue
+                item_count_visible = True
+                text_match = re.search(r"(?:label|value): '([^']*)'", line)
+                if text_match is not None:
+                    item_count_text = text_match.group(1)
+                    count_match = re.fullmatch(r"([0-9]+) items?", item_count_text)
+                    if count_match is not None:
+                        item_count = int(count_match.group(1))
+                break
+            return {
+                "index": index,
+                "pathComponents": list(path),
                 "snapshot": response,
                 "hierarchy": hierarchy,
                 "facts": {
@@ -3282,16 +3300,29 @@ class ResidentOperationBackend:
                     "visibleCards": visible_cards,
                 },
             }
-        ]
+
+        stages = [capture_stage(0, [])]
+        visited: list[str] = []
+        for index, component in enumerate(requested_components, start=1):
+            selection = self._controller(
+                context,
+                "tap",
+                "--identifier",
+                f"FileBrowsing-grid-folder-{component}",
+            )
+            self._require_success(selection, f"browse hierarchy component {component}")
+            visited.append(component)
+            stages.append(capture_stage(index, visited))
 
         return {
             "succeeded": True,
             "context": arguments["context"],
             "sourceLabel": arguments["sourceLabel"],
             "requestedPathComponents": requested_components,
-            "observationMode": "read-only-current-hierarchy",
+            "observationMode": "navigated-requested-hierarchy",
             "stages": stages,
-            "response": response,
+            "sourceSelectionResponse": source_selection,
+            "response": stages[-1]["snapshot"],
         }
 
     def _accessibility_type_2(self, arguments, context):
