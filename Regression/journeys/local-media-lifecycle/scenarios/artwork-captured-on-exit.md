@@ -38,11 +38,19 @@
     },
     {
       "arguments": {
+        "fileName": "sdr-bframe-aggregate-30s.mkv"
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:02",
+      "maxInvocations": 1,
+      "operation": "operation:media.import-staged@2"
+    },
+    {
+      "arguments": {
         "deadlineSeconds": 90,
         "expectedLanding": "either-main-window",
         "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:02",
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:03",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -53,7 +61,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:03",
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:04",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -63,7 +71,7 @@
         "minimumPositionMillis": 5000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:04",
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:05",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -74,7 +82,7 @@
         "count": 4,
         "minimumIntervalMillis": 0
       },
-      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:05",
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:06",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -87,7 +95,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:artwork-captured-on-exit:o01:default",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:artwork-captured-on-exit:05",
+      "producedByCall": "call:local-media-lifecycle:artwork-captured-on-exit:06",
       "rubric": "rubric:local-media-lifecycle.artwork-captured-on-exit.o01@1"
     }
   ],

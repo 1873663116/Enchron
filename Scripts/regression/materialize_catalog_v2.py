@@ -807,38 +807,9 @@ def _concrete_lanes(lane: str) -> tuple[str, ...]:
     }.get(lane, ())
 
 
-def _validate_journey_edges(
-    journeys: Sequence[Mapping[str, Any]], scenario_ids: set[str]
-) -> None:
-    edge_sequence: list[tuple[str, str]] = []
-    for journey in journeys:
-        members = set(journey["scenarioRefs"])
-        for edge in journey["ordering"]:
-            pair = (edge["before"], edge["after"])
-            _require(
-                pair[0] in members and pair[1] in members,
-                f"{journey['id']} ordering edges must stay within its Journey",
-            )
-            edge_sequence.append(pair)
-    edges = set(edge_sequence)
-    _require(
-        len(edge_sequence) == len(edges) == len(EXACT_JOURNEY_EDGES),
-        "Journey graph contains ordering without a declared shared-state handoff",
-    )
-    _require(
-        edges == EXACT_JOURNEY_EDGES,
-        "Journey graph contains ordering without a declared shared-state handoff",
-    )
-    _require(
-        all(before in scenario_ids and after in scenario_ids for before, after in edges),
-        "Journey edge references unknown Scenario",
-    )
-
-
 def _validate_scenario_media_bindings(
     scenarios: Sequence[Mapping[str, Any]],
     preparations: Mapping[str, Mapping[str, Any]],
-    journeys: Sequence[Mapping[str, Any]],
 ) -> None:
     staged_by_state: dict[tuple[str, str, str], frozenset[str]] = {}
     imported_by_state: dict[tuple[str, str, str], frozenset[str]] = {}
@@ -891,12 +862,6 @@ def _validate_scenario_media_bindings(
                 staged_by_state[identity] = frozenset(staged_files)
                 imported_by_state[identity] = frozenset(imported_files)
 
-    predecessors: dict[str, set[str]] = defaultdict(set)
-    for journey in journeys:
-        for edge in journey["ordering"]:
-            predecessors[edge["after"]].add(edge["before"])
-    imported_after_scenario: dict[tuple[str, str], frozenset[str]] = {}
-
     for scenario in scenarios:
         for lane in _concrete_lanes(scenario["lane"]):
             available: set[str] = set()
@@ -905,14 +870,6 @@ def _validate_scenario_media_bindings(
                 identity = (lane, prerequisite["key"], prerequisite["schema"])
                 available.update(staged_by_state.get(identity, ()))
                 imported.update(imported_by_state.get(identity, ()))
-            for predecessor in predecessors.get(scenario["id"], ()):
-                identity = (lane, predecessor)
-                _require(
-                    identity in imported_after_scenario,
-                    f"{scenario['id']} appears before its Journey predecessor "
-                    f"{predecessor} on {lane}",
-                )
-                imported.update(imported_after_scenario[identity])
             for call in scenario["operations"]:
                 if call["operation"] == "operation:harness.reset-product-state@2":
                     imported.clear()
@@ -947,7 +904,6 @@ def _validate_scenario_media_bindings(
                         f"{call['callId']} local media {file_name} was not imported "
                         "by a prerequisite Preparation or earlier Scenario call",
                     )
-            imported_after_scenario[(lane, scenario["id"])] = frozenset(imported)
 
 
 def _validate_registered_media_basenames(
@@ -1419,10 +1375,8 @@ def _validate_blueprint(
         "blueprint Preparation IDs do not exactly match the runtime registry",
     )
     rubrics = {item["id"] for item in blueprint["rubrics"]}
-    scenario_ids = {item["id"] for item in blueprint["scenarios"]}
     _require(len(operations) == 35, "Operation IDs must be unique")
     _require(len(oracles) == 11, "Oracle IDs must be unique")
-    _require(len(scenario_ids) == 65, "Scenario IDs must be unique")
     global_calls: set[str] = set()
     for preparation in preparations.values():
         _validate_node_calls(
@@ -1438,17 +1392,16 @@ def _validate_blueprint(
             )
             _require(preparation["blockers"], f"{preparation['id']} needs typed blockers")
 
-    _validate_journey_edges(blueprint["journeys"], scenario_ids)
     _validate_registered_media_basenames(blueprint["scenarios"])
-    _validate_scenario_media_bindings(
-        blueprint["scenarios"], preparations, blueprint["journeys"]
-    )
+    _validate_scenario_media_bindings(blueprint["scenarios"], preparations)
     _validate_scenario_time_bounds(blueprint["scenarios"])
     _validate_external_subtitle_matrix(blueprint["scenarios"], preparations)
     _validate_high_risk_playback_semantics(
         blueprint["scenarios"], blueprint["rubrics"]
     )
 
+    scenario_ids = {item["id"] for item in blueprint["scenarios"]}
+    _require(len(scenario_ids) == 65, "Scenario IDs must be unique")
     obligation_ids: set[str] = set()
     for scenario in blueprint["scenarios"]:
         _require(
@@ -1525,6 +1478,28 @@ def _validate_blueprint(
     )
 
     _validate_transition_trace_sequences(blueprint["scenarios"])
+
+    edge_sequence: list[tuple[str, str]] = []
+    for journey in blueprint["journeys"]:
+        members = set(journey["scenarioRefs"])
+        for edge in journey["ordering"]:
+            pair = (edge["before"], edge["after"])
+            _require(
+                pair[0] in members and pair[1] in members,
+                f"{journey['id']} ordering edges must stay within its Journey",
+            )
+            edge_sequence.append(pair)
+    edges = set(edge_sequence)
+    _require(
+        len(edge_sequence) == len(edges) == len(EXACT_JOURNEY_EDGES),
+        "Journey graph contains ordering without a declared shared-state handoff",
+    )
+    _require(
+        edges == EXACT_JOURNEY_EDGES,
+        "Journey graph contains ordering without a declared shared-state handoff",
+    )
+    _require(all(before in scenario_ids and after in scenario_ids for before, after in edges), "Journey edge references unknown Scenario")
+
 
 def _expected_paths(blueprint: Mapping[str, Any]) -> set[str]:
     paths = {

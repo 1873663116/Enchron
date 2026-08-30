@@ -2301,12 +2301,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         )
         self.assertEqual(scenario["readiness"], "ready")
         self.assertFalse(scenario["blockers"])
-        self.assertFalse(
-            any(
-                call["operation"] == "operation:media.import-staged@2"
-                for call in scenario["operations"]
-            )
-        )
         self.assertEqual(
             scenario["operations"][0],
             {
