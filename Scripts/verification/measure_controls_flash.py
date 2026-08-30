@@ -40,16 +40,12 @@ class RecordingSession:
         *,
         device: str,
         developer_dir: str,
-        derived_data_path: Path,
-        cloned_packages_path: Path | None,
-        test_plan: str,
+        execution_input: Path,
         output_directory: Path,
     ) -> None:
         self.device = device
         self.developer_dir = developer_dir
-        self.derived_data_path = derived_data_path
-        self.cloned_packages_path = cloned_packages_path
-        self.test_plan = test_plan
+        self.execution_input = execution_input
         self.output_directory = output_directory
         self.started = False
         self.stopped = False
@@ -75,17 +71,11 @@ class RecordingSession:
             self.device,
             "--developer-dir",
             self.developer_dir,
-            "--derived-data-path",
-            str(self.derived_data_path),
-            "--test-plan",
-            self.test_plan,
+            "--execution-input",
+            str(self.execution_input),
             "--output-directory",
             str(self.output_directory),
         ]
-        if self.cloned_packages_path is not None:
-            command.extend(
-                ["--cloned-packages-path", str(self.cloned_packages_path)]
-            )
         command.extend(arguments)
         completed = subprocess.run(
             command,
@@ -434,15 +424,6 @@ def require_success(result: dict[str, object], action: str) -> None:
         raise RuntimeError(f"{action} failed: {json.dumps(result, ensure_ascii=False)}")
 
 
-def validate_external_derived_data(path: str) -> Path:
-    resolved = Path(path).expanduser().resolve()
-    if resolved == Path("/Volumes") or Path("/Volumes") not in resolved.parents:
-        raise argparse.ArgumentTypeError(
-            "--derived-data-path must be a specific directory below /Volumes"
-        )
-    return resolved
-
-
 def wait_for_result_bundle(
     output_directory: Path,
     *,
@@ -479,10 +460,8 @@ def wait_for_result_bundle(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
-    parser.add_argument("--derived-data-path", type=validate_external_derived_data, required=True)
-    parser.add_argument("--cloned-packages-path", type=Path)
+    parser.add_argument("--execution-input", type=Path, required=True)
     parser.add_argument("--developer-dir", default=active_developer_directory())
-    parser.add_argument("--test-plan", default="Enchron")
     parser.add_argument(
         "--output-directory",
         "--evidence-dir",
@@ -503,9 +482,7 @@ def main() -> int:
     session = RecordingSession(
         device=arguments.device,
         developer_dir=arguments.developer_dir,
-        derived_data_path=arguments.derived_data_path,
-        cloned_packages_path=arguments.cloned_packages_path,
-        test_plan=arguments.test_plan,
+        execution_input=arguments.execution_input,
         output_directory=evidence,
     )
     run_started_at = datetime.now().astimezone()
