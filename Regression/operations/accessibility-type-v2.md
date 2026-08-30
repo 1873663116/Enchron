@@ -62,7 +62,7 @@
   "evidenceSchemas": [],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:466edc12da9c3126cc7ba845bb2ad3dda158905c5a143133d8e647efc71593b7"
+    "digest": "sha256:9e4e0948320959d33bbac7b080512683344fed1031fb75a17fa384b1f937b5e0"
   }
 }
 ---

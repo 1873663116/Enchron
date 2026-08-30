@@ -160,20 +160,20 @@
     {
       "artifactClass": "coverage",
       "caseKey": "audio-menu",
-      "evidenceSchema": "interaction-trace@1",
-      "evidenceType": "interaction.trace",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:audio-menu",
-      "oracle": "oracle:agent-structured-interaction-trace@1",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:07",
       "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "speed-menu",
-      "evidenceSchema": "interaction-trace@1",
-      "evidenceType": "interaction.trace",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:speed-menu",
-      "oracle": "oracle:agent-structured-interaction-trace@1",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
       "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
     }

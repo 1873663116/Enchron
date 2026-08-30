@@ -97,6 +97,7 @@ SEMANTIC_OUTPUTS = {
     "operation:diagnostics.surface-probe@1": (
         ("interaction.trace", "interaction-trace@1"),
         ("spatial.input", "spatial-input@1"),
+        ("window.control-plane", "window-control-plane@1"),
     ),
     "operation:diagnostics.browse-hierarchy@1": (
         ("accessibility.tree", "accessibility-tree@1"),
@@ -3243,6 +3244,15 @@ class OperationAllowlistTests(unittest.TestCase):
             mock.patch.object(backend, "_probe_lines", return_value=lines),
             mock.patch.object(
                 backend,
+                "_window_control_plane_observation",
+                return_value={
+                    "succeeded": True,
+                    "fields": {"lifecycle": "Playing"},
+                    "response": {"success": True},
+                },
+            ),
+            mock.patch.object(
+                backend,
                 "_remote_observation",
                 return_value={"traceLines": ["remoteBinding {}"]},
             ),
@@ -3274,6 +3284,15 @@ class OperationAllowlistTests(unittest.TestCase):
             mock.patch.object(backend, "_probe_lines", return_value=bad),
             mock.patch.object(
                 backend,
+                "_window_control_plane_observation",
+                return_value={
+                    "succeeded": True,
+                    "fields": {"lifecycle": "Playing"},
+                    "response": {"success": True},
+                },
+            ),
+            mock.patch.object(
+                backend,
                 "_remote_observation",
                 return_value={"traceLines": ["remoteBinding {}"]},
             ),
@@ -3289,6 +3308,55 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertFalse(
             bad_result["certificateBoundary"]["orderedAttempts"][0]
         )
+
+    def test_finite_backoff_surface_probe_keeps_playback_binding(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        cursor = type("Cursor", (), {"sequence": 4, "line_count": 0})()
+        matrix = mock.Mock()
+        matrix.probe_cursor.return_value = cursor
+        control_plane = {
+            "succeeded": True,
+            "fields": {"lifecycle": "Playing", "controls": "shown"},
+            "response": {"success": True},
+        }
+        playback = {
+            "succeeded": True,
+            "fields": {
+                "demuxReconnects": "3",
+                "session": "session-a",
+                "lifecycle": "Playing",
+                "position": "12.5",
+            },
+            "response": {"success": True},
+            "topologyDigest": "sha256:" + "1" * 64,
+        }
+        with (
+            mock.patch.object(backend, "_matrix", return_value=matrix),
+            mock.patch.object(backend, "_probe_lines", return_value=[]),
+            mock.patch.object(
+                backend,
+                "_window_control_plane_observation",
+                return_value=control_plane,
+            ),
+            mock.patch.object(
+                backend,
+                "_diagnostics_playback_state_1",
+                return_value=playback,
+            ) as playback_state,
+            mock.patch.object(
+                backend,
+                "_remote_observation",
+                return_value={"traceLines": ["remoteBinding {}"]},
+            ),
+        ):
+            result = backend._diagnostics_surface_probe_1(
+                {"remoteExpectation": "finite-backoff"}, self.device
+            )
+
+        self.assertIs(result["playbackObservation"], playback)
+        self.assertIs(result["fields"], control_plane["fields"])
+        self.assertIs(result["response"], control_plane["response"])
+        playback_state.assert_called_once_with({}, self.device)
 
     def test_surface_probe_captures_one_closed_viewing_storage_snapshot(self) -> None:
         spec = adapter.SPECS["operation:diagnostics.surface-probe@1"]
@@ -3392,6 +3460,15 @@ class OperationAllowlistTests(unittest.TestCase):
             mock.patch.object(backend, "_probe_lines", return_value=[]),
             mock.patch.object(
                 backend,
+                "_window_control_plane_observation",
+                return_value={
+                    "succeeded": True,
+                    "fields": {"lifecycle": "Playing"},
+                    "response": {"success": True},
+                },
+            ),
+            mock.patch.object(
+                backend,
                 "_viewing_storage_observation",
                 return_value=observation,
             ),
@@ -3474,6 +3551,15 @@ class OperationAllowlistTests(unittest.TestCase):
         with (
             mock.patch.object(backend, "_matrix", return_value=matrix),
             mock.patch.object(backend, "_probe_lines", return_value=[]),
+            mock.patch.object(
+                backend,
+                "_window_control_plane_observation",
+                return_value={
+                    "succeeded": True,
+                    "fields": {"lifecycle": "Playing"},
+                    "response": {"success": True},
+                },
+            ),
             mock.patch.object(
                 backend,
                 "_viewing_storage_observation",
@@ -4965,6 +5051,15 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         with (
             mock.patch.object(backend, "_matrix", return_value=matrix),
             mock.patch.object(backend, "_probe_lines", return_value=[]),
+            mock.patch.object(
+                backend,
+                "_window_control_plane_observation",
+                return_value={
+                    "succeeded": True,
+                    "fields": {"lifecycle": "Playing"},
+                    "response": {"success": True},
+                },
+            ),
             mock.patch.object(
                 backend, "_remote_observation", return_value=remote
             ),

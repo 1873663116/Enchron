@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:c9f01cedcf431de2a08181f7230aa311b1d0f98f5dbec47edee678a4571ce151",
+  "contentDigest": "sha256:daf634d52bfcc82538790e0526c1631ff2aa6598f04e7b139e286be6e0bc93be",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -9360,20 +9360,20 @@
         {
           "artifactClass": "coverage",
           "caseKey": "audio-menu",
-          "evidenceSchema": "interaction-trace@1",
-          "evidenceType": "interaction.trace",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:audio-menu",
-          "oracle": "oracle:agent-structured-interaction-trace@1",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:07",
           "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "speed-menu",
-          "evidenceSchema": "interaction-trace@1",
-          "evidenceType": "interaction.trace",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:speed-menu",
-          "oracle": "oracle:agent-structured-interaction-trace@1",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
           "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
         }
@@ -13294,10 +13294,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "three-toggle-sequence-and-autohide",
-          "evidenceSchema": "spatial-input@1",
-          "evidenceType": "spatial.input",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:window-spatial-input:window-surface-controls-toggle-and-autohide:o01:three-toggle-sequence-and-autohide",
-          "oracle": "oracle:agent-structured-spatial-input@1",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:09",
           "rubric": "rubric:window-spatial-input.window-surface-controls-toggle-and-autohide.o01@1"
         }

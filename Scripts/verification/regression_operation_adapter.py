@@ -2305,6 +2305,7 @@ def _specs() -> tuple[OperationSpec, ...]:
             (
                 ("interaction.trace", "interaction-trace@1"),
                 ("spatial.input", "spatial-input@1"),
+                ("window.control-plane", "window-control-plane@1"),
             ),
             _cursor,
         ),
@@ -3959,6 +3960,7 @@ class ResidentOperationBackend:
         settle_delay_millis = int(arguments.get("settleDelayMillis", 0))
         if settle_delay_millis > 0:
             time.sleep(settle_delay_millis / 1000)
+        control_plane = self._window_control_plane_observation(context)
         matrix = self._matrix(context)
         lines = self._probe_lines(context)
         current = matrix.probe_cursor(lines)
@@ -4059,14 +4061,22 @@ class ResidentOperationBackend:
                         "certificate change observation has no pre-rotation cursor"
                     )
             interaction.extend(remote_observation["traceLines"])
+        playback_observation = (
+            self._diagnostics_playback_state_1({}, context)
+            if arguments.get("remoteExpectation") == "finite-backoff"
+            else None
+        )
         return {
             "succeeded": True,
+            "fields": control_plane["fields"],
+            "response": control_plane["response"],
             "cursorToken": f"{observed.sequence}:{observed.line_count}",
             "compacted": compacted,
             "lines": delta,
             "interactionTrace": interaction,
             "spatialInputTrace": spatial,
             "remoteObservation": remote_observation,
+            "playbackObservation": playback_observation,
             "certificateBoundary": certificate_boundary,
             "containerIndexObservation": container_index_observation,
             "viewingStorageObservation": viewing_storage_observation,

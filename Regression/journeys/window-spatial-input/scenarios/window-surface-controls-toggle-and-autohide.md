@@ -116,10 +116,10 @@
     {
       "artifactClass": "coverage",
       "caseKey": "three-toggle-sequence-and-autohide",
-      "evidenceSchema": "spatial-input@1",
-      "evidenceType": "spatial.input",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:window-spatial-input:window-surface-controls-toggle-and-autohide:o01:three-toggle-sequence-and-autohide",
-      "oracle": "oracle:agent-structured-spatial-input@1",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:09",
       "rubric": "rubric:window-spatial-input.window-surface-controls-toggle-and-autohide.o01@1"
     }
