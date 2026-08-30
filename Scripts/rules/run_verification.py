@@ -127,6 +127,10 @@ STRUCTURE_CHECKS = (
         "controller-invocations",
         "verify_controller_invocations.py",
     ),
+    StructureCheck(
+        "operation-evidence-payloads",
+        "verify_operation_evidence_payloads.py",
+    ),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
     StructureCheck(
         "reachability-inventory",

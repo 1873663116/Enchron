@@ -2810,6 +2810,8 @@ class ResidentOperationBackend:
                         "succeeded": True,
                         "elapsedMillis": elapsed,
                         "terminal": plane,
+                        "fields": plane,
+                        "response": last_document,
                         "observations": observations,
                     }
             time.sleep(0.5)
@@ -2818,6 +2820,8 @@ class ResidentOperationBackend:
             "reason": "deadline-expired",
             "elapsedMillis": round((time.monotonic() - started) * 1000),
             "observations": observations,
+            "fields": observations[-1]["fields"] if observations else {},
+            "response": last_document,
             "lastController": last_document,
         }
 
@@ -5085,7 +5089,15 @@ class ResidentOperationBackend:
         after = self._diagnostics_surface_probe_1({"cursorToken": before["cursorToken"]}, context)
         delivered = any("openRequestForwarded" in line for line in after["lines"])
         succeeded = landing["succeeded"] is True and delivered
-        return {"succeeded": succeeded, "action": action, "settlement": landing, "probe": after, "deliveryObserved": delivered}
+        return {
+            "succeeded": succeeded,
+            "action": action,
+            "settlement": landing,
+            "fields": landing.get("fields", {}),
+            "response": landing.get("response", {}),
+            "probe": after,
+            "deliveryObserved": delivered,
+        }
 
     def _issue_present_1(self, arguments, context):
         category = str(arguments["category"])
