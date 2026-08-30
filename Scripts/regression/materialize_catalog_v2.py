@@ -1027,8 +1027,11 @@ def _validate_external_subtitle_matrix(
         obligation = obligations.get(case_key)
         _require(
             obligation is not None
-            and obligation["producedByCall"] == capture["callId"]
-            and obligation["oracle"] == "oracle:agent-visual@2",
+            and obligation["producedByCall"] == selection["callId"]
+            and obligation["evidenceType"] == "window.control-plane"
+            and obligation["evidenceSchema"] == "window-control-plane@1"
+            and obligation["oracle"]
+            == "oracle:agent-structured-window-control-plane@1",
             f"external subtitle {case_key} lacks mandatory Oracle adjudication",
         )
     _require(

@@ -246,31 +246,31 @@
     {
       "artifactClass": "coverage",
       "caseKey": "local-sidecar",
-      "evidenceSchema": "frame-sequence@2",
-      "evidenceType": "visual.frames",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:local-sidecar",
-      "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "webdav-sidecar",
-      "evidenceSchema": "frame-sequence@2",
-      "evidenceType": "visual.frames",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:webdav-sidecar",
-      "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "emby-external-stream",
-      "evidenceSchema": "frame-sequence@2",
-      "evidenceType": "visual.frames",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:emby-external-stream",
-      "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     }
   ],

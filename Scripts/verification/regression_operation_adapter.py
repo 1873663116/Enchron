@@ -2440,7 +2440,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("trackLabel", string, required=False),
                 _deadline(),
             ),
-            (),
+            (("window.control-plane", "window-control-plane@1"),),
         ),
         OperationSpec("operation:format.apply@2", LANES, (_field("projection", string, choices=_choices("flat", "equirectangular180", "equirectangular360", "customAngle")), _field("horizontalCoverageDegrees", integer, required=False, minimum=180, maximum=360), _field("stereoLayout", string, choices=_choices("mono", "sideBySide", "topBottom")), _deadline()), (), _format_apply),
         OperationSpec("operation:presentation.enter-docked-skybox@1", LANES, (_deadline(),), ()),
@@ -2720,15 +2720,16 @@ class ResidentOperationBackend:
         return matrix
 
     def _read_control_plane(
-        self, context: OperationContext, identifier: str = "PlayerUI-window-control-plane"
+        self,
+        context: OperationContext,
+        identifier: str = "PlayerUI-window-control-plane",
+        *,
+        include_screenshot: bool = False,
     ) -> tuple[dict[str, str] | None, dict[str, object]]:
-        document = self._controller(
-            context,
-            "snapshot",
-            "--identifier",
-            identifier,
-            "--no-screenshot",
-        )
+        command = ["snapshot", "--identifier", identifier]
+        if not include_screenshot:
+            command.append("--no-screenshot")
+        document = self._controller(context, *command)
         matched = document.get("matchedElement")
         value = matched.get("value") if isinstance(matched, dict) else None
         if not isinstance(value, str) or not value:
@@ -5395,8 +5396,18 @@ class ResidentOperationBackend:
             raise OperationAdapterError("window control plane is unavailable")
         return {"succeeded": True, "fields": plane, "response": response}
 
-    def _diagnostics_playback_state_1(self, arguments, context):
-        plane, response = self._read_control_plane(context, "PlayerUI-playback-state")
+    def _diagnostics_playback_state_1(
+        self, arguments, context, *, include_screenshot=False
+    ):
+        plane, response = (
+            self._read_control_plane(
+                context,
+                "PlayerUI-playback-state",
+                include_screenshot=True,
+            )
+            if include_screenshot
+            else self._read_control_plane(context, "PlayerUI-playback-state")
+        )
         if plane is None:
             raise OperationAdapterError("playback-state probe is unavailable")
         identity: dict[str, str] = {}
@@ -5841,6 +5852,9 @@ class ResidentOperationBackend:
         if not candidates:
             return {
                 "succeeded": True,
+                "fields": before_fields,
+                "response": before["response"],
+                "frames": [],
                 "semanticOutcome": "candidate-missing",
                 "selectionSettled": False,
                 "host": host,
@@ -5889,10 +5903,13 @@ class ResidentOperationBackend:
         started = time.monotonic()
         deadline = started + int(arguments["deadlineSeconds"])
         observations: list[dict[str, object]] = []
+        frames: list[dict[str, object]] = []
         last_state: Mapping[str, object] | None = None
         last_menu_response: Mapping[str, object] | None = None
         while time.monotonic() < deadline:
-            current = self._diagnostics_playback_state_1({}, context)
+            current = self._diagnostics_playback_state_1(
+                {}, context, include_screenshot=True
+            )
             current_fields = current.get("fields")
             if not isinstance(current_fields, Mapping):
                 raise OperationAdapterError(
@@ -5935,6 +5952,14 @@ class ResidentOperationBackend:
                     "targetSelected": target_after[0]["isSelected"],
                 }
             )
+            frames.append(
+                {
+                    "index": len(observations) - 1,
+                    "record": current["response"],
+                    "fields": dict(current_fields),
+                }
+            )
+            frames = frames[-3:]
             last_state = current
             last_menu_response = menu_response
             lifecycle = str(current_fields.get("lifecycle", "")).lower()
@@ -5955,6 +5980,9 @@ class ResidentOperationBackend:
                 }
                 return {
                     "succeeded": True,
+                    "fields": current_fields,
+                    "response": current["response"],
+                    "frames": frames,
                     "semanticOutcome": "selected",
                     "selectionSettled": True,
                     "host": host,
@@ -5976,6 +6004,15 @@ class ResidentOperationBackend:
             time.sleep(0.25)
         return {
             "succeeded": True,
+            "fields": (
+                last_state["fields"] if last_state is not None else before_fields
+            ),
+            "response": (
+                last_state["response"]
+                if last_state is not None
+                else before["response"]
+            ),
+            "frames": frames,
             "semanticOutcome": "selection-not-settled",
             "selectionSettled": False,
             "host": host,

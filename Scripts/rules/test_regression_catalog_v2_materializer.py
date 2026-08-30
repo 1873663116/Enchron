@@ -1249,17 +1249,16 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             ],
         )
         self.assertTrue(all("trackLabel" not in item["arguments"] for item in selections))
-        captures = [
-            item
-            for item in scenario["operations"]
-            if item["operation"] == "operation:evidence.capture-frames@1"
-        ]
         self.assertEqual(
             [item["producedByCall"] for item in scenario["obligations"]],
-            [item["callId"] for item in captures],
+            [item["callId"] for item in selections],
         )
         self.assertTrue(
-            all(item["oracle"] == "oracle:agent-visual@2" for item in scenario["obligations"])
+            all(
+                item["oracle"]
+                == "oracle:agent-structured-window-control-plane@1"
+                for item in scenario["obligations"]
+            )
         )
         contract = scenario["contract"]
         self.assertIn("candidate-missing", contract)
@@ -1294,7 +1293,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 if item["id"] == scenario["id"]
             )
             bypassed_scenario["obligations"][0]["producedByCall"] = (
-                "call:local-media-lifecycle:external-subtitle-source-matrix:05"
+                "call:local-media-lifecycle:external-subtitle-source-matrix:06"
             )
             bypassed_path = self._write_blueprint(
                 root / "bypassed-oracle", bypassed_oracle
@@ -1309,6 +1308,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         context = object()
         state = {
             "succeeded": True,
+            "response": {"success": True},
             "fields": {
                 "collectionOrigin": "mediaLibrary",
                 "playbackAddressKind": "local-file",

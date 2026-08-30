@@ -118,6 +118,9 @@ SEMANTIC_OUTPUTS = {
     "operation:evidence.capture-audio@2": (("audio.measurement", "audio-measurement@2"),),
     "operation:evidence.structural-test@1": (("structural.test", "structural-test@2"),),
     "operation:media.open@2": (("window.control-plane", "window-control-plane@1"),),
+    "operation:playback.select-subtitle@1": (
+        ("window.control-plane", "window-control-plane@1"),
+    ),
     "operation:presentation.enter-panorama@1": (
         ("window.control-plane", "window-control-plane@1"),
     ),
@@ -3012,6 +3015,20 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(result["mediaName"], "fixture.mkv")
         self.assertEqual(result["fields"], fields)
 
+        with mock.patch.object(
+            backend,
+            "_read_control_plane",
+            return_value=(fields, {"success": True}),
+        ) as read_control_plane:
+            backend._diagnostics_playback_state_1(
+                {}, self.device, include_screenshot=True
+            )
+        read_control_plane.assert_called_once_with(
+            self.device,
+            "PlayerUI-playback-state",
+            include_screenshot=True,
+        )
+
         del fields["audioTrack"]
         with mock.patch.object(
             backend,
@@ -4199,7 +4216,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 backend,
                 "_diagnostics_playback_state_1",
                 side_effect=[before, after],
-            ),
+            ) as playback_state,
             mock.patch.object(
                 backend,
                 "_app_command",
@@ -4238,6 +4255,17 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertTrue(result["succeeded"])
         self.assertEqual(result["semanticOutcome"], "selected")
         self.assertTrue(result["selectionSettled"])
+        self.assertEqual(
+            playback_state.call_args_list,
+            [
+                mock.call({}, self.device),
+                mock.call({}, self.device, include_screenshot=True),
+            ],
+        )
+        self.assertEqual(len(result["frames"]), 1)
+        self.assertIs(result["frames"][0]["record"], after["response"])
+        self.assertIs(result["fields"], after["fields"])
+        self.assertIs(result["response"], after["response"])
         self.assertEqual(
             result["selectedTrack"],
             {
