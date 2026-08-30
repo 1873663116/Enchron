@@ -232,6 +232,16 @@ private final class InteractiveDeviceUIChannel {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             element.tap()
+            if let absent = command.assertAbsent {
+                for identifier in absent {
+                    let sibling = app.descendants(matching: .any)
+                        .matching(identifier: identifier)
+                        .element(boundBy: 0)
+                    if sibling.exists {
+                        return (false, "\(identifier) is still present after the tap.")
+                    }
+                }
+            }
             return (true, "Element tapped.")
         case .tapSequence:
             guard let identifiers = command.identifiers,
@@ -551,6 +561,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let identifier: String?
     let identifiers: [String]?
     let identifierPrefix: String?
+    let assertAbsent: [String]?
     let label: String?
     let index: Int?
     let text: String?
