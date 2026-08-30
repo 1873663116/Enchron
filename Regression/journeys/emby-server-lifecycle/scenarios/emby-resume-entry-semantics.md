@@ -54,7 +54,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Episode"
+          "Enchron Regression Episode, episode"
         ]
       },
       "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:04",

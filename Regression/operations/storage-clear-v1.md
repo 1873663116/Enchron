@@ -22,6 +22,7 @@
   },
   "invalidatesTags": [
     "cache.state",
+    "ui.navigation",
     "ui.state",
     "viewing.progress",
     "viewing.state"
@@ -29,10 +30,10 @@
   "evidenceSchemas": [],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:00d8e78cf5a88b70b8bf9d6bff760cfc5bae3f9d312e88b31c4feb3389928d56"
+    "digest": "sha256:2aca7cf32430446cf0e8e30832a2fbe3fc9653e8f05004679721c834e0b99e58"
   }
 }
 ---
 # Storage Clear
 
-The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.
+The runtime Operation adapter selects the Settings tab, opens the Storage & Privacy category and taps the named clear action in one tapSequence, then verifies from the viewing-storage probe that the named store is empty while protected library and playback settings state is unchanged. The call leaves the browsing ornament on the Settings tab inside that category, so it disturbs ui.navigation as well as the cleared store.

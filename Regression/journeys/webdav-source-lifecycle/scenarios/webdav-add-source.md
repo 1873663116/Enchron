@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 150000,
+  "estimatedCostMillis": 175000,
   "staticCases": [
     "default"
   ],
@@ -59,7 +59,19 @@
       "operation": "operation:navigation.select-tab@1"
     },
     {
+      "arguments": {},
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:05",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
       "arguments": {
+        "alsoInspect": [
+          "FileBrowsing-SourcesSidebar-sourceMore",
+          "FileBrowsing-SourcesSidebar-add",
+          "FileBrowsing-SourcesSidebar-addWebDAV",
+          "FileBrowsing-SourceConnection-webDAV-name"
+        ],
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
@@ -67,7 +79,7 @@
           "FileBrowsing-SourcesSidebar-addWebDAV"
         ]
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:05",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -79,7 +91,7 @@
         "secret": false,
         "text": "Enchron Regression WebDAV"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:06",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:07",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -92,7 +104,7 @@
         "textFile": "result://call:webdav-source-lifecycle:webdav-add-source:01/runtimePath",
         "textJSONKey": "address"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:07",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:08",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -105,7 +117,7 @@
         "textFile": "result://call:webdav-source-lifecycle:webdav-add-source:01/runtimePath",
         "textJSONKey": "user"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:08",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -118,44 +130,63 @@
         "textFile": "result://call:webdav-source-lifecycle:webdav-add-source:01/runtimePath",
         "textJSONKey": "password"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:09",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "FileBrowsing-SourceConnection-webDAV-connect",
+          "FileBrowsing-CertificateTrust-trust",
+          "FileBrowsing-SourceConnection-webDAV-name"
+        ],
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourceConnection-webDAV-connect",
           "FileBrowsing-CertificateTrust-trust"
-        ],
-        "labels": [
-          "以后"
         ]
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:10",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:11",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "以后"
+        ]
+      },
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:12",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "cursorToken": "result://call:webdav-source-lifecycle:webdav-add-source:05/cursorToken",
         "remoteExpectation": "webdav-connection",
         "remoteGenerationToken": "result://call:webdav-source-lifecycle:webdav-add-source:01/generationToken"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:11",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:13",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
     },
     {
       "arguments": {
         "context": "main-window-browser",
+        "deadlineSeconds": 30,
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
         "relatedResults": [
-          "result://call:webdav-source-lifecycle:webdav-add-source:05/interaction",
-          "result://call:webdav-source-lifecycle:webdav-add-source:10/interaction"
-        ]
+          "result://call:webdav-source-lifecycle:webdav-add-source:06/alsoInspected",
+          "result://call:webdav-source-lifecycle:webdav-add-source:11/alsoInspected",
+          "result://call:webdav-source-lifecycle:webdav-add-source:11/identifierResponse",
+          "result://call:webdav-source-lifecycle:webdav-add-source:12/interaction",
+          "result://call:webdav-source-lifecycle:webdav-add-source:13/interactionTrace"
+        ],
+        "requireMatchedElement": true
       },
-      "callId": "call:webdav-source-lifecycle:webdav-add-source:12",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:14",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -168,7 +199,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:webdav-source-lifecycle:webdav-add-source:o01:default",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:12",
+      "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:14",
       "rubric": "rubric:webdav-source-lifecycle.webdav-add-source.o01@1"
     }
   ],

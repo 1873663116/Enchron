@@ -293,13 +293,13 @@ public struct ConnectionFormPanel: View {
     ) -> some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: systemImage)
-                .foregroundStyle(tint)
+                .foregroundStyle(tint).accessibilityHidden(true)
             Text(text)
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.Surface.accessoryText)
             Spacer(minLength: 0)
         }
-        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityElement(children: .combine).accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var actions: some View {

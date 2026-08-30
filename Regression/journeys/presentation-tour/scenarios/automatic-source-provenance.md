@@ -93,21 +93,22 @@
           "result://call:presentation-tour:automatic-source-provenance:05/before",
           "result://call:presentation-tour:automatic-source-provenance:05/after",
           "result://call:presentation-tour:automatic-source-provenance:06/response"
-        ]
+        ],
+        "settleDelayMillis": 2000
       },
       "callId": "call:presentation-tour:automatic-source-provenance:07",
       "maxInvocations": 1,
-      "operation": "operation:diagnostics.playback-state@1"
+      "operation": "operation:diagnostics.surface-probe@1"
     }
   ],
   "obligations": [
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "playback-probe@1",
-      "evidenceType": "playback.probe",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:presentation-tour:automatic-source-provenance:o01:default",
-      "oracle": "oracle:agent-structured-playback-probe@1",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
       "producedByCall": "call:presentation-tour:automatic-source-provenance:07",
       "rubric": "rubric:presentation-tour.automatic-source-provenance.o01@1"
     }

@@ -38,6 +38,10 @@ struct EmbyArtworkEvidenceLoaderTests {
 
         let first = await loader.load(request)
         let cacheKey = ArtworkKey(remoteImageURL: url)
+        let alternateTagURL = try #require(URL(
+            string: "http://example.test/Items/episode/Images/Primary?api_key=secret&Tag=tag-a-alternate&MaxWidth=420"
+        ))
+        let alternateTagKey = ArtworkKey(remoteImageURL: alternateTagURL)
         let displayed = store.image(for: cacheKey)
         let second = await loader.load(request)
 
@@ -48,10 +52,13 @@ struct EmbyArtworkEvidenceLoaderTests {
         #expect(first.loopbackHitCount.value == 0)
         #expect(first.sanitizedRequestURL == "http://example.test/Items/episode/Images/Primary?Tag=tag-a&MaxWidth=420")
         #expect(first.cacheKey == cacheKey.debugStorageKey)
+        #expect(first.alternateTagCacheKey == alternateTagKey.debugStorageKey)
+        #expect(first.alternateTagCacheKey != first.cacheKey)
         #expect(displayed != nil)
         #expect(second.cacheHit.value == true)
         #expect(second.network.status == .notApplicable)
         #expect(second.persistedCache.value?.artworkKey == cacheKey.debugStorageKey)
+        #expect(second.alternateTagCacheKey == first.alternateTagCacheKey)
         #expect(second.loopbackHitCount.status == .notApplicable)
         #expect(ArtworkEvidenceURLProtocol.requestCount == 1)
         #expect(first.sanitizedRequestURL?.contains("secret") == false)

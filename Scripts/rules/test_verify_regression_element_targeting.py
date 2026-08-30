@@ -39,6 +39,7 @@ class ElementTargetingTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.write(f"{checker.VERIFICATION}/regression_emby_source.py", SEEDER)
         self.write(checker.PRODUCT_NOTES, NOTES)
+        self.write(checker.GRID_CARD, 'case .poster: return "poster"\n')
         self.catalog([])
 
     def write(self, relative: str, contents: str) -> None:
@@ -54,6 +55,31 @@ class ElementTargetingTests(unittest.TestCase):
         self.catalog([call("call:01", labels=["Enchron Regression Emby"])])
 
         self.assertEqual(checker.failures(), [])
+
+    def test_a_card_label_with_its_variant_suffix_passes(self) -> None:
+        self.write(
+            checker.GRID_CARD,
+            'private var variantKey: String {\n'
+            '    switch variant {\n'
+            '    case .poster: return "poster"\n'
+            '    case .episode: return "episode"\n'
+            '    }\n}\n',
+        )
+        self.catalog([call("call:01", labels=["Enchron Regression Emby, poster"])])
+
+        self.assertEqual(checker.failures(), [])
+
+    def test_a_card_label_with_an_unknown_variant_fails(self) -> None:
+        self.write(
+            checker.GRID_CARD,
+            'private var variantKey: String {\n'
+            '    switch variant {\n'
+            '    case .poster: return "poster"\n'
+            '    }\n}\n',
+        )
+        self.catalog([call("call:01", labels=["Enchron Regression Emby, banner"])])
+
+        self.assertIn("nothing under", " ".join(checker.failures()))
 
     def test_a_name_nothing_seeds_fails(self) -> None:
         self.catalog([call("call:01", labels=["Enchron Regression Library"])])

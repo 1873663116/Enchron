@@ -61,20 +61,17 @@
     },
     {
       "arguments": {
-        "context": "window",
-        "labels": [
-          "Enchron Regression Emby"
-        ]
+        "includeViewingStorage": true
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:05",
       "maxInvocations": 1,
-      "operation": "operation:accessibility.activate@2"
+      "operation": "operation:diagnostics.surface-probe@1"
     },
     {
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Series"
+          "Enchron Regression Emby"
         ]
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:06",
@@ -85,10 +82,21 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Episode"
+          "Enchron Regression Series, poster"
         ]
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:07",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "labels": [
+          "Enchron Regression Episode, episode"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:progress-authority-server:08",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -99,7 +107,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:08",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:09",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -109,13 +117,13 @@
         "minimumPositionMillis": 15000,
         "minimumRemainingMillis": 30000
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:09",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:10",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
     {
       "arguments": {},
-      "callId": "call:emby-server-lifecycle:progress-authority-server:10",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:11",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -127,16 +135,22 @@
         ],
         "summonControls": true
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:11",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:12",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
         "embyProgressReadback": true,
-        "includeViewingStorage": true
+        "includeViewingStorage": true,
+        "priorViewingStorageDigests": [
+          "result://call:emby-server-lifecycle:progress-authority-server:05/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:emby-server-lifecycle:progress-authority-server:05/viewingStorageObservation"
+        ]
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:12",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:13",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
     },
@@ -146,12 +160,12 @@
         "identifier": "Emby-Evidence",
         "relatedResults": [
           "result://call:emby-server-lifecycle:progress-authority-server:01/report",
-          "result://call:emby-server-lifecycle:progress-authority-server:10/fields",
-          "result://call:emby-server-lifecycle:progress-authority-server:12/viewingStorageObservation",
-          "result://call:emby-server-lifecycle:progress-authority-server:12/observedUserData"
+          "result://call:emby-server-lifecycle:progress-authority-server:11/fields",
+          "result://call:emby-server-lifecycle:progress-authority-server:13/viewingStorageObservation",
+          "result://call:emby-server-lifecycle:progress-authority-server:13/observedUserData"
         ]
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:13",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:14",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -164,7 +178,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:progress-authority-server:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:progress-authority-server:13",
+      "producedByCall": "call:emby-server-lifecycle:progress-authority-server:14",
       "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o01@1"
     }
   ],

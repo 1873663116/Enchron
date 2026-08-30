@@ -1026,6 +1026,15 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(
             set(operations["operation:issue.present@1"]["invalidatesTags"]),
             {
+                # _activate_issue_recipe and its restore leg both call
+                # operation:host.preflight@1 with check=remote-faults, and
+                # _ensure_issue_fixture_playing opens the issue-fixture WebDAV
+                # media first. The first four tags are exactly the set
+                # host.preflight@1 declares for that same work.
+                "certificate.trust",
+                "fixture.corpus",
+                "source.connection",
+                "source.session",
                 "issue.surface",
                 "playback.position",
                 "playback.selection",
@@ -1088,7 +1097,16 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         )
         self.assertEqual(
             current_tags,
-            {"cache.state", "ui.state", "viewing.progress", "viewing.state"},
+            {
+                "cache.state",
+                # The handler taps Navigation-Ornament-tab-settings ->
+                # Settings-category-storagePrivacy -> the target action, so the
+                # call leaves the ornament on Settings inside one category.
+                "ui.navigation",
+                "ui.state",
+                "viewing.progress",
+                "viewing.state",
+            },
         )
 
         former_tags = current_tags | {"library.contents", "settings.state"}
@@ -1351,7 +1369,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "emby-external-stream",
             ],
         )
-        self.assertTrue(all("trackLabel" not in item["arguments"] for item in selections))
+        self.assertEqual(
+            [item["arguments"].get("trackLabel") for item in selections],
+            [
+                "sdr-bframe-aggregate-30s.zh-CN.srt",
+                "sdr-bframe-aggregate-30s.zh-CN.srt",
+                None,
+            ],
+        )
         frame_calls = [
             item
             for item in scenario["operations"]
@@ -1360,6 +1385,24 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(
             [item["producedByCall"] for item in scenario["obligations"]],
             [item["callId"] for item in frame_calls],
+        )
+        self.assertEqual(
+            [item["arguments"]["relatedResults"] for item in frame_calls],
+            [
+                [
+                    f"result://{selection['callId']}/{field}"
+                    for field in (
+                        "host",
+                        "sourceKind",
+                        "deadlineSeconds",
+                        "discoveredTracks",
+                        "selectedTrack",
+                        "settlement",
+                        "identityObservation",
+                    )
+                ]
+                for selection in selections
+            ],
         )
         self.assertTrue(
             all(
@@ -1392,6 +1435,42 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 MaterializationError, "discover and select one dynamic track"
             ):
                 _validate_blueprint(_load_blueprint(fixed_path))
+
+            unlabeled = copy.deepcopy(self.blueprint)
+            unlabeled_scenario = next(
+                item
+                for item in unlabeled["scenarios"]
+                if item["id"] == scenario["id"]
+            )
+            unlabeled_selection = next(
+                item
+                for item in unlabeled_scenario["operations"]
+                if item["operation"] == "operation:playback.select-subtitle@1"
+            )
+            unlabeled_selection["arguments"].pop("trackLabel", None)
+            unlabeled_path = self._write_blueprint(root / "unlabeled", unlabeled)
+            with self.assertRaisesRegex(
+                MaterializationError, "discover and select one dynamic track"
+            ):
+                _validate_blueprint(_load_blueprint(unlabeled_path))
+
+            unbound = copy.deepcopy(self.blueprint)
+            unbound_scenario = next(
+                item
+                for item in unbound["scenarios"]
+                if item["id"] == scenario["id"]
+            )
+            unbound_capture = next(
+                item
+                for item in unbound_scenario["operations"]
+                if item["operation"] == "operation:evidence.capture-frames@1"
+            )
+            unbound_capture["arguments"].pop("relatedResults", None)
+            unbound_path = self._write_blueprint(root / "unbound-capture", unbound)
+            with self.assertRaisesRegex(
+                MaterializationError, "bound to its own selection observation"
+            ):
+                _validate_blueprint(_load_blueprint(unbound_path))
 
             bypassed_oracle = copy.deepcopy(self.blueprint)
             bypassed_scenario = next(
@@ -1842,17 +1921,24 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 if call["operation"] == "operation:accessibility.activate@2"
             ],
             [
-                # Each sequence taps the playback surface first: product.md:35 says
-                # chrome hides faster than two controller round trips, so the More
-                # button has to be summoned inside the same command that uses it.
+                # No surface tap: summonControls now brings the chrome back through
+                # the toggleControls channel product.md:35 names, so the sequence
+                # holds only the menu path it actually walks.
                 [
-                    "PlayerUI-window-playback-surface",
                     "PlayerUI-TopAction-more",
                     "PlayerUI-menu-audio",
                     f"PlayerUI-menu-audio-{track}",
                 ]
                 for track in (2, 3, 1, 8)
             ],
+        )
+        self.assertTrue(
+            all(
+                call["arguments"].get("summonControls") is True
+                for call in codec["operations"]
+                if call["operation"] == "operation:accessibility.activate@2"
+            ),
+            "every codec-matrix menu activation summons the chrome it then taps",
         )
 
         audio = scenarios[
@@ -2366,7 +2452,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             )
             self.assertEqual(
                 calls[offset + 10]["arguments"]["identifier"],
-                "FileBrowsing-SourceConnection-webDAV",
+                "FileBrowsing-SourceConnection-webDAV-error",
             )
         password_calls = [
             call
@@ -2398,18 +2484,62 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "operation": "operation:storage.clear@1",
             },
         )
+        prefix = "call:local-media-lifecycle:artwork-captured-on-exit"
+        captures = [
+            call
+            for call in scenario["operations"]
+            if call["operation"] == "operation:evidence.capture-frames@1"
+        ]
+        # The byte bound is the four-frame zero-interval window variant; every
+        # artwork capture in the Scenario must stay on it.
+        for call in captures:
+            arguments = call["arguments"]
+            self.assertEqual(
+                arguments["artworkExpectation"], "exit-replaces-current-frame"
+            )
+            self.assertEqual(arguments["context"], "window")
+            self.assertEqual(arguments["count"], 4)
+            self.assertEqual(arguments["minimumIntervalMillis"], 0)
+        exits = [
+            call
+            for call in scenario["operations"]
+            if call["operation"] == "operation:accessibility.activate@2"
+            and call["arguments"].get("identifiers")
+            == ["PlayerUI-InfoBar-button-back"]
+        ]
+        # Two exits at two different positions, each one bracketed by a
+        # pre-exit reading of the displayed frame and a post-exit reading of
+        # the store the exit wrote.
+        self.assertEqual(len(exits), 2)
+        self.assertEqual(len(captures), 4)
+        self.assertTrue(all(call["arguments"]["summonControls"] for call in exits))
+        waits = [
+            call["arguments"]["minimumPositionMillis"]
+            for call in scenario["operations"]
+            if call["operation"] == "operation:playback.wait-position@2"
+        ]
+        self.assertEqual(len(waits), 2)
+        self.assertLess(waits[0], waits[1])
         producer = scenario["obligations"][0]["producedByCall"]
-        capture = next(
-            call for call in scenario["operations"] if call["callId"] == producer
+        self.assertEqual(producer, captures[-1]["callId"])
+        capture = captures[-1]
+        # artworkProbe refuses to answer once the runtime has no current launch
+        # request, so every post-exit reading names the key the first capture
+        # published.
+        first_key = f"result://{captures[0]['callId']}/artworkKey"
+        self.assertEqual(
+            [call["arguments"].get("artworkKey") for call in captures],
+            [None, first_key, first_key, first_key],
         )
         self.assertEqual(
-            capture["arguments"],
-            {
-                "artworkExpectation": "exit-replaces-current-frame",
-                "context": "window",
-                "count": 4,
-                "minimumIntervalMillis": 0,
-            },
+            capture["arguments"]["relatedFrameManifests"],
+            [f"result://{call['callId']}/frameManifest" for call in captures[:-1]],
+        )
+        self.assertTrue(
+            all(
+                value.startswith(f"result://{prefix}:")
+                for value in capture["arguments"]["relatedResults"]
+            )
         )
 
     def test_local_index_scenario_uses_empty_local_phases_and_remote_positive_control(self) -> None:

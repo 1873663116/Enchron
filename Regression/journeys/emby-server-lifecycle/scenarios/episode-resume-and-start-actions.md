@@ -54,7 +54,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Episode"
+          "Enchron Regression Episode, episode"
         ]
       },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:04",
@@ -134,22 +134,11 @@
     },
     {
       "arguments": {
-        "context": "window",
-        "labels": [
-          "Enchron Regression Episode"
-        ]
-      },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.activate@2"
-    },
-    {
-      "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
         "identifier": "Emby-Detail-PlayFromBeginning"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:13",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -160,13 +149,13 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:14",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:13",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
     {
       "arguments": {},
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:14",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -181,10 +170,10 @@
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:07/activatedAtMonotonicMillis",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/frames",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:10/fields",
-          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:15/fields"
+          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:14/fields"
         ]
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -197,7 +186,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
+      "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
       "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
     }
   ],

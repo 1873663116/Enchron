@@ -657,11 +657,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 441,
+          "line": 466,
           "path": "Modules/Emby/EmbySessionViewModel.swift"
         },
         {
-          "line": 442,
+          "line": 467,
           "path": "Modules/Emby/EmbySessionViewModel.swift"
         }
       ],
@@ -674,7 +674,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 441,
+          "line": 466,
           "path": "Modules/Emby/EmbySessionViewModel.swift"
         }
       ],
@@ -2768,7 +2768,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1784,
+          "line": 1785,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],

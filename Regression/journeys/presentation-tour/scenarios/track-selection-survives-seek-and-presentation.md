@@ -79,13 +79,16 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-2"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:06",
       "maxInvocations": 1,
@@ -93,15 +96,19 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles"
         ],
         "labels": [
           "sdr-bframe-aggregate-30s.zh-CN.srt"
-        ]
+        ],
+        "labelsAfterIdentifiers": true,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:07",
       "maxInvocations": 1,
@@ -109,7 +116,8 @@
     },
     {
       "arguments": {
-        "positionMillionths": 500000
+        "positionMillionths": 500000,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:08",
       "maxInvocations": 1,
@@ -118,7 +126,9 @@
     {
       "arguments": {
         "relatedResults": [
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:06/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:06/response",
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:07/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:07/response"
         ]
       },
@@ -174,13 +184,16 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-2"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:15",
       "maxInvocations": 1,
@@ -188,15 +201,19 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles"
         ],
         "labels": [
           "sdr-bframe-aggregate-30s.zh-CN.srt"
-        ]
+        ],
+        "labelsAfterIdentifiers": true,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:16",
       "maxInvocations": 1,
@@ -222,7 +239,9 @@
     {
       "arguments": {
         "relatedResults": [
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:15/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:15/response",
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:16/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:16/response"
         ]
       },
@@ -278,13 +297,16 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-2"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:25",
       "maxInvocations": 1,
@@ -292,15 +314,19 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles"
         ],
         "labels": [
           "sdr-bframe-aggregate-30s.zh-CN.srt"
-        ]
+        ],
+        "labelsAfterIdentifiers": true,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:26",
       "maxInvocations": 1,
@@ -329,7 +355,9 @@
     {
       "arguments": {
         "relatedResults": [
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:25/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:25/response",
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:26/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:26/response"
         ]
       },
@@ -385,13 +413,16 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-2"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:35",
       "maxInvocations": 1,
@@ -399,15 +430,19 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-TopAction-more"
+        ],
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles"
         ],
         "labels": [
           "sdr-bframe-aggregate-30s.zh-CN.srt"
-        ]
+        ],
+        "labelsAfterIdentifiers": true,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:36",
       "maxInvocations": 1,
@@ -426,7 +461,9 @@
     {
       "arguments": {
         "relatedResults": [
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:35/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:35/response",
+          "result://call:presentation-tour:track-selection-survives-seek-and-presentation:36/alsoInspected",
           "result://call:presentation-tour:track-selection-survives-seek-and-presentation:36/response"
         ]
       },

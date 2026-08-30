@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:9818588a8eb9ddc2527396792af6d877f2ec70c781073ec62afc2386b81ec5bd",
+  "contentDigest": "sha256:779938746d305d88b2e440ff7d8e5fb3e35b18fa76e9dd103e2d10f13bf34fb7",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -659,7 +659,7 @@
       "title": "Playback Await Window State"
     },
     {
-      "contract": "The runtime Operation adapter adjusts the public PlayerPanel-progress Accessibility control to the requested normalized position and verifies that the same playback session, media identity, and content revision settle at the target.",
+      "contract": "The runtime Operation adapter taps the public PlayerPanel-progress track at the requested normalized offset through the controller's coordinateTap action, which the panel's single SpatialTapGesture routes to seekToTrack; it requires the product's own progress.seekToTrack probe line for every tap, corrects the residual left by the thumb-inset affine up to five times, and verifies that the same playback session, media identity and content revision settle at the target position. The progress bar's accessibilityAdjustableAction is a fixed fifteen-second step with a textual value and no normalized position, and the drag state machine is wearer-only, so neither is used.",
       "filename": "playback-seek-v2.md",
       "id": "operation:playback.seek@2",
       "invalidatesTags": [
@@ -716,11 +716,12 @@
       "title": "Presentation Exit Spatial"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The runtime Operation adapter selects the Settings tab, opens the Storage & Privacy category and taps the named clear action in one tapSequence, then verifies from the viewing-storage probe that the named store is empty while protected library and playback settings state is unchanged. The call leaves the browsing ornament on the Settings tab inside that category, so it disturbs ui.navigation as well as the cleared store.",
       "filename": "storage-clear-v1.md",
       "id": "operation:storage.clear@1",
       "invalidatesTags": [
         "cache.state",
+        "ui.navigation",
         "ui.state",
         "viewing.progress",
         "viewing.state"
@@ -792,10 +793,12 @@
       "title": "Diagnostics Browse Hierarchy"
     },
     {
-      "contract": "The runtime Operation adapter maps each allowed issue category onto a closed remote-fault recipe (source-file-missing→missing-object, source-access-denied→access-denied, connection-interrupted→transport-interrupted, media-data-corrupt→corrupt-media, server-certificate-changed→certificate-rotation), opens the issue-fixture WebDAV media when window playback is not already live, activates that recipe, and waits until PlayerUI-window-control-plane error equals the category and the matching main-window action identifiers occupy the single issue slot. A second call restores any prior recipe, activates the next one, and uses Retry on an activePlaybackFailure without clearing the slot so the newest issue replaces it. Categories without an induce route are rejected. Diagnostic-bypass injection is not used.",
+      "contract": "The runtime Operation adapter maps each allowed issue category onto a closed remote-fault recipe (source-file-missing→missing-object, source-access-denied→access-denied, connection-interrupted→transport-interrupted, media-data-corrupt→corrupt-media, server-certificate-changed→certificate-rotation), opens the issue-fixture WebDAV media when window playback is not already live, activates that recipe, and waits until PlayerUI-window-control-plane error equals the category and the matching main-window action identifiers occupy the single issue slot. A second call restores any prior recipe, activates the next one, and uses Retry on an activePlaybackFailure without clearing the slot so the newest issue replaces it. Categories without an induce route are rejected. Reaching that state selects the Enchron Regression WebDAV source and opens remote media, and every recipe is activated and restored through operation:host.preflight@1's remote-faults route, so this call disturbs the same certificate trust, fixture corpus and source connection and session state that Operation declares. Diagnostic-bypass injection is not used.",
       "filename": "issue-present-v1.md",
       "id": "operation:issue.present@1",
       "invalidatesTags": [
+        "certificate.trust",
+        "fixture.corpus",
         "issue.surface",
         "playback.position",
         "playback.selection",
@@ -803,6 +806,8 @@
         "presentation.mode",
         "presentation.state",
         "renderer.graph",
+        "source.connection",
+        "source.session",
         "ui.navigation",
         "ui.state"
       ],
@@ -1078,13 +1083,16 @@
   "rubrics": [
     {
       "criteria": [
-        "relatedResults[0] contains the More-menu transaction registered for the bound case: audio-menu={PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-audio}; speed-menu={PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-speed}. The transaction exposes a real enabled secondary menu and the bound probe keeps playback controls visible through the 9000 ms settle.",
-        "The bound trace keeps lifecycle Playing and shows no subtitle, video-format, Dock, or Panorama actions in the audio-only control set."
+        "relatedResults[0] is the More-menu activation's tappedIdentifiers: exactly the ordered list registered for the bound case, audio-menu=[PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-audio] and speed-menu=[PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-speed]. relatedResults[1] is that same call's tapSequence response, succeeded, reporting one command that tapped three elements in sequence, so the nested route was delivered without a second controller round trip.",
+        "The bound probe's own interactionTrace, measured from the pre-route cursor this Scenario passes as cursorToken, contains the product-side line reachability top actions delivered action=menu.more, so the More menu's own content appeared rather than the controller merely reporting a successful tap.",
+        "The bound control-plane fields, read after the 9000 ms settle that outlasts the controls auto-hide window, still report controls=shown and lifecycle Playing, so the open secondary menu pinned the playback controls.",
+        "The bound control set carries no subtitle, video-format, Dock, or Panorama action."
       ],
       "filename": "rubric-audio-only-playback-secondary-menu-pins-audio-controls-o01-1.md",
       "id": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1",
       "negativeControls": [
-        "A relatedResults[0] identifier path that differs from the bound case, omitted More step, PlayerPanel-menu-* on a window host, split nested-menu route, controls hidden before 9000 ms, or any video-only action fails the bound case."
+        "A relatedResults[0] identifier list that differs from the bound case, an omitted PlayerUI-TopAction-more step, a PlayerPanel-menu-* route on a window host, or a split nested-menu route — more than one activation bound to the case, or a response that does not report the whole route in one sequence — fails the bound case.",
+        "A controller-only success with no reachability top actions delivered action=menu.more line in the bound interactionTrace, controls=hidden at the end of the 9000 ms settle, or any video-only action in the bound control set fails the bound case."
       ],
       "title": "Secondary Menu Pins Audio Controls"
     },
@@ -1103,14 +1111,14 @@
     {
       "criteria": [
         "The bound frame sequence exposes the exact (dolbyVisionProfile, dolbyVisionCrossCompatibilityID, dolbyVisionHasEnhancementLayer) tuple registered for its case: P5=(5,0,false), P7 FEL=(7,6,true), P8.1=(8,1,false), P8.4=(8,4,false), P10=(10,0,false), and P20=(20,0,false). Its sourcePixelFormat and destinationPixelFormat are non-none.",
-        "sourceHasDvcC/sourceHasDvvC identify the real source configuration atoms and rendererHasDvcC/rendererHasDvvC preserve the delivered Dolby Vision configuration; at least one source atom is true and the renderer atom pair is justified by the same profile's real fallback/delivery branch rather than a Catalog constant.",
+        "sourceHasDvcC/sourceHasDvvC identify the real source configuration atoms and rendererHasDvcC/rendererHasDvvC preserve the delivered Dolby Vision configuration, each justified by the same profile's real fallback/delivery branch rather than a Catalog constant. The single-layer cases dv-profile-5, dv-profile-8-hdr10, dv-profile-8-hlg, dv-profile-10 and dv-profile-20 each carry at least one true source atom. dv-profile-7-dual is the reviewed dual-layer exception: its FEL declaration is classified as HEVC dual layer, excluded from the Format Description, and only its HDR10 base layer is delivered, so sourceHasDvcC and sourceHasDvvC are both none and neither renderer atom is true, while criterion 1's (7, 6, true) tuple still reads from the source declaration.",
         "The bound frame sequence matches the color and fallback expectations registered for its case: P8.1 uses smpte2084/PQ with BT.2020 primaries, bt2020nc matrix, and video range; P8.4 uses arib-std-b67/HLG with the same primaries, matrix, and range; P7 uses the reviewed HDR10/PQ fallback without claiming enhancement-layer delivery; and P5, P10, and P20 retain their exact source tuple and real renderer configuration.",
         "The bound producer returns exactly three ordered frames separated by at least 1000 ms with stable session/stream epoch, strictly increasing position, pairwise-distinct content attachments, displayed pixels, and no active issue."
       ],
       "filename": "rubric-dynamic-range-interpretation-dolby-vision-profile-matrix-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.dolby-vision-profile-matrix.o01@1",
       "negativeControls": [
-        "A profile/compatibility/enhancement tuple mismatch, missing dvcC/dvvC facts, source Format Description mutation, invented profile fixture, or treating P7 FEL presence as proof that the renderer consumed the enhancement layer fails the structured matrix.",
+        "A profile/compatibility/enhancement tuple mismatch, missing dvcC/dvvC facts on a single-layer case, a true source or renderer atom on dv-profile-7-dual, source Format Description mutation, invented profile fixture, or treating P7 FEL presence as proof that the renderer consumed the enhancement layer fails the structured matrix.",
         "Missing canonical fields, repeated/blank/pure-color frames, changed session/stream epoch, or non-advancing playback is Indeterminate or failing as specified."
       ],
       "title": "Dolby Vision Profile Matrix"
@@ -1131,15 +1139,16 @@
     },
     {
       "criteria": [
-        "The image request uses the server image endpoint and the persisted cache key includes the server-provided image tag.",
-        "The bound emby.evidence inlines viewingStorageObservation; directory content and viewing progress remain absent from that snapshot (viewingRecordCount 0 and no viewingState entries)."
+        "The bound emby.evidence carries an artworkLoads entry whose itemID is the inlined host report's receipt.catalog.seriesID and whose imageTag is that report's receipt.catalog.imageTag; its sanitizedRequestURL is the server image endpoint /Items/<that seriesID>/Images/Primary carrying Tag=<that imageTag>; and its persistedCache is observed with artworkKey equal to that same entry's cacheKey, a 64-character lowercase hex digest. The stored entry is keyed by the tag-bearing request rather than by the item; that the tag itself participates in the key is the separate alternateTagCacheKey criterion, because the evidence never exposes the digest's preimage.",
+        "The bound emby.evidence inlines viewingStorageObservation; directory content and viewing progress remain absent from that snapshot (viewingRecordCount 0 and no viewingState entries).",
+        "The same artworkLoads entry carries alternateTagCacheKey different from its cacheKey, which establishes that the image tag participates in the persisted key without reading the tag back out of a SHA-256 whose preimage carries the api_key."
       ],
       "filename": "rubric-emby-server-lifecycle-artwork-by-image-tag-o01-1.md",
       "id": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1",
       "negativeControls": [
         "A command exit code or test name without the structured assertion payload cannot satisfy the rubric.",
         "Missing artworkLoads[].itemID produces Indeterminate rather than Satisfied; an observed itemID that does not equal receipt.catalog.episodeID or seriesID from the inlined host report is mixed-provenance evidence and violates the rubric.",
-        "A loopback media endpoint request, an item-id-only cache key, or viewing-storage entries/progress present in the inlined snapshot violates the rubric."
+        "A loopback media endpoint request violates the rubric, and so does an item-id-only cache key: a cacheKey equal to that entry's itemID, a cacheKey that is not a 64-character lowercase hex digest, an alternateTagCacheKey that is absent or equal to the cacheKey - the image tag is then outside the key - or a persistedCache artworkKey that differs from that cacheKey. Viewing-storage entries or progress present in the inlined snapshot also violate the rubric."
       ],
       "title": "Artwork By Image Tag"
     },
@@ -1190,7 +1199,7 @@
     {
       "criteria": [
         "The bound emby.evidence inlines the host emby-aggregate report and the home inspect: home.shelves itemIDs include receipt.catalog.seriesID and episodeID from that report.",
-        "The bound document inlines the pre-relaunch (or same-session) inspect whose home.activations records the poster surface to series detail, and the producer inspect records the nextUp still to the episode. An in-memory activation journal cleared by relaunch cannot be the sole witness for the earlier poster activation."
+        "The bound document inlines the pre-relaunch inspect whose home.activations holds an activation with surface poster, cardIdentifier Emby-PosterCard-<itemID>, and resultingItemID equal to the inlined host report's receipt.catalog.seriesID. The producer inspect's own home.activations holds an activation with surface nextUp whose itemID is listed by the home.shelves entry of kind nextUp and whose cardIdentifier is Emby-PosterCard- followed by that itemID: the Next Up shelf renders poster cards, so no still card can witness it. An in-memory activation journal cleared by relaunch cannot be the sole witness for the earlier poster activation."
       ],
       "filename": "rubric-emby-server-lifecycle-home-poster-and-next-up-o01-1.md",
       "id": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1",
@@ -1204,14 +1213,14 @@
     {
       "criteria": [
         "The server reports an active session and advancing position for the opened item, then records the exit position within the five-second observed-position bound decided by HC-021.",
-        "After exit, operation:diagnostics.surface-probe@1 runs with includeViewingStorage=true and viewingStorageObservation.snapshot.viewingState.entries contains no record for the Emby media identity derived from the bound playback session's serverID, itemID, and mediaSourceID."
+        "After exit, operation:diagnostics.surface-probe@1 runs with includeViewingStorage=true and its viewingStorageObservation inlines the same attempt's pre-playback probe as priorSnapshots[0]. That prior viewingState's viewingRecordCount equals snapshot.viewingState.viewingRecordCount and the two entries lists are element-for-element identical, so the opened and exited Emby session added, removed, or changed no local viewing record. Entries publish only a sha256 mediaIdentity, so the decision is this list comparison, never a decoding of that hash."
       ],
       "filename": "rubric-emby-server-lifecycle-progress-authority-server-o01-1.md",
       "id": "rubric:emby-server-lifecycle.progress-authority-server.o01@1",
       "negativeControls": [
         "An action return value without the post-action application state cannot satisfy the rubric.",
         "Missing playbackSessions[].serverID, userID, or itemID produces Indeterminate rather than Satisfied; a serverID or userID that does not match account, or an itemID that does not match the prepared Emby fixture item, is mixed-provenance evidence and violates the rubric.",
-        "Product-only progress without server state, server progress for another user or item, or a local fallback record violates the rubric."
+        "Product-only progress without server state, or server progress for another user or item, violates the rubric. So does a local fallback record: any viewingState entry added, removed, or changed between the pre-playback snapshot and the post-exit snapshot, or a missing priorSnapshots binding that leaves the comparison unmade."
       ],
       "title": "Progress Authority Server"
     },
@@ -1233,7 +1242,7 @@
       "criteria": [
         "The bound post-delivery playback snapshot exposes the closed canonical fields audioProviderKind, audioSourceCodec, audioSourceSampleRate, audioSourceChannelCount, audioDeliveryMediaSubtype, audioDeliveryFormatID, audioDeliveryFormatFlags, audioDeliverySampleRate, audioDeliveryChannelCount, audioDeliveryBitsPerChannel, audioDeliveryBytesPerFrame, audioDeliveryFramesPerPacket, audioDeliveryIsFloatPCM, audioDeliveryIsInterleaved, audioDeliveryChannelLayoutTag, audioDeliverySampleCount, audioDeliveryPresentationTime, audioDeliveryTimestampsMonotonic, and audioDeliveryTimestampObservationCount; none of the fields required by its registered branch is none.",
         "The bound snapshot identifies the source branch registered for its case. AC-3 and E-AC-3 select streams 2 and 3 of generated-sdr-avc-bframe-audio-codec-matrix-15s-v1 with audioProviderKind FFmpegCompressedAudio, audioSourceCodec ac3 and eac3, sample rate 48000, and channel count 2 respectively. DTS, TrueHD, Vorbis, AAC, and FLAC use audioProviderKind FFmpegDecodedPCM with source tuples dts/48000/7, truehd/48000/8, vorbis/44100/2, aac/48000/2, and flac/48000/2 respectively.",
-        "The bound snapshot exposes the delivery branch registered for its case. AC-3 and E-AC-3 preserve the 48000 Hz, two-channel compressed CoreMedia description, report audioDeliveryIsFloatPCM=false, and expose the matching media subtype, format ID, and layout. DTS, TrueHD, Vorbis, AAC, and FLAC deliver interleaved Float32 linear PCM at the unchanged sample rate and channel count with bitsPerChannel=32, bytesPerFrame=4×channelCount, framesPerPacket=1, and the standard channel-layout tag for that count.",
+        "The bound snapshot exposes the delivery branch registered for its case. AC-3 and E-AC-3 preserve the 48000 Hz, two-channel compressed CoreMedia description, report audioDeliveryIsFloatPCM=false, and expose the matching media subtype and format ID. DTS, TrueHD, Vorbis, AAC, and FLAC deliver interleaved Float32 linear PCM at the unchanged sample rate and channel count with bitsPerChannel=32, bytesPerFrame=4×channelCount, and framesPerPacket=1. audioDeliveryChannelLayoutTag is the decimal AudioChannelLayoutTag the product's own mapping writes for that source layout (audio_channel_layout_tag and copy_audio_channel_layout, PlaybackFFmpegBridge.c:5538-5581): 6619138, kAudioChannelLayoutTag_Stereo, for the two-channel AC-3, E-AC-3, Vorbis, AAC and FLAC cases, and 12386312, kAudioChannelLayoutTag_WAVE_7_1, for the eight-channel TrueHD case. The seven-channel DTS-ES case has no standard tag in that mapping and none in CoreAudio, so it takes the fallthrough copy_audio_channel_layout writes at :5568-5581 — 0, kAudioChannelLayoutTag_UseChannelDescriptions, for an ordered decoded layout,, kAudioChannelLayoutTag_DiscreteInOrder | 7, for an unspecified one — and a standard tag on that case fails the criterion.",
         "The bound case has audioDeliverySampleCount>0 and a finite non-negative audioDeliveryPresentationTime; audioDeliveryTimestampObservationCount>0, and when the count exceeds one audioDeliveryTimestampsMonotonic is true.",
         "The bound snapshot applies the terminal decoder checks registered for its case. The TrueHD case has audioSourceCodec=truehd, audioTrueHDDecoderInputPacketCount > audioTrueHDDecoderBatchCount > 0, audioTrueHDAggregatedDecoderBatchCount>0, audioTrueHDOutputSampleBufferCount>0, and audioTrueHDLastDecoderBatchInputPacketCount>0; every other case establishes its registered non-TrueHD audioSourceCodec without claiming TrueHD counters."
       ],
@@ -1262,7 +1271,7 @@
     {
       "criteria": [
         "The source classification, effective presentation, attachment, projection, and packing agree with the reviewed fixture declaration for the case.",
-        "Three valid frames show non-solid content after the declared presentation settles, and time-separated frame pairs have FFmpeg SSIM no greater than 0.995, the VISUAL_FROZEN_SSIM threshold in Scripts/verification/playback_mode_matrix.py:1329."
+        "For caseKey apple-apmp-180, whose fixture runs 85 s, the three captured frames have pairwise-different screenshotDigest values and each frame's playbackState.fields shows position, videoSamples and rendererInputs strictly advancing. For caseKey mv-hevc-stereo the frames are required only to be valid and to agree with presentationObservation, because the registered fixture runs 4.05 s while three device-lane frames cost about 23 s, so a correct product would show one frozen final frame."
       ],
       "filename": "rubric-format-coverage-signalled-media-classification-o01-1.md",
       "id": "rubric:format-coverage.signalled-media-classification.o01@1",
@@ -1398,22 +1407,22 @@
     },
     {
       "criteria": [
-        "The pre-exit playback frame and the post-exit card artwork match within the reviewed crop and color-distance tolerances.",
-        "A second exit at a different position replaces the first artwork without any additional media read in the server or byte-source trace."
+        "The bound capture inlines three frame manifests and the earlier artwork readings of one attempt, and an exact digest chain decides the claim, which is the comparison HC-021 asks for before any measured bound. The pre-exit reading relatedResults carries from the first capture has a real SHA-256 artworkCurrentDigest for the frame the session was displaying and an artworkStoredDigest of none, because the attempt opened by clearing the artwork cache. The reading taken after the first exit, on the same artworkKey, has a real SHA-256 artworkStoredDigest and artworkStoredBytes above zero: the exit wrote artwork where there was none. That exit is PlayerUI-InfoBar-button-back, which reaches saveCurrentArtwork through stopPlayback and cancelPlaybackLaunchAndPersistProgress (Modules/Playback/PlaybackLaunchCoordinator.swift:551-589). Its four frames are taken on the browser after the exit, so the fixture's card carries that artwork; set against the pre-exit playback frames of the first manifest it shows the same scene rather than placeholder art, a solid fill, or a different moment of the clip. No numeric crop or colour-distance tolerance is applied and none may be invented: HC-021 still lists measure-artwork-bound as required work, and the digest chain above is the exact comparison it says to prefer.",
+        "A second exit at a different position replaces the first artwork. The attempt reopens the fixture and waits past a position later than the one the first exit left, and the reading taken there on the same artworkKey still reports the first exit's artworkStoredDigest — nothing but an exit rewrites the store — while its artworkCurrentDigest differs from the first capture's, so the frame about to be stored is a different one. The bound capture, taken after that second exit through the same key, reports an artworkStoredDigest that differs from the first exit's with artworkStoredBytes above zero. Every reading names the same artworkKey, so one media identity is in play throughout."
       ],
       "filename": "rubric-local-media-lifecycle-artwork-captured-on-exit-o01-1.md",
       "id": "rubric:local-media-lifecycle.artwork-captured-on-exit.o01@1",
       "negativeControls": [
-        "A 1x1, corrupt, single-frame, or provenance-free capture is Indeterminate and never Satisfied.",
-        "Pure black, solid color, repeated identical frames, or a reference mismatch is a negative control that forces Violated when capture validity is established.",
-        "A stale prior frame, placeholder art, missing card art, or extra media read violates the rubric."
+        "A 1x1, corrupt, single-frame, or provenance-free capture is Indeterminate and never Satisfied, as is an artworkStoredDigest of none in a reading taken after an exit.",
+        "Pure black, a solid-colour card, repeated identical frames inside a pre-exit playback capture, or a post-exit card showing a different scene from that capture's frames is a negative control that forces Violated once capture validity is established.",
+        "A stale prior frame, placeholder art, missing card art, a second exit that leaves the first exit's artworkStoredDigest in place, or an artworkKey that changes between readings violates the rubric."
       ],
       "title": "Artwork Captured On Exit"
     },
     {
       "criteria": [
         "The bound stable case selects the requested track identity, including the requested index for a duplicate label, while session identity remains unchanged: unique-label expectedAudioTrackID=1, duplicate-label-index-0 expectedAudioTrackID=2, duplicate-label-index-1 expectedAudioTrackID=3.",
-        "measurement.dominantPulseHz equals the fixture-registry.json:503-505 pulse for the bound caseKey (unique-label=880, duplicate-label-index-0=440, duplicate-label-index-1=660) and lifecycle remains Playing."
+        "measurement.dominantPulseHz equals the pulse the opened fixture registers for the bound caseKey. The Scenario opens sdr-bframe-duplicate-label-audio-30s.mkv, whose oracle tracks are Tests/Fixtures/fixture-registry.json:697-716: streamIndex 1 is 880, streamIndex 2 is 440, streamIndex 3 is 660, and PlaybackRuntime.swift:621 maps selectedAudioStreamIndex to that same string. So unique-label=880, duplicate-label-index-0=440, duplicate-label-index-1=660, and lifecycle remains Playing."
       ],
       "filename": "rubric-local-media-lifecycle-audio-track-switch-same-session-o01-1.md",
       "id": "rubric:local-media-lifecycle.audio-track-switch-same-session.o01@1",
@@ -1477,8 +1486,8 @@
     },
     {
       "criteria": [
-        "For the bound caseKey, the independent attempt opens its real media identity and invokes playback.select-subtitle with host playerUI, the matching sourceKind, and deadlineSeconds within 1 through 90. Local and WebDAV sidecars use the registered sdr-bframe-aggregate-30s.zh-CN.srt label; the Emby case starts playback from the series-page episode card labeled Enchron Regression Episode and discovers the sole external track from the verified seed receipt.",
-        "The bound Operation discovers only real external.subtitle menu items, selects the unique source-kind and label match, returns the complete selection and identity observations, preserves session, media, source identity, and content revision, and the following three-frame producer shows the reviewed external cue rather than an embedded subtitle."
+        "For the bound caseKey, the independent attempt opens its real media identity and the producer frames carry relatedResults inlined from that same attempt's playback.select-subtitle@1 call: host is playerUI, sourceKind is the case's registered kind (local-sidecar for local-sidecar, source-directory-sidecar for webdav-sidecar, emby-external-stream for emby-external-stream), and deadlineSeconds is within 1 through 90. The local-sidecar and webdav-sidecar attempts additionally bind trackLabel to the registered sdr-bframe-aggregate-30s.zh-CN.srt sidecar (Tests/Fixtures/fixture-registry.json:472), which is what separates it from the sdr-bframe-aggregate-30s.styled.ass sidecar registered beside it at line 482 and staged into the same directory. The Emby case binds no label because regression_emby_source.py:33 seeds exactly one external file; it starts playback from the series-page episode card labeled Enchron Regression Episode and discovers that sole external track from the verified seed receipt.",
+        "The inlined discoveredTracks hold only identifiers under external.subtitle., selectedTrack names exactly one of them carrying the case's sourceKind and, for local-sidecar and webdav-sidecar, label sdr-bframe-aggregate-30s.zh-CN.srt; settlement.outcome is selected with terminalTrackID equal to that selectedTrack.id; and identityObservation reports sessionPreserved, mediaPreserved, sourceIdentityPreserved and contentRevisionPreserved all true beside the unchanged session, mediaName, sourceIdentity and contentRevision it preserved. The following three-frame producer then shows the reviewed external cue rather than an embedded subtitle."
       ],
       "filename": "rubric-local-media-lifecycle-external-subtitle-source-matrix-o01-1.md",
       "id": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1",
@@ -1610,7 +1619,7 @@
     {
       "criteria": [
         "relatedResults[0] is format.apply before (internal-apple-apmp-180-v1 source declaration) and relatedResults[1] is format.apply after the Flat override; after.fields.formatProvenance is userOverride while the source projection/stereo declaration in before.fields is unchanged.",
-        "relatedResults[2] is one surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-automatic→PlayerUI-VideoFormat-apply transaction, and the bound playback-state fields then report formatProvenance source with the original projection and stereo values."
+        "relatedResults[2] is one surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-automatic→PlayerUI-VideoFormat-apply transaction, and the bound window control-plane fields, sampled after that transient editor settles, are non-empty and report formatProvenance source with projection, stereoLayout and horizontalFieldOfViewDegrees equal to the source declaration in relatedResults[0].fields. The Flat override recorded in relatedResults[1].fields has therefore left the effective format and not merely the editor's selection. Those three keys are assembled into PlayerUI-window-control-plane alone (Apps/Enchron/MainView.swift:752-754 and :777); PlayerUI-playback-state publishes none of them (:1065-1152), so a playback probe cannot decide this criterion and evidence from one is inadmissible here."
       ],
       "filename": "rubric-presentation-tour-automatic-source-provenance-o01-1.md",
       "id": "rubric:presentation-tour.automatic-source-provenance.o01@1",
@@ -1634,13 +1643,13 @@
     },
     {
       "criteria": [
-        "The bound case delivers the editor transaction registered for its host. Window delivers surface→PlayerUI-TopAction-videoFormat→cancel and then a second surface→videoFormat sequence; portal taps the exact Playback surface label before each compact videoFormat→cancel or videoFormat sequence.",
-        "The window case binds the editor hierarchy and registered values. The portal case binds the successful Playback surface and videoFormat activation responses, including the matched public elements that live outside the main-window hierarchy."
+        "The bound case delivers the editor transaction registered for its host, read from the producer's own relatedResults. Window inlines relatedResults[0..1], the surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-cancel transaction, and relatedResults[2..3], the second surface→PlayerUI-TopAction-videoFormat sequence. Portal inlines relatedResults[0], the Playback surface label activation, relatedResults[1..2], the compact videoFormat→cancel sequence, and relatedResults[3], the Playback surface label activation that immediately precedes the bound activation. Each inlined response succeeded and names its own tapped identifiers or label.",
+        "The window case binds the editor hierarchy and registered values from its own matchedElement. The portal case binds its own successful videoFormat activation together with the inlined Playback surface activation responses, including the matched public elements that live outside the main-window hierarchy and are therefore evidenced by each activation's own return rather than by hierarchy text."
       ],
       "filename": "rubric-presentation-tour-format-editor-hosts-window-and-portal-o01-1.md",
       "id": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1",
       "negativeControls": [
-        "Addressing a window-only surface identifier from portal, splitting one transient sheet action across controllers, inspecting only element existence, or using a diagnostic injection route cannot satisfy either host case."
+        "Addressing a window-only surface identifier from portal, splitting one transient sheet action across controllers, inspecting only element existence, reading a transaction that the producer does not inline through relatedResults, or using a diagnostic injection route cannot satisfy either host case."
       ],
       "title": "Format Editor Hosts Window And Portal"
     },
@@ -1686,7 +1695,7 @@
     },
     {
       "criteria": [
-        "The Portal hierarchy exposes the Enter Panorama action with the declared accessibility label after portal steady state.",
+        "The bound producer's preActionMatchedElement is the observation the entry route recorded for the element it was about to tap in portal steady state: identifier PlayerUI-TopAction-resumePanorama, accessibility label Enter Panorama, isEnabled and isHittable true. A null preActionMatchedElement, another identifier, or an empty label is Indeterminate; the summon response's hierarchy text is not a substitute, because portal chrome lives outside the printed main-window tree.",
         "Application-side delivery is followed by the matching presentation request, attachment ownership transfer, and panorama settlement for the same revision."
       ],
       "filename": "rubric-presentation-tour-portal-to-panorama-explicit-entry-o01-1.md",
@@ -1694,7 +1703,8 @@
       "negativeControls": [
         "Controller success without the application-side delivery event is not evidence of product behavior.",
         "Missing sequence numbers, mismatched revisions, reversed order, or a truncated timing window cannot satisfy the rubric.",
-        "Automatic entry without the explicit action, controller-only success, or settlement for another revision violates the rubric."
+        "Automatic entry without the explicit action, controller-only success, or settlement for another revision violates the rubric.",
+        "A preActionMatchedElement copied from the summon tap, from a later snapshot, or from any element other than the one the route tapped cannot establish criterion 1."
       ],
       "title": "Portal To Panorama Explicit Entry"
     },
@@ -1712,13 +1722,15 @@
     },
     {
       "criteria": [
-        "The bound attempt opens registered WebDAV sdr-bframe-aggregate-30s.mkv and relatedResults record two complete resident window menu transactions: PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-audio→PlayerUI-menu-audio-2, then surface→TopAction-more→PlayerUI-menu-subtitles with label sdr-bframe-aggregate-30s.zh-CN.srt.",
-        "The bound post-mutation state preserves the same media identity and selected audio/subtitle track identities after the mutation registered for its case: seek, docked round trip, portal/window format round trip, or one format replacement. A bound pure spatial transition case also preserves the media session identity."
+        "The bound attempt opens registered WebDAV sdr-bframe-aggregate-30s.mkv, and relatedResults[1] and relatedResults[3] are two succeeded tapSequence responses, one per menu transaction, each reporting a single command — the controls are summoned through toggleControls before either, so no route step is spent toggling the chrome.",
+        "relatedResults[0] and relatedResults[2] are the runner's per-step alsoInspected records for those two transactions. The first carries afterStep values PlayerUI-TopAction-more, then PlayerUI-menu-audio, then PlayerUI-menu-audio-2, in that order. The second carries PlayerUI-TopAction-more, then PlayerUI-menu-subtitles, then label:sdr-bframe-aggregate-30s.zh-CN.srt, in that order, so the sidecar subtitle row was activated inside the same command that opened the menu above it.",
+        "The bound post-mutation state preserves the same media identity and the selected audio and subtitle track identities after the mutation registered for its case: seek, docked round trip, portal/window format round trip, or one format replacement. A bound pure spatial transition case also preserves the media session identity."
       ],
       "filename": "rubric-presentation-tour-track-selection-survives-seek-and-presentation-o01-1.md",
       "id": "rubric:presentation-tour.track-selection-survives-seek-and-presentation.o01@1",
       "negativeControls": [
-        "The nonexistent Commentary or external-reference identifiers, a same-label/different-ID fallback, split nested-menu controllers, selection loss, or session replacement during the docked pure transition fails the rubric."
+        "The nonexistent Commentary or external-reference identifiers, a same-label/different-ID fallback, selection loss, or session replacement during the docked pure transition fails the rubric.",
+        "A split nested-menu route fails the rubric: more than one controller command bound to one menu transaction, an alsoInspected record whose label step precedes its identifier steps, or a record with fewer afterStep values than the route has steps."
       ],
       "title": "Track Selection Survives Seek And Presentation"
     },
@@ -1766,22 +1778,22 @@
     },
     {
       "criteria": [
-        "The media is opened without a later format.apply or seek, presentation.enter-panorama requests deadlineSeconds 45, and the bound producer requests exactly context panorama, count 3, and minimumIntervalMillis 1000.",
+        "The media is opened without a later format.apply or seek, presentation.enter-panorama requests deadlineSeconds 45, the panorama-resident probe is read by exactly one accessibility.inspect@2 of PlayerUI-spatial-state with context panorama, summonControls true, requireMatchedElement true and deadlineSeconds 20, and the bound producer requests exactly context panorama, count 3, minimumIntervalMillis 1000, and relatedResults naming that inspect's matchedElement and response in that order.",
         "The producer returns exactly three indexed frames; every playbackState is available, presentationObservation is expected and observed panorama, each record has a content-bound screenshot attachment, and adjacent capture times differ by at least 1000 ms.",
-        "In every frame playbackState.fields reports source format provenance, Apple Immersive content and projection signals, multiview stereo, MV-HEVC, hvc1 with hvcC and lhvC configuration, and multiview renderer input.",
-        "Across all frames session and stream epoch are stable, lifecycle is Playing, presentation is panorama, the immersive geometry is stereo progressive with displayed pixels, no error is active, and screenshots contain nonblank changing Beach imagery."
+        "relatedResults[0] is the PlayerUI-spatial-state matchedElement read in settled panorama, and its semicolon-separated value establishes the source declaration and the delivered graph: sourceFormatProvenance and formatProvenance name the source rather than a user override; providerProjectionKind, sampleProjectionKind and rendererProjectionKind carry the same Apple Immersive projection signal with effectiveContentIsPanoramic true and sourceContentKind naming immersive content; stereoLayout and rendererViewPackingKind carry multiview stereo; mvHEVC and rendererInputIsMultiview are true; providerCodecTag is hvc1 and providerCodecConfiguration lists both hvcC and lhvC; sampleHasLhvC and rendererHasLhvC are true. In every frame playbackState.fields independently repeats providerProjectionKind, sampleProjectionKind, rendererProjectionKind, rendererViewPackingKind and sourceFormatProvenance with the same values; a disagreement between the two channels is Indeterminate, not Satisfied.",
+        "Across all frames session and streamEpoch are non-none and unchanged, lifecycle is Playing, presentation is panorama, displayedPixel is true, error is none, and screenshots contain nonblank changing Beach imagery. relatedResults[0] reports the same session and streamEpoch and, for the settled panorama geometry, actualViewingMode stereo and actualImmersiveMode progressive with a displayed pixel buffer."
       ],
       "filename": "rubric-projection-and-stereo-apple-immersive-projection-o01-1.md",
       "id": "rubric:projection-and-stereo.apple-immersive-projection.o01@1",
       "negativeControls": [
-        "A user format override or seek, short capture interval, non-Apple projection signal, packed stereo, missing lhvC or multiview facts, mono geometry, changed session or epoch, zero displayed pixels, an active issue, or blank, identical, pure-color, or undecodable screenshots fails or makes the claim indeterminate according to the missing evidence."
+        "A user format override or seek, short capture interval, non-Apple projection signal, packed stereo, missing lhvC or multiview facts, mono geometry, changed session or epoch, zero displayed pixels, an active issue, or blank, identical, pure-color, or undecodable screenshots fails or makes the claim indeterminate according to the missing evidence. An absent PlayerUI-spatial-state matchedElement, a window control-plane reading substituted for the panorama probe, or a probe captured outside settled panorama is Indeterminate."
       ],
       "title": "Apple Immersive Projection"
     },
     {
       "criteria": [
         "In the current media segment, defined as the latest media.open call through the bound format.apply producer, the request matches the registered case: equirectangular-180={deadlineSeconds: 30, projection: equirectangular180, stereoLayout: sideBySide}; equirectangular-360={deadlineSeconds: 30, projection: equirectangular360, stereoLayout: mono}; custom-angle-200 and custom-angle-240={deadlineSeconds: 30, projection: customAngle, horizontalCoverageDegrees: 200 and 240 respectively, stereoLayout: mono}. operationOutput.requested equals the bound format.apply arguments.",
-        "The bound format.apply formatObservation.observed tuple matches its registered case: equirectangular-180=portal/equirectangular180/180/sideBySide, equirectangular-360=portal/equirectangular360/360/mono, custom-angle-200=portal/customAngle/200/mono, and custom-angle-240=portal/customAngle/240/mono. operationOutput.captureRequest is exactly {context: portal, count: 3, minimumIntervalMillis: 1000}.",
+        "The bound format.apply formatObservation.observed tuple matches its registered case: equirectangular-180=portal/equirectangular180/180/sideBySide, equirectangular-360=portal/equirectangular360/360/mono, custom-angle-200=portal/customAngle/200/mono, and custom-angle-240=portal/customAngle/240/mono. operationOutput.captureRequest is exactly {context: portal, count: 3, minimumIntervalMillis: 1000}. The two custom-angle cases additionally carry the declared route for a Picker row SwiftUI gives no identifier: operationOutput.customAnglePicker is one tapSequence of PlayerUI-TopAction-videoFormat then PlayerUI-VideoFormat-CustomAngle, operationOutput.customAngleSelection.listing enumerates the playerUI customAngle family and .selection reports the selected id equal to the requested degrees, and operationOutput.customAngleDismissal closes the open menu by that row's own label. No PlayerUI-VideoFormat-CustomAngle-<degrees> identifier is addressed anywhere in the bound transcript.",
         "Every frame in the bound artifact has playbackState.available and controlPlane.available true and controlPlane.fields with formatProvenance userOverride, presentation portal, effectiveContentIsPanoramic true, and the registered case's projection, horizontalFieldOfViewDegrees, and stereoLayout. The equirectangular-180 case additionally has rendererProjectionKind HalfEquirectangular, rendererViewPackingKind SideBySide, windowComponentContentType halfEquirectangular, and actualViewingMode stereo; equirectangular-360 and the custom-angle cases have rendererProjectionKind Equirectangular, rendererViewPackingKind none, windowComponentContentType equirectangular, and actualViewingMode mono; the bound case has actualImmersiveMode portal.",
         "The bound frame indices are exactly 0, 1, and 2, adjacent capturedAtMonotonicMillis values differ by at least 1000, session and streamEpoch remain non-none and unchanged, lifecycle is Playing, displayedPixel is true, error is none, and each content-bound screenshot is nonblank and changing while retaining the wrapped geometry declared by the structured state."
       ],
@@ -1790,7 +1802,8 @@
       "negativeControls": [
         "A format request, formatObservation.observed tuple, or per-frame product-state tuple that differs from the bound case violates the coverage contract, including a custom angle rounded or replaced by 180 or 360.",
         "A flat projection, non-panoramic state, wrong RealityKit content type or viewing mode, missing renderer projection, or packed stereo in a mono case violates the geometry contract.",
-        "Unavailable structured state, missing frame records or attachments, insufficient timestamp separation, or a contradiction between transcript output and frame state is Indeterminate rather than inferred from the remaining modality."
+        "Unavailable structured state, missing frame records or attachments, insufficient timestamp separation, or a contradiction between transcript output and frame state is Indeterminate rather than inferred from the remaining modality.",
+        "A custom-angle case whose coverage is not carried by the recorded listMenuItems/selectMenuItem transaction, or whose transcript addresses a per-degree identifier the product does not publish, has no real execution route and is Indeterminate."
       ],
       "title": "Panorama Coverage Angle"
     },
@@ -1957,14 +1970,14 @@
     },
     {
       "criteria": [
-        "One resident accessibility transaction activates FileBrowsing-SourcesSidebar-sourceMore, FileBrowsing-SourcesSidebar-add, and FileBrowsing-SourcesSidebar-addWebDAV in order before any field is typed.",
-        "The successful transaction activates connect and certificate Trust, then dismisses the future-warning action labelled 以后; the bound post-state exposes the registered WebDAV source and sdr-bframe-aggregate-30s.mkv card."
+        "relatedResults[0] is call 06's alsoInspected trace: one resident tapSequence whose afterStep values are FileBrowsing-SourcesSidebar-sourceMore, then FileBrowsing-SourcesSidebar-add, then FileBrowsing-SourcesSidebar-addWebDAV in that order, with FileBrowsing-SourceConnection-webDAV-name exists=false after the first two steps and exists=true only after addWebDAV, so the form opens at the end of that single transaction and no field could be typed before it.",
+        "relatedResults[1] and relatedResults[2] are call 11's alsoInspected and identifierResponse: one succeeded tapSequence whose afterStep values are FileBrowsing-SourceConnection-webDAV-connect then FileBrowsing-CertificateTrust-trust in that order, with FileBrowsing-CertificateTrust-trust exists=false after the trust step; relatedResults[3] is call 12's 以后 label tap reporting success; relatedResults[4] is call 13's interactionTrace measured from the call 05 baseline cursor and contains reachability files delivered action=sidebar.add.webDAV, reachability files delivered action=sourceConnection.webDAV.connect, and certificateBoundary decision approved=true, so the product delivered both activations rather than the controller merely reporting them; and the bound accessibility tree returns FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv as matchedElement with the registered WebDAV source present in its hierarchy."
       ],
       "filename": "rubric-webdav-source-lifecycle-webdav-add-source-o01-1.md",
       "id": "rubric:webdav-source-lifecycle.webdav-add-source.o01@1",
       "negativeControls": [
         "Opening addWebDAV directly, splitting the nested source-menu route across controllers, or leaving the 以后 prompt unresolved is not the declared user route.",
-        "A controller-only success, a source created by direct state injection, or a password value echoed in evidence cannot satisfy the rubric."
+        "A controller-only success — succeeded tapSequence responses with no matching product delivery line in the bound interactionTrace — a source created by direct state injection, an absent or null matchedElement, or a password value echoed in evidence cannot satisfy the rubric."
       ],
       "title": "Webdav Add Source"
     },
@@ -2275,11 +2288,11 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-2"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:06",
           "maxInvocations": 1,
@@ -2340,11 +2353,11 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-3"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:13",
           "maxInvocations": 1,
@@ -2548,11 +2561,11 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-1"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:37",
           "maxInvocations": 1,
@@ -2613,11 +2626,11 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-8"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:44",
           "maxInvocations": 1,
@@ -3462,7 +3475,8 @@
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles",
               "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:06",
           "maxInvocations": 1,
@@ -3485,7 +3499,8 @@
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles",
               "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:08",
           "maxInvocations": 1,
@@ -3508,7 +3523,8 @@
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles",
               "PlayerUI-menu-subtitles-off"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:10",
           "maxInvocations": 1,
@@ -3531,7 +3547,8 @@
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles",
               "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:12",
           "maxInvocations": 1,
@@ -3679,7 +3696,8 @@
           "arguments": {
             "deadlineSeconds": 30,
             "host": "playerUI",
-            "sourceKind": "local-sidecar"
+            "sourceKind": "local-sidecar",
+            "trackLabel": "sdr-bframe-aggregate-30s.zh-CN.srt"
           },
           "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
           "maxInvocations": 1,
@@ -3689,7 +3707,16 @@
           "arguments": {
             "context": "window",
             "count": 3,
-            "minimumIntervalMillis": 1000
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/host",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/sourceKind",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/deadlineSeconds",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/discoveredTracks",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/selectedTrack",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/settlement",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/identityObservation"
+            ]
           },
           "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
           "maxInvocations": 1,
@@ -3755,7 +3782,8 @@
           "arguments": {
             "deadlineSeconds": 30,
             "host": "playerUI",
-            "sourceKind": "source-directory-sidecar"
+            "sourceKind": "source-directory-sidecar",
+            "trackLabel": "sdr-bframe-aggregate-30s.zh-CN.srt"
           },
           "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
           "maxInvocations": 1,
@@ -3765,7 +3793,16 @@
           "arguments": {
             "context": "window",
             "count": 3,
-            "minimumIntervalMillis": 1000
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/host",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/sourceKind",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/deadlineSeconds",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/discoveredTracks",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/selectedTrack",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/settlement",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/identityObservation"
+            ]
           },
           "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
           "maxInvocations": 1,
@@ -3823,7 +3860,16 @@
           "arguments": {
             "context": "window",
             "count": 3,
-            "minimumIntervalMillis": 1000
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/host",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/sourceKind",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/deadlineSeconds",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/discoveredTracks",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/selectedTrack",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/settlement",
+              "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/identityObservation"
+            ]
           },
           "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
           "maxInvocations": 1,
@@ -3873,7 +3919,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 300000,
+      "estimatedCostMillis": 600000,
       "id": "scenario:local-media-lifecycle:artwork-captured-on-exit",
       "journey": "journey:local-media-lifecycle",
       "lane": "device",
@@ -3886,7 +3932,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:artwork-captured-on-exit:o01:default",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:artwork-captured-on-exit:06",
+          "producedByCall": "call:local-media-lifecycle:artwork-captured-on-exit:18",
           "rubric": "rubric:local-media-lifecycle.artwork-captured-on-exit.o01@1"
         }
       ],
@@ -3940,12 +3986,166 @@
         },
         {
           "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerPanel-button-play"
+            ],
+            "summonControls": true
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:06",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 30,
+            "lifecycle": "paused",
+            "presentation": "either-main-window"
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:07",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
             "artworkExpectation": "exit-replaces-current-frame",
             "context": "window",
             "count": 4,
             "minimumIntervalMillis": 0
           },
-          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:06",
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:08",
+          "maxInvocations": 1,
+          "operation": "operation:evidence.capture-frames@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerUI-InfoBar-button-back"
+            ],
+            "summonControls": true
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:09",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "artworkExpectation": "exit-replaces-current-frame",
+            "artworkKey": "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+            "context": "window",
+            "count": 4,
+            "minimumIntervalMillis": 0
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:10",
+          "maxInvocations": 1,
+          "operation": "operation:evidence.capture-frames@1"
+        },
+        {
+          "arguments": {
+            "deadlineSeconds": 90,
+            "expectedLanding": "either-main-window",
+            "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:11",
+          "maxInvocations": 1,
+          "operation": "operation:media.open@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 90,
+            "lifecycle": "playing",
+            "presentation": "either-main-window"
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:12",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "deadlineSeconds": 90,
+            "minimumPositionMillis": 22000,
+            "minimumRemainingMillis": 3000
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:13",
+          "maxInvocations": 1,
+          "operation": "operation:playback.wait-position@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerPanel-button-play"
+            ],
+            "summonControls": true
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:14",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 30,
+            "lifecycle": "paused",
+            "presentation": "either-main-window"
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:15",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "artworkExpectation": "exit-replaces-current-frame",
+            "artworkKey": "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+            "context": "window",
+            "count": 4,
+            "minimumIntervalMillis": 0
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:16",
+          "maxInvocations": 1,
+          "operation": "operation:evidence.capture-frames@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerUI-InfoBar-button-back"
+            ],
+            "summonControls": true
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:17",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "artworkExpectation": "exit-replaces-current-frame",
+            "artworkKey": "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+            "context": "window",
+            "count": 4,
+            "minimumIntervalMillis": 0,
+            "relatedFrameManifests": [
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:08/frameManifest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:10/frameManifest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:16/frameManifest"
+            ],
+            "relatedResults": [
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkCurrentDigest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkStoredDigest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkByteStreamScope",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkByteStreamRequestCount",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkStoredDigest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkStoredBytes",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkCurrentDigest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkStoredDigest",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkByteStreamScope",
+              "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkByteStreamRequestCount"
+            ]
+          },
+          "callId": "call:local-media-lifecycle:artwork-captured-on-exit:18",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         }
@@ -3977,7 +4177,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 150000,
+      "estimatedCostMillis": 175000,
       "id": "scenario:webdav-source-lifecycle:webdav-add-source",
       "journey": "journey:webdav-source-lifecycle",
       "lane": "device",
@@ -3990,7 +4190,7 @@
           "evidenceType": "accessibility.tree",
           "id": "obligation:webdav-source-lifecycle:webdav-add-source:o01:default",
           "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:12",
+          "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:14",
           "rubric": "rubric:webdav-source-lifecycle.webdav-add-source.o01@1"
         }
       ],
@@ -4026,7 +4226,19 @@
           "operation": "operation:navigation.select-tab@1"
         },
         {
+          "arguments": {},
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:05",
+          "maxInvocations": 1,
+          "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
           "arguments": {
+            "alsoInspect": [
+              "FileBrowsing-SourcesSidebar-sourceMore",
+              "FileBrowsing-SourcesSidebar-add",
+              "FileBrowsing-SourcesSidebar-addWebDAV",
+              "FileBrowsing-SourceConnection-webDAV-name"
+            ],
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
@@ -4034,7 +4246,7 @@
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:05",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:06",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -4046,7 +4258,7 @@
             "secret": false,
             "text": "Enchron Regression WebDAV"
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:06",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:07",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4059,7 +4271,7 @@
             "textFile": "result://call:webdav-source-lifecycle:webdav-add-source:01/runtimePath",
             "textJSONKey": "address"
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:07",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:08",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4072,7 +4284,7 @@
             "textFile": "result://call:webdav-source-lifecycle:webdav-add-source:01/runtimePath",
             "textJSONKey": "user"
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:08",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:09",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4085,44 +4297,63 @@
             "textFile": "result://call:webdav-source-lifecycle:webdav-add-source:01/runtimePath",
             "textJSONKey": "password"
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:09",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "FileBrowsing-SourceConnection-webDAV-connect",
+              "FileBrowsing-CertificateTrust-trust",
+              "FileBrowsing-SourceConnection-webDAV-name"
+            ],
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourceConnection-webDAV-connect",
               "FileBrowsing-CertificateTrust-trust"
-            ],
-            "labels": [
-              "以后"
             ]
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:10",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
+            "context": "main-window-browser",
+            "labels": [
+              "以后"
+            ]
+          },
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:12",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "cursorToken": "result://call:webdav-source-lifecycle:webdav-add-source:05/cursorToken",
             "remoteExpectation": "webdav-connection",
             "remoteGenerationToken": "result://call:webdav-source-lifecycle:webdav-add-source:01/generationToken"
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:11",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:13",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         },
         {
           "arguments": {
             "context": "main-window-browser",
+            "deadlineSeconds": 30,
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
             "relatedResults": [
-              "result://call:webdav-source-lifecycle:webdav-add-source:05/interaction",
-              "result://call:webdav-source-lifecycle:webdav-add-source:10/interaction"
-            ]
+              "result://call:webdav-source-lifecycle:webdav-add-source:06/alsoInspected",
+              "result://call:webdav-source-lifecycle:webdav-add-source:11/alsoInspected",
+              "result://call:webdav-source-lifecycle:webdav-add-source:11/identifierResponse",
+              "result://call:webdav-source-lifecycle:webdav-add-source:12/interaction",
+              "result://call:webdav-source-lifecycle:webdav-add-source:13/interactionTrace"
+            ],
+            "requireMatchedElement": true
           },
-          "callId": "call:webdav-source-lifecycle:webdav-add-source:12",
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:14",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -4278,7 +4509,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 330000,
+      "estimatedCostMillis": 320000,
       "id": "scenario:webdav-source-lifecycle:certificate-trust-boundary",
       "journey": "journey:webdav-source-lifecycle",
       "lane": "device",
@@ -4291,7 +4522,7 @@
           "evidenceType": "interaction.trace",
           "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:cancelled-form",
           "oracle": "oracle:agent-structured-interaction-trace@1",
-          "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
+          "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
           "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
         },
         {
@@ -4301,7 +4532,7 @@
           "evidenceType": "interaction.trace",
           "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:connected-trace",
           "oracle": "oracle:agent-structured-interaction-trace@1",
-          "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
+          "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:21",
           "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
         }
       ],
@@ -4316,15 +4547,23 @@
         },
         {
           "arguments": {
-            "tab": "files"
+            "rootFolderName": "Journey Fixture"
           },
           "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:02",
+          "maxInvocations": 1,
+          "operation": "operation:harness.reset-product-state@2"
+        },
+        {
+          "arguments": {
+            "tab": "files"
+          },
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:03",
           "maxInvocations": 1,
           "operation": "operation:navigation.select-tab@1"
         },
         {
           "arguments": {},
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:03",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:04",
           "maxInvocations": 1,
           "operation": "operation:app.relaunch@1"
         },
@@ -4332,13 +4571,13 @@
           "arguments": {
             "tab": "files"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:04",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:05",
           "maxInvocations": 1,
           "operation": "operation:navigation.select-tab@1"
         },
         {
           "arguments": {},
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:05",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:06",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         },
@@ -4351,7 +4590,7 @@
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:06",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:07",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -4363,7 +4602,7 @@
             "secret": false,
             "text": "Enchron Regression WebDAV Draft"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:07",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:08",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4376,7 +4615,7 @@
             "textFile": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/runtimePath",
             "textJSONKey": "address"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:08",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:09",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4389,7 +4628,7 @@
             "textFile": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/runtimePath",
             "textJSONKey": "user"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:09",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4402,7 +4641,7 @@
             "textFile": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/runtimePath",
             "textJSONKey": "password"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:10",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4414,7 +4653,7 @@
               "FileBrowsing-CertificateTrust-cancel"
             ]
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:11",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:12",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -4424,7 +4663,7 @@
             "identifier": "FileBrowsing-SourceConnection-webDAV",
             "requireMatchedElement": true
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:12",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:13",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         },
@@ -4437,7 +4676,7 @@
             "textFile": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/runtimePath",
             "textJSONKey": "password"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:13",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:14",
           "maxInvocations": 1,
           "operation": "operation:accessibility.type@2"
         },
@@ -4452,7 +4691,7 @@
               "以后"
             ]
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:14",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:15",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -4461,7 +4700,7 @@
             "context": "main-window-browser",
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:15",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:16",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         },
@@ -4471,7 +4710,7 @@
             "expectedLanding": "either-main-window",
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:16",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:17",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -4482,7 +4721,7 @@
             "lifecycle": "playing",
             "presentation": "either-main-window"
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:17",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:18",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -4492,35 +4731,35 @@
             "minimumPositionMillis": 1000,
             "minimumRemainingMillis": 3000
           },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:18",
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
           "maxInvocations": 1,
           "operation": "operation:playback.wait-position@2"
         },
         {
           "arguments": {
-            "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:05/cursorToken",
+            "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:06/cursorToken",
             "relatedResults": [
-              "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/response",
-              "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/matchedElement"
-            ],
-            "remoteExpectation": "certificate-trust-boundary",
-            "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
-          },
-          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
-          "maxInvocations": 1,
-          "operation": "operation:diagnostics.surface-probe@1"
-        },
-        {
-          "arguments": {
-            "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:05/cursorToken",
-            "relatedResults": [
-              "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/response",
-              "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/matchedElement"
+              "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/response",
+              "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/matchedElement"
             ],
             "remoteExpectation": "certificate-trust-boundary",
             "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
           },
           "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
+          "maxInvocations": 1,
+          "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:06/cursorToken",
+            "relatedResults": [
+              "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/response",
+              "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/matchedElement"
+            ],
+            "remoteExpectation": "certificate-trust-boundary",
+            "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
+          },
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:21",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         }
@@ -4698,7 +4937,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Series"
+              "Enchron Regression Series, poster"
             ]
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:05",
@@ -4732,7 +4971,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Episode"
+              "Enchron Regression Episode, poster"
             ]
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:09",
@@ -4837,7 +5076,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Series"
+              "Enchron Regression Series, poster"
             ]
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:05",
@@ -4880,7 +5119,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Episode 2"
+              "Enchron Regression Episode 2, episode"
             ]
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
@@ -4941,7 +5180,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
+          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
           "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
         }
       ],
@@ -4972,7 +5211,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Episode"
+              "Enchron Regression Episode, episode"
             ]
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:04",
@@ -5052,22 +5291,11 @@
         },
         {
           "arguments": {
-            "context": "window",
-            "labels": [
-              "Enchron Regression Episode"
-            ]
-          },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
-          "maxInvocations": 1,
-          "operation": "operation:accessibility.activate@2"
-        },
-        {
-          "arguments": {
             "deadlineSeconds": 45,
             "expectedLanding": "window",
             "identifier": "Emby-Detail-PlayFromBeginning"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:13",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -5078,13 +5306,13 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:14",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:13",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
         {
           "arguments": {},
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:14",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         },
@@ -5099,10 +5327,10 @@
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:07/activatedAtMonotonicMillis",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/frames",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:10/fields",
-              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:15/fields"
+              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:14/fields"
             ]
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -5147,7 +5375,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:progress-authority-server:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:progress-authority-server:13",
+          "producedByCall": "call:emby-server-lifecycle:progress-authority-server:14",
           "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o01@1"
         }
       ],
@@ -5185,20 +5413,17 @@
         },
         {
           "arguments": {
-            "context": "window",
-            "labels": [
-              "Enchron Regression Emby"
-            ]
+            "includeViewingStorage": true
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:05",
           "maxInvocations": 1,
-          "operation": "operation:accessibility.activate@2"
+          "operation": "operation:diagnostics.surface-probe@1"
         },
         {
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Series"
+              "Enchron Regression Emby"
             ]
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:06",
@@ -5209,10 +5434,21 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Episode"
+              "Enchron Regression Series, poster"
             ]
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:07",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Episode, episode"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:progress-authority-server:08",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -5223,7 +5459,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:progress-authority-server:08",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:09",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -5233,13 +5469,13 @@
             "minimumPositionMillis": 15000,
             "minimumRemainingMillis": 30000
           },
-          "callId": "call:emby-server-lifecycle:progress-authority-server:09",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:10",
           "maxInvocations": 1,
           "operation": "operation:playback.wait-position@2"
         },
         {
           "arguments": {},
-          "callId": "call:emby-server-lifecycle:progress-authority-server:10",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:11",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         },
@@ -5251,16 +5487,22 @@
             ],
             "summonControls": true
           },
-          "callId": "call:emby-server-lifecycle:progress-authority-server:11",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:12",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
             "embyProgressReadback": true,
-            "includeViewingStorage": true
+            "includeViewingStorage": true,
+            "priorViewingStorageDigests": [
+              "result://call:emby-server-lifecycle:progress-authority-server:05/viewingStorageDigest"
+            ],
+            "relatedResults": [
+              "result://call:emby-server-lifecycle:progress-authority-server:05/viewingStorageObservation"
+            ]
           },
-          "callId": "call:emby-server-lifecycle:progress-authority-server:12",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:13",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         },
@@ -5270,12 +5512,12 @@
             "identifier": "Emby-Evidence",
             "relatedResults": [
               "result://call:emby-server-lifecycle:progress-authority-server:01/report",
-              "result://call:emby-server-lifecycle:progress-authority-server:10/fields",
-              "result://call:emby-server-lifecycle:progress-authority-server:12/viewingStorageObservation",
-              "result://call:emby-server-lifecycle:progress-authority-server:12/observedUserData"
+              "result://call:emby-server-lifecycle:progress-authority-server:11/fields",
+              "result://call:emby-server-lifecycle:progress-authority-server:13/viewingStorageObservation",
+              "result://call:emby-server-lifecycle:progress-authority-server:13/observedUserData"
             ]
           },
-          "callId": "call:emby-server-lifecycle:progress-authority-server:13",
+          "callId": "call:emby-server-lifecycle:progress-authority-server:14",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -5352,7 +5594,7 @@
             "context": "window",
             "labels": [
               "Enchron Regression Emby",
-              "Enchron Regression Series"
+              "Enchron Regression Series, poster"
             ]
           },
           "callId": "call:emby-server-lifecycle:artwork-by-image-tag:04",
@@ -5452,7 +5694,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Episode"
+              "Enchron Regression Episode, episode"
             ]
           },
           "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:04",
@@ -7087,7 +7329,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:projection-and-stereo:apple-immersive-projection:o01:default",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:projection-and-stereo:apple-immersive-projection:07",
+          "producedByCall": "call:projection-and-stereo:apple-immersive-projection:08",
           "rubric": "rubric:projection-and-stereo.apple-immersive-projection.o01@1"
         }
       ],
@@ -7146,10 +7388,26 @@
         {
           "arguments": {
             "context": "panorama",
-            "count": 3,
-            "minimumIntervalMillis": 1000
+            "deadlineSeconds": 20,
+            "identifier": "PlayerUI-spatial-state",
+            "requireMatchedElement": true,
+            "summonControls": true
           },
           "callId": "call:projection-and-stereo:apple-immersive-projection:07",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "panorama",
+            "count": 3,
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:projection-and-stereo:apple-immersive-projection:07/matchedElement",
+              "result://call:projection-and-stereo:apple-immersive-projection:07/response"
+            ]
+          },
+          "callId": "call:projection-and-stereo:apple-immersive-projection:08",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         }
@@ -7277,13 +7535,16 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-2"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:06",
           "maxInvocations": 1,
@@ -7291,15 +7552,19 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles"
             ],
             "labels": [
               "sdr-bframe-aggregate-30s.zh-CN.srt"
-            ]
+            ],
+            "labelsAfterIdentifiers": true,
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:07",
           "maxInvocations": 1,
@@ -7307,7 +7572,8 @@
         },
         {
           "arguments": {
-            "positionMillionths": 500000
+            "positionMillionths": 500000,
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:08",
           "maxInvocations": 1,
@@ -7316,7 +7582,9 @@
         {
           "arguments": {
             "relatedResults": [
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:06/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:06/response",
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:07/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:07/response"
             ]
           },
@@ -7372,13 +7640,16 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-2"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:15",
           "maxInvocations": 1,
@@ -7386,15 +7657,19 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles"
             ],
             "labels": [
               "sdr-bframe-aggregate-30s.zh-CN.srt"
-            ]
+            ],
+            "labelsAfterIdentifiers": true,
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:16",
           "maxInvocations": 1,
@@ -7420,7 +7695,9 @@
         {
           "arguments": {
             "relatedResults": [
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:15/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:15/response",
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:16/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:16/response"
             ]
           },
@@ -7476,13 +7753,16 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-2"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:25",
           "maxInvocations": 1,
@@ -7490,15 +7770,19 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles"
             ],
             "labels": [
               "sdr-bframe-aggregate-30s.zh-CN.srt"
-            ]
+            ],
+            "labelsAfterIdentifiers": true,
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:26",
           "maxInvocations": 1,
@@ -7527,7 +7811,9 @@
         {
           "arguments": {
             "relatedResults": [
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:25/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:25/response",
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:26/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:26/response"
             ]
           },
@@ -7583,13 +7869,16 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-audio",
               "PlayerUI-menu-audio-2"
-            ]
+            ],
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:35",
           "maxInvocations": 1,
@@ -7597,15 +7886,19 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-more"
+            ],
             "context": "window",
             "identifiers": [
-              "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-more",
               "PlayerUI-menu-subtitles"
             ],
             "labels": [
               "sdr-bframe-aggregate-30s.zh-CN.srt"
-            ]
+            ],
+            "labelsAfterIdentifiers": true,
+            "summonControls": true
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:36",
           "maxInvocations": 1,
@@ -7624,7 +7917,9 @@
         {
           "arguments": {
             "relatedResults": [
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:35/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:35/response",
+              "result://call:presentation-tour:track-selection-survives-seek-and-presentation:36/alsoInspected",
               "result://call:presentation-tour:track-selection-survives-seek-and-presentation:36/response"
             ]
           },
@@ -8721,7 +9016,13 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-VideoFormat"
+            "identifier": "PlayerUI-VideoFormat",
+            "relatedResults": [
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/response",
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/tappedIdentifiers",
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:06/response",
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:06/tappedIdentifiers"
+            ]
           },
           "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:07",
           "maxInvocations": 1,
@@ -8811,6 +9112,12 @@
             "context": "portal",
             "identifiers": [
               "PlayerUI-TopAction-videoFormat"
+            ],
+            "relatedResults": [
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:13/response",
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/response",
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/tappedIdentifiers",
+              "result://call:presentation-tour:format-editor-hosts-window-and-portal:15/response"
             ]
           },
           "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
@@ -9004,10 +9311,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:presentation-tour:automatic-source-provenance:o01:default",
-          "oracle": "oracle:agent-structured-playback-probe@1",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:presentation-tour:automatic-source-provenance:07",
           "rubric": "rubric:presentation-tour.automatic-source-provenance.o01@1"
         }
@@ -9078,11 +9385,12 @@
               "result://call:presentation-tour:automatic-source-provenance:05/before",
               "result://call:presentation-tour:automatic-source-provenance:05/after",
               "result://call:presentation-tour:automatic-source-provenance:06/response"
-            ]
+            ],
+            "settleDelayMillis": 2000
           },
           "callId": "call:presentation-tour:automatic-source-provenance:07",
           "maxInvocations": 1,
-          "operation": "operation:diagnostics.playback-state@1"
+          "operation": "operation:diagnostics.surface-probe@1"
         }
       ],
       "prerequisites": [
@@ -9814,7 +10122,7 @@
           "arguments": {
             "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
             "relatedResults": [
-              "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/response"
+              "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/tappedIdentifiers"
             ],
             "settleDelayMillis": 9000
           },
@@ -9880,7 +10188,7 @@
           "arguments": {
             "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:12/cursorToken",
             "relatedResults": [
-              "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/response"
+              "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/tappedIdentifiers"
             ],
             "settleDelayMillis": 9000
           },
@@ -13426,7 +13734,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 260000,
+      "estimatedCostMillis": 900000,
       "id": "scenario:issue-surface-behavior:source-failure-guidance-matrix",
       "journey": "journey:issue-surface-behavior",
       "lane": "device",
@@ -13583,7 +13891,9 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "FileBrowsing-SourceConnection-webDAV"
+            "deadlineSeconds": 20,
+            "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:11",
           "maxInvocations": 1,
@@ -13697,7 +14007,9 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "FileBrowsing-SourceConnection-webDAV"
+            "deadlineSeconds": 20,
+            "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:22",
           "maxInvocations": 1,
@@ -13811,7 +14123,9 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "FileBrowsing-SourceConnection-webDAV"
+            "deadlineSeconds": 20,
+            "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:33",
           "maxInvocations": 1,
@@ -13925,7 +14239,9 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "FileBrowsing-SourceConnection-webDAV"
+            "deadlineSeconds": 20,
+            "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:44",
           "maxInvocations": 1,

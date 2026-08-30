@@ -84,7 +84,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "host": "playerUI",
-        "sourceKind": "local-sidecar"
+        "sourceKind": "local-sidecar",
+        "trackLabel": "sdr-bframe-aggregate-30s.zh-CN.srt"
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
       "maxInvocations": 1,
@@ -94,7 +95,16 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "minimumIntervalMillis": 1000
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/host",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/sourceKind",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/deadlineSeconds",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/discoveredTracks",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/selectedTrack",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/settlement",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:06/identityObservation"
+        ]
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
       "maxInvocations": 1,
@@ -160,7 +170,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "host": "playerUI",
-        "sourceKind": "source-directory-sidecar"
+        "sourceKind": "source-directory-sidecar",
+        "trackLabel": "sdr-bframe-aggregate-30s.zh-CN.srt"
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
       "maxInvocations": 1,
@@ -170,7 +181,16 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "minimumIntervalMillis": 1000
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/host",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/sourceKind",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/deadlineSeconds",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/discoveredTracks",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/selectedTrack",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/settlement",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:14/identityObservation"
+        ]
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
       "maxInvocations": 1,
@@ -228,7 +248,16 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "minimumIntervalMillis": 1000
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/host",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/sourceKind",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/deadlineSeconds",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/discoveredTracks",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/selectedTrack",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/settlement",
+          "result://call:local-media-lifecycle:external-subtitle-source-matrix:20/identityObservation"
+        ]
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
       "maxInvocations": 1,

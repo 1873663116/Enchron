@@ -142,6 +142,27 @@ PREPARATION_BLUEPRINT_KEYS = frozenset(
 EXTERNAL_SUBTITLE_SCENARIO_ID = (
     "scenario:local-media-lifecycle:external-subtitle-source-matrix"
 )
+EXTERNAL_SUBTITLE_TRACK_LABELS = {
+    "local-sidecar": "sdr-bframe-aggregate-30s.zh-CN.srt",
+    "webdav-sidecar": "sdr-bframe-aggregate-30s.zh-CN.srt",
+}
+"""generated-sdr-avc-bframe-aggregate-30s-v1 registers two sidecars beside the
+same .mkv, and both reach the menu, so the two file-backed attempts have to name
+the one their rubric reviews. The Emby attempt has no entry because its seeder
+registers a single external file and a label there could only miss it."""
+
+EXTERNAL_SUBTITLE_RELATED_RESULT_FIELDS = (
+    "host",
+    "sourceKind",
+    "deadlineSeconds",
+    "discoveredTracks",
+    "selectedTrack",
+    "settlement",
+    "identityObservation",
+)
+"""An Oracle reads its producer's observation and content-bound attachments, so
+the selection each obligation adjudicates has to travel with the frames."""
+
 EXTERNAL_SUBTITLE_ATTEMPTS = (
     (
         "local-sidecar",
@@ -974,19 +995,32 @@ def _validate_external_subtitle_matrix(
             )
         selection = attempt[-2]
         capture = attempt[-1]
+        expected_selection = {
+            "host": "playerUI",
+            "sourceKind": source_kind,
+            "deadlineSeconds": 30,
+        }
+        registered_label = EXTERNAL_SUBTITLE_TRACK_LABELS.get(case_key)
+        if registered_label is not None:
+            expected_selection["trackLabel"] = registered_label
         _require(
-            selection["arguments"]
-            == {
-                "host": "playerUI",
-                "sourceKind": source_kind,
-                "deadlineSeconds": 30,
-            },
-            f"external subtitle {case_key} must discover and select one dynamic track",
+            selection["arguments"] == expected_selection,
+            f"external subtitle {case_key} must discover and select one dynamic track "
+            "behind its registered sidecar label",
         )
         _require(
             capture["arguments"]
-            == {"context": "window", "count": 3, "minimumIntervalMillis": 1000},
-            f"external subtitle {case_key} lacks its immediate post-action capture",
+            == {
+                "context": "window",
+                "count": 3,
+                "minimumIntervalMillis": 1000,
+                "relatedResults": [
+                    f"result://{selection['callId']}/{field}"
+                    for field in EXTERNAL_SUBTITLE_RELATED_RESULT_FIELDS
+                ],
+            },
+            f"external subtitle {case_key} lacks its immediate post-action capture "
+            "bound to its own selection observation",
         )
         obligation = obligations.get(case_key)
         _require(

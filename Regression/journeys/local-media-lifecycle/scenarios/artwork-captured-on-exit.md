@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 300000,
+  "estimatedCostMillis": 600000,
   "staticCases": [
     "default"
   ],
@@ -77,12 +77,166 @@
     },
     {
       "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerPanel-button-play"
+        ],
+        "summonControls": true
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:06",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "controls": "either",
+        "deadlineSeconds": 30,
+        "lifecycle": "paused",
+        "presentation": "either-main-window"
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:07",
+      "maxInvocations": 1,
+      "operation": "operation:playback.await-window-state@1"
+    },
+    {
+      "arguments": {
         "artworkExpectation": "exit-replaces-current-frame",
         "context": "window",
         "count": 4,
         "minimumIntervalMillis": 0
       },
-      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:06",
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:08",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerUI-InfoBar-button-back"
+        ],
+        "summonControls": true
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:09",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "artworkExpectation": "exit-replaces-current-frame",
+        "artworkKey": "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+        "context": "window",
+        "count": 4,
+        "minimumIntervalMillis": 0
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:10",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "deadlineSeconds": 90,
+        "expectedLanding": "either-main-window",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:11",
+      "maxInvocations": 1,
+      "operation": "operation:media.open@2"
+    },
+    {
+      "arguments": {
+        "controls": "either",
+        "deadlineSeconds": 90,
+        "lifecycle": "playing",
+        "presentation": "either-main-window"
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:12",
+      "maxInvocations": 1,
+      "operation": "operation:playback.await-window-state@1"
+    },
+    {
+      "arguments": {
+        "deadlineSeconds": 90,
+        "minimumPositionMillis": 22000,
+        "minimumRemainingMillis": 3000
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:13",
+      "maxInvocations": 1,
+      "operation": "operation:playback.wait-position@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerPanel-button-play"
+        ],
+        "summonControls": true
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:14",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "controls": "either",
+        "deadlineSeconds": 30,
+        "lifecycle": "paused",
+        "presentation": "either-main-window"
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:15",
+      "maxInvocations": 1,
+      "operation": "operation:playback.await-window-state@1"
+    },
+    {
+      "arguments": {
+        "artworkExpectation": "exit-replaces-current-frame",
+        "artworkKey": "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+        "context": "window",
+        "count": 4,
+        "minimumIntervalMillis": 0
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:16",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerUI-InfoBar-button-back"
+        ],
+        "summonControls": true
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:17",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "artworkExpectation": "exit-replaces-current-frame",
+        "artworkKey": "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+        "context": "window",
+        "count": 4,
+        "minimumIntervalMillis": 0,
+        "relatedFrameManifests": [
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/frameManifest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/frameManifest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/frameManifest"
+        ],
+        "relatedResults": [
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkCurrentDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkStoredDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkByteStreamScope",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkByteStreamRequestCount",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkStoredDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkStoredBytes",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkCurrentDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkStoredDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkByteStreamScope",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkByteStreamRequestCount"
+        ]
+      },
+      "callId": "call:local-media-lifecycle:artwork-captured-on-exit:18",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -95,7 +249,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:artwork-captured-on-exit:o01:default",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:artwork-captured-on-exit:06",
+      "producedByCall": "call:local-media-lifecycle:artwork-captured-on-exit:18",
       "rubric": "rubric:local-media-lifecycle.artwork-captured-on-exit.o01@1"
     }
   ],

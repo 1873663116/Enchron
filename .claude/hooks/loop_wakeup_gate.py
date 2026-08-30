@@ -40,7 +40,7 @@ def calls_since_last_user(records: list[dict]) -> list[dict]:
     """Every ScheduleWakeup input in the current turn."""
     start = 0
     for index, record in enumerate(records):
-        if record.get("type") == "user" and not _is_tool_result(record):
+        if record.get("type") == "user" and _is_real_turn(record):
             start = index
     found = []
     for record in records[start:]:
@@ -52,6 +52,24 @@ def calls_since_last_user(records: list[dict]) -> list[dict]:
 
 def _is_tool_result(record: dict) -> bool:
     return any(block.get("type") == "tool_result" for block in _content(record))
+
+
+def _is_real_turn(record: dict) -> bool:
+    """A background task finishing is not the user speaking.
+
+    Notifications and reminders arrive as user-type entries mid-turn. Counting one
+    as the start of the turn moved the boundary past a ScheduleWakeup that had
+    already been called, and the gate then blocked a turn that had armed one.
+    """
+    if _is_tool_result(record):
+        return False
+    text = "".join(
+        block.get("text", "") for block in _content(record) if block.get("type") == "text"
+    )
+    return not any(
+        marker in text
+        for marker in ("<system-reminder>", "<task-notification>", "Stop hook feedback:")
+    )
 
 
 def _content(record: dict) -> list[dict]:

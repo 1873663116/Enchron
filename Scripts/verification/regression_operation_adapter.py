@@ -423,6 +423,11 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             )
     if include_hdr_fallback is not None and include_hdr_fallback is not True:
         raise OperationAdapterError("includeHDRFallback may only request true")
+    artwork_key = arguments.get("artworkKey")
+    if artwork_key is not None and artwork_expectation is None:
+        raise OperationAdapterError(
+            "artworkKey only names the store an artwork exit capture reads"
+        )
     if artwork_expectation is not None:
         if (
             artwork_expectation != "exit-replaces-current-frame"
@@ -437,6 +442,21 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             raise OperationAdapterError(
                 "artwork exit capture requires the exact four-frame local variant"
             )
+        # After the exit the runtime has no current launch request, so the probe
+        # can only reach the store the pre-exit capture named. An exact key is
+        # therefore the sole way to read the artwork the exit wrote.
+        if artwork_key is not None:
+            reference = str(artwork_key)
+            pattern = (
+                r"result://call:[a-z0-9:-]+/artworkKey"
+                if reference.startswith("result://")
+                else r"media-[0-9a-f]{64}"
+            )
+            if re.fullmatch(pattern, reference) is None:
+                raise OperationAdapterError(
+                    "artworkKey must be one exact media artwork key or the "
+                    "artworkKey field of an earlier capture"
+                )
         return
     if expectation is None:
         if any(
@@ -823,6 +843,16 @@ REMOTE_HEALTHY_EXPECTATIONS = frozenset(
     ("webdav-connection", "webdav-playback-range", "certificate-trust-boundary")
 )
 REMOTE_FAULT_EXPECTATIONS = REMOTE_EXPECTATIONS - REMOTE_HEALTHY_EXPECTATIONS
+PROGRESS_SEEK_TAP_LIMIT = 5
+"""The progress track maps a tap location through a thumb-inset affine, so the
+first offset lands close and each correction removes the residual; five taps is
+far past convergence and bounds a track that refuses to move."""
+PROGRESS_SEEK_DEADLINE_SECONDS = 60
+PROGRESS_SEEK_PROBE_LINE = (
+    "reachability playerPanel delivered action=progress.seekToTrack"
+)
+"""PlaybackPanel.seekToTrack records this line, so an absent line is a tap the
+product never received rather than a controller that reported success."""
 ISSUE_INDUCE_RECIPES = MappingProxyType(
     {
         "source-file-missing": "missing-object",
@@ -2652,6 +2682,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     required=False,
                     choices=_choices("exit-replaces-current-frame"),
                 ),
+                _field("artworkKey", string, required=False),
                 _field("includeHDRFallback", boolean, required=False),
                 _field("relatedFrameManifests", strings, required=False),
             ),
@@ -2671,6 +2702,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("durationMillis", integer, required=False, minimum=1, maximum=5000),
                 _field("settleDelayMillis", integer, required=False, minimum=1, maximum=30000),
                 _field("summonControls", boolean, required=False),
+                _field("labelsAfterIdentifiers", boolean, required=False),
                 _field("assertAbsent", strings, required=False),
                 _field("alsoInspect", strings, required=False),
                 _field("relatedResults", strings, required=False),
@@ -2699,6 +2731,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     minimum=1,
                     maximum=90,
                 ),
+                _field("summonControls", boolean, required=False),
                 _field("relatedResults", strings, required=False),
             ),
             (
@@ -3785,8 +3818,12 @@ class ResidentOperationBackend:
         return {"succeeded": True, "response": result}
 
     def _evidence_capture_frames_1(self, arguments, context):
+        requested_artwork_key = arguments.get("artworkKey")
         artwork_before = (
-            self._artwork_probe(context)
+            self._artwork_probe(
+                context,
+                None if requested_artwork_key is None else str(requested_artwork_key),
+            )
             if arguments.get("artworkExpectation") is not None
             else None
         )
@@ -3942,6 +3979,25 @@ class ResidentOperationBackend:
                 if artwork_before is not None
                 else None
             ),
+            **(
+                {}
+                if artwork_after is None
+                else {
+                    # One result:// reference per value, so a later capture can
+                    # inline this capture's artwork reading into its own
+                    # artifact instead of asking an Oracle to open two.
+                    "artworkKey": str(artwork_after["artworkKey"]),
+                    "artworkCurrentDigest": str(artwork_after["currentDigest"]),
+                    "artworkStoredDigest": str(artwork_after["storedDigest"]),
+                    "artworkStoredBytes": str(artwork_after["storedBytes"]),
+                    "artworkByteStreamScope": str(
+                        artwork_after["byteStreamScope"]
+                    ),
+                    "artworkByteStreamRequestCount": str(
+                        artwork_after["byteStreamRequestCount"]
+                    ),
+                }
+            ),
             "relatedResults": list(arguments.get("relatedResults", [])),
         }
 
@@ -4034,6 +4090,21 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "accessibility activate requires at least one identifier or label"
             )
+        # A nested menu leaf that only carries a label has to be tapped inside
+        # the transaction that opened its submenu; the runner taps `--label`
+        # ahead of the identifiers, so the ordered route needs its own step.
+        labels_after_identifiers = (
+            arguments.get("labelsAfterIdentifiers") is True
+        )
+        if labels_after_identifiers:
+            if not identifiers or len(labels) != 1:
+                raise OperationAdapterError(
+                    "labelsAfterIdentifiers requires identifiers and one label"
+                )
+            if str(arguments.get("gesture", "tap")) != "tap":
+                raise OperationAdapterError(
+                    "labelsAfterIdentifiers requires the tap gesture"
+                )
         settle_delay_millis = int(arguments.get("settleDelayMillis", 0))
         result: dict[str, object] = {
             "succeeded": True,
@@ -4063,7 +4134,14 @@ class ResidentOperationBackend:
         if also_inspect:
             command = ["--identifiers", *identifiers] if identifiers else []
             if labels:
-                command.extend(("--label", labels[0]))
+                command.extend(
+                    (
+                        "--trailing-label"
+                        if labels_after_identifiers
+                        else "--label",
+                        labels[0],
+                    )
+                )
             command.extend(("--also-inspect", *also_inspect))
             absent = [str(item) for item in arguments.get("assertAbsent", [])]
             if absent:
@@ -4073,11 +4151,15 @@ class ResidentOperationBackend:
                 context, "tapSequence", *command
             )
             self._require_success(identifier_response, "accessibility activate")
+            identifier_state = self._post_action_state(identifier_response)
+            # Own fields: a later label tap overwrites response/interaction/
+            # postActionState, so the identifier observation needs a key no
+            # other sub-action can claim.
+            result["identifierResponse"] = identifier_response
+            result["identifierPostActionState"] = identifier_state
             result["response"] = identifier_response
             result["interaction"] = identifier_response
-            result["postActionState"] = self._post_action_state(
-                identifier_response
-            )
+            result["postActionState"] = identifier_state
             inspected = identifier_response.get("alsoInspected")
             if not isinstance(inspected, list):
                 raise OperationAdapterError(
@@ -4102,18 +4184,21 @@ class ResidentOperationBackend:
                     separators=(",", ":"),
                 )
         elif identifiers:
+            single = len(identifiers) == 1 and not labels_after_identifiers
             command = (
                 ["--identifier", identifiers[0]]
-                if len(identifiers) == 1
+                if single
                 else ["--identifiers", *identifiers]
             )
-            if len(identifiers) == 1 and "index" in arguments:
+            if single and "index" in arguments:
                 command.extend(("--index", str(arguments["index"])))
+            if labels_after_identifiers:
+                command.extend(("--trailing-label", labels[0]))
             gesture = str(arguments.get("gesture", "tap"))
             action = (
                 "press"
                 if gesture == "press"
-                else "tap" if len(identifiers) == 1 else "tapSequence"
+                else "tap" if single else "tapSequence"
             )
             if gesture == "press":
                 command.extend(
@@ -4128,11 +4213,12 @@ class ResidentOperationBackend:
             mark_click()
             identifier_response = self._controller(context, action, *command)
             self._require_success(identifier_response, "accessibility activate")
+            identifier_state = self._post_action_state(identifier_response)
+            result["identifierResponse"] = identifier_response
+            result["identifierPostActionState"] = identifier_state
             result["response"] = identifier_response
             result["interaction"] = identifier_response
-            result["postActionState"] = self._post_action_state(
-                identifier_response
-            )
+            result["postActionState"] = identifier_state
             if absent:
                 observations = identifier_response.get("assertAbsentObservations")
                 if not isinstance(observations, list):
@@ -4147,7 +4233,7 @@ class ResidentOperationBackend:
                     sort_keys=True,
                     separators=(",", ":"),
                 )
-        if not also_inspect:
+        if not also_inspect and not labels_after_identifiers:
             label_responses: list[Mapping[str, object]] = []
             label_states: list[Mapping[str, object]] = []
             for label in labels:
@@ -4181,6 +4267,14 @@ class ResidentOperationBackend:
 
     def _accessibility_inspect_2(self, arguments, context):
         command = ["--identifier", str(arguments["identifier"]), "--index", str(arguments.get("index", 0))]
+        summon: dict[str, object] | None = None
+        if arguments.get("summonControls") is True:
+            # The immersive controls attachment entity is disabled while the
+            # deck is hidden, so its probes leave the hierarchy with it. This
+            # is the same summon presentation.exit-spatial performs before it
+            # reads PlayerUI-spatial-state.
+            summon = self._app_command(context, "toggleControls", "visible=true")
+            self._require_success(summon, "controls summon")
         deadline = time.monotonic() + int(arguments.get("deadlineSeconds", 0))
         observations: list[dict[str, object]] = []
         while True:
@@ -4202,6 +4296,7 @@ class ResidentOperationBackend:
             "matchedElement": matched_element,
             "response": result,
             "observations": observations,
+            **({"summon": summon} if summon is not None else {}),
             "relatedResults": list(arguments.get("relatedResults", [])),
         }
 
@@ -6876,6 +6971,47 @@ class ResidentOperationBackend:
             ),
         )
 
+    def _seek_steady_position_millis(self, fields: Mapping[str, str]) -> int | None:
+        """The observed position once the runtime is no longer moving it itself."""
+        if str(fields.get("transition", "none")) != "none":
+            return None
+        if str(fields.get("seekInProgress", "false")).lower() == "true":
+            return None
+        if str(fields.get("lifecycle", "")).lower() not in (
+            "playing",
+            "ready",
+            "paused",
+            "ended",
+        ):
+            return None
+        try:
+            return round(float(fields["position"]) * 1000)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _require_seek_identity(
+        self,
+        fields: Mapping[str, str],
+        session: object,
+        media_name: object,
+        expected_revision: object,
+    ) -> None:
+        if fields.get("session") != session:
+            raise OperationAdapterError(
+                "playback session changed while applying seek"
+            )
+        if fields.get("mediaName") != media_name:
+            raise OperationAdapterError(
+                "media identity changed while applying seek"
+            )
+        if (
+            expected_revision not in (None, "", "none", "unavailable")
+            and fields.get("contentRevision") != expected_revision
+        ):
+            raise OperationAdapterError(
+                "content revision changed while applying seek"
+            )
+
     def _playback_seek_2(self, arguments, context):
         before = self._diagnostics_playback_state_1({}, context)
         before_fields = before.get("fields")
@@ -6899,90 +7035,103 @@ class ResidentOperationBackend:
         if arguments.get("summonControls") is True:
             summon = self._app_command(context, "toggleControls", "visible=true")
             self._require_success(summon, "seek controls summon")
-        value = int(arguments["positionMillionths"]) / 1_000_000
-        action = self._controller(
-            context,
-            "adjust",
-            "--identifier",
-            "PlayerPanel-progress",
-            "--normalized-x",
-            f"{value:.6f}",
-        )
-        self._require_success(action, "playback progress adjustment")
-        target_millis = round(duration_millis * value)
+        target = int(arguments["positionMillionths"]) / 1_000_000
+        target_millis = round(duration_millis * target)
         tolerance_millis = 1_500
-        deadline = time.monotonic() + 30
-        observations: list[dict[str, object]] = []
-        last_response: dict[str, object] = {}
         expected_revision = before_fields.get("contentRevision")
-        while time.monotonic() < deadline:
-            fields, last_response = self._read_control_plane(context)
-            if fields is not None:
-                observations.append(dict(fields))
-                if fields.get("session") != session:
-                    raise OperationAdapterError(
-                        "playback session changed while applying seek"
+        matrix = self._matrix(context)
+        cursor = matrix.probe_cursor(self._probe_lines(context))
+        deadline = time.monotonic() + PROGRESS_SEEK_DEADLINE_SECONDS
+        observations: list[dict[str, object]] = []
+        taps: list[dict[str, object]] = []
+        last_response: dict[str, object] = {}
+        action: dict[str, object] = {}
+        offset = target
+        while len(taps) < PROGRESS_SEEK_TAP_LIMIT and time.monotonic() < deadline:
+            action = self._controller(
+                context,
+                "coordinateTap",
+                "--identifier",
+                "PlayerPanel-progress",
+                "--normalized-x",
+                f"{offset:.6f}",
+                "--normalized-y",
+                "0.500000",
+            )
+            self._require_success(action, "playback progress tap")
+            landed_millis: int | None = None
+            while time.monotonic() < deadline:
+                fields, last_response = self._read_control_plane(context)
+                if fields is not None:
+                    observations.append(dict(fields))
+                    self._require_seek_identity(
+                        fields, session, media_name, expected_revision
                     )
-                if fields.get("mediaName") != media_name:
-                    raise OperationAdapterError(
-                        "media identity changed while applying seek"
-                    )
-                if (
-                    expected_revision not in (None, "", "none", "unavailable")
-                    and fields.get("contentRevision") != expected_revision
-                ):
-                    raise OperationAdapterError(
-                        "content revision changed while applying seek"
-                    )
-                try:
-                    position_millis = round(float(fields["position"]) * 1000)
-                except (KeyError, TypeError, ValueError):
-                    position_millis = None
-                lifecycle = str(fields.get("lifecycle", "")).lower()
-                if (
-                    position_millis is not None
-                    and abs(position_millis - target_millis) <= tolerance_millis
-                    and lifecycle in ("playing", "ready", "paused", "ended")
-                    and fields.get("transition") == "none"
-                ):
-                    after = {
-                        "succeeded": True,
-                        "session": str(session),
-                        "mediaName": str(media_name),
-                        "fields": fields,
-                        "response": last_response,
-                    }
-                    return {
-                        "succeeded": True,
-                        "drive": "accessibility-adjust",
-                        "before": before,
-                        "summon": summon,
-                        "action": action,
-                        "settlement": {
-                            "targetPositionMillis": target_millis,
-                            "positionToleranceMillis": tolerance_millis,
-                            "terminal": fields,
-                            "observations": observations,
-                        },
-                        "after": after,
-                        "identityObservation": {
-                            "session": session,
-                            "mediaName": media_name,
-                            "contentRevision": expected_revision,
-                            "sessionPreserved": True,
-                            "mediaPreserved": True,
-                            "contentRevisionPreserved": (
-                                expected_revision
-                                in (None, "", "none", "unavailable")
-                                or fields.get("contentRevision")
-                                == expected_revision
-                            ),
-                        },
-                    }
-            time.sleep(0.25)
+                    landed_millis = self._seek_steady_position_millis(fields)
+                    if landed_millis is not None:
+                        break
+                time.sleep(0.25)
+            delta, cursor, _ = matrix.probe_lines_since(
+                self._probe_lines(context), cursor
+            )
+            delivery = [line for line in delta if PROGRESS_SEEK_PROBE_LINE in line]
+            taps.append(
+                {
+                    "normalizedOffset": round(offset, 6),
+                    "landedPositionMillis": landed_millis,
+                    "deliveryLines": delivery,
+                    "response": action,
+                }
+            )
+            if not delivery:
+                raise OperationAdapterError(
+                    "the progress tap reached no product-side seek delivery: "
+                    f"{taps[-1]}"
+                )
+            if landed_millis is None:
+                break
+            if abs(landed_millis - target_millis) <= tolerance_millis:
+                terminal = observations[-1]
+                after = {
+                    "succeeded": True,
+                    "session": str(session),
+                    "mediaName": str(media_name),
+                    "fields": terminal,
+                    "response": last_response,
+                }
+                return {
+                    "succeeded": True,
+                    "drive": "progress-track-tap",
+                    "before": before,
+                    "summon": summon,
+                    "action": action,
+                    "settlement": {
+                        "targetPositionMillis": target_millis,
+                        "positionToleranceMillis": tolerance_millis,
+                        "terminal": terminal,
+                        "observations": observations,
+                        "taps": taps,
+                    },
+                    "after": after,
+                    "identityObservation": {
+                        "session": session,
+                        "mediaName": media_name,
+                        "contentRevision": expected_revision,
+                        "sessionPreserved": True,
+                        "mediaPreserved": True,
+                        "contentRevisionPreserved": (
+                            expected_revision in (None, "", "none", "unavailable")
+                            or terminal.get("contentRevision") == expected_revision
+                        ),
+                    },
+                }
+            offset = min(
+                max(offset + (target_millis - landed_millis) / duration_millis, 0.0),
+                1.0,
+            )
         return {
             "succeeded": False,
-            "drive": "accessibility-adjust",
+            "drive": "progress-track-tap",
             "before": before,
             "summon": summon,
             "action": action,
@@ -6991,6 +7140,7 @@ class ResidentOperationBackend:
                 "targetPositionMillis": target_millis,
                 "positionToleranceMillis": tolerance_millis,
                 "observations": observations,
+                "taps": taps,
                 "lastController": last_response,
             },
         }
@@ -7109,6 +7259,7 @@ class ResidentOperationBackend:
         host = str(arguments["host"])
         expected_source_kind = str(arguments["sourceKind"])
         track_label = arguments.get("trackLabel")
+        deadline_seconds = int(arguments["deadlineSeconds"])
         before = self._diagnostics_playback_state_1({}, context)
         before_fields = before.get("fields")
         if not isinstance(before_fields, Mapping):
@@ -7146,6 +7297,7 @@ class ResidentOperationBackend:
                 "selectionSettled": False,
                 "host": host,
                 "sourceKind": actual_source_kind,
+                "deadlineSeconds": deadline_seconds,
                 "reason": "subtitle-candidate-missing",
                 "requestedTrackLabel": track_label,
                 "discoveryResponse": selection_response,
@@ -7166,7 +7318,7 @@ class ResidentOperationBackend:
         target_label = str(selected_before["label"])
 
         started = time.monotonic()
-        deadline = started + int(arguments["deadlineSeconds"])
+        deadline = started + deadline_seconds
         observations: list[dict[str, object]] = []
         frames: list[dict[str, object]] = []
         last_state: Mapping[str, object] | None = None
@@ -7237,6 +7389,7 @@ class ResidentOperationBackend:
                     "selectionSettled": True,
                     "host": host,
                     "sourceKind": actual_source_kind,
+                    "deadlineSeconds": deadline_seconds,
                     "discoveryResponse": selection_response,
                     "discoveredTracks": discovered_tracks,
                     "selectedTrack": selected_track,
@@ -7267,6 +7420,7 @@ class ResidentOperationBackend:
             "selectionSettled": False,
             "host": host,
             "sourceKind": actual_source_kind,
+            "deadlineSeconds": deadline_seconds,
             "reason": "subtitle-selection-deadline-expired",
             "discoveryResponse": selection_response,
             "discoveredTracks": discovered_tracks,
@@ -7317,12 +7471,50 @@ class ResidentOperationBackend:
         self._require_success(summon, "format controls summon")
         editor_sequence = None
         coverage_selection = None
+        coverage_dismissal = None
         if projection_value == "customAngle":
-            coverage = int(arguments.get("horizontalCoverageDegrees", 180))
-            identifiers = (
+            coverage = int(arguments.get("horizontalCoverageDegrees", 200))
+            # The per-degree rows are Text inside an inline Picker, and SwiftUI
+            # discards their .accessibilityIdentifier, so no
+            # PlayerUI-VideoFormat-CustomAngle-<degrees> element ever reaches
+            # the hierarchy. The product ships the compensating receiver that
+            # Config/reachability_operation_inventory.json registers as the
+            # debugEquivalent of accessibility:PlayerUI-VideoFormat-CustomAngle:
+            # open the named Picker for real, enumerate and select through
+            # listMenuItems/selectMenuItem, then dismiss the open menu by the
+            # row's own label. This is the route reachability_matrix drives.
+            editor_sequence = self._controller(
+                context,
+                "tapSequence",
+                "--identifiers",
                 "PlayerUI-TopAction-videoFormat",
                 "PlayerUI-VideoFormat-CustomAngle",
-                f"PlayerUI-VideoFormat-CustomAngle-{coverage}",
+            )
+            self._require_success(editor_sequence, "custom angle picker")
+            listing = self._app_command(
+                context,
+                "listMenuItems",
+                "host=playerUI",
+                "family=customAngle",
+            )
+            self._require_success(listing, "custom angle menu listing")
+            selection = self._app_command(
+                context,
+                "selectMenuItem",
+                "host=playerUI",
+                "family=customAngle",
+                f"target={coverage}",
+            )
+            self._require_success(selection, "custom angle selection")
+            coverage_selection = {"listing": listing, "selection": selection}
+            coverage_dismissal = self._controller(
+                context,
+                "tap",
+                "--label",
+                f"{coverage}°",
+            )
+            self._require_success(coverage_dismissal, "custom angle dismissal")
+            identifiers = (
                 stereo,
                 "PlayerUI-VideoFormat-apply",
             )
@@ -7376,6 +7568,7 @@ class ResidentOperationBackend:
             "summon": summon,
             "customAnglePicker": editor_sequence,
             "customAngleSelection": coverage_selection,
+            "customAngleDismissal": coverage_dismissal,
             "action": action,
             "settlement": settlement,
             "after": after,
@@ -7439,8 +7632,19 @@ class ResidentOperationBackend:
             context
         )
         action = result.get("action")
+        # tapSequence publishes matchedElement: nil, so the Enter Panorama
+        # element can only be named by the pre-tap observation the runner now
+        # records for each route step.
+        route_elements = [
+            item
+            for item in result.get("routeElements", [])
+            if isinstance(item, Mapping)
+            and item.get("identifier") == "PlayerUI-TopAction-resumePanorama"
+        ]
         pre_action_matched_element = (
-            dict(action["matchedElement"])
+            dict(route_elements[0])
+            if route_elements
+            else dict(action["matchedElement"])
             if isinstance(action, Mapping)
             and isinstance(action.get("matchedElement"), Mapping)
             else None
@@ -7528,6 +7732,13 @@ class ResidentOperationBackend:
         started = time.monotonic()
         action = self._controller(context, "tapSequence", "--identifiers", *identifiers)
         self._require_success(action, f"enter {expected}")
+        route_elements = action.get("routeElements")
+        if not isinstance(route_elements, list) or len(route_elements) != len(
+            identifiers
+        ):
+            raise OperationAdapterError(
+                f"enter {expected} did not record one route element per step"
+            )
         deadline = started + deadline_seconds
         delta: list[str] = []
         observed = cursor
@@ -7545,6 +7756,7 @@ class ResidentOperationBackend:
                     return {
                         "succeeded": succeeded,
                         "action": action,
+                        "routeElements": list(route_elements),
                         "probe": delta,
                         "cursorToken": f"{observed.sequence if observed.sequence is not None else -1}:{observed.line_count}",
                         "settlement": {
@@ -7557,6 +7769,7 @@ class ResidentOperationBackend:
         return {
             "succeeded": False,
             "action": action,
+            "routeElements": list(route_elements),
             "probe": delta,
             "cursorToken": f"{observed.sequence if observed.sequence is not None else -1}:{observed.line_count}",
             "settlement": {

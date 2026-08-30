@@ -83,11 +83,11 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-2"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:06",
       "maxInvocations": 1,
@@ -148,11 +148,11 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-3"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:13",
       "maxInvocations": 1,
@@ -356,11 +356,11 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-1"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:37",
       "maxInvocations": 1,
@@ -421,11 +421,11 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-8"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:44",
       "maxInvocations": 1,

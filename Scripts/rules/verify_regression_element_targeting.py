@@ -29,6 +29,11 @@ VERIFICATION = "Scripts/verification"
 PRODUCT_NOTES = ".agents/skills/vp-e2e/references/product.md"
 
 SEEDED_PREFIX = "Enchron Regression"
+GRID_CARD = "Modules/DesignSystem/Components/GridCard.swift"
+VARIANT_KEY = re.compile(r'case \.\w+: return "(\w+)"')
+"""GridCard labels itself `<title>, <variantKey>`, so a card's label is a seeded
+name plus one of those suffixes. The variants are read from the component rather
+than listed here, so a new card kind cannot quietly widen what this accepts."""
 SEEDED_NAME = re.compile(rf"{SEEDED_PREFIX}[A-Za-z0-9 .'\-]*")
 
 ACTIVATE = "operation:accessibility.activate@2"
@@ -59,6 +64,13 @@ def seeded_names() -> set[str]:
     return found
 
 
+def card_labels(seeded: set[str]) -> set[str]:
+    source = (REPOSITORY_ROOT / GRID_CARD).read_text(encoding="utf-8")
+    start = source.find("private var variantKey")
+    variants = set(VARIANT_KEY.findall(source[start : start + 400])) if start >= 0 else set()
+    return {f"{name}, {variant}" for name in seeded for variant in variants}
+
+
 def calls(catalog: dict):
     for scenario in catalog.get("scenarios", []):
         for call in scenario.get("operations", []):
@@ -78,6 +90,7 @@ def string_arguments(call: dict):
 def failures() -> list[str]:
     catalog = blueprint()
     seeded = seeded_names()
+    accepted = seeded | card_labels(seeded)
     notes = (REPOSITORY_ROOT / PRODUCT_NOTES).read_text(encoding="utf-8")
     found: list[str] = []
 
@@ -91,7 +104,7 @@ def failures() -> list[str]:
     for scenario, call in calls(catalog):
         where = call.get("callId", scenario)
         for key, value in string_arguments(call):
-            if key in SELECTING and value.startswith(SEEDED_PREFIX) and value not in seeded:
+            if key in SELECTING and value.startswith(SEEDED_PREFIX) and value not in accepted:
                 found.append(
                     f"{where}: {key} names {value!r}, which nothing under "
                     f"{VERIFICATION} seeds"

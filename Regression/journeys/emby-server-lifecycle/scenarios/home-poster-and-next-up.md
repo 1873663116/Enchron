@@ -63,7 +63,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Series"
+          "Enchron Regression Series, poster"
         ]
       },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:05",
@@ -97,7 +97,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Episode"
+          "Enchron Regression Episode, poster"
         ]
       },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:09",

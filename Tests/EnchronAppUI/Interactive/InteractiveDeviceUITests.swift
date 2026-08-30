@@ -147,7 +147,8 @@ private final class InteractiveDeviceUIChannel {
                 message: result.message,
                 matchedElement: nil,
                 alsoInspected: result.alsoInspected,
-                assertAbsentObservations: result.assertAbsentObservations
+                assertAbsentObservations: result.assertAbsentObservations,
+                routeElements: result.routeElements
             )
             return false
         }
@@ -371,14 +372,19 @@ private final class InteractiveDeviceUIChannel {
         success: Bool,
         message: String,
         alsoInspected: [InteractiveDeviceUIInspectedElement],
-        assertAbsentObservations: [InteractiveDeviceUIInspectedElement]
+        assertAbsentObservations: [InteractiveDeviceUIInspectedElement],
+        routeElements: [InteractiveDeviceUIElementObservation]
     ) {
         guard let identifiers = command.identifiers,
               identifiers.isEmpty == false else {
-            return (false, "tapSequence requires identifiers.", [], [])
+            return (false, "tapSequence requires identifiers.", [], [], [])
         }
         var alsoInspected: [InteractiveDeviceUIInspectedElement] = []
         var observations: [InteractiveDeviceUIInspectedElement] = []
+        // The route each step resolved, read while the element is still on
+        // screen. A tapped element is gone by the time the response is
+        // published, so this is the only place its label can be recorded.
+        var routeElements: [InteractiveDeviceUIElementObservation] = []
 
         func record(afterStep: String) {
             alsoInspected.append(
@@ -405,7 +411,8 @@ private final class InteractiveDeviceUIChannel {
                     false,
                     "tapSequence stopped at label \(label): no matching element appeared.",
                     alsoInspected,
-                    observations
+                    observations,
+                    routeElements
                 )
             }
             guard element.isHittable else {
@@ -413,9 +420,11 @@ private final class InteractiveDeviceUIChannel {
                     false,
                     "tapSequence stopped at label \(label): the element is not hittable.",
                     alsoInspected,
-                    observations
+                    observations,
+                    routeElements
                 )
             }
+            routeElements.append(matchedElementObservation(for: element))
             element.tap()
             record(afterStep: "label:\(label)")
         }
@@ -428,7 +437,8 @@ private final class InteractiveDeviceUIChannel {
                     false,
                     "tapSequence stopped at [\(position)] \(identifier): no matching element appeared.",
                     alsoInspected,
-                    observations
+                    observations,
+                    routeElements
                 )
             }
             guard element.isHittable else {
@@ -436,17 +446,60 @@ private final class InteractiveDeviceUIChannel {
                     false,
                     "tapSequence stopped at [\(position)] \(identifier): the element is not hittable.",
                     alsoInspected,
-                    observations
+                    observations,
+                    routeElements
                 )
             }
+            routeElements.append(matchedElementObservation(for: element))
             element.tap()
             record(afterStep: identifier)
+        }
+        // A nested menu route addresses its leaf row by label, and that row
+        // only exists once the identifier steps above have opened the submenu.
+        // `label` is tapped before the identifiers, so a route that ends on a
+        // label needs this step instead of a second command: the menu does not
+        // survive two controller round trips.
+        if let trailingLabel = command.trailingLabel,
+           trailingLabel.isEmpty == false {
+            let matches = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label == %@", trailingLabel)
+            )
+            let element = matches.element(boundBy: 0)
+            guard element.waitForExistence(timeout: 3) else {
+                return (
+                    false,
+                    "tapSequence stopped at trailing label \(trailingLabel): no matching element appeared.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            guard element.isHittable else {
+                return (
+                    false,
+                    "tapSequence stopped at trailing label \(trailingLabel): the element is not hittable.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            routeElements.append(matchedElementObservation(for: element))
+            element.tap()
+            record(afterStep: "label:\(trailingLabel)")
+            return (
+                true,
+                "Tapped \(identifiers.count) elements in sequence, then label \(trailingLabel).",
+                alsoInspected,
+                observations,
+                routeElements
+            )
         }
         return (
             true,
             "Tapped \(identifiers.count) elements in sequence.",
             alsoInspected,
-            observations
+            observations,
+            routeElements
         )
     }
 
@@ -532,7 +585,8 @@ private final class InteractiveDeviceUIChannel {
         message: String,
         matchedElement: InteractiveDeviceUIElementObservation?,
         alsoInspected: [InteractiveDeviceUIInspectedElement] = [],
-        assertAbsentObservations: [InteractiveDeviceUIInspectedElement] = []
+        assertAbsentObservations: [InteractiveDeviceUIInspectedElement] = [],
+        routeElements: [InteractiveDeviceUIElementObservation] = []
     ) throws {
         let screenshotName: String?
         if command.includeScreenshot == false {
@@ -554,7 +608,8 @@ private final class InteractiveDeviceUIChannel {
             matchedElement: matchedElement,
             screenshotRelativePath: screenshotName,
             alsoInspected: alsoInspected,
-            assertAbsentObservations: assertAbsentObservations
+            assertAbsentObservations: assertAbsentObservations,
+            routeElements: routeElements
         )
         let responseURL = responsesURL.appending(
             path: "\(command.id).json"
@@ -658,6 +713,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let assertAbsent: [String]?
     let alsoInspect: [String]?
     let label: String?
+    let trailingLabel: String?
     let index: Int?
     let text: String?
     let duration: TimeInterval?
@@ -677,6 +733,7 @@ private struct InteractiveDeviceUIResponse: Codable {
     let screenshotRelativePath: String?
     let alsoInspected: [InteractiveDeviceUIInspectedElement]
     let assertAbsentObservations: [InteractiveDeviceUIInspectedElement]
+    let routeElements: [InteractiveDeviceUIElementObservation]
 }
 
 private struct InteractiveDeviceUIInspectedElement: Codable {

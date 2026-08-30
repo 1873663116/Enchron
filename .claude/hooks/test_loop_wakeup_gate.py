@@ -27,7 +27,14 @@ def run(records, cwd="."):
     done = subprocess.run(["python3", HOOK], input=payload, capture_output=True, text=True)
     return done.returncode, done.stderr.strip()
 
+def notification(text="<task-notification>done</task-notification>"):
+    return {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": text}]}}
+
 cases = [
+    ("武装之后到达的后台通知不重置本轮",
+     [user(), assistant(wakeup(delaySeconds=900)), notification(), assistant(other())], 0),
+    ("从未武装时通知也不豁免",
+     [user(), assistant(wakeup(delaySeconds=900)), user(), assistant(other()), notification()], 2),
     ("从未用过 loop 的会话不拦", [user(), assistant(other())], 0),
     ("本轮武装了 wakeup 就放行",
      [user(), assistant(wakeup(delaySeconds=900)), user(), assistant(wakeup(delaySeconds=900))], 0),

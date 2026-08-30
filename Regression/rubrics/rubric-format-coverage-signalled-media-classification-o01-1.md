@@ -6,7 +6,7 @@
   "title": "Signalled Media Classification",
   "criteria": [
     "The source classification, effective presentation, attachment, projection, and packing agree with the reviewed fixture declaration for the case.",
-    "Three valid frames show non-solid content after the declared presentation settles, and time-separated frame pairs have FFmpeg SSIM no greater than 0.995, the VISUAL_FROZEN_SSIM threshold in Scripts/verification/playback_mode_matrix.py:1329."
+    "For caseKey apple-apmp-180, whose fixture runs 85 s, the three captured frames have pairwise-different screenshotDigest values and each frame's playbackState.fields shows position, videoSamples and rendererInputs strictly advancing. For caseKey mv-hevc-stereo the frames are required only to be valid and to agree with presentationObservation, because the registered fixture runs 4.05 s while three device-lane frames cost about 23 s, so a correct product would show one frozen final frame."
   ],
   "negativeControls": [
     "If any required modality is invalid or missing, the result is Indeterminate rather than inferred from the remaining modality.",

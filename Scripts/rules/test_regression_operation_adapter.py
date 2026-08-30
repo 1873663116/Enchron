@@ -627,6 +627,106 @@ class OperationAllowlistTests(unittest.TestCase):
             ],
         )
 
+    def test_enter_panorama_names_the_element_the_route_actually_tapped(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        route = {
+            "identifier": "PlayerUI-TopAction-resumePanorama",
+            "label": "Enter Panorama",
+            "value": None,
+            "elementType": "Button",
+            "isEnabled": True,
+            "isHittable": True,
+            "isSelected": False,
+            "frame": {"x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0},
+        }
+        action = {"success": True, "matchedElement": None, "routeElements": [route]}
+        matrix = mock.Mock(PASS="pass", WRONG_STATE="wrong-state")
+        matrix.probe_cursor.return_value = mock.Mock(sequence=1, line_count=2)
+        matrix.copy_probe_lines.return_value = (["line"], None)
+        matrix.probe_lines_since.return_value = (
+            ["line"],
+            mock.Mock(sequence=2, line_count=3),
+            None,
+        )
+        matrix.last_settlement_settled.return_value = True
+        matrix.appeared_presentation.return_value = "panorama"
+        trace = {
+            "success": True,
+            "transitionTraceSnapshot": {"generation": 7, "records": []},
+        }
+        with (
+            mock.patch.object(backend, "_matrix", return_value=matrix),
+            mock.patch.object(backend, "_probe_lines", return_value=["line"]),
+            mock.patch.object(backend, "_app_command", side_effect=[trace]),
+            mock.patch.object(
+                backend,
+                "_controller",
+                side_effect=[{"success": True}, action],
+            ),
+        ):
+            result = backend._presentation_enter_panorama_1(
+                {"deadlineSeconds": 30}, self.device
+            )
+
+        self.assertTrue(result["succeeded"])
+        self.assertEqual(result["preActionMatchedElement"], route)
+
+    def test_enter_spatial_refuses_a_route_without_its_own_observations(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        matrix = mock.Mock(PASS="pass", WRONG_STATE="wrong-state")
+        matrix.probe_cursor.return_value = mock.Mock(sequence=1, line_count=2)
+        with (
+            mock.patch.object(backend, "_matrix", return_value=matrix),
+            mock.patch.object(backend, "_probe_lines", return_value=["line"]),
+            mock.patch.object(
+                backend, "_controller", return_value={"success": True}
+            ),
+        ):
+            with self.assertRaises(adapter.OperationAdapterError):
+                backend._enter_spatial(
+                    self.device, "panorama", 30, "PlayerUI-TopAction-resumePanorama"
+                )
+
+    def test_inspect_can_summon_the_immersive_deck_before_reading_its_probe(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        matched = {"identifier": "PlayerUI-spatial-state", "value": "presentation=panorama"}
+        summon = {"ok": True, "payload": ["true"]}
+        with (
+            mock.patch.object(
+                backend, "_app_command", return_value=summon
+            ) as app_command,
+            mock.patch.object(
+                backend,
+                "_controller",
+                return_value={"success": True, "matchedElement": matched},
+            ) as controller,
+        ):
+            result = backend._accessibility_inspect_2(
+                {
+                    "context": "panorama",
+                    "identifier": "PlayerUI-spatial-state",
+                    "requireMatchedElement": True,
+                    "deadlineSeconds": 20,
+                    "summonControls": True,
+                },
+                self.device,
+            )
+
+        self.assertTrue(result["succeeded"])
+        self.assertEqual(result["matchedElement"], matched)
+        self.assertIs(result["summon"], summon)
+        app_command.assert_called_once_with(
+            self.device, "toggleControls", "visible=true"
+        )
+        controller.assert_called_once_with(
+            self.device,
+            "snapshot",
+            "--identifier",
+            "PlayerUI-spatial-state",
+            "--index",
+            "0",
+        )
+
     def test_ensure_session_uses_the_lease_context_as_its_only_target_authority(self) -> None:
         backend = adapter.ResidentOperationBackend()
         response = {"success": True, "payload": []}
@@ -841,6 +941,11 @@ class OperationAllowlistTests(unittest.TestCase):
             ],
         )
         self.assertEqual(len(result["labelResponses"]), 2)
+        self.assertEqual(result["identifierResponse"]["path"], "identifier")
+        self.assertEqual(
+            result["identifierPostActionState"]["hierarchy"], "identifier state"
+        )
+        self.assertEqual(result["interaction"]["path"], "label-2")
 
     def test_accessibility_activate_labels_require_each_controller_success(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -3050,6 +3155,89 @@ class OperationAllowlistTests(unittest.TestCase):
             {call.args[1] for call in controller.call_args_list}, {"snapshot"}
         )
 
+    def test_frame_capture_reads_named_artwork_key_after_the_exit(self) -> None:
+        spec = adapter.SPECS["operation:evidence.capture-frames@1"]
+        key = "media-" + "4" * 64
+        base = {
+            "count": 4,
+            "minimumIntervalMillis": 0,
+            "context": "window",
+            "artworkExpectation": "exit-replaces-current-frame",
+        }
+        reference = (
+            "result://call:local-media-lifecycle:artwork-captured-on-exit:06"
+            "/artworkKey"
+        )
+        for accepted in ({**base, "artworkKey": key}, {**base, "artworkKey": reference}):
+            with self.subTest(arguments=accepted):
+                self.assertEqual(
+                    dict(spec.validate("device", accepted)), accepted
+                )
+        for invalid in (
+            # No exit capture to read, so no store to name.
+            {
+                **VALID_ARGUMENTS["operation:evidence.capture-frames@1"],
+                "artworkKey": key,
+            },
+            {**base, "artworkKey": "media-not-a-digest"},
+            {
+                **base,
+                "artworkKey": (
+                    "result://call:local-media-lifecycle:"
+                    "artwork-captured-on-exit:06/frameManifest"
+                ),
+            },
+        ):
+            with self.subTest(arguments=invalid), self.assertRaises(
+                adapter.OperationAdapterError
+            ):
+                spec.validate("device", invalid)
+
+        stored = "sha256:" + "5" * 64
+
+        def probe() -> dict[str, object]:
+            return {
+                "success": True,
+                "payload": [
+                    "schema=enchron.regression.artwork-probe@1",
+                    f"artworkKey={key}",
+                    # The exit ended the session, so the runtime has no current
+                    # frame and no live byte-source counters left to report.
+                    "currentDigest=none",
+                    f"storedDigest={stored}",
+                    "currentWidth=0",
+                    "currentHeight=0",
+                    "storedBytes=8192",
+                    "byteStreamScope=none",
+                    "byteStreamRequestCount=none",
+                ],
+            }
+
+        backend = adapter.ResidentOperationBackend()
+        with (
+            mock.patch.object(
+                backend, "_app_command", side_effect=(probe(), probe())
+            ) as app_command,
+            mock.patch.object(
+                backend, "_controller", return_value={"success": True}
+            ),
+            mock.patch.object(adapter.time, "monotonic", return_value=1.0),
+        ):
+            result = backend._evidence_capture_frames_1(
+                {**base, "artworkKey": key}, self.device
+            )
+
+        self.assertEqual(
+            [call.args[2] for call in app_command.call_args_list],
+            [f"key={key}", f"key={key}"],
+        )
+        self.assertEqual(result["artworkKey"], key)
+        self.assertEqual(result["artworkStoredDigest"], stored)
+        self.assertEqual(result["artworkCurrentDigest"], "none")
+        self.assertEqual(result["artworkStoredBytes"], "8192")
+        self.assertEqual(result["artworkByteStreamScope"], "none")
+        self.assertEqual(result["artworkByteStreamRequestCount"], "none")
+
     def test_finite_backoff_surface_observation_binds_receipt_log_and_restore(self) -> None:
         backend = adapter.ResidentOperationBackend()
         with tempfile.TemporaryDirectory(prefix="surface-remote-test-") as directory:
@@ -3387,17 +3575,42 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(result["settlement"]["terminal"], terminal)
         self.assertEqual(result["after"], terminal_observation)
         self.assertEqual(
-            controller.call_args_list[1],
-            mock.call(
+            controller.call_args_list[1:4],
+            [
+                mock.call(
                     self.device,
                     "tapSequence",
                     "--identifiers",
                     "PlayerUI-TopAction-videoFormat",
                     "PlayerUI-VideoFormat-CustomAngle",
-                    "PlayerUI-VideoFormat-CustomAngle-240",
+                ),
+                mock.call(self.device, "tap", "--label", "240°"),
+                mock.call(
+                    self.device,
+                    "tapSequence",
+                    "--identifiers",
                     "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
                     "PlayerUI-VideoFormat-apply",
                 ),
+            ],
+        )
+        self.assertEqual(
+            app_command.call_args_list[:2],
+            [
+                mock.call(
+                    self.device,
+                    "listMenuItems",
+                    "host=playerUI",
+                    "family=customAngle",
+                ),
+                mock.call(
+                    self.device,
+                    "selectMenuItem",
+                    "host=playerUI",
+                    "family=customAngle",
+                    "target=240",
+                ),
+            ],
         )
 
     def test_format_apply_preserves_terminal_projection_or_coverage_difference_for_oracle(self) -> None:
@@ -5495,7 +5708,22 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         )
         self.assertEqual(captured["transport"].target, self.device.target)
 
-    def test_seek_waits_for_target_and_preserves_session_and_media(self) -> None:
+    @staticmethod
+    def _seek_probe_matrix():
+        """A cursor over the copied probe file is an integer line offset."""
+
+        class _Matrix:
+            @staticmethod
+            def probe_cursor(lines):
+                return len(lines)
+
+            @staticmethod
+            def probe_lines_since(lines, previous):
+                return list(lines[previous:]), len(lines), None
+
+        return _Matrix
+
+    def test_seek_taps_the_track_until_the_delivered_position_settles(self) -> None:
         backend = adapter.ResidentOperationBackend()
         before_fields = {
             "presentation": "window",
@@ -5517,9 +5745,18 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         }
         settling = {**before_fields, "position": "35.0"}
         terminal = {**before_fields, "position": "50.2"}
+        delivered = adapter.PROGRESS_SEEK_PROBE_LINE
         with (
             mock.patch.object(
                 backend, "_diagnostics_playback_state_1", return_value=before
+            ),
+            mock.patch.object(
+                backend, "_matrix", return_value=self._seek_probe_matrix()
+            ),
+            mock.patch.object(
+                backend,
+                "_probe_lines",
+                side_effect=[[], [delivered], [delivered, delivered]],
             ),
             mock.patch.object(
                 backend,
@@ -5546,15 +5783,87 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertEqual(result["settlement"]["terminal"], terminal)
         self.assertEqual(result["settlement"]["targetPositionMillis"], 50_000)
         self.assertEqual(len(result["settlement"]["observations"]), 2)
-        controller.assert_called_once_with(
-            self.device,
-            "adjust",
-            "--identifier",
-            "PlayerPanel-progress",
-            "--normalized-x",
-            "0.500000",
+        self.assertEqual(
+            [tap["normalizedOffset"] for tap in result["settlement"]["taps"]],
+            [0.5, 0.65],
         )
-        self.assertEqual(result["drive"], "accessibility-adjust")
+        self.assertEqual(
+            [tap["landedPositionMillis"] for tap in result["settlement"]["taps"]],
+            [35_000, 50_200],
+        )
+        self.assertEqual(
+            controller.call_args_list,
+            [
+                mock.call(
+                    self.device,
+                    "coordinateTap",
+                    "--identifier",
+                    "PlayerPanel-progress",
+                    "--normalized-x",
+                    "0.500000",
+                    "--normalized-y",
+                    "0.500000",
+                ),
+                mock.call(
+                    self.device,
+                    "coordinateTap",
+                    "--identifier",
+                    "PlayerPanel-progress",
+                    "--normalized-x",
+                    "0.650000",
+                    "--normalized-y",
+                    "0.500000",
+                ),
+            ],
+        )
+        self.assertEqual(result["drive"], "progress-track-tap")
+
+    def test_seek_rejects_a_tap_the_product_never_received(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        before_fields = {
+            "session": "session-a",
+            "mediaName": "fixture.mkv",
+            "transition": "none",
+            "lifecycle": "Playing",
+            "position": "10.0",
+            "duration": "100.0",
+        }
+        with (
+            mock.patch.object(
+                backend,
+                "_diagnostics_playback_state_1",
+                return_value={
+                    "succeeded": True,
+                    "session": "session-a",
+                    "mediaName": "fixture.mkv",
+                    "fields": before_fields,
+                    "response": {"success": True},
+                },
+            ),
+            mock.patch.object(
+                backend, "_matrix", return_value=self._seek_probe_matrix()
+            ),
+            mock.patch.object(
+                backend,
+                "_probe_lines",
+                side_effect=[[], ["reachability playerPanel delivered action=menu.more"]],
+            ),
+            mock.patch.object(
+                backend, "_controller", return_value={"success": True}
+            ),
+            mock.patch.object(
+                backend,
+                "_read_control_plane",
+                return_value=({**before_fields, "position": "10.0"}, {"success": True}),
+            ),
+            mock.patch.object(adapter.time, "sleep"),
+            self.assertRaisesRegex(
+                adapter.OperationAdapterError, "no product-side seek delivery"
+            ),
+        ):
+            backend._playback_seek_2(
+                {"positionMillionths": 500_000}, self.device
+            )
 
     def test_seek_rejects_a_session_change_even_at_the_requested_position(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -5576,6 +5885,10 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                     "response": {"success": True},
                 },
             ),
+            mock.patch.object(
+                backend, "_matrix", return_value=self._seek_probe_matrix()
+            ),
+            mock.patch.object(backend, "_probe_lines", return_value=[]),
             mock.patch.object(
                 backend,
                 "_controller",
@@ -5839,7 +6152,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertIs(result["spatialState"]["response"], spatial_response)
         self.assertTrue(result["spatialState"]["succeeded"])
 
-    def test_custom_angle_selection_is_one_resident_tap_sequence(self) -> None:
+    def test_custom_angle_selection_uses_the_declared_debug_menu_equivalent(self) -> None:
         backend = adapter.ResidentOperationBackend()
         fields = {
             "presentation": "portal",
@@ -5865,7 +6178,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 backend,
                 "_app_command",
                 return_value={"success": True, "payload": ["true"]},
-            ),
+            ) as app_command,
             mock.patch.object(
                 backend, "_controller", return_value={"success": True}
             ) as controller,
@@ -5886,18 +6199,58 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             )
 
         self.assertTrue(result["succeeded"])
+        # No per-degree identifier is ever addressed: SwiftUI discards the
+        # identifier on an inline Picker's Text rows, so the coverage is
+        # selected through the registered debugEquivalent and the open menu is
+        # dismissed by the row's own label.
+        addressed = [
+            argument
+            for call in controller.call_args_list
+            for argument in call.args
+            if isinstance(argument, str)
+        ]
+        self.assertNotIn("PlayerUI-VideoFormat-CustomAngle-240", addressed)
         self.assertEqual(
-            controller.call_args_list[1],
-            mock.call(
-                self.device,
-                "tapSequence",
-                "--identifiers",
-                "PlayerUI-TopAction-videoFormat",
-                "PlayerUI-VideoFormat-CustomAngle",
-                "PlayerUI-VideoFormat-CustomAngle-240",
-                "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
-                "PlayerUI-VideoFormat-apply",
-            ),
+            controller.call_args_list[1:4],
+            [
+                mock.call(
+                    self.device,
+                    "tapSequence",
+                    "--identifiers",
+                    "PlayerUI-TopAction-videoFormat",
+                    "PlayerUI-VideoFormat-CustomAngle",
+                ),
+                mock.call(self.device, "tap", "--label", "240°"),
+                mock.call(
+                    self.device,
+                    "tapSequence",
+                    "--identifiers",
+                    "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
+                    "PlayerUI-VideoFormat-apply",
+                ),
+            ],
+        )
+        self.assertEqual(
+            app_command.call_args_list[:2],
+            [
+                mock.call(
+                    self.device,
+                    "listMenuItems",
+                    "host=playerUI",
+                    "family=customAngle",
+                ),
+                mock.call(
+                    self.device,
+                    "selectMenuItem",
+                    "host=playerUI",
+                    "family=customAngle",
+                    "target=240",
+                ),
+            ],
+        )
+        self.assertEqual(
+            result["customAngleSelection"]["selection"],
+            {"success": True, "payload": ["true"]},
         )
 
     def test_browse_hierarchy_drives_and_records_the_requested_path(self) -> None:

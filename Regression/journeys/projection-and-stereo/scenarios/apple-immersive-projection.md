@@ -82,10 +82,26 @@
     {
       "arguments": {
         "context": "panorama",
-        "count": 3,
-        "minimumIntervalMillis": 1000
+        "deadlineSeconds": 20,
+        "identifier": "PlayerUI-spatial-state",
+        "requireMatchedElement": true,
+        "summonControls": true
       },
       "callId": "call:projection-and-stereo:apple-immersive-projection:07",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "panorama",
+        "count": 3,
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:projection-and-stereo:apple-immersive-projection:07/matchedElement",
+          "result://call:projection-and-stereo:apple-immersive-projection:07/response"
+        ]
+      },
+      "callId": "call:projection-and-stereo:apple-immersive-projection:08",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -98,7 +114,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:apple-immersive-projection:o01:default",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:apple-immersive-projection:07",
+      "producedByCall": "call:projection-and-stereo:apple-immersive-projection:08",
       "rubric": "rubric:projection-and-stereo.apple-immersive-projection.o01@1"
     }
   ],

@@ -55,7 +55,7 @@
         "context": "window",
         "labels": [
           "Enchron Regression Emby",
-          "Enchron Regression Series"
+          "Enchron Regression Series, poster"
         ]
       },
       "callId": "call:emby-server-lifecycle:artwork-by-image-tag:04",

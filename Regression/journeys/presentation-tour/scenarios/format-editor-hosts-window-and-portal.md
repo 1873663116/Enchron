@@ -92,7 +92,13 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-VideoFormat"
+        "identifier": "PlayerUI-VideoFormat",
+        "relatedResults": [
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/response",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/tappedIdentifiers",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:06/response",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:06/tappedIdentifiers"
+        ]
       },
       "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:07",
       "maxInvocations": 1,
@@ -182,6 +188,12 @@
         "context": "portal",
         "identifiers": [
           "PlayerUI-TopAction-videoFormat"
+        ],
+        "relatedResults": [
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:13/response",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/response",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/tappedIdentifiers",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:15/response"
         ]
       },
       "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:16",

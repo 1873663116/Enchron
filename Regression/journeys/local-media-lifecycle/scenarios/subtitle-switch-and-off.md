@@ -81,7 +81,8 @@
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
           "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:06",
       "maxInvocations": 1,
@@ -104,7 +105,8 @@
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
           "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:08",
       "maxInvocations": 1,
@@ -127,7 +129,8 @@
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
           "PlayerUI-menu-subtitles-off"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:10",
       "maxInvocations": 1,
@@ -150,7 +153,8 @@
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
           "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:12",
       "maxInvocations": 1,

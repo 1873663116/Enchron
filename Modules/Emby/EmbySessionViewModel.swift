@@ -193,6 +193,7 @@ public struct EmbyArtworkEvidence: Codable, Equatable, Sendable {
     public let imageTag: String
     public let sanitizedRequestURL: String?
     public let cacheKey: String
+    public let alternateTagCacheKey: String?
     public let cacheHit: EmbyObservation<Bool>
     public let network: EmbyObservation<EmbyArtworkNetworkEvidence>
     public let persistedCache: EmbyObservation<EmbyArtworkPersistedEvidence>
@@ -218,6 +219,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
                 imageTag: request.imageTag.rawValue,
                 sanitizedRequestURL: nil,
                 cacheKey: key.debugStorageKey,
+                alternateTagCacheKey: Self.alternateTagCacheKey(for: request),
                 cacheHit: .unavailable("request-route-invalid"),
                 network: .unavailable("request-route-invalid"),
                 persistedCache: .unavailable("request-route-invalid"),
@@ -231,6 +233,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
                 imageTag: request.imageTag.rawValue,
                 sanitizedRequestURL: sanitizedURL.absoluteString,
                 cacheKey: key.debugStorageKey,
+                alternateTagCacheKey: Self.alternateTagCacheKey(for: request),
                 cacheHit: .observed(true),
                 network: .notApplicable("persisted-cache-hit"),
                 persistedCache: persistedEvidence(for: key),
@@ -277,6 +280,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
                 imageTag: request.imageTag.rawValue,
                 sanitizedRequestURL: sanitizedURL.absoluteString,
                 cacheKey: key.debugStorageKey,
+                alternateTagCacheKey: Self.alternateTagCacheKey(for: request),
                 cacheHit: .observed(false),
                 network: .observed(EmbyArtworkNetworkEvidence(
                     statusCode: response.statusCode,
@@ -330,6 +334,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
             imageTag: request.imageTag.rawValue,
             sanitizedRequestURL: sanitizedURL.absoluteString,
             cacheKey: key.debugStorageKey,
+            alternateTagCacheKey: Self.alternateTagCacheKey(for: request),
             cacheHit: .observed(false),
             network: .unavailable(reason),
             persistedCache: .unavailable("network-load-did-not-persist"),
@@ -363,6 +368,26 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
             return nil
         }
         return components.url
+    }
+
+    private static func alternateTagCacheKey(
+        for request: EmbyArtworkLoadRequest
+    ) -> String? {
+        guard var components = URLComponents(
+            url: request.url,
+            resolvingAgainstBaseURL: false
+        ),
+        let queryItems = components.queryItems,
+        queryItems.contains(where: { $0.name == "Tag" }) else {
+            return nil
+        }
+        components.queryItems = queryItems.map { item in
+            item.name == "Tag"
+                ? URLQueryItem(name: "Tag", value: "\(item.value ?? "")-alternate")
+                : item
+        }
+        guard let alternate = components.url else { return nil }
+        return ArtworkKey(remoteImageURL: alternate).debugStorageKey
     }
 
     private static func isLoopback(_ url: URL) -> Bool {

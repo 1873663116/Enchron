@@ -87,7 +87,7 @@
       "arguments": {
         "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
         "relatedResults": [
-          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/response"
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/tappedIdentifiers"
         ],
         "settleDelayMillis": 9000
       },
@@ -153,7 +153,7 @@
       "arguments": {
         "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:12/cursorToken",
         "relatedResults": [
-          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/response"
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/tappedIdentifiers"
         ],
         "settleDelayMillis": 9000
       },

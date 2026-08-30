@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 260000,
+  "estimatedCostMillis": 900000,
   "staticCases": [
     "credentials-rejected",
     "server-unreachable",
@@ -140,7 +140,9 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-SourceConnection-webDAV"
+        "deadlineSeconds": 20,
+        "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:11",
       "maxInvocations": 1,
@@ -254,7 +256,9 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-SourceConnection-webDAV"
+        "deadlineSeconds": 20,
+        "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:22",
       "maxInvocations": 1,
@@ -368,7 +372,9 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-SourceConnection-webDAV"
+        "deadlineSeconds": 20,
+        "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:33",
       "maxInvocations": 1,
@@ -482,7 +488,9 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-SourceConnection-webDAV"
+        "deadlineSeconds": 20,
+        "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:44",
       "maxInvocations": 1,
