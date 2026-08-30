@@ -122,7 +122,7 @@ SEMANTIC_OUTPUTS = {
         ("window.control-plane", "window-control-plane@1"),
     ),
     "operation:presentation.enter-panorama@1": (
-        ("window.control-plane", "window-control-plane@1"),
+        ("transition.trace", "transition-trace@1"),
     ),
     "operation:presentation.exit-spatial@1": (
         ("window.control-plane", "window-control-plane@1"),

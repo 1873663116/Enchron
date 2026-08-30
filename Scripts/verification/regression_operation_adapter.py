@@ -2456,7 +2456,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("settled", "rollback-after-settlement-timeout"),
                 ),
             ),
-            (("window.control-plane", "window-control-plane@1"),),
+            (("transition.trace", "transition-trace@1"),),
         ),
         OperationSpec("operation:presentation.exit-spatial@1", LANES, (_field("from", string, choices=_choices("docked", "panorama")), _deadline()), (("window.control-plane", "window-control-plane@1"),)),
         OperationSpec(
@@ -6162,7 +6162,6 @@ class ResidentOperationBackend:
                 int(arguments["deadlineSeconds"]),
                 "PlayerUI-TopAction-resumePanorama",
             )
-        control_plane = self._window_control_plane_observation(context)
         snapshot, transition_response = self._transition_trace_observation(
             context
         )
@@ -6171,8 +6170,7 @@ class ResidentOperationBackend:
             "summon": summon,
             "snapshot": snapshot,
             "transitionResponse": transition_response,
-            "fields": control_plane["fields"],
-            "response": control_plane["response"],
+            "response": transition_response,
         }
 
     def _enter_panorama_expecting_settlement_rollback(

@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:d7bc2e2c43684b46f6fda2119d6dc2c7e0a8d4d86e1e7c4161190910010d3e15",
+  "contentDigest": "sha256:b5e7a77f1d35b5fd8da450943381276a97787ea32530b81293db860134e6b5b4",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -7811,10 +7811,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "window-control-plane@1",
-          "evidenceType": "window.control-plane",
+          "evidenceSchema": "transition-trace@1",
+          "evidenceType": "transition.trace",
           "id": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o01:default",
-          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "oracle": "oracle:agent-structured-transition@1",
           "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:07",
           "rubric": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o01@1"
         }
