@@ -1028,6 +1028,10 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             "product-behavior",
         )
         self.assertEqual(
+            operations["operation:media.import-staged@2"]["role"],
+            "setup",
+        )
+        self.assertEqual(
             operations["operation:diagnostics.browse-hierarchy@1"]["role"],
             "product-behavior",
         )
@@ -1947,6 +1951,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             [item["operation"] for item in imported["operations"]],
             [
                 "operation:media.import-staged@2",
+                "operation:library.snapshot@1",
                 "operation:app.relaunch@1",
                 "operation:navigation.select-tab@1",
                 "operation:accessibility.inspect@2",
@@ -1969,7 +1974,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 for item in imported["obligations"]
             },
             {
-                "operation:media.import-staged@2",
+                "operation:library.snapshot@1",
                 "operation:accessibility.inspect@2",
             },
         )

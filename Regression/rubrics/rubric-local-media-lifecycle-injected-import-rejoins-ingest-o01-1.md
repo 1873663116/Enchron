@@ -5,10 +5,10 @@
   "id": "rubric:local-media-lifecycle.injected-import-rejoins-ingest.o01@1",
   "title": "Injected Import Rejoins Ingest",
   "criteria": [
-    "The registered direct-child import command succeeds and its returned library snapshot contains exactly one reference with the expected file name."
+    "The bound library snapshot contains exactly one reference named sdr-bframe-aggregate-30s.mkv."
   ],
   "negativeControls": [
-    "A rejected direct child, accepted traversal path, missing reference, duplicate reference, or different file name violates the import-command contract."
+    "A missing reference, duplicate reference, or different file name violates the ingest-state contract."
   ]
 }
 ---

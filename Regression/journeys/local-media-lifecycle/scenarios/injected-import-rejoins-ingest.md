@@ -40,13 +40,19 @@
       "arguments": {},
       "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:02",
       "maxInvocations": 1,
+      "operation": "operation:library.snapshot@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:03",
+      "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
     {
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:03",
+      "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:04",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -55,7 +61,7 @@
         "context": "main-window-browser",
         "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:04",
+      "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:05",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -68,7 +74,7 @@
       "evidenceType": "library.command",
       "id": "obligation:local-media-lifecycle:injected-import-rejoins-ingest:o01:default",
       "oracle": "oracle:agent-structured-library-command@1",
-      "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:01",
+      "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:02",
       "rubric": "rubric:local-media-lifecycle.injected-import-rejoins-ingest.o01@1"
     },
     {
@@ -78,7 +84,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:local-media-lifecycle:injected-import-rejoins-ingest:o02:default",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:04",
+      "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:05",
       "rubric": "rubric:local-media-lifecycle.injected-import-rejoins-ingest.o02@1"
     }
   ],

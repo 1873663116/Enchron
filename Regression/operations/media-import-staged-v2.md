@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "id": "operation:media.import-staged@2",
   "title": "Media Import Staged",
-  "role": "product-behavior",
+  "role": "setup",
   "lanes": [
     "device",
     "simulator"

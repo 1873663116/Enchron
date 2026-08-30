@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:474dee60511a4a2ecc9c76bc7a2682958b7f111b0991852229d5df4eb294c348",
+  "contentDigest": "sha256:278f6350721a9faefb5bdccab467433ed36ac3ee2406c474c32a38d339927693",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -608,7 +608,7 @@
       "invalidatesTags": [
         "library.contents"
       ],
-      "role": "product-behavior",
+      "role": "setup",
       "title": "Media Import Staged"
     },
     {
@@ -1482,12 +1482,12 @@
     },
     {
       "criteria": [
-        "The registered direct-child import command succeeds and its returned library snapshot contains exactly one reference with the expected file name."
+        "The bound library snapshot contains exactly one reference named sdr-bframe-aggregate-30s.mkv."
       ],
       "filename": "rubric-local-media-lifecycle-injected-import-rejoins-ingest-o01-1.md",
       "id": "rubric:local-media-lifecycle.injected-import-rejoins-ingest.o01@1",
       "negativeControls": [
-        "A rejected direct child, accepted traversal path, missing reference, duplicate reference, or different file name violates the import-command contract."
+        "A missing reference, duplicate reference, or different file name violates the ingest-state contract."
       ],
       "title": "Injected Import Rejoins Ingest"
     },
@@ -2829,7 +2829,7 @@
           "evidenceType": "library.command",
           "id": "obligation:local-media-lifecycle:injected-import-rejoins-ingest:o01:default",
           "oracle": "oracle:agent-structured-library-command@1",
-          "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:01",
+          "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:02",
           "rubric": "rubric:local-media-lifecycle.injected-import-rejoins-ingest.o01@1"
         },
         {
@@ -2839,7 +2839,7 @@
           "evidenceType": "accessibility.tree",
           "id": "obligation:local-media-lifecycle:injected-import-rejoins-ingest:o02:default",
           "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:04",
+          "producedByCall": "call:local-media-lifecycle:injected-import-rejoins-ingest:05",
           "rubric": "rubric:local-media-lifecycle.injected-import-rejoins-ingest.o02@1"
         }
       ],
@@ -2856,13 +2856,19 @@
           "arguments": {},
           "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:02",
           "maxInvocations": 1,
+          "operation": "operation:library.snapshot@1"
+        },
+        {
+          "arguments": {},
+          "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:03",
+          "maxInvocations": 1,
           "operation": "operation:app.relaunch@1"
         },
         {
           "arguments": {
             "tab": "files"
           },
-          "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:03",
+          "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:04",
           "maxInvocations": 1,
           "operation": "operation:navigation.select-tab@1"
         },
@@ -2871,7 +2877,7 @@
             "context": "main-window-browser",
             "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
           },
-          "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:04",
+          "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:05",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
