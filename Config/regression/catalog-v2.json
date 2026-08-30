@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:b9b4995b376ca853c93c30acf41965ad5ad92265caacd77e34677e4ecdfd7a24",
+  "contentDigest": "sha256:e5261bea90febfaac563497ab8e3288e4b21b175a966c26422014a9514907759",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -1579,15 +1579,15 @@
     },
     {
       "criteria": [
-        "The reviewed runtime trace shows the demux reader advancing subscribed queues toward the six-second target while no consumer is blocked waiting.",
-        "The queue stops at the declared waterline rather than reading the entire source or stalling after the first packet."
+        "The reviewed runtime trace shows the demux reader advancing subscribed queues toward the configured forward byte limit while no consumer is blocked waiting.",
+        "The queue stops once forwardBufferedBytes reaches that configured limit, rather than reading the entire source or stalling after the first packet."
       ],
       "filename": "rubric-network-resilience-prefetch-without-waiting-consumer-o01-1.md",
       "id": "rubric:network-resilience.prefetch-without-waiting-consumer.o01@1",
       "negativeControls": [
         "A command exit code or test name without the structured assertion payload cannot satisfy the rubric.",
         "Missing source identity, fixture digest, or compared field produces Indeterminate rather than Satisfied.",
-        "A trace produced only while a consumer waits, an unbounded read, or a queue that never approaches the target violates the rubric."
+        "A trace produced only while a consumer waits, an unbounded read, or a queue that never approaches the configured byte limit violates the rubric."
       ],
       "title": "Prefetch Without Waiting Consumer"
     },
