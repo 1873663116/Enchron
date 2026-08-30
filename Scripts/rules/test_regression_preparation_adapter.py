@@ -382,6 +382,21 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             ),
         )
         self.assertEqual(plan.state.produced_by_call, source_call.call_id)
+        webdav_preflight = [
+            index
+            for index, call in enumerate(plan.calls)
+            if call.operation_id == "operation:host.preflight@1"
+            and call.arguments.get("check") == "webdav-regression"
+        ]
+        webdav_address = [
+            index
+            for index, call in enumerate(plan.calls)
+            if call.operation_id == "operation:accessibility.type@2"
+            and str(call.arguments.get("identifier", "")).endswith("webDAV-address")
+        ]
+        self.assertTrue(webdav_preflight)
+        self.assertTrue(webdav_address)
+        self.assertLess(min(webdav_preflight), min(webdav_address))
 
     def test_fixed_preflights_are_used_only_by_the_matching_preparations(self) -> None:
         plans = self.plans()

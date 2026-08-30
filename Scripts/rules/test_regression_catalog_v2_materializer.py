@@ -1021,11 +1021,21 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         operations = {item["id"]: item for item in self.blueprint["operations"]}
         self.assertEqual(
             operations["operation:issue.present@1"]["role"],
-            "diagnostic-bypass",
+            "product-behavior",
         )
         self.assertEqual(
-            operations["operation:issue.present@1"]["invalidatesTags"],
-            [],
+            set(operations["operation:issue.present@1"]["invalidatesTags"]),
+            {
+                "issue.surface",
+                "playback.position",
+                "playback.selection",
+                "playback.session",
+                "presentation.mode",
+                "presentation.state",
+                "renderer.graph",
+                "ui.navigation",
+                "ui.state",
+            },
         )
         self.assertEqual(
             operations["operation:playback.select-subtitle@1"]["role"],
@@ -1248,7 +1258,9 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             for call in typed["operations"]
             if call["operation"] == "operation:issue.present@1"
         ]
-        self.assertEqual(presented, ["mediaOpeningFailed", "playbackControlFailed"])
+        self.assertEqual(
+            presented, ["source-file-missing", "server-certificate-changed"]
+        )
         self.assertEqual(len(typed["obligations"]), 2)
         self.assertEqual(typed["success"].keys(), {"all"})
 
@@ -1288,10 +1300,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                     "key": "local-directory-subtitle-source-ready",
                     "schema": "media-source.local-directory-sidecars@1",
                 },
-                {
-                    "key": "emby-test-library-ready",
-                    "schema": "remote-source.emby-library@2",
-                },
             ],
         )
         operations = [item["operation"] for item in scenario["operations"]]
@@ -1300,6 +1308,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             [
                 "operation:app.relaunch@1",
                 "operation:navigation.select-tab@1",
+                "operation:accessibility.activate@2",
                 "operation:media.open@2",
                 "operation:playback.await-window-state@1",
                 "operation:playback.select-subtitle@1",
@@ -1319,6 +1328,15 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "operation:playback.select-subtitle@1",
                 "operation:evidence.capture-frames@1",
             ],
+        )
+        self.assertEqual(
+            scenario["operations"][2]["arguments"],
+            {
+                "context": "main-window-browser",
+                "identifiers": [
+                    "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
+                ],
+            },
         )
         selections = [
             item

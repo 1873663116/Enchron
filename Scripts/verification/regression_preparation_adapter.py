@@ -836,123 +836,138 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
             )
     if spec.connect_webdav:
         runtime_file = str(REMOTE_RUNTIME_FILE)
-        calls.extend(
-            (
+        webdav_runtime_already_written = spec.preflight in (
+            "webdav-regression",
+            "remote-faults",
+        )
+        if not webdav_runtime_already_written:
+            calls.append(
                 _call(
                     spec.identifier,
                     len(calls) + 1,
-                    "operation:navigation.select-tab@1",
-                    {"tab": "files"},
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 2,
-                    "operation:accessibility.activate@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifiers": [
-                            "FileBrowsing-SourcesSidebar-sourceMore",
-                            "FileBrowsing-SourcesSidebar-add",
-                            "FileBrowsing-SourcesSidebar-addWebDAV",
-                        ],
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 3,
-                    "operation:accessibility.type@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": "FileBrowsing-SourceConnection-webDAV-name",
-                        "mode": "replace",
-                        "text": "Enchron Regression WebDAV",
-                        "secret": False,
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 4,
-                    "operation:accessibility.type@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": "FileBrowsing-SourceConnection-webDAV-address",
-                        "mode": "replace",
-                        "textFile": runtime_file,
-                        "textJSONKey": "address",
-                        "secret": False,
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 5,
-                    "operation:accessibility.type@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": "FileBrowsing-SourceConnection-webDAV-username",
-                        "mode": "replace",
-                        "textFile": runtime_file,
-                        "textJSONKey": "user",
-                        "secret": False,
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 6,
-                    "operation:accessibility.type@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": "FileBrowsing-SourceConnection-webDAV-password",
-                        "mode": "replace",
-                        "textFile": runtime_file,
-                        "textJSONKey": "password",
-                        "secret": True,
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 7,
-                    "operation:accessibility.activate@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifiers": ["FileBrowsing-SourceConnection-webDAV-connect"],
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 8,
-                    "operation:accessibility.activate@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifiers": ["FileBrowsing-CertificateTrust-trust"],
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 9,
-                    "operation:accessibility.activate@2",
-                    {
-                        "context": "main-window-browser",
-                        "labels": ["以后"],
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 10,
-                    "operation:accessibility.inspect@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": f"FileBrowsing-grid-video-{REMOTE_PRIMARY_FILE_NAME}",
-                        "requireMatchedElement": True,
-                    },
-                ),
+                    "operation:host.preflight@1",
+                    {"check": "webdav-regression"},
+                )
+            )
+        connect_calls = [
+            _call(
+                spec.identifier,
+                len(calls) + 1,
+                "operation:navigation.select-tab@1",
+                {"tab": "files"},
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 2,
+                "operation:accessibility.activate@2",
+                {
+                    "context": "main-window-browser",
+                    "identifiers": [
+                        "FileBrowsing-SourcesSidebar-sourceMore",
+                        "FileBrowsing-SourcesSidebar-add",
+                        "FileBrowsing-SourcesSidebar-addWebDAV",
+                    ],
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 3,
+                "operation:accessibility.type@2",
+                {
+                    "context": "main-window-browser",
+                    "identifier": "FileBrowsing-SourceConnection-webDAV-name",
+                    "mode": "replace",
+                    "text": "Enchron Regression WebDAV",
+                    "secret": False,
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 4,
+                "operation:accessibility.type@2",
+                {
+                    "context": "main-window-browser",
+                    "identifier": "FileBrowsing-SourceConnection-webDAV-address",
+                    "mode": "replace",
+                    "textFile": runtime_file,
+                    "textJSONKey": "address",
+                    "secret": False,
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 5,
+                "operation:accessibility.type@2",
+                {
+                    "context": "main-window-browser",
+                    "identifier": "FileBrowsing-SourceConnection-webDAV-username",
+                    "mode": "replace",
+                    "textFile": runtime_file,
+                    "textJSONKey": "user",
+                    "secret": False,
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 6,
+                "operation:accessibility.type@2",
+                {
+                    "context": "main-window-browser",
+                    "identifier": "FileBrowsing-SourceConnection-webDAV-password",
+                    "mode": "replace",
+                    "textFile": runtime_file,
+                    "textJSONKey": "password",
+                    "secret": True,
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 7,
+                "operation:accessibility.activate@2",
+                {
+                    "context": "main-window-browser",
+                    "identifiers": ["FileBrowsing-SourceConnection-webDAV-connect"],
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 8,
+                "operation:accessibility.activate@2",
+                {
+                    "context": "main-window-browser",
+                    "identifiers": ["FileBrowsing-CertificateTrust-trust"],
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 9,
+                "operation:accessibility.activate@2",
+                {
+                    "context": "main-window-browser",
+                    "labels": ["以后"],
+                },
+            ),
+            _call(
+                spec.identifier,
+                len(calls) + 10,
+                "operation:accessibility.inspect@2",
+                {
+                    "context": "main-window-browser",
+                    "identifier": f"FileBrowsing-grid-video-{REMOTE_PRIMARY_FILE_NAME}",
+                    "requireMatchedElement": True,
+                },
+            ),
+        ]
+        if webdav_runtime_already_written:
+            connect_calls.append(
                 _call(
                     spec.identifier,
                     len(calls) + 11,
                     "operation:host.preflight@1",
                     {"check": "webdav-regression"},
-                ),
+                )
             )
-        )
+        calls.extend(connect_calls)
     if spec.connect_smb:
         runtime_file = str(SMB_RUNTIME_FILE)
         calls.extend(

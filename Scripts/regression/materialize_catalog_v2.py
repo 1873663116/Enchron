@@ -149,6 +149,7 @@ EXTERNAL_SUBTITLE_ATTEMPTS = (
         (
             "operation:app.relaunch@1",
             "operation:navigation.select-tab@1",
+            "operation:accessibility.activate@2",
             "operation:media.open@2",
             "operation:playback.await-window-state@1",
             "operation:playback.select-subtitle@1",
@@ -922,7 +923,6 @@ def _validate_external_subtitle_matrix(
             "local-directory-subtitle-source-ready",
             "media-source.local-directory-sidecars@1",
         ),
-        ("emby-test-library-ready", "remote-source.emby-library@2"),
     }
     actual_prerequisites = {
         (item["key"], item["schema"]) for item in scenario["prerequisites"]
@@ -960,6 +960,18 @@ def _validate_external_subtitle_matrix(
             attempt[0]["operation"] == "operation:app.relaunch@1",
             f"external subtitle {case_key} attempt is not isolated by relaunch",
         )
+        if case_key == "local-sidecar":
+            folder = attempt[2]
+            _require(
+                folder["arguments"]
+                == {
+                    "context": "main-window-browser",
+                    "identifiers": [
+                        "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
+                    ],
+                },
+                "external subtitle local-sidecar must open the imported directory folder",
+            )
         selection = attempt[-2]
         capture = attempt[-1]
         _require(

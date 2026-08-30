@@ -273,7 +273,11 @@
       "operation": "operation:playback.wait-position@2"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "relatedResults": [
+          "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session"
+        ]
+      },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"

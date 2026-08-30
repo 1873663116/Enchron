@@ -12,7 +12,7 @@
     "constant": true
   },
   "lane": "device",
-  "estimatedCostMillis": 60000,
+  "estimatedCostMillis": 240000,
   "staticCases": [
     "default"
   ],
@@ -33,7 +33,8 @@
     },
     {
       "arguments": {
-        "category": "mediaOpeningFailed"
+        "category": "source-file-missing",
+        "deadlineSeconds": 45
       },
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:02",
       "maxInvocations": 1,
@@ -42,7 +43,9 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-primary",
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:03",
       "maxInvocations": 1,
@@ -50,7 +53,8 @@
     },
     {
       "arguments": {
-        "category": "playbackControlFailed"
+        "category": "server-certificate-changed",
+        "deadlineSeconds": 45
       },
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:04",
       "maxInvocations": 1,
@@ -59,7 +63,13 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-playbackIssue-confirm"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-secondary",
+        "relatedResults": [
+          "result://call:issue-surface-behavior:typed-single-slot-contract:03/response",
+          "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement"
+        ],
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:05",
       "maxInvocations": 1,
@@ -68,7 +78,13 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-playbackIssue-confirm"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-secondary",
+        "relatedResults": [
+          "result://call:issue-surface-behavior:typed-single-slot-contract:03/response",
+          "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement"
+        ],
+        "requireMatchedElement": true
       },
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:06",
       "maxInvocations": 1,

@@ -73,6 +73,14 @@
     },
     {
       "callId": "call:preparation:local-directory-subtitle-source:09",
+      "operation": "operation:host.preflight@1",
+      "arguments": {
+        "check": "webdav-regression"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:local-directory-subtitle-source:10",
       "operation": "operation:navigation.select-tab@1",
       "arguments": {
         "tab": "files"
@@ -80,7 +88,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:10",
+      "callId": "call:preparation:local-directory-subtitle-source:11",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -93,7 +101,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:11",
+      "callId": "call:preparation:local-directory-subtitle-source:12",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -105,7 +113,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:12",
+      "callId": "call:preparation:local-directory-subtitle-source:13",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -118,7 +126,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:13",
+      "callId": "call:preparation:local-directory-subtitle-source:14",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -131,7 +139,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:14",
+      "callId": "call:preparation:local-directory-subtitle-source:15",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -144,7 +152,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:15",
+      "callId": "call:preparation:local-directory-subtitle-source:16",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -155,7 +163,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:16",
+      "callId": "call:preparation:local-directory-subtitle-source:17",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -166,7 +174,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:17",
+      "callId": "call:preparation:local-directory-subtitle-source:18",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -177,20 +185,12 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:18",
+      "callId": "call:preparation:local-directory-subtitle-source:19",
       "operation": "operation:accessibility.inspect@2",
       "arguments": {
         "context": "main-window-browser",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
         "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:local-directory-subtitle-source:19",
-      "operation": "operation:host.preflight@1",
-      "arguments": {
-        "check": "webdav-regression"
       },
       "maxInvocations": 1
     },
@@ -310,4 +310,4 @@
 ---
 # Prepare local directory subtitle source
 
-The runtime Preparation adapter stages the registered media and sidecars, imports one directory-backed media reference, validates its typed bookmark receipt, and produces the local directory subtitle source identity.
+The runtime Preparation adapter writes the WebDAV runtime identity before typing credentials, connects the same seeded Enchron Regression Emby library as preparation:emby-test-library, stages the registered media and sidecars, imports one directory-backed media reference, validates its typed bookmark receipt, and produces the local directory subtitle source identity.

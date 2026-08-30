@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:eddc7548a5a707b4fa35702a412575b2f8e9ae0477441c44e1dcfc9300fbfa56",
+  "contentDigest": "sha256:9818588a8eb9ddc2527396792af6d877f2ec70c781073ec62afc2386b81ec5bd",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -792,15 +792,25 @@
       "title": "Diagnostics Browse Hierarchy"
     },
     {
-      "contract": "No public product identifier presents an arbitrary playback issue. This diagnostic-bypass Operation rejects every invocation instead of mutating product state through the test command channel.",
+      "contract": "The runtime Operation adapter maps each allowed issue category onto a closed remote-fault recipe (source-file-missing→missing-object, source-access-denied→access-denied, connection-interrupted→transport-interrupted, media-data-corrupt→corrupt-media, server-certificate-changed→certificate-rotation), opens the issue-fixture WebDAV media when window playback is not already live, activates that recipe, and waits until PlayerUI-window-control-plane error equals the category and the matching main-window action identifiers occupy the single issue slot. A second call restores any prior recipe, activates the next one, and uses Retry on an activePlaybackFailure without clearing the slot so the newest issue replaces it. Categories without an induce route are rejected. Diagnostic-bypass injection is not used.",
       "filename": "issue-present-v1.md",
       "id": "operation:issue.present@1",
-      "invalidatesTags": [],
-      "role": "diagnostic-bypass",
+      "invalidatesTags": [
+        "issue.surface",
+        "playback.position",
+        "playback.selection",
+        "playback.session",
+        "presentation.mode",
+        "presentation.state",
+        "renderer.graph",
+        "ui.navigation",
+        "ui.state"
+      ],
+      "role": "product-behavior",
       "title": "Issue Present"
     },
     {
-      "contract": "The runtime Operation adapter selects one external subtitle through the public host route in one controller transaction: host=playerUI uses PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items; host=playerPanel summons immersive chrome with toggleControls then PlayerPanel-menu-more, PlayerPanel-menu-subtitles, and PlayerPanel-menu-subtitle-external.subtitle.* items without addressing PlayerUI-window-playback-surface. It then verifies the same playback identity and selected track in product state.",
+      "contract": "The runtime Operation adapter selects one external subtitle through the public PlayerUI host in one controller transaction: PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items. host admits only playerUI, the host that can produce the declared window.control-plane pair after product.md:17 removes that window probe from an immersive settle. It then verifies the same playback identity and selected track in product state.",
       "filename": "playback-select-subtitle-v1.md",
       "id": "operation:playback.select-subtitle@1",
       "invalidatesTags": [
@@ -895,7 +905,7 @@
       "title": "Prepare local aggregate device"
     },
     {
-      "contract": "The runtime Preparation adapter stages the registered media and sidecars, imports one directory-backed media reference, validates its typed bookmark receipt, and produces the local directory subtitle source identity.",
+      "contract": "The runtime Preparation adapter writes the WebDAV runtime identity before typing credentials, connects the same seeded Enchron Regression Emby library as preparation:emby-test-library, stages the registered media and sidecars, imports one directory-backed media reference, validates its typed bookmark receipt, and produces the local directory subtitle source identity.",
       "estimatedCostMillis": 60000,
       "filename": "local-directory-subtitle-source.md",
       "id": "preparation:local-directory-subtitle-source",
@@ -1068,28 +1078,25 @@
   "rubrics": [
     {
       "criteria": [
-        "For caseKey audio-menu, relatedResults[0] contains one PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-audio transaction that exposes a real enabled secondary menu and the bound probe keeps playback controls visible through the 9000 ms settle.",
-        "For caseKey speed-menu, relatedResults[0] contains one PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-speed transaction that exposes a real enabled secondary menu and the bound probe keeps playback controls visible through the 9000 ms settle.",
+        "relatedResults[0] contains the More-menu transaction registered for the bound case: audio-menu={PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-audio}; speed-menu={PlayerUI-window-playback-surface→PlayerUI-TopAction-more→PlayerUI-menu-speed}. The transaction exposes a real enabled secondary menu and the bound probe keeps playback controls visible through the 9000 ms settle.",
         "The bound trace keeps lifecycle Playing and shows no subtitle, video-format, Dock, or Panorama actions in the audio-only control set."
       ],
       "filename": "rubric-audio-only-playback-secondary-menu-pins-audio-controls-o01-1.md",
       "id": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1",
       "negativeControls": [
-        "A trace for the other case, omitted More step, PlayerPanel-menu-* on a window host, split nested-menu route, controls hidden before 9000 ms, or any video-only action fails the bound case."
+        "A relatedResults[0] identifier path that differs from the bound case, omitted More step, PlayerPanel-menu-* on a window host, split nested-menu route, controls hidden before 9000 ms, or any video-only action fails the bound case."
       ],
       "title": "Secondary Menu Pins Audio Controls"
     },
     {
       "criteria": [
-        "For caseKey profile-8-hdr10, the bound artifact follows one surface to videoFormat to HDRFallback to apply transaction, preserves source tuple (8,1,false) and source format atoms, and shows the HDR10/PQ renderer transfer on the published deliveryAccessibilityFields.",
-        "For caseKey profile-8-hlg, the bound artifact follows one surface to videoFormat to HDRFallback to apply transaction, preserves source tuple (8,4,false) and source format atoms, and shows the HLG/B67 renderer transfer on the published deliveryAccessibilityFields.",
-        "For caseKey profile-5-no-fallback, the bound artifact preserves source tuple (5,0,false), inlines assertAbsentObservations after PlayerUI-TopAction-videoFormat in which PlayerUI-VideoFormat-HDRFallback exists is false, records no fallback mutation after cancel, and retains source and renderer Dolby Vision atom facts.",
-        "The bound artifact contains exactly one three-frame Playing sequence at 1000 ms minimum intervals with stable session and revision, increasing position, distinct content attachments, non-none pixel formats, and no issue."
+        "The bound artifact contains exactly one three-frame Playing sequence at 1000 ms minimum intervals with stable session and revision, increasing position, distinct content attachments, non-none pixel formats, and no issue.",
+        "The bound capture matches the registered case: profile-8-hdr10={relatedResults[0] tappedIdentifiers PlayerUI-window-playback-surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-HDRFallback→PlayerUI-VideoFormat-apply, includeHDRFallback true, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=1, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed 2084/PQ set, source format atoms preserved}; profile-8-hlg={the same transaction and includeHDRFallback, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=4, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed HLG/B67 set, source format atoms preserved}; profile-5-no-fallback={relatedResults[0] assertAbsentObservations after PlayerUI-TopAction-videoFormat with PlayerUI-VideoFormat-HDRFallback exists=false, no fallback mutation after cancel, dolbyVisionProfile=5, dolbyVisionCrossCompatibilityID=0, dolbyVisionHasEnhancementLayer=false, source and renderer Dolby Vision atom facts retained}."
       ],
       "filename": "rubric-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1",
       "negativeControls": [
-        "A mismatched case, changed source tuple or format atoms, fallback offered for Profile 5 (assertAbsentObservations after videoFormat with exists or isHittable true), fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
+        "A relatedResults path, source tuple, renderer transfer, or format-atom row that differs from the bound case, HDRFallback offered for Profile 5 (assertAbsentObservations after videoFormat with exists or isHittable true), fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
       ],
       "title": "Dolby Vision Cross Compatibility Switch"
     },
@@ -1168,7 +1175,7 @@
       "criteria": [
         "The bound emby.evidence inlines two inspect matchedElement objects from episode detail whose identifier fields are Emby-Detail-Resume and Emby-Detail-PlayFromBeginning, both present before either action is opened.",
         "The bound document inlines the host emby-aggregate report and two playback.probe fields: Resume position is within the five-second observed-position bound of receipt.catalog.progressTicks, Play from Beginning is from 0 through 5 seconds inclusive, and both probes share the same Emby item identity as that report.",
-        "In the locked cold-open environment, click-to-first-changing-frame is at most 45000 ms; 90000 ms is only the harness liveness deadline."
+        "The bound document inlines the same-attempt Resume activate's activatedAtMonotonicMillis and the capture-frames list. The first frame whose screenshotDigest differs from the previous frame has capturedAtMonotonicMillis minus that activate timestamp at most 45000 ms; 90000 ms is only the harness liveness deadline."
       ],
       "filename": "rubric-emby-server-lifecycle-episode-resume-and-start-actions-o01-1.md",
       "id": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1",
@@ -1293,8 +1300,8 @@
     },
     {
       "criteria": [
-        "After mediaOpeningFailed is presented, the first bound hierarchy exposes title Failed to Load, Retry and Close at mainWindow, and no confirm-only action; this policy interrupts playback.",
-        "Without closing the first issue or relaunching, presenting playbackControlFailed replaces the same slot: the second bound hierarchy exposes title Playback Error and only PlayerUI-playbackIssue-confirm; the prior title, PlayerUI-loadFailure-primary, and PlayerUI-loadFailure-secondary are absent, and this policy does not interrupt playback."
+        "The bound inspect relatedResults include the first hierarchy captured after source-file-missing: title Playback Error, PlayerUI-loadFailure-primary (Retry) and PlayerUI-loadFailure-secondary (Close) at mainWindow, and PlayerUI-playbackIssue-confirm absent.",
+        "The bound inspect hierarchy is the replacement after server-certificate-changed on the same attempt without dismissing the first alert or relaunching: title Server Certificate Changed, PlayerUI-loadFailure-secondary (Close) present, and PlayerUI-loadFailure-primary plus the prior Playback Error title absent."
       ],
       "filename": "rubric-issue-surface-behavior-typed-single-slot-contract-o01-1.md",
       "id": "rubric:issue-surface-behavior.typed-single-slot-contract.o01@1",
@@ -1419,13 +1426,13 @@
     },
     {
       "criteria": [
-        "The terminal playback probe has mediaName=sdr-bframe-multiaudio-avsync-120s.mp4, position at least 12 seconds, at least 30 seconds remaining, and a session different from the first-item baseline.",
+        "The terminal playback probe has mediaName=sdr-bframe-multiaudio-avsync-120s.mp4, position at least 12 seconds, at least 30 seconds remaining, and session different from relatedResults[0], which is the first-item diagnostics.playback-state@1 session captured before automatic Play Next.",
         "The terminal playback probe has resumePromptPresentations=1, automaticResumeBypasses=1, and pendingResumePrompt=false: the one direct reopen presented Ask Every Time, while automatic Play Next resumed without a second prompt."
       ],
       "filename": "rubric-local-media-lifecycle-automatic-play-next-resume-policy-o01-1.md",
       "id": "rubric:local-media-lifecycle.automatic-play-next-resume-policy.o01@1",
       "negativeControls": [
-        "A missing direct-open prompt, any automatic-continuation prompt, a terminal position below the saved range, unchanged session identity, or the wrong mediaName violates HC-013."
+        "A missing direct-open prompt, any automatic-continuation prompt, a terminal position below the saved range, session equal to relatedResults[0], or the wrong mediaName violates HC-013."
       ],
       "title": "Automatic Play Next resume policy"
     },
@@ -1532,15 +1539,15 @@
     },
     {
       "criteria": [
-        "Rotating the active HTTPS source certificate interrupts the existing TLS connection; the application records exactly one matching previous/new fingerprint pair, pauses the active session, and presents server-certificate-changed.",
-        "The only delivered issue action is Close. Closing stops the session, no playback trust prompt or decision occurs, and the stored fingerprint remains the previous value while the rotated fingerprint remains untrusted."
+        "operationOutput.certificateChangeObservation records exactly one certificateBoundary changed previous/new fingerprint pair that matches remoteObservation.priorCertificateFingerprint and certificateFingerprint; relatedResults[0] is the pre-Close window control-plane fields with lifecycle=Paused, error=server-certificate-changed, and active=true.",
+        "The only delivered issue action is Close. certificateChangeObservation.deliveredCloseEvents is nonempty, playbackPromptEvents is empty, afterClose or the bound playbackObservation shows the session stopped (active=false and session=none, or the post-Close playback-state probe unavailable), storedFingerprintAfterClose equals the previous fingerprint, and currentFingerprintTrustedAfterClose is false. The post-Close certificateTrustProbe payload (schema enchron.regression.certificate-trust-probe@1) is the trust mapping that observation inlined."
       ],
       "filename": "rubric-network-resilience-certificate-change-stops-without-trust-o01-1.md",
       "id": "rubric:network-resilience.certificate-change-stops-without-trust.o01@1",
       "negativeControls": [
         "A controller receipt without the application certificateBoundary delivery and matching fingerprint pair is inadmissible.",
         "Continuing playback, a generic issue, any action other than Close, an active session after Close, or any playback promptRequested, promptPresented, or decision event violates the interruption contract.",
-        "Replacing the stored fingerprint with the rotated fingerprint, accepting the new certificate, or losing the post-Close trust probe violates the trust-boundary contract."
+        "Replacing the stored fingerprint with the rotated fingerprint, accepting the new certificate, or losing the post-Close trust probe violates the trust-boundary contract. Host remoteObservation priorCertificateFingerprint/certificateFingerprint are server certificates and cannot establish storedFingerprintAfterClose."
       ],
       "title": "Certificate Change Stops Without Trust"
     },
@@ -3597,7 +3604,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:local-sidecar",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
+          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
           "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
         },
         {
@@ -3607,7 +3614,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:webdav-sidecar",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
+          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
           "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
         },
         {
@@ -3617,7 +3624,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:emby-external-stream",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
           "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
         }
       ],
@@ -3638,11 +3645,22 @@
         },
         {
           "arguments": {
+            "context": "main-window-browser",
+            "identifiers": [
+              "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
+            ]
+          },
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:03",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
             "deadlineSeconds": 45,
             "expectedLanding": "window",
             "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:03",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:04",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -3653,7 +3671,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:04",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -3663,7 +3681,7 @@
             "host": "playerUI",
             "sourceKind": "local-sidecar"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
           "maxInvocations": 1,
           "operation": "operation:playback.select-subtitle@1"
         },
@@ -3673,13 +3691,13 @@
             "count": 3,
             "minimumIntervalMillis": 1000
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         },
         {
           "arguments": {},
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:08",
           "maxInvocations": 1,
           "operation": "operation:app.relaunch@1"
         },
@@ -3687,7 +3705,7 @@
           "arguments": {
             "tab": "files"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:08",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:09",
           "maxInvocations": 1,
           "operation": "operation:navigation.select-tab@1"
         },
@@ -3698,7 +3716,7 @@
               "Enchron Regression WebDAV"
             ]
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:09",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -3708,7 +3726,7 @@
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
             "requireMatchedElement": true
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:10",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         },
@@ -3718,7 +3736,7 @@
             "expectedLanding": "window",
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:11",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:12",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -3729,7 +3747,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:12",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -3739,7 +3757,7 @@
             "host": "playerUI",
             "sourceKind": "source-directory-sidecar"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
           "maxInvocations": 1,
           "operation": "operation:playback.select-subtitle@1"
         },
@@ -3749,13 +3767,13 @@
             "count": 3,
             "minimumIntervalMillis": 1000
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         },
         {
           "arguments": {},
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:16",
           "maxInvocations": 1,
           "operation": "operation:app.relaunch@1"
         },
@@ -3763,7 +3781,7 @@
           "arguments": {
             "tab": "emby"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:16",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:17",
           "maxInvocations": 1,
           "operation": "operation:navigation.select-tab@1"
         },
@@ -3776,7 +3794,7 @@
               "Enchron Regression Episode"
             ]
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:17",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -3787,7 +3805,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:19",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -3797,7 +3815,7 @@
             "host": "playerUI",
             "sourceKind": "emby-external-stream"
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:19",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
           "maxInvocations": 1,
           "operation": "operation:playback.select-subtitle@1"
         },
@@ -3807,7 +3825,7 @@
             "count": 3,
             "minimumIntervalMillis": 1000
           },
-          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+          "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         }
@@ -3820,10 +3838,6 @@
         {
           "key": "local-directory-subtitle-source-ready",
           "schema": "media-source.local-directory-sidecars@1"
-        },
-        {
-          "key": "emby-test-library-ready",
-          "schema": "remote-source.emby-library@2"
         }
       ],
       "promiseRefs": [
@@ -4914,7 +4928,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 210000,
+      "estimatedCostMillis": 240000,
       "id": "scenario:emby-server-lifecycle:episode-resume-and-start-actions",
       "journey": "journey:emby-server-lifecycle",
       "lane": "device",
@@ -4927,7 +4941,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
+          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
           "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
         }
       ],
@@ -4988,18 +5002,19 @@
         },
         {
           "arguments": {
-            "deadlineSeconds": 45,
-            "expectedLanding": "window",
-            "identifier": "Emby-Detail-Resume"
+            "context": "window",
+            "identifiers": [
+              "Emby-Detail-Resume"
+            ]
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
           "maxInvocations": 1,
-          "operation": "operation:media.open@2"
+          "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
             "controls": "either",
-            "deadlineSeconds": 45,
+            "deadlineSeconds": 90,
             "lifecycle": "playing",
             "presentation": "window"
           },
@@ -5008,8 +5023,18 @@
           "operation": "operation:playback.await-window-state@1"
         },
         {
-          "arguments": {},
+          "arguments": {
+            "context": "window",
+            "count": 16,
+            "minimumIntervalMillis": 3000
+          },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+          "maxInvocations": 1,
+          "operation": "operation:evidence.capture-frames@1"
+        },
+        {
+          "arguments": {},
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:10",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         },
@@ -5021,7 +5046,7 @@
             ],
             "summonControls": true
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:10",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -5032,7 +5057,7 @@
               "Enchron Regression Episode"
             ]
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:11",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -5042,7 +5067,7 @@
             "expectedLanding": "window",
             "identifier": "Emby-Detail-PlayFromBeginning"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:13",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -5053,13 +5078,13 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:13",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:14",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
         {
           "arguments": {},
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:14",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         },
@@ -5071,11 +5096,13 @@
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:01/report",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:05/matchedElement",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:06/matchedElement",
-              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/fields",
-              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:14/fields"
+              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:07/activatedAtMonotonicMillis",
+              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/frames",
+              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:10/fields",
+              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:15/fields"
             ]
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -6268,7 +6295,10 @@
             "context": "window",
             "count": 3,
             "includeHDRFallback": true,
-            "minimumIntervalMillis": 1000
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:05/tappedIdentifiers"
+            ]
           },
           "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06",
           "maxInvocations": 1,
@@ -6328,7 +6358,10 @@
             "context": "window",
             "count": 3,
             "includeHDRFallback": true,
-            "minimumIntervalMillis": 1000
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:11/tappedIdentifiers"
+            ]
           },
           "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12",
           "maxInvocations": 1,
@@ -8833,7 +8866,7 @@
           "evidenceType": "accessibility.tree",
           "id": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o01:default",
           "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
+          "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:09",
           "rubric": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o01@1"
         }
       ],
@@ -8918,27 +8951,19 @@
         },
         {
           "arguments": {
+            "alsoInspect": [
+              "PlayerUI-TopAction-resumePanorama",
+              "PlayerUI-TopAction-videoFormat"
+            ],
             "context": "portal",
+            "identifiers": [
+              "PlayerUI-TopAction-resumePanorama"
+            ],
             "labels": [
               "Playback surface"
             ]
           },
           "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:09",
-          "maxInvocations": 1,
-          "operation": "operation:accessibility.activate@2"
-        },
-        {
-          "arguments": {
-            "context": "portal",
-            "identifiers": [
-              "PlayerUI-TopAction-resumePanorama"
-            ],
-            "relatedResults": [
-              "result://call:presentation-tour:portal-format-and-panorama-actions-coexist:07/response",
-              "result://call:presentation-tour:portal-format-and-panorama-actions-coexist:08/response"
-            ]
-          },
-          "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         }
@@ -11435,6 +11460,9 @@
         {
           "arguments": {
             "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:06/cursorToken",
+            "relatedResults": [
+              "result://call:network-resilience:certificate-change-stops-without-trust:10/fields"
+            ],
             "remoteExpectation": "certificate-change",
             "remoteReceiptID": "result://call:network-resilience:certificate-change-stops-without-trust:07/receiptID",
             "restoredGenerationToken": "result://call:network-resilience:certificate-change-stops-without-trust:09/restoredGenerationToken"
@@ -14154,7 +14182,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 60000,
+      "estimatedCostMillis": 240000,
       "id": "scenario:issue-surface-behavior:typed-single-slot-contract",
       "journey": "journey:issue-surface-behavior",
       "lane": "device",
@@ -14190,7 +14218,8 @@
         },
         {
           "arguments": {
-            "category": "mediaOpeningFailed"
+            "category": "source-file-missing",
+            "deadlineSeconds": 45
           },
           "callId": "call:issue-surface-behavior:typed-single-slot-contract:02",
           "maxInvocations": 1,
@@ -14199,7 +14228,9 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-loadFailure-primary"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-primary",
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:typed-single-slot-contract:03",
           "maxInvocations": 1,
@@ -14207,7 +14238,8 @@
         },
         {
           "arguments": {
-            "category": "playbackControlFailed"
+            "category": "server-certificate-changed",
+            "deadlineSeconds": 45
           },
           "callId": "call:issue-surface-behavior:typed-single-slot-contract:04",
           "maxInvocations": 1,
@@ -14216,7 +14248,13 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-playbackIssue-confirm"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-secondary",
+            "relatedResults": [
+              "result://call:issue-surface-behavior:typed-single-slot-contract:03/response",
+              "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement"
+            ],
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:typed-single-slot-contract:05",
           "maxInvocations": 1,
@@ -14225,7 +14263,13 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-playbackIssue-confirm"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-secondary",
+            "relatedResults": [
+              "result://call:issue-surface-behavior:typed-single-slot-contract:03/response",
+              "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement"
+            ],
+            "requireMatchedElement": true
           },
           "callId": "call:issue-surface-behavior:typed-single-slot-contract:06",
           "maxInvocations": 1,
@@ -15379,7 +15423,11 @@
           "operation": "operation:playback.wait-position@2"
         },
         {
-          "arguments": {},
+          "arguments": {
+            "relatedResults": [
+              "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session"
+            ]
+          },
           "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"

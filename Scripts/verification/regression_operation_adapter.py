@@ -56,6 +56,23 @@ def _source_identity(path: Path) -> Mapping[str, str]:
     )
 
 
+def _screenshot_digest(response: Mapping[str, object]) -> str | None:
+    path_value = next(
+        (
+            response.get(field)
+            for field in ("localScreenshotPath", "screenshotPath", "screenshot")
+            if isinstance(response.get(field), str) and response.get(field)
+        ),
+        None,
+    )
+    if not isinstance(path_value, str):
+        return None
+    path = Path(path_value)
+    if path.is_symlink() or not path.is_file():
+        return None
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 REMOTE_IMPLEMENTATION_IDENTITIES = MappingProxyType(
     {
         "remote-source-service": _source_identity(REMOTE_SOURCE_PATH),
@@ -615,6 +632,24 @@ def _inlined_viewing_storage_snapshots(
     return snapshots
 
 
+def _inlined_certificate_before_state(
+    arguments: Mapping[str, object],
+) -> dict[str, str] | None:
+    for item in arguments.get("relatedResults", ()):
+        if not isinstance(item, Mapping):
+            continue
+        nested = item.get("fields")
+        if isinstance(nested, Mapping) and nested:
+            return {str(key): str(value) for key, value in nested.items()}
+        if any(key in item for key in ("lifecycle", "error", "active")):
+            return {
+                str(key): str(value)
+                for key, value in item.items()
+                if isinstance(value, (str, int, bool))
+            }
+    return None
+
+
 def _accessibility_single(arguments: Mapping[str, object]) -> None:
     _validate_identifiers([str(arguments["identifier"])])
     _related_results(arguments)
@@ -788,6 +823,33 @@ REMOTE_HEALTHY_EXPECTATIONS = frozenset(
     ("webdav-connection", "webdav-playback-range", "certificate-trust-boundary")
 )
 REMOTE_FAULT_EXPECTATIONS = REMOTE_EXPECTATIONS - REMOTE_HEALTHY_EXPECTATIONS
+ISSUE_INDUCE_RECIPES = MappingProxyType(
+    {
+        "source-file-missing": "missing-object",
+        "source-access-denied": "access-denied",
+        "connection-interrupted": "transport-interrupted",
+        "media-data-corrupt": "corrupt-media",
+        "server-certificate-changed": "certificate-rotation",
+    }
+)
+ISSUE_SLOT_POLICY = MappingProxyType(
+    {
+        "source-file-missing": ("Playback Error", True, True, False),
+        "source-access-denied": ("Playback Error", True, True, False),
+        "connection-interrupted": ("Playback Error", True, True, False),
+        "media-data-corrupt": ("Playback Error", True, True, False),
+        "server-certificate-changed": (
+            "Server Certificate Changed",
+            False,
+            True,
+            False,
+        ),
+    }
+)
+ISSUE_FIXTURE_SOURCE_LABEL = "Enchron Regression WebDAV"
+ISSUE_FIXTURE_MEDIA_IDENTIFIER = (
+    "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+)
 REMOTE_PLAYBACK_EXPECTATIONS = frozenset(
     (
         "webdav-playback-range",
@@ -2823,10 +2885,14 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field(
                     "category",
                     string,
-                    choices=_choices(
-                        "mediaOpeningFailed",
-                        "playbackControlFailed",
-                    ),
+                    choices=_choices(*ISSUE_INDUCE_RECIPES),
+                ),
+                _field(
+                    "deadlineSeconds",
+                    integer,
+                    required=False,
+                    minimum=1,
+                    maximum=90,
                 ),
             ),
             (),
@@ -2953,7 +3019,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field(
                     "host",
                     string,
-                    choices=_choices("playerUI", "playerPanel"),
+                    choices=_choices("playerUI"),
                 ),
                 _field(
                     "sourceKind",
@@ -3564,6 +3630,108 @@ class ResidentOperationBackend:
             "lastAlert": last_alert_response,
         }
 
+    def _issue_control_plane(
+        self, context: OperationContext
+    ) -> tuple[dict[str, str], dict[str, object]]:
+        plane, response = self._read_control_plane(context)
+        if plane is not None:
+            return plane, response
+        plane, response = self._read_control_plane(
+            context, "PlayerUI-application-state"
+        )
+        return (plane or {}, response)
+
+    def _snapshot_issue_slot(
+        self, context: OperationContext, category: str
+    ) -> dict[str, object]:
+        snapshot = self._controller(context, "snapshot", "--no-screenshot")
+        self._require_success(snapshot, "issue slot snapshot")
+        primary = self._issue_action_snapshot(
+            context, "PlayerUI-loadFailure-primary"
+        )
+        secondary = self._issue_action_snapshot(
+            context, "PlayerUI-loadFailure-secondary"
+        )
+        confirm = self._issue_action_snapshot(
+            context, "PlayerUI-playbackIssue-confirm"
+        )
+        hierarchy = snapshot.get("hierarchy")
+        title, want_primary, want_secondary, want_confirm = ISSUE_SLOT_POLICY[
+            category
+        ]
+        return {
+            "title": title,
+            "hierarchy": hierarchy if isinstance(hierarchy, str) else "",
+            "primaryAction": primary,
+            "secondaryAction": secondary,
+            "confirmAction": confirm,
+            "actionsMatch": (
+                primary["present"] is want_primary
+                and secondary["present"] is want_secondary
+                and confirm["present"] is want_confirm
+            ),
+            "titlePresent": isinstance(hierarchy, str) and title in hierarchy,
+            "response": snapshot,
+        }
+
+    def _wait_for_issue_slot(
+        self,
+        context: OperationContext,
+        *,
+        category: str,
+        deadline_seconds: int,
+    ) -> dict[str, object]:
+        started = time.monotonic()
+        deadline = started + deadline_seconds
+        observations: list[dict[str, object]] = []
+        last_response: dict[str, object] = {}
+        last_slot: dict[str, object] = {}
+        while True:
+            now = time.monotonic()
+            if now >= deadline:
+                break
+            plane, last_response = self._issue_control_plane(context)
+            elapsed = round((now - started) * 1000)
+            slot = self._snapshot_issue_slot(context, category)
+            last_slot = slot
+            observations.append(
+                {
+                    "elapsedMillis": elapsed,
+                    "error": plane.get("error", "none"),
+                    "lifecycle": plane.get("lifecycle"),
+                    "titlePresent": slot["titlePresent"],
+                    "actionsMatch": slot["actionsMatch"],
+                }
+            )
+            if (
+                plane.get("error") == category
+                and slot["titlePresent"] is True
+                and slot["actionsMatch"] is True
+            ):
+                return {
+                    "succeeded": True,
+                    "expectedCategory": category,
+                    "fields": plane,
+                    "elapsedMillis": elapsed,
+                    "slot": slot,
+                    "response": last_response,
+                    "observations": observations,
+                    "primaryAction": slot["primaryAction"],
+                    "secondaryAction": slot["secondaryAction"],
+                    "confirmAction": slot["confirmAction"],
+                }
+            time.sleep(0.25)
+        return {
+            "succeeded": False,
+            "reason": "issue-slot-deadline-expired",
+            "expectedCategory": category,
+            "elapsedMillis": round((time.monotonic() - started) * 1000),
+            "observations": observations,
+            "fields": observations[-1] if observations else {},
+            "response": last_response,
+            "slot": last_slot,
+        }
+
     def _probe_lines(self, context: OperationContext) -> list[str]:
         matrix = self._matrix(context)
         lines, error = matrix.copy_probe_lines(
@@ -3684,6 +3852,9 @@ class ResidentOperationBackend:
                 {
                     "index": index,
                     "capturedAtMonotonicMillis": round(captured * 1000),
+                    "screenshotDigest": _screenshot_digest(
+                        playback_state["response"]
+                    ),
                     "record": playback_state["response"],
                     "playbackState": playback_state,
                     "controlPlane": control_plane,
@@ -3870,6 +4041,13 @@ class ResidentOperationBackend:
             "response": {},
             "tappedIdentifiers": list(identifiers),
         }
+
+        def mark_click() -> None:
+            if "activatedAtMonotonicMillis" not in result:
+                result["activatedAtMonotonicMillis"] = round(
+                    time.monotonic() * 1000
+                )
+
         if arguments.get("summonControls") is True:
             summon = self._app_command(context, "toggleControls", "visible=true")
             self._require_success(summon, "controls summon")
@@ -3890,6 +4068,7 @@ class ResidentOperationBackend:
             absent = [str(item) for item in arguments.get("assertAbsent", [])]
             if absent:
                 command.extend(("--assert-absent", *absent))
+            mark_click()
             identifier_response = self._controller(
                 context, "tapSequence", *command
             )
@@ -3946,6 +4125,7 @@ class ResidentOperationBackend:
             absent = [str(item) for item in arguments.get("assertAbsent", [])]
             if absent:
                 command.extend(("--assert-absent", *absent))
+            mark_click()
             identifier_response = self._controller(context, action, *command)
             self._require_success(identifier_response, "accessibility activate")
             result["response"] = identifier_response
@@ -3971,6 +4151,7 @@ class ResidentOperationBackend:
             label_responses: list[Mapping[str, object]] = []
             label_states: list[Mapping[str, object]] = []
             for label in labels:
+                mark_click()
                 response = self._controller(context, "tap", "--label", label)
                 self._require_success(response, f"accessibility label {label}")
                 label_responses.append(response)
@@ -3991,6 +4172,10 @@ class ResidentOperationBackend:
             )
             result["settledState"] = self._post_action_state(settled_response)
             result["postActionState"] = result["settledState"]
+        if "activatedAtMonotonicMillis" not in result:
+            raise OperationAdapterError(
+                "accessibility activate did not record a click time"
+            )
         result["relatedResults"] = list(arguments.get("relatedResults", []))
         return result
 
@@ -4823,6 +5008,8 @@ class ResidentOperationBackend:
         spatial = [line for line in delta if "spatialTap entity=" in line]
         remote_observation = None
         certificate_boundary = None
+        certificate_change_observation_result = None
+        playback_observation = None
         container_index_observation = None
         viewing_storage_observation = None
         viewing_storage_response = None
@@ -4891,13 +5078,44 @@ class ResidentOperationBackend:
                     raise OperationAdapterError(
                         "certificate change observation has no pre-rotation cursor"
                     )
+                playback_observation = self._optional_playback_state(context)
+                after_fields = playback_observation.get("fields") or None
+                if not after_fields:
+                    after_fields = control_plane.get("fields") or None
+                if not after_fields:
+                    after_fields = None
+                trust = self._certificate_trust_probe(context, remote_observation)
+                certificate_change_observation_result = (
+                    certificate_change_observation(
+                        interaction,
+                        remote_observation,
+                        {
+                            "before": _inlined_certificate_before_state(arguments),
+                            "after": after_fields,
+                            "trust": trust,
+                        },
+                    )
+                )
+                interaction.append(
+                    "certificateChangeBinding "
+                    + json.dumps(
+                        certificate_change_observation_result,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                )
             interaction.extend(remote_observation["traceLines"])
         playback_observation = (
-            self._diagnostics_playback_state_1({}, context)
-            if arguments.get("remoteExpectation")
-            in ("finite-backoff", "recoverable-read")
-            and arguments.get("omitPlaybackState") is not True
-            else None
+            playback_observation
+            if arguments.get("remoteExpectation") == "certificate-change"
+            else (
+                self._diagnostics_playback_state_1({}, context)
+                if arguments.get("remoteExpectation")
+                in ("finite-backoff", "recoverable-read")
+                and arguments.get("omitPlaybackState") is not True
+                else None
+            )
         )
         observed_user_data = None
         if arguments.get("embyProgressReadback") is True:
@@ -4922,6 +5140,7 @@ class ResidentOperationBackend:
             "relatedResults": list(arguments.get("relatedResults", [])),
             "playbackObservation": playback_observation,
             "certificateBoundary": certificate_boundary,
+            "certificateChangeObservation": certificate_change_observation_result,
             "containerIndexObservation": container_index_observation,
             "viewingStorageObservation": viewing_storage_observation,
             "observedUserData": observed_user_data,
@@ -5976,11 +6195,181 @@ class ResidentOperationBackend:
             "deliveryObserved": delivered,
         }
 
-    def _issue_present_1(self, arguments, context):
-        raise OperationAdapterError(
-            "issue.present has no public product route for presenting "
-            f"{arguments['category']}; diagnostic-bypass cannot mutate product state"
+    def _restore_active_remote_recipe(self, context: OperationContext):
+        configuration = self._remote_preflight_configuration()
+        controller = _remote_preflight.remote.RemoteSourceController(
+            configuration.service
         )
+        identity = controller.status()
+        recipe = identity.get("recipe")
+        if recipe in (None, "healthy"):
+            return None
+        generation = int(identity["generation"])
+        receipt_id = f"receipt:g-{generation:06d}:{recipe}"
+        return self._host_preflight_1(
+            {
+                "check": "remote-faults",
+                "phase": "restore",
+                "receiptID": receipt_id,
+            },
+            context,
+        )
+
+    def _activate_issue_recipe(self, recipe: str, context: OperationContext):
+        self._restore_active_remote_recipe(context)
+        return self._host_preflight_1(
+            {
+                "check": "remote-faults",
+                "phase": "activate",
+                "recipe": recipe,
+            },
+            context,
+        )
+
+    def _ensure_issue_fixture_playing(
+        self, context: OperationContext, deadline_seconds: int
+    ) -> dict[str, object]:
+        tab = self._navigation_select_tab_1({"tab": "files"}, context)
+        source = self._accessibility_activate_2(
+            {
+                "context": "main-window-browser",
+                "labels": [ISSUE_FIXTURE_SOURCE_LABEL],
+            },
+            context,
+        )
+        listed = self._accessibility_inspect_2(
+            {
+                "context": "main-window-browser",
+                "deadlineSeconds": deadline_seconds,
+                "identifier": ISSUE_FIXTURE_MEDIA_IDENTIFIER,
+                "requireMatchedElement": True,
+            },
+            context,
+        )
+        if listed.get("succeeded") is not True:
+            raise OperationAdapterError(
+                "issue.present could not find the issue-fixture media card"
+            )
+        opened = self._media_open_2(
+            {
+                "deadlineSeconds": deadline_seconds,
+                "expectedLanding": "window",
+                "identifier": ISSUE_FIXTURE_MEDIA_IDENTIFIER,
+            },
+            context,
+        )
+        if opened.get("succeeded") is not True:
+            raise OperationAdapterError(
+                "issue.present could not open the issue-fixture media"
+            )
+        settled = self._playback_wait_position_2(
+            {
+                "deadlineSeconds": deadline_seconds,
+                "minimumPositionMillis": 1000,
+                "minimumRemainingMillis": 10000,
+            },
+            context,
+        )
+        if settled.get("succeeded") is not True:
+            raise OperationAdapterError(
+                "issue.present could not reach playing issue-fixture media"
+            )
+        return {
+            "tab": tab,
+            "source": source,
+            "listed": listed,
+            "opened": opened,
+            "settled": settled,
+        }
+
+    def _issue_present_1(self, arguments, context):
+        category = str(arguments["category"])
+        recipe = ISSUE_INDUCE_RECIPES.get(category)
+        if recipe is None:
+            raise OperationAdapterError(
+                f"issue.present has no real-fault induce route for {category}"
+            )
+        deadline_seconds = int(arguments.get("deadlineSeconds", 45))
+        plane, _ = self._issue_control_plane(context)
+        current = plane.get("error", "none")
+        setup = None
+        activation = None
+        retry = None
+        if current == category:
+            settlement = self._wait_for_issue_slot(
+                context,
+                category=category,
+                deadline_seconds=deadline_seconds,
+            )
+            if settlement.get("succeeded") is not True:
+                raise OperationAdapterError(
+                    f"issue.present found error={category} but the slot actions "
+                    "did not match that category's policy"
+                )
+            return {
+                "succeeded": True,
+                "category": category,
+                "recipe": recipe,
+                "alreadyPresent": True,
+                "fields": settlement["fields"],
+                "settlement": settlement,
+                "primaryAction": settlement["primaryAction"],
+                "secondaryAction": settlement["secondaryAction"],
+                "confirmAction": settlement["confirmAction"],
+                "response": settlement.get("response", {}),
+            }
+        if current in (None, "none"):
+            lifecycle = (plane.get("lifecycle") or "").lower()
+            if lifecycle != "playing":
+                setup = self._ensure_issue_fixture_playing(
+                    context, deadline_seconds
+                )
+        try:
+            activation = self._activate_issue_recipe(recipe, context)
+            if current not in (None, "none"):
+                retry = self._accessibility_activate_2(
+                    {
+                        "context": "window",
+                        "identifiers": ["PlayerUI-loadFailure-primary"],
+                    },
+                    context,
+                )
+            settlement = self._wait_for_issue_slot(
+                context,
+                category=category,
+                deadline_seconds=deadline_seconds,
+            )
+            if settlement.get("succeeded") is not True:
+                raise OperationAdapterError(
+                    f"issue.present did not observe {category} after recipe "
+                    f"{recipe}: {settlement.get('reason')}"
+                )
+            return {
+                "succeeded": True,
+                "category": category,
+                "recipe": recipe,
+                "alreadyPresent": False,
+                "receiptID": activation["receiptID"],
+                "fields": settlement["fields"],
+                "settlement": settlement,
+                "setup": setup,
+                "activation": activation,
+                "retry": retry,
+                "primaryAction": settlement["primaryAction"],
+                "secondaryAction": settlement["secondaryAction"],
+                "confirmAction": settlement["confirmAction"],
+                "response": settlement.get("response", {}),
+            }
+        finally:
+            if activation is not None:
+                self._host_preflight_1(
+                    {
+                        "check": "remote-faults",
+                        "phase": "restore",
+                        "receiptID": str(activation["receiptID"]),
+                    },
+                    context,
+                )
 
     def _library_snapshot_1(self, arguments, context):
         response = self._app_command(context, "listLibrary")
@@ -6236,6 +6625,64 @@ class ResidentOperationBackend:
         raise OperationAdapterError(
             "PlayerUI-spatial-state is unavailable after immersive controls summon"
         )
+
+    def _optional_playback_state(self, context: OperationContext) -> dict[str, object]:
+        plane, response = self._read_control_plane(
+            context, "PlayerUI-playback-state"
+        )
+        if plane is None:
+            return {
+                "succeeded": False,
+                "available": False,
+                "fields": {},
+                "response": response,
+            }
+        return {
+            "succeeded": True,
+            "available": True,
+            "fields": plane,
+            "session": plane.get("session"),
+            "mediaName": plane.get("mediaName"),
+            "response": response,
+        }
+
+    def _certificate_trust_probe(
+        self,
+        context: OperationContext,
+        remote: Mapping[str, object],
+    ) -> dict[str, object]:
+        address = remote.get("certificateAddress")
+        if not isinstance(address, str) or not address:
+            raise OperationAdapterError(
+                "certificate change observation omitted certificateAddress"
+            )
+        previous = _certificate_fingerprint(
+            remote.get("priorCertificateFingerprint"),
+            "priorCertificateFingerprint",
+        )
+        current = _certificate_fingerprint(
+            remote.get("certificateFingerprint"),
+            "certificateFingerprint",
+        )
+        response = self._app_command(
+            context,
+            "certificateTrustProbe",
+            f"address={address}",
+            f"expectedPrevious={previous}",
+            f"expectedCurrent={current}",
+        )
+        self._require_success(response, "certificateTrustProbe")
+        pairs = self._response_payload_pairs(response)
+        if pairs.get("schema") != "enchron.regression.certificate-trust-probe@1":
+            raise OperationAdapterError(
+                "certificateTrustProbe returned the wrong schema"
+            )
+        return {
+            "storedFingerprint": pairs["storedFingerprint"],
+            "previousFingerprint": pairs["previousFingerprint"],
+            "currentFingerprint": pairs["currentFingerprint"],
+            "currentFingerprintTrusted": pairs["currentFingerprintTrusted"],
+        }
 
     def _diagnostics_playback_state_1(
         self, arguments, context, *, include_screenshot=False

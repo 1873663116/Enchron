@@ -5,13 +5,13 @@
   "id": "rubric:network-resilience.certificate-change-stops-without-trust.o01@1",
   "title": "Certificate Change Stops Without Trust",
   "criteria": [
-    "Rotating the active HTTPS source certificate interrupts the existing TLS connection; the application records exactly one matching previous/new fingerprint pair, pauses the active session, and presents server-certificate-changed.",
-    "The only delivered issue action is Close. Closing stops the session, no playback trust prompt or decision occurs, and the stored fingerprint remains the previous value while the rotated fingerprint remains untrusted."
+    "operationOutput.certificateChangeObservation records exactly one certificateBoundary changed previous/new fingerprint pair that matches remoteObservation.priorCertificateFingerprint and certificateFingerprint; relatedResults[0] is the pre-Close window control-plane fields with lifecycle=Paused, error=server-certificate-changed, and active=true.",
+    "The only delivered issue action is Close. certificateChangeObservation.deliveredCloseEvents is nonempty, playbackPromptEvents is empty, afterClose or the bound playbackObservation shows the session stopped (active=false and session=none, or the post-Close playback-state probe unavailable), storedFingerprintAfterClose equals the previous fingerprint, and currentFingerprintTrustedAfterClose is false. The post-Close certificateTrustProbe payload (schema enchron.regression.certificate-trust-probe@1) is the trust mapping that observation inlined."
   ],
   "negativeControls": [
     "A controller receipt without the application certificateBoundary delivery and matching fingerprint pair is inadmissible.",
     "Continuing playback, a generic issue, any action other than Close, an active session after Close, or any playback promptRequested, promptPresented, or decision event violates the interruption contract.",
-    "Replacing the stored fingerprint with the rotated fingerprint, accepting the new certificate, or losing the post-Close trust probe violates the trust-boundary contract."
+    "Replacing the stored fingerprint with the rotated fingerprint, accepting the new certificate, or losing the post-Close trust probe violates the trust-boundary contract. Host remoteObservation priorCertificateFingerprint/certificateFingerprint are server certificates and cannot establish storedFingerprintAfterClose."
   ]
 }
 ---

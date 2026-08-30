@@ -47,10 +47,10 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:22d56aa15e83f3d15b0b21f5fdc17691ec14fd913bf60001d341479ef22e32c8"
+    "digest": "sha256:00d8e78cf5a88b70b8bf9d6bff760cfc5bae3f9d312e88b31c4feb3389928d56"
   }
 }
 ---
 # Playback Select Subtitle
 
-The runtime Operation adapter selects one external subtitle through the public host route in one controller transaction: host=playerUI uses PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items; host=playerPanel summons immersive chrome with toggleControls then PlayerPanel-menu-more, PlayerPanel-menu-subtitles, and PlayerPanel-menu-subtitle-external.subtitle.* items without addressing PlayerUI-window-playback-surface. It then verifies the same playback identity and selected track in product state.
+The runtime Operation adapter selects one external subtitle through the public PlayerUI host in one controller transaction: PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items. host admits only playerUI, the host that can produce the declared window.control-plane pair after product.md:17 removes that window probe from an immersive settle. It then verifies the same playback identity and selected track in product state.

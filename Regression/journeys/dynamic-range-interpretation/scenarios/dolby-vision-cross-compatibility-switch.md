@@ -84,7 +84,10 @@
         "context": "window",
         "count": 3,
         "includeHDRFallback": true,
-        "minimumIntervalMillis": 1000
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:05/tappedIdentifiers"
+        ]
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06",
       "maxInvocations": 1,
@@ -144,7 +147,10 @@
         "context": "window",
         "count": 3,
         "includeHDRFallback": true,
-        "minimumIntervalMillis": 1000
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:11/tappedIdentifiers"
+        ]
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12",
       "maxInvocations": 1,

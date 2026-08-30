@@ -5,11 +5,11 @@
   "id": "rubric:local-media-lifecycle.automatic-play-next-resume-policy.o01@1",
   "title": "Automatic Play Next resume policy",
   "criteria": [
-    "The terminal playback probe has mediaName=sdr-bframe-multiaudio-avsync-120s.mp4, position at least 12 seconds, at least 30 seconds remaining, and a session different from the first-item baseline.",
+    "The terminal playback probe has mediaName=sdr-bframe-multiaudio-avsync-120s.mp4, position at least 12 seconds, at least 30 seconds remaining, and session different from relatedResults[0], which is the first-item diagnostics.playback-state@1 session captured before automatic Play Next.",
     "The terminal playback probe has resumePromptPresentations=1, automaticResumeBypasses=1, and pendingResumePrompt=false: the one direct reopen presented Ask Every Time, while automatic Play Next resumed without a second prompt."
   ],
   "negativeControls": [
-    "A missing direct-open prompt, any automatic-continuation prompt, a terminal position below the saved range, unchanged session identity, or the wrong mediaName violates HC-013."
+    "A missing direct-open prompt, any automatic-continuation prompt, a terminal position below the saved range, session equal to relatedResults[0], or the wrong mediaName violates HC-013."
   ]
 }
 ---

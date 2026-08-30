@@ -31,10 +31,6 @@
     {
       "key": "local-directory-subtitle-source-ready",
       "schema": "media-source.local-directory-sidecars@1"
-    },
-    {
-      "key": "emby-test-library-ready",
-      "schema": "remote-source.emby-library@2"
     }
   ],
   "operations": [
@@ -54,11 +50,22 @@
     },
     {
       "arguments": {
+        "context": "main-window-browser",
+        "identifiers": [
+          "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
+        ]
+      },
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:03",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
         "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:03",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:04",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -69,7 +76,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:04",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -79,7 +86,7 @@
         "host": "playerUI",
         "sourceKind": "local-sidecar"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
       "maxInvocations": 1,
       "operation": "operation:playback.select-subtitle@1"
     },
@@ -89,13 +96,13 @@
         "count": 3,
         "minimumIntervalMillis": 1000
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     },
     {
       "arguments": {},
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:08",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -103,7 +110,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:08",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:09",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -114,7 +121,7 @@
           "Enchron Regression WebDAV"
         ]
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:09",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -124,7 +131,7 @@
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
         "requireMatchedElement": true
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:10",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:11",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -134,7 +141,7 @@
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:11",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:12",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -145,7 +152,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:12",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -155,7 +162,7 @@
         "host": "playerUI",
         "sourceKind": "source-directory-sidecar"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
       "maxInvocations": 1,
       "operation": "operation:playback.select-subtitle@1"
     },
@@ -165,13 +172,13 @@
         "count": 3,
         "minimumIntervalMillis": 1000
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     },
     {
       "arguments": {},
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:16",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -179,7 +186,7 @@
       "arguments": {
         "tab": "emby"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:16",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:17",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -192,7 +199,7 @@
           "Enchron Regression Episode"
         ]
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:17",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -203,7 +210,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:19",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -213,7 +220,7 @@
         "host": "playerUI",
         "sourceKind": "emby-external-stream"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:19",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
       "maxInvocations": 1,
       "operation": "operation:playback.select-subtitle@1"
     },
@@ -223,7 +230,7 @@
         "count": 3,
         "minimumIntervalMillis": 1000
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -236,7 +243,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:local-sidecar",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:07",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     },
     {
@@ -246,7 +253,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:webdav-sidecar",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:15",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     },
     {
@@ -256,7 +263,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:emby-external-stream",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     }
   ],

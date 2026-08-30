@@ -5,8 +5,8 @@
   "id": "rubric:issue-surface-behavior.typed-single-slot-contract.o01@1",
   "title": "Typed single-slot issues",
   "criteria": [
-    "After mediaOpeningFailed is presented, the first bound hierarchy exposes title Failed to Load, Retry and Close at mainWindow, and no confirm-only action; this policy interrupts playback.",
-    "Without closing the first issue or relaunching, presenting playbackControlFailed replaces the same slot: the second bound hierarchy exposes title Playback Error and only PlayerUI-playbackIssue-confirm; the prior title, PlayerUI-loadFailure-primary, and PlayerUI-loadFailure-secondary are absent, and this policy does not interrupt playback."
+    "The bound inspect relatedResults include the first hierarchy captured after source-file-missing: title Playback Error, PlayerUI-loadFailure-primary (Retry) and PlayerUI-loadFailure-secondary (Close) at mainWindow, and PlayerUI-playbackIssue-confirm absent.",
+    "The bound inspect hierarchy is the replacement after server-certificate-changed on the same attempt without dismissing the first alert or relaunching: title Server Certificate Changed, PlayerUI-loadFailure-secondary (Close) present, and PlayerUI-loadFailure-primary plus the prior Playback Error title absent."
   ],
   "negativeControls": [
     "Dismissing the first alert, using two attempts, observing both surfaces simultaneously, accepting a stale first hierarchy as the replacement state, or falling back to a generic category violates the single-slot contract."

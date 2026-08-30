@@ -47,7 +47,7 @@ VALID_ARGUMENTS: dict[str, dict[str, object]] = {
         "sourceLabel": "Enchron Regression SMB",
         "pathComponents": ["Media", "TestVectors"],
     },
-    "operation:issue.present@1": {"category": "mediaOpeningFailed"},
+    "operation:issue.present@1": {"category": "source-file-missing"},
     "operation:media.stage-fixture@2": {"fixtureID": "fixture", "sourceRoot": "/tmp/media"},
     "operation:media.import-staged@2": {"fileName": "fixture.mp4"},
     "operation:preparation.local-directory-subtitle-source@1": {
@@ -400,7 +400,7 @@ class OperationAllowlistTests(unittest.TestCase):
 
     def test_issue_present_category_allowlist_is_closed(self) -> None:
         spec = adapter.SPECS["operation:issue.present@1"]
-        for category in ("mediaOpeningFailed", "playbackControlFailed"):
+        for category in adapter.ISSUE_INDUCE_RECIPES:
             with self.subTest(category=category):
                 self.assertEqual(
                     dict(spec.validate("device", {"category": category})),
@@ -410,6 +410,10 @@ class OperationAllowlistTests(unittest.TestCase):
                     dict(spec.validate("simulator", {"category": category})),
                     {"category": category},
                 )
+        with self.assertRaises(adapter.OperationAdapterError):
+            spec.validate("device", {"category": "mediaOpeningFailed"})
+        with self.assertRaises(adapter.OperationAdapterError):
+            spec.validate("device", {"category": "playbackControlFailed"})
         with self.assertRaises(adapter.OperationAdapterError):
             spec.validate("device", {"category": "unsupportedVideoCodec"})
 
@@ -440,13 +444,14 @@ class OperationAllowlistTests(unittest.TestCase):
                     VALID_ARGUMENTS[spec.identifier],
                 )
         without_label = {
-            "host": "playerPanel",
+            "host": "playerUI",
             "sourceKind": "emby-external-stream",
             "deadlineSeconds": 45,
         }
         self.assertEqual(dict(spec.validate("device", without_label)), without_label)
         for field, value in (
             ("host", "mediaLibrary"),
+            ("host", "playerPanel"),
             ("sourceKind", "webdav-sidecar"),
             ("deadlineSeconds", 0),
         ):
@@ -916,6 +921,33 @@ class OperationAllowlistTests(unittest.TestCase):
             ],
         )
         self.assertEqual(result["relatedResults"], [])
+
+    def test_accessibility_activate_records_click_monotonic_millis(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        arguments = {
+            "context": "window",
+            "identifiers": ["Emby-Detail-Resume"],
+        }
+        validated = adapter.SPECS["operation:accessibility.activate@2"].validate(
+            "device", arguments
+        )
+        with (
+            mock.patch.object(
+                backend,
+                "_controller",
+                return_value={
+                    "success": True,
+                    "appState": "runningForeground",
+                    "hierarchy": "resume tapped",
+                },
+            ) as controller,
+            mock.patch.object(adapter.time, "monotonic", return_value=12.345),
+        ):
+            result = backend._accessibility_activate_2(validated, self.device)
+        self.assertEqual(result["activatedAtMonotonicMillis"], 12345)
+        controller.assert_called_once_with(
+            self.device, "tap", "--identifier", "Emby-Detail-Resume"
+        )
 
     def test_accessibility_activate_inlines_related_results_on_the_tree(self) -> None:
         spec = adapter.SPECS["operation:accessibility.activate@2"]
@@ -2717,6 +2749,7 @@ class OperationAllowlistTests(unittest.TestCase):
             self.assertEqual(
                 frame["record"]["localScreenshotPath"], f"frame-{index}.png"
             )
+            self.assertIsNone(frame["screenshotDigest"])
             self.assertEqual(
                 frame["presentationObservation"],
                 {
@@ -2810,6 +2843,43 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(
             dict(spec.validate("device", catalog))["relatedResults"],
             catalog["relatedResults"],
+        )
+
+    def test_frame_capture_records_screenshot_digest_from_the_png(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        png = bytes.fromhex(
+            "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+            "0000000a49444154789c6360000002000100ffff03000006000557bf0000000049"
+            "454e44ae426082"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "frame.png"
+            path.write_bytes(png)
+            playback = {
+                "success": True,
+                "matchedElement": {
+                    "value": "lifecycle=Playing;presentation=window;session=s;position=1"
+                },
+                "localScreenshotPath": str(path),
+            }
+            plane = {
+                "success": True,
+                "matchedElement": {"value": "presentation=window"},
+            }
+            with mock.patch.object(
+                backend, "_controller", side_effect=[playback, plane]
+            ):
+                result = backend._evidence_capture_frames_1(
+                    {
+                        "count": 1,
+                        "minimumIntervalMillis": 0,
+                        "context": "window",
+                    },
+                    self.device,
+                )
+        self.assertEqual(
+            result["frames"][0]["screenshotDigest"],
+            "sha256:" + hashlib.sha256(png).hexdigest(),
         )
 
     def test_frame_capture_can_bind_only_the_closed_webdav_playback_observation(self) -> None:
@@ -4573,17 +4643,187 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             result["postActionState"]["appState"], "runningForeground"
         )
 
-    def test_issue_present_rejects_product_state_injection(self) -> None:
+    def test_issue_present_rejects_categories_without_induce_routes(self) -> None:
         backend = adapter.ResidentOperationBackend()
         with mock.patch.object(backend, "_app_command") as app_command:
             with self.assertRaisesRegex(
                 adapter.OperationAdapterError,
-                "diagnostic-bypass cannot mutate product state",
+                "no real-fault induce route",
             ):
                 backend._issue_present_1(
                     {"category": "mediaOpeningFailed"}, self.device
                 )
         app_command.assert_not_called()
+
+    def test_issue_present_returns_existing_slot_when_category_already_showing(
+        self,
+    ) -> None:
+        backend = adapter.ResidentOperationBackend()
+        settlement = {
+            "succeeded": True,
+            "fields": {"error": "source-file-missing", "lifecycle": "failed"},
+            "primaryAction": {
+                "present": True,
+                "identifier": "PlayerUI-loadFailure-primary",
+            },
+            "secondaryAction": {
+                "present": True,
+                "identifier": "PlayerUI-loadFailure-secondary",
+            },
+            "confirmAction": {
+                "present": False,
+                "identifier": "PlayerUI-playbackIssue-confirm",
+            },
+            "response": {"success": True},
+        }
+        with (
+            mock.patch.object(
+                backend,
+                "_issue_control_plane",
+                return_value=(
+                    {"error": "source-file-missing", "lifecycle": "failed"},
+                    {"success": True},
+                ),
+            ),
+            mock.patch.object(
+                backend, "_wait_for_issue_slot", return_value=settlement
+            ) as wait,
+            mock.patch.object(backend, "_host_preflight_1") as preflight,
+            mock.patch.object(
+                backend, "_ensure_issue_fixture_playing"
+            ) as ensure,
+        ):
+            result = backend._issue_present_1(
+                {"category": "source-file-missing"}, self.device
+            )
+        self.assertTrue(result["succeeded"])
+        self.assertTrue(result["alreadyPresent"])
+        wait.assert_called_once()
+        preflight.assert_not_called()
+        ensure.assert_not_called()
+
+    def test_issue_present_activates_recipe_and_restores_after_slot_observation(
+        self,
+    ) -> None:
+        backend = adapter.ResidentOperationBackend()
+        settlement = {
+            "succeeded": True,
+            "fields": {"error": "source-file-missing", "lifecycle": "failed"},
+            "primaryAction": {
+                "present": True,
+                "identifier": "PlayerUI-loadFailure-primary",
+            },
+            "secondaryAction": {
+                "present": True,
+                "identifier": "PlayerUI-loadFailure-secondary",
+            },
+            "confirmAction": {
+                "present": False,
+                "identifier": "PlayerUI-playbackIssue-confirm",
+            },
+            "response": {"success": True},
+        }
+        activation = {"receiptID": "receipt:g-000002:missing-object"}
+        with (
+            mock.patch.object(
+                backend,
+                "_issue_control_plane",
+                return_value=(
+                    {"error": "none", "lifecycle": "playing"},
+                    {"success": True},
+                ),
+            ),
+            mock.patch.object(
+                backend, "_activate_issue_recipe", return_value=activation
+            ) as activate,
+            mock.patch.object(
+                backend, "_wait_for_issue_slot", return_value=settlement
+            ),
+            mock.patch.object(backend, "_host_preflight_1") as preflight,
+            mock.patch.object(
+                backend, "_ensure_issue_fixture_playing"
+            ) as ensure,
+        ):
+            result = backend._issue_present_1(
+                {"category": "source-file-missing", "deadlineSeconds": 45},
+                self.device,
+            )
+        self.assertTrue(result["succeeded"])
+        self.assertEqual(result["recipe"], "missing-object")
+        self.assertFalse(result["alreadyPresent"])
+        ensure.assert_not_called()
+        activate.assert_called_once_with("missing-object", self.device)
+        preflight.assert_called_once_with(
+            {
+                "check": "remote-faults",
+                "phase": "restore",
+                "receiptID": "receipt:g-000002:missing-object",
+            },
+            self.device,
+        )
+
+    def test_issue_present_retries_without_clearing_when_replacing_slot(
+        self,
+    ) -> None:
+        backend = adapter.ResidentOperationBackend()
+        settlement = {
+            "succeeded": True,
+            "fields": {
+                "error": "server-certificate-changed",
+                "lifecycle": "paused",
+            },
+            "primaryAction": {
+                "present": False,
+                "identifier": "PlayerUI-loadFailure-primary",
+            },
+            "secondaryAction": {
+                "present": True,
+                "identifier": "PlayerUI-loadFailure-secondary",
+            },
+            "confirmAction": {
+                "present": False,
+                "identifier": "PlayerUI-playbackIssue-confirm",
+            },
+            "response": {"success": True},
+        }
+        activation = {"receiptID": "receipt:g-000003:certificate-rotation"}
+        retry = {"succeeded": True}
+        with (
+            mock.patch.object(
+                backend,
+                "_issue_control_plane",
+                return_value=(
+                    {"error": "source-file-missing", "lifecycle": "failed"},
+                    {"success": True},
+                ),
+            ),
+            mock.patch.object(
+                backend, "_activate_issue_recipe", return_value=activation
+            ),
+            mock.patch.object(
+                backend, "_accessibility_activate_2", return_value=retry
+            ) as activate_retry,
+            mock.patch.object(
+                backend, "_wait_for_issue_slot", return_value=settlement
+            ),
+            mock.patch.object(backend, "_host_preflight_1"),
+            mock.patch.object(
+                backend, "_ensure_issue_fixture_playing"
+            ) as ensure,
+        ):
+            result = backend._issue_present_1(
+                {"category": "server-certificate-changed"}, self.device
+            )
+        self.assertTrue(result["succeeded"])
+        self.assertEqual(result["retry"], retry)
+        ensure.assert_not_called()
+        activate_retry.assert_called_once_with(
+            {
+                "context": "window",
+                "identifiers": ["PlayerUI-loadFailure-primary"],
+            },
+            self.device,
+        )
 
     def test_subtitle_selection_discovers_dynamic_identity_and_waits_for_product_state(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -5755,10 +5995,24 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         matrix.ProbeCursor.return_value = cursor
         matrix.probe_cursor.return_value = cursor
         matrix.probe_lines_since.return_value = ([], cursor, None)
+        previous = "sha256:" + "a" * 64
+        current = "sha256:" + "b" * 64
         remote = {
             "traceLines": [],
-            "priorCertificateFingerprint": "sha256:" + "a" * 64,
-            "certificateFingerprint": "sha256:" + "b" * 64,
+            "priorCertificateFingerprint": previous,
+            "certificateFingerprint": current,
+            "certificateAddress": "host:8443",
+        }
+        trust_payload = {
+            "success": True,
+            "ok": True,
+            "payload": [
+                "schema=enchron.regression.certificate-trust-probe@1",
+                f"storedFingerprint={previous}",
+                f"previousFingerprint={previous}",
+                f"currentFingerprint={current}",
+                "currentFingerprintTrusted=false",
+            ],
         }
         with (
             mock.patch.object(backend, "_matrix", return_value=matrix),
@@ -5768,13 +6022,32 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 "_window_control_plane_observation",
                 return_value={
                     "succeeded": True,
-                    "fields": {"lifecycle": "Playing"},
+                    "fields": {
+                        "lifecycle": "Paused",
+                        "error": "server-certificate-changed",
+                        "active": "true",
+                    },
                     "response": {"success": True},
                 },
             ),
             mock.patch.object(
+                backend,
+                "_read_control_plane",
+                return_value=(
+                    {
+                        "lifecycle": "Paused",
+                        "error": "server-certificate-changed",
+                        "session": "session-a",
+                    },
+                    {"success": True},
+                ),
+            ),
+            mock.patch.object(
                 backend, "_remote_observation", return_value=remote
             ),
+            mock.patch.object(
+                backend, "_app_command", return_value=trust_payload
+            ) as app_command,
         ):
             result = backend._diagnostics_surface_probe_1(
                 {
@@ -5788,6 +6061,123 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
 
         self.assertFalse(hasattr(backend, "_close_certificate_change_issue"))
         self.assertIsNone(result["certificateBoundary"])
+        self.assertEqual(
+            app_command.call_args_list,
+            [
+                mock.call(
+                    self.device,
+                    "certificateTrustProbe",
+                    "address=host:8443",
+                    f"expectedPrevious={previous}",
+                    f"expectedCurrent={current}",
+                )
+            ],
+        )
+        observation = result["certificateChangeObservation"]
+        self.assertEqual(
+            observation["schema"],
+            "enchron.regression.certificate-change-observation@1",
+        )
+        self.assertEqual(observation["storedFingerprintAfterClose"], previous)
+        self.assertEqual(
+            observation["currentFingerprintTrustedAfterClose"], "false"
+        )
+        self.assertTrue(result["playbackObservation"]["available"])
+
+    def test_certificate_change_surface_probe_inlines_pre_close_state(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        cursor = type("Cursor", (), {"sequence": 1, "line_count": 4})()
+        matrix = mock.Mock()
+        matrix.ProbeCursor.return_value = cursor
+        matrix.probe_cursor.return_value = cursor
+        previous = "sha256:" + "a" * 64
+        current = "sha256:" + "b" * 64
+        colon_previous = ":".join(["AA"] * 32)
+        colon_current = ":".join(["BB"] * 32)
+        lines = [
+            f"certificateBoundary changed previous={colon_previous} new={colon_current}",
+            "reachability playback issue delivered location=mainWindow action=close",
+        ]
+        matrix.probe_lines_since.return_value = (lines, cursor, None)
+        before = {
+            "active": "true",
+            "lifecycle": "Paused",
+            "error": "server-certificate-changed",
+            "transition": "none",
+            "presentation": "window",
+        }
+        after = {
+            "active": "false",
+            "lifecycle": "Idle",
+            "error": "none",
+            "session": "none",
+            "transition": "none",
+        }
+        remote = {
+            "traceLines": ["remoteBinding {}"],
+            "priorCertificateFingerprint": previous,
+            "certificateFingerprint": current,
+            "certificateAddress": "host:8443",
+        }
+        with (
+            mock.patch.object(backend, "_matrix", return_value=matrix),
+            mock.patch.object(backend, "_probe_lines", return_value=lines),
+            mock.patch.object(
+                backend,
+                "_window_control_plane_observation",
+                return_value={
+                    "succeeded": True,
+                    "fields": after,
+                    "response": {"success": True},
+                },
+            ),
+            mock.patch.object(
+                backend,
+                "_read_control_plane",
+                return_value=(after, {"success": True}),
+            ),
+            mock.patch.object(
+                backend, "_remote_observation", return_value=remote
+            ),
+            mock.patch.object(
+                backend,
+                "_app_command",
+                return_value={
+                    "success": True,
+                    "payload": [
+                        "schema=enchron.regression.certificate-trust-probe@1",
+                        f"storedFingerprint={previous}",
+                        f"previousFingerprint={previous}",
+                        f"currentFingerprint={current}",
+                        "currentFingerprintTrusted=false",
+                    ],
+                },
+            ),
+        ):
+            result = backend._diagnostics_surface_probe_1(
+                {
+                    "cursorToken": "1:1",
+                    "remoteExpectation": "certificate-change",
+                    "remoteReceiptID": "receipt:g-000001:certificate-rotation",
+                    "restoredGenerationToken": "2",
+                    "relatedResults": [before],
+                },
+                self.device,
+            )
+
+        observation = result["certificateChangeObservation"]
+        self.assertEqual(len(observation["deliveredChangeEvents"]), 1)
+        self.assertEqual(len(observation["deliveredCloseEvents"]), 1)
+        self.assertEqual(observation["playbackPromptEvents"], [])
+        self.assertEqual(observation["beforeClose"], before)
+        self.assertEqual(observation["afterClose"], after)
+        self.assertEqual(observation["storedFingerprintAfterClose"], previous)
+        self.assertTrue(
+            any(
+                line.startswith("certificateChangeBinding ")
+                for line in result["interactionTrace"]
+            )
+        )
 
     def test_transition_arm_clears_stale_fault_and_disarm_proves_inactive(self) -> None:
         backend = adapter.ResidentOperationBackend()

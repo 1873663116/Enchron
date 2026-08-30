@@ -5,13 +5,11 @@
   "id": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1",
   "title": "Dolby Vision Cross Compatibility Switch",
   "criteria": [
-    "For caseKey profile-8-hdr10, the bound artifact follows one surface to videoFormat to HDRFallback to apply transaction, preserves source tuple (8,1,false) and source format atoms, and shows the HDR10/PQ renderer transfer on the published deliveryAccessibilityFields.",
-    "For caseKey profile-8-hlg, the bound artifact follows one surface to videoFormat to HDRFallback to apply transaction, preserves source tuple (8,4,false) and source format atoms, and shows the HLG/B67 renderer transfer on the published deliveryAccessibilityFields.",
-    "For caseKey profile-5-no-fallback, the bound artifact preserves source tuple (5,0,false), inlines assertAbsentObservations after PlayerUI-TopAction-videoFormat in which PlayerUI-VideoFormat-HDRFallback exists is false, records no fallback mutation after cancel, and retains source and renderer Dolby Vision atom facts.",
-    "The bound artifact contains exactly one three-frame Playing sequence at 1000 ms minimum intervals with stable session and revision, increasing position, distinct content attachments, non-none pixel formats, and no issue."
+    "The bound artifact contains exactly one three-frame Playing sequence at 1000 ms minimum intervals with stable session and revision, increasing position, distinct content attachments, non-none pixel formats, and no issue.",
+    "The bound capture matches the registered case: profile-8-hdr10={relatedResults[0] tappedIdentifiers PlayerUI-window-playback-surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-HDRFallback→PlayerUI-VideoFormat-apply, includeHDRFallback true, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=1, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed 2084/PQ set, source format atoms preserved}; profile-8-hlg={the same transaction and includeHDRFallback, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=4, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed HLG/B67 set, source format atoms preserved}; profile-5-no-fallback={relatedResults[0] assertAbsentObservations after PlayerUI-TopAction-videoFormat with PlayerUI-VideoFormat-HDRFallback exists=false, no fallback mutation after cancel, dolbyVisionProfile=5, dolbyVisionCrossCompatibilityID=0, dolbyVisionHasEnhancementLayer=false, source and renderer Dolby Vision atom facts retained}."
   ],
   "negativeControls": [
-    "A mismatched case, changed source tuple or format atoms, fallback offered for Profile 5 (assertAbsentObservations after videoFormat with exists or isHittable true), fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
+    "A relatedResults path, source tuple, renderer transfer, or format-atom row that differs from the bound case, HDRFallback offered for Profile 5 (assertAbsentObservations after videoFormat with exists or isHittable true), fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
   ]
 }
 ---

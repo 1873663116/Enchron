@@ -7,7 +7,7 @@
   "criteria": [
     "The bound emby.evidence inlines two inspect matchedElement objects from episode detail whose identifier fields are Emby-Detail-Resume and Emby-Detail-PlayFromBeginning, both present before either action is opened.",
     "The bound document inlines the host emby-aggregate report and two playback.probe fields: Resume position is within the five-second observed-position bound of receipt.catalog.progressTicks, Play from Beginning is from 0 through 5 seconds inclusive, and both probes share the same Emby item identity as that report.",
-    "In the locked cold-open environment, click-to-first-changing-frame is at most 45000 ms; 90000 ms is only the harness liveness deadline."
+    "The bound document inlines the same-attempt Resume activate's activatedAtMonotonicMillis and the capture-frames list. The first frame whose screenshotDigest differs from the previous frame has capturedAtMonotonicMillis minus that activate timestamp at most 45000 ms; 90000 ms is only the harness liveness deadline."
   ],
   "negativeControls": [
     "An action return value without the post-action application state cannot satisfy the rubric.",
