@@ -5,7 +5,7 @@
   "id": "rubric:emby-server-lifecycle.progress-authority-server.o01@1",
   "title": "Progress Authority Server",
   "criteria": [
-    "The server reports an active session and advancing position for the opened item, then records the exit position within the reviewed tolerance.",
+    "The server reports an active session and advancing position for the opened item, then records the exit position within the five-second observed-position bound decided by HC-021.",
     "No corresponding local viewing-state record exists for the Emby media identity."
   ],
   "negativeControls": [

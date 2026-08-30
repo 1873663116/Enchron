@@ -5,7 +5,7 @@
   "id": "rubric:local-media-lifecycle.clean-flat-playback-main-gate.o01@1",
   "title": "Clean Flat Playback Main Gate",
   "criteria": [
-    "After reset, relaunch, import, and open, lifecycle=Playing, presentation=window, attached=window, videoVisible=true, and position starts at zero.",
+    "After reset, relaunch, import, and open, lifecycle=Playing, presentation=window, attached=window, videoVisible=true, and position is from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021.",
     "The playback and diagnostic observations bind to the same BuildIdentity and media session."
   ],
   "negativeControls": [

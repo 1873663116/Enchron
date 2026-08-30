@@ -5,8 +5,8 @@
   "id": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1",
   "title": "Emby Resume Entry Semantics",
   "criteria": [
-    "For a server item with reviewed progress, Resume starts within tolerance of that server position.",
-    "Play from Beginning starts within zero tolerance without deleting or overwriting the server's saved progress solely because it was chosen."
+    "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of that server position decided by HC-021.",
+    "Play from Beginning starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, without deleting or overwriting the server's saved progress solely because it was chosen."
   ],
   "negativeControls": [
     "An action return value without the post-action application state cannot satisfy the rubric.",

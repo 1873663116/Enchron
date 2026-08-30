@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:b5e7a77f1d35b5fd8da450943381276a97787ea32530b81293db860134e6b5b4",
+  "contentDigest": "sha256:b9b4995b376ca853c93c30acf41965ad5ad92265caacd77e34677e4ecdfd7a24",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -1156,8 +1156,8 @@
     },
     {
       "criteria": [
-        "For a server item with reviewed progress, Resume starts within tolerance of that server position.",
-        "Play from Beginning starts within zero tolerance without deleting or overwriting the server's saved progress solely because it was chosen."
+        "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of that server position decided by HC-021.",
+        "Play from Beginning starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, without deleting or overwriting the server's saved progress solely because it was chosen."
       ],
       "filename": "rubric-emby-server-lifecycle-emby-resume-entry-semantics-o01-1.md",
       "id": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1",
@@ -1171,7 +1171,7 @@
     {
       "criteria": [
         "When server progress exists, the episode detail exposes both Resume and Play from Beginning as independently delivered actions.",
-        "Resume opens near server progress; Play from Beginning opens within the zero-start tolerance, with the same Emby item identity.",
+        "Under the observed-position bound decided by HC-021, Resume opens within 5 seconds of server progress and Play from Beginning opens from 0 through 5 seconds inclusive, with the same Emby item identity.",
         "In the locked cold-open environment, click-to-first-changing-frame is at most 45000 ms; 90000 ms is only the harness liveness deadline."
       ],
       "filename": "rubric-emby-server-lifecycle-episode-resume-and-start-actions-o01-1.md",
@@ -1200,7 +1200,7 @@
     },
     {
       "criteria": [
-        "The server reports an active session and advancing position for the opened item, then records the exit position within the reviewed tolerance.",
+        "The server reports an active session and advancing position for the opened item, then records the exit position within the five-second observed-position bound decided by HC-021.",
         "No corresponding local viewing-state record exists for the Emby media identity."
       ],
       "filename": "rubric-emby-server-lifecycle-progress-authority-server-o01-1.md",
@@ -1259,7 +1259,7 @@
     {
       "criteria": [
         "The source classification, effective presentation, attachment, projection, and packing agree with the reviewed fixture declaration for the case.",
-        "Three valid frames show non-solid, non-frozen content after the declared presentation settles."
+        "Three valid frames show non-solid content after the declared presentation settles, and time-separated frame pairs have FFmpeg SSIM no greater than 0.995, the VISUAL_FROZEN_SSIM threshold in Scripts/verification/playback_mode_matrix.py:1329."
       ],
       "filename": "rubric-format-coverage-signalled-media-classification-o01-1.md",
       "id": "rubric:format-coverage.signalled-media-classification.o01@1",
@@ -1435,7 +1435,7 @@
     },
     {
       "criteria": [
-        "After reset, relaunch, import, and open, lifecycle=Playing, presentation=window, attached=window, videoVisible=true, and position starts at zero.",
+        "After reset, relaunch, import, and open, lifecycle=Playing, presentation=window, attached=window, videoVisible=true, and position is from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021.",
         "The playback and diagnostic observations bind to the same BuildIdentity and media session."
       ],
       "filename": "rubric-local-media-lifecycle-clean-flat-playback-main-gate-o01-1.md",
@@ -1450,7 +1450,7 @@
     {
       "criteria": [
         "At least three 1920x1080-or-valid-host frames contain real non-solid content.",
-        "Time-separated frames differ beyond the reviewed freeze threshold while retaining the same fixture identity."
+        "Time-separated frame pairs have FFmpeg SSIM no greater than 0.995, the VISUAL_FROZEN_SSIM threshold in Scripts/verification/playback_mode_matrix.py:1329, while retaining the same fixture identity."
       ],
       "filename": "rubric-local-media-lifecycle-clean-flat-playback-main-gate-o02-1.md",
       "id": "rubric:local-media-lifecycle.clean-flat-playback-main-gate.o02@1",
@@ -1463,7 +1463,7 @@
     },
     {
       "criteria": [
-        "After the ordered reset, registered import, and open calls succeed, the first stable playback snapshot reports the expected media identity, lifecycle=Playing, a zero-start position, and no resume decision."
+        "After the ordered reset, registered import, and open calls succeed, the first stable playback snapshot reports the expected media identity, lifecycle=Playing, position from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, and no resume decision."
       ],
       "filename": "rubric-local-media-lifecycle-clean-start-position-zero-o01-1.md",
       "id": "rubric:local-media-lifecycle.clean-start-position-zero.o01@1",
@@ -1845,7 +1845,7 @@
         "From an empty viewing-state baseline, the transcript opens MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4, reaches playing, requests playback.seek positionMillionths 997000, and then observes lifecycle ended before any Back action.",
         "The ended snapshot has activePlayback.endedNaturally true for a canonical mediaIdentity and contentRevision; after Back, the persisted snapshot has exactly one completed entry for that identity and revision with completed true, status completed, and positionSeconds equal to durationSeconds, with no resumable entry and no invalid record.",
         "The second open contains no activation of either resume-decision action, its PlayerUI-resumeDecision-panel inspection has matchedElement null, and playback reaches playing automatically.",
-        "The final activePlayback has a non-none sessionID different from the naturally ended session, the same mediaIdentity and contentRevision, viewingStateAuthority enchron-persistence, endedNaturally false, and positionSeconds from 0 through 5 inclusive; the final store still has no resumable entry and binds the baseline, ended, and persisted snapshot digests."
+        "The final activePlayback has a non-none sessionID different from the naturally ended session, the same mediaIdentity and contentRevision, viewingStateAuthority enchron-persistence, endedNaturally false, and positionSeconds from 0 through 5 inclusive under the observed-position bound decided by HC-021; the final store still has no resumable entry and binds the baseline, ended, and persisted snapshot digests."
       ],
       "filename": "rubric-viewing-state-and-storage-completed-media-starts-from-beginning-o01-1.md",
       "id": "rubric:viewing-state-and-storage.completed-media-starts-from-beginning.o01@1",
@@ -1907,7 +1907,7 @@
       "criteria": [
         "The transcript establishes an empty viewing-state baseline, plays MediaLibrary-grid-video-viewing-storage-16m01s.mp4 beyond 20 seconds with at least 300 seconds remaining, captures its active identity and session, exits through PlayerUI-InfoBar-button-back, and then captures exactly one persisted resumable entry for that mediaIdentity and contentRevision.",
         "The second open matches PlayerUI-resumeDecision-panel in the window hierarchy, activates PlayerUI-resumeDecision-primary, and reaches lifecycle playing without a reset, clear, different media open, or content mutation between persistence and reopen.",
-        "The final activePlayback has a non-none sessionID different from the pre-exit sessionID, viewingStateAuthority enchron-persistence, the same mediaIdentity and contentRevision as the persisted entry, and positionSeconds greater than zero and within 5 seconds of the persisted entry positionSeconds.",
+        "The final activePlayback has a non-none sessionID different from the pre-exit sessionID, viewingStateAuthority enchron-persistence, the same mediaIdentity and contentRevision as the persisted entry, and positionSeconds greater than zero and within the five-second observed-position bound of the persisted entry positionSeconds decided by HC-021.",
         "The final viewingStorageObservation binds the baseline, pre-exit, and persisted snapshot digests in order; every compared viewing entry has authority enchron-persistence and invalidRecordCount is zero."
       ],
       "filename": "rubric-viewing-state-and-storage-reopen-resumes-near-position-o01-1.md",

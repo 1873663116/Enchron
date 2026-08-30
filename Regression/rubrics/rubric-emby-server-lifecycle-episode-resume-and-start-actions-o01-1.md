@@ -6,7 +6,7 @@
   "title": "Episode Resume And Start Actions",
   "criteria": [
     "When server progress exists, the episode detail exposes both Resume and Play from Beginning as independently delivered actions.",
-    "Resume opens near server progress; Play from Beginning opens within the zero-start tolerance, with the same Emby item identity.",
+    "Under the observed-position bound decided by HC-021, Resume opens within 5 seconds of server progress and Play from Beginning opens from 0 through 5 seconds inclusive, with the same Emby item identity.",
     "In the locked cold-open environment, click-to-first-changing-frame is at most 45000 ms; 90000 ms is only the harness liveness deadline."
   ],
   "negativeControls": [
