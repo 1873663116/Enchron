@@ -1067,6 +1067,39 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             <= set(operations["operation:format.apply@2"]["invalidatesTags"])
         )
 
+    def test_storage_clear_invalidates_only_the_state_its_handler_can_change(self) -> None:
+        operations = {item["id"]: item for item in self.blueprint["operations"]}
+        current_tags = set(
+            operations["operation:storage.clear@1"]["invalidatesTags"]
+        )
+        self.assertEqual(
+            current_tags,
+            {"cache.state", "ui.state", "viewing.progress", "viewing.state"},
+        )
+
+        former_tags = current_tags | {"library.contents", "settings.state"}
+        freed = set()
+        for identifier, spec in preparation_adapter.PREPARATION_REGISTRY.items():
+            plan = preparation_adapter.build_plan(
+                identifier, spec.lane, f"catalog-v2-{spec.lane}"
+            )
+            state_tags = set(plan.state.tags)
+            if state_tags & former_tags and not state_tags & current_tags:
+                freed.add(identifier)
+        self.assertEqual(
+            freed,
+            {
+                "preparation:audio-only-fixtures",
+                "preparation:dynamic-range-corpus",
+                "preparation:format-corpus",
+                "preparation:local-directory-subtitle-source",
+                "preparation:presentation-fixtures-device",
+                "preparation:presentation-fixtures-simulator",
+                "preparation:projection-corpus",
+                "preparation:window-input-fixture",
+            },
+        )
+
     def test_remote_routes_clean_state_and_ephemeral_ui_sequences_are_closed(self) -> None:
         scenarios = {item["id"]: item for item in self.blueprint["scenarios"]}
         source_route = [
