@@ -179,6 +179,8 @@
         "fixture.corpus",
         "lane.instance",
         "network.fault",
+        "source.connection",
+        "source.session",
         "source.webdav"
       ]
     }

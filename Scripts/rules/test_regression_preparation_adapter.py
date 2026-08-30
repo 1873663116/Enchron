@@ -820,8 +820,10 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "app.session",
                 "emby.account",
                 "lane.instance",
+                "source.connection",
                 "source.emby",
                 "source.emby.fixture-revision",
+                "source.session",
             ),
         )
         self.assertEqual(
@@ -841,8 +843,23 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
 
     def test_smb_preparation_exports_the_session_tag_it_establishes(self) -> None:
         plan = self.plans()["preparation:smb-test-source"]
+        self.assertIn("source.connection", plan.state.tags)
         self.assertIn("source.session", plan.state.tags)
         self.assertNotIn("source.smb", plan.state.tags)
+
+    def test_connection_preparations_snapshot_the_source_state_their_calls_invalidate(self) -> None:
+        plans = self.plans()
+        expected = {
+            "preparation:emby-test-library": {"source.connection", "source.session"},
+            "preparation:faultable-remote-source": {"source.connection", "source.session"},
+            "preparation:issue-fixtures": {"source.connection", "source.session"},
+            "preparation:presentation-fixtures-device": {"source.connection", "source.session"},
+            "preparation:smb-test-source": {"source.connection", "source.session"},
+            "preparation:viewing-storage-fixtures-device": {"source.connection", "source.session"},
+        }
+        for identifier, tags in expected.items():
+            with self.subTest(preparation=identifier):
+                self.assertLessEqual(tags, set(plans[identifier].state.tags))
 
     def test_webdav_source_is_ready_only_after_exact_typed_connection_calls(self) -> None:
         plan = self.plans()["preparation:webdav-test-source"]

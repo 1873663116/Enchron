@@ -210,6 +210,7 @@
         "app.session",
         "fixture.corpus",
         "lane.instance",
+        "source.connection",
         "source.session"
       ]
     }

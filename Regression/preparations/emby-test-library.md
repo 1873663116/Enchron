@@ -131,8 +131,10 @@
         "app.session",
         "emby.account",
         "lane.instance",
+        "source.connection",
         "source.emby",
-        "source.emby.fixture-revision"
+        "source.emby.fixture-revision",
+        "source.session"
       ]
     }
   ]

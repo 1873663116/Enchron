@@ -474,7 +474,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:smb-test-source", "device", "smb-test-source-ready",
-            "remote-source.smb-fixture@2", ("app.session", "fixture.corpus", "lane.instance", "source.session"),
+            "remote-source.smb-fixture@2", ("app.session", "fixture.corpus", "lane.instance", "source.connection", "source.session"),
             preflight="smb-aggregate",
             connect_smb=True,
         ),
@@ -497,13 +497,13 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:emby-test-library", "device", "emby-test-library-ready",
-            "remote-source.emby-library@2", ("app.session", "emby.account", "lane.instance", "source.emby", "source.emby.fixture-revision"),
+            "remote-source.emby-library@2", ("app.session", "emby.account", "lane.instance", "source.connection", "source.emby", "source.emby.fixture-revision", "source.session"),
             preflight="emby-aggregate",
             connect_emby=True,
         ),
         PreparationSpec(
             "preparation:faultable-remote-source", "device", "faultable-remote-source-ready",
-            "remote-source.faultable@2", ("app.session", "certificate.trust", "fixture.corpus", "lane.instance", "network.fault", "source.webdav"),
+            "remote-source.faultable@2", ("app.session", "certificate.trust", "fixture.corpus", "lane.instance", "network.fault", "source.connection", "source.session", "source.webdav"),
             preflight="remote-faults",
             connect_webdav=True,
         ),
@@ -514,13 +514,13 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:issue-fixtures", "device", "issue-fixtures-ready",
-            "fixture-set.issue-surfaces@2", ("app.session", "certificate.trust", "fixture.corpus", "issue.surface", "lane.instance", "source.webdav"),
+            "fixture-set.issue-surfaces@2", ("app.session", "certificate.trust", "fixture.corpus", "issue.surface", "lane.instance", "source.connection", "source.session", "source.webdav"),
             preflight="remote-faults",
             connect_webdav=True,
         ),
         PreparationSpec(
             "preparation:presentation-fixtures-device", "device", "presentation-fixtures-ready",
-            "fixture-set.presentation-tour@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.webdav"),
+            "fixture-set.presentation-tour@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.connection", "source.session", "source.webdav"),
             fixture_ids=tuple(
                 dict.fromkeys(
                     REGRESSION_FIXTURE_SETS["presentation-tour"]
@@ -547,7 +547,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:viewing-storage-fixtures-device", "device", "viewing-storage-fixtures-ready",
-            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.webdav", "viewing.state"),
+            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.connection", "source.session", "source.webdav", "viewing.state"),
             fixture_ids=REGRESSION_FIXTURE_SETS["viewing-storage"], import_staged=False,
             preflight="webdav-regression",
             connect_webdav=True,

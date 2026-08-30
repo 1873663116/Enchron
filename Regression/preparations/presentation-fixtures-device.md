@@ -344,6 +344,8 @@
         "lane.instance",
         "library.contents",
         "presentation.state",
+        "source.connection",
+        "source.session",
         "source.webdav"
       ]
     }
