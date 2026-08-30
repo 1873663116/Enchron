@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:d7965e098cdc1ef90fba1a1b152b8b2d41eed6b63297b3aa38659a20ec49decf",
+  "contentDigest": "sha256:dba8a402ab371de806b579c0ffecce95fda5a2913ebef2cbc13093453b0879ba",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -939,7 +939,7 @@
       "title": "Prepare dynamic range corpus"
     },
     {
-      "contract": "The runtime Preparation adapter can validate the seeded Emby server, but the Catalog has no registered producer Operation that establishes the in-app Emby account; this Preparation therefore remains blocked and produces no reusable state.",
+      "contract": "The runtime Preparation adapter validates the seeded Emby server, resets any persisted Emby account, enters the live runtime address and credentials through the public Emby connection form, verifies the connected home screen, and produces reusable Emby library state.",
       "estimatedCostMillis": 60000,
       "filename": "emby-test-library.md",
       "id": "preparation:emby-test-library",

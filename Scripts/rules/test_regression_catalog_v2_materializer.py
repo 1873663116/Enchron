@@ -376,7 +376,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         )
         self.assertEqual(
             report["preparationReadiness"],
-            {"implementation-gap": 1, "ready": 17},
+            {"ready": 18},
         )
         self.assertEqual(
             report["objective"],
@@ -416,10 +416,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             {item["id"] for item in report["scenarioReadinessGaps"]},
             set(GAP_SCENARIO_CAPABILITIES),
         )
-        self.assertEqual(
-            {item["id"] for item in report["preparationReadinessGaps"]},
-            {"preparation:emby-test-library"},
-        )
+        self.assertFalse(report["preparationReadinessGaps"])
         authorities = report["runtimeAuthorities"]
         self.assertEqual(
             authorities["preparationRegistryDigest"], preparation_adapter.REGISTRY_DIGEST

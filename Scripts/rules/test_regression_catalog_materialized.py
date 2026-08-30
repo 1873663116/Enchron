@@ -244,13 +244,10 @@ class MaterializedCatalogTests(unittest.TestCase):
         self.assertEqual(report["scenarioReadiness"], {"ready": 65})
         self.assertEqual(
             report["preparationReadiness"],
-            {"implementation-gap": 1, "ready": 17},
+            {"ready": 18},
         )
         self.assertFalse(report["scenarioReadinessGaps"])
-        self.assertEqual(
-            {item["id"] for item in report["preparationReadinessGaps"]},
-            {"preparation:emby-test-library"},
-        )
+        self.assertFalse(report["preparationReadinessGaps"])
 
     def test_catalog_has_the_complete_v2_population(self) -> None:
         catalog = self.catalog
@@ -279,19 +276,12 @@ class MaterializedCatalogTests(unittest.TestCase):
                 for scenario in catalog.scenarios
             )
         )
-        preparations = {str(item.id): item for item in catalog.preparations}
-        emby = preparations.pop("preparation:emby-test-library")
         self.assertTrue(
             all(
                 preparation.readiness is ContractReadiness.READY
                 and not preparation.blockers
-                for preparation in preparations.values()
+                for preparation in catalog.preparations
             )
-        )
-        self.assertIs(emby.readiness, ContractReadiness.IMPLEMENTATION_GAP)
-        self.assertEqual(
-            {blocker.capability for blocker in emby.blockers},
-            {"operation:preparation.emby-account@1"},
         )
         covered = {
             promise_id

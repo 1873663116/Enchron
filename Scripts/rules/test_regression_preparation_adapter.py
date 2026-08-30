@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
-import stat
 import subprocess
 import sys
 import tempfile
@@ -22,69 +20,6 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts/verification"))
 import regression_operation_adapter as operations
 import regression_preparation_adapter as preparations
 import regression_remote_source as remote
-import regression_emby_source as emby
-
-
-EMBY_TEST_USERNAME = "emby-user-must-not-cross-boundary"
-EMBY_TEST_PASSWORD = "emby-password-must-not-cross-boundary"
-
-
-def emby_runtime_identity_document(
-    *, server_id: str = "server-regression", user_id: str = "user-regression"
-) -> dict[str, str]:
-    return {
-        "schema": emby.RUNTIME_IDENTITY_SCHEMA,
-        "address": "https://emby.example.test:8096",
-        "username": EMBY_TEST_USERNAME,
-        "password": EMBY_TEST_PASSWORD,
-        "serverID": server_id,
-        "userID": user_id,
-    }
-
-
-def write_emby_runtime_identity(
-    path: Path,
-    *,
-    server_id: str = "server-regression",
-    user_id: str = "user-regression",
-) -> bytes:
-    encoded = (
-        json.dumps(
-            emby_runtime_identity_document(
-                server_id=server_id,
-                user_id=user_id,
-            ),
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n"
-    ).encode("utf-8")
-    path.write_bytes(encoded)
-    path.chmod(0o600)
-    return encoded
-
-
-def emby_account_response(
-    identity_digest: str,
-    **overrides: object,
-) -> dict[str, object]:
-    receipt: dict[str, object] = {
-        "schema": preparations.EMBY_ACCOUNT_PREPARATION_SCHEMA,
-        "identityDigest": identity_digest,
-        "serverID": "server-regression",
-        "userID": "user-regression",
-        "itemID": "episode-regression",
-        "mediaSourceID": "source-regression",
-        "externalSubtitleStreamIndex": 7,
-        "externalSubtitleSourceID": "emby.subtitle.7",
-        "persisted": True,
-    }
-    receipt.update(overrides)
-    return {
-        "ok": True,
-        "success": True,
-        "embyAccountPreparationReceipt": receipt,
-    }
 
 
 EXPECTED_LANES = {
@@ -111,6 +46,7 @@ EXPECTED_LANES = {
 READY_IDS = {
     "preparation:audio-only-fixtures",
     "preparation:dynamic-range-corpus",
+    "preparation:emby-test-library",
     "preparation:local-aggregate-device",
     "preparation:local-aggregate-simulator",
     "preparation:local-directory-subtitle-source",
@@ -128,7 +64,7 @@ READY_IDS = {
     "preparation:system-import-fixtures",
 }
 
-BLOCKED_IDS = {"preparation:emby-test-library"}
+BLOCKED_IDS: set[str] = set()
 
 LOCAL_AGGREGATE_READY_IDS = {
     "preparation:local-aggregate-device",
@@ -180,7 +116,7 @@ class PreparationRegistryTests(unittest.TestCase):
         self.assertEqual(set(preparations.PREPARATION_REGISTRY), set(EXPECTED_LANES))
         self.assertEqual(len(preparations.PREPARATION_REGISTRY), 18)
 
-    def test_all_18_ids_materialize_as_ready_or_typed_blocked(self) -> None:
+    def test_all_18_ids_materialize_as_ready(self) -> None:
         plans = self.plans()
         ready = {identifier for identifier, plan in plans.items() if plan.readiness == "ready"}
         blocked = {
@@ -193,12 +129,6 @@ class PreparationRegistryTests(unittest.TestCase):
         self.assertEqual(len(ready), len(READY_IDS))
         self.assertEqual(len(blocked), len(EXPECTED_LANES) - len(READY_IDS))
         self.assertEqual(ready | blocked, set(EXPECTED_LANES))
-        for identifier in blocked:
-            blocker = plans[identifier].blocker
-            self.assertIsNotNone(blocker)
-            self.assertEqual(blocker.kind, "implementation-blocker")
-            self.assertTrue(blocker.missing_capabilities)
-            self.assertIsNone(plans[identifier].state.produced_by_call)
 
     def test_all_18_state_contracts_have_exact_key_schema_and_tag_identity(self) -> None:
         plans = self.plans()
@@ -451,7 +381,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         expected = {
             "preparation:audio-only-fixtures": ["audio-fixtures"],
             "preparation:smb-test-source": ["smb-aggregate", "smb-aggregate"],
-            "preparation:emby-test-library": ["emby-aggregate"],
+            "preparation:emby-test-library": ["emby-aggregate", "emby-aggregate"],
             "preparation:system-import-fixtures": ["system-import-fixtures"],
             "preparation:faultable-remote-source": ["remote-faults", "webdav-regression"],
             "preparation:issue-fixtures": ["remote-faults", "webdav-regression"],
@@ -784,19 +714,71 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             else:
                 self.assertNotIn(runtime_key, prerequisites)
 
-    def test_emby_preparation_declares_its_missing_account_producer(self) -> None:
+    def test_emby_source_is_ready_after_typed_public_connection_calls(self) -> None:
         plan = self.plans()["preparation:emby-test-library"]
-        self.assertEqual(plan.readiness, "implementation-blocked")
-        self.assertEqual(
-            plan.blocker.missing_capabilities,
-            ("operation:preparation.emby-account@1",),
-        )
+        self.assertEqual(plan.readiness, "ready")
+        self.assertIsNone(plan.blocker)
         self.assertEqual(
             [call.operation_id for call in plan.calls],
-            ["operation:host.preflight@1"],
+            [
+                "operation:host.preflight@1",
+                "operation:harness.ensure-session@1",
+                "operation:app.relaunch@1",
+                "operation:harness.reset-product-state@2",
+                "operation:harness.assert-channels@2",
+                "operation:navigation.select-tab@1",
+                "operation:accessibility.type@2",
+                "operation:accessibility.type@2",
+                "operation:accessibility.type@2",
+                "operation:accessibility.activate@2",
+                "operation:accessibility.inspect@2",
+                "operation:host.preflight@1",
+            ],
         )
         self.assertEqual(plan.calls[0].arguments, {"check": "emby-aggregate"})
-        self.assertIsNone(plan.state.produced_by_call)
+        self.assertEqual(plan.calls[5].arguments, {"tab": "emby"})
+        typed = plan.calls[6:9]
+        self.assertEqual(
+            [call.arguments["identifier"] for call in typed],
+            [
+                "Emby-Connection-Address",
+                "Emby-Connection-Username",
+                "Emby-Connection-Password",
+            ],
+        )
+        self.assertEqual(
+            [call.arguments["textJSONKey"] for call in typed],
+            ["address", "username", "password"],
+        )
+        self.assertTrue(
+            all(
+                call.arguments["textFile"] == str(preparations.EMBY_RUNTIME_FILE)
+                for call in typed
+            )
+        )
+        self.assertEqual(
+            [call.arguments["secret"] for call in typed],
+            [False, False, True],
+        )
+        self.assertTrue(all("text" not in call.arguments for call in typed))
+        self.assertEqual(
+            dict(plan.calls[9].arguments),
+            {
+                "context": "main-window-browser",
+                "identifiers": ["Emby-Connection-Connect"],
+                "settleDelayMillis": 30_000,
+            },
+        )
+        self.assertEqual(
+            dict(plan.calls[-2].arguments),
+            {
+                "context": "main-window-browser",
+                "identifier": "Emby-Home",
+                "requireMatchedElement": True,
+            },
+        )
+        self.assertEqual(plan.calls[-1].arguments, {"check": "emby-aggregate"})
+        self.assertEqual(plan.state.produced_by_call, plan.calls[-1].call_id)
         prerequisites = {
             (item.kind, item.identity): item.digest for item in plan.prerequisites
         }
@@ -817,38 +799,18 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             ("runtime-identity", str(preparations.EMBY_RUNTIME_FILE)),
             prerequisites,
         )
-        canonical = json.dumps(plan.canonical(), sort_keys=True)
-        self.assertNotIn("username", canonical.casefold())
-        self.assertNotIn("password", canonical.casefold())
-
-    def test_emby_blocker_names_an_unregistered_operation(self) -> None:
-        capability = "operation:preparation.emby-account@1"
-        self.assertNotIn(capability, operations.SPECS)
-        self.assertNotIn(capability, preparations.OPERATION_ALLOWLIST)
 
     def test_emby_preflight_cannot_produce_evidence(self) -> None:
         preflight = operations.SPECS["operation:host.preflight@1"]
         self.assertEqual(preflight.outputs, ())
 
-    def test_blocked_emby_plan_does_not_invoke_any_route(self) -> None:
+    def test_emby_plan_executes_only_registered_operations(self) -> None:
         plan = self.plans()["preparation:emby-test-library"]
-        invoker = mock.Mock()
-        route = mock.Mock()
-        context = type(
-            "Context", (), {"lane": "device", "target": "literal-lane-target"}
-        )()
-        with self.assertRaisesRegex(
-            preparations.PreparationImplementationBlocked,
-            "operation:preparation.emby-account@1",
-        ):
-            preparations.execute_plan(
-                plan,
-                invoker,
-                context,
-                emby_account_route=route,
-            )
-        invoker.invoke.assert_not_called()
-        route.prepare.assert_not_called()
+        self.assertTrue(plan.calls)
+        self.assertTrue(
+            all(call.operation_id in operations.SPECS for call in plan.calls)
+        )
+        self.assertEqual(len(operations.SPECS), 35)
 
     def test_emby_state_declaration_retains_only_semantic_tags(self) -> None:
         state = self.plans()["preparation:emby-test-library"].state
@@ -862,7 +824,10 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "source.emby.fixture-revision",
             ),
         )
-        self.assertIsNone(state.produced_by_call)
+        self.assertEqual(
+            state.produced_by_call,
+            self.plans()["preparation:emby-test-library"].calls[-1].call_id,
+        )
 
     def test_every_ready_preparation_uses_its_final_call_as_producer(self) -> None:
         plans = self.plans()
@@ -878,162 +843,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         plan = self.plans()["preparation:smb-test-source"]
         self.assertIn("source.session", plan.state.tags)
         self.assertNotIn("source.smb", plan.state.tags)
-
-    def test_resident_emby_route_stages_fixed_0600_file_and_uses_safe_argv(self) -> None:
-        calls: list[tuple[list[str], dict[str, object]]] = []
-        with tempfile.TemporaryDirectory(prefix="emby-route-test-") as directory:
-            root = Path(directory).resolve()
-            identity_file = root / "private-identity.json"
-            encoded = write_emby_runtime_identity(identity_file)
-            digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
-            request = preparations.EmbyAccountPreparationRequest(
-                digest,
-                "episode-regression",
-                "source-regression",
-                7,
-            )
-
-            def runner(command, **kwargs):
-                command = list(command)
-                calls.append((command, kwargs))
-                if command == ["xcode-select", "-p"]:
-                    return subprocess.CompletedProcess(
-                        command,
-                        0,
-                        stdout="/Applications/Xcode-beta.app/Contents/Developer\n",
-                        stderr="",
-                    )
-                if command[0] == "xcrun":
-                    return subprocess.CompletedProcess(
-                        command, 0, stdout="staged", stderr=""
-                    )
-                if "ensure-session" in command:
-                    return subprocess.CompletedProcess(
-                        command,
-                        0,
-                        stdout=json.dumps({"success": True}),
-                        stderr="",
-                    )
-                if "app-command" in command:
-                    return subprocess.CompletedProcess(
-                        command,
-                        0,
-                        stdout=json.dumps(emby_account_response(digest)),
-                        stderr="",
-                    )
-                raise AssertionError(command)
-
-            context = operations.OperationContext(
-                "device",
-                "device-udid",
-                root,
-                root / "controller",
-            )
-            response = preparations.ResidentEmbyAccountPreparationRoute(
-                runner
-            ).prepare(
-                request,
-                identity_file,
-                (EMBY_TEST_USERNAME, EMBY_TEST_PASSWORD),
-                context,
-            )
-
-        self.assertEqual(
-            response["embyAccountPreparationReceipt"]["identityDigest"],
-            digest,
-        )
-        staged = next(command for command, _ in calls if command[0] == "xcrun")
-        self.assertEqual(
-            staged[staged.index("--destination") + 1],
-            preparations.EMBY_CONTAINER_IDENTITY_PATH,
-        )
-        self.assertEqual(
-            staged[staged.index("--source") + 1],
-            str(identity_file),
-        )
-        app_command = next(
-            command for command, _ in calls if "app-command" in command
-        )
-        self.assertEqual(
-            app_command[app_command.index("--verb") + 1],
-            preparations.EMBY_ACCOUNT_PREPARATION_VERB,
-        )
-        app_arguments = [
-            app_command[index + 1]
-            for index, value in enumerate(app_command)
-            if value == "--arg"
-        ]
-        self.assertEqual(
-            app_arguments,
-            [
-                f"identityDigest={digest}",
-                "itemID=episode-regression",
-                "mediaSourceID=source-regression",
-                "externalSubtitleStreamIndex=7",
-            ],
-        )
-        argv = json.dumps([command for command, _ in calls])
-        self.assertNotIn(EMBY_TEST_USERNAME, argv)
-        self.assertNotIn(EMBY_TEST_PASSWORD, argv)
-        copy_kwargs = next(kwargs for command, kwargs in calls if command[0] == "xcrun")
-        self.assertEqual(
-            copy_kwargs["env"],
-            {
-                "DEVELOPER_DIR": "/Applications/Xcode-beta.app/Contents/Developer",
-                "PATH": "/usr/bin:/bin",
-            },
-        )
-
-    def test_resident_emby_route_fails_closed_on_secret_controller_output(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="emby-route-test-") as directory:
-            root = Path(directory).resolve()
-            identity_file = root / "private-identity.json"
-            encoded = write_emby_runtime_identity(identity_file)
-            digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
-
-            def runner(command, **kwargs):
-                command = list(command)
-                if command == ["xcode-select", "-p"]:
-                    return subprocess.CompletedProcess(
-                        command, 0, stdout="/xcode\n", stderr=""
-                    )
-                if command[0] == "xcrun":
-                    return subprocess.CompletedProcess(
-                        command, 0, stdout="", stderr=""
-                    )
-                if "ensure-session" in command:
-                    return subprocess.CompletedProcess(
-                        command,
-                        0,
-                        stdout=json.dumps({"success": True}),
-                        stderr="",
-                    )
-                return subprocess.CompletedProcess(
-                    command,
-                    0,
-                    stdout=json.dumps(emby_account_response(digest)),
-                    stderr=f"logged={EMBY_TEST_PASSWORD}",
-                )
-
-            context = operations.OperationContext(
-                "device", "device-udid", root, root / "controller"
-            )
-            route = preparations.ResidentEmbyAccountPreparationRoute(runner)
-            with self.assertRaises(
-                preparations.PreparationExecutionError
-            ) as raised:
-                route.prepare(
-                    preparations.EmbyAccountPreparationRequest(
-                        digest,
-                        "episode-regression",
-                        "source-regression",
-                        7,
-                    ),
-                    identity_file,
-                    (EMBY_TEST_USERNAME, EMBY_TEST_PASSWORD),
-                    context,
-                )
-        self.assertNotIn(EMBY_TEST_PASSWORD, str(raised.exception))
 
     def test_webdav_source_is_ready_only_after_exact_typed_connection_calls(self) -> None:
         plan = self.plans()["preparation:webdav-test-source"]

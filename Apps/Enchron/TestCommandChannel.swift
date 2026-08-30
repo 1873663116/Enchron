@@ -1151,6 +1151,7 @@ final class TestCommandChannel {
             )
 #endif
         case "resetState":
+            await embySession.signOut()
             let references = allReferences
             for reference in references {
                 mediaLibrary.remove(reference)

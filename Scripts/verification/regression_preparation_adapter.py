@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import hashlib
 import json
-import os
 from pathlib import Path, PurePosixPath
 import re
-import stat
-import subprocess
-import sys
-import tempfile
 from types import MappingProxyType
 from typing import Mapping, Protocol
 
@@ -34,9 +29,6 @@ REMOTE_IMPLEMENTATION_IDENTITIES = operations.REMOTE_IMPLEMENTATION_IDENTITIES
 SMB_RUNTIME_FILE = operations.SMB_RUNTIME_FILE
 SMB_IMPLEMENTATION_IDENTITIES = operations.SMB_IMPLEMENTATION_IDENTITIES
 EMBY_RUNTIME_FILE = emby.DEFAULT_IDENTITY_FILE
-EMBY_CONTAINER_IDENTITY_PATH = "Documents/Regression/emby-runtime-identity.json"
-EMBY_ACCOUNT_PREPARATION_VERB = "prepareEmbyAccount"
-EMBY_ACCOUNT_PREPARATION_SCHEMA = "enchron.regression.emby-account-preparation@1"
 SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES = (
     operations.SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES
 )
@@ -60,78 +52,6 @@ class PreparationImplementationBlocked(PreparationAdapterError):
 
 class PreparationExecutionError(PreparationAdapterError):
     pass
-
-
-@dataclass(frozen=True)
-class EmbyAccountPreparationRequest:
-    identity_digest: str
-    item_id: str
-    media_source_id: str
-    external_subtitle_stream_index: int
-
-    def arguments(self) -> dict[str, str]:
-        return {
-            "identityDigest": self.identity_digest,
-            "itemID": self.item_id,
-            "mediaSourceID": self.media_source_id,
-            "externalSubtitleStreamIndex": str(
-                self.external_subtitle_stream_index
-            ),
-        }
-
-
-@dataclass(frozen=True)
-class EmbyAccountPreparationReceipt:
-    schema: str
-    identity_digest: str
-    server_id: str
-    user_id: str
-    item_id: str
-    media_source_id: str
-    external_subtitle_stream_index: int
-    external_subtitle_source_id: str
-    persisted: bool
-
-    def canonical(self) -> dict[str, object]:
-        return {
-            "schema": self.schema,
-            "identityDigest": self.identity_digest,
-            "serverID": self.server_id,
-            "userID": self.user_id,
-            "itemID": self.item_id,
-            "mediaSourceID": self.media_source_id,
-            "externalSubtitleStreamIndex": self.external_subtitle_stream_index,
-            "externalSubtitleSourceID": self.external_subtitle_source_id,
-            "persisted": self.persisted,
-        }
-
-
-@dataclass(frozen=True)
-class _EmbyRuntimeIdentity:
-    encoded: bytes = field(repr=False)
-    digest: str
-    server_id: str
-    user_id: str
-    secret_values: tuple[str, ...] = field(repr=False)
-
-
-@dataclass(frozen=True)
-class _EmbySeedBinding:
-    server_id: str
-    user_id: str
-    item_id: str
-    media_source_id: str
-    external_subtitle_stream_index: int
-
-
-class EmbyAccountPreparationRoute(Protocol):
-    def prepare(
-        self,
-        request: EmbyAccountPreparationRequest,
-        identity_file: Path,
-        secret_values: tuple[str, ...],
-        context: object,
-    ) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -271,6 +191,7 @@ class PreparationSpec:
     import_staged: bool = False
     connect_webdav: bool = False
     connect_smb: bool = False
+    connect_emby: bool = False
     controls_auto_hide_seconds: int | None = None
     prepare_device_hub: bool = False
     clear_storage_targets: tuple[str, ...] = ()
@@ -288,6 +209,7 @@ class PreparationSpec:
             "importStaged": self.import_staged,
             "connectWebDAV": self.connect_webdav,
             "connectSMB": self.connect_smb,
+            "connectEmby": self.connect_emby,
             "controlsAutoHideSeconds": self.controls_auto_hide_seconds,
             "prepareDeviceHub": self.prepare_device_hub,
             "clearStorageTargets": list(self.clear_storage_targets),
@@ -313,7 +235,6 @@ class PreparationExecution:
     plan_digest: str
     state: StateContract
     invocations: tuple[object, ...]
-    emby_account_preparation_receipt: EmbyAccountPreparationReceipt | None = None
 
 
 def _read_json(path: Path) -> tuple[dict[str, object], str]:
@@ -578,7 +499,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
             "preparation:emby-test-library", "device", "emby-test-library-ready",
             "remote-source.emby-library@2", ("app.session", "emby.account", "lane.instance", "source.emby", "source.emby.fixture-revision"),
             preflight="emby-aggregate",
-            blocker_capabilities=("operation:preparation.emby-account@1",),
+            connect_emby=True,
         ),
         PreparationSpec(
             "preparation:faultable-remote-source", "device", "faultable-remote-source-ready",
@@ -772,7 +693,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
     calls: list[PreparationCall] = []
     if spec.preflight is not None:
         calls.append(_call(spec.identifier, len(calls) + 1, "operation:host.preflight@1", {"check": spec.preflight}))
-    if spec.fixture_ids or spec.connect_webdav or spec.connect_smb:
+    if spec.fixture_ids or spec.connect_webdav or spec.connect_smb or spec.connect_emby:
         session_arguments = (
             {"controlsAutoHideSeconds": spec.controls_auto_hide_seconds}
             if spec.controls_auto_hide_seconds is not None
@@ -1122,6 +1043,83 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                 ),
             )
         )
+    if spec.connect_emby:
+        runtime_file = str(EMBY_RUNTIME_FILE)
+        calls.extend(
+            (
+                _call(
+                    spec.identifier,
+                    len(calls) + 1,
+                    "operation:navigation.select-tab@1",
+                    {"tab": "emby"},
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 2,
+                    "operation:accessibility.type@2",
+                    {
+                        "context": "main-window-browser",
+                        "identifier": "Emby-Connection-Address",
+                        "mode": "replace",
+                        "textFile": runtime_file,
+                        "textJSONKey": "address",
+                        "secret": False,
+                    },
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 3,
+                    "operation:accessibility.type@2",
+                    {
+                        "context": "main-window-browser",
+                        "identifier": "Emby-Connection-Username",
+                        "mode": "replace",
+                        "textFile": runtime_file,
+                        "textJSONKey": "username",
+                        "secret": False,
+                    },
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 4,
+                    "operation:accessibility.type@2",
+                    {
+                        "context": "main-window-browser",
+                        "identifier": "Emby-Connection-Password",
+                        "mode": "replace",
+                        "textFile": runtime_file,
+                        "textJSONKey": "password",
+                        "secret": True,
+                    },
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 5,
+                    "operation:accessibility.activate@2",
+                    {
+                        "context": "main-window-browser",
+                        "identifiers": ["Emby-Connection-Connect"],
+                        "settleDelayMillis": 30_000,
+                    },
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 6,
+                    "operation:accessibility.inspect@2",
+                    {
+                        "context": "main-window-browser",
+                        "identifier": "Emby-Home",
+                        "requireMatchedElement": True,
+                    },
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 7,
+                    "operation:host.preflight@1",
+                    {"check": "emby-aggregate"},
+                ),
+            )
+        )
     return tuple(calls)
 
 
@@ -1271,6 +1269,8 @@ def validate_plan(plan: PreparationPlan) -> None:
         expected_preflights.append("webdav-regression")
     if spec.connect_smb:
         expected_preflights.append("smb-aggregate")
+    if spec.connect_emby:
+        expected_preflights.append("emby-aggregate")
     observed_preflights = [
         call.arguments.get("check")
         for call in plan.calls
@@ -1395,425 +1395,10 @@ def _strings(value: object) -> tuple[str, ...]:
     return ()
 
 
-def _read_emby_runtime_identity(path: Path) -> _EmbyRuntimeIdentity:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        descriptor = os.open(path, flags)
-    except OSError as error:
-        raise PreparationExecutionError(
-            "Emby runtime identity is unavailable"
-        ) from error
-    try:
-        information = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(information.st_mode)
-            or information.st_uid != os.getuid()
-            or stat.S_IMODE(information.st_mode) != 0o600
-        ):
-            raise PreparationExecutionError(
-                "Emby runtime identity must be an owner-only 0600 regular file"
-            )
-        with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            encoded = stream.read()
-    finally:
-        os.close(descriptor)
-    try:
-        document = json.loads(encoded)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise PreparationExecutionError(
-            "Emby runtime identity is not valid JSON"
-        ) from error
-    required = {
-        "schema",
-        "address",
-        "username",
-        "password",
-        "serverID",
-        "userID",
-    }
-    if (
-        not isinstance(document, dict)
-        or set(document) != required
-        or document.get("schema") != emby.RUNTIME_IDENTITY_SCHEMA
-        or any(
-            not isinstance(document.get(key), str) or not document[key]
-            for key in required - {"schema"}
-        )
-    ):
-        raise PreparationExecutionError(
-            "Emby runtime identity has an unexpected schema"
-        )
-    return _EmbyRuntimeIdentity(
-        encoded=encoded,
-        digest=SHA256 + hashlib.sha256(encoded).hexdigest(),
-        server_id=document["serverID"],
-        user_id=document["userID"],
-        secret_values=(document["username"], document["password"]),
-    )
-
-
-def _emby_seed_binding(
-    report: object, runtime_identity: _EmbyRuntimeIdentity
-) -> _EmbySeedBinding:
-    if not emby.validate_preflight_report(report, runtime_file=EMBY_RUNTIME_FILE):
-        raise PreparationExecutionError(
-            "Emby Preparation requires the exact typed Emby seed receipt"
-        )
-    if _contains_secret(
-        report, runtime_identity.secret_values
-    ) or _contains_credential_field(report):
-        raise PreparationExecutionError(
-            "Emby seed receipt contains forbidden credential material"
-        )
-    assert isinstance(report, Mapping)
-    receipt = report["receipt"]
-    assert isinstance(receipt, Mapping)
-    catalog = receipt["catalog"]
-    external_subtitle = receipt["externalSubtitle"]
-    assert isinstance(catalog, Mapping)
-    assert isinstance(external_subtitle, Mapping)
-    if (
-        receipt["serverID"] != runtime_identity.server_id
-        or receipt["userID"] != runtime_identity.user_id
-    ):
-        raise PreparationExecutionError(
-            "Emby seed receipt identity differs from the runtime identity"
-        )
-    return _EmbySeedBinding(
-        server_id=receipt["serverID"],
-        user_id=receipt["userID"],
-        item_id=catalog["episodeID"],
-        media_source_id=catalog["mediaSourceID"],
-        external_subtitle_stream_index=external_subtitle["streamIndex"],
-    )
-
-
-def _emby_account_receipt(
-    response: object,
-    request: EmbyAccountPreparationRequest,
-    seed: _EmbySeedBinding,
-) -> EmbyAccountPreparationReceipt:
-    if (
-        not isinstance(response, Mapping)
-        or response.get("success") is not True
-        or response.get("ok") is not True
-    ):
-        raise PreparationExecutionError(
-            "prepareEmbyAccount did not return a successful typed response"
-        )
-    document = response.get("embyAccountPreparationReceipt")
-    required = {
-        "schema",
-        "identityDigest",
-        "serverID",
-        "userID",
-        "itemID",
-        "mediaSourceID",
-        "externalSubtitleStreamIndex",
-        "externalSubtitleSourceID",
-        "persisted",
-    }
-    if not isinstance(document, Mapping) or set(document) != required:
-        raise PreparationExecutionError(
-            "prepareEmbyAccount omitted its exact typed receipt"
-        )
-    string_fields = required - {"externalSubtitleStreamIndex", "persisted"}
-    if (
-        any(
-            not isinstance(document.get(key), str) or not document[key]
-            for key in string_fields
-        )
-        or document.get("schema") != EMBY_ACCOUNT_PREPARATION_SCHEMA
-        or type(document.get("externalSubtitleStreamIndex")) is not int
-        or document["externalSubtitleStreamIndex"] < 0
-        or document.get("persisted") is not True
-    ):
-        raise PreparationExecutionError(
-            "prepareEmbyAccount returned an invalid typed receipt"
-        )
-    expected = {
-        "identityDigest": request.identity_digest,
-        "serverID": seed.server_id,
-        "userID": seed.user_id,
-        "itemID": request.item_id,
-        "mediaSourceID": request.media_source_id,
-        "externalSubtitleStreamIndex": request.external_subtitle_stream_index,
-        "externalSubtitleSourceID": (
-            f"emby.subtitle.{request.external_subtitle_stream_index}"
-        ),
-    }
-    if any(document.get(key) != value for key, value in expected.items()):
-        raise PreparationExecutionError(
-            "prepareEmbyAccount receipt identity differs from the seed binding"
-        )
-    return EmbyAccountPreparationReceipt(
-        schema=document["schema"],
-        identity_digest=document["identityDigest"],
-        server_id=document["serverID"],
-        user_id=document["userID"],
-        item_id=document["itemID"],
-        media_source_id=document["mediaSourceID"],
-        external_subtitle_stream_index=document[
-            "externalSubtitleStreamIndex"
-        ],
-        external_subtitle_source_id=document["externalSubtitleSourceID"],
-        persisted=True,
-    )
-
-
-def _contains_secret(value: object, secret_values: tuple[str, ...]) -> bool:
-    return any(
-        secret in text
-        for text in _strings(value)
-        for secret in secret_values
-        if secret
-    )
-
-
-def _contains_credential_field(value: object) -> bool:
-    if isinstance(value, Mapping):
-        for key, nested in value.items():
-            folded = str(key).casefold().replace("_", "").replace("-", "")
-            if any(
-                marker in folded
-                for marker in (
-                    "password",
-                    "token",
-                    "secret",
-                    "authorization",
-                    "credential",
-                    "apikey",
-                )
-            ):
-                return True
-            if _contains_credential_field(nested):
-                return True
-        return False
-    if isinstance(value, (tuple, list)):
-        return any(_contains_credential_field(item) for item in value)
-    return False
-
-
-class ResidentEmbyAccountPreparationRoute:
-    def __init__(self, runner: object | None = None) -> None:
-        self._runner = subprocess.run if runner is None else runner
-
-    def prepare(
-        self,
-        request: EmbyAccountPreparationRequest,
-        identity_file: Path,
-        secret_values: tuple[str, ...],
-        context: object,
-    ) -> object:
-        if getattr(context, "lane", None) != "device":
-            raise PreparationExecutionError(
-                "prepareEmbyAccount is available only on the device lane"
-            )
-        arguments = request.arguments()
-        if set(arguments) != {
-            "identityDigest",
-            "itemID",
-            "mediaSourceID",
-            "externalSubtitleStreamIndex",
-        } or _contains_secret(arguments, secret_values):
-            raise PreparationExecutionError(
-                "prepareEmbyAccount arguments crossed the credential boundary"
-            )
-        session = self._controller(
-            context,
-            "ensure-session",
-            timeout=600,
-            secret_values=secret_values,
-        )
-        if session.get("success") is not True:
-            raise PreparationExecutionError(
-                "prepareEmbyAccount could not obtain an interactive product session"
-            )
-        self._stage_identity(identity_file, secret_values, context)
-        command_arguments: list[str] = [
-            "--verb",
-            EMBY_ACCOUNT_PREPARATION_VERB,
-        ]
-        for key in (
-            "identityDigest",
-            "itemID",
-            "mediaSourceID",
-            "externalSubtitleStreamIndex",
-        ):
-            command_arguments.extend(("--arg", f"{key}={arguments[key]}"))
-        command_arguments.extend(
-            ("--timeout-seconds", str(emby.PRODUCT_DEADLINE_SECONDS))
-        )
-        response = self._controller(
-            context,
-            "app-command",
-            *command_arguments,
-            timeout=emby.PRODUCT_DEADLINE_SECONDS + 30,
-            secret_values=secret_values,
-        )
-        if _contains_secret(response, secret_values):
-            raise PreparationExecutionError(
-                "prepareEmbyAccount exposed credential bytes in its response"
-            )
-        return response
-
-    def _stage_identity(
-        self,
-        identity_file: Path,
-        secret_values: tuple[str, ...],
-        context: object,
-    ) -> None:
-        try:
-            information = identity_file.stat()
-        except OSError as error:
-            raise PreparationExecutionError(
-                "private Emby identity snapshot is unavailable"
-            ) from error
-        if (
-            not stat.S_ISREG(information.st_mode)
-            or information.st_uid != os.getuid()
-            or stat.S_IMODE(information.st_mode) != 0o600
-        ):
-            raise PreparationExecutionError(
-                "private Emby identity snapshot must use mode 0600"
-            )
-        selected = self._runner(
-            ["xcode-select", "-p"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        developer_dir = (
-            selected.stdout.strip()
-            if selected.returncode == 0 and isinstance(selected.stdout, str)
-            else ""
-        )
-        if not developer_dir:
-            raise PreparationExecutionError(
-                "the active Xcode developer directory is unavailable"
-            )
-        target = getattr(context, "target", None)
-        bundle_id = getattr(context, "bundle_id", None)
-        if not isinstance(target, str) or not target or not isinstance(
-            bundle_id, str
-        ) or not bundle_id:
-            raise PreparationExecutionError(
-                "prepareEmbyAccount execution context is incomplete"
-            )
-        command = [
-            "xcrun",
-            "devicectl",
-            "device",
-            "copy",
-            "to",
-            "--device",
-            target,
-            "--domain-type",
-            "appDataContainer",
-            "--domain-identifier",
-            bundle_id,
-            "--source",
-            str(identity_file),
-            "--destination",
-            EMBY_CONTAINER_IDENTITY_PATH,
-        ]
-        if _contains_secret(command, secret_values):
-            raise PreparationExecutionError(
-                "Emby credential bytes entered the staging command"
-            )
-        completed = self._runner(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=600,
-            env={"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"},
-        )
-        output = (completed.stdout or "") + (completed.stderr or "")
-        if any(secret in output for secret in secret_values if secret):
-            raise PreparationExecutionError(
-                "Emby credential bytes entered staging output"
-            )
-        if completed.returncode != 0:
-            raise PreparationExecutionError(
-                "the private Emby identity snapshot could not be staged"
-            )
-
-    def _controller(
-        self,
-        context: object,
-        action: str,
-        *arguments: str,
-        timeout: float,
-        secret_values: tuple[str, ...] = (),
-    ) -> dict[str, object]:
-        target = getattr(context, "target", None)
-        controller_directory = getattr(context, "controller_directory", None)
-        if (
-            not isinstance(target, str)
-            or not target
-            or not isinstance(controller_directory, Path)
-            or not controller_directory.is_absolute()
-        ):
-            raise PreparationExecutionError(
-                "prepareEmbyAccount controller context is incomplete"
-            )
-        command = [
-            sys.executable,
-            str(
-                REPOSITORY_ROOT
-                / "Scripts/verification/interactive_visionpro_ui.py"
-            ),
-            "--device",
-            target,
-            "--output-directory",
-            str(controller_directory),
-            action,
-            *arguments,
-        ]
-        if _contains_secret(command, secret_values):
-            raise PreparationExecutionError(
-                "Emby credential bytes entered the product command"
-            )
-        try:
-            completed = self._runner(
-                command,
-                cwd=REPOSITORY_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except (OSError, subprocess.TimeoutExpired) as error:
-            raise PreparationExecutionError(
-                f"{action} did not complete"
-            ) from error
-        output = (completed.stdout or "") + (completed.stderr or "")
-        if any(secret in output for secret in secret_values if secret):
-            raise PreparationExecutionError(
-                "Emby credential bytes entered controller output"
-            )
-        try:
-            result = json.loads(completed.stdout)
-        except (TypeError, json.JSONDecodeError) as error:
-            raise PreparationExecutionError(
-                f"{action} returned invalid controller JSON"
-            ) from error
-        if not isinstance(result, dict):
-            raise PreparationExecutionError(
-                f"{action} returned a non-object controller result"
-            )
-        if completed.returncode != 0 and result.get("success") is True:
-            raise PreparationExecutionError(
-                f"{action} returned inconsistent controller status"
-            )
-        return result
-
-
 def execute_plan(
     plan: PreparationPlan,
     invoker: OperationInvoker,
     context: object,
-    *,
-    emby_account_route: EmbyAccountPreparationRoute | None = None,
 ) -> PreparationExecution:
     validate_plan(plan)
     if plan.blocker is not None:
@@ -1825,8 +1410,6 @@ def execute_plan(
     if getattr(context, "target", None) != plan.target:
         raise PreparationExecutionError("execution context target differs from the plan")
     invocations: list[object] = []
-    emby_runtime_identity: _EmbyRuntimeIdentity | None = None
-    emby_seed: _EmbySeedBinding | None = None
     for call in plan.calls:
         invocation = invoker.invoke(call.operation_id, dict(call.arguments), context)
         result = getattr(invocation, "result", None)
@@ -1849,12 +1432,6 @@ def execute_plan(
                 raise PreparationExecutionError(
                     "local directory subtitle Preparation requires its typed import receipt"
                 ) from error
-        if plan.preparation_id == "preparation:emby-test-library":
-            report = result.get("report") if isinstance(result, Mapping) else None
-            emby_runtime_identity = _read_emby_runtime_identity(
-                EMBY_RUNTIME_FILE
-            )
-            emby_seed = _emby_seed_binding(report, emby_runtime_identity)
         if plan.preparation_id == "preparation:system-import-fixtures":
             report = result.get("report") if isinstance(result, Mapping) else None
             runtime_file = (
@@ -1882,79 +1459,15 @@ def execute_plan(
                     "system import Preparation requires typed assets and an enlarged Device Hub canvas"
                 )
         invocations.append(invocation)
-    emby_account_receipt = None
-    if plan.preparation_id == "preparation:emby-test-library":
-        if emby_runtime_identity is None or emby_seed is None:
-            raise PreparationExecutionError(
-                "Emby Preparation did not obtain its seed binding"
-            )
-        request = EmbyAccountPreparationRequest(
-            identity_digest=emby_runtime_identity.digest,
-            item_id=emby_seed.item_id,
-            media_source_id=emby_seed.media_source_id,
-            external_subtitle_stream_index=(
-                emby_seed.external_subtitle_stream_index
-            ),
-        )
-        route = (
-            ResidentEmbyAccountPreparationRoute()
-            if emby_account_route is None
-            else emby_account_route
-        )
-        with tempfile.TemporaryDirectory(
-            prefix="enchron-emby-identity-"
-        ) as directory:
-            private_identity = Path(directory) / "emby-runtime-identity.json"
-            descriptor = os.open(
-                private_identity,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
-            )
-            try:
-                os.fchmod(descriptor, 0o600)
-                with os.fdopen(descriptor, "wb", closefd=False) as stream:
-                    stream.write(emby_runtime_identity.encoded)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-            finally:
-                os.close(descriptor)
-            try:
-                response = route.prepare(
-                    request,
-                    private_identity,
-                    emby_runtime_identity.secret_values,
-                    context,
-                )
-            except PreparationExecutionError:
-                raise
-            except Exception:
-                raise PreparationExecutionError(
-                    "prepareEmbyAccount failed before producing its typed receipt"
-                ) from None
-        if _contains_secret(
-            response, emby_runtime_identity.secret_values
-        ):
-            raise PreparationExecutionError(
-                "prepareEmbyAccount exposed credential bytes in its result"
-            )
-        emby_account_receipt = _emby_account_receipt(
-            response,
-            request,
-            emby_seed,
-        )
     return PreparationExecution(
         plan.plan_digest,
         plan.state,
         tuple(invocations),
-        emby_account_receipt,
     )
 
 
 __all__ = (
     "CANONICAL_REGISTRY",
-    "EMBY_ACCOUNT_PREPARATION_SCHEMA",
-    "EMBY_ACCOUNT_PREPARATION_VERB",
-    "EMBY_CONTAINER_IDENTITY_PATH",
     "EMBY_IMPLEMENTATION_IDENTITIES",
     "EMBY_RUNTIME_FILE",
     "FIXTURE_REGISTRY_DIGEST",
@@ -1980,9 +1493,6 @@ __all__ = (
     "SYSTEM_IMPORT_RUNTIME_ROOT",
     "FixtureBinding",
     "DirectorySourceBinding",
-    "EmbyAccountPreparationReceipt",
-    "EmbyAccountPreparationRequest",
-    "EmbyAccountPreparationRoute",
     "ImplementationBlocker",
     "PreparationAdapterError",
     "PreparationCall",
@@ -1992,7 +1502,6 @@ __all__ = (
     "PreparationPlan",
     "PreparationSpec",
     "Prerequisite",
-    "ResidentEmbyAccountPreparationRoute",
     "StateContract",
     "build_plan",
     "execute_plan",
