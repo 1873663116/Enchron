@@ -5153,18 +5153,10 @@ class ResidentOperationBackend:
         }
 
     def _issue_present_1(self, arguments, context):
-        category = str(arguments["category"])
-        response = self._app_command(
-            context,
-            "showPlaybackIssue",
-            f"category={category}",
+        raise OperationAdapterError(
+            "issue.present has no public product route for presenting "
+            f"{arguments['category']}; diagnostic-bypass cannot mutate product state"
         )
-        self._require_success(response, "showPlaybackIssue")
-        return {
-            "succeeded": True,
-            "category": category,
-            "response": response,
-        }
 
     def _library_snapshot_1(self, arguments, context):
         response = self._app_command(context, "listLibrary")

@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:3336f667fcbbf1df2deb0857ca1bcbdfa8c693c85b0fd5cd3e31c06559b3d7e7",
+  "contentDigest": "sha256:8834cdf7463281553666de7a03005d124724df7723130b3891c81e316913e7ab",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -794,13 +794,10 @@
       "title": "Diagnostics Browse Hierarchy"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "No public product identifier presents an arbitrary playback issue. This diagnostic-bypass Operation rejects every invocation instead of mutating product state through the test command channel.",
       "filename": "issue-present-v1.md",
       "id": "operation:issue.present@1",
-      "invalidatesTags": [
-        "issue.surface",
-        "ui.state"
-      ],
+      "invalidatesTags": [],
       "role": "diagnostic-bypass",
       "title": "Issue Present"
     },

@@ -4151,32 +4151,17 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             result["postActionState"]["appState"], "runningForeground"
         )
 
-    def test_issue_present_dispatches_existing_product_command_without_inspection(self) -> None:
+    def test_issue_present_rejects_product_state_injection(self) -> None:
         backend = adapter.ResidentOperationBackend()
-        response = {
-            "success": True,
-            "payload": ["mediaOpeningFailed"],
-        }
-        with mock.patch.object(
-            backend, "_app_command", return_value=response
-        ) as app_command:
-            result = backend._issue_present_1(
-                {"category": "mediaOpeningFailed"}, self.device
-            )
-
-        app_command.assert_called_once_with(
-            self.device,
-            "showPlaybackIssue",
-            "category=mediaOpeningFailed",
-        )
-        self.assertEqual(
-            result,
-            {
-                "succeeded": True,
-                "category": "mediaOpeningFailed",
-                "response": response,
-            },
-        )
+        with mock.patch.object(backend, "_app_command") as app_command:
+            with self.assertRaisesRegex(
+                adapter.OperationAdapterError,
+                "diagnostic-bypass cannot mutate product state",
+            ):
+                backend._issue_present_1(
+                    {"category": "mediaOpeningFailed"}, self.device
+                )
+        app_command.assert_not_called()
 
     def test_subtitle_selection_discovers_dynamic_identity_and_waits_for_product_state(self) -> None:
         backend = adapter.ResidentOperationBackend()

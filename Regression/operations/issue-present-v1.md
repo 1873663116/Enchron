@@ -19,17 +19,14 @@
     ],
     "additionalProperties": false
   },
-  "invalidatesTags": [
-    "issue.surface",
-    "ui.state"
-  ],
+  "invalidatesTags": [],
   "evidenceSchemas": [],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:46beec247e912597e51e4f21f22b426c17c2d8a1ab7fbd84018fd4f3b24b83fd"
+    "digest": "sha256:1e1838a745dc041bfedc0757cff320e764ad2c3fbce111231533df13267b8a78"
   }
 }
 ---
 # Issue Present
 
-The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.
+No public product identifier presents an arbitrary playback issue. This diagnostic-bypass Operation rejects every invocation instead of mutating product state through the test command channel.

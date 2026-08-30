@@ -1017,6 +1017,10 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             "diagnostic-bypass",
         )
         self.assertEqual(
+            operations["operation:issue.present@1"]["invalidatesTags"],
+            [],
+        )
+        self.assertEqual(
             operations["operation:playback.select-subtitle@1"]["role"],
             "product-behavior",
         )
