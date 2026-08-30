@@ -128,6 +128,10 @@ STRUCTURE_CHECKS = (
         "verify_controller_invocations.py",
     ),
     StructureCheck(
+        "regression-element-targeting",
+        "verify_regression_element_targeting.py",
+    ),
+    StructureCheck(
         "operation-evidence-payloads",
         "verify_operation_evidence_payloads.py",
     ),

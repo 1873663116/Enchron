@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:6a55e14f10dd7b44a4dc3b1b3b97313c0bdce6bf6683b244f4ebc9e6e47fcb4e",
+  "contentDigest": "sha256:52495a9b36d2ba5f35c64d1ea3e1c9de6273c6f1deb7dddb33ecaa547012cc9d",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -3752,7 +3752,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Library",
+              "Enchron Regression Emby",
               "Enchron Regression Series",
               "Enchron Regression Episode"
             ]
@@ -4775,7 +4775,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Library"
+              "Enchron Regression Emby"
             ]
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:04",
@@ -4910,7 +4910,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Library",
+              "Enchron Regression Emby",
               "Enchron Regression Series",
               "Enchron Regression Episode"
             ]
@@ -5071,7 +5071,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Library"
+              "Enchron Regression Emby"
             ]
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:04",
@@ -5219,7 +5219,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Library",
+              "Enchron Regression Emby",
               "Enchron Regression Series"
             ]
           },
@@ -5300,7 +5300,7 @@
           "arguments": {
             "context": "window",
             "labels": [
-              "Enchron Regression Library",
+              "Enchron Regression Emby",
               "Enchron Regression Series",
               "Enchron Regression Episode"
             ]
@@ -11191,8 +11191,8 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-SourcesSidebar-source-media-library"
+            "labels": [
+              "Media Library"
             ]
           },
           "callId": "call:viewing-state-and-storage:exit-saves-position:03",
@@ -11342,8 +11342,8 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-SourcesSidebar-source-media-library"
+            "labels": [
+              "Media Library"
             ]
           },
           "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:03",
@@ -11548,8 +11548,8 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-SourcesSidebar-source-media-library"
+            "labels": [
+              "Media Library"
             ]
           },
           "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:03",
@@ -11750,8 +11750,8 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-SourcesSidebar-source-media-library"
+            "labels": [
+              "Media Library"
             ]
           },
           "callId": "call:viewing-state-and-storage:clear-all-local-progress:03",
@@ -12236,8 +12236,8 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-SourcesSidebar-source-media-library"
+            "labels": [
+              "Media Library"
             ]
           },
           "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:04",
@@ -12484,8 +12484,8 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-SourcesSidebar-source-media-library"
+            "labels": [
+              "Media Library"
             ]
           },
           "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:05",

@@ -46,7 +46,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Library",
+          "Enchron Regression Emby",
           "Enchron Regression Series"
         ]
       },

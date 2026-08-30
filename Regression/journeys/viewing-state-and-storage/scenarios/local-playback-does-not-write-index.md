@@ -61,8 +61,8 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifiers": [
-          "FileBrowsing-SourcesSidebar-source-media-library"
+        "labels": [
+          "Media Library"
         ]
       },
       "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:04",

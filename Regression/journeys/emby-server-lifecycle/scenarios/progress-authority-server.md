@@ -55,7 +55,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Library"
+          "Enchron Regression Emby"
         ]
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:04",

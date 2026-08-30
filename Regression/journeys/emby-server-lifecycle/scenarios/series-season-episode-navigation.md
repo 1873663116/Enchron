@@ -55,7 +55,7 @@
       "arguments": {
         "context": "window",
         "labels": [
-          "Enchron Regression Library"
+          "Enchron Regression Emby"
         ]
       },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:04",
