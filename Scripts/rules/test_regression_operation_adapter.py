@@ -90,7 +90,10 @@ SEMANTIC_OUTPUTS = {
         ("visual.frames", "frame-sequence@2"),
         ("window.control-plane", "window-control-plane@1"),
     ),
-    "operation:accessibility.inspect@2": (("accessibility.tree", "accessibility-tree@1"),),
+    "operation:accessibility.inspect@2": (
+        ("accessibility.tree", "accessibility-tree@1"),
+        ("emby.evidence", "emby-evidence@1"),
+    ),
     "operation:diagnostics.surface-probe@1": (
         ("interaction.trace", "interaction-trace@1"),
         ("spatial.input", "spatial-input@1"),

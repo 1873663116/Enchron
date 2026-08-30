@@ -125,13 +125,13 @@ def _raw_output(identifier: str) -> dict[str, object]:
                 "hierarchy": "Window/Button",
             },
         },
-        "oracle:agent-structured-emby-range-log@1": {
+        "oracle:agent-structured-emby-evidence@1": {
             "succeeded": True,
-            "itemID": "emby-item",
-            "fileSize": 4096,
-            "openCount": 2,
-            "secondOpenRequests": 1,
-            "indexWindowHits": [],
+            "matchedElement": {
+                "identifier": "Emby-Evidence",
+                "value": json.dumps({"artworkLoads": []}),
+            },
+            "response": {"success": True},
         },
         "oracle:agent-structured-interaction-trace@1": {
             "succeeded": True,
@@ -219,7 +219,7 @@ class OracleAdapterTests(unittest.TestCase):
             "oracle:agent-audio@2": ("agent", "audio.measurement", "audio-measurement@2"),
             "oracle:agent-visual@2": ("agent", "visual.frames", "frame-sequence@2"),
             "oracle:agent-structured-accessibility-tree@1": ("agent", "accessibility.tree", "accessibility-tree@1"),
-            "oracle:agent-structured-emby-range-log@1": ("agent", "emby.range-log", "emby-range-log@1"),
+            "oracle:agent-structured-emby-evidence@1": ("agent", "emby.evidence", "emby-evidence@1"),
             "oracle:agent-structured-interaction-trace@1": ("agent", "interaction.trace", "interaction-trace@1"),
             "oracle:agent-structured-library-command@1": ("agent", "library.command", "library-command@1"),
             "oracle:agent-structured-playback-probe@1": ("agent", "playback.probe", "playback-probe@1"),
@@ -365,6 +365,18 @@ class OracleAdapterTests(unittest.TestCase):
             raw,
         )
         self.assertEqual(payload[spec.payload_field], [raw])
+
+    def test_emby_evidence_requires_json_artwork_loads(self) -> None:
+        spec = adapter.SPECS["oracle:agent-structured-emby-evidence@1"]
+        for value in ("not-json", "{}", '{"artworkLoads": {}}'):
+            with self.subTest(value=value):
+                raw = _raw_output(spec.identifier)
+                raw["matchedElement"]["value"] = value
+                with self.assertRaisesRegex(
+                    adapter.OracleAdapterError,
+                    "matchedElement.value",
+                ):
+                    _typed_payload(spec.evidence_type, spec.evidence_schema, raw)
 
     def test_builder_and_reader_reject_producer_judgments(self) -> None:
         spec = adapter.SPECS["oracle:agent-structured-window-control-plane@1"]

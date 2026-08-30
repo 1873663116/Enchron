@@ -100,17 +100,26 @@
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifier": "Emby-Evidence"
+      },
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "playback-probe@1",
-      "evidenceType": "playback.probe",
+      "evidenceSchema": "emby-evidence@1",
+      "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
-      "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
+      "oracle": "oracle:agent-structured-emby-evidence@1",
+      "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
       "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
     }
   ],

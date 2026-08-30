@@ -39,11 +39,15 @@
     {
       "evidenceType": "accessibility.tree",
       "evidenceSchema": "accessibility-tree@1"
+    },
+    {
+      "evidenceType": "emby.evidence",
+      "evidenceSchema": "emby-evidence@1"
     }
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:79f83f952a05dbb3f6c32c6f94fc0fe702193f3e36a51a034fba0f8b18d3a95e"
+    "digest": "sha256:466edc12da9c3126cc7ba845bb2ad3dda158905c5a143133d8e647efc71593b7"
   }
 }
 ---

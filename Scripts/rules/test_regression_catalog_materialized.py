@@ -99,7 +99,7 @@ EXPECTED_ORACLE_IDS = frozenset(
         "oracle:agent-audio@2",
         "oracle:agent-visual@2",
         "oracle:agent-structured-accessibility-tree@1",
-        "oracle:agent-structured-emby-range-log@1",
+        "oracle:agent-structured-emby-evidence@1",
         "oracle:agent-structured-interaction-trace@1",
         "oracle:agent-structured-library-command@1",
         "oracle:agent-structured-playback-probe@1",

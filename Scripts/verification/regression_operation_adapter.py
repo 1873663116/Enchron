@@ -2199,7 +2199,10 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _index(),
                 _field("requireMatchedElement", boolean, required=False),
             ),
-            (("accessibility.tree", "accessibility-tree@1"),),
+            (
+                ("accessibility.tree", "accessibility-tree@1"),
+                ("emby.evidence", "emby-evidence@1"),
+            ),
             _accessibility_single,
         ),
         OperationSpec(

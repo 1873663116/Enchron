@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:9ec467c478c07cde7daba15f7b567b0a45b55e6d43b8988d3052bb240eae3427",
+  "contentDigest": "sha256:0930ec35babc9869877205708aa8ed9dcd8ce92300156fa5b520d9ab79ed6645",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -837,9 +837,9 @@
     },
     {
       "contract": "The runtime Oracle adapter accepts exactly its registered evidence type and schema pair and returns ordered typed evaluations.",
-      "filename": "oracle-agent-structured-emby-range-log-1.md",
-      "id": "oracle:agent-structured-emby-range-log@1",
-      "title": "Agent Structured Emby Range Log"
+      "filename": "oracle-agent-structured-emby-evidence-1.md",
+      "id": "oracle:agent-structured-emby-evidence@1",
+      "title": "Agent Structured Emby Evidence"
     },
     {
       "contract": "The runtime Oracle adapter accepts exactly its registered evidence type and schema pair and returns ordered typed evaluations.",
@@ -4606,10 +4606,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:04",
           "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1"
         }
@@ -4632,7 +4632,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:03",
           "maxInvocations": 1,
@@ -4641,7 +4641,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
           "maxInvocations": 1,
@@ -4684,10 +4684,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:series-season-episode-navigation:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:07",
           "rubric": "rubric:emby-server-lifecycle.series-season-episode-navigation.o01@1"
         }
@@ -4710,7 +4710,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:03",
           "maxInvocations": 1,
@@ -4752,7 +4752,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
           "maxInvocations": 1,
@@ -4795,11 +4795,11 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
+          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
           "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
         }
       ],
@@ -4876,6 +4876,15 @@
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifier": "Emby-Evidence"
+          },
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -4914,10 +4923,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:progress-authority-server:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:progress-authority-server:11",
           "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o01@1"
         }
@@ -4940,7 +4949,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:03",
           "maxInvocations": 1,
@@ -5024,7 +5033,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:11",
           "maxInvocations": 1,
@@ -5067,10 +5076,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:03",
           "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1"
         }
@@ -5093,7 +5102,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:artwork-by-image-tag:03",
           "maxInvocations": 1,
@@ -5136,11 +5145,11 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:emby-resume-entry-semantics:o01:default",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:emby-server-lifecycle:emby-resume-entry-semantics:08",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
+          "producedByCall": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
           "rubric": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1"
         }
       ],
@@ -5217,6 +5226,15 @@
           "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:08",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifier": "Emby-Evidence"
+          },
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5255,10 +5273,10 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "emby-evidence@1",
+          "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:03",
           "rubric": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o01@1"
         }
@@ -5281,7 +5299,7 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Root"
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:03",
           "maxInvocations": 1,

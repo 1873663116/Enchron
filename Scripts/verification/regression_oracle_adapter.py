@@ -151,11 +151,11 @@ _SPEC_VALUES = (
         "nodes",
     ),
     _spec(
-        "oracle:agent-structured-emby-range-log@1",
+        "oracle:agent-structured-emby-evidence@1",
         OracleKind.AGENT,
-        "emby.range-log",
-        "emby-range-log@1",
-        "opens",
+        "emby.evidence",
+        "emby-evidence@1",
+        "observations",
     ),
     _spec(
         "oracle:agent-structured-interaction-trace@1",
@@ -593,16 +593,28 @@ def _validate_operation_output(spec: OracleSpec, output: Mapping[str, Any]) -> N
         _require_object_array(output, "frames")
     elif evidence_type == "accessibility.tree":
         _require_nonempty_object(output, "response")
-    elif evidence_type == "emby.range-log":
-        _require_nonempty_text(output, "itemID")
-        for field in ("fileSize", "openCount", "secondOpenRequests"):
-            if type(output.get(field)) is not int or output[field] < 0:
-                raise OracleAdapterError(
-                    f"operation output {field} must be a non-negative integer"
-                )
-        if not isinstance(output.get("indexWindowHits"), list):
+    elif evidence_type == "emby.evidence":
+        matched_element = _require_nonempty_object(output, "matchedElement")
+        value = matched_element.get("value")
+        if not isinstance(value, str) or not value.strip():
             raise OracleAdapterError(
-                "operation output indexWindowHits must be an array"
+                "operation output matchedElement.value must be non-empty text"
+            )
+        try:
+            evidence = json.loads(
+                value,
+                object_pairs_hook=_unique_object,
+                parse_constant=_reject_json_constant,
+            )
+        except (TypeError, ValueError, OracleAdapterError) as error:
+            raise OracleAdapterError(
+                "operation output matchedElement.value must be a JSON object"
+            ) from error
+        if not isinstance(evidence, dict) or not isinstance(
+            evidence.get("artworkLoads"), list
+        ):
+            raise OracleAdapterError(
+                "operation output matchedElement.value must carry artworkLoads"
             )
     elif evidence_type == "interaction.trace":
         _require_text_array(output, "interactionTrace")
@@ -638,11 +650,14 @@ def _validate_operation_output(spec: OracleSpec, output: Mapping[str, Any]) -> N
         raise RuntimeError(f"unknown Oracle evidence type: {evidence_type}")
 
 
-def _require_nonempty_object(value: Mapping[str, Any], field: str) -> None:
+def _require_nonempty_object(
+    value: Mapping[str, Any], field: str
+) -> Mapping[str, Any]:
     if not isinstance(value.get(field), dict) or not value[field]:
         raise OracleAdapterError(
             f"operation output {field} must be a non-empty object"
         )
+    return value[field]
 
 
 def _require_nonempty_text(value: Mapping[str, Any], field: str) -> None:

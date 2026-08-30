@@ -145,11 +145,8 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertEqual(obligations, [])
 
-    def test_emby_range_log_is_the_last_oracle_without_a_producer(self) -> None:
-        orphans = [failure for failure in checker.failures() if "no Operation emits" in failure]
-
-        self.assertEqual(len(orphans), 1, "\n".join(checker.failures()))
-        self.assertIn("agent-structured-emby-range-log@1", orphans[0])
+    def test_every_catalog_oracle_has_a_producer(self) -> None:
+        self.assertEqual(checker.failures(), [])
 
 
 if __name__ == "__main__":
