@@ -1135,10 +1135,33 @@ class OperationAllowlistTests(unittest.TestCase):
                 "audio-retirement-renderer": "audioRendererFailureRetiresAudioAndVideoContinues",
             },
         )
-        with self.assertRaisesRegex(adapter.OperationAdapterError, "allowlist"):
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "one of"):
             self.adapter.invoke(
                 "operation:evidence.structural-test@1",
                 {"check": "python-arbitrary-command"},
+                self.simulator,
+            )
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "allowlist"):
+            adapter.ResidentOperationBackend()._evidence_structural_test_1(
+                {"check": "python-arbitrary-command"},
+                self.simulator,
+            )
+
+    def test_backend_rejects_missing_accessibility_action_without_a_false_success(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "identifier or label"):
+            backend._accessibility_activate_2(
+                {"context": "window"},
+                self.simulator,
+            )
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "unreadable"):
+            backend._accessibility_type_2(
+                {
+                    "context": "window",
+                    "identifier": "FileBrowsing-SourcesSidebar-addWebDAV",
+                    "mode": "replace",
+                    "secret": False,
+                },
                 self.simulator,
             )
 

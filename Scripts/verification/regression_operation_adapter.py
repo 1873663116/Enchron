@@ -2640,7 +2640,13 @@ def _specs() -> tuple[OperationSpec, ...]:
             (),
             _device_hub,
         ),
-        OperationSpec("operation:evidence.structural-test@1", LANES, (_field("check", string),), (("structural.test", "structural-test@2"),), _structural_test),
+        OperationSpec(
+            "operation:evidence.structural-test@1",
+            LANES,
+            (_field("check", string, choices=_choices(*STRUCTURAL_CHECKS)),),
+            (("structural.test", "structural-test@2"),),
+            _structural_test,
+        ),
     )
 
 
@@ -3364,6 +3370,10 @@ class ResidentOperationBackend:
     def _accessibility_activate_2(self, arguments, context):
         identifiers = [str(item) for item in arguments.get("identifiers", [])]
         labels = [str(item) for item in arguments.get("labels", [])]
+        if not identifiers and not labels:
+            raise OperationAdapterError(
+                "accessibility activate requires at least one identifier or label"
+            )
         settle_delay_millis = int(arguments.get("settleDelayMillis", 0))
         result: dict[str, object] = {
             "succeeded": True,
@@ -3394,7 +3404,10 @@ class ResidentOperationBackend:
             )
             if gesture == "press":
                 command.extend(
-                    ("--duration", f"{int(arguments['durationMillis']) / 1000:.3f}")
+                    (
+                        "--duration",
+                        f"{int(arguments.get('durationMillis', 1000)) / 1000:.3f}",
+                    )
                 )
             identifier_response = self._controller(context, action, *command)
             self._require_success(identifier_response, "accessibility activate")
@@ -3551,7 +3564,7 @@ class ResidentOperationBackend:
             typed_text = str(arguments["text"])
             command.extend(("--text", typed_text))
         else:
-            text_file = Path(str(arguments["textFile"]))
+            text_file = Path(str(arguments.get("textFile", "")))
             try:
                 information = text_file.lstat()
                 document = json.loads(text_file.read_text(encoding="utf-8"))
@@ -3565,7 +3578,7 @@ class ResidentOperationBackend:
                 raise OperationAdapterError(
                     "credential reference must be an owner-only 0600 regular file"
                 )
-            key = str(arguments["textJSONKey"])
+            key = str(arguments.get("textJSONKey", ""))
             if (
                 not isinstance(document, dict)
                 or not isinstance(document.get(key), str)
@@ -5738,7 +5751,9 @@ class ResidentOperationBackend:
                 "bindingDigest": binding_digest,
                 "expectationObservation": {
                     "expected": expected,
-                    "minimumPositionMillis": int(arguments["minimumPositionMillis"]),
+                    "minimumPositionMillis": int(
+                        arguments.get("minimumPositionMillis", 0)
+                    ),
                     "minimumReconnects": int(arguments.get("minimumReconnects", 0)),
                     "observed": observed,
                     "playbackAddressKind": plane.get("playbackAddressKind"),
@@ -6229,7 +6244,7 @@ class ResidentOperationBackend:
         editor_sequence = None
         coverage_selection = None
         if projection_value == "customAngle":
-            coverage = int(arguments["horizontalCoverageDegrees"])
+            coverage = int(arguments.get("horizontalCoverageDegrees", 180))
             identifiers = (
                 "PlayerUI-TopAction-videoFormat",
                 "PlayerUI-VideoFormat-CustomAngle",
@@ -6771,7 +6786,10 @@ class ResidentOperationBackend:
         import hashlib
 
         check = str(arguments["check"])
-        command = list(STRUCTURAL_CHECKS[check])
+        registered_command = STRUCTURAL_CHECKS.get(check)
+        if registered_command is None:
+            raise OperationAdapterError("structural check is not in the closed allowlist")
+        command = list(registered_command)
         completed = subprocess.run(
             command,
             cwd=REPOSITORY_ROOT,
