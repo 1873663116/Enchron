@@ -5736,90 +5736,74 @@ class ResidentOperationBackend:
             identity[name] = value
         return identity
 
-    def _validated_subtitle_menu(
-        self,
-        response: Mapping[str, object],
-        *,
-        external_source_kind: str,
-    ) -> list[dict[str, object]]:
-        self._require_success(response, "subtitle menu command")
-        raw_items = response.get("menuItems")
-        if not isinstance(raw_items, list) or not raw_items:
-            raise OperationAdapterError(
-                "subtitle menu command omitted its nonempty menuItems"
-            )
-        items: list[dict[str, object]] = []
-        identifiers: set[str] = set()
-        for index, raw in enumerate(raw_items):
-            if not isinstance(raw, Mapping) or set(raw) != {
-                "id",
-                "title",
-                "isSelected",
-            }:
-                raise OperationAdapterError(
-                    f"subtitle menu item {index} has the wrong closed shape"
-                )
-            identifier = raw.get("id")
-            title = raw.get("title")
-            selected = raw.get("isSelected")
-            if not isinstance(identifier, str) or not identifier:
-                raise OperationAdapterError(
-                    f"subtitle menu item {index} omitted its identity"
-                )
-            if identifier in identifiers:
-                raise OperationAdapterError(
-                    "subtitle menu identities must be unique"
-                )
-            identifiers.add(identifier)
-            if not isinstance(title, str) or not title:
-                raise OperationAdapterError(
-                    f"subtitle menu item {identifier} omitted its label"
-                )
-            if type(selected) is not bool:
-                raise OperationAdapterError(
-                    f"subtitle menu item {identifier} omitted its selected state"
-                )
-            if identifier == "off":
-                source_kind = "off"
-            elif identifier.startswith("external.subtitle."):
-                source_kind = external_source_kind
-            elif identifier.startswith("ffmpeg.subtitle."):
-                source_kind = "embedded"
-            else:
-                raise OperationAdapterError(
-                    "subtitle menu exposed an unrecognized track identity: "
-                    + identifier
-                )
-            items.append(
-                {
-                    "id": identifier,
-                    "label": title,
-                    "sourceKind": source_kind,
-                    "isSelected": selected,
-                }
-            )
-        return items
-
-    def _list_subtitle_menu(
+    def _select_public_subtitle_item(
         self,
         context: OperationContext,
         *,
         host: str,
         external_source_kind: str,
-    ) -> tuple[dict[str, object], list[dict[str, object]]]:
-        response = self._app_command(
+        track_label: object,
+    ) -> tuple[dict[str, object], dict[str, object] | None]:
+        if host == "playerPanel":
+            route = (
+                "PlayerUI-window-playback-surface",
+                "PlayerPanel-menu-more",
+                "PlayerPanel-menu-subtitles",
+            )
+            menu_prefix = "PlayerPanel-menu-subtitle-"
+        else:
+            route = (
+                "PlayerUI-window-playback-surface",
+                "PlayerUI-TopAction-more",
+                "PlayerUI-menu-subtitles",
+            )
+            menu_prefix = "PlayerUI-menu-subtitles-"
+        selection_prefix = menu_prefix + "external.subtitle."
+        command = [
+            "--identifiers",
+            *route,
+            "--identifier-prefix",
+            selection_prefix,
+        ]
+        if track_label is not None:
+            command.extend(("--label", str(track_label)))
+        response = self._controller(
             context,
-            "listMenuItems",
-            f"host={host}",
-            "family=subtitles",
+            "tapFirstMatch",
+            *command,
         )
-        return (
-            response,
-            self._validated_subtitle_menu(
-                response,
-                external_source_kind=external_source_kind,
-            ),
-        )
+        if response.get("success") is not True:
+            if "found no matching public element" in str(response.get("message", "")):
+                return response, None
+            self._require_success(response, "public subtitle selection")
+        matched = response.get("matchedElement")
+        if not isinstance(matched, Mapping):
+            raise OperationAdapterError(
+                "public subtitle selection omitted its matched element"
+            )
+        identifier = matched.get("identifier")
+        label = matched.get("label")
+        selected = matched.get("isSelected")
+        if not isinstance(identifier, str) or not identifier.startswith(
+            selection_prefix
+        ):
+            raise OperationAdapterError(
+                "public subtitle selection returned an unexpected identifier"
+            )
+        if not isinstance(label, str) or not label:
+            raise OperationAdapterError(
+                "public subtitle selection omitted its track label"
+            )
+        if type(selected) is not bool:
+            raise OperationAdapterError(
+                "public subtitle selection omitted its selected state"
+            )
+        return response, {
+            "id": identifier.removeprefix(menu_prefix),
+            "label": label,
+            "sourceKind": external_source_kind,
+            "isSelected": selected,
+        }
 
     def _playback_select_subtitle_1(self, arguments, context):
         host = str(arguments["host"])
@@ -5845,18 +5829,14 @@ class ResidentOperationBackend:
             "sourceIdentityPreserved": True,
             "contentRevisionPreserved": True,
         }
-        discovery_response, discovered_tracks = self._list_subtitle_menu(
+        selection_response, selected_before = self._select_public_subtitle_item(
             context,
             host=host,
             external_source_kind=actual_source_kind,
+            track_label=track_label,
         )
-        candidates = [
-            item
-            for item in discovered_tracks
-            if item["sourceKind"] == actual_source_kind
-            and (track_label is None or item["label"] == track_label)
-        ]
-        if not candidates:
+        discovered_tracks = [] if selected_before is None else [selected_before]
+        if selected_before is None:
             return {
                 "succeeded": True,
                 "fields": before_fields,
@@ -5868,13 +5848,13 @@ class ResidentOperationBackend:
                 "sourceKind": actual_source_kind,
                 "reason": "subtitle-candidate-missing",
                 "requestedTrackLabel": track_label,
-                "discoveryResponse": discovery_response,
+                "discoveryResponse": selection_response,
                 "discoveredTracks": discovered_tracks,
                 "selectedTrack": None,
                 "selectionResponse": None,
                 "beforeState": before,
                 "postActionState": before,
-                "postActionMenu": discovery_response,
+                "postActionMenu": selection_response,
                 "identityObservation": preserved_identity,
                 "settlement": {
                     "outcome": "candidate-missing",
@@ -5882,37 +5862,14 @@ class ResidentOperationBackend:
                     "terminalTrackID": None,
                 },
             }
-        if len(candidates) != 1:
-            raise OperationAdapterError(
-                "external subtitle selection is ambiguous; supply one exact trackLabel"
-            )
-        selected_before = candidates[0]
         target_id = str(selected_before["id"])
         target_label = str(selected_before["label"])
-        selection_response = self._app_command(
-            context,
-            "selectMenuItem",
-            f"host={host}",
-            "family=subtitles",
-            f"target={target_id}",
-        )
-        selection_items = self._validated_subtitle_menu(
-            selection_response,
-            external_source_kind=actual_source_kind,
-        )
-        if len(selection_items) != 1 or (
-            selection_items[0]["id"], selection_items[0]["label"]
-        ) != (target_id, target_label):
-            raise OperationAdapterError(
-                "subtitle selection response did not bind the discovered target"
-            )
 
         started = time.monotonic()
         deadline = started + int(arguments["deadlineSeconds"])
         observations: list[dict[str, object]] = []
         frames: list[dict[str, object]] = []
         last_state: Mapping[str, object] | None = None
-        last_menu_response: Mapping[str, object] | None = None
         while time.monotonic() < deadline:
             current = self._diagnostics_playback_state_1(
                 {}, context, include_screenshot=True
@@ -5941,22 +5898,10 @@ class ResidentOperationBackend:
                 raise OperationAdapterError(
                     "external subtitle source kind changed during selection"
                 )
-            menu_response, current_tracks = self._list_subtitle_menu(
-                context,
-                host=host,
-                external_source_kind=current_source_kind,
-            )
-            target_after = [
-                item for item in current_tracks if item["id"] == target_id
-            ]
-            if len(target_after) != 1 or target_after[0]["label"] != target_label:
-                raise OperationAdapterError(
-                    "discovered subtitle target disappeared or changed identity"
-                )
             observations.append(
                 {
                     "fields": dict(current_fields),
-                    "targetSelected": target_after[0]["isSelected"],
+                    "targetSelected": current_fields.get("subtitleTrack") == target_id,
                 }
             )
             frames.append(
@@ -5968,11 +5913,9 @@ class ResidentOperationBackend:
             )
             frames = frames[-3:]
             last_state = current
-            last_menu_response = menu_response
             lifecycle = str(current_fields.get("lifecycle", "")).lower()
             settled = (
                 current_fields.get("subtitleTrack") == target_id
-                and target_after[0]["isSelected"] is True
                 and lifecycle in ("playing", "ready", "paused", "ended")
                 and current_fields.get("transition") == "none"
                 and current_fields.get("error") == "none"
@@ -5994,13 +5937,13 @@ class ResidentOperationBackend:
                     "selectionSettled": True,
                     "host": host,
                     "sourceKind": actual_source_kind,
-                    "discoveryResponse": discovery_response,
+                    "discoveryResponse": selection_response,
                     "discoveredTracks": discovered_tracks,
                     "selectedTrack": selected_track,
                     "selectionResponse": selection_response,
                     "beforeState": before,
                     "postActionState": current,
-                    "postActionMenu": menu_response,
+                    "postActionMenu": selection_response,
                     "identityObservation": preserved_identity,
                     "settlement": {
                         "outcome": "selected",
@@ -6025,7 +5968,7 @@ class ResidentOperationBackend:
             "host": host,
             "sourceKind": actual_source_kind,
             "reason": "subtitle-selection-deadline-expired",
-            "discoveryResponse": discovery_response,
+            "discoveryResponse": selection_response,
             "discoveredTracks": discovered_tracks,
             "selectedTrack": {
                 "id": target_id,
@@ -6037,7 +5980,7 @@ class ResidentOperationBackend:
             "selectionResponse": selection_response,
             "beforeState": before,
             "postActionState": last_state,
-            "postActionMenu": last_menu_response,
+            "postActionMenu": selection_response,
             "identityObservation": preserved_identity,
             "settlement": {
                 "outcome": "selection-not-settled",

@@ -4181,33 +4181,13 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
     def test_subtitle_selection_discovers_dynamic_identity_and_waits_for_product_state(self) -> None:
         backend = adapter.ResidentOperationBackend()
         target_id = "external.subtitle.sha256-stable-source.0"
-        discovery = self.subtitle_menu(
-            ("ffmpeg.subtitle.4", "Enchron acceptance subtitles", False),
-            (
-                target_id,
-                "sdr-bframe-aggregate-30s.zh-CN.srt",
-                False,
-            ),
-            (
-                "external.subtitle.sha256-second-source.0",
-                "sdr-bframe-aggregate-30s.styled.ass",
-                False,
-            ),
-            ("off", "Off", True),
-        )
-        selected = self.subtitle_menu(
-            (target_id, "sdr-bframe-aggregate-30s.zh-CN.srt", False)
-        )
-        settled_menu = self.subtitle_menu(
-            ("ffmpeg.subtitle.4", "Enchron acceptance subtitles", False),
-            (target_id, "sdr-bframe-aggregate-30s.zh-CN.srt", True),
-            (
-                "external.subtitle.sha256-second-source.0",
-                "sdr-bframe-aggregate-30s.styled.ass",
-                False,
-            ),
-            ("off", "Off", False),
-        )
+        selection = {"success": True, "matchedElement": {"identifier": target_id}}
+        selected = {
+            "id": target_id,
+            "label": "sdr-bframe-aggregate-30s.zh-CN.srt",
+            "sourceKind": "local-sidecar",
+            "isSelected": False,
+        }
         before = self.subtitle_playback_state()
         after = self.subtitle_playback_state(subtitleTrack=target_id)
         arguments = VALID_ARGUMENTS["operation:playback.select-subtitle@1"]
@@ -4219,38 +4199,20 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             ) as playback_state,
             mock.patch.object(
                 backend,
-                "_app_command",
-                side_effect=[discovery, selected, settled_menu],
-            ) as app_command,
+                "_select_public_subtitle_item",
+                return_value=(selection, selected),
+            ) as public_selection,
             mock.patch.object(
                 adapter.time, "monotonic", side_effect=[1.0, 1.1]
             ),
         ):
             result = backend._playback_select_subtitle_1(arguments, self.device)
 
-        self.assertEqual(
-            app_command.call_args_list,
-            [
-                mock.call(
-                    self.device,
-                    "listMenuItems",
-                    "host=playerUI",
-                    "family=subtitles",
-                ),
-                mock.call(
-                    self.device,
-                    "selectMenuItem",
-                    "host=playerUI",
-                    "family=subtitles",
-                    f"target={target_id}",
-                ),
-                mock.call(
-                    self.device,
-                    "listMenuItems",
-                    "host=playerUI",
-                    "family=subtitles",
-                ),
-            ],
+        public_selection.assert_called_once_with(
+            self.device,
+            host="playerUI",
+            external_source_kind="local-sidecar",
+            track_label="sdr-bframe-aggregate-30s.zh-CN.srt",
         )
         self.assertTrue(result["succeeded"])
         self.assertEqual(result["semanticOutcome"], "selected")
@@ -4294,7 +4256,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         )
         self.assertEqual(
             [track["sourceKind"] for track in result["discoveredTracks"]],
-            ["embedded", "local-sidecar", "local-sidecar", "off"],
+            ["local-sidecar"],
         )
 
     def test_subtitle_selection_dynamically_selects_each_srt_and_ass_candidate(self) -> None:
@@ -4311,17 +4273,13 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         for target_id, target_label in candidates:
             with self.subTest(trackLabel=target_label):
                 backend = adapter.ResidentOperationBackend()
-                discovery = self.subtitle_menu(
-                    (candidates[0][0], candidates[0][1], False),
-                    (candidates[1][0], candidates[1][1], False),
-                    ("off", "Off", True),
-                )
-                selection = self.subtitle_menu((target_id, target_label, False))
-                settled_menu = self.subtitle_menu(
-                    (candidates[0][0], candidates[0][1], target_id == candidates[0][0]),
-                    (candidates[1][0], candidates[1][1], target_id == candidates[1][0]),
-                    ("off", "Off", False),
-                )
+                selection = {"success": True}
+                selected = {
+                    "id": target_id,
+                    "label": target_label,
+                    "sourceKind": "local-sidecar",
+                    "isSelected": False,
+                }
                 before = self.subtitle_playback_state()
                 after = self.subtitle_playback_state(subtitleTrack=target_id)
                 arguments = {
@@ -4338,8 +4296,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                     ),
                     mock.patch.object(
                         backend,
-                        "_app_command",
-                        side_effect=[discovery, selection, settled_menu],
+                        "_select_public_subtitle_item",
+                        return_value=(selection, selected),
                     ),
                     mock.patch.object(
                         adapter.time,
@@ -4364,74 +4322,77 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
 
     def test_subtitle_selection_requires_one_external_candidate_or_exact_label(self) -> None:
         backend = adapter.ResidentOperationBackend()
-        discovery = self.subtitle_menu(
-            ("external.subtitle.source-a.0", "First sidecar", False),
-            ("external.subtitle.source-b.0", "Second sidecar", False),
-            ("ffmpeg.subtitle.4", "Embedded", False),
-            ("off", "Off", True),
-        )
-        arguments = {
-            "host": "playerUI",
-            "sourceKind": "local-sidecar",
-            "deadlineSeconds": 30,
-        }
-        with (
-            mock.patch.object(
-                backend,
-                "_diagnostics_playback_state_1",
-                return_value=self.subtitle_playback_state(),
-            ),
-            mock.patch.object(
-                backend, "_app_command", return_value=discovery
-            ) as app_command,
+        with mock.patch.object(
+            backend,
+            "_controller",
+            return_value={
+                "success": False,
+                "message": "tapFirstMatch found 2 matching public elements.",
+            },
         ):
-            with self.assertRaisesRegex(adapter.OperationAdapterError, "ambiguous"):
-                backend._playback_select_subtitle_1(arguments, self.device)
-        app_command.assert_called_once()
+            with self.assertRaisesRegex(adapter.OperationAdapterError, "found 2"):
+                backend._select_public_subtitle_item(
+                    self.device,
+                    host="playerUI",
+                    external_source_kind="local-sidecar",
+                    track_label=None,
+                )
 
-        with (
-            mock.patch.object(
-                backend,
-                "_diagnostics_playback_state_1",
-                return_value=self.subtitle_playback_state(),
-            ),
-            mock.patch.object(
-                backend, "_app_command", return_value=discovery
-            ) as missing_command,
-        ):
-            missing = backend._playback_select_subtitle_1(
-                {**arguments, "trackLabel": "Embedded"},
+        with mock.patch.object(
+            backend,
+            "_controller",
+            return_value={
+                "success": False,
+                "message": "tapFirstMatch found no matching public element.",
+            },
+        ) as controller:
+            response, selected = backend._select_public_subtitle_item(
                 self.device,
+                host="playerUI",
+                external_source_kind="local-sidecar",
+                track_label="Embedded",
             )
-        self.assertTrue(missing["succeeded"])
-        self.assertEqual(missing["semanticOutcome"], "candidate-missing")
-        self.assertFalse(missing["selectionSettled"])
-        self.assertIsNone(missing["selectedTrack"])
-        self.assertIsNone(missing["selectionResponse"])
-        self.assertEqual(missing["postActionState"], missing["beforeState"])
-        missing_command.assert_called_once()
+        self.assertFalse(response["success"])
+        self.assertIsNone(selected)
+        controller.assert_called_once_with(
+            self.device,
+            "tapFirstMatch",
+            "--identifiers",
+            "PlayerUI-window-playback-surface",
+            "PlayerUI-TopAction-more",
+            "PlayerUI-menu-subtitles",
+            "--identifier-prefix",
+            "PlayerUI-menu-subtitles-external.subtitle.",
+            "--label",
+            "Embedded",
+        )
 
     def test_subtitle_selection_rejects_malformed_menu_and_wrong_product_source(self) -> None:
         backend = adapter.ResidentOperationBackend()
-        duplicate = self.subtitle_menu(
-            ("external.subtitle.source.0", "Sidecar", False),
-            ("external.subtitle.source.0", "Sidecar duplicate", False),
-        )
         arguments = {
             "host": "playerUI",
             "sourceKind": "local-sidecar",
             "deadlineSeconds": 30,
         }
-        with (
-            mock.patch.object(
-                backend,
-                "_diagnostics_playback_state_1",
-                return_value=self.subtitle_playback_state(),
-            ),
-            mock.patch.object(backend, "_app_command", return_value=duplicate),
+        with mock.patch.object(
+            backend,
+            "_controller",
+            return_value={
+                "success": True,
+                "matchedElement": {
+                    "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.4",
+                    "label": "Embedded",
+                    "isSelected": False,
+                },
+            },
         ):
-            with self.assertRaisesRegex(adapter.OperationAdapterError, "unique"):
-                backend._playback_select_subtitle_1(arguments, self.device)
+            with self.assertRaisesRegex(adapter.OperationAdapterError, "unexpected"):
+                backend._select_public_subtitle_item(
+                    self.device,
+                    host="playerUI",
+                    external_source_kind="local-sidecar",
+                    track_label=None,
+                )
 
         remote_state = self.subtitle_playback_state(
             collectionOrigin="sourceDirectory",
@@ -4441,16 +4402,23 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             backend,
             "_diagnostics_playback_state_1",
             return_value=remote_state,
-        ), mock.patch.object(backend, "_app_command") as app_command:
+        ), mock.patch.object(
+            backend, "_select_public_subtitle_item"
+        ) as public_selection:
             with self.assertRaisesRegex(adapter.OperationAdapterError, "source kind"):
                 backend._playback_select_subtitle_1(arguments, self.device)
-        app_command.assert_not_called()
+        public_selection.assert_not_called()
 
     def test_subtitle_selection_response_does_not_replace_settlement_or_identity_proof(self) -> None:
         backend = adapter.ResidentOperationBackend()
         target_id = "external.subtitle.source.0"
-        discovery = self.subtitle_menu((target_id, "Only sidecar", False))
-        selected = self.subtitle_menu((target_id, "Only sidecar", False))
+        selection = {"success": True}
+        selected = {
+            "id": target_id,
+            "label": "Only sidecar",
+            "sourceKind": "local-sidecar",
+            "isSelected": False,
+        }
         still_off = self.subtitle_playback_state()
         arguments = {
             "host": "playerUI",
@@ -4465,8 +4433,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             ),
             mock.patch.object(
                 backend,
-                "_app_command",
-                side_effect=[discovery, selected, discovery],
+                "_select_public_subtitle_item",
+                return_value=(selection, selected),
             ),
             mock.patch.object(
                 adapter.time, "monotonic", side_effect=[1.0, 1.1, 2.1]
@@ -4478,7 +4446,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertEqual(result["semanticOutcome"], "selection-not-settled")
         self.assertFalse(result["selectionSettled"])
         self.assertEqual(result["reason"], "subtitle-selection-deadline-expired")
-        self.assertEqual(result["selectionResponse"], selected)
+        self.assertEqual(result["selectionResponse"], selection)
 
         changed = self.subtitle_playback_state(
             session="session-b", subtitleTrack=target_id
@@ -4491,8 +4459,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             ),
             mock.patch.object(
                 backend,
-                "_app_command",
-                side_effect=[discovery, selected, self.subtitle_menu((target_id, "Only sidecar", True))],
+                "_select_public_subtitle_item",
+                return_value=(selection, selected),
             ),
             mock.patch.object(
                 adapter.time, "monotonic", side_effect=[1.0, 1.1]

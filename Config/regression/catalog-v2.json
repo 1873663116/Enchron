@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:e149dee47eeb6fbeb0749b3a55a078881d8f84d124b1b1f2ae20d17f05253f84",
+  "contentDigest": "sha256:3336f667fcbbf1df2deb0857ca1bcbdfa8c693c85b0fd5cd3e31c06559b3d7e7",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -805,7 +805,7 @@
       "title": "Issue Present"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The runtime Operation adapter selects one external subtitle through the public playback surface, More, Subtitles, and dynamic menu-item Accessibility identifiers in one controller transaction, then verifies the same playback identity and selected track in product state.",
       "filename": "playback-select-subtitle-v1.md",
       "id": "operation:playback.select-subtitle@1",
       "invalidatesTags": [

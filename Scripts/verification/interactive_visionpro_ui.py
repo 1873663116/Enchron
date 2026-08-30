@@ -447,7 +447,14 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
 
 
 IMMERSIVE_ATTACHMENT_MARKER = "PlayerUI-immersive"
-TAP_ACTIONS = ("tap", "tapSequence", "doubleTap", "press", "adjust")
+TAP_ACTIONS = (
+    "tap",
+    "tapSequence",
+    "tapFirstMatch",
+    "doubleTap",
+    "press",
+    "adjust",
+)
 
 
 def session_state_path(arguments: argparse.Namespace) -> Path:
@@ -640,6 +647,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
     for key in (
         "identifier",
         "identifiers",
+        "identifierPrefix",
         "label",
         "index",
         "duration",
@@ -1207,6 +1215,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
             "snapshot",
             "tap",
             "tapSequence",
+            "tapFirstMatch",
             "doubleTap",
             "press",
             "adjust",
@@ -1237,6 +1246,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ready-timeout", dest="ready_timeout", type=float, default=300.0)
     parser.add_argument("--identifier")
     parser.add_argument("--identifiers", nargs="+")
+    parser.add_argument("--identifier-prefix", dest="identifierPrefix")
     parser.add_argument("--label")
     parser.add_argument("--index", type=int)
     text_source = parser.add_mutually_exclusive_group()

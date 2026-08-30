@@ -129,6 +129,16 @@ private final class InteractiveDeviceUIChannel {
     }
 
     func executeAndPublish(_ command: InteractiveDeviceUICommand) throws -> Bool {
+        if command.action == .tapFirstMatch {
+            let result = executeTapFirstMatch(command)
+            try publish(
+                responseFor: command,
+                success: result.success,
+                message: result.message,
+                matchedElement: result.matchedElement
+            )
+            return false
+        }
         let observationBeforeAction = command.action == .snapshot
             ? nil
             : matchedElementObservation(for: command)
@@ -143,6 +153,66 @@ private final class InteractiveDeviceUIChannel {
             matchedElement: observation
         )
         return command.action == .stop
+    }
+
+    private func executeTapFirstMatch(
+        _ command: InteractiveDeviceUICommand
+    ) -> (
+        success: Bool,
+        message: String,
+        matchedElement: InteractiveDeviceUIElementObservation?
+    ) {
+        guard let route = command.identifiers, route.isEmpty == false else {
+            return (false, "tapFirstMatch requires route identifiers.", nil)
+        }
+        guard let prefix = command.identifierPrefix, prefix.isEmpty == false else {
+            return (false, "tapFirstMatch requires an identifier prefix.", nil)
+        }
+        for (position, identifier) in route.enumerated() {
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: 0)
+            guard element.waitForExistence(timeout: 3) else {
+                return (
+                    false,
+                    "tapFirstMatch stopped at [\(position)] \(identifier): no matching element appeared.",
+                    nil
+                )
+            }
+            guard element.isHittable else {
+                return (
+                    false,
+                    "tapFirstMatch stopped at [\(position)] \(identifier): the element is not hittable.",
+                    nil
+                )
+            }
+            element.tap()
+        }
+        let predicate: NSPredicate
+        if let label = command.label, label.isEmpty == false {
+            predicate = NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label == %@",
+                prefix,
+                label
+            )
+        } else {
+            predicate = NSPredicate(format: "identifier BEGINSWITH %@", prefix)
+        }
+        let matches = app.descendants(matching: .any).matching(predicate)
+        let count = matches.count
+        guard count > 0 else {
+            return (false, "tapFirstMatch found no matching public element.", nil)
+        }
+        guard count == 1 else {
+            return (false, "tapFirstMatch found \(count) matching public elements.", nil)
+        }
+        let element = matches.element(boundBy: 0)
+        guard element.isHittable else {
+            return (false, "The matching public element is not currently hittable.", nil)
+        }
+        let observation = matchedElementObservation(for: element)
+        element.tap()
+        return (true, "Matching public element tapped.", observation)
     }
 
     private func execute(
@@ -187,6 +257,8 @@ private final class InteractiveDeviceUIChannel {
                 element.tap()
             }
             return (true, "Tapped \(identifiers.count) elements in sequence.")
+        case .tapFirstMatch:
+            return (false, "tapFirstMatch must execute through its matching transaction.")
         case .doubleTap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -410,6 +482,12 @@ private final class InteractiveDeviceUIChannel {
         for command: InteractiveDeviceUICommand
     ) -> InteractiveDeviceUIElementObservation? {
         guard let element = element(for: command) else { return nil }
+        return matchedElementObservation(for: element)
+    }
+
+    private func matchedElementObservation(
+        for element: XCUIElement
+    ) -> InteractiveDeviceUIElementObservation {
         let frame = element.frame
         return InteractiveDeviceUIElementObservation(
             identifier: element.identifier,
@@ -450,6 +528,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case snapshot
         case tap
         case tapSequence
+        case tapFirstMatch
         case doubleTap
         case press
         case adjust
@@ -471,6 +550,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let action: Action
     let identifier: String?
     let identifiers: [String]?
+    let identifierPrefix: String?
     let label: String?
     let index: Int?
     let text: String?

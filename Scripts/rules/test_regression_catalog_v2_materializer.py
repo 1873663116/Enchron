@@ -1327,7 +1327,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             "sourceKind": "local-sidecar",
             "deadlineSeconds": 30,
         }
-        off = {"id": "off", "label": "Off", "sourceKind": "off", "isSelected": True}
         candidate = {
             "id": "external.subtitle.directory.0",
             "label": "Chinese (Simplified)",
@@ -1343,8 +1342,8 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             ),
             mock.patch.object(
                 backend,
-                "_list_subtitle_menu",
-                return_value=({"success": True}, [off]),
+                "_select_public_subtitle_item",
+                return_value=({"success": False}, None),
             ),
         ):
             missing = backend._playback_select_subtitle_1(arguments, context)
@@ -1352,16 +1351,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(missing["semanticOutcome"], "candidate-missing")
         self.assertFalse(missing["selectionSettled"])
 
-        selection_response = {
-            "success": True,
-            "menuItems": [
-                {
-                    "id": candidate["id"],
-                    "title": candidate["label"],
-                    "isSelected": False,
-                }
-            ],
-        }
+        selection_response = {"success": True}
         with (
             mock.patch.object(
                 backend,
@@ -1370,16 +1360,8 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             ),
             mock.patch.object(
                 backend,
-                "_list_subtitle_menu",
-                side_effect=(
-                    ({"success": True}, [candidate]),
-                    ({"success": True}, [candidate]),
-                ),
-            ),
-            mock.patch.object(
-                backend,
-                "_app_command",
-                return_value=selection_response,
+                "_select_public_subtitle_item",
+                return_value=(selection_response, candidate),
             ),
             mock.patch(
                 "Scripts.verification.regression_operation_adapter.time.monotonic",

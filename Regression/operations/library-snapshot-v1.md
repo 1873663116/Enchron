@@ -58,7 +58,7 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:be8f6611010ac088ec845d293391ef8c8461bafd044d341caca45c9799e6a728"
+    "digest": "sha256:46beec247e912597e51e4f21f22b426c17c2d8a1ab7fbd84018fd4f3b24b83fd"
   }
 }
 ---
