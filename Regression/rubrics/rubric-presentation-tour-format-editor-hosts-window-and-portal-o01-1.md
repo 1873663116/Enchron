@@ -5,8 +5,8 @@
   "id": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1",
   "title": "Format Editor Hosts Window And Portal",
   "criteria": [
-    "In the window case, surface→PlayerUI-TopAction-videoFormat→cancel is one delivered sequence; a second surface→videoFormat sequence reopens the same PlayerUI-VideoFormat hierarchy for evidence.",
-    "In the portal case, tapping the exact Playback surface label summons controls before each compact videoFormat→cancel or videoFormat sequence; the bound portal hierarchy exposes the same editor item family and values as window."
+    "The bound case delivers the editor transaction registered for its host. Window delivers surface→PlayerUI-TopAction-videoFormat→cancel and then a second surface→videoFormat sequence; portal taps the exact Playback surface label before each compact videoFormat→cancel or videoFormat sequence.",
+    "The bound hierarchy exposes the editor item family and values registered for both hosts. If the bound case is portal, its artifact additionally establishes that the Playback surface label summons controls before the hierarchy is inspected."
   ],
   "negativeControls": [
     "Addressing a window-only surface identifier from portal, splitting one transient sheet action across controllers, inspecting only element existence, or using a diagnostic injection route cannot satisfy either host case."

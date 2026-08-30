@@ -5,8 +5,8 @@
   "id": "rubric:issue-surface-behavior.source-failure-guidance-matrix.o01@1",
   "title": "Source Failure Guidance Matrix",
   "criteria": [
-    "The four independent attempts differ by one exact boundary input: valid address/user with wrong password → credentials-rejected; unreachableAddress → server-unreachable; missingPathAddress → invalid-address; and httpAddress → requires-https.",
-    "Each attempt uses the same sourceMore→Add→WebDAV route, leaves the WebDAV form editable, preserves the entered non-secret draft values, exposes exactly the case-specific title/message/action set, and creates no source row."
+    "The bound attempt uses the exact boundary input and failure category registered for its case: valid address/user with wrong password→credentials-rejected, unreachableAddress→server-unreachable, missingPathAddress→invalid-address, and httpAddress→requires-https.",
+    "The bound attempt uses the sourceMore→Add→WebDAV route, leaves the WebDAV form editable, preserves the entered non-secret draft values, exposes exactly its case-specific title/message/action set, and creates no source row."
   ],
   "negativeControls": [
     "Wrong username is not evidence of host unreachability, and an absolute result:// string typed literally is not evidence of invalid-address or requires-https handling.",

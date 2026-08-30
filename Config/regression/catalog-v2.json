@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:dba8a402ab371de806b579c0ffecce95fda5a2913ebef2cbc13093453b0879ba",
+  "contentDigest": "sha256:929a84b18819373acfd43224b2f26ff83fc8cbcecf9e9d03415168b181a5ea6a",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -1096,10 +1096,10 @@
     },
     {
       "criteria": [
-        "The six bound frame sequences expose exact (dolbyVisionProfile, dolbyVisionCrossCompatibilityID, dolbyVisionHasEnhancementLayer) tuples: P5=(5,0,false), P7 FEL=(7,6,true), P8.1=(8,1,false), P8.4=(8,4,false), P10=(10,0,false), and P20=(20,0,false). sourcePixelFormat and destinationPixelFormat are non-none in every case.",
+        "The bound frame sequence exposes the exact (dolbyVisionProfile, dolbyVisionCrossCompatibilityID, dolbyVisionHasEnhancementLayer) tuple registered for its case: P5=(5,0,false), P7 FEL=(7,6,true), P8.1=(8,1,false), P8.4=(8,4,false), P10=(10,0,false), and P20=(20,0,false). Its sourcePixelFormat and destinationPixelFormat are non-none.",
         "sourceHasDvcC/sourceHasDvvC identify the real source configuration atoms and rendererHasDvcC/rendererHasDvvC preserve the delivered Dolby Vision configuration; at least one source atom is true and the renderer atom pair is justified by the same profile's real fallback/delivery branch rather than a Catalog constant.",
-        "P8.1 source/sample/renderer transfer matches smpte2084/PQ with BT.2020 primaries, bt2020nc matrix and video range; P8.4 matches arib-std-b67/HLG with the same primaries/matrix/range. P7 uses the reviewed HDR10/PQ fallback without claiming enhancement-layer delivery, while P5, P10 and P20 retain their exact source tuple and real renderer configuration.",
-        "Each producer returns exactly three ordered frames separated by at least 1000 ms with stable session/stream epoch, strictly increasing position, pairwise-distinct content attachments, displayed pixels, and no active issue or whole-frame purple/green cast."
+        "The bound frame sequence matches the color and fallback expectations registered for its case: P8.1 uses smpte2084/PQ with BT.2020 primaries, bt2020nc matrix, and video range; P8.4 uses arib-std-b67/HLG with the same primaries, matrix, and range; P7 uses the reviewed HDR10/PQ fallback without claiming enhancement-layer delivery; and P5, P10, and P20 retain their exact source tuple and real renderer configuration.",
+        "The bound producer returns exactly three ordered frames separated by at least 1000 ms with stable session/stream epoch, strictly increasing position, pairwise-distinct content attachments, displayed pixels, and no active issue or whole-frame purple/green cast."
       ],
       "filename": "rubric-dynamic-range-interpretation-dolby-vision-profile-matrix-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.dolby-vision-profile-matrix.o01@1",
@@ -1111,8 +1111,8 @@
     },
     {
       "criteria": [
-        "For generated-pq-hevc10-avsync-10s-v1, sourceTransferFunction, sampleTransferFunction, and rendererTransferFunction each match the fixture's closed 2084/PQ atom set; for generated-hlg-hevc10-avsync-10s-v1 they each match the closed HLG/B67/2100 atom set.",
-        "In both cases sourceColorPrimaries/sampleColorPrimaries/rendererColorPrimaries match the reviewed 2020 atom, sourceYCbCrMatrix/sampleYCbCrMatrix/rendererYCbCrMatrix match the reviewed 2020 matrix atom, and sourceRange/sampleRange/rendererRange match the reviewed video/TV range atom. sourceMasteringDisplayMetadata and sourceContentLightLevelMetadata are preserved unchanged through sample and renderer, and sourcePixelFormat/destinationPixelFormat are non-none.",
+        "The bound frame sequence exposes the transfer-function atom set registered for its case: generated-pq-hevc10-avsync-10s-v1 uses the closed 2084/PQ set, and generated-hlg-hevc10-avsync-10s-v1 uses the closed HLG/B67/2100 set. sourceTransferFunction, sampleTransferFunction, and rendererTransferFunction each match that registered set.",
+        "The bound case's sourceColorPrimaries/sampleColorPrimaries/rendererColorPrimaries match the reviewed 2020 atom, sourceYCbCrMatrix/sampleYCbCrMatrix/rendererYCbCrMatrix match the reviewed 2020 matrix atom, and sourceRange/sampleRange/rendererRange match the reviewed video/TV range atom. sourceMasteringDisplayMetadata and sourceContentLightLevelMetadata are preserved unchanged through sample and renderer, and sourcePixelFormat/destinationPixelFormat are non-none.",
         "The producer requests exactly three frames at minimumIntervalMillis=1000; indices are 0,1,2, adjacent capture timestamps differ by at least 1000 ms, attachment digests are pairwise distinct, and playback position strictly increases while lifecycle remains Playing and no issue is active."
       ],
       "filename": "rubric-dynamic-range-interpretation-hdr10-hlg-interpretation-o01-1.md",
@@ -1225,11 +1225,11 @@
     },
     {
       "criteria": [
-        "Every bound post-delivery playback snapshot exposes the closed canonical fields audioProviderKind, audioSourceCodec, audioSourceSampleRate, audioSourceChannelCount, audioDeliveryMediaSubtype, audioDeliveryFormatID, audioDeliveryFormatFlags, audioDeliverySampleRate, audioDeliveryChannelCount, audioDeliveryBitsPerChannel, audioDeliveryBytesPerFrame, audioDeliveryFramesPerPacket, audioDeliveryIsFloatPCM, audioDeliveryIsInterleaved, audioDeliveryChannelLayoutTag, audioDeliverySampleCount, audioDeliveryPresentationTime, audioDeliveryTimestampsMonotonic, and audioDeliveryTimestampObservationCount; none of the fields required by its branch is none.",
-        "AC-3 and E-AC-3 cases select streams 2 and 3 of generated-sdr-avc-bframe-audio-codec-matrix-15s-v1: audioProviderKind is FFmpegCompressedAudio, audioSourceCodec is ac3 or eac3 respectively, source and delivery rates are 48000, source and delivery channel counts are 2, audioDeliveryIsFloatPCM is false, and media subtype/format ID/layout agree with the compressed CoreMedia description.",
-        "DTS, TrueHD, Vorbis, AAC, and FLAC report audioProviderKind FFmpegDecodedPCM with source tuples dts/48000/7, truehd/48000/8, vorbis/44100/2, aac/48000/2, and flac/48000/2 respectively; delivery is interleaved Float32 linear PCM at the unchanged sample rate/channel count, bitsPerChannel=32, bytesPerFrame=4×channelCount, framesPerPacket=1, and the standard channel-layout tag for that count.",
-        "Each case has audioDeliverySampleCount>0 and a finite non-negative audioDeliveryPresentationTime; audioDeliveryTimestampObservationCount>0, and when the count exceeds one audioDeliveryTimestampsMonotonic is true.",
-        "In the same terminal TrueHD snapshot, audioSourceCodec=truehd, audioTrueHDDecoderInputPacketCount > audioTrueHDDecoderBatchCount > 0, audioTrueHDAggregatedDecoderBatchCount>0, audioTrueHDOutputSampleBufferCount>0, and audioTrueHDLastDecoderBatchInputPacketCount>0."
+        "The bound post-delivery playback snapshot exposes the closed canonical fields audioProviderKind, audioSourceCodec, audioSourceSampleRate, audioSourceChannelCount, audioDeliveryMediaSubtype, audioDeliveryFormatID, audioDeliveryFormatFlags, audioDeliverySampleRate, audioDeliveryChannelCount, audioDeliveryBitsPerChannel, audioDeliveryBytesPerFrame, audioDeliveryFramesPerPacket, audioDeliveryIsFloatPCM, audioDeliveryIsInterleaved, audioDeliveryChannelLayoutTag, audioDeliverySampleCount, audioDeliveryPresentationTime, audioDeliveryTimestampsMonotonic, and audioDeliveryTimestampObservationCount; none of the fields required by its registered branch is none.",
+        "The bound snapshot identifies the source branch registered for its case. AC-3 and E-AC-3 select streams 2 and 3 of generated-sdr-avc-bframe-audio-codec-matrix-15s-v1 with audioProviderKind FFmpegCompressedAudio, audioSourceCodec ac3 and eac3, sample rate 48000, and channel count 2 respectively. DTS, TrueHD, Vorbis, AAC, and FLAC use audioProviderKind FFmpegDecodedPCM with source tuples dts/48000/7, truehd/48000/8, vorbis/44100/2, aac/48000/2, and flac/48000/2 respectively.",
+        "The bound snapshot exposes the delivery branch registered for its case. AC-3 and E-AC-3 preserve the 48000 Hz, two-channel compressed CoreMedia description, report audioDeliveryIsFloatPCM=false, and expose the matching media subtype, format ID, and layout. DTS, TrueHD, Vorbis, AAC, and FLAC deliver interleaved Float32 linear PCM at the unchanged sample rate and channel count with bitsPerChannel=32, bytesPerFrame=4×channelCount, framesPerPacket=1, and the standard channel-layout tag for that count.",
+        "The bound case has audioDeliverySampleCount>0 and a finite non-negative audioDeliveryPresentationTime; audioDeliveryTimestampObservationCount>0, and when the count exceeds one audioDeliveryTimestampsMonotonic is true.",
+        "The bound snapshot applies the terminal decoder checks registered for its case. The TrueHD case has audioSourceCodec=truehd, audioTrueHDDecoderInputPacketCount > audioTrueHDDecoderBatchCount > 0, audioTrueHDAggregatedDecoderBatchCount>0, audioTrueHDOutputSampleBufferCount>0, and audioTrueHDLastDecoderBatchInputPacketCount>0; every other case establishes its registered non-TrueHD audioSourceCodec without claiming TrueHD counters."
       ],
       "filename": "rubric-format-coverage-audio-delivery-codec-matrix-o01-1.md",
       "id": "rubric:format-coverage.audio-delivery-codec-matrix.o01@1",
@@ -1281,8 +1281,8 @@
     },
     {
       "criteria": [
-        "The four independent attempts differ by one exact boundary input: valid address/user with wrong password → credentials-rejected; unreachableAddress → server-unreachable; missingPathAddress → invalid-address; and httpAddress → requires-https.",
-        "Each attempt uses the same sourceMore→Add→WebDAV route, leaves the WebDAV form editable, preserves the entered non-secret draft values, exposes exactly the case-specific title/message/action set, and creates no source row."
+        "The bound attempt uses the exact boundary input and failure category registered for its case: valid address/user with wrong password→credentials-rejected, unreachableAddress→server-unreachable, missingPathAddress→invalid-address, and httpAddress→requires-https.",
+        "The bound attempt uses the sourceMore→Add→WebDAV route, leaves the WebDAV form editable, preserves the entered non-secret draft values, exposes exactly its case-specific title/message/action set, and creates no source row."
       ],
       "filename": "rubric-issue-surface-behavior-source-failure-guidance-matrix-o01-1.md",
       "id": "rubric:issue-surface-behavior.source-failure-guidance-matrix.o01@1",
@@ -1406,7 +1406,7 @@
     },
     {
       "criteria": [
-        "Each stable case selects the requested track identity, including the requested index for duplicate labels, while session identity remains unchanged.",
+        "The bound stable case selects the requested track identity, including the requested index for a duplicate label, while session identity remains unchanged.",
         "The structured audio measurement changes to the requested fixture frequency and lifecycle remains Playing."
       ],
       "filename": "rubric-local-media-lifecycle-audio-track-switch-same-session-o01-1.md",
@@ -1562,9 +1562,9 @@
     },
     {
       "criteria": [
-        "Against the same registered WebDAV media identity, recipes recoverable-read-interruption, missing-object, access-denied, and corrupt-media yield respectively connection-interrupted, source-file-missing, source-access-denied, and media-data-corrupt in the bound playback-state snapshot.",
-        "Each issue snapshot preserves the active session identity and causal position, exposes exactly Retry and Close in the main window, and contains the matching host activation receipt and triggered request evidence.",
-        "After the exact receipt is restored, Retry returns the same media attempt to Playing and advances beyond the causal position within 5000 ms; the healthy control receipt is also restored before the next case."
+        "Against the registered WebDAV media identity, the bound playback-state snapshot exposes the category registered for its case: recoverable-read-interruption→connection-interrupted, missing-object→source-file-missing, access-denied→source-access-denied, and corrupt-media→media-data-corrupt.",
+        "The bound case's issue snapshot preserves the active session identity and causal position, exposes exactly Retry and Close in the main window, and contains its matching host activation receipt and triggered request evidence.",
+        "After the bound case's exact receipt is restored, Retry returns the same media attempt to Playing and advances beyond the causal position within 5000 ms; the healthy control receipt is restored before the case completes."
       ],
       "filename": "rubric-network-resilience-playback-failure-category-matrix-o01-1.md",
       "id": "rubric:network-resilience.playback-failure-category-matrix.o01@1",
@@ -1617,8 +1617,8 @@
     },
     {
       "criteria": [
-        "The panoramic-to-portal case uses 180_3D.mp4 and the flat-to-window case uses sdr-bframe-multiaudio-avsync-120s.mp4, so neither case inherits the other case's media-scoped override.",
-        "Each trace records arm→format apply→terminal settlement→fetch→disarm; equirectangular180 settles in portal with user projection/packing/revision, while Flat settles in window with flat/mono user state."
+        "The bound case uses its registered media identity and begins without a media-scoped override from another case: panoramic-to-portal uses 180_3D.mp4, and flat-to-window uses sdr-bframe-multiaudio-avsync-120s.mp4.",
+        "The bound trace records arm→format apply→terminal settlement→fetch→disarm and settles according to its registered route: equirectangular180 reaches portal with user projection/packing/revision, while Flat reaches window with flat/mono user state."
       ],
       "filename": "rubric-presentation-tour-format-application-route-o01-1.md",
       "id": "rubric:presentation-tour.format-application-route.o01@1",
@@ -1629,8 +1629,8 @@
     },
     {
       "criteria": [
-        "In the window case, surface→PlayerUI-TopAction-videoFormat→cancel is one delivered sequence; a second surface→videoFormat sequence reopens the same PlayerUI-VideoFormat hierarchy for evidence.",
-        "In the portal case, tapping the exact Playback surface label summons controls before each compact videoFormat→cancel or videoFormat sequence; the bound portal hierarchy exposes the same editor item family and values as window."
+        "The bound case delivers the editor transaction registered for its host. Window delivers surface→PlayerUI-TopAction-videoFormat→cancel and then a second surface→videoFormat sequence; portal taps the exact Playback surface label before each compact videoFormat→cancel or videoFormat sequence.",
+        "The bound hierarchy exposes the editor item family and values registered for both hosts. If the bound case is portal, its artifact additionally establishes that the Playback surface label summons controls before the hierarchy is inspected."
       ],
       "filename": "rubric-presentation-tour-format-editor-hosts-window-and-portal-o01-1.md",
       "id": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1",
@@ -1641,8 +1641,8 @@
     },
     {
       "criteria": [
-        "With no override, sdr-bframe-multiaudio-avsync-120s.mp4 resolves to Flat/window with source provenance, while registered internal-apple-apmp-180-v1 resolves from its real APMP signalling to equirectangular180/portal with source provenance.",
-        "Within separate attempts, persisting Flat for the APMP media identity makes its next open settle in window, and persisting equirectangular180 for the flat 120-second media identity makes its next open settle in portal; each reopen preserves identity/content revision and reports user provenance."
+        "The bound open settles according to the route registered for its case: source-flat resolves sdr-bframe-multiaudio-avsync-120s.mp4 to Flat/window, source-panorama resolves internal-apple-apmp-180-v1 from its real APMP signalling to equirectangular180/portal, persisted-flat resolves the APMP identity to window after persisting Flat, and persisted-panorama resolves the flat 120-second identity to portal after persisting equirectangular180.",
+        "The bound open reports the provenance registered for its case. A source-flat or source-panorama case reports source provenance; a persisted-flat or persisted-panorama reopen preserves identity/content revision and reports user provenance."
       ],
       "filename": "rubric-presentation-tour-initial-presentation-routing-o01-1.md",
       "id": "rubric:presentation-tour.initial-presentation-routing.o01@1",
@@ -1695,8 +1695,8 @@
     },
     {
       "criteria": [
-        "After one successful Device Hub preparation, each case starts from a fresh Docked or Panorama baseline; show sends exactly one accepted spatialTap and ends controlsVisible=true, while hide sends exactly two ordered accepted spatialTap events and ends controlsVisible=false.",
-        "Every accepted event names the active presentation's real input entity, precedes a toggle source=spatialTap, and for show completes placement before entity enablement; no Window Scene input event occurs."
+        "After one successful Device Hub preparation, the bound case starts from its registered fresh Docked or Panorama baseline; a show case sends exactly one accepted spatialTap and ends controlsVisible=true, while a hide case sends exactly two ordered accepted spatialTap events and ends controlsVisible=false.",
+        "Every accepted event in the bound trace names the active presentation's real input entity, precedes a toggle source=spatialTap, and for a show case completes placement before entity enablement; no Window Scene input event occurs."
       ],
       "filename": "rubric-presentation-tour-spatial-controls-summon-o01-1.md",
       "id": "rubric:presentation-tour.spatial-controls-summon.o01@1",
@@ -1707,8 +1707,8 @@
     },
     {
       "criteria": [
-        "Every attempt opens registered WebDAV sdr-bframe-aggregate-30s.mkv, selects audio stream index 2 (FLAC 660 Hz) through More→Audio, and selects the automatically associated sdr-bframe-aggregate-30s.zh-CN.srt through More→Subtitles in two complete resident menu transactions.",
-        "The bound post-mutation state preserves the same media identity and selected audio/subtitle track identities after seek, docked round trip, portal/window format round trip, or one format replacement; pure spatial transition cases also preserve the media session identity."
+        "The bound attempt opens registered WebDAV sdr-bframe-aggregate-30s.mkv, selects audio stream index 2 (FLAC 660 Hz) through More→Audio, and selects the automatically associated sdr-bframe-aggregate-30s.zh-CN.srt through More→Subtitles in two complete resident menu transactions.",
+        "The bound post-mutation state preserves the same media identity and selected audio/subtitle track identities after the mutation registered for its case: seek, docked round trip, portal/window format round trip, or one format replacement. A bound pure spatial transition case also preserves the media session identity."
       ],
       "filename": "rubric-presentation-tour-track-selection-survives-seek-and-presentation-o01-1.md",
       "id": "rubric:presentation-tour.track-selection-survives-seek-and-presentation.o01@1",
@@ -1778,10 +1778,10 @@
     },
     {
       "criteria": [
-        "In the current media segment, defined as the latest media.open call through the bound format.apply producer, equirectangular-180 requests {deadlineSeconds: 30, projection: equirectangular180, stereoLayout: sideBySide}; equirectangular-360 requests {deadlineSeconds: 30, projection: equirectangular360, stereoLayout: mono}; custom-angle-200 and custom-angle-240 request {deadlineSeconds: 30, projection: customAngle, horizontalCoverageDegrees: 200 or 240, stereoLayout: mono}. In every case operationOutput.requested equals the format.apply arguments.",
-        "The bound format.apply formatObservation.observed tuple is exactly portal/equirectangular180/180/sideBySide, portal/equirectangular360/360/mono, portal/customAngle/200/mono, or portal/customAngle/240/mono for the corresponding case, and operationOutput.captureRequest is exactly {context: portal, count: 3, minimumIntervalMillis: 1000}.",
-        "Every frame has playbackState.available and controlPlane.available true and controlPlane.fields with formatProvenance userOverride, presentation portal, effectiveContentIsPanoramic true, and the case's observed projection, horizontalFieldOfViewDegrees, and stereoLayout. The 180 case additionally has rendererProjectionKind HalfEquirectangular, rendererViewPackingKind SideBySide, windowComponentContentType halfEquirectangular, and actualViewingMode stereo; the 360 and both custom-angle cases have rendererProjectionKind Equirectangular, rendererViewPackingKind none, windowComponentContentType equirectangular, and actualViewingMode mono; all four have actualImmersiveMode portal.",
-        "The frame indices are exactly 0, 1, and 2, adjacent capturedAtMonotonicMillis values differ by at least 1000, session and streamEpoch remain non-none and unchanged, lifecycle is Playing, displayedPixel is true, error is none, and each content-bound screenshot is nonblank and changing while retaining the wrapped geometry declared by the structured state."
+        "In the current media segment, defined as the latest media.open call through the bound format.apply producer, the request matches the registered case: equirectangular-180={deadlineSeconds: 30, projection: equirectangular180, stereoLayout: sideBySide}; equirectangular-360={deadlineSeconds: 30, projection: equirectangular360, stereoLayout: mono}; custom-angle-200 and custom-angle-240={deadlineSeconds: 30, projection: customAngle, horizontalCoverageDegrees: 200 and 240 respectively, stereoLayout: mono}. operationOutput.requested equals the bound format.apply arguments.",
+        "The bound format.apply formatObservation.observed tuple matches its registered case: equirectangular-180=portal/equirectangular180/180/sideBySide, equirectangular-360=portal/equirectangular360/360/mono, custom-angle-200=portal/customAngle/200/mono, and custom-angle-240=portal/customAngle/240/mono. operationOutput.captureRequest is exactly {context: portal, count: 3, minimumIntervalMillis: 1000}.",
+        "Every frame in the bound artifact has playbackState.available and controlPlane.available true and controlPlane.fields with formatProvenance userOverride, presentation portal, effectiveContentIsPanoramic true, and the registered case's projection, horizontalFieldOfViewDegrees, and stereoLayout. The equirectangular-180 case additionally has rendererProjectionKind HalfEquirectangular, rendererViewPackingKind SideBySide, windowComponentContentType halfEquirectangular, and actualViewingMode stereo; equirectangular-360 and the custom-angle cases have rendererProjectionKind Equirectangular, rendererViewPackingKind none, windowComponentContentType equirectangular, and actualViewingMode mono; the bound case has actualImmersiveMode portal.",
+        "The bound frame indices are exactly 0, 1, and 2, adjacent capturedAtMonotonicMillis values differ by at least 1000, session and streamEpoch remain non-none and unchanged, lifecycle is Playing, displayedPixel is true, error is none, and each content-bound screenshot is nonblank and changing while retaining the wrapped geometry declared by the structured state."
       ],
       "filename": "rubric-projection-and-stereo-panorama-coverage-angle-o01-1.md",
       "id": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1",
@@ -1794,10 +1794,10 @@
     },
     {
       "criteria": [
-        "In the current media segment, side-by-side opens MediaLibrary-grid-video-180_3D.mp4 and its bound format.apply operationOutput.captureRequest is {context: portal, count: 3, minimumIntervalMillis: 1000}; top-bottom opens MediaLibrary-grid-video-180_3D_TB.mp4 with the same embedded capture request; mv-hevc-two-view opens MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov and its bound capture producer requests {context: window, count: 3, minimumIntervalMillis: 500}.",
-        "The side-by-side and top-bottom segments each contain exactly one format.apply after media.open: its arguments and operationOutput.requested are respectively {deadlineSeconds: 30, projection: equirectangular180, stereoLayout: sideBySide} and {deadlineSeconds: 30, projection: equirectangular180, stereoLayout: topBottom}; formatObservation.observed is respectively {presentation: portal, projection: equirectangular180, horizontalFieldOfViewDegrees: 180, stereoLayout: sideBySide} and the same tuple with topBottom. The mv-hevc-two-view segment contains no format.apply after media.open and therefore retains the source format.",
-        "Every frame has index 0, 1, or 2 exactly once, playbackState.available and controlPlane.available true, a content-bound screenshot record, and controlPlane.fields matching its case: side-by-side is userOverride/portal/equirectangular180/180/sideBySide with rendererProjectionKind HalfEquirectangular, rendererViewPackingKind SideBySide, windowComponentContentType halfEquirectangular, and actualViewingMode stereo; top-bottom has the same state with topBottom and OverUnder; mv-hevc-two-view is source/window/flat/multiview with mvHEVC true, rendererViewPackingKind none, windowComponentContentType stereo, actualViewingMode stereo, and actualSpatialVideoMode spatial.",
-        "Within each three-frame sequence the session and streamEpoch are non-none and unchanged, lifecycle is Playing, displayedPixel is true, error is none, presentationObservation.observed equals the requested context, adjacent capturedAtMonotonicMillis values differ by at least the requested minimum interval, and the screenshots are nonblank changing images that show one unpacked view rather than a side-by-side or stacked packed source image."
+        "The bound artifact uses the media identity and capture request registered for its case: side-by-side uses MediaLibrary-grid-video-180_3D.mp4 and {context: portal, count: 3, minimumIntervalMillis: 1000}; top-bottom uses MediaLibrary-grid-video-180_3D_TB.mp4 with the same request; and mv-hevc-two-view uses MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov with {context: window, count: 3, minimumIntervalMillis: 500}.",
+        "The bound media segment has the format transaction registered for its case. If the bound case is side-by-side or top-bottom, its segment contains exactly one format.apply after media.open with requested values {deadlineSeconds: 30, projection: equirectangular180, stereoLayout: sideBySide} or {deadlineSeconds: 30, projection: equirectangular180, stereoLayout: topBottom} respectively, and observed values portal/equirectangular180/180/sideBySide or portal/equirectangular180/180/topBottom respectively. If the bound case is mv-hevc-two-view, its segment contains no format.apply after media.open and retains the source format.",
+        "Every frame in the bound artifact has index 0, 1, or 2 exactly once, playbackState.available and controlPlane.available true, a content-bound screenshot record, and controlPlane.fields matching the registered case: side-by-side is userOverride/portal/equirectangular180/180/sideBySide with rendererProjectionKind HalfEquirectangular, rendererViewPackingKind SideBySide, windowComponentContentType halfEquirectangular, and actualViewingMode stereo; top-bottom has the same state with topBottom and OverUnder; mv-hevc-two-view is source/window/flat/multiview with mvHEVC true, rendererViewPackingKind none, windowComponentContentType stereo, actualViewingMode stereo, and actualSpatialVideoMode spatial.",
+        "Within the bound three-frame sequence the session and streamEpoch are non-none and unchanged, lifecycle is Playing, displayedPixel is true, error is none, presentationObservation.observed equals the requested context, adjacent capturedAtMonotonicMillis values differ by at least the requested minimum interval, and the screenshots are nonblank changing images that show one unpacked view rather than a side-by-side or stacked packed source image."
       ],
       "filename": "rubric-projection-and-stereo-stereo-view-separation-o01-1.md",
       "id": "rubric:projection-and-stereo.stereo-view-separation.o01@1",

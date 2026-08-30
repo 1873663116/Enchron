@@ -5,7 +5,7 @@
   "id": "rubric:local-media-lifecycle.audio-track-switch-same-session.o01@1",
   "title": "Audio Track Switch Same Session",
   "criteria": [
-    "Each stable case selects the requested track identity, including the requested index for duplicate labels, while session identity remains unchanged.",
+    "The bound stable case selects the requested track identity, including the requested index for a duplicate label, while session identity remains unchanged.",
     "The structured audio measurement changes to the requested fixture frequency and lifecycle remains Playing."
   ],
   "negativeControls": [
