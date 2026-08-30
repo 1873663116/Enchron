@@ -7,7 +7,7 @@
   "criteria": [
     "P8.1 and P8.4 each deliver one surface→videoFormat→HDRFallback→apply transaction. Their source tuples remain (8,1,false) and (8,4,false), source Format Description and source dvcC/dvvC atom pair remain unchanged, while renderer configuration switches to the reviewed HDR10/PQ and HLG/B67 branches respectively and renderer dvcC/dvvC facts reflect that fallback.",
     "P5 remains (5,0,false); after surface→videoFormat, the complete inspect response has matchedElement=null for PlayerUI-VideoFormat-HDRFallback, then cancel is delivered. Its source and renderer Dolby Vision atom facts remain present and no fallback mutation occurs.",
-    "All three producers return exactly three Playing frames at 1000 ms minimum intervals with stable session/revision, strictly increasing position, pairwise-distinct content attachments, non-none source/destination pixel formats, and no issue or whole-frame cast."
+    "The bound producer returns three ordered frameSequences for P8.1, P8.4, and P5. Each sequence contains exactly three Playing frames at 1000 ms minimum intervals with stable session/revision, strictly increasing position, pairwise-distinct content attachments, non-none source/destination pixel formats, and no issue or whole-frame cast."
   ],
   "negativeControls": [
     "Split transient editor actions, fallback offered for P5, changed source tuple/Format Description, renderer transfer unrelated to P8.1/P8.4 compatibility, missing dvcC/dvvC facts, or UI action without renderer-state change fails the contract.",

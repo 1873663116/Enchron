@@ -586,16 +586,22 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
     def test_registered_fixture_sets_are_materialized_without_symbolic_aliases(self) -> None:
         plans = self.plans()
         expected = {
-            "preparation:audio-only-fixtures": "audio-only",
-            "preparation:dynamic-range-corpus": "dynamic-range",
-            "preparation:format-corpus": "format-corpus",
-            "preparation:presentation-fixtures-device": "presentation-tour",
-            "preparation:presentation-fixtures-simulator": "presentation-tour",
-            "preparation:projection-corpus": "projection-stereo",
-            "preparation:viewing-storage-fixtures-device": "viewing-storage",
-            "preparation:viewing-storage-fixtures-simulator": "viewing-storage",
+            "preparation:audio-only-fixtures": preparations.REGRESSION_FIXTURE_SETS["audio-only"],
+            "preparation:dynamic-range-corpus": preparations.REGRESSION_FIXTURE_SETS["dynamic-range"],
+            "preparation:format-corpus": preparations.REGRESSION_FIXTURE_SETS["format-corpus"],
+            "preparation:presentation-fixtures-device": tuple(
+                dict.fromkeys(
+                    preparations.REGRESSION_FIXTURE_SETS["presentation-tour"]
+                    + preparations.REGRESSION_FIXTURE_SETS["projection-stereo"]
+                )
+            ),
+            "preparation:presentation-fixtures-simulator": preparations.REGRESSION_FIXTURE_SETS["presentation-tour"],
+            "preparation:projection-corpus": preparations.REGRESSION_FIXTURE_SETS["projection-stereo"]
+            + ("generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",),
+            "preparation:viewing-storage-fixtures-device": preparations.REGRESSION_FIXTURE_SETS["viewing-storage"],
+            "preparation:viewing-storage-fixtures-simulator": preparations.REGRESSION_FIXTURE_SETS["viewing-storage"],
         }
-        for identifier, set_name in expected.items():
+        for identifier, expected_ids in expected.items():
             with self.subTest(preparation=identifier):
                 plan = plans[identifier]
                 staged = [
@@ -605,14 +611,14 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 ]
                 self.assertEqual(
                     staged,
-                    list(preparations.REGRESSION_FIXTURE_SETS[set_name]),
+                    list(expected_ids),
                 )
                 imported = [
                     call.arguments["fileName"]
                     for call in plan.calls
                     if call.operation_id == "operation:media.import-staged@2"
                 ]
-                if set_name == "viewing-storage":
+                if "viewing-storage" in identifier:
                     self.assertEqual(imported, [])
                 else:
                     self.assertEqual(
@@ -1625,10 +1631,22 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
 
     def test_presentation_and_viewing_preparations_are_concrete_and_ready(self) -> None:
         plans = self.plans()
-        for identifier in (
-            "preparation:presentation-fixtures-device",
-            "preparation:presentation-fixtures-simulator",
-        ):
+        expected_presentation_names = {
+            "preparation:presentation-fixtures-device": {
+                preparations.STAGEABLE_FIXTURES[fixture_id].file_name
+                for fixture_id in tuple(
+                    dict.fromkeys(
+                        preparations.REGRESSION_FIXTURE_SETS["presentation-tour"]
+                        + preparations.REGRESSION_FIXTURE_SETS["projection-stereo"]
+                    )
+                )
+            },
+            "preparation:presentation-fixtures-simulator": {
+                preparations.STAGEABLE_FIXTURES[fixture_id].file_name
+                for fixture_id in preparations.REGRESSION_FIXTURE_SETS["presentation-tour"]
+            },
+        }
+        for identifier, expected_names in expected_presentation_names.items():
             plan = plans[identifier]
             self.assertEqual(plan.readiness, "ready")
             self.assertIsNone(plan.blocker)
@@ -1637,14 +1655,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 for call in plan.calls
                 if call.operation_id == "operation:media.stage-fixture@2"
             }
-            self.assertEqual(
-                names,
-                {
-                    "sdr-bframe-multiaudio-avsync-120s.mp4",
-                    "180_3D.mp4",
-                    "360.mp4",
-                },
-            )
+            self.assertEqual(names, expected_names)
 
         for identifier in (
             "preparation:viewing-storage-fixtures-device",

@@ -64,6 +64,15 @@
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:05",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifier": "PlayerUI-playbackIssue-confirm"
+      },
+      "callId": "call:issue-surface-behavior:typed-single-slot-contract:06",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -74,7 +83,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:typed-single-slot-contract:o01:first-post-state",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:03",
+      "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:05",
       "rubric": "rubric:issue-surface-behavior.typed-single-slot-contract.o01@1"
     },
     {
@@ -84,7 +93,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:typed-single-slot-contract:o01:replacement-post-state",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:05",
+      "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:06",
       "rubric": "rubric:issue-surface-behavior.typed-single-slot-contract.o01@1"
     }
   ],

@@ -294,7 +294,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:equirectangular-180",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:07",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:05",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     },
     {
@@ -304,7 +304,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:equirectangular-360",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:14",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:12",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     },
     {
@@ -314,7 +314,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:custom-angle-200",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:21",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:19",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     },
     {
@@ -324,7 +324,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:custom-angle-240",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:28",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:26",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     }
   ],

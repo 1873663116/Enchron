@@ -592,14 +592,20 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:issue-fixtures", "device", "issue-fixtures-ready",
-            "fixture-set.issue-surfaces@2", ("app.session", "certificate.trust", "issue.surface", "lane.instance", "source.webdav"),
+            "fixture-set.issue-surfaces@2", ("app.session", "certificate.trust", "fixture.corpus", "issue.surface", "lane.instance", "source.webdav"),
             preflight="remote-faults",
             connect_webdav=True,
         ),
         PreparationSpec(
             "preparation:presentation-fixtures-device", "device", "presentation-fixtures-ready",
             "fixture-set.presentation-tour@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.webdav"),
-            fixture_ids=REGRESSION_FIXTURE_SETS["presentation-tour"], import_staged=True,
+            fixture_ids=tuple(
+                dict.fromkeys(
+                    REGRESSION_FIXTURE_SETS["presentation-tour"]
+                    + REGRESSION_FIXTURE_SETS["projection-stereo"]
+                )
+            ),
+            import_staged=True,
             preflight="webdav-regression",
             connect_webdav=True,
         ),
@@ -613,7 +619,9 @@ def _specs() -> tuple[PreparationSpec, ...]:
         PreparationSpec(
             "preparation:projection-corpus", "device", "projection-corpus-ready",
             "fixture-set.projection-stereo@2", ("app.session", "display.capture", "fixture.corpus", "lane.instance", "library.contents"),
-            fixture_ids=REGRESSION_FIXTURE_SETS["projection-stereo"], import_staged=True,
+            fixture_ids=REGRESSION_FIXTURE_SETS["projection-stereo"]
+            + ("generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",),
+            import_staged=True,
         ),
         PreparationSpec(
             "preparation:viewing-storage-fixtures-device", "device", "viewing-storage-fixtures-ready",
@@ -633,7 +641,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:webdav-test-source", "device", "webdav-test-source-ready",
-            "remote-source.webdav-fixture@2", ("app.session", "certificate.trust", "fixture.corpus", "lane.instance", "source.webdav", "system.permission"),
+            "remote-source.webdav-fixture@2", ("app.session", "certificate.trust", "fixture.corpus", "lane.instance", "source.connection", "source.session", "source.webdav", "system.permission"),
             preflight="webdav-regression",
             connect_webdav=True,
         ),

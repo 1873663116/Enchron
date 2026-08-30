@@ -218,7 +218,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:stereo-view-separation:o01:side-by-side",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:stereo-view-separation:07",
+      "producedByCall": "call:projection-and-stereo:stereo-view-separation:05",
       "rubric": "rubric:projection-and-stereo.stereo-view-separation.o01@1"
     },
     {
@@ -228,7 +228,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:stereo-view-separation:o01:top-bottom",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:stereo-view-separation:14",
+      "producedByCall": "call:projection-and-stereo:stereo-view-separation:12",
       "rubric": "rubric:projection-and-stereo.stereo-view-separation.o01@1"
     },
     {

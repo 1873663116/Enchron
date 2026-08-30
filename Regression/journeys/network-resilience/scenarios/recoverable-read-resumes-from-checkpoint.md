@@ -119,22 +119,11 @@
     },
     {
       "arguments": {
-        "context": "window",
-        "identifiers": [
-          "PlayerUI-InfoBar-button-back"
-        ]
-      },
-      "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:10",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.activate@2"
-    },
-    {
-      "arguments": {
         "check": "remote-faults",
         "phase": "restore",
         "receiptID": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:07/receiptID"
       },
-      "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:11",
+      "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:10",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -143,11 +132,22 @@
         "productBindingDigest": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/bindingDigest",
         "remoteExpectation": "recoverable-read",
         "remoteReceiptID": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:07/receiptID",
-        "restoredGenerationToken": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:11/restoredGenerationToken"
+        "restoredGenerationToken": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:10/restoredGenerationToken"
+      },
+      "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:11",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerUI-InfoBar-button-back"
+        ]
       },
       "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:12",
       "maxInvocations": 1,
-      "operation": "operation:diagnostics.surface-probe@1"
+      "operation": "operation:accessibility.activate@2"
     }
   ],
   "obligations": [
@@ -158,7 +158,7 @@
       "evidenceType": "interaction.trace",
       "id": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o01:single-read-failure",
       "oracle": "oracle:agent-structured-interaction-trace@1",
-      "producedByCall": "call:network-resilience:recoverable-read-resumes-from-checkpoint:12",
+      "producedByCall": "call:network-resilience:recoverable-read-resumes-from-checkpoint:11",
       "rubric": "rubric:network-resilience.recoverable-read-resumes-from-checkpoint.o01@1"
     }
   ],

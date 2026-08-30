@@ -97,18 +97,120 @@
     },
     {
       "callId": "call:preparation:presentation-fixtures-device:12",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "internal-apple-dolby-vision-p20-3d-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:13",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "3D-example.mp4"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:14",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "internal-spatial-180-tb-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:15",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "180_3D_TB.mp4"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:16",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "internal-apple-mvhevc-short-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:17",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "spatial_lighthouse_flowers_waves_short.mov"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:18",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "internal-apple-apmp-180-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:19",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "APMP-180-example.mp4"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:20",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "internal-apple-apmp-360-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:21",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "APMP-360-example.mp4"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:22",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "internal-apple-immersive-video-beach-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:23",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "Immersive-Video-example.f99766.mp4"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:presentation-fixtures-device:24",
       "operation": "operation:library.snapshot@1",
       "arguments": {},
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:13",
+      "callId": "call:preparation:presentation-fixtures-device:25",
       "operation": "operation:harness.assert-channels@2",
       "arguments": {},
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:14",
+      "callId": "call:preparation:presentation-fixtures-device:26",
       "operation": "operation:navigation.select-tab@1",
       "arguments": {
         "tab": "files"
@@ -116,7 +218,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:15",
+      "callId": "call:preparation:presentation-fixtures-device:27",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -129,7 +231,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:16",
+      "callId": "call:preparation:presentation-fixtures-device:28",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -141,7 +243,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:17",
+      "callId": "call:preparation:presentation-fixtures-device:29",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -154,7 +256,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:18",
+      "callId": "call:preparation:presentation-fixtures-device:30",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -167,7 +269,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:19",
+      "callId": "call:preparation:presentation-fixtures-device:31",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -180,7 +282,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:20",
+      "callId": "call:preparation:presentation-fixtures-device:32",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -191,7 +293,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:21",
+      "callId": "call:preparation:presentation-fixtures-device:33",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -202,7 +304,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:22",
+      "callId": "call:preparation:presentation-fixtures-device:34",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -213,7 +315,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:23",
+      "callId": "call:preparation:presentation-fixtures-device:35",
       "operation": "operation:accessibility.inspect@2",
       "arguments": {
         "context": "main-window-browser",
@@ -223,7 +325,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:presentation-fixtures-device:24",
+      "callId": "call:preparation:presentation-fixtures-device:36",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "webdav-regression"
@@ -235,7 +337,7 @@
     {
       "key": "presentation-fixtures-ready",
       "schema": "fixture-set.presentation-tour@2",
-      "producedByCall": "call:preparation:presentation-fixtures-device:24",
+      "producedByCall": "call:preparation:presentation-fixtures-device:36",
       "dependsOnTags": [
         "app.session",
         "fixture.corpus",

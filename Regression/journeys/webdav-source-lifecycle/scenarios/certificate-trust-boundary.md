@@ -226,17 +226,27 @@
       "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:05/cursorToken",
+        "remoteExpectation": "certificate-trust-boundary",
+        "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
+      },
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
     }
   ],
   "obligations": [
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "accessibility-tree@1",
-      "evidenceType": "accessibility.tree",
+      "evidenceSchema": "interaction-trace@1",
+      "evidenceType": "interaction.trace",
       "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:cancelled-form",
-      "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:12",
+      "oracle": "oracle:agent-structured-interaction-trace@1",
+      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
       "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
     },
     {
@@ -246,7 +256,7 @@
       "evidenceType": "interaction.trace",
       "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:connected-trace",
       "oracle": "oracle:agent-structured-interaction-trace@1",
-      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
+      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
       "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
     }
   ],

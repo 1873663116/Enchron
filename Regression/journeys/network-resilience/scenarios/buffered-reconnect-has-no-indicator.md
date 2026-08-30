@@ -120,7 +120,7 @@
         "minimumIntervalMillis": 1000,
         "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:09/bindingDigest",
         "remoteExpectation": "webdav-playback-range",
-        "remoteGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:06/generationToken"
+        "remoteGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:08/restoredGenerationToken"
       },
       "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:10",
       "maxInvocations": 1,
@@ -216,10 +216,31 @@
         "count": 3,
         "minimumIntervalMillis": 1000,
         "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:19/bindingDigest",
-        "remoteExpectation": "webdav-playback-range",
-        "remoteGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/generationToken"
+        "relatedFrameManifests": [
+          "result://call:network-resilience:buffered-reconnect-has-no-indicator:10/frameManifest"
+        ],
+        "remoteExpectation": "buffer-absorbed-interruption",
+        "remoteReceiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/receiptID",
+        "restoredGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:18/restoredGenerationToken"
       },
       "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "count": 3,
+        "minimumIntervalMillis": 1000,
+        "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:19/bindingDigest",
+        "relatedFrameManifests": [
+          "result://call:network-resilience:buffered-reconnect-has-no-indicator:10/frameManifest"
+        ],
+        "remoteExpectation": "buffer-absorbed-interruption",
+        "remoteReceiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/receiptID",
+        "restoredGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:18/restoredGenerationToken"
+      },
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:21",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -232,7 +253,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:network-resilience:buffered-reconnect-has-no-indicator:o01:paired-control",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:10",
+      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
       "rubric": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1"
     },
     {
@@ -242,7 +263,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:network-resilience:buffered-reconnect-has-no-indicator:o01:buffer-absorbed-interruption",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
+      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:21",
       "rubric": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1"
     }
   ],

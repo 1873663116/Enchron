@@ -81,6 +81,27 @@
       "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "portal",
+        "identifier": "PlayerUI-TopAction-videoFormat"
+      },
+      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:07",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "portal",
+        "identifiers": [
+          "PlayerUI-TopAction-videoFormat"
+        ],
+        "settleDelayMillis": 1000
+      },
+      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:08",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
     }
   ],
   "obligations": [
@@ -91,7 +112,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o01:default",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:06",
+      "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:08",
       "rubric": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o01@1"
     }
   ],

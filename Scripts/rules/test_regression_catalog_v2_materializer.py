@@ -2117,23 +2117,27 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             if call["operation"] == "operation:evidence.capture-frames@1"
         ]
         self.assertEqual(len(buffered_bindings), 2)
-        self.assertEqual(len(buffered_frames), 2)
+        self.assertEqual(len(buffered_frames), 3)
         self.assertEqual(
             [call["arguments"]["productBindingDigest"] for call in buffered_frames],
             [
-                f"result://{binding['callId']}/bindingDigest"
-                for binding in buffered_bindings
+                f"result://{buffered_bindings[0]['callId']}/bindingDigest",
+                f"result://{buffered_bindings[1]['callId']}/bindingDigest",
+                f"result://{buffered_bindings[1]['callId']}/bindingDigest",
             ],
         )
         self.assertEqual(
             [item["producedByCall"] for item in buffered["obligations"]],
-            [call["callId"] for call in buffered_frames],
+            [call["callId"] for call in buffered_frames[1:]],
         )
         call_positions = {
             call["callId"]: index
             for index, call in enumerate(buffered["operations"])
         }
-        for binding, frame in zip(buffered_bindings, buffered_frames):
+        for binding, frame in zip(
+            [buffered_bindings[0], buffered_bindings[1], buffered_bindings[1]],
+            buffered_frames,
+        ):
             self.assertLess(
                 call_positions[binding["callId"]],
                 call_positions[frame["callId"]],

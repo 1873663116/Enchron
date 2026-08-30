@@ -86,22 +86,12 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 45,
-        "expectedLanding": "window",
-        "identifier": "Emby-Detail-Resume"
-      },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:07",
-      "maxInvocations": 1,
-      "operation": "operation:media.open@2"
-    },
-    {
-      "arguments": {
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:08",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:07",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -111,9 +101,15 @@
         "minimumPositionMillis": 15000,
         "minimumRemainingMillis": 30000
       },
-      "callId": "call:emby-server-lifecycle:progress-authority-server:09",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:08",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
+    },
+    {
+      "arguments": {},
+      "callId": "call:emby-server-lifecycle:progress-authority-server:09",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.playback-state@1"
     },
     {
       "arguments": {

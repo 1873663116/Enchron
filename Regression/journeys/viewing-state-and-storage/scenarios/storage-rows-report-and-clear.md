@@ -15,7 +15,7 @@
     }
   },
   "lane": "either",
-  "estimatedCostMillis": 660000,
+  "estimatedCostMillis": 900000,
   "staticCases": [
     "default"
   ],

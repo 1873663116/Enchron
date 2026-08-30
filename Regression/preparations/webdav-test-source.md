@@ -178,6 +178,8 @@
         "certificate.trust",
         "fixture.corpus",
         "lane.instance",
+        "source.connection",
+        "source.session",
         "source.webdav",
         "system.permission"
       ]

@@ -279,9 +279,32 @@ def _index(required: bool = False) -> Field:
 def _capture_frames(arguments: Mapping[str, object]) -> None:
     expectation = arguments.get("remoteExpectation")
     generation = arguments.get("remoteGenerationToken")
+    receipt = arguments.get("remoteReceiptID")
+    restored_generation = arguments.get("restoredGenerationToken")
     product_binding = arguments.get("productBindingDigest")
     artwork_expectation = arguments.get("artworkExpectation")
     include_hdr_fallback = arguments.get("includeHDRFallback")
+    related_manifests = arguments.get("relatedFrameManifests", [])
+    assert isinstance(related_manifests, list)
+    for manifest in related_manifests:
+        if manifest.startswith("result://"):
+            if re.fullmatch(
+                r"result://call:[a-z0-9:-]+/frameManifest", manifest
+            ) is None:
+                raise OperationAdapterError(
+                    "relatedFrameManifests must select /frameManifest"
+                )
+            continue
+        try:
+            decoded = json.loads(manifest)
+        except json.JSONDecodeError as error:
+            raise OperationAdapterError(
+                "relatedFrameManifests must contain canonical capture manifests"
+            ) from error
+        if not isinstance(decoded, dict) or set(decoded) != {"context", "frames"}:
+            raise OperationAdapterError(
+                "relatedFrameManifests contain the wrong closed shape"
+            )
     if include_hdr_fallback is not None and include_hdr_fallback is not True:
         raise OperationAdapterError("includeHDRFallback may only request true")
     if artwork_expectation is not None:
@@ -300,22 +323,61 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             )
         return
     if expectation is None:
-        if generation is not None or product_binding is not None:
+        if any(
+            value is not None
+            for value in (
+                generation,
+                receipt,
+                restored_generation,
+                product_binding,
+            )
+        ):
             raise OperationAdapterError(
                 "frame remote bindings require one closed remoteExpectation"
             )
         return
-    if expectation != "webdav-playback-range":
+    if expectation not in (
+        "webdav-playback-range",
+        "buffer-absorbed-interruption",
+    ):
         raise OperationAdapterError(
-            "frame capture supports only webdav-playback-range"
+            "frame capture remoteExpectation is not supported"
         )
-    if not isinstance(generation, str) or not isinstance(product_binding, str):
+    if not isinstance(product_binding, str):
         raise OperationAdapterError(
-            "webdav frame capture requires generation and product bindings"
+            "remote frame capture requires a product binding"
         )
-    _literal_or_result_reference(
-        arguments, "remoteGenerationToken", "generationToken"
-    )
+    if expectation == "webdav-playback-range":
+        if (
+            not isinstance(generation, str)
+            or receipt is not None
+            or restored_generation is not None
+        ):
+            raise OperationAdapterError(
+                "healthy frame capture requires only a generation token"
+            )
+        if generation.startswith("result://") and re.fullmatch(
+            r"result://call:[a-z0-9:-]+/(?:generationToken|restoredGenerationToken)",
+            generation,
+        ) is None:
+            raise OperationAdapterError(
+                "remoteGenerationToken must select a generation result"
+            )
+    else:
+        if (
+            generation is not None
+            or not isinstance(receipt, str)
+            or not isinstance(restored_generation, str)
+        ):
+            raise OperationAdapterError(
+                "fault frame capture requires receipt and restoration bindings"
+            )
+        _literal_or_result_reference(arguments, "remoteReceiptID", "receiptID")
+        _literal_or_result_reference(
+            arguments,
+            "restoredGenerationToken",
+            "restoredGenerationToken",
+        )
     _sha256_or_result_reference(
         arguments, "productBindingDigest", "bindingDigest"
     )
@@ -328,6 +390,9 @@ def _accessibility_activate(arguments: Mapping[str, object]) -> None:
     duration = arguments.get("durationMillis")
     assert isinstance(identifiers, list)
     assert isinstance(labels, list)
+    settle_delay = arguments.get("settleDelayMillis")
+    if settle_delay is not None and settle_delay <= 0:
+        raise OperationAdapterError("settleDelayMillis must be positive")
     if not identifiers and not labels:
         raise OperationAdapterError(
             "accessibility activate requires at least one identifier or label"
@@ -456,6 +521,7 @@ REMOTE_EXPECTATIONS = frozenset(
         "recoverable-read",
         "finite-backoff",
         "certificate-change",
+        "buffer-absorbed-interruption",
     )
 )
 REMOTE_HEALTHY_EXPECTATIONS = frozenset(
@@ -463,7 +529,12 @@ REMOTE_HEALTHY_EXPECTATIONS = frozenset(
 )
 REMOTE_FAULT_EXPECTATIONS = REMOTE_EXPECTATIONS - REMOTE_HEALTHY_EXPECTATIONS
 REMOTE_PLAYBACK_EXPECTATIONS = frozenset(
-    ("webdav-playback-range", "recoverable-read", "finite-backoff")
+    (
+        "webdav-playback-range",
+        "recoverable-read",
+        "finite-backoff",
+        "buffer-absorbed-interruption",
+    )
 )
 PLAYBACK_EXPECTATIONS = frozenset(
     ("webdav-loopback", "recoverable-read", "finite-reconnect")
@@ -2175,9 +2246,14 @@ def _specs() -> tuple[OperationSpec, ...]:
                     "remoteExpectation",
                     string,
                     required=False,
-                    choices=_choices("webdav-playback-range"),
+                    choices=_choices(
+                        "webdav-playback-range",
+                        "buffer-absorbed-interruption",
+                    ),
                 ),
                 _field("remoteGenerationToken", string, required=False),
+                _field("remoteReceiptID", string, required=False),
+                _field("restoredGenerationToken", string, required=False),
                 _field("productBindingDigest", string, required=False),
                 _field(
                     "artworkExpectation",
@@ -2186,6 +2262,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("exit-replaces-current-frame"),
                 ),
                 _field("includeHDRFallback", boolean, required=False),
+                _field("relatedFrameManifests", strings, required=False),
             ),
             (
                 ("visual.frames", "frame-sequence@2"),
@@ -2194,7 +2271,21 @@ def _specs() -> tuple[OperationSpec, ...]:
             _capture_frames,
         ),
         OperationSpec("operation:navigation.select-tab@1", LANES, (_field("tab", string, choices=_choices("files", "settings", "emby", "environment")),), ()),
-        OperationSpec("operation:accessibility.activate@2", LANES, (_field("context", string, choices=CONTEXTS), _field("identifiers", strings, required=False, nonempty=False), _field("labels", strings, required=False, nonempty=False), _index(), _field("gesture", string, required=False, choices=_choices("tap", "press")), _field("durationMillis", integer, required=False, minimum=1, maximum=5000)), (), _accessibility_activate),
+        OperationSpec(
+            "operation:accessibility.activate@2",
+            LANES,
+            (
+                _field("context", string, choices=CONTEXTS),
+                _field("identifiers", strings, required=False, nonempty=False),
+                _field("labels", strings, required=False, nonempty=False),
+                _index(),
+                _field("gesture", string, required=False, choices=_choices("tap", "press")),
+                _field("durationMillis", integer, required=False, minimum=1, maximum=5000),
+                _field("settleDelayMillis", integer, required=False, minimum=1, maximum=30000),
+            ),
+            (("accessibility.tree", "accessibility-tree@1"),),
+            _accessibility_activate,
+        ),
         OperationSpec(
             "operation:accessibility.inspect@2",
             LANES,
@@ -2441,7 +2532,21 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
             (("window.control-plane", "window-control-plane@1"),),
         ),
-        OperationSpec("operation:format.apply@2", LANES, (_field("projection", string, choices=_choices("flat", "equirectangular180", "equirectangular360", "customAngle")), _field("horizontalCoverageDegrees", integer, required=False, minimum=180, maximum=360), _field("stereoLayout", string, choices=_choices("mono", "sideBySide", "topBottom")), _deadline()), (), _format_apply),
+        OperationSpec(
+            "operation:format.apply@2",
+            LANES,
+            (
+                _field("projection", string, choices=_choices("flat", "equirectangular180", "equirectangular360", "customAngle")),
+                _field("horizontalCoverageDegrees", integer, required=False, minimum=180, maximum=360),
+                _field("stereoLayout", string, choices=_choices("mono", "sideBySide", "topBottom")),
+                _deadline(),
+            ),
+            (
+                ("visual.frames", "frame-sequence@2"),
+                ("window.control-plane", "window-control-plane@1"),
+            ),
+            _format_apply,
+        ),
         OperationSpec("operation:presentation.enter-docked-skybox@1", LANES, (_deadline(),), ()),
         OperationSpec(
             "operation:presentation.enter-panorama@1",
@@ -3077,11 +3182,47 @@ class ResidentOperationBackend:
             if arguments.get("includeHDRFallback") is True
             else None
         )
+        current_manifest = {
+            "context": arguments["context"],
+            "frames": frames,
+        }
+        prior_sequences: list[dict[str, object]] = []
+        for encoded in arguments.get("relatedFrameManifests", []):
+            manifest = json.loads(str(encoded))
+            manifest_frames = manifest["frames"]
+            if not isinstance(manifest["context"], str) or not isinstance(
+                manifest_frames, list
+            ):
+                raise OperationAdapterError(
+                    "related frame manifest contains invalid capture data"
+                )
+            prior_sequences.append(
+                {
+                    "context": manifest["context"],
+                    "frames": manifest_frames,
+                }
+            )
+        frame_sequences = [
+            *prior_sequences,
+            current_manifest,
+        ]
+        evidence_frames = [
+            frame
+            for sequence in frame_sequences
+            for frame in sequence["frames"]
+        ]
         return {
             "succeeded": True,
             "context": arguments["context"],
             "artifactRoot": str(context.controller_directory),
-            "frames": frames,
+            "frames": evidence_frames,
+            "frameSequences": frame_sequences,
+            "frameManifest": json.dumps(
+                current_manifest,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
             "fields": frames[-1]["controlPlane"]["fields"],
             "response": frames[-1]["controlPlane"]["response"],
             **({"hdrFallback": hdr_fallback} if hdr_fallback is not None else {}),
@@ -3183,10 +3324,20 @@ class ResidentOperationBackend:
     def _accessibility_activate_2(self, arguments, context):
         identifiers = [str(item) for item in arguments.get("identifiers", [])]
         labels = [str(item) for item in arguments.get("labels", [])]
+        settle_delay_millis = int(arguments.get("settleDelayMillis", 0))
         result: dict[str, object] = {
             "succeeded": True,
             "context": arguments["context"],
+            "response": {},
         }
+        if settle_delay_millis > 0:
+            before_response = self._controller(
+                context, "snapshot", "--no-screenshot"
+            )
+            self._require_success(
+                before_response, "accessibility pre-action snapshot"
+            )
+            result["beforeState"] = self._post_action_state(before_response)
         if identifiers:
             command = (
                 ["--identifier", identifiers[0]]
@@ -3223,7 +3374,18 @@ class ResidentOperationBackend:
             result["labelResponses"] = label_responses
             result["labelPostActionStates"] = label_states
             result["interaction"] = label_responses[-1]
+            result["response"] = label_responses[-1]
             result["postActionState"] = label_states[-1]
+        if settle_delay_millis > 0:
+            time.sleep(settle_delay_millis / 1000)
+            settled_response = self._controller(
+                context, "snapshot", "--no-screenshot"
+            )
+            self._require_success(
+                settled_response, "accessibility post-action snapshot"
+            )
+            result["settledState"] = self._post_action_state(settled_response)
+            result["postActionState"] = result["settledState"]
         return result
 
     def _accessibility_inspect_2(self, arguments, context):
@@ -3395,12 +3557,12 @@ class ResidentOperationBackend:
         return {"succeeded": True, "ping": ping, "probeStatus": status}
 
     def _harness_reset_product_state_2(self, arguments, context):
-        relaunch = self._controller(context, "relaunch")
-        self._require_success(relaunch, "reset relaunch")
         command = () if "rootFolderName" not in arguments else (f"libraryFolder={arguments['rootFolderName']}",)
         reset = self._app_command(context, "resetState", *command)
-        library = self._app_command(context, "listLibrary")
         self._require_success(reset, "resetState")
+        relaunch = self._controller(context, "relaunch")
+        self._require_success(relaunch, "reset relaunch")
+        library = self._app_command(context, "listLibrary")
         self._require_success(library, "listLibrary")
         receipt = validate_product_state_reset_receipt(
             reset.get("productStateResetReceipt")
@@ -3500,6 +3662,7 @@ class ResidentOperationBackend:
                 "recoverable-read": "recoverable-read-interruption",
                 "finite-backoff": "finite-reconnect",
                 "certificate-change": "certificate-rotation",
+                "buffer-absorbed-interruption": "buffer-absorbed-interruption",
             }[expectation]
             if (
                 receipt.get("recipe") != expected_recipe
@@ -4094,7 +4257,8 @@ class ResidentOperationBackend:
             interaction.extend(remote_observation["traceLines"])
         playback_observation = (
             self._diagnostics_playback_state_1({}, context)
-            if arguments.get("remoteExpectation") == "finite-backoff"
+            if arguments.get("remoteExpectation")
+            in ("finite-backoff", "recoverable-read")
             else None
         )
         return {
@@ -5543,10 +5707,12 @@ class ResidentOperationBackend:
             controls=str(arguments["controls"]),
             deadline_seconds=int(arguments["deadlineSeconds"]),
         )
+        playback_observation = self._diagnostics_playback_state_1({}, context)
         return {
             **result,
             "fields": result.get("fields", {}),
             "response": result.get("response", {}),
+            "playbackObservation": playback_observation,
         }
 
     def _playback_wait_position_2(self, arguments, context):
@@ -6050,8 +6216,19 @@ class ResidentOperationBackend:
         after = self._window_control_plane_observation(context)
         observed = after["fields"]
         assert isinstance(observed, Mapping)
+        capture_request = {
+            "context": expected,
+            "count": 3,
+            "minimumIntervalMillis": 1000,
+        }
+        capture = self._evidence_capture_frames_1(capture_request, context)
         return {
+            **capture,
             "succeeded": after["succeeded"],
+            "artifactRoot": capture["artifactRoot"],
+            "frames": capture["frames"],
+            "fields": capture["fields"],
+            "response": capture["response"],
             "requested": dict(arguments),
             "before": before,
             "summon": summon,
@@ -6060,6 +6237,7 @@ class ResidentOperationBackend:
             "action": action,
             "settlement": settlement,
             "after": after,
+            "captureRequest": capture_request,
             "formatObservation": {
                 "expected": {
                     "presentation": expected,

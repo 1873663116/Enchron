@@ -124,20 +124,20 @@
     {
       "artifactClass": "coverage",
       "caseKey": "apple-apmp-180",
-      "evidenceSchema": "window-control-plane@1",
-      "evidenceType": "window.control-plane",
+      "evidenceSchema": "frame-sequence@2",
+      "evidenceType": "visual.frames",
       "id": "obligation:format-coverage:signalled-media-classification:o01:apple-apmp-180",
-      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "oracle": "oracle:agent-visual@2",
       "producedByCall": "call:format-coverage:signalled-media-classification:05",
       "rubric": "rubric:format-coverage.signalled-media-classification.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "mv-hevc-stereo",
-      "evidenceSchema": "window-control-plane@1",
-      "evidenceType": "window.control-plane",
+      "evidenceSchema": "frame-sequence@2",
+      "evidenceType": "visual.frames",
       "id": "obligation:format-coverage:signalled-media-classification:o01:mv-hevc-stereo",
-      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "oracle": "oracle:agent-visual@2",
       "producedByCall": "call:format-coverage:signalled-media-classification:10",
       "rubric": "rubric:format-coverage.signalled-media-classification.o01@1"
     }

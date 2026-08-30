@@ -28,10 +28,6 @@
     {
       "key": "presentation-fixtures-ready",
       "schema": "fixture-set.presentation-tour@2"
-    },
-    {
-      "key": "projection-corpus-ready",
-      "schema": "fixture-set.projection-stereo@2"
     }
   ],
   "operations": [

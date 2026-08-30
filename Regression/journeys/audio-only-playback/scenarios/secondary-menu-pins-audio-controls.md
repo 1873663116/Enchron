@@ -148,10 +148,19 @@
     },
     {
       "arguments": {
-        "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:12/cursorToken",
+        "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
         "settleDelayMillis": 9000
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
+        "settleDelayMillis": 9000
+      },
+      "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:15",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
     }
@@ -164,7 +173,7 @@
       "evidenceType": "window.control-plane",
       "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:audio-menu",
       "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:07",
+      "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
       "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
     },
     {
@@ -174,7 +183,7 @@
       "evidenceType": "window.control-plane",
       "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:speed-menu",
       "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
+      "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:15",
       "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
     }
   ],

@@ -174,12 +174,29 @@
     },
     {
       "callId": "call:preparation:projection-corpus:21",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:projection-corpus:22",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "sdr-bframe-multiaudio-avsync-120s.mp4"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:projection-corpus:23",
       "operation": "operation:library.snapshot@1",
       "arguments": {},
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:projection-corpus:22",
+      "callId": "call:preparation:projection-corpus:24",
       "operation": "operation:harness.assert-channels@2",
       "arguments": {},
       "maxInvocations": 1
@@ -189,7 +206,7 @@
     {
       "key": "projection-corpus-ready",
       "schema": "fixture-set.projection-stereo@2",
-      "producedByCall": "call:preparation:projection-corpus:22",
+      "producedByCall": "call:preparation:projection-corpus:24",
       "dependsOnTags": [
         "app.session",
         "display.capture",

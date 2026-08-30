@@ -176,6 +176,7 @@
       "dependsOnTags": [
         "app.session",
         "certificate.trust",
+        "fixture.corpus",
         "issue.surface",
         "lane.instance",
         "source.webdav"

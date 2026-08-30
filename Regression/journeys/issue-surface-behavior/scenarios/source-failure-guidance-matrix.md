@@ -130,7 +130,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourceConnection-webDAV-connect"
-        ]
+        ],
+        "settleDelayMillis": 9000
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:10",
       "maxInvocations": 1,
@@ -244,7 +245,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourceConnection-webDAV-connect"
-        ]
+        ],
+        "settleDelayMillis": 9000
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:21",
       "maxInvocations": 1,
@@ -358,7 +360,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourceConnection-webDAV-connect"
-        ]
+        ],
+        "settleDelayMillis": 9000
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:32",
       "maxInvocations": 1,
@@ -472,7 +475,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourceConnection-webDAV-connect"
-        ]
+        ],
+        "settleDelayMillis": 9000
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:43",
       "maxInvocations": 1,

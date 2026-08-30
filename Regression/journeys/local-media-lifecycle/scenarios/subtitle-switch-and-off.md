@@ -160,9 +160,59 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "minimumIntervalMillis": 1000
+        "minimumIntervalMillis": 1000,
+        "relatedFrameManifests": [
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
+        ]
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:13",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "count": 3,
+        "minimumIntervalMillis": 1000,
+        "relatedFrameManifests": [
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
+        ]
+      },
+      "callId": "call:local-media-lifecycle:subtitle-switch-and-off:14",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "count": 3,
+        "minimumIntervalMillis": 1000,
+        "relatedFrameManifests": [
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
+        ]
+      },
+      "callId": "call:local-media-lifecycle:subtitle-switch-and-off:15",
+      "maxInvocations": 1,
+      "operation": "operation:evidence.capture-frames@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "count": 3,
+        "minimumIntervalMillis": 1000,
+        "relatedFrameManifests": [
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
+          "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
+        ]
+      },
+      "callId": "call:local-media-lifecycle:subtitle-switch-and-off:16",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -175,7 +225,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:embedded-text",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:07",
+      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:13",
       "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
     },
     {
@@ -185,7 +235,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:embedded-bitmap",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:09",
+      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:14",
       "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
     },
     {
@@ -195,7 +245,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:off",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:11",
+      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:15",
       "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
     },
     {
@@ -205,7 +255,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:restore",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:13",
+      "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:16",
       "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
     }
   ],

@@ -94,6 +94,9 @@ SEMANTIC_OUTPUTS = {
         ("accessibility.tree", "accessibility-tree@1"),
         ("emby.evidence", "emby-evidence@1"),
     ),
+    "operation:accessibility.activate@2": (
+        ("accessibility.tree", "accessibility-tree@1"),
+    ),
     "operation:diagnostics.surface-probe@1": (
         ("interaction.trace", "interaction-trace@1"),
         ("spatial.input", "spatial-input@1"),
@@ -115,6 +118,10 @@ SEMANTIC_OUTPUTS = {
     "operation:evidence.capture-audio@2": (("audio.measurement", "audio-measurement@2"),),
     "operation:evidence.structural-test@1": (("structural.test", "structural-test@2"),),
     "operation:media.open@2": (("window.control-plane", "window-control-plane@1"),),
+    "operation:format.apply@2": (
+        ("visual.frames", "frame-sequence@2"),
+        ("window.control-plane", "window-control-plane@1"),
+    ),
     "operation:playback.select-subtitle@1": (
         ("window.control-plane", "window-control-plane@1"),
     ),
@@ -778,6 +785,59 @@ class OperationAllowlistTests(unittest.TestCase):
                 adapter.OperationAdapterError, "accessibility label Second"
             ):
                 backend._accessibility_activate_2(validated, self.device)
+
+    def test_accessibility_activate_returns_before_delivery_and_settled_states(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        arguments = {
+            "context": "main-window-browser",
+            "identifiers": ["FileBrowsing-SourceConnection-webDAV-connect"],
+            "settleDelayMillis": 9_000,
+        }
+        validated = adapter.SPECS["operation:accessibility.activate@2"].validate(
+            "device", arguments
+        )
+        before = {
+            "success": True,
+            "appState": "runningForeground",
+            "hierarchy": "connection form",
+        }
+        delivery = {
+            "success": True,
+            "appState": "runningForeground",
+            "hierarchy": "connecting",
+        }
+        settled = {
+            "success": True,
+            "appState": "runningForeground",
+            "hierarchy": "connection issue",
+        }
+        with (
+            mock.patch.object(
+                backend,
+                "_controller",
+                side_effect=(before, delivery, settled),
+            ) as controller,
+            mock.patch.object(adapter.time, "sleep") as sleep,
+        ):
+            result = backend._accessibility_activate_2(validated, self.device)
+
+        self.assertEqual(result["beforeState"]["hierarchy"], "connection form")
+        self.assertIs(result["response"], delivery)
+        self.assertEqual(result["postActionState"]["hierarchy"], "connection issue")
+        sleep.assert_called_once_with(9.0)
+        self.assertEqual(
+            controller.call_args_list,
+            [
+                mock.call(self.device, "snapshot", "--no-screenshot"),
+                mock.call(
+                    self.device,
+                    "tap",
+                    "--identifier",
+                    "FileBrowsing-SourceConnection-webDAV-connect",
+                ),
+                mock.call(self.device, "snapshot", "--no-screenshot"),
+            ],
+        )
 
     def test_browse_hierarchy_contract_is_closed_to_one_browser_context(self) -> None:
         spec = adapter.SPECS["operation:diagnostics.browse-hierarchy@1"]
@@ -2408,6 +2468,9 @@ class OperationAllowlistTests(unittest.TestCase):
             "remoteExpectation": "webdav-playback-range",
             "remoteGenerationToken": "result://call:webdav-source-lifecycle:open:01/generationToken",
             "productBindingDigest": "result://call:webdav-source-lifecycle:open:08/bindingDigest",
+            "relatedFrameManifests": [
+                "result://call:webdav-source-lifecycle:open:09/frameManifest"
+            ],
         }
         self.assertEqual(dict(spec.validate("device", arguments)), arguments)
         for invalid in (
@@ -2436,6 +2499,14 @@ class OperationAllowlistTests(unittest.TestCase):
             **arguments,
             "remoteGenerationToken": "7",
             "productBindingDigest": "sha256:" + "8" * 64,
+            "relatedFrameManifests": [
+                json.dumps(
+                    {
+                        "context": "window",
+                        "frames": [{"index": "prior"}],
+                    }
+                )
+            ],
         }
         remote_observation = {
             "expectation": "webdav-playback-range",
@@ -2457,7 +2528,14 @@ class OperationAllowlistTests(unittest.TestCase):
                 runtime_arguments, self.device
             )
         self.assertEqual(result["remoteObservation"], remote_observation)
-        for frame in result["frames"]:
+        self.assertEqual(len(result["frameSequences"]), 2)
+        self.assertEqual(result["frames"][0], {"index": "prior"})
+        self.assertEqual(len(result["frames"]), 4)
+        self.assertEqual(
+            json.loads(result["frameManifest"]),
+            result["frameSequences"][-1],
+        )
+        for frame in result["frameSequences"][-1]["frames"]:
             self.assertFalse(frame["playbackState"]["available"])
             self.assertFalse(frame["controlPlane"]["available"])
             self.assertEqual(frame["playbackState"]["fields"], {})
@@ -2788,14 +2866,17 @@ class OperationAllowlistTests(unittest.TestCase):
             "toggleControls",
             "visible=true",
         )
-        controller.assert_called_once_with(
-            self.device,
-            "tapSequence",
-            "--identifiers",
-            "PlayerUI-TopAction-videoFormat",
-            "PlayerUI-VideoFormat-Projection-180°",
-            "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
-            "PlayerUI-VideoFormat-apply",
+        self.assertEqual(
+            controller.call_args_list[0],
+            mock.call(
+                self.device,
+                "tapSequence",
+                "--identifiers",
+                "PlayerUI-TopAction-videoFormat",
+                "PlayerUI-VideoFormat-Projection-180°",
+                "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
+                "PlayerUI-VideoFormat-apply",
+            ),
         )
         wait_for_window.assert_called_once_with(
             self.device,
@@ -2895,9 +2976,8 @@ class OperationAllowlistTests(unittest.TestCase):
             "visible=true",
         )
         self.assertEqual(
-            controller.call_args_list,
-            [
-                mock.call(
+            controller.call_args_list[0],
+            mock.call(
                     self.device,
                     "tapSequence",
                     "--identifiers",
@@ -2907,7 +2987,6 @@ class OperationAllowlistTests(unittest.TestCase):
                     "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
                     "PlayerUI-VideoFormat-apply",
                 ),
-            ],
         )
 
     def test_format_apply_preserves_terminal_projection_or_coverage_difference_for_oracle(self) -> None:
@@ -5020,15 +5099,18 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             )
 
         self.assertTrue(result["succeeded"])
-        controller.assert_called_once_with(
-            self.device,
-            "tapSequence",
-            "--identifiers",
-            "PlayerUI-TopAction-videoFormat",
-            "PlayerUI-VideoFormat-CustomAngle",
-            "PlayerUI-VideoFormat-CustomAngle-240",
-            "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
-            "PlayerUI-VideoFormat-apply",
+        self.assertEqual(
+            controller.call_args_list[0],
+            mock.call(
+                self.device,
+                "tapSequence",
+                "--identifiers",
+                "PlayerUI-TopAction-videoFormat",
+                "PlayerUI-VideoFormat-CustomAngle",
+                "PlayerUI-VideoFormat-CustomAngle-240",
+                "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
+                "PlayerUI-VideoFormat-apply",
+            ),
         )
 
     def test_browse_hierarchy_drives_and_records_the_requested_path(self) -> None:
