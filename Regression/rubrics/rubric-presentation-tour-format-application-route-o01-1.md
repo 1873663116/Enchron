@@ -9,7 +9,7 @@
     "Each trace records arm→format apply→terminal settlement→fetch→disarm; equirectangular180 settles in portal with user projection/packing/revision, while Flat settles in window with flat/mono user state."
   ],
   "negativeControls": [
-    "Reusing one media identity across both cases, fetching while the trace is armed, direct automatic panorama entry, stale revision, mismatched packing, or Flat remaining in portal fails the rubric."
+    "Reusing one media identity across both cases, disarming before the generation-bound trace fetch, direct automatic panorama entry, stale revision, mismatched packing, or Flat remaining in portal fails the rubric."
   ]
 }
 ---

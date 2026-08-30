@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:59abeb7937a2d93df18eba557b067bc3e5779ee9cae9e21997658b5b465e26dc",
+  "contentDigest": "sha256:428a51ae5ead57586d52cd03a20d2d7b2e4e2f0d95c64e013f08be13c896d678",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -1623,7 +1623,7 @@
       "filename": "rubric-presentation-tour-format-application-route-o01-1.md",
       "id": "rubric:presentation-tour.format-application-route.o01@1",
       "negativeControls": [
-        "Reusing one media identity across both cases, fetching while the trace is armed, direct automatic panorama entry, stale revision, mismatched packing, or Flat remaining in portal fails the rubric."
+        "Reusing one media identity across both cases, disarming before the generation-bound trace fetch, direct automatic panorama entry, stale revision, mismatched packing, or Flat remaining in portal fails the rubric."
       ],
       "title": "Format Application Route"
     },
@@ -3243,7 +3243,7 @@
             "durationMillis": 5000,
             "expectedAudioTrackID": "1",
             "expectedSession": "result://call:local-media-lifecycle:audio-track-switch-same-session:06/session",
-            "inputDevice": "catalog-v2-audio-capture",
+            "inputDevice": "Steinberg UR12",
             "wavPath": "audio/audio-track-switch-same-session-unique-label.wav"
           },
           "callId": "call:local-media-lifecycle:audio-track-switch-same-session:08",
@@ -3268,7 +3268,7 @@
             "durationMillis": 5000,
             "expectedAudioTrackID": "2",
             "expectedSession": "result://call:local-media-lifecycle:audio-track-switch-same-session:06/session",
-            "inputDevice": "catalog-v2-audio-capture",
+            "inputDevice": "Steinberg UR12",
             "wavPath": "audio/audio-track-switch-same-session-duplicate-label-index-0.wav"
           },
           "callId": "call:local-media-lifecycle:audio-track-switch-same-session:10",
@@ -3293,7 +3293,7 @@
             "durationMillis": 5000,
             "expectedAudioTrackID": "3",
             "expectedSession": "result://call:local-media-lifecycle:audio-track-switch-same-session:06/session",
-            "inputDevice": "catalog-v2-audio-capture",
+            "inputDevice": "Steinberg UR12",
             "wavPath": "audio/audio-track-switch-same-session-duplicate-label-index-1.wav"
           },
           "callId": "call:local-media-lifecycle:audio-track-switch-same-session:12",

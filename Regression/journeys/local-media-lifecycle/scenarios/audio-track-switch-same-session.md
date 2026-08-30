@@ -97,7 +97,7 @@
         "durationMillis": 5000,
         "expectedAudioTrackID": "1",
         "expectedSession": "result://call:local-media-lifecycle:audio-track-switch-same-session:06/session",
-        "inputDevice": "catalog-v2-audio-capture",
+        "inputDevice": "Steinberg UR12",
         "wavPath": "audio/audio-track-switch-same-session-unique-label.wav"
       },
       "callId": "call:local-media-lifecycle:audio-track-switch-same-session:08",
@@ -122,7 +122,7 @@
         "durationMillis": 5000,
         "expectedAudioTrackID": "2",
         "expectedSession": "result://call:local-media-lifecycle:audio-track-switch-same-session:06/session",
-        "inputDevice": "catalog-v2-audio-capture",
+        "inputDevice": "Steinberg UR12",
         "wavPath": "audio/audio-track-switch-same-session-duplicate-label-index-0.wav"
       },
       "callId": "call:local-media-lifecycle:audio-track-switch-same-session:10",
@@ -147,7 +147,7 @@
         "durationMillis": 5000,
         "expectedAudioTrackID": "3",
         "expectedSession": "result://call:local-media-lifecycle:audio-track-switch-same-session:06/session",
-        "inputDevice": "catalog-v2-audio-capture",
+        "inputDevice": "Steinberg UR12",
         "wavPath": "audio/audio-track-switch-same-session-duplicate-label-index-1.wav"
       },
       "callId": "call:local-media-lifecycle:audio-track-switch-same-session:12",
