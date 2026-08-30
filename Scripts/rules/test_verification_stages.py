@@ -22,6 +22,8 @@ class VerificationTests(unittest.TestCase):
         self.assertIn("playback-issue-ownership", quick)
         self.assertIn("format-description-identity", full)
         self.assertNotIn("format-description-identity", quick)
+        self.assertIn("ensure-test-services", full)
+        self.assertNotIn("ensure-test-services", quick)
 
     def test_failure_names_deduplicate_issue_and_terminal_lines(self) -> None:
         output = """
