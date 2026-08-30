@@ -3992,7 +3992,7 @@ class ResidentOperationBackend:
         settle_delay_millis = int(arguments.get("settleDelayMillis", 0))
         if settle_delay_millis > 0:
             time.sleep(settle_delay_millis / 1000)
-        control_plane = self._window_control_plane_observation(context)
+        control_plane = self._window_control_plane_observation(context, required=False)
         matrix = self._matrix(context)
         lines = self._probe_lines(context)
         current = matrix.probe_cursor(lines)
@@ -5382,10 +5382,12 @@ class ResidentOperationBackend:
             },
         }
 
-    def _window_control_plane_observation(self, context):
+    def _window_control_plane_observation(self, context, *, required=True):
         plane, response = self._read_control_plane(context)
         if plane is None:
-            raise OperationAdapterError("window control plane is unavailable")
+            if required:
+                raise OperationAdapterError("window control plane is unavailable")
+            return {"succeeded": False, "fields": {}, "response": {}}
         return {"succeeded": True, "fields": plane, "response": response}
 
     def _diagnostics_playback_state_1(
