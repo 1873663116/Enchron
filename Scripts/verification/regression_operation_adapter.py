@@ -5603,8 +5603,15 @@ class ResidentOperationBackend:
         if duration_millis <= 0:
             raise OperationAdapterError("seek requires positive media duration")
         value = int(arguments["positionMillionths"]) / 1_000_000
-        command = self._app_command(context, "seekNormalized", f"position={value:.6f}")
-        self._require_success(command, "seekNormalized")
+        action = self._controller(
+            context,
+            "adjust",
+            "--identifier",
+            "PlayerPanel-progress",
+            "--normalized-x",
+            f"{value:.6f}",
+        )
+        self._require_success(action, "playback progress adjustment")
         target_millis = round(duration_millis * value)
         tolerance_millis = 1_500
         deadline = time.monotonic() + 30
@@ -5650,9 +5657,9 @@ class ResidentOperationBackend:
                     }
                     return {
                         "succeeded": True,
-                        "drive": "injected-seekNormalized",
+                        "drive": "accessibility-adjust",
                         "before": before,
-                        "command": command,
+                        "action": action,
                         "settlement": {
                             "targetPositionMillis": target_millis,
                             "positionToleranceMillis": tolerance_millis,
@@ -5677,9 +5684,9 @@ class ResidentOperationBackend:
             time.sleep(0.25)
         return {
             "succeeded": False,
-            "drive": "injected-seekNormalized",
+            "drive": "accessibility-adjust",
             "before": before,
-            "command": command,
+            "action": action,
             "reason": "seek-settlement-deadline-expired",
             "settlement": {
                 "targetPositionMillis": target_millis,

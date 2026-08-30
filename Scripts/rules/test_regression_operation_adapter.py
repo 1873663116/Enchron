@@ -4814,9 +4814,9 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             ),
             mock.patch.object(
                 backend,
-                "_app_command",
-                return_value={"success": True, "payload": ["true"]},
-            ),
+                "_controller",
+                return_value={"success": True},
+            ) as controller,
             mock.patch.object(
                 backend,
                 "_read_control_plane",
@@ -4837,6 +4837,15 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertEqual(result["settlement"]["terminal"], terminal)
         self.assertEqual(result["settlement"]["targetPositionMillis"], 50_000)
         self.assertEqual(len(result["settlement"]["observations"]), 2)
+        controller.assert_called_once_with(
+            self.device,
+            "adjust",
+            "--identifier",
+            "PlayerPanel-progress",
+            "--normalized-x",
+            "0.500000",
+        )
+        self.assertEqual(result["drive"], "accessibility-adjust")
 
     def test_seek_rejects_a_session_change_even_at_the_requested_position(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -4860,8 +4869,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             ),
             mock.patch.object(
                 backend,
-                "_app_command",
-                return_value={"success": True, "payload": ["true"]},
+                "_controller",
+                return_value={"success": True},
             ),
             mock.patch.object(
                 backend,

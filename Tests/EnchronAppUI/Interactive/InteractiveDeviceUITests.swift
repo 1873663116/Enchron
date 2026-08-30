@@ -208,6 +208,19 @@ private final class InteractiveDeviceUIChannel {
             }
             element.press(forDuration: duration)
             return (true, "Element pressed.")
+        case .adjust:
+            guard let element = element(for: command) else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard element.isHittable else {
+                return (false, "The requested element exists but is not currently hittable.")
+            }
+            guard let position = command.normalizedX,
+                  (0...1).contains(position) else {
+                return (false, "Adjust requires normalizedX between 0 and 1.")
+            }
+            element.adjust(toNormalizedSliderPosition: position)
+            return (true, "Element adjusted through Accessibility.")
         case .typeText, .replaceText:
             guard let text = command.text else {
                 return (false, "typeText requires text.")
@@ -439,6 +452,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case tapSequence
         case doubleTap
         case press
+        case adjust
         case typeText
         case replaceText
         case swipeUp

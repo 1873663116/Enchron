@@ -447,7 +447,7 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
 
 
 IMMERSIVE_ATTACHMENT_MARKER = "PlayerUI-immersive"
-TAP_ACTIONS = ("tap", "tapSequence", "doubleTap", "press")
+TAP_ACTIONS = ("tap", "tapSequence", "doubleTap", "press", "adjust")
 
 
 def session_state_path(arguments: argparse.Namespace) -> Path:
@@ -1209,6 +1209,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
             "tapSequence",
             "doubleTap",
             "press",
+            "adjust",
             "typeText",
             "replaceText",
             "swipeUp",

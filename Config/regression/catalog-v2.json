@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:e5261bea90febfaac563497ab8e3288e4b21b175a966c26422014a9514907759",
+  "contentDigest": "sha256:e149dee47eeb6fbeb0749b3a55a078881d8f84d124b1b1f2ae20d17f05253f84",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -659,7 +659,7 @@
       "title": "Playback Await Window State"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The runtime Operation adapter adjusts the public PlayerPanel-progress Accessibility control to the requested normalized position and verifies that the same playback session, media identity, and content revision settle at the target.",
       "filename": "playback-seek-v2.md",
       "id": "operation:playback.seek@2",
       "invalidatesTags": [
