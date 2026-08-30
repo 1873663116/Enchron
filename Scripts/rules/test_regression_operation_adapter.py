@@ -107,10 +107,7 @@ SEMANTIC_OUTPUTS = {
         ("library.command", "library-command@1"),
     ),
     "operation:library.snapshot@1": (("library.command", "library-command@1"),),
-    "operation:diagnostics.playback-state@1": (
-        ("playback.probe", "playback-probe@1"),
-        ("window.control-plane", "window-control-plane@1"),
-    ),
+    "operation:diagnostics.playback-state@1": (("playback.probe", "playback-probe@1"),),
     "operation:playback.await-window-state@1": (
         ("window.control-plane", "window-control-plane@1"),
     ),

@@ -2412,7 +2412,6 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
             (
                 ("playback.probe", "playback-probe@1"),
-                ("window.control-plane", "window-control-plane@1"),
             ),
             _playback_state,
         ),
