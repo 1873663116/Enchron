@@ -420,6 +420,16 @@ def _accessibility_activate(arguments: Mapping[str, object]) -> None:
 
 def _accessibility_single(arguments: Mapping[str, object]) -> None:
     _validate_identifiers([str(arguments["identifier"])])
+    related_results = arguments.get("relatedResults", [])
+    assert isinstance(related_results, list)
+    for result in related_results:
+        if re.fullmatch(
+            r"result://call:[a-z0-9:-]+/[A-Za-z][A-Za-z0-9]*",
+            result,
+        ) is None:
+            raise OperationAdapterError(
+                "relatedResults must contain top-level result references"
+            )
 
 
 def _browse_hierarchy(arguments: Mapping[str, object]) -> None:
@@ -443,6 +453,13 @@ def _browse_hierarchy(arguments: Mapping[str, object]) -> None:
             )
         identifiers.append(f"FileBrowsing-grid-folder-{component}")
     _validate_identifiers(identifiers)
+    source_receipt = arguments.get("sourceReceipt")
+    if source_receipt is not None and re.fullmatch(
+        r"result://call:[a-z0-9:-]+/report", str(source_receipt)
+    ) is None:
+        raise OperationAdapterError(
+            "browse hierarchy sourceReceipt must select a host preflight /report"
+        )
 
 
 def _accessibility_type(arguments: Mapping[str, object]) -> None:
@@ -2060,6 +2077,13 @@ LIBRARY_BASELINE_FIELDS = (
 
 
 def _library_snapshot(arguments: Mapping[str, object]) -> None:
+    prior_snapshot = arguments.get("priorSnapshot")
+    if prior_snapshot is not None and re.fullmatch(
+        r"result://call:[a-z0-9:-]+/snapshot", str(prior_snapshot)
+    ) is None:
+        raise OperationAdapterError(
+            "library priorSnapshot must select an earlier /snapshot result"
+        )
     system_import_expectation = arguments.get("systemImportExpectation")
     present = [name for name in LIBRARY_BASELINE_FIELDS if name in arguments]
     if system_import_expectation is not None and present:
@@ -2294,6 +2318,14 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("identifier", string),
                 _index(),
                 _field("requireMatchedElement", boolean, required=False),
+                _field(
+                    "deadlineSeconds",
+                    integer,
+                    required=False,
+                    minimum=1,
+                    maximum=90,
+                ),
+                _field("relatedResults", strings, required=False),
             ),
             (
                 ("accessibility.tree", "accessibility-tree@1"),
@@ -2312,6 +2344,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 ),
                 _field("sourceLabel", string),
                 _field("pathComponents", strings),
+                _field("sourceReceipt", string, required=False),
             ),
             (("accessibility.tree", "accessibility-tree@1"),),
             _browse_hierarchy,
@@ -2462,6 +2495,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 for name in LIBRARY_BASELINE_FIELDS
             )
             + (
+                _field("priorSnapshot", string, required=False),
                 _field(
                     "systemImportExpectation",
                     string,
@@ -2577,7 +2611,13 @@ def _specs() -> tuple[OperationSpec, ...]:
             (),
         ),
         OperationSpec("operation:transition-trace.fetch@1", LANES, (_field("generationToken", string),), (("transition.trace", "transition-trace@1"),), _unsigned_token),
-        OperationSpec("operation:transition-trace.disarm@1", LANES, (_field("generationToken", string),), (), _unsigned_token),
+        OperationSpec(
+            "operation:transition-trace.disarm@1",
+            LANES,
+            (_field("generationToken", string),),
+            (("transition.trace", "transition-trace@1"),),
+            _unsigned_token,
+        ),
         OperationSpec("operation:evidence.capture-audio@2", DEVICE, (_field("durationMillis", integer, minimum=1, maximum=300000), _field("inputDevice", string), _field("wavPath", string), _field("expectedSession", string, required=False), _field("expectedAudioTrackID", string, required=False)), (("audio.measurement", "audio-measurement@2"),), _audio_capture),
         OperationSpec("operation:input.device-hub-prepare@1", SIMULATOR, (), ()),
         OperationSpec(
@@ -3390,10 +3430,19 @@ class ResidentOperationBackend:
 
     def _accessibility_inspect_2(self, arguments, context):
         command = ["--identifier", str(arguments["identifier"]), "--index", str(arguments.get("index", 0))]
-        result = self._controller(context, "snapshot", *command)
-        self._require_success(result, "accessibility inspect")
-        matched = result.get("matchedElement")
-        matched_element = matched if isinstance(matched, Mapping) else None
+        deadline = time.monotonic() + int(arguments.get("deadlineSeconds", 0))
+        observations: list[dict[str, object]] = []
+        while True:
+            result = self._controller(context, "snapshot", *command)
+            self._require_success(result, "accessibility inspect")
+            matched = result.get("matchedElement")
+            matched_element = matched if isinstance(matched, Mapping) else None
+            observations.append(
+                {"matched": matched_element is not None, "response": result}
+            )
+            if matched_element is not None or time.monotonic() >= deadline:
+                break
+            time.sleep(0.25)
         required = arguments.get("requireMatchedElement") is True
         return {
             "succeeded": not required or matched_element is not None,
@@ -3401,6 +3450,8 @@ class ResidentOperationBackend:
             "requestedIdentifier": arguments["identifier"],
             "matchedElement": matched_element,
             "response": result,
+            "observations": observations,
+            "relatedResults": list(arguments.get("relatedResults", [])),
         }
 
     def _diagnostics_browse_hierarchy_1(self, arguments, context):
@@ -3483,6 +3534,7 @@ class ResidentOperationBackend:
             "requestedPathComponents": requested_components,
             "observationMode": "navigated-requested-hierarchy",
             "stages": stages,
+            "sourceReceipt": arguments.get("sourceReceipt"),
             "sourceSelectionResponse": source_selection,
             "response": stages[-1]["snapshot"],
         }
@@ -3857,7 +3909,7 @@ class ResidentOperationBackend:
         if phase != "ensure":
             configuration = self._remote_preflight_configuration()
             if phase == "activate":
-                recipe = str(arguments["recipe"])
+                recipe = str(arguments.get("recipe", ""))
                 receipt = _remote_preflight.activate_remote_recipe(
                     configuration,
                     recipe,
@@ -3891,7 +3943,7 @@ class ResidentOperationBackend:
                         for identity, binding in REMOTE_IMPLEMENTATION_IDENTITIES.items()
                     },
                 }
-            receipt_id = str(arguments["receiptID"])
+            receipt_id = str(arguments.get("receiptID", ""))
             if receipt_id.startswith("result://"):
                 raise OperationAdapterError(
                     "result references must be resolved before backend invocation"
@@ -5454,6 +5506,7 @@ class ResidentOperationBackend:
             "succeeded": True,
             "response": response,
             "snapshot": snapshot,
+            "priorSnapshot": arguments.get("priorSnapshot"),
             "entries": entries,
             "referenceComparisons": comparisons,
             "systemImportObservation": system_import_observation,
@@ -6286,9 +6339,17 @@ class ResidentOperationBackend:
         snapshot, transition_response = self._transition_trace_observation(
             context
         )
+        action = result.get("action")
+        pre_action_matched_element = (
+            dict(action["matchedElement"])
+            if isinstance(action, Mapping)
+            and isinstance(action.get("matchedElement"), Mapping)
+            else None
+        )
         return {
             **result,
             "summon": summon,
+            "preActionMatchedElement": pre_action_matched_element,
             "snapshot": snapshot,
             "transitionResponse": transition_response,
             "response": transition_response,
@@ -6557,13 +6618,19 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "transition trace remained armed after generation-bound disarm"
             )
+        terminal, terminal_response = self._read_control_plane(context)
         return {
             "succeeded": True,
-            "response": response,
+            "response": post_response,
+            "disarmResponse": response,
             "generationToken": arguments["generationToken"],
             "disarmed": True,
+            "snapshot": dict(snapshot),
             "postActionState": dict(snapshot),
             "postActionResponse": post_response,
+            "terminalState": terminal,
+            "terminalResponse": terminal_response,
+            "terminalStateAvailable": terminal is not None,
         }
 
     def _evidence_capture_audio_2(self, arguments, context):
@@ -6669,7 +6736,7 @@ class ResidentOperationBackend:
                 context.target,
                 "system-control",
                 "--control",
-                str(arguments["systemControl"]),
+                str(arguments.get("systemControl", "home")),
             ]
             result = self._run_json(command, timeout=120)
             self._require_device_hub_binding(result, context)
@@ -6681,13 +6748,19 @@ class ResidentOperationBackend:
             context.target,
             "pinch",
         ]
+        shot_defaults = {
+            "shotX": 0,
+            "shotY": 0,
+            "shotWidth": 1,
+            "shotHeight": 1,
+        }
         for source, flag in (
             ("shotX", "--shot-x"),
             ("shotY", "--shot-y"),
             ("shotWidth", "--shot-width"),
             ("shotHeight", "--shot-height"),
         ):
-            command.extend((flag, str(arguments[source])))
+            command.extend((flag, str(arguments.get(source, shot_defaults[source]))))
         if arguments.get("allowSmall") is True:
             command.append("--allow-small")
         result = self._run_json(command, timeout=120)
@@ -6711,7 +6784,7 @@ class ResidentOperationBackend:
         artifact.parent.mkdir(parents=True, exist_ok=True)
         artifact.write_bytes(encoded)
         return {
-            "succeeded": True,
+            "succeeded": completed.returncode == 0,
             "check": check,
             "command": command,
             "returnCode": completed.returncode,

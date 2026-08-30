@@ -115,6 +115,7 @@ SEMANTIC_OUTPUTS = {
         ("window.control-plane", "window-control-plane@1"),
     ),
     "operation:transition-trace.fetch@1": (("transition.trace", "transition-trace@1"),),
+    "operation:transition-trace.disarm@1": (("transition.trace", "transition-trace@1"),),
     "operation:evidence.capture-audio@2": (("audio.measurement", "audio-measurement@2"),),
     "operation:evidence.structural-test@1": (("structural.test", "structural-test@2"),),
     "operation:media.open@2": (("window.control-plane", "window-control-plane@1"),),
@@ -1141,7 +1142,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 self.simulator,
             )
 
-    def test_structural_test_preserves_a_nonzero_test_result_as_evidence(self) -> None:
+    def test_structural_test_marks_a_nonzero_test_result_unsuccessful(self) -> None:
         backend = adapter.ResidentOperationBackend()
         completed = mock.Mock(
             returncode=1,
@@ -1157,7 +1158,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 self.simulator,
             )
 
-        self.assertTrue(result["succeeded"])
+        self.assertFalse(result["succeeded"])
         self.assertEqual(result["returnCode"], 1)
         artifact = self.simulator.attempt_root / result["artifactPath"]
         self.assertEqual(
