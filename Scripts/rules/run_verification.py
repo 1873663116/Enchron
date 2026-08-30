@@ -152,6 +152,11 @@ STRUCTURE_CHECKS = (
         "scripts-inventory",
         "verify_scripts_inventory.py",
     ),
+    StructureCheck(
+        "ensure-test-services",
+        "ensure_test_services.py",
+        runs_in_quick_mode=False,
+    ),
     StructureCheck("disc-image-format", "check_disc_image_format.py"),
     StructureCheck(
         "dolby-vision-premises",
