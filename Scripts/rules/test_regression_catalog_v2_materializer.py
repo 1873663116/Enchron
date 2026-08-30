@@ -1100,6 +1100,48 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             },
         )
 
+    def test_device_webdav_preparations_snapshot_their_own_tls_trust_calls(self) -> None:
+        operation_tags = {
+            item["id"]: set(item["invalidatesTags"])
+            for item in self.blueprint["operations"]
+        }
+        expected = {
+            "preparation:presentation-fixtures-device": (
+                "app.session",
+                "certificate.trust",
+                "fixture.corpus",
+                "lane.instance",
+                "library.contents",
+                "presentation.state",
+                "source.connection",
+                "source.session",
+                "source.webdav",
+            ),
+            "preparation:viewing-storage-fixtures-device": (
+                "app.session",
+                "cache.state",
+                "certificate.trust",
+                "fixture.corpus",
+                "lane.instance",
+                "library.contents",
+                "settings.state",
+                "source.connection",
+                "source.session",
+                "source.webdav",
+                "viewing.state",
+            ),
+        }
+        for identifier, expected_tags in expected.items():
+            spec = preparation_adapter.PREPARATION_REGISTRY[identifier]
+            plan = preparation_adapter.build_plan(
+                identifier, spec.lane, f"catalog-v2-{spec.lane}"
+            )
+            invalidated_by_own_calls = set().union(
+                *(operation_tags[call.operation_id] for call in plan.calls)
+            )
+            self.assertIn("certificate.trust", invalidated_by_own_calls)
+            self.assertEqual(plan.state.tags, expected_tags)
+
     def test_remote_routes_clean_state_and_ephemeral_ui_sequences_are_closed(self) -> None:
         scenarios = {item["id"]: item for item in self.blueprint["scenarios"]}
         source_route = [

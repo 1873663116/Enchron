@@ -526,7 +526,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:presentation-fixtures-device", "device", "presentation-fixtures-ready",
-            "fixture-set.presentation-tour@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.connection", "source.session", "source.webdav"),
+            "fixture-set.presentation-tour@2", ("app.session", "certificate.trust", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.connection", "source.session", "source.webdav"),
             fixture_ids=tuple(
                 dict.fromkeys(
                     REGRESSION_FIXTURE_SETS["presentation-tour"]

@@ -340,6 +340,7 @@
       "producedByCall": "call:preparation:presentation-fixtures-device:36",
       "dependsOnTags": [
         "app.session",
+        "certificate.trust",
         "fixture.corpus",
         "lane.instance",
         "library.contents",
