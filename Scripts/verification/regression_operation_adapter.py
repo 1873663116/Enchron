@@ -2333,7 +2333,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 ),
                 _deadline(),
             ),
-            (),
+            (("window.control-plane", "window-control-plane@1"),),
             _media_open,
         ),
         OperationSpec(
@@ -2884,6 +2884,8 @@ class ResidentOperationBackend:
                         return {
                             "succeeded": True,
                             "expectedCategory": category,
+                            "fields": plane,
+                            "response": last_control_response,
                             "elapsedMillis": elapsed,
                             "terminal": plane,
                             "controlPlaneResponse": last_control_response,
@@ -2903,6 +2905,8 @@ class ResidentOperationBackend:
             "expectedCategory": category,
             "elapsedMillis": round((time.monotonic() - started) * 1000),
             "observations": observations,
+            "fields": observations[-1]["fields"] if observations else {},
+            "response": last_control_response,
             "lastControlPlane": last_control_response,
             "lastAlert": last_alert_response,
         }
@@ -5065,6 +5069,8 @@ class ResidentOperationBackend:
                 "succeeded": settlement["succeeded"] is True and delivered,
                 "action": action,
                 "settlement": settlement,
+                "fields": settlement.get("fields", {}),
+                "response": settlement.get("response", {}),
                 "probe": after,
                 "deliveryObserved": delivered,
                 "expectedIssueCategory": expected_issue,

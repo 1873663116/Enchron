@@ -64,11 +64,11 @@
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "accessibility-tree@1",
-      "evidenceType": "accessibility.tree",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:format-coverage:unsupported-codec-guidance:o01:default",
-      "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:format-coverage:unsupported-codec-guidance:04",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:format-coverage:unsupported-codec-guidance:03",
       "rubric": "rubric:format-coverage.unsupported-codec-guidance.o01@1"
     }
   ],

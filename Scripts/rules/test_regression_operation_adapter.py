@@ -104,6 +104,7 @@ SEMANTIC_OUTPUTS = {
     "operation:transition-trace.fetch@1": (("transition.trace", "transition-trace@1"),),
     "operation:evidence.capture-audio@2": (("audio.measurement", "audio-measurement@2"),),
     "operation:evidence.structural-test@1": (("structural.test", "structural-test@2"),),
+    "operation:media.open@2": (("window.control-plane", "window-control-plane@1"),),
 }
 
 

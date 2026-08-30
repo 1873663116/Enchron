@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:b2bdfe1c642af0870ff1c1c407cd23e7af9a24997118d90af100900f320bae24",
+  "contentDigest": "sha256:ef5b3ff1d5f744707a58de8f4444a4199d9d4d2a6685d32495bece3b62ea7510",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -13402,11 +13402,11 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:format-coverage:unsupported-codec-guidance:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:format-coverage:unsupported-codec-guidance:04",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:format-coverage:unsupported-codec-guidance:03",
           "rubric": "rubric:format-coverage.unsupported-codec-guidance.o01@1"
         }
       ],
