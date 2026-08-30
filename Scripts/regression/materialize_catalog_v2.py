@@ -1026,11 +1026,10 @@ def _validate_external_subtitle_matrix(
         obligation = obligations.get(case_key)
         _require(
             obligation is not None
-            and obligation["producedByCall"] == selection["callId"]
-            and obligation["evidenceType"] == "window.control-plane"
-            and obligation["evidenceSchema"] == "window-control-plane@1"
-            and obligation["oracle"]
-            == "oracle:agent-structured-window-control-plane@1",
+            and obligation["producedByCall"] == capture["callId"]
+            and obligation["evidenceType"] == "visual.frames"
+            and obligation["evidenceSchema"] == "frame-sequence@2"
+            and obligation["oracle"] == "oracle:agent-visual@2",
             f"external subtitle {case_key} lacks mandatory Oracle adjudication",
         )
     _require(
@@ -1066,10 +1065,10 @@ def _validate_high_risk_playback_semantics(
             for call in codec_calls[: producer_indexes[case_key]]
             if call["operation"] == "operation:accessibility.activate@2"
             for identifier in call["arguments"]["identifiers"]
-            if identifier.startswith("PlayerPanel-menu-audio-")
+            if identifier.startswith("PlayerUI-menu-audio-")
         ]
         _require(
-            selected and selected[-1] == f"PlayerPanel-menu-audio-{track_id}",
+            selected and selected[-1] == f"PlayerUI-menu-audio-{track_id}",
             f"audio codec case {case_key} does not select stream {track_id}",
         )
 

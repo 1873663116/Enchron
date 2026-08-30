@@ -1256,14 +1256,18 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             ],
         )
         self.assertTrue(all("trackLabel" not in item["arguments"] for item in selections))
+        frame_calls = [
+            item
+            for item in scenario["operations"]
+            if item["operation"] == "operation:evidence.capture-frames@1"
+        ]
         self.assertEqual(
             [item["producedByCall"] for item in scenario["obligations"]],
-            [item["callId"] for item in selections],
+            [item["callId"] for item in frame_calls],
         )
         self.assertTrue(
             all(
-                item["oracle"]
-                == "oracle:agent-structured-window-control-plane@1"
+                item["oracle"] == "oracle:agent-visual@2"
                 for item in scenario["obligations"]
             )
         )
@@ -1300,7 +1304,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 if item["id"] == scenario["id"]
             )
             bypassed_scenario["obligations"][0]["producedByCall"] = (
-                "call:local-media-lifecycle:external-subtitle-source-matrix:06"
+                "call:local-media-lifecycle:external-subtitle-source-matrix:05"
             )
             bypassed_path = self._write_blueprint(
                 root / "bypassed-oracle", bypassed_oracle
@@ -1740,25 +1744,19 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         scenarios = {item["id"]: item for item in self.blueprint["scenarios"]}
 
         codec = scenarios["scenario:format-coverage:audio-delivery-codec-matrix"]
-        codec_calls = codec["operations"]
-        codec_producers = {
-            obligation["caseKey"]: next(
-                index
-                for index, call in enumerate(codec_calls)
-                if call["callId"] == obligation["producedByCall"]
-            )
-            for obligation in codec["obligations"]
-        }
-        for case_key, track_id in {"ac3": "2", "eac3-joc": "3", "aac": "1", "flac": "8"}.items():
-            selected = [
-                identifier
-                for call in codec_calls[: codec_producers[case_key]]
+        self.assertEqual(
+            [
+                call["arguments"]["identifiers"]
+                for call in codec["operations"]
                 if call["operation"] == "operation:accessibility.activate@2"
-                for identifier in call["arguments"]["identifiers"]
-                if identifier.startswith("PlayerPanel-menu-audio-")
-            ]
-            self.assertTrue(selected, case_key)
-            self.assertEqual(selected[-1], f"PlayerPanel-menu-audio-{track_id}")
+            ],
+            [
+                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-2"],
+                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-3"],
+                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-1"],
+                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-8"],
+            ],
+        )
 
         audio = scenarios[
             "scenario:local-media-lifecycle:audio-track-switch-same-session"

@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 610000,
+  "estimatedCostMillis": 760000,
   "staticCases": [
     "connection-interrupted",
     "file-missing",
@@ -89,7 +89,9 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-primary",
+        "requireMatchedElement": true
       },
       "callId": "call:network-resilience:playback-failure-category-matrix:07",
       "maxInvocations": 1,
@@ -207,7 +209,9 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-primary",
+        "requireMatchedElement": true
       },
       "callId": "call:network-resilience:playback-failure-category-matrix:20",
       "maxInvocations": 1,
@@ -325,7 +329,9 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-primary",
+        "requireMatchedElement": true
       },
       "callId": "call:network-resilience:playback-failure-category-matrix:33",
       "maxInvocations": 1,
@@ -443,7 +449,9 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "deadlineSeconds": 45,
+        "identifier": "PlayerUI-loadFailure-primary",
+        "requireMatchedElement": true
       },
       "callId": "call:network-resilience:playback-failure-category-matrix:46",
       "maxInvocations": 1,

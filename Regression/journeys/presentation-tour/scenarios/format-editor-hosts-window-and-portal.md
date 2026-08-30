@@ -187,15 +187,6 @@
       "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "identifier": "PlayerUI-VideoFormat"
-      },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:17",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -216,7 +207,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:presentation-tour:format-editor-hosts-window-and-portal:o01:portal",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:17",
+      "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
       "rubric": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1"
     }
   ],

@@ -194,7 +194,8 @@
           "result://call:library-management:confirmed-batch-deletion:02/sourcePath",
           "result://call:library-management:confirmed-batch-deletion:03/sourcePath",
           "result://call:library-management:confirmed-batch-deletion:04/sourcePath"
-        ]
+        ],
+        "priorSnapshot": "result://call:library-management:confirmed-batch-deletion:10/snapshot"
       },
       "callId": "call:library-management:confirmed-batch-deletion:12",
       "maxInvocations": 1,

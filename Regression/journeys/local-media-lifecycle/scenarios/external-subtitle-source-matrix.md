@@ -246,31 +246,31 @@
     {
       "artifactClass": "coverage",
       "caseKey": "local-sidecar",
-      "evidenceSchema": "window-control-plane@1",
-      "evidenceType": "window.control-plane",
+      "evidenceSchema": "frame-sequence@2",
+      "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:local-sidecar",
-      "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
+      "oracle": "oracle:agent-visual@2",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "webdav-sidecar",
-      "evidenceSchema": "window-control-plane@1",
-      "evidenceType": "window.control-plane",
+      "evidenceSchema": "frame-sequence@2",
+      "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:webdav-sidecar",
-      "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
+      "oracle": "oracle:agent-visual@2",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "emby-external-stream",
-      "evidenceSchema": "window-control-plane@1",
-      "evidenceType": "window.control-plane",
+      "evidenceSchema": "frame-sequence@2",
+      "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:emby-external-stream",
-      "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+      "oracle": "oracle:agent-visual@2",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     }
   ],

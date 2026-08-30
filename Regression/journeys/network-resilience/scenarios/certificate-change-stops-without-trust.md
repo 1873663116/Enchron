@@ -123,6 +123,28 @@
       "callId": "call:network-resilience:certificate-change-stops-without-trust:10",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerUI-loadFailure-secondary"
+        ]
+      },
+      "callId": "call:network-resilience:certificate-change-stops-without-trust:11",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:10/cursorToken",
+        "remoteExpectation": "certificate-change",
+        "remoteReceiptID": "result://call:network-resilience:certificate-change-stops-without-trust:07/receiptID",
+        "restoredGenerationToken": "result://call:network-resilience:certificate-change-stops-without-trust:09/restoredGenerationToken"
+      },
+      "callId": "call:network-resilience:certificate-change-stops-without-trust:12",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
     }
   ],
   "obligations": [
@@ -133,7 +155,7 @@
       "evidenceType": "interaction.trace",
       "id": "obligation:network-resilience:certificate-change-stops-without-trust:o01:default",
       "oracle": "oracle:agent-structured-interaction-trace@1",
-      "producedByCall": "call:network-resilience:certificate-change-stops-without-trust:10",
+      "producedByCall": "call:network-resilience:certificate-change-stops-without-trust:12",
       "rubric": "rubric:network-resilience.certificate-change-stops-without-trust.o01@1"
     }
   ],

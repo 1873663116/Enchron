@@ -172,7 +172,7 @@
       "evidenceType": "transition.trace",
       "id": "obligation:presentation-tour:format-application-route:o01:panoramic-to-portal",
       "oracle": "oracle:agent-structured-transition@1",
-      "producedByCall": "call:presentation-tour:format-application-route:07",
+      "producedByCall": "call:presentation-tour:format-application-route:08",
       "rubric": "rubric:presentation-tour.format-application-route.o01@1"
     },
     {
@@ -182,7 +182,7 @@
       "evidenceType": "transition.trace",
       "id": "obligation:presentation-tour:format-application-route:o01:flat-to-window",
       "oracle": "oracle:agent-structured-transition@1",
-      "producedByCall": "call:presentation-tour:format-application-route:15",
+      "producedByCall": "call:presentation-tour:format-application-route:16",
       "rubric": "rubric:presentation-tour.format-application-route.o01@1"
     }
   ],

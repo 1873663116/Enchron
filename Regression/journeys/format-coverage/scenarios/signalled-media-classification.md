@@ -91,7 +91,7 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedLanding": "either-main-window",
+        "expectedLanding": "window",
         "identifier": "MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov"
       },
       "callId": "call:format-coverage:signalled-media-classification:08",
@@ -103,7 +103,7 @@
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
-        "presentation": "either-main-window"
+        "presentation": "window"
       },
       "callId": "call:format-coverage:signalled-media-classification:09",
       "maxInvocations": 1,
@@ -111,7 +111,7 @@
     },
     {
       "arguments": {
-        "context": "portal",
+        "context": "window",
         "count": 3,
         "minimumIntervalMillis": 1000
       },

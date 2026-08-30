@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:929a84b18819373acfd43224b2f26ff83fc8cbcecf9e9d03415168b181a5ea6a",
+  "contentDigest": "sha256:3ff6a89220de40ce4017a5311ff81d7d3f9988df8938c36426dc3c43d99f3b25",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -743,7 +743,7 @@
       "filename": "transition-trace-disarm-v1.md",
       "id": "operation:transition-trace.disarm@1",
       "invalidatesTags": [],
-      "role": "setup",
+      "role": "evidence",
       "title": "Transition Trace Disarm"
     },
     {
@@ -1506,8 +1506,8 @@
     },
     {
       "criteria": [
-        "Selecting the embedded text and bitmap cases changes the selected track and displays the case-specific reference overlay.",
-        "Selecting Off removes subtitle pixels and marks only Off selected; selecting the prior track restores its reference overlay."
+        "Selecting ffmpeg.subtitle.3 displays the generated SubRip cue containing 'Enchron 字幕验证' and selecting ffmpeg.subtitle.5 displays the generated DVB bitmap cue titled 'Enchron generated bitmap proof' with its top-safe-area color bars.",
+        "Selecting Off removes subtitle pixels and marks only Off selected; selecting ffmpeg.subtitle.3 again restores the generated SubRip cue containing 'Enchron 字幕验证'."
       ],
       "filename": "rubric-local-media-lifecycle-subtitle-switch-and-off-o01-1.md",
       "id": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1",
@@ -1630,7 +1630,7 @@
     {
       "criteria": [
         "The bound case delivers the editor transaction registered for its host. Window delivers surface→PlayerUI-TopAction-videoFormat→cancel and then a second surface→videoFormat sequence; portal taps the exact Playback surface label before each compact videoFormat→cancel or videoFormat sequence.",
-        "The bound hierarchy exposes the editor item family and values registered for both hosts. If the bound case is portal, its artifact additionally establishes that the Playback surface label summons controls before the hierarchy is inspected."
+        "The window case binds the editor hierarchy and registered values. The portal case binds the successful Playback surface and videoFormat activation responses, including the matched public elements that live outside the main-window hierarchy."
       ],
       "filename": "rubric-presentation-tour-format-editor-hosts-window-and-portal-o01-1.md",
       "id": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1",
@@ -2264,9 +2264,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-audio",
-              "PlayerPanel-menu-audio-2"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-audio",
+              "PlayerUI-menu-audio-2"
             ]
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:06",
@@ -2328,9 +2328,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-audio",
-              "PlayerPanel-menu-audio-3"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-audio",
+              "PlayerUI-menu-audio-3"
             ]
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:13",
@@ -2535,9 +2535,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-audio",
-              "PlayerPanel-menu-audio-1"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-audio",
+              "PlayerUI-menu-audio-1"
             ]
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:37",
@@ -2599,9 +2599,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-audio",
-              "PlayerPanel-menu-audio-8"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-audio",
+              "PlayerUI-menu-audio-8"
             ]
           },
           "callId": "call:format-coverage:audio-delivery-codec-matrix:44",
@@ -2760,7 +2760,7 @@
         {
           "arguments": {
             "deadlineSeconds": 45,
-            "expectedLanding": "either-main-window",
+            "expectedLanding": "window",
             "identifier": "MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov"
           },
           "callId": "call:format-coverage:signalled-media-classification:08",
@@ -2772,7 +2772,7 @@
             "controls": "either",
             "deadlineSeconds": 45,
             "lifecycle": "playing",
-            "presentation": "either-main-window"
+            "presentation": "window"
           },
           "callId": "call:format-coverage:signalled-media-classification:09",
           "maxInvocations": 1,
@@ -2780,7 +2780,7 @@
         },
         {
           "arguments": {
-            "context": "portal",
+            "context": "window",
             "count": 3,
             "minimumIntervalMillis": 1000
           },
@@ -3353,7 +3353,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:embedded-text",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:13",
+          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:07",
           "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
         },
         {
@@ -3363,7 +3363,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:embedded-bitmap",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:14",
+          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:09",
           "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
         },
         {
@@ -3373,7 +3373,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:off",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:15",
+          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:11",
           "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
         },
         {
@@ -3383,7 +3383,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:subtitle-switch-and-off:o01:restore",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:16",
+          "producedByCall": "call:local-media-lifecycle:subtitle-switch-and-off:13",
           "rubric": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1"
         }
       ],
@@ -3527,51 +3527,6 @@
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:13",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
-            ]
-          },
-          "callId": "call:local-media-lifecycle:subtitle-switch-and-off:14",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
-            ]
-          },
-          "callId": "call:local-media-lifecycle:subtitle-switch-and-off:15",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
-            ]
-          },
-          "callId": "call:local-media-lifecycle:subtitle-switch-and-off:16",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
         }
       ],
       "prerequisites": [
@@ -3626,31 +3581,31 @@
         {
           "artifactClass": "coverage",
           "caseKey": "local-sidecar",
-          "evidenceSchema": "window-control-plane@1",
-          "evidenceType": "window.control-plane",
+          "evidenceSchema": "frame-sequence@2",
+          "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:local-sidecar",
-          "oracle": "oracle:agent-structured-window-control-plane@1",
-          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
+          "oracle": "oracle:agent-visual@2",
+          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:06",
           "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "webdav-sidecar",
-          "evidenceSchema": "window-control-plane@1",
-          "evidenceType": "window.control-plane",
+          "evidenceSchema": "frame-sequence@2",
+          "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:webdav-sidecar",
-          "oracle": "oracle:agent-structured-window-control-plane@1",
-          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
+          "oracle": "oracle:agent-visual@2",
+          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:14",
           "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "emby-external-stream",
-          "evidenceSchema": "window-control-plane@1",
-          "evidenceType": "window.control-plane",
+          "evidenceSchema": "frame-sequence@2",
+          "evidenceType": "visual.frames",
           "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:emby-external-stream",
-          "oracle": "oracle:agent-structured-window-control-plane@1",
-          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+          "oracle": "oracle:agent-visual@2",
+          "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
           "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
         }
       ],
@@ -4592,14 +4547,22 @@
           "evidenceType": "accessibility.tree",
           "id": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o01:default",
           "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:03",
+          "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
           "rubric": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o01@1"
         }
       ],
       "operations": [
         {
-          "arguments": {},
+          "arguments": {
+            "check": "smb-aggregate"
+          },
           "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:01",
+          "maxInvocations": 1,
+          "operation": "operation:host.preflight@1"
+        },
+        {
+          "arguments": {},
+          "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:02",
           "maxInvocations": 1,
           "operation": "operation:app.relaunch@1"
         },
@@ -4607,7 +4570,7 @@
           "arguments": {
             "tab": "files"
           },
-          "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:02",
+          "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:03",
           "maxInvocations": 1,
           "operation": "operation:navigation.select-tab@1"
         },
@@ -4620,9 +4583,10 @@
               "Enchron",
               "PlaybackBehavior"
             ],
-            "sourceLabel": "Enchron Regression SMB"
+            "sourceLabel": "Enchron Regression SMB",
+            "sourceReceipt": "result://call:smb-source-lifecycle:smb-browse-shares-and-directories:01/report"
           },
-          "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:03",
+          "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.browse-hierarchy@1"
         }
@@ -4667,7 +4631,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:04",
+          "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:09",
           "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1"
         }
       ],
@@ -4698,9 +4662,54 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "labels": [
+              "Enchron Regression Series"
+            ]
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifier": "Emby-Evidence"
+          },
+          "callId": "call:emby-server-lifecycle:home-poster-and-next-up:05",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {},
+          "callId": "call:emby-server-lifecycle:home-poster-and-next-up:06",
+          "maxInvocations": 1,
+          "operation": "operation:app.relaunch@1"
+        },
+        {
+          "arguments": {
+            "tab": "emby"
+          },
+          "callId": "call:emby-server-lifecycle:home-poster-and-next-up:07",
+          "maxInvocations": 1,
+          "operation": "operation:navigation.select-tab@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Episode"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:home-poster-and-next-up:08",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifier": "Emby-Evidence"
+          },
+          "callId": "call:emby-server-lifecycle:home-poster-and-next-up:09",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -8269,7 +8278,7 @@
           "evidenceType": "transition.trace",
           "id": "obligation:presentation-tour:transition-timeout-rolls-back:o01:default",
           "oracle": "oracle:agent-structured-transition@1",
-          "producedByCall": "call:presentation-tour:transition-timeout-rolls-back:08",
+          "producedByCall": "call:presentation-tour:transition-timeout-rolls-back:09",
           "rubric": "rubric:presentation-tour.transition-timeout-rolls-back.o01@1"
         }
       ],
@@ -8403,7 +8412,7 @@
           "evidenceType": "accessibility.tree",
           "id": "obligation:presentation-tour:format-editor-hosts-window-and-portal:o01:portal",
           "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:17",
+          "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
           "rubric": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1"
         }
       ],
@@ -8566,15 +8575,6 @@
           "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
-        },
-        {
-          "arguments": {
-            "context": "portal",
-            "identifier": "PlayerUI-VideoFormat"
-          },
-          "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:17",
-          "maxInvocations": 1,
-          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -8625,7 +8625,7 @@
           "evidenceType": "accessibility.tree",
           "id": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o01:default",
           "oracle": "oracle:agent-structured-accessibility-tree@1",
-          "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:08",
+          "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
           "rubric": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o01@1"
         }
       ],
@@ -8678,30 +8678,55 @@
         {
           "arguments": {
             "context": "portal",
-            "identifier": "PlayerUI-TopAction-resumePanorama"
+            "labels": [
+              "Playback surface"
+            ]
           },
           "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:06",
           "maxInvocations": 1,
-          "operation": "operation:accessibility.inspect@2"
-        },
-        {
-          "arguments": {
-            "context": "portal",
-            "identifier": "PlayerUI-TopAction-videoFormat"
-          },
-          "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:07",
-          "maxInvocations": 1,
-          "operation": "operation:accessibility.inspect@2"
+          "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
             "context": "portal",
             "identifiers": [
               "PlayerUI-TopAction-videoFormat"
-            ],
-            "settleDelayMillis": 1000
+            ]
+          },
+          "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:07",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "portal",
+            "identifiers": [
+              "PlayerUI-VideoFormat-cancel"
+            ]
           },
           "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:08",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "portal",
+            "labels": [
+              "Playback surface"
+            ]
+          },
+          "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:09",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "portal",
+            "identifiers": [
+              "PlayerUI-TopAction-resumePanorama"
+            ]
+          },
+          "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         }
@@ -8857,7 +8882,7 @@
           "evidenceType": "transition.trace",
           "id": "obligation:presentation-tour:format-application-route:o01:panoramic-to-portal",
           "oracle": "oracle:agent-structured-transition@1",
-          "producedByCall": "call:presentation-tour:format-application-route:07",
+          "producedByCall": "call:presentation-tour:format-application-route:08",
           "rubric": "rubric:presentation-tour.format-application-route.o01@1"
         },
         {
@@ -8867,7 +8892,7 @@
           "evidenceType": "transition.trace",
           "id": "obligation:presentation-tour:format-application-route:o01:flat-to-window",
           "oracle": "oracle:agent-structured-transition@1",
-          "producedByCall": "call:presentation-tour:format-application-route:15",
+          "producedByCall": "call:presentation-tour:format-application-route:16",
           "rubric": "rubric:presentation-tour.format-application-route.o01@1"
         }
       ],
@@ -10320,7 +10345,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 610000,
+      "estimatedCostMillis": 760000,
       "id": "scenario:network-resilience:playback-failure-category-matrix",
       "journey": "journey:network-resilience",
       "lane": "device",
@@ -10426,7 +10451,9 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-loadFailure-primary"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-primary",
+            "requireMatchedElement": true
           },
           "callId": "call:network-resilience:playback-failure-category-matrix:07",
           "maxInvocations": 1,
@@ -10544,7 +10571,9 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-loadFailure-primary"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-primary",
+            "requireMatchedElement": true
           },
           "callId": "call:network-resilience:playback-failure-category-matrix:20",
           "maxInvocations": 1,
@@ -10662,7 +10691,9 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-loadFailure-primary"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-primary",
+            "requireMatchedElement": true
           },
           "callId": "call:network-resilience:playback-failure-category-matrix:33",
           "maxInvocations": 1,
@@ -10780,7 +10811,9 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "PlayerUI-loadFailure-primary"
+            "deadlineSeconds": 45,
+            "identifier": "PlayerUI-loadFailure-primary",
+            "requireMatchedElement": true
           },
           "callId": "call:network-resilience:playback-failure-category-matrix:46",
           "maxInvocations": 1,
@@ -10897,7 +10930,7 @@
           "evidenceType": "interaction.trace",
           "id": "obligation:network-resilience:certificate-change-stops-without-trust:o01:default",
           "oracle": "oracle:agent-structured-interaction-trace@1",
-          "producedByCall": "call:network-resilience:certificate-change-stops-without-trust:10",
+          "producedByCall": "call:network-resilience:certificate-change-stops-without-trust:12",
           "rubric": "rubric:network-resilience.certificate-change-stops-without-trust.o01@1"
         }
       ],
@@ -10995,6 +11028,28 @@
             "restoredGenerationToken": "result://call:network-resilience:certificate-change-stops-without-trust:09/restoredGenerationToken"
           },
           "callId": "call:network-resilience:certificate-change-stops-without-trust:10",
+          "maxInvocations": 1,
+          "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerUI-loadFailure-secondary"
+            ]
+          },
+          "callId": "call:network-resilience:certificate-change-stops-without-trust:11",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:10/cursorToken",
+            "remoteExpectation": "certificate-change",
+            "remoteReceiptID": "result://call:network-resilience:certificate-change-stops-without-trust:07/receiptID",
+            "restoredGenerationToken": "result://call:network-resilience:certificate-change-stops-without-trust:09/restoredGenerationToken"
+          },
+          "callId": "call:network-resilience:certificate-change-stops-without-trust:12",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         }
@@ -13094,8 +13149,7 @@
             "identifier": "FileBrowsing-SourceConnection-webDAV-address",
             "mode": "replace",
             "secret": false,
-            "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/runtimePath",
-            "textJSONKey": "unreachableAddress"
+            "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/unreachableAddress"
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:18",
           "maxInvocations": 1,
@@ -13209,8 +13263,7 @@
             "identifier": "FileBrowsing-SourceConnection-webDAV-address",
             "mode": "replace",
             "secret": false,
-            "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/runtimePath",
-            "textJSONKey": "missingPathAddress"
+            "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/missingPathAddress"
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:29",
           "maxInvocations": 1,
@@ -13324,8 +13377,7 @@
             "identifier": "FileBrowsing-SourceConnection-webDAV-address",
             "mode": "replace",
             "secret": false,
-            "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/runtimePath",
-            "textJSONKey": "httpAddress"
+            "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/httpAddress"
           },
           "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:40",
           "maxInvocations": 1,
@@ -14405,7 +14457,8 @@
               "result://call:library-management:confirmed-batch-deletion:02/sourcePath",
               "result://call:library-management:confirmed-batch-deletion:03/sourcePath",
               "result://call:library-management:confirmed-batch-deletion:04/sourcePath"
-            ]
+            ],
+            "priorSnapshot": "result://call:library-management:confirmed-batch-deletion:10/snapshot"
           },
           "callId": "call:library-management:confirmed-batch-deletion:12",
           "maxInvocations": 1,
@@ -14544,7 +14597,11 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "FileBrowsing-FilesScreen"
+            "identifier": "FileBrowsing-FilesScreen",
+            "relatedResults": [
+              "result://call:library-management:current-folder-search-counts:04/snapshot",
+              "result://call:library-management:current-folder-search-counts:06/afterSnapshot"
+            ]
           },
           "callId": "call:library-management:current-folder-search-counts:08",
           "maxInvocations": 1,

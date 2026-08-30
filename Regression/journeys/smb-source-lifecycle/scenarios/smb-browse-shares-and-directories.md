@@ -29,8 +29,16 @@
   ],
   "operations": [
     {
-      "arguments": {},
+      "arguments": {
+        "check": "smb-aggregate"
+      },
       "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:01",
+      "maxInvocations": 1,
+      "operation": "operation:host.preflight@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:02",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -38,7 +46,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:02",
+      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:03",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -51,9 +59,10 @@
           "Enchron",
           "PlaybackBehavior"
         ],
-        "sourceLabel": "Enchron Regression SMB"
+        "sourceLabel": "Enchron Regression SMB",
+        "sourceReceipt": "result://call:smb-source-lifecycle:smb-browse-shares-and-directories:01/report"
       },
-      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:03",
+      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.browse-hierarchy@1"
     }
@@ -66,7 +75,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o01:default",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:03",
+      "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
       "rubric": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o01@1"
     }
   ],

@@ -5,8 +5,8 @@
   "id": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1",
   "title": "Subtitle Switch And Off",
   "criteria": [
-    "Selecting the embedded text and bitmap cases changes the selected track and displays the case-specific reference overlay.",
-    "Selecting Off removes subtitle pixels and marks only Off selected; selecting the prior track restores its reference overlay."
+    "Selecting ffmpeg.subtitle.3 displays the generated SubRip cue containing 'Enchron 字幕验证' and selecting ffmpeg.subtitle.5 displays the generated DVB bitmap cue titled 'Enchron generated bitmap proof' with its top-safe-area color bars.",
+    "Selecting Off removes subtitle pixels and marks only Off selected; selecting ffmpeg.subtitle.3 again restores the generated SubRip cue containing 'Enchron 字幕验证'."
   ],
   "negativeControls": [
     "A 1x1, corrupt, single-frame, or provenance-free capture is Indeterminate and never Satisfied.",

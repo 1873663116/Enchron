@@ -115,7 +115,11 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-FilesScreen"
+        "identifier": "FileBrowsing-FilesScreen",
+        "relatedResults": [
+          "result://call:library-management:current-folder-search-counts:04/snapshot",
+          "result://call:library-management:current-folder-search-counts:06/afterSnapshot"
+        ]
       },
       "callId": "call:library-management:current-folder-search-counts:08",
       "maxInvocations": 1,

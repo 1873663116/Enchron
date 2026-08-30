@@ -76,30 +76,55 @@
     {
       "arguments": {
         "context": "portal",
-        "identifier": "PlayerUI-TopAction-resumePanorama"
+        "labels": [
+          "Playback surface"
+        ]
       },
       "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:06",
       "maxInvocations": 1,
-      "operation": "operation:accessibility.inspect@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "identifier": "PlayerUI-TopAction-videoFormat"
-      },
-      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:07",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.inspect@2"
+      "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
         "context": "portal",
         "identifiers": [
           "PlayerUI-TopAction-videoFormat"
-        ],
-        "settleDelayMillis": 1000
+        ]
+      },
+      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:07",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "portal",
+        "identifiers": [
+          "PlayerUI-VideoFormat-cancel"
+        ]
       },
       "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:08",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "portal",
+        "labels": [
+          "Playback surface"
+        ]
+      },
+      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:09",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "portal",
+        "identifiers": [
+          "PlayerUI-TopAction-resumePanorama"
+        ]
+      },
+      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     }
@@ -112,7 +137,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o01:default",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:08",
+      "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
       "rubric": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o01@1"
     }
   ],

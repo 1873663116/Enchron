@@ -207,8 +207,7 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
         "secret": false,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/runtimePath",
-        "textJSONKey": "unreachableAddress"
+        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/unreachableAddress"
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:18",
       "maxInvocations": 1,
@@ -322,8 +321,7 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
         "secret": false,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/runtimePath",
-        "textJSONKey": "missingPathAddress"
+        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/missingPathAddress"
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:29",
       "maxInvocations": 1,
@@ -437,8 +435,7 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
         "secret": false,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/runtimePath",
-        "textJSONKey": "httpAddress"
+        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/httpAddress"
       },
       "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:40",
       "maxInvocations": 1,

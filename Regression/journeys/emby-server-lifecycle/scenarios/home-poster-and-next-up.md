@@ -54,9 +54,54 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "labels": [
+          "Enchron Regression Series"
+        ]
       },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifier": "Emby-Evidence"
+      },
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:05",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {},
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:06",
+      "maxInvocations": 1,
+      "operation": "operation:app.relaunch@1"
+    },
+    {
+      "arguments": {
+        "tab": "emby"
+      },
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:07",
+      "maxInvocations": 1,
+      "operation": "operation:navigation.select-tab@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "labels": [
+          "Enchron Regression Episode"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:08",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifier": "Emby-Evidence"
+      },
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -69,7 +114,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:04",
+      "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:09",
       "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1"
     }
   ],

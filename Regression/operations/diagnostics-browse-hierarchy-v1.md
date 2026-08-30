@@ -25,6 +25,11 @@
         "name": "pathComponents",
         "type": "string-list",
         "required": true
+      },
+      {
+        "name": "sourceReceipt",
+        "type": "string",
+        "required": false
       }
     ],
     "additionalProperties": false
@@ -42,7 +47,7 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:bc027ea194114a53d77ceefcab18f000ec037dda33bd5c633ef5eb8360036399"
+    "digest": "sha256:0c453b44779d223dd50352df488c324651a3cad019b894c0b4226ad34f3440a3"
   }
 }
 ---
