@@ -356,40 +356,40 @@
     {
       "artifactClass": "coverage",
       "caseKey": "docked-show",
-      "evidenceSchema": "spatial-input@1",
-      "evidenceType": "spatial.input",
+      "evidenceSchema": "interaction-trace@1",
+      "evidenceType": "interaction.trace",
       "id": "obligation:presentation-tour:spatial-controls-summon:o01:docked-show",
-      "oracle": "oracle:agent-structured-spatial-input@1",
+      "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:presentation-tour:spatial-controls-summon:09",
       "rubric": "rubric:presentation-tour.spatial-controls-summon.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "docked-hide",
-      "evidenceSchema": "spatial-input@1",
-      "evidenceType": "spatial.input",
+      "evidenceSchema": "interaction-trace@1",
+      "evidenceType": "interaction.trace",
       "id": "obligation:presentation-tour:spatial-controls-summon:o01:docked-hide",
-      "oracle": "oracle:agent-structured-spatial-input@1",
+      "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:presentation-tour:spatial-controls-summon:18",
       "rubric": "rubric:presentation-tour.spatial-controls-summon.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "panorama-show",
-      "evidenceSchema": "spatial-input@1",
-      "evidenceType": "spatial.input",
+      "evidenceSchema": "interaction-trace@1",
+      "evidenceType": "interaction.trace",
       "id": "obligation:presentation-tour:spatial-controls-summon:o01:panorama-show",
-      "oracle": "oracle:agent-structured-spatial-input@1",
+      "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:presentation-tour:spatial-controls-summon:27",
       "rubric": "rubric:presentation-tour.spatial-controls-summon.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "panorama-hide",
-      "evidenceSchema": "spatial-input@1",
-      "evidenceType": "spatial.input",
+      "evidenceSchema": "interaction-trace@1",
+      "evidenceType": "interaction.trace",
       "id": "obligation:presentation-tour:spatial-controls-summon:o01:panorama-hide",
-      "oracle": "oracle:agent-structured-spatial-input@1",
+      "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:presentation-tour:spatial-controls-summon:37",
       "rubric": "rubric:presentation-tour.spatial-controls-summon.o01@1"
     }
