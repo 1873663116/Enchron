@@ -1824,10 +1824,16 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 if call["operation"] == "operation:accessibility.activate@2"
             ],
             [
-                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-2"],
-                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-3"],
-                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-1"],
-                ["PlayerUI-TopAction-more", "PlayerUI-menu-audio", "PlayerUI-menu-audio-8"],
+                # Each sequence taps the playback surface first: product.md:35 says
+                # chrome hides faster than two controller round trips, so the More
+                # button has to be summoned inside the same command that uses it.
+                [
+                    "PlayerUI-window-playback-surface",
+                    "PlayerUI-TopAction-more",
+                    "PlayerUI-menu-audio",
+                    f"PlayerUI-menu-audio-{track}",
+                ]
+                for track in (2, 3, 1, 8)
             ],
         )
 
@@ -2435,8 +2441,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             probes[2]["arguments"]["expectedBaselineDigest"],
             f"result://{baseline}/containerIndexDigest",
         )
-        self.assertEqual(
-            probes[3]["arguments"],
+        # relatedResults may inline the earlier observations the rubric needs; the
+        # closed part is the expectation and the three digests it compares.
+        self.assertLessEqual(
+            {
+                key: value
+                for key, value in probes[3]["arguments"].items()
+                if key != "relatedResults"
+            }.items(),
             {
                 "containerIndexExpectation": "remote-positive-control",
                 "expectedBaselineDigest": f"result://{baseline}/containerIndexDigest",
@@ -2452,7 +2464,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                     f"result://{local_active}/viewingStorageDigest",
                     f"result://{local_after}/viewingStorageDigest",
                 ],
-            },
+            }.items(),
         )
         self.assertTrue(
             any(

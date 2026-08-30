@@ -5,7 +5,7 @@
   "id": "rubric:format-coverage.unsupported-codec-guidance.o01@1",
   "title": "Unsupported codec guidance",
   "criteria": [
-    "Opening registered fixture internal-fate-mpeg4-part2-packed-bframes-v1 through MediaLibrary-grid-video-packed_bframes.avi yields error=unsupportedVideoCodec, alertMessage containing MPEG-4 Part 2, identifier Emby-Playback-Error, primaryAction.present false for PlayerUI-loadFailure-primary, secondaryAction.present true for PlayerUI-loadFailure-secondary (Close), and closeOnly true.",
+    "The bound media.open observation includes error=unsupportedVideoCodec, alertMessage containing MPEG-4 Part 2, identifier Emby-Playback-Error, primaryAction.present false for PlayerUI-loadFailure-primary, secondaryAction.present true for PlayerUI-loadFailure-secondary (Close), and closeOnly true.",
     "The bound media.open observation shows rejection before playback start: noActiveSession and noDeliveredSample are true, session and technicalSession are none, and videoSamples and rendererInputs are 0."
   ],
   "negativeControls": [

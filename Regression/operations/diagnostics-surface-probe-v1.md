@@ -100,6 +100,11 @@
         "name": "omitPlaybackState",
         "type": "boolean",
         "required": false
+      },
+      {
+        "name": "embyProgressReadback",
+        "type": "boolean",
+        "required": false
       }
     ],
     "rules": [],
@@ -122,7 +127,7 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:a2f53ab9b72521f76526433bf7a40437a4f693b546cab25a6e01331efa6349ef"
+    "digest": "sha256:22d56aa15e83f3d15b0b21f5fdc17691ec14fd913bf60001d341479ef22e32c8"
   }
 }
 ---

@@ -180,6 +180,12 @@
           "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:01/viewingStorageDigest",
           "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:09/viewingStorageDigest",
           "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:11/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:01/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:09/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:11/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:completed-media-starts-from-beginning:13/matchedElement"
         ]
       },
       "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:15",

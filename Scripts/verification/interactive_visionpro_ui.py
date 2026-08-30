@@ -648,6 +648,8 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "identifier",
         "identifiers",
         "identifierPrefix",
+        "assertAbsent",
+        "alsoInspect",
         "label",
         "index",
         "duration",
@@ -1247,6 +1249,8 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--identifier")
     parser.add_argument("--identifiers", nargs="+")
     parser.add_argument("--identifier-prefix", dest="identifierPrefix")
+    parser.add_argument("--assert-absent", dest="assertAbsent", nargs="+")
+    parser.add_argument("--also-inspect", dest="alsoInspect", nargs="+")
     parser.add_argument("--label")
     parser.add_argument("--index", type=int)
     text_source = parser.add_mutually_exclusive_group()

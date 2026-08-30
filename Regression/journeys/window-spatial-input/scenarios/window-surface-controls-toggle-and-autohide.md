@@ -54,7 +54,7 @@
     },
     {
       "arguments": {
-        "controls": "either",
+        "controls": "hidden",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
         "presentation": "window"

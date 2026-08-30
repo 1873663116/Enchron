@@ -5,9 +5,18 @@
     "continuousPlayback": {
       "minimumObservationSeparationSeconds": 1.0,
       "minimumMediaTimeAdvanceSeconds": 0.25,
-      "requiredStableFields": ["mediaSession", "streamEpoch"],
-      "requiredAdvancingFields": ["mediaTime", "videoSamples", "rendererAcceptedInputs"],
-      "requiredTrueFields": ["displayedPixel"],
+      "requiredStableFields": [
+        "mediaSession",
+        "streamEpoch"
+      ],
+      "requiredAdvancingFields": [
+        "mediaTime",
+        "videoSamples",
+        "rendererAcceptedInputs"
+      ],
+      "requiredTrueFields": [
+        "displayedPixel"
+      ],
       "audioRequirement": "When the selected media has audio, audio samples and audio renderer samples also advance, the audio renderer reports rendering without error, and the system audio session and output route are active."
     },
     "videoOnlyPlayback": {
@@ -47,20 +56,41 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "hdr10-pq-bt2020"
       },
       "oracle": {
-        "sampleColorPrimaries": ["2020"],
-        "sampleTransferFunction": ["2084", "pq"],
-        "sampleYCbCrMatrix": ["2020"],
-        "sampleRange": ["video", "tv"],
-        "displayedColorPrimaries": ["2020"],
-        "displayedTransferFunction": ["2084", "pq"],
-        "displayedYCbCrMatrix": ["2020"],
-        "displayedPixelFormats": ["&xv0"]
+        "sampleColorPrimaries": [
+          "2020"
+        ],
+        "sampleTransferFunction": [
+          "2084",
+          "pq"
+        ],
+        "sampleYCbCrMatrix": [
+          "2020"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ],
+        "displayedColorPrimaries": [
+          "2020"
+        ],
+        "displayedTransferFunction": [
+          "2084",
+          "pq"
+        ],
+        "displayedYCbCrMatrix": [
+          "2020"
+        ],
+        "displayedPixelFormats": [
+          "&xv0"
+        ]
       }
     },
     {
@@ -69,7 +99,10 @@
       "sha256": "31444db5d84f3c8ea9af0f22a4d8602bd9bc2848d2e23ff857fbaf4ede9316aa",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["system-import", "viewing-storage"],
+      "regressionSets": [
+        "system-import",
+        "viewing-storage"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
@@ -77,7 +110,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "h264",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -93,14 +128,31 @@
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
-        "sampleColorPrimaries": ["709"],
-        "sampleTransferFunction": ["709"],
-        "sampleYCbCrMatrix": ["709"],
-        "sampleRange": ["video", "tv"],
-        "displayedColorPrimaries": ["709"],
-        "displayedTransferFunction": ["709"],
-        "displayedYCbCrMatrix": ["709"],
-        "displayedPixelFormats": ["&8v0"]
+        "sampleColorPrimaries": [
+          "709"
+        ],
+        "sampleTransferFunction": [
+          "709"
+        ],
+        "sampleYCbCrMatrix": [
+          "709"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ],
+        "displayedColorPrimaries": [
+          "709"
+        ],
+        "displayedTransferFunction": [
+          "709"
+        ],
+        "displayedYCbCrMatrix": [
+          "709"
+        ],
+        "displayedPixelFormats": [
+          "&8v0"
+        ]
       }
     },
     {
@@ -109,7 +161,9 @@
       "sha256": "e724f389d32d4308c4faaaf30808819edc939a8727d32fa97bc2f08574822e62",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "HEVC hvc1 Main 10, 1280x720, 30 fps, BT.2020, HLG, video range",
       "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
@@ -117,7 +171,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "hlg-bt2020"
@@ -133,14 +189,35 @@
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
-        "sampleColorPrimaries": ["2020"],
-        "sampleTransferFunction": ["hlg", "b67", "2100"],
-        "sampleYCbCrMatrix": ["2020"],
-        "sampleRange": ["video", "tv"],
-        "displayedColorPrimaries": ["2020"],
-        "displayedTransferFunction": ["hlg", "b67", "2100"],
-        "displayedYCbCrMatrix": ["2020"],
-        "displayedPixelFormats": ["&xv0"]
+        "sampleColorPrimaries": [
+          "2020"
+        ],
+        "sampleTransferFunction": [
+          "hlg",
+          "b67",
+          "2100"
+        ],
+        "sampleYCbCrMatrix": [
+          "2020"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ],
+        "displayedColorPrimaries": [
+          "2020"
+        ],
+        "displayedTransferFunction": [
+          "hlg",
+          "b67",
+          "2100"
+        ],
+        "displayedYCbCrMatrix": [
+          "2020"
+        ],
+        "displayedPixelFormats": [
+          "&xv0"
+        ]
       }
     },
     {
@@ -149,7 +226,9 @@
       "sha256": "23802c30206507c7068ff3964898abf564080e2e03db86bba19380d2cbdad800",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "HEVC hvc1 Main 10, 1280x720, 30 fps, BT.2020, PQ, video range",
       "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
@@ -157,7 +236,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "hdr10-pq-bt2020"
@@ -173,14 +254,33 @@
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
-        "sampleColorPrimaries": ["2020"],
-        "sampleTransferFunction": ["2084", "pq"],
-        "sampleYCbCrMatrix": ["2020"],
-        "sampleRange": ["video", "tv"],
-        "displayedColorPrimaries": ["2020"],
-        "displayedTransferFunction": ["2084", "pq"],
-        "displayedYCbCrMatrix": ["2020"],
-        "displayedPixelFormats": ["&xv0"]
+        "sampleColorPrimaries": [
+          "2020"
+        ],
+        "sampleTransferFunction": [
+          "2084",
+          "pq"
+        ],
+        "sampleYCbCrMatrix": [
+          "2020"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ],
+        "displayedColorPrimaries": [
+          "2020"
+        ],
+        "displayedTransferFunction": [
+          "2084",
+          "pq"
+        ],
+        "displayedYCbCrMatrix": [
+          "2020"
+        ],
+        "displayedPixelFormats": [
+          "&xv0"
+        ]
       }
     },
     {
@@ -189,7 +289,9 @@
       "sha256": "4877f4030938ccf9e58933112a15ae59db46f5206b823b092aea0398f3a0f1d2",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "Matroska / MKV",
       "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks copied from the deterministic SDR fixture",
@@ -198,8 +300,14 @@
       "matrix": {
         "container": "mkv",
         "videoCodec": "h264",
-        "audioCodecs": ["aac"],
-        "subtitleCodecs": ["subrip", "ass", "dvb_subtitle"],
+        "audioCodecs": [
+          "aac"
+        ],
+        "subtitleCodecs": [
+          "subrip",
+          "ass",
+          "dvb_subtitle"
+        ],
         "hasAudio": true,
         "color": "sdr-bt709"
       },
@@ -216,8 +324,16 @@
       },
       "oracle": {
         "subtitleTrackCount": 3,
-        "subtitleCodecs": ["subrip", "ass", "dvb_subtitle"],
-        "subtitleLanguages": ["zho", "eng", "eng"],
+        "subtitleCodecs": [
+          "subrip",
+          "ass",
+          "dvb_subtitle"
+        ],
+        "subtitleLanguages": [
+          "zho",
+          "eng",
+          "eng"
+        ],
         "cueTexts": [
           "Enchron 字幕验证\nlibass GPU SubtitleFrame",
           "Window playback subtitle",
@@ -239,7 +355,10 @@
       "sha256": "e290e5c8a9b10a06795b081b476ff84f55374a8266929a21dde6b895034bd133",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["remote-aggregate", "viewing-storage"],
+      "regressionSets": [
+        "remote-aggregate",
+        "viewing-storage"
+      ],
       "container": "Matroska / MKV",
       "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range; copied byte-for-byte from the deterministic SDR fixture",
       "audio": "four 48 kHz stereo tracks with distinct 80 ms pulses: AAC 880 Hz, FLAC 660 Hz, AC-3 440 Hz and E-AC-3 550 Hz",
@@ -248,8 +367,17 @@
       "matrix": {
         "container": "mkv",
         "videoCodec": "h264",
-        "audioCodecs": ["aac", "flac", "ac3", "eac3"],
-        "subtitleCodecs": ["subrip", "ass", "dvb_subtitle"],
+        "audioCodecs": [
+          "aac",
+          "flac",
+          "ac3",
+          "eac3"
+        ],
+        "subtitleCodecs": [
+          "subrip",
+          "ass",
+          "dvb_subtitle"
+        ],
         "hasAudio": true,
         "color": "sdr-bt709"
       },
@@ -302,7 +430,12 @@
             "default": false
           }
         ],
-        "crossPipelineSwitchOrderByStreamIndex": [1, 3, 2, 4],
+        "crossPipelineSwitchOrderByStreamIndex": [
+          1,
+          3,
+          2,
+          4
+        ],
         "embeddedSubtitleTracks": [
           {
             "streamIndex": 5,
@@ -321,7 +454,9 @@
             "codec": "ass",
             "language": "eng",
             "title": "Enchron styled libass proof",
-            "cueTexts": ["Enchron GPU PIXEL PROOF"]
+            "cueTexts": [
+              "Enchron GPU PIXEL PROOF"
+            ]
           },
           {
             "streamIndex": 7,
@@ -346,7 +481,9 @@
           {
             "fileName": "sdr-bframe-aggregate-30s.styled.ass",
             "codec": "ass",
-            "cueTexts": ["Enchron EXTERNAL SIDECAR ASS"]
+            "cueTexts": [
+              "Enchron EXTERNAL SIDECAR ASS"
+            ]
           }
         ]
       }
@@ -357,7 +494,10 @@
       "sha256": "9c318aac50d9c4d03c82b988ad0ae83a06403cf5d813622724da3f5eed4eb80e",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["presentation-tour", "viewing-storage"],
+      "regressionSets": [
+        "presentation-tour",
+        "viewing-storage"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
@@ -365,7 +505,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "h264",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -381,14 +523,31 @@
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
-        "sampleColorPrimaries": ["709"],
-        "sampleTransferFunction": ["709"],
-        "sampleYCbCrMatrix": ["709"],
-        "sampleRange": ["video", "tv"],
-        "displayedColorPrimaries": ["709"],
-        "displayedTransferFunction": ["709"],
-        "displayedYCbCrMatrix": ["709"],
-        "displayedPixelFormats": ["&8v0"]
+        "sampleColorPrimaries": [
+          "709"
+        ],
+        "sampleTransferFunction": [
+          "709"
+        ],
+        "sampleYCbCrMatrix": [
+          "709"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ],
+        "displayedColorPrimaries": [
+          "709"
+        ],
+        "displayedTransferFunction": [
+          "709"
+        ],
+        "displayedYCbCrMatrix": [
+          "709"
+        ],
+        "displayedPixelFormats": [
+          "&8v0"
+        ]
       }
     },
     {
@@ -397,7 +556,9 @@
       "sha256": "6156dcbf31d367a1331fcacc344208b943946ab38ea4538800d66b9e7cd4856d",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "no audio tracks",
@@ -410,7 +571,10 @@
         "hasAudio": false,
         "color": "sdr-bt709"
       },
-      "acceptanceCriteria": ["continuousPlayback", "videoOnlyPlayback"],
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "videoOnlyPlayback"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4",
@@ -418,10 +582,19 @@
       },
       "oracle": {
         "audioTrackCount": 0,
-        "sampleColorPrimaries": ["709"],
-        "sampleTransferFunction": ["709"],
-        "sampleYCbCrMatrix": ["709"],
-        "sampleRange": ["video", "tv"]
+        "sampleColorPrimaries": [
+          "709"
+        ],
+        "sampleTransferFunction": [
+          "709"
+        ],
+        "sampleYCbCrMatrix": [
+          "709"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ]
       }
     },
     {
@@ -430,7 +603,9 @@
       "sha256": "5784cc407a860c2db1b888be38e949236be53ac04f37f791d7cd251e2694d4fb",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "Matroska / MKV",
       "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "eight 48 kHz stereo tracks: AAC, AC-3, E-AC-3, MP2, MP3, ALAC, Opus and FLAC; each track has a distinct 80 ms pulse frequency",
@@ -438,7 +613,16 @@
       "matrix": {
         "container": "mkv",
         "videoCodec": "h264",
-        "audioCodecs": ["aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "flac"],
+        "audioCodecs": [
+          "aac",
+          "ac3",
+          "eac3",
+          "mp2",
+          "mp3",
+          "alac",
+          "opus",
+          "flac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -455,7 +639,16 @@
       },
       "oracle": {
         "audioTrackCount": 8,
-        "audioCodecs": ["aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "flac"],
+        "audioCodecs": [
+          "aac",
+          "ac3",
+          "eac3",
+          "mp2",
+          "mp3",
+          "alac",
+          "opus",
+          "flac"
+        ],
         "pulseFrequencyHzByCodec": {
           "aac": 880,
           "ac3": 500,
@@ -474,7 +667,9 @@
       "sha256": "66fb70c5f92f66af2d9e44254d5e8c668215c7d0f086d8b2679827c87851362b",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "Matroska / MKV",
       "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "three AAC LC 48 kHz stereo tracks; stream 1 has a unique title and streams 2 and 3 have the same complete display label but distinct 440 Hz and 660 Hz pulses",
@@ -482,7 +677,9 @@
       "matrix": {
         "container": "mkv",
         "videoCodec": "h264",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -500,9 +697,21 @@
       "oracle": {
         "audioTrackCount": 3,
         "tracks": [
-          {"streamIndex": 1, "title": "Primary", "pulseFrequencyHz": 880},
-          {"streamIndex": 2, "title": "Alternate", "pulseFrequencyHz": 440},
-          {"streamIndex": 3, "title": "Alternate", "pulseFrequencyHz": 660}
+          {
+            "streamIndex": 1,
+            "title": "Primary",
+            "pulseFrequencyHz": 880
+          },
+          {
+            "streamIndex": 2,
+            "title": "Alternate",
+            "pulseFrequencyHz": 440
+          },
+          {
+            "streamIndex": 3,
+            "title": "Alternate",
+            "pulseFrequencyHz": 660
+          }
         ]
       }
     },
@@ -512,7 +721,9 @@
       "sha256": "16bef1f483b6f043165586e2b186b19d01fc059191800621e185525778b45949",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "Matroska / MKV",
       "videoCodec": "AV1 Main, 640x360, 30 fps, BT.709, video range",
       "audio": "FLAC, 48 kHz, stereo; 850 Hz 80 ms pulses aligned with a white video flash every second",
@@ -520,12 +731,17 @@
       "matrix": {
         "container": "mkv",
         "videoCodec": "av1",
-        "audioCodecs": ["flac"],
+        "audioCodecs": [
+          "flac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
       },
-      "acceptanceCriteria": ["continuousPlayback", "audioVideoSynchronization"],
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv",
@@ -534,10 +750,19 @@
       "oracle": {
         "audioSampleFormat": "interleaved linear PCM after PlaybackCore conversion",
         "audioPulseFrequencyHz": 850,
-        "sampleColorPrimaries": ["709"],
-        "sampleTransferFunction": ["709"],
-        "sampleYCbCrMatrix": ["709"],
-        "sampleRange": ["video", "tv"]
+        "sampleColorPrimaries": [
+          "709"
+        ],
+        "sampleTransferFunction": [
+          "709"
+        ],
+        "sampleYCbCrMatrix": [
+          "709"
+        ],
+        "sampleRange": [
+          "video",
+          "tv"
+        ]
       }
     },
     {
@@ -546,7 +771,9 @@
       "sha256": "58c642420420f5cb795c35696de3df714c6dd2ede7dc220c88f0384abb677556",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "standalone SubRip subtitle file",
       "videoCodec": "none; associated with generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
       "audio": "none",
@@ -555,11 +782,15 @@
         "container": "srt",
         "videoCodec": "none",
         "audioCodecs": [],
-        "subtitleCodecs": ["subrip"],
+        "subtitleCodecs": [
+          "subrip"
+        ],
         "hasAudio": false,
         "color": "not-applicable"
       },
-      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "acceptanceCriteria": [
+        "externalSubtitleSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
@@ -581,7 +812,9 @@
       "sha256": "866aa669d2f360cdf3f82f4a083ba5ba482ef4ef4a4a3439f56c3068acc0a1fa",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "standalone ASS subtitle file",
       "videoCodec": "none; associated with generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
       "audio": "none",
@@ -590,11 +823,15 @@
         "container": "ass",
         "videoCodec": "none",
         "audioCodecs": [],
-        "subtitleCodecs": ["ass"],
+        "subtitleCodecs": [
+          "ass"
+        ],
         "hasAudio": false,
         "color": "not-applicable"
       },
-      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "acceptanceCriteria": [
+        "externalSubtitleSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.styled.ass"
@@ -611,7 +848,9 @@
       "sha256": "23596e6f98cbbcd9c220df28d9e3138198c7a80c7a141069534583d13f0e1d1e",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["remote-aggregate"],
+      "regressionSets": [
+        "remote-aggregate"
+      ],
       "container": "standalone SubRip subtitle file",
       "videoCodec": "none; associated with generated-sdr-avc-bframe-aggregate-30s-v1",
       "audio": "none",
@@ -620,11 +859,15 @@
         "container": "srt",
         "videoCodec": "none",
         "audioCodecs": [],
-        "subtitleCodecs": ["subrip"],
+        "subtitleCodecs": [
+          "subrip"
+        ],
         "hasAudio": false,
         "color": "not-applicable"
       },
-      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "acceptanceCriteria": [
+        "externalSubtitleSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.zh-CN.srt"
@@ -647,7 +890,9 @@
       "sha256": "b2eb965a5287dadb320aea5c1cb2ad7a95f03f147001e754082dbcb4fe98699f",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["remote-aggregate"],
+      "regressionSets": [
+        "remote-aggregate"
+      ],
       "container": "standalone ASS subtitle file",
       "videoCodec": "none; associated with generated-sdr-avc-bframe-aggregate-30s-v1",
       "audio": "none",
@@ -656,11 +901,15 @@
         "container": "ass",
         "videoCodec": "none",
         "audioCodecs": [],
-        "subtitleCodecs": ["ass"],
+        "subtitleCodecs": [
+          "ass"
+        ],
         "hasAudio": false,
         "color": "not-applicable"
       },
-      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "acceptanceCriteria": [
+        "externalSubtitleSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.styled.ass"
@@ -678,7 +927,9 @@
       "sha256": "882dd6d3636175459564df1be2c17719bf0df3d5842ff3a03c59f8a32774bf0b",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["audio-only"],
+      "regressionSets": [
+        "audio-only"
+      ],
       "container": "ISO BMFF / M4A",
       "videoCodec": "PNG attached cover art, 200x200, RGB24",
       "audio": "ALAC 16-bit, 44.1 kHz, stereo",
@@ -686,7 +937,9 @@
       "matrix": {
         "container": "m4a",
         "videoCodec": "none",
-        "audioCodecs": ["alac"],
+        "audioCodecs": [
+          "alac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "not-applicable"
@@ -708,7 +961,9 @@
       "sha256": "450a89377f024ce11d176d2be0fa3756df005aa45294866b383fee18a17cbf48",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["format-corpus"],
+      "regressionSets": [
+        "format-corpus"
+      ],
       "container": "AVI",
       "videoCodec": "MPEG-4 Part 2 packed B-frames; intentionally unsupported",
       "audio": "none",
@@ -728,20 +983,25 @@
       }
     },
     {
-      "id": "internal-fate-dts-es-v1",
-      "deviceImportPath": "TestVectors/Upstream/FATE/DTS/dts_es.dts",
-      "sha256": "2e2530d220d51b914d1e7acb63badb5b2dae1578f3274116206fa1aa5e597638",
+      "id": "internal-fate-dts-es-matroska-v1",
+      "deviceImportPath": "TestVectors/Upstream/FATE/DTS/dts_es.mkv",
+      "sha256": "694c83bd0b403dc834a4ac59d8a6e61eb75382837d65ffdbad4d4c1baa7aeecf",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["audio-only", "format-corpus"],
-      "container": "raw DTS",
+      "regressionSets": [
+        "audio-only",
+        "format-corpus"
+      ],
+      "container": "Matroska",
       "videoCodec": "none",
       "audio": "DTS-ES, 48 kHz, 6.1, seven channels, 1536 kb/s",
-      "durationSeconds": 2.619789,
+      "durationSeconds": 2.667,
       "matrix": {
-        "container": "dts",
+        "container": "matroska",
         "videoCodec": "none",
-        "audioCodecs": ["dts"],
+        "audioCodecs": [
+          "dts"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "not-applicable"
@@ -755,20 +1015,25 @@
       }
     },
     {
-      "id": "internal-fate-truehd-atmos-v1",
-      "deviceImportPath": "TestVectors/Upstream/FATE/TrueHD/atmos.thd",
-      "sha256": "020c9b9e67f80de105663af191740f8b60f550107c9f765b632f4cd5efb1c6ab",
+      "id": "internal-fate-truehd-atmos-matroska-v1",
+      "deviceImportPath": "TestVectors/Upstream/FATE/TrueHD/atmos.mkv",
+      "sha256": "de4fdad8c7d42c43e158e3e3f1c54126758b63466037dfe33a92633014381c5e",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["audio-only", "format-corpus"],
-      "container": "raw TrueHD",
+      "regressionSets": [
+        "audio-only",
+        "format-corpus"
+      ],
+      "container": "Matroska",
       "videoCodec": "none",
       "audio": "Dolby TrueHD with Dolby Atmos, 24-bit, 48 kHz, 7.1, eight channels",
-      "durationSeconds": 0.106667,
+      "durationSeconds": 0.107,
       "matrix": {
-        "container": "truehd",
+        "container": "matroska",
         "videoCodec": "none",
-        "audioCodecs": ["truehd"],
+        "audioCodecs": [
+          "truehd"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "not-applicable"
@@ -787,7 +1052,10 @@
       "sha256": "9f510e92b976eaf735009b444511f856db601eb13698b54fdfc9c4e078f9f3bc",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["audio-only", "format-corpus"],
+      "regressionSets": [
+        "audio-only",
+        "format-corpus"
+      ],
       "container": "Ogg",
       "videoCodec": "none",
       "audio": "Vorbis, 44.1 kHz, stereo",
@@ -795,7 +1063,9 @@
       "matrix": {
         "container": "ogg",
         "videoCodec": "none",
-        "audioCodecs": ["vorbis"],
+        "audioCodecs": [
+          "vorbis"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "not-applicable"
@@ -814,7 +1084,9 @@
       "sha256": "bb7950bea55d229e391a3b1c4a0c3fe33f022b4090f1c8e93ca768c023bba78d",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 5 HEVC Main 10, 1280x720, 24 fps, full range",
       "audio": "E-AC-3 with Dolby Atmos, 48 kHz, 5.1(side)",
@@ -822,7 +1094,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["eac3"],
+        "audioCodecs": [
+          "eac3"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "dolby-vision-p5-ipt-pq"
@@ -846,7 +1120,9 @@
       "sha256": "a385c663c49a40f3cca1eafcf28540d0bea10ce9e2ae1b60e83ebbc087b8cafa",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 7 FEL dual-layer HEVC Main 10, 3840x2160 base plus 1920x1080 enhancement, 24000/1001 fps, BT.2020 PQ",
       "audio": "none",
@@ -879,7 +1155,9 @@
       "sha256": "81e780f27c2a77782515814eb077a55408d32dc6d5f0183f16981bc051c8c86f",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 8.1 HEVC Main 10, 1280x720, 24 fps, BT.2020 PQ, video range",
       "audio": "E-AC-3 with Dolby Atmos, 48 kHz, 5.1(side)",
@@ -887,7 +1165,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["eac3"],
+        "audioCodecs": [
+          "eac3"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "dolby-vision-p8.1-hdr10-pq"
@@ -912,7 +1192,9 @@
       "sha256": "0952863d4f2f88360a2494451674bcfbeddddcb06baf751032d79ecc28a273df",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 8.4 HEVC Main 10, 1280x720, 24 fps, BT.2020 HLG, video range",
       "audio": "E-AC-3 with Dolby Atmos, 48 kHz, 5.1(side)",
@@ -920,7 +1202,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["eac3"],
+        "audioCodecs": [
+          "eac3"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "dolby-vision-p8.4-hlg"
@@ -945,7 +1229,9 @@
       "sha256": "06d98a2ca4d46d580d68e9cbc7e37dd34902aa40ced80abe2d49c466f4a8704a",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 10.0 dav1/AOM bitstream, 1920x1080, 25 fps, BT.2020 IPT PQ, full range",
       "audio": "none",
@@ -978,7 +1264,9 @@
       "sha256": "c4dac87c44ba9b170752d985d22096ac1a9e0df6e76ca131ee53b2c485e4e850",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 10.1 AV1 Main 10-bit, 1920x1080, 30 fps, BT.2020 PQ, video range",
       "audio": "none",
@@ -1011,7 +1299,9 @@
       "sha256": "2d1d1fc8d7b0a7c0e71b445b527542027ed781a0a91707a219d7013eeb7940ad",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range"],
+      "regressionSets": [
+        "dynamic-range"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 10.4 AV1 Main 10-bit, 1920x1080, 30 fps, BT.2020 HLG, video range",
       "audio": "none",
@@ -1044,7 +1334,10 @@
       "sha256": "58bc4d7db60be76d97775311cf762e36a60d1e1c5eb864f99b2d803fac099dce",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["dynamic-range", "projection-stereo"],
+      "regressionSets": [
+        "dynamic-range",
+        "projection-stereo"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "Dolby Vision Profile 20 multiview HEVC Main 10 dvh1, 3840x2160, 24 fps, BT.2020 IPT PQ, full range",
       "audio": "E-AC-3 with Dolby Atmos, 48 kHz, 5.1(side)",
@@ -1052,7 +1345,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["eac3"],
+        "audioCodecs": [
+          "eac3"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "dolby-vision-p20-ipt-pq"
@@ -1079,7 +1374,10 @@
       "sha256": "bde6eddecdeb315c0625eb9e8f24e5e01464d562c7680cf6fe3f6bf57bb279da",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["presentation-tour", "projection-stereo"],
+      "regressionSets": [
+        "presentation-tour",
+        "projection-stereo"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "HEVC Main, 8192x4096, 60000/1001 fps, BT.709, side-by-side 180-degree stereo",
       "audio": "AAC LC, 48 kHz, stereo",
@@ -1087,7 +1385,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -1109,7 +1409,9 @@
       "sha256": "579ab88946790643797384254457be295785f52fb88c4baf4371479a904c9616",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["projection-stereo"],
+      "regressionSets": [
+        "projection-stereo"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "HEVC Main, 8192x4096, 60000/1001 fps, top-bottom 180-degree stereo",
       "audio": "AAC LC, 48 kHz, stereo",
@@ -1117,7 +1419,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -1139,7 +1443,10 @@
       "sha256": "96ee6f172a9a9ce6125bd05c7aefffadae5fd638921e9318cb584481c8c5da50",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["presentation-tour", "projection-stereo"],
+      "regressionSets": [
+        "presentation-tour",
+        "projection-stereo"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "AV1 Main, 3840x2160, 25 fps, BT.709, monoscopic 360-degree equirectangular",
       "audio": "Opus, 48 kHz, stereo",
@@ -1147,7 +1454,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "av1",
-        "audioCodecs": ["opus"],
+        "audioCodecs": [
+          "opus"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -1169,7 +1478,10 @@
       "sha256": "7c8763d13fad98ba3157c9ae761f265389e2d6c8960b27c356c84511fb816ecf",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["format-corpus", "projection-stereo"],
+      "regressionSets": [
+        "format-corpus",
+        "projection-stereo"
+      ],
       "container": "QuickTime / MOV",
       "videoCodec": "MV-HEVC Main 10, 1280x1280 per view, 30000/1001 fps, BT.709, rectilinear multiview",
       "audio": "AAC LC, 48 kHz, stereo",
@@ -1177,7 +1489,9 @@
       "matrix": {
         "container": "mov",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -1201,7 +1515,10 @@
       "sha256": "f6e906b7ebb4275f7eaa850efc576f7e5ced5220c8884462f68c324e596fd05a",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["format-corpus", "projection-stereo"],
+      "regressionSets": [
+        "format-corpus",
+        "projection-stereo"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "APMP MV-HEVC Main 10, 4096x4096 per view, 30000/1001 fps, BT.709, half-equirectangular",
       "audio": "AAC LC, 48 kHz, stereo",
@@ -1209,7 +1526,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -1234,7 +1553,9 @@
       "sha256": "d83e719fa22a4a9555ba770e6d79d8ab6472a28d7b7bb7c2cf877119826cecd3",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["projection-stereo"],
+      "regressionSets": [
+        "projection-stereo"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "APMP HEVC Main 10, 7680x3840, 30000/1001 fps, BT.709, monoscopic equirectangular",
       "audio": "AAC LC, 48 kHz, stereo",
@@ -1242,7 +1563,9 @@
       "matrix": {
         "container": "mp4",
         "videoCodec": "hevc",
-        "audioCodecs": ["aac"],
+        "audioCodecs": [
+          "aac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "sdr-bt709"
@@ -1265,7 +1588,9 @@
       "sha256": "bb45769c99e5abfbb37a23cededfba32561e86a4ff38cede20c3dc739a8f8f97",
       "license": "internal-test-media-only",
       "acceptanceEligibility": "eligible-internal-only",
-      "regressionSets": ["projection-stereo"],
+      "regressionSets": [
+        "projection-stereo"
+      ],
       "container": "QuickTime / MOV",
       "videoCodec": "Apple Immersive Video MV-HEVC Main 10 hvc1, 4320x4320 per view, 90 fps, Display P3 PQ, fisheye multiview",
       "audio": "Apple Positional Audio Codec, 48 kHz, 2 channels",
@@ -1273,7 +1598,9 @@
       "matrix": {
         "container": "mov",
         "videoCodec": "hevc",
-        "audioCodecs": ["apple_apac"],
+        "audioCodecs": [
+          "apple_apac"
+        ],
         "subtitleCodecs": [],
         "hasAudio": true,
         "color": "hdr-display-p3-pq"
@@ -1289,7 +1616,10 @@
         "frameRate": "90/1",
         "viewCount": 2,
         "primaryEye": "left",
-        "videoLayerIDs": [0, 1],
+        "videoLayerIDs": [
+          0,
+          1
+        ],
         "hvcCSHA256": "3cb2df6f61ef70b15603151f2634cc576ed94f204ac950d79b6724dd323c92d7",
         "lhvCSHA256": "ac94e93299f452746b75045e35aef51e6a900327be556a02bb66879072a460b2"
       }
@@ -1300,7 +1630,9 @@
       "sha256": "048a4032d47515ea0e5dd2c4ebcf72a61004abcf311e718ebc7d4ff29847b372",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["viewing-storage"],
+      "regressionSets": [
+        "viewing-storage"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "H.264 avc1 Main, 160x90, 1 fps, BT.709, video range",
       "audio": "no audio tracks",
@@ -1313,7 +1645,10 @@
         "hasAudio": false,
         "color": "sdr-bt709"
       },
-      "acceptanceCriteria": ["continuousPlayback", "videoOnlyPlayback"],
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "videoOnlyPlayback"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_regression_derivatives.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4",
@@ -1342,7 +1677,9 @@
       "sha256": "0d9bf7e3f3deeab07224fb6c2faacfead6e248efcdf04f24dbe445a453747de0",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
-      "regressionSets": ["viewing-storage"],
+      "regressionSets": [
+        "viewing-storage"
+      ],
       "container": "ISO BMFF / MP4",
       "videoCodec": "H.264 avc1 Main, 160x90, 1 fps, BT.709, video range",
       "audio": "no audio tracks",
@@ -1355,7 +1692,10 @@
         "hasAudio": false,
         "color": "sdr-bt709"
       },
-      "acceptanceCriteria": ["continuousPlayback", "videoOnlyPlayback"],
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "videoOnlyPlayback"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_regression_derivatives.sh",
         "output": "TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s-b.mp4",

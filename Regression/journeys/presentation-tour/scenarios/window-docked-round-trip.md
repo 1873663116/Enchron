@@ -88,12 +88,7 @@
     },
     {
       "arguments": {
-        "generationToken": "result://call:presentation-tour:window-docked-round-trip:05/generationToken",
-        "relatedResults": [
-          "result://call:presentation-tour:window-docked-round-trip:06/spatialState",
-          "result://call:presentation-tour:window-docked-round-trip:06/action",
-          "result://call:presentation-tour:window-docked-round-trip:06/settlement"
-        ]
+        "generationToken": "result://call:presentation-tour:window-docked-round-trip:05/generationToken"
       },
       "callId": "call:presentation-tour:window-docked-round-trip:08",
       "maxInvocations": 1,
@@ -112,11 +107,11 @@
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "transition-trace@1",
-      "evidenceType": "transition.trace",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:presentation-tour:window-docked-round-trip:o01:default",
-      "oracle": "oracle:agent-structured-transition@1",
-      "producedByCall": "call:presentation-tour:window-docked-round-trip:08",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:presentation-tour:window-docked-round-trip:07",
       "rubric": "rubric:presentation-tour.window-docked-round-trip.o01@1"
     }
   ],

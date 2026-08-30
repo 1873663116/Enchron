@@ -218,6 +218,15 @@
           "result://call:viewing-state-and-storage:local-playback-does-not-write-index:02/viewingStorageDigest",
           "result://call:viewing-state-and-storage:local-playback-does-not-write-index:10/viewingStorageDigest",
           "result://call:viewing-state-and-storage:local-playback-does-not-write-index:12/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:02/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:02/containerIndexObservation",
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:06/snapshot",
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:10/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:10/containerIndexObservation",
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:12/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:local-playback-does-not-write-index:12/containerIndexObservation"
         ]
       },
       "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:18",

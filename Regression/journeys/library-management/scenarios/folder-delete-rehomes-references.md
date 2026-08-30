@@ -84,7 +84,7 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "MediaLibrary-NewFolder-name",
+        "label": "Folder name",
         "mode": "replace",
         "secret": false,
         "text": "Regression Child"

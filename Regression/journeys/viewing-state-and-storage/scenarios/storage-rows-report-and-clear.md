@@ -311,6 +311,18 @@
           "result://call:viewing-state-and-storage:storage-rows-report-and-clear:17/viewingStorageDigest",
           "result://call:viewing-state-and-storage:storage-rows-report-and-clear:22/viewingStorageDigest",
           "result://call:viewing-state-and-storage:storage-rows-report-and-clear:25/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:03/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:17/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:20/matchedElement",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:20/response",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:22/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:23/matchedElement",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:23/response",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:25/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:26/matchedElement",
+          "result://call:viewing-state-and-storage:storage-rows-report-and-clear:26/response"
         ]
       },
       "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:27",

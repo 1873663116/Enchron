@@ -124,7 +124,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:11",
       "maxInvocations": 1,
@@ -132,6 +133,7 @@
     },
     {
       "arguments": {
+        "embyProgressReadback": true,
         "includeViewingStorage": true
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:12",
@@ -145,7 +147,8 @@
         "relatedResults": [
           "result://call:emby-server-lifecycle:progress-authority-server:01/report",
           "result://call:emby-server-lifecycle:progress-authority-server:10/fields",
-          "result://call:emby-server-lifecycle:progress-authority-server:12/viewingStorageObservation"
+          "result://call:emby-server-lifecycle:progress-authority-server:12/viewingStorageObservation",
+          "result://call:emby-server-lifecycle:progress-authority-server:12/observedUserData"
         ]
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:13",

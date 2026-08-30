@@ -756,6 +756,32 @@ class OperationAllowlistTests(unittest.TestCase):
             ],
             VALID_ARGUMENTS["operation:accessibility.type@2"]["identifier"],
         )
+        self.assertEqual(
+            [
+                rule
+                for rule in shape["argumentRules"]
+                if rule["kind"] == "exactly-one-group"
+                and rule["groups"] == [["identifier"], ["label"]]
+            ],
+            [
+                {
+                    "kind": "exactly-one-group",
+                    "groups": [["identifier"], ["label"]],
+                }
+            ],
+        )
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "identifier or label"):
+            spec.validate(
+                "simulator",
+                {
+                    "context": "window",
+                    "identifier": "FileBrowsing-SourceConnection-webDAV-name",
+                    "label": "Folder name",
+                    "mode": "replace",
+                    "secret": False,
+                    "text": "x",
+                },
+            )
 
     def test_accessibility_activate_drives_identifiers_then_each_label(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -889,6 +915,61 @@ class OperationAllowlistTests(unittest.TestCase):
                 mock.call(self.device, "snapshot", "--no-screenshot"),
             ],
         )
+        self.assertEqual(result["relatedResults"], [])
+
+    def test_accessibility_activate_inlines_related_results_on_the_tree(self) -> None:
+        spec = adapter.SPECS["operation:accessibility.activate@2"]
+        arguments = {
+            "context": "portal",
+            "identifiers": ["PlayerUI-TopAction-resumePanorama"],
+            "relatedResults": [
+                "result://call:presentation-tour:portal-format-and-panorama-actions-coexist:07/response",
+            ],
+        }
+        validated = spec.validate("device", arguments)
+        backend = adapter.ResidentOperationBackend()
+        with mock.patch.object(
+            backend,
+            "_controller",
+            return_value={
+                "success": True,
+                "appState": "runningForeground",
+                "hierarchy": "resume panorama tapped",
+            },
+        ):
+            result = backend._accessibility_activate_2(validated, self.device)
+        self.assertEqual(result["relatedResults"], arguments["relatedResults"])
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "relatedResults"):
+            spec.validate(
+                "device",
+                {
+                    "context": "portal",
+                    "identifiers": ["PlayerUI-TopAction-resumePanorama"],
+                    "relatedResults": ["result://call:x:01"],
+                },
+            )
+
+    def test_inspect_related_results_accept_thawed_json_bodies(self) -> None:
+        spec = adapter.SPECS["operation:accessibility.inspect@2"]
+        catalog = {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-FilesScreen",
+            "relatedResults": [
+                "result://call:library-management:current-folder-search-counts:04/snapshot",
+                "result://call:library-management:current-folder-search-counts:06/afterSnapshot",
+            ],
+        }
+        self.assertEqual(dict(spec.validate("simulator", catalog)), catalog)
+        thawed = {
+            **catalog,
+            "relatedResults": [library_snapshot_result(), library_snapshot_result()],
+        }
+        self.assertEqual(dict(spec.validate("simulator", thawed)), thawed)
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "relatedResults"):
+            spec.validate(
+                "simulator",
+                {**catalog, "relatedResults": ["result://call:x:01"]},
+            )
 
     def test_browse_hierarchy_contract_is_closed_to_one_browser_context(self) -> None:
         spec = adapter.SPECS["operation:diagnostics.browse-hierarchy@1"]
@@ -919,6 +1000,25 @@ class OperationAllowlistTests(unittest.TestCase):
                 adapter.OperationAdapterError
             ):
                 spec.validate("device", invalid)
+
+    def test_browse_hierarchy_host_shares_accept_thawed_share_list(self) -> None:
+        spec = adapter.SPECS["operation:diagnostics.browse-hierarchy@1"]
+        catalog = {
+            "context": "main-window-browser",
+            "sourceLabel": "Enchron Regression SMB",
+            "pathComponents": ["TestMedia", "TestVectors"],
+            "hostShareName": "TestMedia",
+            "expectedVideoName": "sdr-bframe-aggregate-30s.mkv",
+            "hostShares": (
+                "result://call:smb-source-lifecycle:"
+                "smb-browse-shares-and-directories:01/hostShares"
+            ),
+        }
+        self.assertEqual(dict(spec.validate("device", catalog)), catalog)
+        thawed = {**catalog, "hostShares": ["Cortisol", "TestMedia"]}
+        self.assertEqual(dict(spec.validate("device", thawed)), thawed)
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "hostShares"):
+            spec.validate("device", {**catalog, "hostShares": "TestMedia"})
 
     def test_browse_hierarchy_keeps_each_requested_level(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -1034,6 +1134,70 @@ class OperationAllowlistTests(unittest.TestCase):
                 adapter.OperationAdapterError
             ):
                 spec.validate("device", candidate)
+
+    def test_accessibility_activate_emits_assert_absent_observations(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        spec = adapter.SPECS["operation:accessibility.activate@2"]
+        arguments = {
+            "context": "window",
+            "identifiers": [
+                "PlayerUI-window-playback-surface",
+                "PlayerUI-TopAction-videoFormat",
+                "PlayerUI-VideoFormat-cancel",
+            ],
+            "assertAbsent": ["PlayerUI-VideoFormat-HDRFallback"],
+        }
+        validated = spec.validate("device", arguments)
+        observations = [
+            {
+                "afterStep": step,
+                "exists": False,
+                "identifier": "PlayerUI-VideoFormat-HDRFallback",
+                "isEnabled": False,
+                "isHittable": False,
+                "label": "",
+            }
+            for step in arguments["identifiers"]
+        ]
+        with mock.patch.object(
+            backend,
+            "_controller",
+            return_value={
+                "success": True,
+                "appState": "runningForeground",
+                "hierarchy": "format editor",
+                "assertAbsentObservations": observations,
+            },
+        ) as controller:
+            result = backend._accessibility_activate_2(validated, self.device)
+        self.assertEqual(
+            result["assertAbsentObservations"],
+            json.dumps(
+                observations,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+        controller.assert_called_once_with(
+            self.device,
+            "tapSequence",
+            "--identifiers",
+            *arguments["identifiers"],
+            "--assert-absent",
+            "PlayerUI-VideoFormat-HDRFallback",
+        )
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "assertAbsent"):
+            spec.validate(
+                "device",
+                {
+                    "context": "window",
+                    "identifiers": ["PlayerUI-window-playback-surface"],
+                    "gesture": "press",
+                    "durationMillis": 1000,
+                    "assertAbsent": ["PlayerUI-VideoFormat-HDRFallback"],
+                },
+            )
 
     def test_storage_clear_has_one_exact_artwork_cache_route(self) -> None:
         spec = adapter.SPECS["operation:storage.clear@1"]
@@ -1462,6 +1626,20 @@ class OperationAllowlistTests(unittest.TestCase):
             ):
                 spec.validate("simulator", arguments)
 
+    def test_library_snapshot_prior_snapshot_accepts_thawed_object(self) -> None:
+        spec = adapter.SPECS["operation:library.snapshot@1"]
+        catalog = {
+            "priorSnapshot": (
+                "result://call:library-management:confirmed-batch-deletion:10/snapshot"
+            ),
+        }
+        self.assertEqual(dict(spec.validate("simulator", catalog)), catalog)
+        snapshot = library_snapshot_result()
+        thawed = {"priorSnapshot": snapshot}
+        self.assertEqual(dict(spec.validate("simulator", thawed)), thawed)
+        with self.assertRaises(adapter.OperationAdapterError):
+            spec.validate("simulator", {"priorSnapshot": {"folders": []}})
+
     def test_library_snapshot_binds_each_system_picker_to_its_runtime_fixture(self) -> None:
         spec = adapter.SPECS["operation:library.snapshot@1"]
         self.assertEqual(
@@ -1837,6 +2015,50 @@ class OperationAllowlistTests(unittest.TestCase):
             " ".join(run_json.call_args.args[0]),
         )
         validate.assert_called_once()
+
+    def test_surface_probe_emby_progress_readback_returns_live_user_data(self) -> None:
+        spec = adapter.SPECS["operation:diagnostics.surface-probe@1"]
+        self.assertEqual(
+            dict(spec.validate("device", {"embyProgressReadback": True})),
+            {"embyProgressReadback": True},
+        )
+        with self.assertRaises(adapter.OperationAdapterError):
+            spec.validate("device", {"embyProgressReadback": False})
+        backend = adapter.ResidentOperationBackend()
+        cursor = type("Cursor", (), {"sequence": 4, "line_count": 0})()
+        matrix = mock.Mock()
+        matrix.probe_cursor.return_value = cursor
+        control_plane = {
+            "succeeded": True,
+            "fields": {"lifecycle": "Ready"},
+            "response": {"success": True},
+        }
+        observed = {
+            "episodeID": "episode-regression",
+            "PlaybackPositionTicks": 150_000_000,
+            "Played": False,
+        }
+        with (
+            mock.patch.object(backend, "_matrix", return_value=matrix),
+            mock.patch.object(backend, "_probe_lines", return_value=[]),
+            mock.patch.object(
+                backend,
+                "_window_control_plane_observation",
+                return_value=control_plane,
+            ),
+            mock.patch.object(
+                adapter._emby_source.EmbySourceController,
+                "observe_progress",
+                return_value=observed,
+            ) as observe,
+        ):
+            result = backend._diagnostics_surface_probe_1(
+                {"embyProgressReadback": True}, self.device
+            )
+        observe.assert_called_once_with()
+        self.assertTrue(result["succeeded"])
+        self.assertEqual(result["observedUserData"], observed)
+        self.assertIs(result["fields"], control_plane["fields"])
 
     def test_system_import_preflight_binds_simulator_assets_and_enlarged_device_hub(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -2537,6 +2759,59 @@ class OperationAllowlistTests(unittest.TestCase):
             ],
         )
 
+    def test_frame_capture_inlines_related_results(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        encoded = json.dumps(
+            [
+                {
+                    "afterStep": "PlayerUI-TopAction-videoFormat",
+                    "exists": False,
+                    "identifier": "PlayerUI-VideoFormat-HDRFallback",
+                    "isEnabled": False,
+                    "isHittable": False,
+                    "label": "",
+                }
+            ],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        arguments = {
+            "count": 1,
+            "minimumIntervalMillis": 0,
+            "context": "window",
+            "relatedResults": [encoded],
+        }
+        playback = {
+            "success": True,
+            "matchedElement": {
+                "value": "lifecycle=Playing;presentation=window;session=s;position=1"
+            },
+            "localScreenshotPath": "frame-0.png",
+        }
+        plane = {
+            "success": True,
+            "matchedElement": {"value": "presentation=window"},
+        }
+        with mock.patch.object(
+            backend, "_controller", side_effect=[playback, plane]
+        ):
+            result = backend._evidence_capture_frames_1(arguments, self.device)
+        self.assertEqual(result["relatedResults"], [encoded])
+        spec = adapter.SPECS["operation:evidence.capture-frames@1"]
+        catalog = {
+            "count": 1,
+            "minimumIntervalMillis": 0,
+            "context": "window",
+            "relatedResults": [
+                "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17/assertAbsentObservations"
+            ],
+        }
+        self.assertEqual(
+            dict(spec.validate("device", catalog))["relatedResults"],
+            catalog["relatedResults"],
+        )
+
     def test_frame_capture_can_bind_only_the_closed_webdav_playback_observation(self) -> None:
         spec = adapter.SPECS["operation:evidence.capture-frames@1"]
         arguments = {
@@ -3219,9 +3494,14 @@ class OperationAllowlistTests(unittest.TestCase):
         for arguments in (webdav, recovery, finite):
             with self.subTest(arguments=arguments):
                 self.assertEqual(dict(spec.validate("device", arguments)), arguments)
+        self.assertEqual(
+            adapter.catalog_operation_shape(spec.identifier)["argumentRules"][0]["kind"],
+            "when-equals",
+        )
 
         invalid = (
             {"expectation": "arbitrary"},
+            {"expectation": "webdav-loopback"},
             {"expectation": "recoverable-read", "minimumReconnects": 1},
             {**recovery, "minimumReconnects": 0},
             {**finite, "minimumReconnects": 2},
@@ -4494,6 +4774,44 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "Embedded",
         )
 
+    def test_subtitle_selection_player_panel_summons_without_window_surface(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        summon = {"success": True, "ok": True, "payload": ["true"]}
+        missing = {
+            "success": False,
+            "message": "tapFirstMatch found no matching public element.",
+        }
+        with (
+            mock.patch.object(
+                backend, "_app_command", return_value=summon
+            ) as app_command,
+            mock.patch.object(
+                backend, "_controller", return_value=missing
+            ) as controller,
+        ):
+            response, selected = backend._select_public_subtitle_item(
+                self.device,
+                host="playerPanel",
+                external_source_kind="local-sidecar",
+                track_label="Embedded",
+            )
+        self.assertFalse(response["success"])
+        self.assertIsNone(selected)
+        app_command.assert_called_once_with(
+            self.device, "toggleControls", "visible=true"
+        )
+        controller.assert_called_once_with(
+            self.device,
+            "tapFirstMatch",
+            "--identifiers",
+            "PlayerPanel-menu-more",
+            "PlayerPanel-menu-subtitles",
+            "--identifier-prefix",
+            "PlayerPanel-menu-subtitle-external.subtitle.",
+            "--label",
+            "Embedded",
+        )
+
     def test_subtitle_selection_rejects_malformed_menu_and_wrong_product_source(self) -> None:
         backend = adapter.ResidentOperationBackend()
         arguments = {
@@ -4618,6 +4936,17 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 "sampleMediaSubtype": "none",
             },
             "alertMessage": "This video uses MPEG-4 Part 2, which Enchron does not support.",
+            "noActiveSession": True,
+            "noDeliveredSample": True,
+            "primaryAction": {
+                "present": False,
+                "identifier": "PlayerUI-loadFailure-primary",
+            },
+            "secondaryAction": {
+                "present": True,
+                "identifier": "PlayerUI-loadFailure-secondary",
+            },
+            "closeOnly": True,
             "postActionState": {
                 "schema": "enchron.regression.post-action-product-state@1"
             },
@@ -4668,6 +4997,12 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertTrue(result["succeeded"])
         self.assertTrue(result["deliveryObserved"])
         self.assertIs(result["settlement"], rejection)
+        self.assertEqual(result["alertMessage"], rejection["alertMessage"])
+        self.assertTrue(result["noActiveSession"])
+        self.assertTrue(result["noDeliveredSample"])
+        self.assertFalse(result["primaryAction"]["present"])
+        self.assertTrue(result["secondaryAction"]["present"])
+        self.assertTrue(result["closeOnly"])
 
     def test_media_open_fails_when_the_expected_product_issue_never_appears(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -4730,6 +5065,23 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             identifier="Emby-Playback-Error",
             label="This video uses MPEG-4 Part 2, which Enchron does not support.",
         )
+        primary_response = self.action_response("Application")
+        secondary_response = self.action_response(
+            "Application, identifier: 'PlayerUI-loadFailure-secondary'",
+            identifier="PlayerUI-loadFailure-secondary",
+            label="Close",
+        )
+
+        def controller(_context, _action, *args):
+            identifier = args[args.index("--identifier") + 1]
+            if identifier == "Emby-Playback-Error":
+                return alert_response
+            if identifier == "PlayerUI-loadFailure-primary":
+                return primary_response
+            if identifier == "PlayerUI-loadFailure-secondary":
+                return secondary_response
+            raise AssertionError(identifier)
+
         with (
             mock.patch.object(
                 backend,
@@ -4737,8 +5089,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 return_value=(terminal, control_response),
             ) as read_control_plane,
             mock.patch.object(
-                backend, "_controller", return_value=alert_response
-            ) as controller,
+                backend, "_controller", side_effect=controller
+            ) as controller_mock,
             mock.patch.object(adapter.time, "monotonic", side_effect=[1.0, 1.1]),
         ):
             result = backend._wait_for_expected_issue(
@@ -4750,12 +5102,31 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         read_control_plane.assert_called_once_with(
             self.device, "PlayerUI-application-state"
         )
-        controller.assert_called_once_with(
-            self.device,
-            "snapshot",
-            "--identifier",
-            "Emby-Playback-Error",
-            "--no-screenshot",
+        self.assertEqual(
+            controller_mock.call_args_list,
+            [
+                mock.call(
+                    self.device,
+                    "snapshot",
+                    "--identifier",
+                    "Emby-Playback-Error",
+                    "--no-screenshot",
+                ),
+                mock.call(
+                    self.device,
+                    "snapshot",
+                    "--identifier",
+                    "PlayerUI-loadFailure-primary",
+                    "--no-screenshot",
+                ),
+                mock.call(
+                    self.device,
+                    "snapshot",
+                    "--identifier",
+                    "PlayerUI-loadFailure-secondary",
+                    "--no-screenshot",
+                ),
+            ],
         )
         self.assertTrue(result["succeeded"])
         self.assertTrue(result["noActiveSession"])
@@ -4764,6 +5135,9 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             result["alertMessage"],
             "This video uses MPEG-4 Part 2, which Enchron does not support.",
         )
+        self.assertFalse(result["primaryAction"]["present"])
+        self.assertTrue(result["secondaryAction"]["present"])
+        self.assertTrue(result["closeOnly"])
         self.assertEqual(
             result["postActionState"]["schema"],
             "enchron.regression.post-action-product-state@1",
@@ -5088,6 +5462,16 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertIs(docked["summon"], summon)
         self.assertIs(panorama["summon"], summon)
 
+        spatial_state = {
+            "succeeded": True,
+            "fields": {
+                "attached": "panorama",
+                "rendererConsumer": "panorama",
+                "playbackEntity": "entity-1",
+                "position": "8.0",
+            },
+            "response": {"success": True},
+        }
         with (
             mock.patch.object(
                 backend, "_app_command", side_effect=[summon, trace]
@@ -5095,6 +5479,11 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             mock.patch.object(
                 backend, "_controller", return_value={"success": True}
             ) as controller,
+            mock.patch.object(
+                backend,
+                "_spatial_state_observation",
+                return_value=spatial_state,
+            ),
             mock.patch.object(
                 backend,
                 "_wait_for_window",
@@ -5123,6 +5512,92 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "PlayerPanel-button-exit-spatial",
         )
         self.assertIs(exited["summon"], summon)
+        self.assertIs(exited["spatialState"], spatial_state)
+
+    def test_exit_spatial_snapshots_spatial_state_after_summon_before_tap(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        spatial_fields = {
+            "attached": "docked",
+            "rendererConsumer": "docked",
+            "playbackEntity": "entity-1",
+            "position": "12.0",
+            "session": "session-a",
+        }
+        spatial_response = {
+            "success": True,
+            "matchedElement": {
+                "identifier": "PlayerUI-spatial-state",
+                "value": (
+                    "attached=docked;rendererConsumer=docked;"
+                    "playbackEntity=entity-1;position=12.0;session=session-a"
+                ),
+            },
+        }
+        summon = {"success": True, "ok": True, "payload": ["true"]}
+        tap = {
+            "success": True,
+            "appState": "runningForeground",
+            "hierarchy": "exit hittable",
+        }
+        trace = {
+            "success": True,
+            "transitionTraceSnapshot": {"generation": 7, "records": []},
+        }
+        calls: list[str] = []
+
+        def app_command(context, command, *args):
+            calls.append(command)
+            if command == "toggleControls":
+                return summon
+            return trace
+
+        def controller(context, verb, *args):
+            calls.append(verb)
+            return tap
+
+        def read_control_plane(context, identifier="PlayerUI-window-control-plane", **kwargs):
+            calls.append(identifier)
+            self.assertEqual(identifier, "PlayerUI-spatial-state")
+            return spatial_fields, spatial_response
+
+        with (
+            mock.patch.object(backend, "_app_command", side_effect=app_command),
+            mock.patch.object(backend, "_controller", side_effect=controller),
+            mock.patch.object(
+                backend, "_read_control_plane", side_effect=read_control_plane
+            ),
+            mock.patch.object(
+                backend,
+                "_wait_for_window",
+                return_value={
+                    "succeeded": True,
+                    "terminal": {"presentation": "window"},
+                    "fields": {
+                        "presentation": "window",
+                        "attached": "window",
+                        "session": "session-a",
+                        "windowGeometryPolicyKind": "aspectLocked",
+                        "windowGeometryResizingRestriction": "uniform",
+                    },
+                    "response": {"success": True},
+                },
+            ),
+        ):
+            result = backend._presentation_exit_spatial_1(
+                {"from": "docked", "deadlineSeconds": 30}, self.device
+            )
+        self.assertEqual(
+            calls,
+            [
+                "toggleControls",
+                "PlayerUI-spatial-state",
+                "tap",
+                "fetchTransitionTraceSnapshot",
+            ],
+        )
+        self.assertEqual(result["spatialState"]["fields"], spatial_fields)
+        self.assertIs(result["spatialState"]["response"], spatial_response)
+        self.assertTrue(result["spatialState"]["succeeded"])
 
     def test_custom_angle_selection_is_one_resident_tap_sequence(self) -> None:
         backend = adapter.ResidentOperationBackend()

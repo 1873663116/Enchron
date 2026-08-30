@@ -128,6 +128,10 @@
         "priorViewingStorageDigests": [
           "result://call:viewing-state-and-storage:exit-saves-position:01/viewingStorageDigest",
           "result://call:viewing-state-and-storage:exit-saves-position:08/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:exit-saves-position:01/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:exit-saves-position:08/viewingStorageObservation"
         ]
       },
       "callId": "call:viewing-state-and-storage:exit-saves-position:10",

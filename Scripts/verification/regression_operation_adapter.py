@@ -101,6 +101,8 @@ class Field:
             valid = type(value) is int
         elif self.kind is ValueKind.STRING:
             valid = isinstance(value, str)
+        elif self.name == "relatedResults":
+            valid = isinstance(value, list)
         else:
             valid = isinstance(value, list) and all(
                 isinstance(item, str) for item in value
@@ -244,7 +246,14 @@ class OperationSpec:
                 f"{self.identifier} requires fields: {', '.join(missing)}"
             )
         for name, value in arguments.items():
-            fields[name].validate(value, f"{self.identifier}.{name}")
+            location = f"{self.identifier}.{name}"
+            try:
+                fields[name].validate(value, location)
+            except OperationAdapterError:
+                if name not in GRANT_ARGUMENT_FIELDS or not _is_thawed_grant(
+                    name, value, fields[name]
+                ):
+                    raise
         for rule in self.argument_rules:
             rule.validate(arguments, self.identifier)
         if self.cross_validate is not None:
@@ -506,21 +515,104 @@ def _accessibility_activate(arguments: Mapping[str, object]) -> None:
         )
     if identifiers:
         _validate_identifiers(identifiers)
+    assert_absent = arguments.get("assertAbsent", [])
+    assert isinstance(assert_absent, list)
+    if assert_absent:
+        if len(assert_absent) != len(set(assert_absent)):
+            raise OperationAdapterError("assertAbsent identifiers must be unique")
+        if gesture == "press":
+            raise OperationAdapterError(
+                "assertAbsent is not allowed with the press gesture"
+            )
+        if not identifiers:
+            raise OperationAdapterError("assertAbsent requires identifiers")
+        _validate_identifiers(assert_absent)
+    also_inspect = arguments.get("alsoInspect", [])
+    assert isinstance(also_inspect, list)
+    if also_inspect:
+        if len(also_inspect) != len(set(also_inspect)):
+            raise OperationAdapterError("alsoInspect identifiers must be unique")
+        if gesture == "press":
+            raise OperationAdapterError(
+                "alsoInspect is not allowed with the press gesture"
+            )
+        if len(labels) > 1:
+            raise OperationAdapterError("alsoInspect allows at most one label")
+        _validate_identifiers(also_inspect)
     if arguments.get("summonControls") is not None and arguments.get("summonControls") is not True:
         raise OperationAdapterError("summonControls may only request true")
+    _related_results(arguments)
+
+
+GRANT_ARGUMENT_FIELDS = frozenset(
+    ("hostShares", "priorSnapshot", "relatedResults")
+)
+_RESULT_REFERENCE = re.compile(r"result://call:[a-z0-9:-]+/[A-Za-z][A-Za-z0-9]*")
+
+
+def _is_json_value(value: object) -> bool:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in value)
+    if isinstance(value, Mapping):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in value.items()
+        )
+    return False
+
+
+def _is_thawed_grant(name: str, value: object, field: Field) -> bool:
+    if field.nonempty and isinstance(value, list) and not value:
+        return False
+    if name == "relatedResults":
+        return isinstance(value, list) and all(_is_json_value(item) for item in value)
+    if name == "priorSnapshot":
+        return isinstance(value, Mapping)
+    if name == "hostShares":
+        return (
+            isinstance(value, list)
+            and bool(value)
+            and all(
+                isinstance(item, str) and item and item.strip() == item
+                for item in value
+            )
+        )
+    return False
 
 
 def _related_results(arguments: Mapping[str, object]) -> None:
     related_results = arguments.get("relatedResults", [])
     assert isinstance(related_results, list)
     for result in related_results:
-        if re.fullmatch(
-            r"result://call:[a-z0-9:-]+/[A-Za-z][A-Za-z0-9]*",
-            result,
-        ) is None:
+        if isinstance(result, str):
+            if result.startswith("result://") and _RESULT_REFERENCE.fullmatch(
+                result
+            ) is None:
+                raise OperationAdapterError(
+                    "relatedResults must contain top-level result references"
+                )
+            continue
+        if not _is_json_value(result):
             raise OperationAdapterError(
                 "relatedResults must contain top-level result references"
             )
+
+
+def _inlined_viewing_storage_snapshots(
+    arguments: Mapping[str, object],
+) -> list[Mapping[str, object]]:
+    snapshots: list[Mapping[str, object]] = []
+    for item in arguments.get("relatedResults", ()):
+        if not isinstance(item, Mapping):
+            continue
+        if item.get("schema") != "enchron.regression.viewing-storage-observation@1":
+            continue
+        snapshot = item.get("snapshot")
+        if isinstance(snapshot, Mapping):
+            snapshots.append(snapshot)
+    return snapshots
 
 
 def _accessibility_single(arguments: Mapping[str, object]) -> None:
@@ -580,9 +672,20 @@ def _browse_hierarchy(arguments: Mapping[str, object]) -> None:
     if expected_video is not None:
         _browse_hierarchy_bound_name(expected_video, "expectedVideoName")
     host_shares = arguments.get("hostShares")
-    if host_shares is not None and (
-        not isinstance(host_shares, str)
-        or re.fullmatch(r"result://call:[a-z0-9:-]+/hostShares", host_shares) is None
+    if host_shares is None:
+        pass
+    elif isinstance(host_shares, str):
+        if re.fullmatch(r"result://call:[a-z0-9:-]+/hostShares", host_shares) is None:
+            raise OperationAdapterError(
+                "browse hierarchy hostShares must select a host preflight /hostShares"
+            )
+    elif not (
+        isinstance(host_shares, list)
+        and host_shares
+        and all(
+            isinstance(item, str) and item and item.strip() == item
+            for item in host_shares
+        )
     ):
         raise OperationAdapterError(
             "browse hierarchy hostShares must select a host preflight /hostShares"
@@ -1860,8 +1963,14 @@ def _cursor(arguments: Mapping[str, object]) -> None:
         remote_request_cursor,
     )
     omit_playback_state = arguments.get("omitPlaybackState")
+    emby_progress_readback = arguments.get("embyProgressReadback")
     if omit_playback_state is not None and omit_playback_state is not True:
         raise OperationAdapterError("omitPlaybackState may only request true")
+    if (
+        emby_progress_readback is not None
+        and emby_progress_readback is not True
+    ):
+        raise OperationAdapterError("embyProgressReadback may only request true")
     if omit_playback_state is True and expectation not in (
         "finite-backoff",
         "recoverable-read",
@@ -2270,12 +2379,15 @@ LIBRARY_BASELINE_FIELDS = (
 
 def _library_snapshot(arguments: Mapping[str, object]) -> None:
     prior_snapshot = arguments.get("priorSnapshot")
-    if prior_snapshot is not None and re.fullmatch(
-        r"result://call:[a-z0-9:-]+/snapshot", str(prior_snapshot)
-    ) is None:
-        raise OperationAdapterError(
-            "library priorSnapshot must select an earlier /snapshot result"
-        )
+    if prior_snapshot is None:
+        pass
+    elif isinstance(prior_snapshot, str):
+        if re.fullmatch(r"result://call:[a-z0-9:-]+/snapshot", prior_snapshot) is None:
+            raise OperationAdapterError(
+                "library priorSnapshot must select an earlier /snapshot result"
+            )
+    else:
+        validate_library_snapshot(prior_snapshot)
     system_import_expectation = arguments.get("systemImportExpectation")
     present = [name for name in LIBRARY_BASELINE_FIELDS if name in arguments]
     if system_import_expectation is not None and present:
@@ -2498,6 +2610,8 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("settleDelayMillis", integer, required=False, minimum=1, maximum=30000),
                 _field("summonControls", boolean, required=False),
                 _field("assertAbsent", strings, required=False),
+                _field("alsoInspect", strings, required=False),
+                _field("relatedResults", strings, required=False),
             ),
             (("accessibility.tree", "accessibility-tree@1"),),
             _accessibility_activate,
@@ -2567,6 +2681,10 @@ def _specs() -> tuple[OperationSpec, ...]:
             (),
             _accessibility_type,
             (
+                ArgumentRule(
+                    "exactly-one-group",
+                    groups=(("identifier",), ("label",)),
+                ),
                 ArgumentRule(
                     "exactly-one-group",
                     groups=(("text",), ("textFile", "textJSONKey")),
@@ -2655,6 +2773,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("remoteRequestCursor", string, required=False),
                 _field("relatedResults", strings, required=False),
                 _field("omitPlaybackState", boolean, required=False),
+                _field("embyProgressReadback", boolean, required=False),
             ),
             (
                 ("interaction.trace", "interaction-trace@1"),
@@ -2771,6 +2890,49 @@ def _specs() -> tuple[OperationSpec, ...]:
                 ("playback.probe", "playback-probe@1"),
             ),
             _playback_state,
+            (
+                ArgumentRule(
+                    "when-equals",
+                    discriminator="expectation",
+                    cases=(
+                        (
+                            "webdav-loopback",
+                            ("minimumPositionMillis",),
+                            (
+                                "expectedSession",
+                                "expectedSourceIdentity",
+                                "expectedContentRevision",
+                                "expectedTopologyDigest",
+                                "minimumReconnects",
+                            ),
+                        ),
+                        (
+                            "recoverable-read",
+                            (
+                                "expectedSession",
+                                "expectedSourceIdentity",
+                                "expectedContentRevision",
+                                "expectedTopologyDigest",
+                                "minimumPositionMillis",
+                                "minimumReconnects",
+                            ),
+                            (),
+                        ),
+                        (
+                            "finite-reconnect",
+                            (
+                                "expectedSession",
+                                "expectedSourceIdentity",
+                                "expectedContentRevision",
+                                "expectedTopologyDigest",
+                                "minimumPositionMillis",
+                                "minimumReconnects",
+                            ),
+                            (),
+                        ),
+                    ),
+                ),
+            ),
         ),
         OperationSpec("operation:playback.await-window-state@1", LANES, (_field("presentation", string, choices=_choices("window", "portal", "either-main-window")), _field("lifecycle", string, choices=_choices("playing", "ready", "paused", "ended", "any-steady")), _field("controls", string, choices=_choices("shown", "hidden", "either")), _deadline()), (("window.control-plane", "window-control-plane@1"),)),
         OperationSpec("operation:playback.wait-position@2", LANES, (_field("minimumPositionMillis", integer, minimum=0), _field("minimumRemainingMillis", integer, minimum=0), _field("expectedMediaName", string, required=False), _field("differentSessionFrom", string, required=False), _deadline()), (), _wait_position),
@@ -2821,6 +2983,34 @@ def _specs() -> tuple[OperationSpec, ...]:
                 ("window.control-plane", "window-control-plane@1"),
             ),
             _format_apply,
+            (
+                ArgumentRule(
+                    "when-equals",
+                    discriminator="projection",
+                    cases=(
+                        (
+                            "customAngle",
+                            ("horizontalCoverageDegrees",),
+                            (),
+                        ),
+                        (
+                            "flat",
+                            (),
+                            ("horizontalCoverageDegrees",),
+                        ),
+                        (
+                            "equirectangular180",
+                            (),
+                            ("horizontalCoverageDegrees",),
+                        ),
+                        (
+                            "equirectangular360",
+                            (),
+                            ("horizontalCoverageDegrees",),
+                        ),
+                    ),
+                ),
+            ),
         ),
         OperationSpec("operation:presentation.enter-docked-skybox@1", LANES, (_deadline(),), ()),
         OperationSpec(
@@ -3048,6 +3238,28 @@ class ResidentOperationBackend:
     def _require_success(self, result: Mapping[str, object], label: str) -> None:
         if result.get("success") is not True and result.get("ok") is not True:
             raise OperationAdapterError(f"{label} failed: {dict(result)}")
+
+    def _issue_action_snapshot(
+        self, context: OperationContext, identifier: str
+    ) -> dict[str, object]:
+        response = self._controller(
+            context,
+            "snapshot",
+            "--identifier",
+            identifier,
+            "--no-screenshot",
+        )
+        self._require_success(response, f"issue action {identifier}")
+        matched = response.get("matchedElement")
+        present = (
+            isinstance(matched, Mapping) and matched.get("identifier") == identifier
+        )
+        return {
+            "present": present,
+            "identifier": identifier,
+            "matchedElement": matched if present else None,
+            "response": response,
+        }
 
     def _post_action_state(
         self,
@@ -3310,6 +3522,12 @@ class ResidentOperationBackend:
                         and isinstance(alert_message, str)
                         and alert_message
                     ):
+                        primary = self._issue_action_snapshot(
+                            context, "PlayerUI-loadFailure-primary"
+                        )
+                        secondary = self._issue_action_snapshot(
+                            context, "PlayerUI-loadFailure-secondary"
+                        )
                         return {
                             "succeeded": True,
                             "expectedCategory": category,
@@ -3325,6 +3543,12 @@ class ResidentOperationBackend:
                             ),
                             "noActiveSession": True,
                             "noDeliveredSample": True,
+                            "primaryAction": primary,
+                            "secondaryAction": secondary,
+                            "closeOnly": (
+                                primary["present"] is False
+                                and secondary["present"] is True
+                            ),
                             "observations": observations,
                         }
             time.sleep(0.25)
@@ -3547,6 +3771,7 @@ class ResidentOperationBackend:
                 if artwork_before is not None
                 else None
             ),
+            "relatedResults": list(arguments.get("relatedResults", [])),
         }
 
     def _artwork_probe(
@@ -3633,6 +3858,7 @@ class ResidentOperationBackend:
     def _accessibility_activate_2(self, arguments, context):
         identifiers = [str(item) for item in arguments.get("identifiers", [])]
         labels = [str(item) for item in arguments.get("labels", [])]
+        also_inspect = [str(item) for item in arguments.get("alsoInspect", [])]
         if not identifiers and not labels:
             raise OperationAdapterError(
                 "accessibility activate requires at least one identifier or label"
@@ -3642,6 +3868,7 @@ class ResidentOperationBackend:
             "succeeded": True,
             "context": arguments["context"],
             "response": {},
+            "tappedIdentifiers": list(identifiers),
         }
         if arguments.get("summonControls") is True:
             summon = self._app_command(context, "toggleControls", "visible=true")
@@ -3655,7 +3882,47 @@ class ResidentOperationBackend:
                 before_response, "accessibility pre-action snapshot"
             )
             result["beforeState"] = self._post_action_state(before_response)
-        if identifiers:
+        if also_inspect:
+            command = ["--identifiers", *identifiers] if identifiers else []
+            if labels:
+                command.extend(("--label", labels[0]))
+            command.extend(("--also-inspect", *also_inspect))
+            absent = [str(item) for item in arguments.get("assertAbsent", [])]
+            if absent:
+                command.extend(("--assert-absent", *absent))
+            identifier_response = self._controller(
+                context, "tapSequence", *command
+            )
+            self._require_success(identifier_response, "accessibility activate")
+            result["response"] = identifier_response
+            result["interaction"] = identifier_response
+            result["postActionState"] = self._post_action_state(
+                identifier_response
+            )
+            inspected = identifier_response.get("alsoInspected")
+            if not isinstance(inspected, list):
+                raise OperationAdapterError(
+                    "alsoInspect requires runner alsoInspected observations"
+                )
+            result["alsoInspected"] = json.dumps(
+                inspected,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            if absent:
+                observations = identifier_response.get("assertAbsentObservations")
+                if not isinstance(observations, list):
+                    raise OperationAdapterError(
+                        "assertAbsent requires runner assertAbsentObservations"
+                    )
+                result["assertAbsentObservations"] = json.dumps(
+                    observations,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+        elif identifiers:
             command = (
                 ["--identifier", identifiers[0]]
                 if len(identifiers) == 1
@@ -3686,19 +3953,34 @@ class ResidentOperationBackend:
             result["postActionState"] = self._post_action_state(
                 identifier_response
             )
-        label_responses: list[Mapping[str, object]] = []
-        label_states: list[Mapping[str, object]] = []
-        for label in labels:
-            response = self._controller(context, "tap", "--label", label)
-            self._require_success(response, f"accessibility label {label}")
-            label_responses.append(response)
-            label_states.append(self._post_action_state(response))
-        if label_responses:
-            result["labelResponses"] = label_responses
-            result["labelPostActionStates"] = label_states
-            result["interaction"] = label_responses[-1]
-            result["response"] = label_responses[-1]
-            result["postActionState"] = label_states[-1]
+            if absent:
+                observations = identifier_response.get("assertAbsentObservations")
+                if not isinstance(observations, list):
+                    raise OperationAdapterError(
+                        "assertAbsent requires runner assertAbsentObservations"
+                    )
+                # Canonical JSON so capture-frames relatedResults (string-list)
+                # still validates after grant resolution thaws this field.
+                result["assertAbsentObservations"] = json.dumps(
+                    observations,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+        if not also_inspect:
+            label_responses: list[Mapping[str, object]] = []
+            label_states: list[Mapping[str, object]] = []
+            for label in labels:
+                response = self._controller(context, "tap", "--label", label)
+                self._require_success(response, f"accessibility label {label}")
+                label_responses.append(response)
+                label_states.append(self._post_action_state(response))
+            if label_responses:
+                result["labelResponses"] = label_responses
+                result["labelPostActionStates"] = label_states
+                result["interaction"] = label_responses[-1]
+                result["response"] = label_responses[-1]
+                result["postActionState"] = label_states[-1]
         if settle_delay_millis > 0:
             time.sleep(settle_delay_millis / 1000)
             settled_response = self._controller(
@@ -3709,6 +3991,7 @@ class ResidentOperationBackend:
             )
             result["settledState"] = self._post_action_state(settled_response)
             result["postActionState"] = result["settledState"]
+        result["relatedResults"] = list(arguments.get("relatedResults", []))
         return result
 
     def _accessibility_inspect_2(self, arguments, context):
@@ -4573,6 +4856,9 @@ class ResidentOperationBackend:
                 "snapshotDigest": viewing_storage_digest,
                 "priorSnapshotDigests": prior_viewing_storage_digests,
             }
+            prior_snapshots = _inlined_viewing_storage_snapshots(arguments)
+            if prior_snapshots:
+                viewing_storage_observation["priorSnapshots"] = prior_snapshots
             interaction.append(
                 "viewingStorageBinding "
                 + json.dumps(
@@ -4613,6 +4899,16 @@ class ResidentOperationBackend:
             and arguments.get("omitPlaybackState") is not True
             else None
         )
+        observed_user_data = None
+        if arguments.get("embyProgressReadback") is True:
+            try:
+                observed_user_data = (
+                    _emby_source.EmbySourceController().observe_progress()
+                )
+            except _emby_source.EmbySourceError as error:
+                raise OperationAdapterError(
+                    f"Emby progress readback failed: {error}"
+                ) from error
         return {
             "succeeded": True,
             "fields": control_plane["fields"],
@@ -4628,6 +4924,7 @@ class ResidentOperationBackend:
             "certificateBoundary": certificate_boundary,
             "containerIndexObservation": container_index_observation,
             "viewingStorageObservation": viewing_storage_observation,
+            "observedUserData": observed_user_data,
             "viewingStorageDigest": (
                 viewing_storage_observation["snapshotDigest"]
                 if viewing_storage_observation is not None
@@ -5638,7 +5935,7 @@ class ResidentOperationBackend:
                     "expectedCategory": expected_issue,
                 }
             )
-            return {
+            result = {
                 "succeeded": settlement["succeeded"] is True and delivered,
                 "action": action,
                 "settlement": settlement,
@@ -5648,6 +5945,17 @@ class ResidentOperationBackend:
                 "deliveryObserved": delivered,
                 "expectedIssueCategory": expected_issue,
             }
+            for key in (
+                "alertMessage",
+                "noActiveSession",
+                "noDeliveredSample",
+                "primaryAction",
+                "secondaryAction",
+                "closeOnly",
+            ):
+                if key in settlement:
+                    result[key] = settlement[key]
+            return result
         landing = self._wait_for_window(
             context,
             presentation=str(arguments["expectedLanding"]),
@@ -5906,6 +6214,28 @@ class ResidentOperationBackend:
                 raise OperationAdapterError("window control plane is unavailable")
             return {"succeeded": False, "fields": {}, "response": {}}
         return {"succeeded": True, "fields": plane, "response": response}
+
+    def _spatial_state_observation(
+        self, context, *, deadline_seconds: int = 15
+    ) -> dict[str, object]:
+        started = time.monotonic()
+        deadline = started + max(int(deadline_seconds), 1)
+        last_response: dict[str, object] = {}
+        while time.monotonic() < deadline:
+            plane, last_response = self._read_control_plane(
+                context,
+                "PlayerUI-spatial-state",
+            )
+            if plane is not None:
+                return {
+                    "succeeded": True,
+                    "fields": plane,
+                    "response": last_response,
+                }
+            time.sleep(0.25)
+        raise OperationAdapterError(
+            "PlayerUI-spatial-state is unavailable after immersive controls summon"
+        )
 
     def _diagnostics_playback_state_1(
         self, arguments, context, *, include_screenshot=False
@@ -6267,8 +6597,9 @@ class ResidentOperationBackend:
         track_label: object,
     ) -> tuple[dict[str, object], dict[str, object] | None]:
         if host == "playerPanel":
+            summon = self._app_command(context, "toggleControls", "visible=true")
+            self._require_success(summon, "playerPanel controls summon")
             route = (
-                "PlayerUI-window-playback-surface",
                 "PlayerPanel-menu-more",
                 "PlayerPanel-menu-subtitles",
             )
@@ -6791,6 +7122,7 @@ class ResidentOperationBackend:
     def _presentation_exit_spatial_1(self, arguments, context):
         summon = self._app_command(context, "toggleControls", "visible=true")
         self._require_success(summon, "immersive controls summon")
+        spatial_state = self._spatial_state_observation(context)
         action = self._controller(context, "tap", "--identifier", "PlayerPanel-button-exit-spatial")
         self._require_success(action, "exit spatial")
         expected = "window" if arguments["from"] == "docked" else "portal"
@@ -6807,6 +7139,7 @@ class ResidentOperationBackend:
         return {
             "succeeded": settlement["succeeded"],
             "summon": summon,
+            "spatialState": spatial_state,
             "action": action,
             "settlement": settlement,
             "snapshot": snapshot,

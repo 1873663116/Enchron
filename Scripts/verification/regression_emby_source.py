@@ -840,6 +840,35 @@ class EmbySourceController:
         except Exception as error:
             raise EmbyRestoreError("Emby test-library restore failed") from error
 
+    def observe_progress(self) -> dict[str, object]:
+        receipt = _load_receipt(self.configuration)
+        if receipt is None or not validate_seed_receipt(
+            receipt,
+            runtime_file=self.configuration.identity_file,
+            require_active=True,
+        ):
+            raise EmbySeedError("Emby seed receipt cannot authorize progress readback")
+        identity = _runtime_identity(self.configuration.identity_file)
+        session = self.boundary.authenticate(
+            identity,
+            deadline_seconds=self.configuration.harness_liveness_deadline_seconds,
+        )
+        _identity_matches(identity, session)
+        catalog = receipt["catalog"]
+        if not isinstance(catalog, Mapping):
+            raise EmbySeedError("Emby catalog receipt is absent")
+        episode_id = str(catalog["episodeID"])
+        user_data = self.boundary.user_data_for(session, episode_id)
+        position = user_data.get("PlaybackPositionTicks")
+        played = user_data.get("Played")
+        if type(position) is not int or type(played) is not bool:
+            raise EmbySeedError("Emby item user data cannot observe playback state")
+        return {
+            "episodeID": episode_id,
+            "PlaybackPositionTicks": position,
+            "Played": played,
+        }
+
 
 def validate_seed_receipt(
     receipt: object, *, runtime_file: Path, require_active: bool = True

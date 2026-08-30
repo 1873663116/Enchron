@@ -549,6 +549,24 @@ class RegressionEmbySourceTests(unittest.TestCase):
         )
         self.assertEqual(self.boundary.add_count, 2)
 
+    def test_observe_progress_reads_live_user_data_without_reseed(self) -> None:
+        self.controller.ensure()
+        writes = self.boundary.user_data_write_count
+        self.boundary.user_data["PlaybackPositionTicks"] = 150_000_000
+        observed = self.controller.observe_progress()
+        self.assertEqual(
+            observed,
+            {
+                "episodeID": "episode-regression",
+                "PlaybackPositionTicks": 150_000_000,
+                "Played": False,
+            },
+        )
+        self.assertEqual(self.boundary.user_data_write_count, writes)
+        self.assertEqual(
+            self.boundary.user_data["PlaybackPositionTicks"], 150_000_000
+        )
+
     def test_fixture_digest_mismatch_fails_before_service_mutation(self) -> None:
         source = next(self.source_root.rglob("*.mkv"))
         source.write_bytes(b"changed")

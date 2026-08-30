@@ -83,6 +83,7 @@
       "arguments": {
         "context": "window",
         "identifiers": [
+          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-2"
@@ -147,6 +148,7 @@
       "arguments": {
         "context": "window",
         "identifiers": [
+          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-3"
@@ -180,7 +182,7 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-dts_es.dts"
+        "identifier": "MediaLibrary-grid-video-dts_es.mkv"
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:17",
       "maxInvocations": 1,
@@ -231,7 +233,7 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-atmos.thd"
+        "identifier": "MediaLibrary-grid-video-atmos.mkv"
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:23",
       "maxInvocations": 1,
@@ -354,6 +356,7 @@
       "arguments": {
         "context": "window",
         "identifiers": [
+          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-1"
@@ -418,6 +421,7 @@
       "arguments": {
         "context": "window",
         "identifiers": [
+          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
           "PlayerUI-menu-audio-8"

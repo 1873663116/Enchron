@@ -122,6 +122,10 @@
         "context": "portal",
         "identifiers": [
           "PlayerUI-TopAction-resumePanorama"
+        ],
+        "relatedResults": [
+          "result://call:presentation-tour:portal-format-and-panorama-actions-coexist:07/response",
+          "result://call:presentation-tour:portal-format-and-panorama-actions-coexist:08/response"
         ]
       },
       "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",

@@ -65,7 +65,7 @@
       "callId": "call:preparation:audio-only-fixtures:08",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
-        "fixtureID": "internal-fate-dts-es-v1",
+        "fixtureID": "internal-fate-dts-es-matroska-v1",
         "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
       },
       "maxInvocations": 1
@@ -74,7 +74,7 @@
       "callId": "call:preparation:audio-only-fixtures:09",
       "operation": "operation:media.import-staged@2",
       "arguments": {
-        "fileName": "dts_es.dts"
+        "fileName": "dts_es.mkv"
       },
       "maxInvocations": 1
     },
@@ -82,7 +82,7 @@
       "callId": "call:preparation:audio-only-fixtures:10",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
-        "fixtureID": "internal-fate-truehd-atmos-v1",
+        "fixtureID": "internal-fate-truehd-atmos-matroska-v1",
         "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
       },
       "maxInvocations": 1
@@ -91,7 +91,7 @@
       "callId": "call:preparation:audio-only-fixtures:11",
       "operation": "operation:media.import-staged@2",
       "arguments": {
-        "fileName": "atmos.thd"
+        "fileName": "atmos.mkv"
       },
       "maxInvocations": 1
     },

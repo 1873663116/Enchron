@@ -228,6 +228,12 @@
           "result://call:viewing-state-and-storage:clear-all-local-progress:10/viewingStorageDigest",
           "result://call:viewing-state-and-storage:clear-all-local-progress:15/viewingStorageDigest",
           "result://call:viewing-state-and-storage:clear-all-local-progress:17/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:clear-all-local-progress:01/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:clear-all-local-progress:10/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:clear-all-local-progress:15/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:clear-all-local-progress:17/viewingStorageObservation"
         ]
       },
       "callId": "call:viewing-state-and-storage:clear-all-local-progress:19",

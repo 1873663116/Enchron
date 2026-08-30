@@ -566,5 +566,33 @@ class RunnerArgumentTests(unittest.TestCase):
         )
 
 
+class AssertAbsentFlagTests(unittest.TestCase):
+    def test_parse_arguments_accepts_assert_absent(self) -> None:
+        arguments = controller.parse_arguments(
+            [
+                "--device",
+                "SIM-UDID",
+                "tapSequence",
+                "--identifiers",
+                "PlayerUI-window-playback-surface",
+                "PlayerUI-TopAction-videoFormat",
+                "PlayerUI-VideoFormat-cancel",
+                "--assert-absent",
+                "PlayerUI-VideoFormat-HDRFallback",
+            ]
+        )
+        self.assertEqual(
+            arguments.assertAbsent, ["PlayerUI-VideoFormat-HDRFallback"]
+        )
+        self.assertEqual(
+            arguments.identifiers,
+            [
+                "PlayerUI-window-playback-surface",
+                "PlayerUI-TopAction-videoFormat",
+                "PlayerUI-VideoFormat-cancel",
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

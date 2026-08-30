@@ -5,11 +5,13 @@
   "id": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1",
   "title": "Buffered Reconnect Has No Indicator",
   "criteria": [
-    "For caseKey paired-control, the bound artifact is the three-frame healthy control sequence for the registered WebDAV card after its exact activation receipt is restored; the frames remain Playing with increasing positions and expose no loading or issue surface.",
-    "For caseKey buffer-absorbed-interruption, the bound artifact is the three-frame fault sequence for the same registered WebDAV card; its exact receipt is restored, its host trace contains ordered successful Range 206, injected 503, and recovered 206 responses, and the frames remain Playing with buffer ahead greater than zero, increasing positions, and no loading or issue surface."
+    "Every frame in the bound three-frame window capture of the registered WebDAV card has playbackState.available true, playbackState.fields.lifecycle=Playing, strictly increasing playbackState.fields.position, playbackState.fields.error=none, controlPlane.available true, and controlPlane.fields.loadingSpinner=off after the bound case's exact host receipt is restored.",
+    "operationOutput.remoteObservation matches the registered case: paired-control={expectation: webdav-playback-range, recipe: healthy, restoredGeneration equals the producer remoteGenerationToken}; buffer-absorbed-interruption={expectation: buffer-absorbed-interruption, recipe: buffer-absorbed-interruption, remoteReceiptID restored, expectationObservation.triggeredRequests nonempty with injected Range status 503, expectationObservation.recoveredRequests nonempty with subsequent Range status 206 for those same ranges, and every frame playbackState.fields.demuxForwardBytes a positive integer}."
   ],
   "negativeControls": [
-    "A mismatched case, unrestored recipe, missing ordered host responses for the fault case, fewer than three product snapshots, a visible loading or issue indicator, zero buffer-ahead, or a non-increasing position fails the bound case."
+    "A remoteObservation.expectation, recipe, or restored generation/receipt that differs from the bound case's registered row, fewer than three frames, unavailable playbackState or controlPlane, loadingSpinner=on, error other than none, or a non-increasing position violates the bound case.",
+    "Empty triggeredRequests, empty recoveredRequests, missing Range 503 then 206 pairing, or a non-positive demuxForwardBytes on a buffer-absorbed-interruption bound capture violates the absorbed-reconnect contract.",
+    "If any required modality of the bound capture is invalid or missing, the result is Indeterminate rather than inferred from the remaining modality."
   ]
 }
 ---

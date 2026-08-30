@@ -49,8 +49,8 @@ EXPECTED_MEMBERSHIPS = {
     ),
     "internal-fate-alac-cover-art-v1": ("audio-only",),
     "internal-fate-mpeg4-part2-packed-bframes-v1": ("format-corpus",),
-    "internal-fate-dts-es-v1": ("audio-only", "format-corpus"),
-    "internal-fate-truehd-atmos-v1": ("audio-only", "format-corpus"),
+    "internal-fate-dts-es-matroska-v1": ("audio-only", "format-corpus"),
+    "internal-fate-truehd-atmos-matroska-v1": ("audio-only", "format-corpus"),
     "internal-fate-vorbis-v1": ("audio-only", "format-corpus"),
     "internal-dolby-vision-p5-hd-v1": ("dynamic-range",),
     "internal-dolby-vision-p7-fel-v1": ("dynamic-range",),
@@ -76,8 +76,8 @@ EXPECTED_MEMBERSHIPS = {
 EXPECTED_INTERNAL_PATHS = {
     "TestVectors/Upstream/FATE/ALAC/inside.m4a",
     "TestVectors/Upstream/FATE/MPEG4-Part2/packed_bframes.avi",
-    "TestVectors/Upstream/FATE/DTS/dts_es.dts",
-    "TestVectors/Upstream/FATE/TrueHD/atmos.thd",
+    "TestVectors/Upstream/FATE/DTS/dts_es.mkv",
+    "TestVectors/Upstream/FATE/TrueHD/atmos.mkv",
     "TestVectors/Upstream/FATE/Vorbis/1.0-test_small.ogg",
     "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
     "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.mp4",
@@ -198,8 +198,8 @@ class FixtureRegistryTests(unittest.TestCase):
             {fixture["id"] for fixture in fixtures},
             {
                 "internal-fate-alac-cover-art-v1",
-                "internal-fate-dts-es-v1",
-                "internal-fate-truehd-atmos-v1",
+                "internal-fate-dts-es-matroska-v1",
+                "internal-fate-truehd-atmos-matroska-v1",
                 "internal-fate-vorbis-v1",
             },
         )

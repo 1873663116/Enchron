@@ -537,8 +537,8 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             preparations.FORMAT_CORPUS_REQUIRED_FIXTURES,
             {
                 "generated-sdr-avc-bframe-audio-codec-matrix-15s-v1",
-                "internal-fate-dts-es-v1",
-                "internal-fate-truehd-atmos-v1",
+                "internal-fate-dts-es-matroska-v1",
+                "internal-fate-truehd-atmos-matroska-v1",
                 "internal-fate-vorbis-v1",
                 "internal-apple-apmp-180-v1",
                 "internal-apple-mvhevc-short-v1",

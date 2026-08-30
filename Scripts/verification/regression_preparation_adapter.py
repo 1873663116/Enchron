@@ -35,7 +35,25 @@ SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES = (
 SYSTEM_IMPORT_RUNTIME_ROOT = system_import.DEFAULT_RUNTIME_ROOT
 SHA256 = "sha256:"
 PREPARATION_IMPORT_EXTENSIONS = frozenset(
-    ("mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso", "m4a", "mp3", "flac", "wav", "ogg", "opus", "aiff", "dts", "thd")
+    (
+        "mp4",
+        "mkv",
+        "avi",
+        "mov",
+        "m4v",
+        "webm",
+        "ts",
+        "m2ts",
+        "flv",
+        "iso",
+        "m4a",
+        "mp3",
+        "flac",
+        "wav",
+        "ogg",
+        "opus",
+        "aiff",
+    )
 )
 
 
@@ -412,8 +430,12 @@ FORMAT_CORPUS_SUBTITLE_SOURCE = DirectorySourceBinding(
 FORMAT_CORPUS_REQUIRED_FIXTURES = frozenset(
     (
         "generated-sdr-avc-bframe-audio-codec-matrix-15s-v1",
-        "internal-fate-dts-es-v1",
-        "internal-fate-truehd-atmos-v1",
+        # DTS and TrueHD arrive in Matroska. FileFilter.playable admits containers,
+        # and MediaDiscoveryAdmissionPolicy.mediaFiles lists none of the elementary
+        # stream extensions, so the raw .dts and .thd the corpus used to stage were
+        # never going to appear in the library for the codec matrix to open.
+        "internal-fate-dts-es-matroska-v1",
+        "internal-fate-truehd-atmos-matroska-v1",
         "internal-fate-vorbis-v1",
         "internal-apple-apmp-180-v1",
         "internal-apple-mvhevc-short-v1",

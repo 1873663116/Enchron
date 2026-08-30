@@ -183,6 +183,13 @@
           "result://call:viewing-state-and-storage:reopen-resumes-near-position:01/viewingStorageDigest",
           "result://call:viewing-state-and-storage:reopen-resumes-near-position:08/viewingStorageDigest",
           "result://call:viewing-state-and-storage:reopen-resumes-near-position:10/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:reopen-resumes-near-position:01/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:reopen-resumes-near-position:08/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:reopen-resumes-near-position:10/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:reopen-resumes-near-position:12/matchedElement",
+          "result://call:viewing-state-and-storage:reopen-resumes-near-position:13/response"
         ]
       },
       "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:15",

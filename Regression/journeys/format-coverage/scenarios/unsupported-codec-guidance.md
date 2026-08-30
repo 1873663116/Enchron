@@ -53,7 +53,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-loadFailure-secondary"
+        "identifier": "PlayerUI-loadFailure-secondary",
+        "requireMatchedElement": true
       },
       "callId": "call:format-coverage:unsupported-codec-guidance:04",
       "maxInvocations": 1,
