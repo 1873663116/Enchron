@@ -126,12 +126,100 @@ CrossValidator = Callable[[Mapping[str, object]], None]
 
 
 @dataclass(frozen=True)
+class ArgumentRule:
+    kind: str
+    fields: tuple[str, ...] = ()
+    groups: tuple[tuple[str, ...], ...] = ()
+    discriminator: str | None = None
+    cases: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = ()
+
+    def validate(self, arguments: Mapping[str, object], location: str) -> None:
+        present = set(arguments)
+        if self.kind == "at-least-one":
+            if not present.intersection(self.fields):
+                requirement = (
+                    "identifier or label"
+                    if self.fields == ("identifiers", "labels")
+                    else "one of " + ", ".join(self.fields)
+                )
+                raise OperationAdapterError(
+                    f"{location} requires {requirement}"
+                )
+            return
+        if self.kind == "all-or-none":
+            matched = present.intersection(self.fields)
+            if matched and matched != set(self.fields):
+                raise OperationAdapterError(
+                    f"{location} requires all or none of {', '.join(self.fields)}"
+                )
+            return
+        if self.kind == "exactly-one-group":
+            complete = [group for group in self.groups if set(group) <= present]
+            mentioned = {
+                field
+                for group in self.groups
+                for field in group
+                if field in present
+            }
+            if len(complete) != 1 or mentioned != set(complete[0]):
+                rendered = " or ".join("+".join(group) for group in self.groups)
+                raise OperationAdapterError(
+                    f"{location} requires exactly one complete group: {rendered}"
+                )
+            return
+        if self.kind == "when-equals":
+            assert self.discriminator is not None
+            value = arguments.get(self.discriminator)
+            matched = next((case for case in self.cases if case[0] == value), None)
+            if matched is None:
+                return
+            _, required, forbidden = matched
+            missing = [field for field in required if field not in present]
+            rejected = [field for field in forbidden if field in present]
+            if missing or rejected:
+                details = []
+                if missing:
+                    details.append("requires " + ", ".join(missing))
+                if rejected:
+                    details.append("forbids " + ", ".join(rejected))
+                raise OperationAdapterError(
+                    f"{location} with {self.discriminator}={value} "
+                    + " and ".join(details)
+                )
+            return
+        raise OperationAdapterError(f"{location} has an unknown argument rule")
+
+    def canonical(self) -> dict[str, object]:
+        if self.kind in ("at-least-one", "all-or-none"):
+            return {"kind": self.kind, "fields": list(self.fields)}
+        if self.kind == "exactly-one-group":
+            return {
+                "kind": self.kind,
+                "groups": [list(group) for group in self.groups],
+            }
+        assert self.kind == "when-equals" and self.discriminator is not None
+        return {
+            "kind": self.kind,
+            "discriminator": self.discriminator,
+            "cases": [
+                {
+                    "value": value,
+                    "required": list(required),
+                    "forbidden": list(forbidden),
+                }
+                for value, required, forbidden in self.cases
+            ],
+        }
+
+
+@dataclass(frozen=True)
 class OperationSpec:
     identifier: str
     lanes: frozenset[str]
     fields: tuple[Field, ...]
     outputs: tuple[tuple[str, str], ...]
     cross_validate: CrossValidator | None = None
+    argument_rules: tuple[ArgumentRule, ...] = ()
 
     def validate(self, lane: str, arguments: object) -> Mapping[str, object]:
         if lane not in self.lanes:
@@ -157,6 +245,8 @@ class OperationSpec:
             )
         for name, value in arguments.items():
             fields[name].validate(value, f"{self.identifier}.{name}")
+        for rule in self.argument_rules:
+            rule.validate(arguments, self.identifier)
         if self.cross_validate is not None:
             self.cross_validate(arguments)
         return MappingProxyType(dict(arguments))
@@ -418,8 +508,7 @@ def _accessibility_activate(arguments: Mapping[str, object]) -> None:
         _validate_identifiers(identifiers)
 
 
-def _accessibility_single(arguments: Mapping[str, object]) -> None:
-    _validate_identifiers([str(arguments["identifier"])])
+def _related_results(arguments: Mapping[str, object]) -> None:
     related_results = arguments.get("relatedResults", [])
     assert isinstance(related_results, list)
     for result in related_results:
@@ -430,6 +519,11 @@ def _accessibility_single(arguments: Mapping[str, object]) -> None:
             raise OperationAdapterError(
                 "relatedResults must contain top-level result references"
             )
+
+
+def _accessibility_single(arguments: Mapping[str, object]) -> None:
+    _validate_identifiers([str(arguments["identifier"])])
+    _related_results(arguments)
 
 
 def _browse_hierarchy(arguments: Mapping[str, object]) -> None:
@@ -1655,6 +1749,7 @@ def _literal_lan_address() -> str:
 
 
 def _cursor(arguments: Mapping[str, object]) -> None:
+    _related_results(arguments)
     token = arguments.get("cursorToken")
     if token is not None and not (
         re.fullmatch(r"(?:-1|[0-9]+):[0-9]+", str(token))
@@ -1956,6 +2051,7 @@ def _sha256_or_result_reference(
 
 
 def _playback_state(arguments: Mapping[str, object]) -> None:
+    _related_results(arguments)
     expectation = arguments.get("expectation")
     bound_names = frozenset(
         (
@@ -1967,7 +2063,7 @@ def _playback_state(arguments: Mapping[str, object]) -> None:
             "minimumReconnects",
         )
     )
-    present = frozenset(arguments) - {"expectation"}
+    present = frozenset(arguments) - {"expectation", "relatedResults"}
     if expectation is None:
         if present:
             raise OperationAdapterError(
@@ -2035,7 +2131,7 @@ def _audio_capture(arguments: Mapping[str, object]) -> None:
 
 
 def _device_hub(arguments: Mapping[str, object]) -> None:
-    target_domain = arguments.get("targetDomain", "canvas")
+    target_domain = arguments["targetDomain"]
     shot_fields = {"shotX", "shotY", "shotWidth", "shotHeight"}
     present_shot_fields = shot_fields.intersection(arguments)
     if target_domain == "system-toolbar":
@@ -2288,10 +2384,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("includeHDRFallback", boolean, required=False),
                 _field("relatedFrameManifests", strings, required=False),
             ),
-            (
-                ("visual.frames", "frame-sequence@2"),
-                ("window.control-plane", "window-control-plane@1"),
-            ),
+            (("visual.frames", "frame-sequence@2"),),
             _capture_frames,
         ),
         OperationSpec("operation:navigation.select-tab@1", LANES, (_field("tab", string, choices=_choices("files", "settings", "emby", "environment")),), ()),
@@ -2309,6 +2402,12 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
             (("accessibility.tree", "accessibility-tree@1"),),
             _accessibility_activate,
+            (
+                ArgumentRule(
+                    "at-least-one",
+                    fields=("identifiers", "labels"),
+                ),
+            ),
         ),
         OperationSpec(
             "operation:accessibility.inspect@2",
@@ -2349,7 +2448,28 @@ def _specs() -> tuple[OperationSpec, ...]:
             (("accessibility.tree", "accessibility-tree@1"),),
             _browse_hierarchy,
         ),
-        OperationSpec("operation:accessibility.type@2", LANES, (_field("context", string, choices=CONTEXTS), _field("identifier", string), _index(), _field("mode", string, choices=_choices("append", "replace")), _field("text", string, required=False), _field("textFile", string, required=False), _field("textJSONKey", string, required=False), _field("secret", boolean)), (), _accessibility_type),
+        OperationSpec(
+            "operation:accessibility.type@2",
+            LANES,
+            (
+                _field("context", string, choices=CONTEXTS),
+                _field("identifier", string),
+                _index(),
+                _field("mode", string, choices=_choices("append", "replace")),
+                _field("text", string, required=False),
+                _field("textFile", string, required=False),
+                _field("textJSONKey", string, required=False),
+                _field("secret", boolean),
+            ),
+            (),
+            _accessibility_type,
+            (
+                ArgumentRule(
+                    "exactly-one-group",
+                    groups=(("text",), ("textFile", "textJSONKey")),
+                ),
+            ),
+        ),
         OperationSpec("operation:harness.assert-channels@2", LANES, (), ()),
         OperationSpec("operation:harness.reset-product-state@2", LANES, (_field("rootFolderName", string, required=False),), ()),
         OperationSpec(
@@ -2430,6 +2550,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     maximum=90,
                 ),
                 _field("remoteRequestCursor", string, required=False),
+                _field("relatedResults", strings, required=False),
             ),
             (
                 ("interaction.trace", "interaction-trace@1"),
@@ -2505,6 +2626,12 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
             (("library.command", "library-command@1"),),
             _library_snapshot,
+            (
+                ArgumentRule(
+                    "all-or-none",
+                    fields=LIBRARY_BASELINE_FIELDS,
+                ),
+            ),
         ),
         OperationSpec("operation:storage.clear@1", LANES, (_field("target", string, choices=_choices("artwork-cache", "container-index-cache", "playback-progress")),), ()),
         OperationSpec(
@@ -2534,6 +2661,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     minimum=0,
                     maximum=3,
                 ),
+                _field("relatedResults", strings, required=False),
             ),
             (
                 ("playback.probe", "playback-probe@1"),
@@ -2627,7 +2755,6 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field(
                     "targetDomain",
                     string,
-                    required=False,
                     choices=_choices("canvas", "system-toolbar"),
                 ),
                 _field("systemControl", string, required=False, choices=_choices("home")),
@@ -2639,6 +2766,24 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
             (),
             _device_hub,
+            (
+                ArgumentRule(
+                    "when-equals",
+                    discriminator="targetDomain",
+                    cases=(
+                        (
+                            "canvas",
+                            ("shotX", "shotY", "shotWidth", "shotHeight"),
+                            ("systemControl",),
+                        ),
+                        (
+                            "system-toolbar",
+                            ("systemControl",),
+                            ("shotX", "shotY", "shotWidth", "shotHeight", "allowSmall"),
+                        ),
+                    ),
+                ),
+            ),
         ),
         OperationSpec(
             "operation:evidence.structural-test@1",
@@ -2680,6 +2825,7 @@ def catalog_operation_shape(operation_id: str) -> Mapping[str, object]:
                 }
                 for field in spec.fields
             ],
+            "argumentRules": [rule.canonical() for rule in spec.argument_rules],
             "lanes": sorted(spec.lanes),
             "evidenceSchemas": [
                 {"evidenceType": evidence_type, "evidenceSchema": evidence_schema}
@@ -3186,9 +3332,13 @@ class ResidentOperationBackend:
                 "PlayerUI-playback-state",
                 include_screenshot=True,
             )
-            control_plane = capture_state(
-                "PlayerUI-window-control-plane",
-                include_screenshot=False,
+            control_plane = (
+                {"available": False, "fields": {}, "response": {}}
+                if arguments["context"] in ("panorama", "docked")
+                else capture_state(
+                    "PlayerUI-window-control-plane",
+                    include_screenshot=False,
+                )
             )
             observed_presentation = playback_state["fields"].get(
                 "presentation"
@@ -3269,8 +3419,8 @@ class ResidentOperationBackend:
                 sort_keys=True,
                 separators=(",", ":"),
             ),
-            "fields": frames[-1]["controlPlane"]["fields"],
-            "response": frames[-1]["controlPlane"]["response"],
+            "fields": frames[-1]["playbackState"]["fields"],
+            "response": frames[-1]["playbackState"]["response"],
             **({"hdrFallback": hdr_fallback} if hdr_fallback is not None else {}),
             "remoteObservation": remote_observation,
             "artworkObservation": (
@@ -4336,6 +4486,7 @@ class ResidentOperationBackend:
             "interactionTrace": interaction,
             "spatialInputTrace": spatial,
             "remoteObservation": remote_observation,
+            "relatedResults": list(arguments.get("relatedResults", [])),
             "playbackObservation": playback_observation,
             "certificateBoundary": certificate_boundary,
             "containerIndexObservation": container_index_observation,
@@ -5648,6 +5799,7 @@ class ResidentOperationBackend:
             "fields": plane,
             "response": response,
             "missingIdentityFields": missing_identity_fields,
+            "relatedResults": list(arguments.get("relatedResults", [])),
         }
         has_remote_identity = any(
             plane.get(field) is not None
@@ -6235,10 +6387,11 @@ class ResidentOperationBackend:
             "topBottom": "PlayerUI-VideoFormat-Stereo Layout-Top-Bottom",
         }[str(arguments["stereoLayout"])]
         before = self._window_control_plane_observation(context)
-        summon = self._app_command(
+        summon = self._controller(
             context,
-            "toggleControls",
-            "visible=true",
+            "tap",
+            "--identifier",
+            "PlayerUI-window-playback-surface",
         )
         self._require_success(summon, "format controls summon")
         editor_sequence = None
@@ -6325,7 +6478,12 @@ class ResidentOperationBackend:
         }
 
     def _presentation_enter_docked_skybox_1(self, arguments, context):
-        summon = self._app_command(context, "toggleControls", "visible=true")
+        summon = self._controller(
+            context,
+            "tap",
+            "--identifier",
+            "PlayerUI-window-playback-surface",
+        )
         self._require_success(summon, "docked controls summon")
         result = self._enter_spatial(
             context,
@@ -6337,7 +6495,12 @@ class ResidentOperationBackend:
         return {**result, "summon": summon}
 
     def _presentation_enter_panorama_1(self, arguments, context):
-        summon = self._app_command(context, "toggleControls", "visible=true")
+        summon = self._controller(
+            context,
+            "tap",
+            "--identifier",
+            "PlayerUI-window-playback-surface",
+        )
         self._require_success(summon, "panorama controls summon")
         if arguments.get("expectedResult") == "rollback-after-settlement-timeout":
             result = self._enter_panorama_expecting_settlement_rollback(
@@ -6743,7 +6906,7 @@ class ResidentOperationBackend:
                 "postActionResponse": snapshot,
             }
 
-        if arguments.get("targetDomain", "canvas") == "system-toolbar":
+        if arguments["targetDomain"] == "system-toolbar":
             command = [
                 sys.executable,
                 "Scripts/verification/device_hub_canvas.py",
@@ -6801,6 +6964,26 @@ class ResidentOperationBackend:
         artifact = context.attempt_root / f"structural/{check}.log"
         artifact.parent.mkdir(parents=True, exist_ok=True)
         artifact.write_bytes(encoded)
+        assertion_payloads = []
+        for line in completed.stdout.splitlines():
+            marker = "ENCHRON_ASSERTION "
+            if marker not in line:
+                continue
+            try:
+                payload = json.loads(line.split(marker, 1)[1])
+            except json.JSONDecodeError as error:
+                raise OperationAdapterError(
+                    "structural assertion payload is malformed"
+                ) from error
+            if not isinstance(payload, dict):
+                raise OperationAdapterError(
+                    "structural assertion payload must be an object"
+                )
+            assertion_payloads.append(payload)
+        if check == "playback-core-network-resilience" and len(assertion_payloads) != 1:
+            raise OperationAdapterError(
+                "network resilience structural check omitted its assertion payload"
+            )
         return {
             "succeeded": completed.returncode == 0,
             "check": check,
@@ -6808,6 +6991,7 @@ class ResidentOperationBackend:
             "returnCode": completed.returncode,
             "artifactPath": str(artifact.relative_to(context.attempt_root)),
             "artifactDigest": "sha256:" + hashlib.sha256(encoded).hexdigest(),
+            "assertionPayloads": assertion_payloads,
             "toolchain": self._developer_dir(),
         }
 

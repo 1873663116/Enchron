@@ -81,19 +81,11 @@
     },
     {
       "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:apple-immersive-projection:07",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
         "context": "panorama",
         "count": 3,
         "minimumIntervalMillis": 1000
       },
-      "callId": "call:projection-and-stereo:apple-immersive-projection:08",
+      "callId": "call:projection-and-stereo:apple-immersive-projection:07",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -106,7 +98,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:apple-immersive-projection:o01:default",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:apple-immersive-projection:08",
+      "producedByCall": "call:projection-and-stereo:apple-immersive-projection:07",
       "rubric": "rubric:projection-and-stereo.apple-immersive-projection.o01@1"
     }
   ],

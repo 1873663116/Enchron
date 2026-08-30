@@ -369,9 +369,16 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             plan.state.tags,
             (
                 "app.session",
+                "certificate.trust",
+                "emby.account",
                 "fixture.corpus",
                 "lane.instance",
                 "library.contents",
+                "source.connection",
+                "source.emby",
+                "source.emby.fixture-revision",
+                "source.session",
+                "source.webdav",
             ),
         )
         self.assertEqual(plan.state.produced_by_call, source_call.call_id)
@@ -380,6 +387,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         plans = self.plans()
         expected = {
             "preparation:audio-only-fixtures": ["audio-fixtures"],
+            "preparation:local-directory-subtitle-source": ["emby-aggregate", "webdav-regression", "emby-aggregate"],
             "preparation:smb-test-source": ["smb-aggregate", "smb-aggregate"],
             "preparation:emby-test-library": ["emby-aggregate", "emby-aggregate"],
             "preparation:system-import-fixtures": ["system-import-fixtures"],
@@ -438,7 +446,12 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 else:
                     self.assertEqual(
                         imported,
-                        [preparations.STAGEABLE_FIXTURES[item].file_name for item in staged],
+                        [
+                            preparations.STAGEABLE_FIXTURES[item].file_name
+                            for item in staged
+                            if Path(preparations.STAGEABLE_FIXTURES[item].file_name).suffix.removeprefix(".").lower()
+                            in preparations.PREPARATION_IMPORT_EXTENSIONS
+                        ],
                     )
 
     def test_format_corpus_includes_the_registered_duplicate_label_audio_fixture(self) -> None:
@@ -683,14 +696,14 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         affected = {
             identifier
             for identifier, spec in preparations.PREPARATION_REGISTRY.items()
-            if spec.preflight in operations.REMOTE_PREFLIGHT_CHECKS
-            and spec.preflight != "emby-aggregate"
+            if spec.connect_webdav
         }
         self.assertEqual(
             affected,
             {
                 "preparation:faultable-remote-source",
                 "preparation:issue-fixtures",
+                "preparation:local-directory-subtitle-source",
                 "preparation:presentation-fixtures-device",
                 "preparation:presentation-fixtures-simulator",
                 "preparation:viewing-storage-fixtures-device",

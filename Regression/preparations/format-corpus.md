@@ -132,14 +132,6 @@
     },
     {
       "callId": "call:preparation:format-corpus:16",
-      "operation": "operation:media.import-staged@2",
-      "arguments": {
-        "fileName": "sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:format-corpus:17",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-external-ass-styled-v1",
@@ -148,15 +140,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:18",
-      "operation": "operation:media.import-staged@2",
-      "arguments": {
-        "fileName": "sdr-bframe-multiaudio-avsync-30s.styled.ass"
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:format-corpus:19",
+      "callId": "call:preparation:format-corpus:17",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-mpeg4-part2-packed-bframes-v1",
@@ -165,7 +149,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:20",
+      "callId": "call:preparation:format-corpus:18",
       "operation": "operation:media.import-staged@2",
       "arguments": {
         "fileName": "packed_bframes.avi"
@@ -173,7 +157,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:21",
+      "callId": "call:preparation:format-corpus:19",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-dts-es-v1",
@@ -182,7 +166,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:22",
+      "callId": "call:preparation:format-corpus:20",
       "operation": "operation:media.import-staged@2",
       "arguments": {
         "fileName": "dts_es.dts"
@@ -190,7 +174,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:23",
+      "callId": "call:preparation:format-corpus:21",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-truehd-atmos-v1",
@@ -199,7 +183,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:24",
+      "callId": "call:preparation:format-corpus:22",
       "operation": "operation:media.import-staged@2",
       "arguments": {
         "fileName": "atmos.thd"
@@ -207,7 +191,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:25",
+      "callId": "call:preparation:format-corpus:23",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-vorbis-v1",
@@ -216,7 +200,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:26",
+      "callId": "call:preparation:format-corpus:24",
       "operation": "operation:media.import-staged@2",
       "arguments": {
         "fileName": "1.0-test_small.ogg"
@@ -224,7 +208,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:27",
+      "callId": "call:preparation:format-corpus:25",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-mvhevc-short-v1",
@@ -233,7 +217,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:28",
+      "callId": "call:preparation:format-corpus:26",
       "operation": "operation:media.import-staged@2",
       "arguments": {
         "fileName": "spatial_lighthouse_flowers_waves_short.mov"
@@ -241,7 +225,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:29",
+      "callId": "call:preparation:format-corpus:27",
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-apmp-180-v1",
@@ -250,7 +234,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:30",
+      "callId": "call:preparation:format-corpus:28",
       "operation": "operation:media.import-staged@2",
       "arguments": {
         "fileName": "APMP-180-example.mp4"
@@ -258,13 +242,13 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:31",
+      "callId": "call:preparation:format-corpus:29",
       "operation": "operation:library.snapshot@1",
       "arguments": {},
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:format-corpus:32",
+      "callId": "call:preparation:format-corpus:30",
       "operation": "operation:harness.assert-channels@2",
       "arguments": {},
       "maxInvocations": 1
@@ -274,7 +258,7 @@
     {
       "key": "format-corpus-ready",
       "schema": "fixture-set.format-corpus@2",
-      "producedByCall": "call:preparation:format-corpus:32",
+      "producedByCall": "call:preparation:format-corpus:30",
       "dependsOnTags": [
         "app.session",
         "audio.capture",

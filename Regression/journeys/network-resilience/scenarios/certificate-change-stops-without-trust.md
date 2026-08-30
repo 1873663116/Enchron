@@ -137,7 +137,7 @@
     },
     {
       "arguments": {
-        "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:10/cursorToken",
+        "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:06/cursorToken",
         "remoteExpectation": "certificate-change",
         "remoteReceiptID": "result://call:network-resilience:certificate-change-stops-without-trust:07/receiptID",
         "restoredGenerationToken": "result://call:network-resilience:certificate-change-stops-without-trust:09/restoredGenerationToken"

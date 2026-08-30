@@ -7,6 +7,8 @@ from typing import Any, Dict, FrozenSet, Iterable, Mapping, Optional, Sequence, 
 from .applicability import parse_applicability, referenced_facts
 from .contracts import (
     ArgumentField,
+    ArgumentRule,
+    ArgumentRuleCase,
     ArgumentSchema,
     ArgumentValueKind,
     ArtifactClass,
@@ -336,7 +338,7 @@ def _parse_implementation(value: object, location: str) -> Tuple[str, Any]:
 
 
 def _parse_argument_schema(value: object, location: str) -> ArgumentSchema:
-    data = _keys(value, {"fields", "additionalProperties"}, (), location)
+    data = _keys(value, {"fields", "additionalProperties"}, {"rules"}, location)
     if data["additionalProperties"] is not False:
         raise _error(
             "catalog.argument_additional_properties",
@@ -358,7 +360,33 @@ def _parse_argument_schema(value: object, location: str) -> ArgumentSchema:
                 field_data["required"],
             )
         )
-    return ArgumentSchema(tuple(fields))
+    rules = []
+    for index, item in enumerate(_array(data.get("rules", ()), f"{location}.rules")):
+        rule_location = f"{location}.rules[{index}]"
+        if not isinstance(item, Mapping):
+            raise _error("catalog.invalid_argument_rule", rule_location, "expected an object")
+        kind = _string(item.get("kind"), f"{rule_location}.kind")
+        if kind in ("at-least-one", "all-or-none"):
+            rule_data = _keys(item, {"kind", "fields"}, (), rule_location)
+            rules.append(ArgumentRule(kind, fields=tuple(_array(rule_data["fields"], f"{rule_location}.fields"))))
+        elif kind == "exactly-one-group":
+            rule_data = _keys(item, {"kind", "groups"}, (), rule_location)
+            rules.append(ArgumentRule(kind, groups=tuple(tuple(_array(group, f"{rule_location}.groups")) for group in _array(rule_data["groups"], f"{rule_location}.groups"))))
+        elif kind == "when-equals":
+            rule_data = _keys(item, {"kind", "discriminator", "cases"}, (), rule_location)
+            cases = []
+            for case_index, case in enumerate(_array(rule_data["cases"], f"{rule_location}.cases")):
+                case_location = f"{rule_location}.cases[{case_index}]"
+                case_data = _keys(case, {"value", "required", "forbidden"}, (), case_location)
+                cases.append(ArgumentRuleCase(
+                    _string(case_data["value"], f"{case_location}.value"),
+                    tuple(_array(case_data["required"], f"{case_location}.required")),
+                    tuple(_array(case_data["forbidden"], f"{case_location}.forbidden")),
+                ))
+            rules.append(ArgumentRule(kind, discriminator=_string(rule_data["discriminator"], f"{rule_location}.discriminator"), cases=tuple(cases)))
+        else:
+            raise _error("catalog.invalid_argument_rule", rule_location, f"unknown rule kind {kind}")
+    return ArgumentSchema(tuple(fields), tuple(rules))
 
 
 def _parse_evidence_schemas(

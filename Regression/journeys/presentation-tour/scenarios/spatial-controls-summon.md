@@ -91,7 +91,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:08",
       "maxInvocations": 1,
@@ -159,7 +160,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:16",
       "maxInvocations": 1,
@@ -170,7 +172,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:17",
       "maxInvocations": 1,
@@ -248,7 +251,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:26",
       "maxInvocations": 1,
@@ -326,7 +330,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:35",
       "maxInvocations": 1,
@@ -337,7 +342,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:36",
       "maxInvocations": 1,

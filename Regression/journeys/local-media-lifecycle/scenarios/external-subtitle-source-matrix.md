@@ -31,14 +31,6 @@
     {
       "key": "local-directory-subtitle-source-ready",
       "schema": "media-source.local-directory-sidecars@1"
-    },
-    {
-      "key": "webdav-test-source-ready",
-      "schema": "remote-source.webdav-fixture@2"
-    },
-    {
-      "key": "emby-test-library-ready",
-      "schema": "remote-source.emby-library@2"
     }
   ],
   "operations": [

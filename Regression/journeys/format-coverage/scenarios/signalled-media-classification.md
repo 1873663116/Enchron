@@ -46,7 +46,7 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedLanding": "either-main-window",
+        "expectedLanding": "window",
         "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
       },
       "callId": "call:format-coverage:signalled-media-classification:03",
@@ -58,7 +58,7 @@
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
-        "presentation": "either-main-window"
+        "presentation": "window"
       },
       "callId": "call:format-coverage:signalled-media-classification:04",
       "maxInvocations": 1,
@@ -66,7 +66,7 @@
     },
     {
       "arguments": {
-        "context": "portal",
+        "context": "window",
         "count": 3,
         "minimumIntervalMillis": 1000
       },

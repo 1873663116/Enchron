@@ -34,6 +34,9 @@ SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES = (
 )
 SYSTEM_IMPORT_RUNTIME_ROOT = system_import.DEFAULT_RUNTIME_ROOT
 SHA256 = "sha256:"
+PREPARATION_IMPORT_EXTENSIONS = frozenset(
+    ("mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso", "m4a", "mp3", "flac", "wav", "ogg", "opus", "aiff", "dts", "thd")
+)
 
 
 class PreparationAdapterError(ValueError):
@@ -463,9 +466,12 @@ def _specs() -> tuple[PreparationSpec, ...]:
             "device",
             "local-directory-subtitle-source-ready",
             "media-source.local-directory-sidecars@1",
-            ("app.session", "fixture.corpus", "lane.instance", "library.contents"),
+            ("app.session", "certificate.trust", "emby.account", "fixture.corpus", "lane.instance", "library.contents", "source.connection", "source.emby", "source.emby.fixture-revision", "source.session", "source.webdav"),
             fixture_ids=LOCAL_DIRECTORY_SUBTITLE_FIXTURES,
             directory_source=LOCAL_DIRECTORY_SUBTITLE_SOURCE,
+            preflight="emby-aggregate",
+            connect_webdav=True,
+            connect_emby=True,
         ),
         PreparationSpec(
             "preparation:local-aggregate-simulator", "simulator", "local-aggregate-staged",
@@ -547,7 +553,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:viewing-storage-fixtures-device", "device", "viewing-storage-fixtures-ready",
-            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.connection", "source.session", "source.webdav", "viewing.state"),
+            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "certificate.trust", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.connection", "source.session", "source.webdav", "viewing.state"),
             fixture_ids=REGRESSION_FIXTURE_SETS["viewing-storage"], import_staged=False,
             preflight="webdav-regression",
             connect_webdav=True,
@@ -555,7 +561,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:viewing-storage-fixtures-simulator", "simulator", "viewing-storage-fixtures-ready",
-            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.webdav", "viewing.state"),
+            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.connection", "source.session", "source.webdav", "viewing.state"),
             fixture_ids=REGRESSION_FIXTURE_SETS["viewing-storage"], import_staged=False,
             preflight="webdav-regression",
             connect_webdav=True,
@@ -731,7 +737,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     {"fixtureID": fixture.identifier, "sourceRoot": FIXTURE_SOURCE_ROOT},
                 )
             )
-            if spec.import_staged:
+            if spec.import_staged and PurePosixPath(fixture.file_name).suffix.removeprefix(".").lower() in PREPARATION_IMPORT_EXTENSIONS:
                 calls.append(
                     _call(
                         spec.identifier,
@@ -740,7 +746,9 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                         {"fileName": fixture.file_name},
                     )
                 )
-        if spec.directory_source is not None:
+        if spec.directory_source is not None and not (
+            spec.connect_webdav or spec.connect_smb or spec.connect_emby
+        ):
             source = spec.directory_source
             media_file = STAGEABLE_FIXTURES[source.media_fixture_id].file_name
             member_files = [
@@ -1118,6 +1126,25 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     "operation:host.preflight@1",
                     {"check": "emby-aggregate"},
                 ),
+            )
+        )
+    if spec.directory_source is not None and (
+        spec.connect_webdav or spec.connect_smb or spec.connect_emby
+    ):
+        source = spec.directory_source
+        calls.append(
+            _call(
+                spec.identifier,
+                len(calls) + 1,
+                "operation:preparation.local-directory-subtitle-source@1",
+                {
+                    "directoryName": source.directory_name,
+                    "mediaFileName": STAGEABLE_FIXTURES[source.media_fixture_id].file_name,
+                    "memberFileNames": [
+                        STAGEABLE_FIXTURES[fixture_id].file_name
+                        for fixture_id in source.member_fixture_ids
+                    ],
+                },
             )
         )
     return tuple(calls)

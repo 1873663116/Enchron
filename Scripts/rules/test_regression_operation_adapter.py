@@ -81,14 +81,13 @@ VALID_ARGUMENTS: dict[str, dict[str, object]] = {
     "operation:transition-trace.disarm@1": {"generationToken": "result://call:a:b/generationToken"},
     "operation:evidence.capture-audio@2": {"durationMillis": 6000, "inputDevice": "Input", "wavPath": "audio/capture.wav"},
     "operation:input.device-hub-prepare@1": {},
-    "operation:input.device-hub-pinch@2": {"shotX": 100, "shotY": 100, "shotWidth": 1200, "shotHeight": 900},
+    "operation:input.device-hub-pinch@2": {"targetDomain": "canvas", "shotX": 100, "shotY": 100, "shotWidth": 1200, "shotHeight": 900},
     "operation:evidence.structural-test@1": {"check": "format-description-identity"},
 }
 
 SEMANTIC_OUTPUTS = {
     "operation:evidence.capture-frames@1": (
         ("visual.frames", "frame-sequence@2"),
-        ("window.control-plane", "window-control-plane@1"),
     ),
     "operation:accessibility.inspect@2": (
         ("accessibility.tree", "accessibility-tree@1"),
@@ -583,7 +582,7 @@ class OperationAllowlistTests(unittest.TestCase):
             mock.patch.object(
                 backend,
                 "_app_command",
-                side_effect=[summon, trace],
+                side_effect=[trace],
             ) as app_command,
             mock.patch.object(
                 backend,
@@ -613,16 +612,14 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(result["settlement"]["terminal"], terminal)
         self.assertEqual(
             app_command.call_args_list,
-            [
-                mock.call(self.device, "toggleControls", "visible=true"),
-                mock.call(self.device, "fetchTransitionTraceSnapshot"),
-            ],
+            [mock.call(self.device, "fetchTransitionTraceSnapshot")],
         )
-        controller.assert_called_once_with(
-            self.device,
-            "tapSequence",
-            "--identifiers",
-            "PlayerUI-TopAction-resumePanorama",
+        self.assertEqual(
+            controller.call_args_list,
+            [
+                mock.call(self.device, "tap", "--identifier", "PlayerUI-window-playback-surface"),
+                mock.call(self.device, "tapSequence", "--identifiers", "PlayerUI-TopAction-resumePanorama"),
+            ],
         )
 
     def test_ensure_session_uses_the_lease_context_as_its_only_target_authority(self) -> None:
@@ -2885,13 +2882,8 @@ class OperationAllowlistTests(unittest.TestCase):
             result = backend._format_apply_2(arguments, self.device)
 
         self.assertEqual(diagnostics.call_count, 2)
-        app_command.assert_called_once_with(
-            self.device,
-            "toggleControls",
-            "visible=true",
-        )
         self.assertEqual(
-            controller.call_args_list[0],
+            controller.call_args_list[1],
             mock.call(
                 self.device,
                 "tapSequence",
@@ -2994,13 +2986,8 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertTrue(result["succeeded"])
         self.assertEqual(result["settlement"]["terminal"], terminal)
         self.assertEqual(result["after"], terminal_observation)
-        app_command.assert_called_once_with(
-            self.device,
-            "toggleControls",
-            "visible=true",
-        )
         self.assertEqual(
-            controller.call_args_list[0],
+            controller.call_args_list[1],
             mock.call(
                     self.device,
                     "tapSequence",
@@ -5010,8 +4997,11 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         }
         with (
             mock.patch.object(
-                backend, "_app_command", side_effect=[summon, summon, trace]
+                backend, "_app_command", side_effect=[trace]
             ) as app_command,
+            mock.patch.object(
+                backend, "_controller", side_effect=[summon, summon]
+            ) as controller,
             mock.patch.object(
                 backend, "_enter_spatial", return_value=settlement
             ) as enter,
@@ -5030,10 +5020,13 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
 
         self.assertEqual(
             app_command.call_args_list,
+            [mock.call(self.device, "fetchTransitionTraceSnapshot")],
+        )
+        self.assertEqual(
+            controller.call_args_list,
             [
-                mock.call(self.device, "toggleControls", "visible=true"),
-                mock.call(self.device, "toggleControls", "visible=true"),
-                mock.call(self.device, "fetchTransitionTraceSnapshot"),
+                mock.call(self.device, "tap", "--identifier", "PlayerUI-window-playback-surface"),
+                mock.call(self.device, "tap", "--identifier", "PlayerUI-window-playback-surface"),
             ],
         )
         self.assertEqual(enter.call_count, 2)
@@ -5124,7 +5117,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
 
         self.assertTrue(result["succeeded"])
         self.assertEqual(
-            controller.call_args_list[0],
+            controller.call_args_list[1],
             mock.call(
                 self.device,
                 "tapSequence",

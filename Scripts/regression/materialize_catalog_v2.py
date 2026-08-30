@@ -217,7 +217,7 @@ def _operation_runtime_shapes() -> dict[str, Mapping[str, Any]]:
     for index, item in enumerate(shapes):
         _require(
             set(item)
-            == {"id", "argumentFields", "lanes", "evidenceSchemas", "implementation"},
+            == {"id", "argumentFields", "argumentRules", "lanes", "evidenceSchemas", "implementation"},
             f"Operation runtime shape {index} has invalid keys",
         )
         identifier = item["id"]
@@ -236,6 +236,10 @@ def _operation_runtime_shapes() -> dict[str, Mapping[str, Any]]:
             for evidence_type, evidence_schema in spec.outputs
         ]
         _require(item["argumentFields"] == expected_fields, f"{identifier} argument schema drifted from SPECS")
+        _require(
+            item["argumentRules"] == [rule.canonical() for rule in spec.argument_rules],
+            f"{identifier} argument rules drifted from SPECS",
+        )
         _require(item["lanes"] == sorted(spec.lanes), f"{identifier} lane support drifted from SPECS")
         _require(item["evidenceSchemas"] == expected_evidence, f"{identifier} evidence pairs drifted from SPECS")
         implementation = item["implementation"]
@@ -522,6 +526,7 @@ def _render_operations(
             "lanes": runtime["lanes"],
             "argumentSchema": {
                 "fields": runtime["argumentFields"],
+                "rules": runtime["argumentRules"],
                 "additionalProperties": False,
             },
             "invalidatesTags": item["invalidatesTags"],
@@ -968,8 +973,6 @@ def _validate_external_subtitle_matrix(
             "local-directory-subtitle-source-ready",
             "media-source.local-directory-sidecars@1",
         ),
-        ("webdav-test-source-ready", "remote-source.webdav-fixture@2"),
-        ("emby-test-library-ready", "remote-source.emby-library@2"),
     }
     actual_prerequisites = {
         (item["key"], item["schema"]) for item in scenario["prerequisites"]

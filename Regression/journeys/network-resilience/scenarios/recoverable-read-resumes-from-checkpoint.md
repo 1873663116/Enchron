@@ -130,6 +130,10 @@
     {
       "arguments": {
         "productBindingDigest": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/bindingDigest",
+        "relatedResults": [
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:06/binding",
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/expectationObservation"
+        ],
         "remoteExpectation": "recoverable-read",
         "remoteReceiptID": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:07/receiptID",
         "restoredGenerationToken": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:10/restoredGenerationToken"

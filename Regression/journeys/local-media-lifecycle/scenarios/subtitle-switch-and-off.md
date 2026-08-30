@@ -160,12 +160,7 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "minimumIntervalMillis": 1000,
-        "relatedFrameManifests": [
-          "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
-          "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
-          "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
-        ]
+        "minimumIntervalMillis": 1000
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:13",
       "maxInvocations": 1,

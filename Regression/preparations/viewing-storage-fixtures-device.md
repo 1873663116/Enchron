@@ -237,6 +237,7 @@
       "dependsOnTags": [
         "app.session",
         "cache.state",
+        "certificate.trust",
         "fixture.corpus",
         "lane.instance",
         "library.contents",

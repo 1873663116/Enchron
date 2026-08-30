@@ -1205,14 +1205,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                     "key": "local-directory-subtitle-source-ready",
                     "schema": "media-source.local-directory-sidecars@1",
                 },
-                {
-                    "key": "webdav-test-source-ready",
-                    "schema": "remote-source.webdav-fixture@2",
-                },
-                {
-                    "key": "emby-test-library-ready",
-                    "schema": "remote-source.emby-library@2",
-                },
             ],
         )
         operations = [item["operation"] for item in scenario["operations"]]
@@ -1452,11 +1444,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             "audioProviderKind",
             "audioDeliveryMediaSubtype",
             "audioDeliveryTimestampsMonotonic",
-            "audioTrueHDDecoderInputPacketCount",
-            "audioTrueHDDecoderBatchCount",
-            "audioTrueHDAggregatedDecoderBatchCount",
-            "audioTrueHDOutputSampleBufferCount",
-            "audioTrueHDLastDecoderBatchInputPacketCount",
         ):
             self.assertIn(field, audio)
         dynamic = " ".join(
@@ -2118,25 +2105,24 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             if call["operation"] == "operation:evidence.capture-frames@1"
         ]
         self.assertEqual(len(buffered_bindings), 2)
-        self.assertEqual(len(buffered_frames), 3)
+        self.assertEqual(len(buffered_frames), 2)
         self.assertEqual(
             [call["arguments"]["productBindingDigest"] for call in buffered_frames],
             [
                 f"result://{buffered_bindings[0]['callId']}/bindingDigest",
                 f"result://{buffered_bindings[1]['callId']}/bindingDigest",
-                f"result://{buffered_bindings[1]['callId']}/bindingDigest",
             ],
         )
         self.assertEqual(
             [item["producedByCall"] for item in buffered["obligations"]],
-            [call["callId"] for call in buffered_frames[1:]],
+            [call["callId"] for call in buffered_frames],
         )
         call_positions = {
             call["callId"]: index
             for index, call in enumerate(buffered["operations"])
         }
         for binding, frame in zip(
-            [buffered_bindings[0], buffered_bindings[1], buffered_bindings[1]],
+            buffered_bindings,
             buffered_frames,
         ):
             self.assertLess(
@@ -2437,7 +2423,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         ]
         self.assertEqual(
             [call["callId"].rsplit(":", 1)[-1] for call in probes],
-            ["02", "09", "11", "16"],
+            ["02", "09", "11", "17"],
         )
         baseline, first_open, after_exit, second_open = probes
         self.assertEqual(

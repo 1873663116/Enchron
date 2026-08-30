@@ -241,6 +241,8 @@
         "lane.instance",
         "library.contents",
         "settings.state",
+        "source.connection",
+        "source.session",
         "source.webdav",
         "viewing.state"
       ]

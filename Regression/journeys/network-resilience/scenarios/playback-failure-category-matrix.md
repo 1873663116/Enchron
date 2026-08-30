@@ -146,7 +146,17 @@
       "operation": "operation:playback.wait-position@2"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "relatedResults": [
+          "result://call:network-resilience:playback-failure-category-matrix:06/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:07/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:08/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:09/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:10/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:11/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:12/fields"
+        ]
+      },
       "callId": "call:network-resilience:playback-failure-category-matrix:13",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
@@ -266,7 +276,17 @@
       "operation": "operation:playback.wait-position@2"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "relatedResults": [
+          "result://call:network-resilience:playback-failure-category-matrix:19/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:20/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:21/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:22/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:23/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:24/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:25/fields"
+        ]
+      },
       "callId": "call:network-resilience:playback-failure-category-matrix:26",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
@@ -386,7 +406,17 @@
       "operation": "operation:playback.wait-position@2"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "relatedResults": [
+          "result://call:network-resilience:playback-failure-category-matrix:32/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:33/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:34/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:35/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:36/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:37/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:38/fields"
+        ]
+      },
       "callId": "call:network-resilience:playback-failure-category-matrix:39",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
@@ -506,7 +536,17 @@
       "operation": "operation:playback.wait-position@2"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "relatedResults": [
+          "result://call:network-resilience:playback-failure-category-matrix:45/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:46/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:47/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:48/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:49/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:50/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:51/fields"
+        ]
+      },
       "callId": "call:network-resilience:playback-failure-category-matrix:52",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"

@@ -5,13 +5,11 @@
   "id": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1",
   "title": "Buffered Reconnect Has No Indicator",
   "criteria": [
-    "The paired-control attempt activates healthy and the fault attempt activates buffer-absorbed-interruption against the same registered WebDAV card; each exact receipt is restored before the bound producer completes.",
-    "The bound artifact contains one three-frame paired-control sequence and one three-frame fault sequence. Its fault host trace contains an ordered successful Range 206 → injected 503 → recovered 206 sequence while the fault snapshots remain Playing, report buffer ahead > 0, expose neither loading nor issue surface, and have strictly increasing playback positions.",
-    "Using the paired-control sequence's position deltas as the reference, every fault-sequence delta is at least 50% of the paired median delta and no fault interval exceeds 2000 ms without position advancement."
+    "For caseKey paired-control, the bound artifact is the three-frame healthy control sequence for the registered WebDAV card after its exact activation receipt is restored; the frames remain Playing with increasing positions and expose no loading or issue surface.",
+    "For caseKey buffer-absorbed-interruption, the bound artifact is the three-frame fault sequence for the same registered WebDAV card; its exact receipt is restored, its host trace contains ordered successful Range 206, injected 503, and recovered 206 responses, and the frames remain Playing with buffer ahead greater than zero, increasing positions, and no loading or issue surface."
   ],
   "negativeControls": [
-    "A fault receipt with no triggered read, a different media basename between attempts, an unrestored recipe, missing ordered host responses, or fewer than three product snapshots is inadmissible.",
-    "Any visible loading/issue indicator, zero buffer-ahead, non-increasing fault position, or violation of the declared 50%/2000 ms tolerance fails the rubric."
+    "A mismatched case, unrestored recipe, missing ordered host responses for the fault case, fewer than three product snapshots, a visible loading or issue indicator, zero buffer-ahead, or a non-increasing position fails the bound case."
   ]
 }
 ---

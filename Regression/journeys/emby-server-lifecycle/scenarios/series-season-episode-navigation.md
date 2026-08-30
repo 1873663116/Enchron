@@ -76,11 +76,20 @@
     {
       "arguments": {
         "context": "window",
-        "labels": [
-          "Enchron Regression Episode"
-        ]
+        "identifier": "Emby-Evidence"
       },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:06",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "labels": [
+          "Season 2"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -89,7 +98,31 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:08",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "labels": [
+          "Enchron Regression Episode 2"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifier": "Emby-Evidence",
+        "relatedResults": [
+          "result://call:emby-server-lifecycle:series-season-episode-navigation:06/response",
+          "result://call:emby-server-lifecycle:series-season-episode-navigation:08/response"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -102,7 +135,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:series-season-episode-navigation:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:07",
+      "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:10",
       "rubric": "rubric:emby-server-lifecycle.series-season-episode-navigation.o01@1"
     }
   ],

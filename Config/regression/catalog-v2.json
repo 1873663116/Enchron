@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:9d72518c45fdb03aac81a34587fef82d4ce85e49bda96a7c7a3e1ee12485473f",
+  "contentDigest": "sha256:474dee60511a4a2ecc9c76bc7a2682958b7f111b0991852229d5df4eb294c348",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -721,8 +721,6 @@
       "id": "operation:storage.clear@1",
       "invalidatesTags": [
         "cache.state",
-        "library.contents",
-        "settings.state",
         "ui.state",
         "viewing.progress",
         "viewing.state"
@@ -1070,27 +1068,28 @@
   "rubrics": [
     {
       "criteria": [
-        "For inside.m4a, one surface→More→Audio transaction and one surface→More→Playback Speed transaction each expose a real enabled secondary menu and keep playback controls visible through the 9000 ms probe, exceeding the product's exact 8000 ms idle auto-hide policy.",
-        "The bound traces keep lifecycle Playing and show no subtitle, video-format, Dock, or Panorama actions in the audio-only control set."
+        "For caseKey audio-menu, the bound trace contains one surface to More to Audio transaction that exposes a real enabled secondary menu and keeps playback controls visible through the 9000 ms probe.",
+        "For caseKey speed-menu, the bound trace contains one surface to More to Playback Speed transaction that exposes a real enabled secondary menu and keeps playback controls visible through the 9000 ms probe.",
+        "The bound trace keeps lifecycle Playing and shows no subtitle, video-format, Dock, or Panorama actions in the audio-only control set."
       ],
       "filename": "rubric-audio-only-playback-secondary-menu-pins-audio-controls-o01-1.md",
       "id": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1",
       "negativeControls": [
-        "Using the disabled subtitle menu as a case, omitting More, splitting one nested-menu route across controllers, controls hidden before 9000 ms, or any video-only action present fails the rubric."
+        "A trace for the other case, omitted More step, split nested-menu route, controls hidden before 9000 ms, or any video-only action fails the bound case."
       ],
       "title": "Secondary Menu Pins Audio Controls"
     },
     {
       "criteria": [
-        "P8.1 and P8.4 each deliver one surface→videoFormat→HDRFallback→apply transaction. Their source tuples remain (8,1,false) and (8,4,false), source Format Description and source dvcC/dvvC atom pair remain unchanged, while renderer configuration switches to the reviewed HDR10/PQ and HLG/B67 branches respectively and renderer dvcC/dvvC facts reflect that fallback.",
-        "P5 remains (5,0,false); after surface→videoFormat, the complete inspect response has matchedElement=null for PlayerUI-VideoFormat-HDRFallback, then cancel is delivered. Its source and renderer Dolby Vision atom facts remain present and no fallback mutation occurs.",
-        "The bound producer returns three ordered frameSequences for P8.1, P8.4, and P5. Each sequence contains exactly three Playing frames at 1000 ms minimum intervals with stable session/revision, strictly increasing position, pairwise-distinct content attachments, non-none source/destination pixel formats, and no issue or whole-frame cast."
+        "For caseKey profile-8-hdr10, the bound artifact follows one surface to videoFormat to HDRFallback to apply transaction, preserves source tuple (8,1,false) and source format atoms, and shows the reviewed HDR10/PQ renderer branch.",
+        "For caseKey profile-8-hlg, the bound artifact follows one surface to videoFormat to HDRFallback to apply transaction, preserves source tuple (8,4,false) and source format atoms, and shows the reviewed HLG/B67 renderer branch.",
+        "For caseKey profile-5-no-fallback, the bound artifact preserves source tuple (5,0,false), records no fallback mutation after the absence check and cancel transaction, and retains source and renderer Dolby Vision atom facts.",
+        "The bound artifact contains exactly one three-frame Playing sequence at 1000 ms minimum intervals with stable session and revision, increasing position, distinct content attachments, non-none pixel formats, and no issue or whole-frame cast."
       ],
       "filename": "rubric-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1",
       "negativeControls": [
-        "Split transient editor actions, fallback offered for P5, changed source tuple/Format Description, renderer transfer unrelated to P8.1/P8.4 compatibility, missing dvcC/dvvC facts, or UI action without renderer-state change fails the contract.",
-        "A missing full hierarchy for the P5 absence check, fewer than three valid frames, repeated/blank attachments, or non-advancing playback is Indeterminate or failing as specified."
+        "A mismatched case, changed source tuple or format atoms, an unreviewed renderer transfer, fallback offered for Profile 5, fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
       ],
       "title": "Dolby Vision Cross Compatibility Switch"
     },
@@ -1471,14 +1470,13 @@
     },
     {
       "criteria": [
-        "After the missing local-directory and Emby preparation capabilities are restored, each independent attempt opens its real media identity and invokes operation:playback.select-subtitle@1 with host=playerPanel, the matching sourceKind, and deadlineSeconds within the closed 1...90 range. The local directory bookmark and WebDAV source-directory cases use the exact registered label sdr-bframe-aggregate-30s.zh-CN.srt. The Emby case uses the sole external track from the verified seed receipt and relies on Operation discovery of its dynamic product identifier rather than a Catalog-authored identifier.",
-        "The Operation discovers only real external.subtitle.* menu items, selects the unique source-kind/label match, and returns discoveredTracks, selectedTrack, beforeState, selectionResponse, postActionState, settlement, and unchanged session/media/sourceIdentity/contentRevision; the following three-frame producer shows the reviewed external cue rather than an embedded subtitle."
+        "For the bound caseKey, the independent attempt opens its real media identity and invokes playback.select-subtitle with host playerPanel, the matching sourceKind, and deadlineSeconds within 1 through 90. Local and WebDAV sidecars use the registered sdr-bframe-aggregate-30s.zh-CN.srt label; the Emby case discovers the sole external track from the verified seed receipt.",
+        "The bound Operation discovers only real external.subtitle menu items, selects the unique source-kind and label match, returns the complete selection and identity observations, preserves session, media, source identity, and content revision, and the following three-frame producer shows the reviewed external cue rather than an embedded subtitle."
       ],
       "filename": "rubric-local-media-lifecycle-external-subtitle-source-matrix-o01-1.md",
       "id": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1",
       "negativeControls": [
-        "A Catalog-authored dynamic track ID, single-file importMedia presented as a directory association, empty media relativePath, catalog-v2-external-subtitle, direct state injection, missing authenticated Emby account, unseeded sidecar, ambiguous discovery result, or identity/revision change is inadmissible.",
-        "A missing external cue, embedded cue mistaken for the external source, fewer than three valid changing frames, blank/pure-color/repeated attachments, or source-kind mismatch fails the restored matrix."
+        "A mismatched source case, Catalog-authored dynamic track ID, direct state injection, missing authenticated source, ambiguous discovery result, identity or revision change, missing external cue, embedded cue, fewer than three changing frames, or source-kind mismatch fails the bound case."
       ],
       "title": "External Subtitle Source Matrix"
     },
@@ -1506,29 +1504,26 @@
     },
     {
       "criteria": [
-        "Selecting ffmpeg.subtitle.3 displays the generated SubRip cue containing 'Enchron 字幕验证' and selecting ffmpeg.subtitle.5 displays the generated DVB bitmap cue titled 'Enchron generated bitmap proof' with its top-safe-area color bars.",
-        "Selecting Off removes subtitle pixels and marks only Off selected; selecting ffmpeg.subtitle.3 again restores the generated SubRip cue containing 'Enchron 字幕验证'."
+        "For caseKey embedded-text, the bound frames show the generated SubRip cue containing Enchron 字幕验证 after selecting ffmpeg.subtitle.3.",
+        "For caseKey embedded-bitmap, the bound frames show the generated DVB bitmap cue titled Enchron generated bitmap proof with its top-safe-area color bars after selecting ffmpeg.subtitle.5.",
+        "For caseKey off, the bound frames contain no subtitle pixels after selecting Off and only Off is selected; for caseKey restore, the bound frames again show Enchron 字幕验证 after selecting ffmpeg.subtitle.3."
       ],
       "filename": "rubric-local-media-lifecycle-subtitle-switch-and-off-o01-1.md",
       "id": "rubric:local-media-lifecycle.subtitle-switch-and-off.o01@1",
       "negativeControls": [
-        "A 1x1, corrupt, single-frame, or provenance-free capture is Indeterminate and never Satisfied.",
-        "Pure black, solid color, repeated identical frames, or a reference mismatch is a negative control that forces Violated when capture validity is established.",
-        "Treating Off as an empty track, retaining subtitle pixels after Off, or showing the wrong case reference violates the rubric."
+        "A mismatched case reference, retained subtitle pixels in the Off case, missing expected cue, fewer than three changing valid frames, or blank, pure-color, or repeated attachments fails the bound case."
       ],
       "title": "Subtitle Switch And Off"
     },
     {
       "criteria": [
-        "The paired-control attempt activates healthy and the fault attempt activates buffer-absorbed-interruption against the same registered WebDAV card; each exact receipt is restored before the bound producer completes.",
-        "The bound artifact contains one three-frame paired-control sequence and one three-frame fault sequence. Its fault host trace contains an ordered successful Range 206 → injected 503 → recovered 206 sequence while the fault snapshots remain Playing, report buffer ahead > 0, expose neither loading nor issue surface, and have strictly increasing playback positions.",
-        "Using the paired-control sequence's position deltas as the reference, every fault-sequence delta is at least 50% of the paired median delta and no fault interval exceeds 2000 ms without position advancement."
+        "For caseKey paired-control, the bound artifact is the three-frame healthy control sequence for the registered WebDAV card after its exact activation receipt is restored; the frames remain Playing with increasing positions and expose no loading or issue surface.",
+        "For caseKey buffer-absorbed-interruption, the bound artifact is the three-frame fault sequence for the same registered WebDAV card; its exact receipt is restored, its host trace contains ordered successful Range 206, injected 503, and recovered 206 responses, and the frames remain Playing with buffer ahead greater than zero, increasing positions, and no loading or issue surface."
       ],
       "filename": "rubric-network-resilience-buffered-reconnect-has-no-indicator-o01-1.md",
       "id": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1",
       "negativeControls": [
-        "A fault receipt with no triggered read, a different media basename between attempts, an unrestored recipe, missing ordered host responses, or fewer than three product snapshots is inadmissible.",
-        "Any visible loading/issue indicator, zero buffer-ahead, non-increasing fault position, or violation of the declared 50%/2000 ms tolerance fails the rubric."
+        "A mismatched case, unrestored recipe, missing ordered host responses for the fault case, fewer than three product snapshots, a visible loading or issue indicator, zero buffer-ahead, or a non-increasing position fails the bound case."
       ],
       "title": "Buffered Reconnect Has No Indicator"
     },
@@ -1761,18 +1756,15 @@
     },
     {
       "criteria": [
-        "In the current media segment, MediaLibrary-grid-video-Immersive-Video-example.f99766.mp4 is opened without a later format.apply, presentation.enter-panorama requests {deadlineSeconds: 45}, and the bound producer requests exactly {context: panorama, count: 3, minimumIntervalMillis: 1000}; source format, rather than a user override, remains authoritative.",
-        "The producer returns exactly three frames with indices 0, 1, and 2; every playbackState and controlPlane is available, presentationObservation is expected panorama and observed panorama, each record has a content-bound screenshot attachment, and adjacent capturedAtMonotonicMillis values differ by at least 1000.",
-        "In every frame controlPlane.fields has formatProvenance source, sourceContentKind appleImmersiveVideo, effective projection flat, effectiveContentIsPanoramic true, stereoLayout multiview, mvHEVC true, providerProjectionKind AppleImmersiveVideo, sampleProjectionKind AppleImmersiveVideo, rendererProjectionKind AppleImmersiveVideo, rendererViewPackingKind none, providerCodecName hevc, providerCodecTag hvc1, providerCodecConfiguration hvcC,lhvC, sampleMediaSubtype hvc1, sampleHasLhvC true, rendererHasLhvC true, and rendererInputIsMultiview true.",
-        "Across all three frames session and streamEpoch are non-none and unchanged, lifecycle is Playing, presentation is panorama, windowComponentContentType is immersive, actualViewingMode is stereo, actualImmersiveMode is progressive, displayedPixel is true, error is none, and the screenshots contain nonblank changing Beach imagery. The flat effective projection is the correct domain value for Apple Immersive Video when these Apple-Immersive and immersive-geometry facts co-occur."
+        "The media is opened without a later format.apply or seek, presentation.enter-panorama requests deadlineSeconds 45, and the bound producer requests exactly context panorama, count 3, and minimumIntervalMillis 1000.",
+        "The producer returns exactly three indexed frames; every playbackState is available, presentationObservation is expected and observed panorama, each record has a content-bound screenshot attachment, and adjacent capture times differ by at least 1000 ms.",
+        "In every frame playbackState.fields reports source format provenance, Apple Immersive content and projection signals, multiview stereo, MV-HEVC, hvc1 with hvcC and lhvC configuration, and multiview renderer input.",
+        "Across all frames session and stream epoch are stable, lifecycle is Playing, presentation is panorama, the immersive geometry is stereo progressive with displayed pixels, no error is active, and screenshots contain nonblank changing Beach imagery."
       ],
       "filename": "rubric-projection-and-stereo-apple-immersive-projection-o01-1.md",
       "id": "rubric:projection-and-stereo.apple-immersive-projection.o01@1",
       "negativeControls": [
-        "A user format override after media.open, a capture interval below 1000, a non-Apple provider/sample/renderer projection signal, packed stereo, missing lhvC or multiview facts, mono viewing, or a non-immersive content type violates the source-format and geometry contract.",
-        "An ordinary flat fallback is established by rectilinear source/signaling or mono window geometry, not by the expected effective projection value flat alone; treating the expected Apple Immersive flat value as a fallback contradicts the structured product model.",
-        "Unavailable structured fields or attachments, changed session or stream epoch, zero displayed pixels, an active issue, or insufficient timestamp separation is Indeterminate when the remaining evidence cannot decide the contract.",
-        "Identical, blank, pure-color, base-eye-only, or undecodable screenshots violate the visual criterion once the three captures are valid; counters alone do not replace the captured frames."
+        "A user format override or seek, short capture interval, non-Apple projection signal, packed stereo, missing lhvC or multiview facts, mono geometry, changed session or epoch, zero displayed pixels, an active issue, or blank, identical, pure-color, or undecodable screenshots fails or makes the claim indeterminate according to the missing evidence."
       ],
       "title": "Apple Immersive Projection"
     },
@@ -2715,7 +2707,7 @@
         {
           "arguments": {
             "deadlineSeconds": 45,
-            "expectedLanding": "either-main-window",
+            "expectedLanding": "window",
             "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
           },
           "callId": "call:format-coverage:signalled-media-classification:03",
@@ -2727,7 +2719,7 @@
             "controls": "either",
             "deadlineSeconds": 45,
             "lifecycle": "playing",
-            "presentation": "either-main-window"
+            "presentation": "window"
           },
           "callId": "call:format-coverage:signalled-media-classification:04",
           "maxInvocations": 1,
@@ -2735,7 +2727,7 @@
         },
         {
           "arguments": {
-            "context": "portal",
+            "context": "window",
             "count": 3,
             "minimumIntervalMillis": 1000
           },
@@ -3517,12 +3509,7 @@
           "arguments": {
             "context": "window",
             "count": 3,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:07/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:09/frameManifest",
-              "result://call:local-media-lifecycle:subtitle-switch-and-off:11/frameManifest"
-            ]
+            "minimumIntervalMillis": 1000
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:13",
           "maxInvocations": 1,
@@ -3818,14 +3805,6 @@
         {
           "key": "local-directory-subtitle-source-ready",
           "schema": "media-source.local-directory-sidecars@1"
-        },
-        {
-          "key": "webdav-test-source-ready",
-          "schema": "remote-source.webdav-fixture@2"
-        },
-        {
-          "key": "emby-test-library-ready",
-          "schema": "remote-source.emby-library@2"
         }
       ],
       "promiseRefs": [
@@ -4104,7 +4083,11 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "relatedResults": [
+              "result://call:webdav-source-lifecycle:webdav-add-source:05/interaction",
+              "result://call:webdav-source-lifecycle:webdav-add-source:10/interaction"
+            ]
           },
           "callId": "call:webdav-source-lifecycle:webdav-add-source:12",
           "maxInvocations": 1,
@@ -4754,7 +4737,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:series-season-episode-navigation:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:07",
+          "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:10",
           "rubric": "rubric:emby-server-lifecycle.series-season-episode-navigation.o01@1"
         }
       ],
@@ -4807,11 +4790,20 @@
         {
           "arguments": {
             "context": "window",
-            "labels": [
-              "Enchron Regression Episode"
-            ]
+            "identifier": "Emby-Evidence"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:06",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "labels": [
+              "Season 2"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -4820,7 +4812,31 @@
             "context": "window",
             "identifier": "Emby-Evidence"
           },
-          "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
+          "callId": "call:emby-server-lifecycle:series-season-episode-navigation:08",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Episode 2"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifier": "Emby-Evidence",
+            "relatedResults": [
+              "result://call:emby-server-lifecycle:series-season-episode-navigation:06/response",
+              "result://call:emby-server-lifecycle:series-season-episode-navigation:08/response"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:series-season-episode-navigation:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -4865,7 +4881,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:11",
           "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
         }
       ],
@@ -4886,11 +4902,24 @@
         },
         {
           "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Library",
+              "Enchron Regression Series",
+              "Enchron Regression Episode"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:03",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
             "deadlineSeconds": 45,
             "expectedLanding": "window",
             "identifier": "Emby-Detail-Resume"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:03",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:04",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -4901,7 +4930,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:04",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:05",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -4912,7 +4941,18 @@
               "PlayerUI-InfoBar-button-back"
             ]
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:05",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:06",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Episode"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -4922,7 +4962,7 @@
             "expectedLanding": "window",
             "identifier": "Emby-Detail-PlayFromBeginning"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:06",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -4933,13 +4973,13 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
         {
           "arguments": {},
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:10",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         },
@@ -4948,7 +4988,7 @@
             "context": "window",
             "identifier": "Emby-Evidence"
           },
-          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -5150,7 +5190,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:03",
+          "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:04",
           "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1"
         }
       ],
@@ -5172,9 +5212,21 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "labels": [
+              "Enchron Regression Library",
+              "Enchron Regression Series"
+            ]
           },
           "callId": "call:emby-server-lifecycle:artwork-by-image-tag:03",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifier": "Emby-Evidence"
+          },
+          "callId": "call:emby-server-lifecycle:artwork-by-image-tag:04",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -5219,7 +5271,7 @@
           "evidenceType": "emby.evidence",
           "id": "obligation:emby-server-lifecycle:emby-resume-entry-semantics:o01:default",
           "oracle": "oracle:agent-structured-emby-evidence@1",
-          "producedByCall": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
+          "producedByCall": "call:emby-server-lifecycle:emby-resume-entry-semantics:11",
           "rubric": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1"
         }
       ],
@@ -5240,11 +5292,24 @@
         },
         {
           "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Library",
+              "Enchron Regression Series",
+              "Enchron Regression Episode"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:03",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
             "deadlineSeconds": 45,
             "expectedLanding": "window",
             "identifier": "Emby-Detail-Resume"
           },
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:03",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:04",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -5255,7 +5320,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:04",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:05",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -5266,7 +5331,18 @@
               "PlayerUI-InfoBar-button-back"
             ]
           },
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:05",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:06",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "labels": [
+              "Enchron Regression Episode"
+            ]
+          },
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:07",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
         },
@@ -5276,7 +5352,7 @@
             "expectedLanding": "window",
             "identifier": "Emby-Detail-PlayFromBeginning"
           },
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:06",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:08",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -5287,13 +5363,13 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:07",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
         {
           "arguments": {},
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:08",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:10",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         },
@@ -5302,7 +5378,7 @@
             "context": "window",
             "identifier": "Emby-Evidence"
           },
-          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         }
@@ -5960,7 +6036,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-8-hdr10",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
+          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06",
           "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
         },
         {
@@ -5970,7 +6046,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-8-hlg",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:21",
+          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12",
           "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
         },
         {
@@ -5980,7 +6056,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-5-no-fallback",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:22",
+          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
           "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
         }
       ],
@@ -6178,43 +6254,9 @@
             "context": "window",
             "count": 3,
             "includeHDRFallback": true,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06/frameManifest",
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12/frameManifest"
-            ]
+            "minimumIntervalMillis": 1000
           },
           "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "includeHDRFallback": true,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06/frameManifest",
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12/frameManifest"
-            ]
-          },
-          "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:21",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "includeHDRFallback": true,
-            "minimumIntervalMillis": 1000,
-            "relatedFrameManifests": [
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:06/frameManifest",
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:12/frameManifest"
-            ]
-          },
-          "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:22",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         }
@@ -6874,7 +6916,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:projection-and-stereo:apple-immersive-projection:o01:default",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:projection-and-stereo:apple-immersive-projection:08",
+          "producedByCall": "call:projection-and-stereo:apple-immersive-projection:07",
           "rubric": "rubric:projection-and-stereo.apple-immersive-projection.o01@1"
         }
       ],
@@ -6932,19 +6974,11 @@
         },
         {
           "arguments": {
-            "positionMillionths": 0
-          },
-          "callId": "call:projection-and-stereo:apple-immersive-projection:07",
-          "maxInvocations": 1,
-          "operation": "operation:playback.seek@2"
-        },
-        {
-          "arguments": {
             "context": "panorama",
             "count": 3,
             "minimumIntervalMillis": 1000
           },
-          "callId": "call:projection-and-stereo:apple-immersive-projection:08",
+          "callId": "call:projection-and-stereo:apple-immersive-projection:07",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         }
@@ -9183,7 +9217,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:presentation-tour:spatial-controls-summon:08",
           "maxInvocations": 1,
@@ -9251,7 +9286,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:presentation-tour:spatial-controls-summon:16",
           "maxInvocations": 1,
@@ -9262,7 +9298,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:presentation-tour:spatial-controls-summon:17",
           "maxInvocations": 1,
@@ -9340,7 +9377,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:presentation-tour:spatial-controls-summon:26",
           "maxInvocations": 1,
@@ -9418,7 +9456,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:presentation-tour:spatial-controls-summon:35",
           "maxInvocations": 1,
@@ -9429,7 +9468,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:presentation-tour:spatial-controls-summon:36",
           "maxInvocations": 1,
@@ -9500,7 +9540,7 @@
           "evidenceType": "window.control-plane",
           "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:audio-menu",
           "oracle": "oracle:agent-structured-window-control-plane@1",
-          "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
+          "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:07",
           "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
         },
         {
@@ -9510,7 +9550,7 @@
           "evidenceType": "window.control-plane",
           "id": "obligation:audio-only-playback:secondary-menu-pins-audio-controls:o01:speed-menu",
           "oracle": "oracle:agent-structured-window-control-plane@1",
-          "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:15",
+          "producedByCall": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
           "rubric": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1"
         }
       ],
@@ -9634,19 +9674,10 @@
         },
         {
           "arguments": {
-            "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
+            "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:12/cursorToken",
             "settleDelayMillis": 9000
           },
           "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",
-          "maxInvocations": 1,
-          "operation": "operation:diagnostics.surface-probe@1"
-        },
-        {
-          "arguments": {
-            "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
-            "settleDelayMillis": 9000
-          },
-          "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:15",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         }
@@ -9860,6 +9891,10 @@
         {
           "arguments": {
             "productBindingDigest": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/bindingDigest",
+            "relatedResults": [
+              "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:06/binding",
+              "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/expectationObservation"
+            ],
             "remoteExpectation": "recoverable-read",
             "remoteReceiptID": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:07/receiptID",
             "restoredGenerationToken": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:10/restoredGenerationToken"
@@ -10087,7 +10122,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:network-resilience:buffered-reconnect-has-no-indicator:o01:paired-control",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
+          "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:10",
           "rubric": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1"
         },
         {
@@ -10097,7 +10132,7 @@
           "evidenceType": "visual.frames",
           "id": "obligation:network-resilience:buffered-reconnect-has-no-indicator:o01:buffer-absorbed-interruption",
           "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:21",
+          "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
           "rubric": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1"
         }
       ],
@@ -10289,31 +10324,11 @@
             "count": 3,
             "minimumIntervalMillis": 1000,
             "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:19/bindingDigest",
-            "relatedFrameManifests": [
-              "result://call:network-resilience:buffered-reconnect-has-no-indicator:10/frameManifest"
-            ],
             "remoteExpectation": "buffer-absorbed-interruption",
             "remoteReceiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/receiptID",
             "restoredGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:18/restoredGenerationToken"
           },
           "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "minimumIntervalMillis": 1000,
-            "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:19/bindingDigest",
-            "relatedFrameManifests": [
-              "result://call:network-resilience:buffered-reconnect-has-no-indicator:10/frameManifest"
-            ],
-            "remoteExpectation": "buffer-absorbed-interruption",
-            "remoteReceiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/receiptID",
-            "restoredGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:18/restoredGenerationToken"
-          },
-          "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:21",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
         }
@@ -10516,7 +10531,17 @@
           "operation": "operation:playback.wait-position@2"
         },
         {
-          "arguments": {},
+          "arguments": {
+            "relatedResults": [
+              "result://call:network-resilience:playback-failure-category-matrix:06/activationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:07/matchedElement",
+              "result://call:network-resilience:playback-failure-category-matrix:08/fields",
+              "result://call:network-resilience:playback-failure-category-matrix:09/restorationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:10/interaction",
+              "result://call:network-resilience:playback-failure-category-matrix:11/playbackObservation",
+              "result://call:network-resilience:playback-failure-category-matrix:12/fields"
+            ]
+          },
           "callId": "call:network-resilience:playback-failure-category-matrix:13",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
@@ -10636,7 +10661,17 @@
           "operation": "operation:playback.wait-position@2"
         },
         {
-          "arguments": {},
+          "arguments": {
+            "relatedResults": [
+              "result://call:network-resilience:playback-failure-category-matrix:19/activationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:20/matchedElement",
+              "result://call:network-resilience:playback-failure-category-matrix:21/fields",
+              "result://call:network-resilience:playback-failure-category-matrix:22/restorationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:23/interaction",
+              "result://call:network-resilience:playback-failure-category-matrix:24/playbackObservation",
+              "result://call:network-resilience:playback-failure-category-matrix:25/fields"
+            ]
+          },
           "callId": "call:network-resilience:playback-failure-category-matrix:26",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
@@ -10756,7 +10791,17 @@
           "operation": "operation:playback.wait-position@2"
         },
         {
-          "arguments": {},
+          "arguments": {
+            "relatedResults": [
+              "result://call:network-resilience:playback-failure-category-matrix:32/activationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:33/matchedElement",
+              "result://call:network-resilience:playback-failure-category-matrix:34/fields",
+              "result://call:network-resilience:playback-failure-category-matrix:35/restorationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:36/interaction",
+              "result://call:network-resilience:playback-failure-category-matrix:37/playbackObservation",
+              "result://call:network-resilience:playback-failure-category-matrix:38/fields"
+            ]
+          },
           "callId": "call:network-resilience:playback-failure-category-matrix:39",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
@@ -10876,7 +10921,17 @@
           "operation": "operation:playback.wait-position@2"
         },
         {
-          "arguments": {},
+          "arguments": {
+            "relatedResults": [
+              "result://call:network-resilience:playback-failure-category-matrix:45/activationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:46/matchedElement",
+              "result://call:network-resilience:playback-failure-category-matrix:47/fields",
+              "result://call:network-resilience:playback-failure-category-matrix:48/restorationReceipt",
+              "result://call:network-resilience:playback-failure-category-matrix:49/interaction",
+              "result://call:network-resilience:playback-failure-category-matrix:50/playbackObservation",
+              "result://call:network-resilience:playback-failure-category-matrix:51/fields"
+            ]
+          },
           "callId": "call:network-resilience:playback-failure-category-matrix:52",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
@@ -11052,7 +11107,7 @@
         },
         {
           "arguments": {
-            "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:10/cursorToken",
+            "cursorToken": "result://call:network-resilience:certificate-change-stops-without-trust:06/cursorToken",
             "remoteExpectation": "certificate-change",
             "remoteReceiptID": "result://call:network-resilience:certificate-change-stops-without-trust:07/receiptID",
             "restoredGenerationToken": "result://call:network-resilience:certificate-change-stops-without-trust:09/restoredGenerationToken"
@@ -11910,7 +11965,7 @@
           "evidenceType": "interaction.trace",
           "id": "obligation:viewing-state-and-storage:remote-index-reused-on-second-open:o01:default",
           "oracle": "oracle:agent-structured-interaction-trace@1",
-          "producedByCall": "call:viewing-state-and-storage:remote-index-reused-on-second-open:16",
+          "producedByCall": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",
           "rubric": "rubric:viewing-state-and-storage.remote-index-reused-on-second-open.o01@1"
         }
       ],
@@ -12033,10 +12088,21 @@
         {
           "arguments": {
             "context": "main-window-browser",
+            "labels": [
+              "Enchron Regression WebDAV"
+            ]
+          },
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:12",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
             "requireMatchedElement": true
           },
-          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:12",
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:13",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
         },
@@ -12046,7 +12112,7 @@
             "expectedLanding": "window",
             "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
           },
-          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:13",
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:14",
           "maxInvocations": 1,
           "operation": "operation:media.open@2"
         },
@@ -12057,7 +12123,7 @@
             "lifecycle": "playing",
             "presentation": "window"
           },
-          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:14",
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:15",
           "maxInvocations": 1,
           "operation": "operation:playback.await-window-state@1"
         },
@@ -12068,7 +12134,7 @@
             "minimumPositionMillis": 3000,
             "minimumRemainingMillis": 3000
           },
-          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:15",
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:16",
           "maxInvocations": 1,
           "operation": "operation:playback.wait-position@2"
         },
@@ -12081,7 +12147,7 @@
               "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:11/viewingStorageDigest"
             ]
           },
-          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:16",
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
         }
@@ -13546,7 +13612,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:06",
           "maxInvocations": 1,
@@ -13557,7 +13624,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:07",
           "maxInvocations": 1,
@@ -13568,7 +13636,8 @@
             "shotHeight": 900,
             "shotWidth": 1440,
             "shotX": 720,
-            "shotY": 450
+            "shotY": 450,
+            "targetDomain": "canvas"
           },
           "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:08",
           "maxInvocations": 1,

@@ -149,7 +149,11 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "relatedResults": [
+          "result://call:webdav-source-lifecycle:webdav-add-source:05/interaction",
+          "result://call:webdav-source-lifecycle:webdav-add-source:10/interaction"
+        ]
       },
       "callId": "call:webdav-source-lifecycle:webdav-add-source:12",
       "maxInvocations": 1,

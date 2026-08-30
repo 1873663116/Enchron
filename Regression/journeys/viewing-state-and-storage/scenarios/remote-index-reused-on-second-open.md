@@ -146,10 +146,21 @@
     {
       "arguments": {
         "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:12",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
         "requireMatchedElement": true
       },
-      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:12",
+      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:13",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -159,7 +170,7 @@
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:13",
+      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:14",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -170,7 +181,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:14",
+      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:15",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -181,7 +192,7 @@
         "minimumPositionMillis": 3000,
         "minimumRemainingMillis": 3000
       },
-      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:15",
+      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:16",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -194,7 +205,7 @@
           "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:11/viewingStorageDigest"
         ]
       },
-      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:16",
+      "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
     }
@@ -207,7 +218,7 @@
       "evidenceType": "interaction.trace",
       "id": "obligation:viewing-state-and-storage:remote-index-reused-on-second-open:o01:default",
       "oracle": "oracle:agent-structured-interaction-trace@1",
-      "producedByCall": "call:viewing-state-and-storage:remote-index-reused-on-second-open:16",
+      "producedByCall": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",
       "rubric": "rubric:viewing-state-and-storage.remote-index-reused-on-second-open.o01@1"
     }
   ],

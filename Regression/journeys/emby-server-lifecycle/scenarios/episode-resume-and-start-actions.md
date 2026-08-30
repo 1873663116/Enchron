@@ -44,11 +44,24 @@
     },
     {
       "arguments": {
+        "context": "window",
+        "labels": [
+          "Enchron Regression Library",
+          "Enchron Regression Series",
+          "Enchron Regression Episode"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:03",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
         "identifier": "Emby-Detail-Resume"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:03",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:04",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -59,7 +72,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:04",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:05",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -70,7 +83,18 @@
           "PlayerUI-InfoBar-button-back"
         ]
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:05",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:06",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "labels": [
+          "Enchron Regression Episode"
+        ]
+      },
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -80,7 +104,7 @@
         "expectedLanding": "window",
         "identifier": "Emby-Detail-PlayFromBeginning"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:06",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -91,13 +115,13 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
     {
       "arguments": {},
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:08",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:10",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -106,7 +130,7 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:11",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -119,7 +143,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
+      "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:11",
       "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
     }
   ],

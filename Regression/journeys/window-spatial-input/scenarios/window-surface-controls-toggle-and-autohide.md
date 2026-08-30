@@ -74,7 +74,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:06",
       "maxInvocations": 1,
@@ -85,7 +86,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:07",
       "maxInvocations": 1,
@@ -96,7 +98,8 @@
         "shotHeight": 900,
         "shotWidth": 1440,
         "shotX": 720,
-        "shotY": 450
+        "shotY": 450,
+        "targetDomain": "canvas"
       },
       "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:08",
       "maxInvocations": 1,

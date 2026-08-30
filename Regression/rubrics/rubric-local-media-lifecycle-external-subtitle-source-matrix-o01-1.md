@@ -5,12 +5,11 @@
   "id": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1",
   "title": "External Subtitle Source Matrix",
   "criteria": [
-    "After the missing local-directory and Emby preparation capabilities are restored, each independent attempt opens its real media identity and invokes operation:playback.select-subtitle@1 with host=playerPanel, the matching sourceKind, and deadlineSeconds within the closed 1...90 range. The local directory bookmark and WebDAV source-directory cases use the exact registered label sdr-bframe-aggregate-30s.zh-CN.srt. The Emby case uses the sole external track from the verified seed receipt and relies on Operation discovery of its dynamic product identifier rather than a Catalog-authored identifier.",
-    "The Operation discovers only real external.subtitle.* menu items, selects the unique source-kind/label match, and returns discoveredTracks, selectedTrack, beforeState, selectionResponse, postActionState, settlement, and unchanged session/media/sourceIdentity/contentRevision; the following three-frame producer shows the reviewed external cue rather than an embedded subtitle."
+    "For the bound caseKey, the independent attempt opens its real media identity and invokes playback.select-subtitle with host playerPanel, the matching sourceKind, and deadlineSeconds within 1 through 90. Local and WebDAV sidecars use the registered sdr-bframe-aggregate-30s.zh-CN.srt label; the Emby case discovers the sole external track from the verified seed receipt.",
+    "The bound Operation discovers only real external.subtitle menu items, selects the unique source-kind and label match, returns the complete selection and identity observations, preserves session, media, source identity, and content revision, and the following three-frame producer shows the reviewed external cue rather than an embedded subtitle."
   ],
   "negativeControls": [
-    "A Catalog-authored dynamic track ID, single-file importMedia presented as a directory association, empty media relativePath, catalog-v2-external-subtitle, direct state injection, missing authenticated Emby account, unseeded sidecar, ambiguous discovery result, or identity/revision change is inadmissible.",
-    "A missing external cue, embedded cue mistaken for the external source, fewer than three valid changing frames, blank/pure-color/repeated attachments, or source-kind mismatch fails the restored matrix."
+    "A mismatched source case, Catalog-authored dynamic track ID, direct state injection, missing authenticated source, ambiguous discovery result, identity or revision change, missing external cue, embedded cue, fewer than three changing frames, or source-kind mismatch fails the bound case."
   ]
 }
 ---

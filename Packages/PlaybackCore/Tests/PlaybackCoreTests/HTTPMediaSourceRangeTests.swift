@@ -1,6 +1,7 @@
 import Foundation
 import PlaybackFFmpegBridge
 import Testing
+import CryptoKit
 
 private final class RecordingRangeServer: @unchecked Sendable {
     private let payload: Data
@@ -526,6 +527,14 @@ struct DemuxNetworkResilienceTests {
                 PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) >=
                     bufferConfiguration.forwardByteLimit
             }
+        )
+        let bytesAfterPrefetch = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+        let forwardBufferedBytes = PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource)
+        let fixtureDigest = SHA256.hash(data: try Data(contentsOf: resilienceFixture))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        print(
+            "ENCHRON_ASSERTION {\"consumerWaiting\":false,\"fixtureDigest\":\"sha256:\(fixtureDigest)\",\"fixtureIdentity\":\"av1-flac-avsync-10s.mkv\",\"bytesAfterOpen\":\(bytesAfterOpen),\"bytesAfterPrefetch\":\(bytesAfterPrefetch),\"forwardBufferedBytes\":\(forwardBufferedBytes),\"forwardByteLimit\":\(bufferConfiguration.forwardByteLimit)}"
         )
     }
 

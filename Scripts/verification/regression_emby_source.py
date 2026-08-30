@@ -31,6 +31,8 @@ SERIES_DIRECTORY = SERIES_NAME
 SEASON_DIRECTORY = "Season 01"
 EPISODE_FILE_NAME = "Enchron Regression Episode - S01E01.mkv"
 EXTERNAL_SUBTITLE_FILE_NAME = "Enchron Regression Episode - S01E01.zh-CN.srt"
+SECOND_SEASON_DIRECTORY = "Season 02"
+SECOND_EPISODE_FILE_NAME = "Enchron Regression Episode 2 - S02E01.mkv"
 SEEDED_PROGRESS_TICKS = 100_000_000
 PRODUCT_DEADLINE_SECONDS = 45
 HARNESS_LIVENESS_DEADLINE_SECONDS = 90
@@ -372,6 +374,26 @@ def _materialize_library(
         )
         (series / "poster.png").write_bytes(_POSTER_BYTES)
         (season / "Enchron Regression Episode - S01E01-poster.png").write_bytes(
+            _POSTER_BYTES
+        )
+        second_season = series / SECOND_SEASON_DIRECTORY
+        second_season.mkdir()
+        second_destination = second_season / SECOND_EPISODE_FILE_NAME
+        with fixture.source.open("rb") as source, second_destination.open("xb") as target:
+            shutil.copyfileobj(source, target, length=1024 * 1024)
+            target.flush()
+            os.fsync(target.fileno())
+        if _file_digest(second_destination) != fixture.digest:
+            raise EmbyFixtureError("second-season aggregate fixture digest does not match")
+        (second_season / "Enchron Regression Episode 2 - S02E01.nfo").write_text(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            "<episodedetails><title>Enchron Regression Episode 2</title>"
+            "<showtitle>Enchron Regression Series</showtitle><season>2</season>"
+            "<episode>1</episode><uniqueid type=\"enchon\" default=\"true\">"
+            "enchon-regression-episode-2-v1</uniqueid></episodedetails>\n",
+            encoding="utf-8",
+        )
+        (second_season / "Enchron Regression Episode 2 - S02E01-poster.png").write_bytes(
             _POSTER_BYTES
         )
         os.replace(staging, configuration.library_root)
@@ -1162,6 +1184,7 @@ class HTTPEmbyBoundary:
                         session,
                         parent_id=str(series["Id"]),
                         item_type="Season",
+                        name="Season 1",
                     )
                     if season is not None:
                         episode = self._single_item(

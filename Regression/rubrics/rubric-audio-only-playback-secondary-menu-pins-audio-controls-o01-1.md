@@ -5,11 +5,12 @@
   "id": "rubric:audio-only-playback.secondary-menu-pins-audio-controls.o01@1",
   "title": "Secondary Menu Pins Audio Controls",
   "criteria": [
-    "For inside.m4a, one surface→More→Audio transaction and one surface→More→Playback Speed transaction each expose a real enabled secondary menu and keep playback controls visible through the 9000 ms probe, exceeding the product's exact 8000 ms idle auto-hide policy.",
-    "The bound traces keep lifecycle Playing and show no subtitle, video-format, Dock, or Panorama actions in the audio-only control set."
+    "For caseKey audio-menu, the bound trace contains one surface to More to Audio transaction that exposes a real enabled secondary menu and keeps playback controls visible through the 9000 ms probe.",
+    "For caseKey speed-menu, the bound trace contains one surface to More to Playback Speed transaction that exposes a real enabled secondary menu and keeps playback controls visible through the 9000 ms probe.",
+    "The bound trace keeps lifecycle Playing and shows no subtitle, video-format, Dock, or Panorama actions in the audio-only control set."
   ],
   "negativeControls": [
-    "Using the disabled subtitle menu as a case, omitting More, splitting one nested-menu route across controllers, controls hidden before 9000 ms, or any video-only action present fails the rubric."
+    "A trace for the other case, omitted More step, split nested-menu route, controls hidden before 9000 ms, or any video-only action fails the bound case."
   ]
 }
 ---

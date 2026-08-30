@@ -45,9 +45,21 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "labels": [
+          "Enchron Regression Library",
+          "Enchron Regression Series"
+        ]
       },
       "callId": "call:emby-server-lifecycle:artwork-by-image-tag:03",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifier": "Emby-Evidence"
+      },
+      "callId": "call:emby-server-lifecycle:artwork-by-image-tag:04",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -60,7 +72,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:03",
+      "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:04",
       "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1"
     }
   ],

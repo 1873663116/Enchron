@@ -245,8 +245,105 @@ class ArgumentField:
 
 
 @dataclass(frozen=True)
+class ArgumentRuleCase:
+    value: str
+    required: Tuple[str, ...]
+    forbidden: Tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _non_empty(self.value, "argumentRuleCase.value", "value")
+        required = tuple(self.required)
+        forbidden = tuple(self.forbidden)
+        if len(required) != len(set(required)) or len(forbidden) != len(set(forbidden)):
+            raise _error(
+                "contract.duplicate_argument_rule_field",
+                "operation.argumentSchema.rules",
+                "argument rule fields must be unique",
+            )
+        if set(required) & set(forbidden):
+            raise _error(
+                "contract.conflicting_argument_rule_field",
+                "operation.argumentSchema.rules",
+                "an argument rule cannot require and forbid the same field",
+            )
+        object.__setattr__(self, "required", required)
+        object.__setattr__(self, "forbidden", forbidden)
+
+
+@dataclass(frozen=True)
+class ArgumentRule:
+    kind: str
+    fields: Tuple[str, ...] = ()
+    groups: Tuple[Tuple[str, ...], ...] = ()
+    discriminator: str | None = None
+    cases: Tuple[ArgumentRuleCase, ...] = ()
+
+    def validate(self, arguments: Mapping[str, Any], location: str) -> None:
+        present = set(arguments)
+        if self.kind == "at-least-one":
+            if not present.intersection(self.fields):
+                raise _error(
+                    "contract.argument_rule_failed",
+                    location,
+                    "at least one of these arguments is required: "
+                    + ", ".join(self.fields),
+                )
+            return
+        if self.kind == "all-or-none":
+            matched = present.intersection(self.fields)
+            if matched and matched != set(self.fields):
+                raise _error(
+                    "contract.argument_rule_failed",
+                    location,
+                    "these arguments must appear together: " + ", ".join(self.fields),
+                )
+            return
+        if self.kind == "exactly-one-group":
+            complete = [group for group in self.groups if set(group) <= present]
+            mentioned = {
+                field
+                for group in self.groups
+                for field in group
+                if field in present
+            }
+            if len(complete) != 1 or mentioned != set(complete[0]):
+                raise _error(
+                    "contract.argument_rule_failed",
+                    location,
+                    "exactly one complete argument group is required",
+                )
+            return
+        if self.kind == "when-equals":
+            case = next(
+                (
+                    item
+                    for item in self.cases
+                    if arguments.get(self.discriminator) == item.value
+                ),
+                None,
+            )
+            if case is None:
+                return
+            missing = [field for field in case.required if field not in present]
+            forbidden = [field for field in case.forbidden if field in present]
+            if missing or forbidden:
+                raise _error(
+                    "contract.argument_rule_failed",
+                    location,
+                    "conditional argument requirements were not met",
+                )
+            return
+        raise _error(
+            "contract.invalid_argument_rule",
+            location,
+            f"unknown argument rule {self.kind}",
+        )
+
+
+@dataclass(frozen=True)
 class ArgumentSchema:
     fields: Tuple[ArgumentField, ...]
+    rules: Tuple[ArgumentRule, ...] = ()
 
     def __post_init__(self) -> None:
         fields = tuple(self.fields)
@@ -264,6 +361,31 @@ class ArgumentSchema:
                 "an argument field may be declared only once",
             )
         object.__setattr__(self, "fields", fields)
+        rules = tuple(self.rules)
+        if any(not isinstance(item, ArgumentRule) for item in rules):
+            raise _error(
+                "contract.invalid_argument_rule",
+                "operation.argumentSchema.rules",
+                "rules must contain ArgumentRule values",
+            )
+        declared = set(names)
+        for rule in rules:
+            referenced = set(rule.fields)
+            referenced.update(field for group in rule.groups for field in group)
+            if rule.discriminator is not None:
+                referenced.add(rule.discriminator)
+            referenced.update(
+                field
+                for case in rule.cases
+                for field in case.required + case.forbidden
+            )
+            if not referenced <= declared:
+                raise _error(
+                    "contract.unknown_argument_rule_field",
+                    "operation.argumentSchema.rules",
+                    "argument rules may reference only declared fields",
+                )
+        object.__setattr__(self, "rules", rules)
 
     def canonicalize(self, arguments: Mapping[str, Any], location: str) -> bytes:
         if not isinstance(arguments, Mapping):
@@ -298,6 +420,8 @@ class ArgumentSchema:
                     f"{location}.{name}",
                     f"expected {field_by_name[name].value_type.value}",
                 )
+        for rule in self.rules:
+            rule.validate(arguments, location)
         return canonical_bytes(dict(arguments))
 
 
@@ -1153,6 +1277,8 @@ class DraftCatalog:
 
 __all__ = (
     "ArgumentField",
+    "ArgumentRule",
+    "ArgumentRuleCase",
     "ArgumentSchema",
     "ArgumentValueKind",
     "ArtifactClass",
