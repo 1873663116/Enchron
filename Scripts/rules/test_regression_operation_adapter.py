@@ -86,7 +86,10 @@ VALID_ARGUMENTS: dict[str, dict[str, object]] = {
 }
 
 SEMANTIC_OUTPUTS = {
-    "operation:evidence.capture-frames@1": (("visual.frames", "frame-sequence@2"),),
+    "operation:evidence.capture-frames@1": (
+        ("visual.frames", "frame-sequence@2"),
+        ("window.control-plane", "window-control-plane@1"),
+    ),
     "operation:accessibility.inspect@2": (("accessibility.tree", "accessibility-tree@1"),),
     "operation:diagnostics.surface-probe@1": (
         ("interaction.trace", "interaction-trace@1"),
@@ -100,7 +103,13 @@ SEMANTIC_OUTPUTS = {
         ("library.command", "library-command@1"),
     ),
     "operation:library.snapshot@1": (("library.command", "library-command@1"),),
-    "operation:diagnostics.playback-state@1": (("playback.probe", "playback-probe@1"),),
+    "operation:diagnostics.playback-state@1": (
+        ("playback.probe", "playback-probe@1"),
+        ("window.control-plane", "window-control-plane@1"),
+    ),
+    "operation:playback.await-window-state@1": (
+        ("window.control-plane", "window-control-plane@1"),
+    ),
     "operation:transition-trace.fetch@1": (("transition.trace", "transition-trace@1"),),
     "operation:evidence.capture-audio@2": (("audio.measurement", "audio-measurement@2"),),
     "operation:evidence.structural-test@1": (("structural.test", "structural-test@2"),),

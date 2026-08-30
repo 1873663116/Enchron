@@ -2182,7 +2182,10 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("exit-replaces-current-frame"),
                 ),
             ),
-            (("visual.frames", "frame-sequence@2"),),
+            (
+                ("visual.frames", "frame-sequence@2"),
+                ("window.control-plane", "window-control-plane@1"),
+            ),
             _capture_frames,
         ),
         OperationSpec("operation:navigation.select-tab@1", LANES, (_field("tab", string, choices=_choices("files", "settings", "emby", "environment")),), ()),
@@ -2398,10 +2401,13 @@ def _specs() -> tuple[OperationSpec, ...]:
                     maximum=3,
                 ),
             ),
-            (("playback.probe", "playback-probe@1"),),
+            (
+                ("playback.probe", "playback-probe@1"),
+                ("window.control-plane", "window-control-plane@1"),
+            ),
             _playback_state,
         ),
-        OperationSpec("operation:playback.await-window-state@1", LANES, (_field("presentation", string, choices=_choices("window", "portal", "either-main-window")), _field("lifecycle", string, choices=_choices("playing", "ready", "paused", "ended", "any-steady")), _field("controls", string, choices=_choices("shown", "hidden", "either")), _deadline()), ()),
+        OperationSpec("operation:playback.await-window-state@1", LANES, (_field("presentation", string, choices=_choices("window", "portal", "either-main-window")), _field("lifecycle", string, choices=_choices("playing", "ready", "paused", "ended", "any-steady")), _field("controls", string, choices=_choices("shown", "hidden", "either")), _deadline()), (("window.control-plane", "window-control-plane@1"),)),
         OperationSpec("operation:playback.wait-position@2", LANES, (_field("minimumPositionMillis", integer, minimum=0), _field("minimumRemainingMillis", integer, minimum=0), _field("expectedMediaName", string, required=False), _field("differentSessionFrom", string, required=False), _deadline()), (), _wait_position),
         OperationSpec("operation:playback.seek@2", LANES, (_field("positionMillionths", integer, minimum=0, maximum=1000000),), ()),
         OperationSpec(
@@ -3059,6 +3065,8 @@ class ResidentOperationBackend:
             "context": arguments["context"],
             "artifactRoot": str(context.controller_directory),
             "frames": frames,
+            "fields": frames[-1]["controlPlane"]["fields"],
+            "response": frames[-1]["controlPlane"]["response"],
             "remoteObservation": remote_observation,
             "artworkObservation": (
                 {
@@ -5480,13 +5488,18 @@ class ResidentOperationBackend:
         return result
 
     def _playback_await_window_state_1(self, arguments, context):
-        return self._wait_for_window(
+        result = self._wait_for_window(
             context,
             presentation=str(arguments["presentation"]),
             lifecycle=str(arguments["lifecycle"]),
             controls=str(arguments["controls"]),
             deadline_seconds=int(arguments["deadlineSeconds"]),
         )
+        return {
+            **result,
+            "fields": result.get("fields", {}),
+            "response": result.get("response", {}),
+        }
 
     def _playback_wait_position_2(self, arguments, context):
         for field in ("expectedMediaName", "differentSessionFrom"):
