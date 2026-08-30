@@ -2451,9 +2451,9 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("settled", "rollback-after-settlement-timeout"),
                 ),
             ),
-            (),
+            (("window.control-plane", "window-control-plane@1"),),
         ),
-        OperationSpec("operation:presentation.exit-spatial@1", LANES, (_field("from", string, choices=_choices("docked", "panorama")), _deadline()), ()),
+        OperationSpec("operation:presentation.exit-spatial@1", LANES, (_field("from", string, choices=_choices("docked", "panorama")), _deadline()), (("window.control-plane", "window-control-plane@1"),)),
         OperationSpec(
             "operation:transition-trace.arm@1",
             LANES,
@@ -6094,7 +6094,18 @@ class ResidentOperationBackend:
                 int(arguments["deadlineSeconds"]),
                 "PlayerUI-TopAction-resumePanorama",
             )
-        return {**result, "summon": summon}
+        control_plane = self._window_control_plane_observation(context)
+        snapshot, transition_response = self._transition_trace_observation(
+            context
+        )
+        return {
+            **result,
+            "summon": summon,
+            "snapshot": snapshot,
+            "transitionResponse": transition_response,
+            "fields": control_plane["fields"],
+            "response": control_plane["response"],
+        }
 
     def _enter_panorama_expecting_settlement_rollback(
         self,
@@ -6221,12 +6232,29 @@ class ResidentOperationBackend:
             controls="either",
             deadline_seconds=int(arguments["deadlineSeconds"]),
         )
+        snapshot, transition_response = self._transition_trace_observation(
+            context
+        )
         return {
             "succeeded": settlement["succeeded"],
             "summon": summon,
             "action": action,
             "settlement": settlement,
+            "snapshot": snapshot,
+            "transitionResponse": transition_response,
+            "fields": settlement.get("fields", {}),
+            "response": settlement.get("response", {}),
         }
+
+    def _transition_trace_observation(self, context):
+        response = self._app_command(context, "fetchTransitionTraceSnapshot")
+        self._require_success(response, "fetchTransitionTraceSnapshot")
+        snapshot = response.get("transitionTraceSnapshot")
+        if not isinstance(snapshot, Mapping):
+            raise OperationAdapterError(
+                "transition trace observation omitted its typed snapshot"
+            )
+        return dict(snapshot), response
 
     def _transition_trace_arm_1(self, arguments, context):
         prior_response = self._app_command(

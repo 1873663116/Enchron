@@ -108,11 +108,11 @@
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "transition-trace@1",
-      "evidenceType": "transition.trace",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o01:default",
-      "oracle": "oracle:agent-structured-transition@1",
-      "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:08",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:07",
       "rubric": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o01@1"
     }
   ],

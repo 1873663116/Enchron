@@ -118,6 +118,12 @@ SEMANTIC_OUTPUTS = {
     "operation:evidence.capture-audio@2": (("audio.measurement", "audio-measurement@2"),),
     "operation:evidence.structural-test@1": (("structural.test", "structural-test@2"),),
     "operation:media.open@2": (("window.control-plane", "window-control-plane@1"),),
+    "operation:presentation.enter-panorama@1": (
+        ("window.control-plane", "window-control-plane@1"),
+    ),
+    "operation:presentation.exit-spatial@1": (
+        ("window.control-plane", "window-control-plane@1"),
+    ),
 }
 
 
@@ -559,12 +565,17 @@ class OperationAllowlistTests(unittest.TestCase):
             "lifecycle": "Playing",
         }
         matrix = mock.Mock(PASS="pass", STALL_TIMEOUT="stall-timeout")
+        summon = {"success": True, "payload": ["true"]}
+        trace = {
+            "success": True,
+            "transitionTraceSnapshot": {"generation": 7, "records": []},
+        }
         with (
             mock.patch.object(backend, "_matrix", return_value=matrix),
             mock.patch.object(
                 backend,
                 "_app_command",
-                return_value={"success": True, "payload": ["true"]},
+                side_effect=[summon, trace],
             ) as app_command,
             mock.patch.object(
                 backend,
@@ -592,8 +603,12 @@ class OperationAllowlistTests(unittest.TestCase):
 
         self.assertTrue(result["succeeded"])
         self.assertEqual(result["settlement"]["terminal"], terminal)
-        app_command.assert_called_once_with(
-            self.device, "toggleControls", "visible=true"
+        self.assertEqual(
+            app_command.call_args_list,
+            [
+                mock.call(self.device, "toggleControls", "visible=true"),
+                mock.call(self.device, "fetchTransitionTraceSnapshot"),
+            ],
         )
         controller.assert_called_once_with(
             self.device,
@@ -4854,13 +4869,27 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         backend = adapter.ResidentOperationBackend()
         summon = {"success": True, "payload": ["true"]}
         settlement = {"succeeded": True, "settlement": {"verdict": "pass"}}
+        trace = {
+            "success": True,
+            "transitionTraceSnapshot": {"generation": 7, "records": []},
+        }
+        control_plane = {
+            "succeeded": True,
+            "fields": {"presentation": "panorama"},
+            "response": {"success": True},
+        }
         with (
             mock.patch.object(
-                backend, "_app_command", return_value=summon
+                backend, "_app_command", side_effect=[summon, summon, trace]
             ) as app_command,
             mock.patch.object(
                 backend, "_enter_spatial", return_value=settlement
             ) as enter,
+            mock.patch.object(
+                backend,
+                "_window_control_plane_observation",
+                return_value=control_plane,
+            ),
         ):
             docked = backend._presentation_enter_docked_skybox_1(
                 {"deadlineSeconds": 30}, self.device
@@ -4869,12 +4898,12 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 {"deadlineSeconds": 30}, self.device
             )
 
-        self.assertEqual(app_command.call_count, 2)
         self.assertEqual(
             app_command.call_args_list,
             [
                 mock.call(self.device, "toggleControls", "visible=true"),
                 mock.call(self.device, "toggleControls", "visible=true"),
+                mock.call(self.device, "fetchTransitionTraceSnapshot"),
             ],
         )
         self.assertEqual(enter.call_count, 2)
@@ -4883,7 +4912,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
 
         with (
             mock.patch.object(
-                backend, "_app_command", return_value=summon
+                backend, "_app_command", side_effect=[summon, trace]
             ) as app_command,
             mock.patch.object(
                 backend, "_controller", return_value={"success": True}
@@ -4891,14 +4920,23 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             mock.patch.object(
                 backend,
                 "_wait_for_window",
-                return_value={"succeeded": True, "terminal": {}},
+                return_value={
+                    "succeeded": True,
+                    "terminal": {},
+                    "fields": {"presentation": "portal"},
+                    "response": {"success": True},
+                },
             ),
         ):
             exited = backend._presentation_exit_spatial_1(
                 {"from": "panorama", "deadlineSeconds": 30}, self.device
             )
-        app_command.assert_called_once_with(
-            self.device, "toggleControls", "visible=true"
+        self.assertEqual(
+            app_command.call_args_list,
+            [
+                mock.call(self.device, "toggleControls", "visible=true"),
+                mock.call(self.device, "fetchTransitionTraceSnapshot"),
+            ],
         )
         controller.assert_called_once_with(
             self.device,
