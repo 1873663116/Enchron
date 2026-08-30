@@ -704,6 +704,59 @@ class OperationAllowlistTests(unittest.TestCase):
                 ):
                     spec.validate("simulator", arguments)
 
+    def test_accessibility_type_accepts_alert_placeholder_label(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        spec = adapter.SPECS["operation:accessibility.type@2"]
+        shape = adapter.catalog_operation_shape(spec.identifier)
+        fields = {item["name"]: item for item in shape["argumentFields"]}
+        self.assertFalse(fields["identifier"]["required"])
+        self.assertFalse(fields["label"]["required"])
+        arguments = {
+            "context": "main-window-browser",
+            "label": "Folder name",
+            "mode": "replace",
+            "secret": False,
+            "text": "Catalog V2 Folder",
+        }
+        validated = spec.validate("simulator", arguments)
+        with mock.patch.object(
+            backend,
+            "_controller",
+            return_value={
+                "success": True,
+                "appState": "runningForeground",
+                "hierarchy": "alert field typed",
+            },
+        ) as controller:
+            result = backend._accessibility_type_2(validated, self.simulator)
+        self.assertTrue(result["succeeded"])
+        controller.assert_called_once_with(
+            self.simulator,
+            "replaceText",
+            "--index",
+            "0",
+            "--label",
+            "Folder name",
+            "--text",
+            "Catalog V2 Folder",
+        )
+        with self.assertRaisesRegex(adapter.OperationAdapterError, "identifier or label"):
+            spec.validate(
+                "simulator",
+                {
+                    "context": "main-window-browser",
+                    "mode": "replace",
+                    "secret": False,
+                    "text": "Catalog V2 Folder",
+                },
+            )
+        self.assertEqual(
+            dict(spec.validate("device", dict(VALID_ARGUMENTS["operation:accessibility.type@2"])))[
+                "identifier"
+            ],
+            VALID_ARGUMENTS["operation:accessibility.type@2"]["identifier"],
+        )
+
     def test_accessibility_activate_drives_identifiers_then_each_label(self) -> None:
         backend = adapter.ResidentOperationBackend()
         arguments = {
@@ -1910,6 +1963,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 "aggregateDigest": aggregate_digest,
                 "aggregateManifestHashes": manifest_hashes,
                 "aggregatePaths": aggregate_paths,
+                "hostShares": ["Cortisol", "TestMedia"],
             }
             runtime_file.write_text(json.dumps(runtime), encoding="utf-8")
             os.chmod(runtime_file, 0o600)
@@ -1933,6 +1987,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 },
                 "aggregateManifestHashes": manifest_hashes,
                 "aggregatePaths": runtime["aggregatePaths"],
+                "hostShares": runtime["hostShares"],
             }
             with (
                 mock.patch.object(adapter, "SMB_RUNTIME_FILE", runtime_file),

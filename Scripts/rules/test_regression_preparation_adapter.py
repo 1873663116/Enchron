@@ -911,8 +911,16 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             "preparation:faultable-remote-source": {"source.connection", "source.session"},
             "preparation:issue-fixtures": {"source.connection", "source.session"},
             "preparation:presentation-fixtures-device": {"source.connection", "source.session"},
+            "preparation:presentation-fixtures-simulator": {
+                "source.connection",
+                "source.session",
+            },
             "preparation:smb-test-source": {"source.connection", "source.session"},
             "preparation:viewing-storage-fixtures-device": {"source.connection", "source.session"},
+            "preparation:viewing-storage-fixtures-simulator": {
+                "source.connection",
+                "source.session",
+            },
         }
         for identifier, tags in expected.items():
             with self.subTest(preparation=identifier):
@@ -1298,6 +1306,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "finite-reconnect",
                 "buffer-absorbed-interruption",
                 "certificate-rotation",
+                "transport-interrupted",
             ),
         )
         source = (REPOSITORY_ROOT / "Scripts/verification/regression_environment_preflight.py").read_text(

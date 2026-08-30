@@ -10,7 +10,7 @@
   ],
   "negativeControls": [
     "A command exit code or test name without the structured assertion payload cannot satisfy the rubric.",
-    "Missing artworkLoads[].itemID produces Indeterminate rather than Satisfied; an observed itemID that does not equal the prepared Emby fixture item is mixed-provenance evidence and violates the rubric.",
+    "Missing artworkLoads[].itemID produces Indeterminate rather than Satisfied; an observed itemID that does not equal receipt.catalog.episodeID or seriesID from the inlined host report is mixed-provenance evidence and violates the rubric.",
     "Any loopback artwork request, missing tag, or artwork bound to a different item violates the rubric."
   ]
 }

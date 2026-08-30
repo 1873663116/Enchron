@@ -31,6 +31,10 @@
     {
       "key": "local-directory-subtitle-source-ready",
       "schema": "media-source.local-directory-sidecars@1"
+    },
+    {
+      "key": "emby-test-library-ready",
+      "schema": "remote-source.emby-library@2"
     }
   ],
   "operations": [
@@ -72,7 +76,7 @@
     {
       "arguments": {
         "deadlineSeconds": 30,
-        "host": "playerPanel",
+        "host": "playerUI",
         "sourceKind": "local-sidecar"
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:05",
@@ -148,7 +152,7 @@
     {
       "arguments": {
         "deadlineSeconds": 30,
-        "host": "playerPanel",
+        "host": "playerUI",
         "sourceKind": "source-directory-sidecar"
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:13",
@@ -194,32 +198,22 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 45,
-        "expectedLanding": "window",
-        "identifier": "Emby-Detail-PlayFromBeginning"
-      },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",
-      "maxInvocations": 1,
-      "operation": "operation:media.open@2"
-    },
-    {
-      "arguments": {
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:19",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
     {
       "arguments": {
         "deadlineSeconds": 30,
-        "host": "playerPanel",
+        "host": "playerUI",
         "sourceKind": "emby-external-stream"
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:19",
       "maxInvocations": 1,
       "operation": "operation:playback.select-subtitle@1"
     },
@@ -229,7 +223,7 @@
         "count": 3,
         "minimumIntervalMillis": 1000
       },
-      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -262,7 +256,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:local-media-lifecycle:external-subtitle-source-matrix:o01:emby-external-stream",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:21",
+      "producedByCall": "call:local-media-lifecycle:external-subtitle-source-matrix:20",
       "rubric": "rubric:local-media-lifecycle.external-subtitle-source-matrix.o01@1"
     }
   ],

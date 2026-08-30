@@ -115,7 +115,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:09",
       "maxInvocations": 1,

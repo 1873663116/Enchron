@@ -47,10 +47,10 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:3b3773d1e84f8ddecd3a3a7839b29f3a4f4f4f949d65840d0efcf25c793ac62d"
+    "digest": "sha256:a2f53ab9b72521f76526433bf7a40437a4f693b546cab25a6e01331efa6349ef"
   }
 }
 ---
 # Playback Select Subtitle
 
-The runtime Operation adapter selects one external subtitle through the public playback surface, More, Subtitles, and dynamic menu-item Accessibility identifiers in one controller transaction, then verifies the same playback identity and selected track in product state.
+The runtime Operation adapter selects one external subtitle through the public host route in one controller transaction: host=playerUI uses PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items; host=playerPanel summons immersive chrome with toggleControls then PlayerPanel-menu-more, PlayerPanel-menu-subtitles, and PlayerPanel-menu-subtitle-external.subtitle.* items without addressing PlayerUI-window-playback-surface. It then verifies the same playback identity and selected track in product state.

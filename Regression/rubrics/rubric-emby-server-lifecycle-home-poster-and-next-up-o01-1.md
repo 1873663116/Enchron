@@ -5,13 +5,13 @@
   "id": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1",
   "title": "Home Poster And Next Up",
   "criteria": [
-    "A live server query and product hierarchy agree on the visible poster and Next Up item identities.",
-    "A poster opens its media detail route and a Next Up still opens its episode route after any identifier-scoped scroll."
+    "The bound emby.evidence inlines the host emby-aggregate report and the home inspect: home.shelves itemIDs include receipt.catalog.seriesID and episodeID from that report.",
+    "The bound document inlines the pre-relaunch (or same-session) inspect whose home.activations records the poster surface to series detail, and the producer inspect records the nextUp still to the episode. An in-memory activation journal cleared by relaunch cannot be the sole witness for the earlier poster activation."
   ],
   "negativeControls": [
     "Element existence or isHittable alone does not prove that the product received the action.",
     "A route reached only through a diagnostic injection cannot satisfy a user-path delivery criterion.",
-    "Cached artwork without a live item response, an unscoped swipe, or a non-hittable offscreen card cannot satisfy the rubric."
+    "home.shelves missing the live catalog itemIDs, a poster activation present only on an unbound earlier inspect, or activations that lack poster or nextUp cannot Satisfy."
   ]
 }
 ---

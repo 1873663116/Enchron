@@ -5,13 +5,13 @@
   "id": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1",
   "title": "Emby Resume Entry Semantics",
   "criteria": [
-    "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of that server position decided by HC-021.",
-    "Play from Beginning starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, without deleting or overwriting the server's saved progress solely because it was chosen."
+    "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after Resume.",
+    "Play from Beginning starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, as witnessed by the inlined second playback.probe fields."
   ],
   "negativeControls": [
     "An action return value without the post-action application state cannot satisfy the rubric.",
     "A missing required field, changed session identity where preservation is required, or stale snapshot produces a non-passing result.",
-    "Reading local state, reversing the two actions, or erasing server progress on start violates the rubric."
+    "Reading local viewing storage, reversing the two actions, or opening PlayFromBeginning from a series-page episode card that starts playback immediately violates the rubric."
   ]
 }
 ---

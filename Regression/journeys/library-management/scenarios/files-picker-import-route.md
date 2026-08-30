@@ -65,13 +65,10 @@
       "operation": "operation:accessibility.activate@2"
     },
     {
-      "arguments": {
-        "systemControl": "home",
-        "targetDomain": "system-toolbar"
-      },
+      "arguments": {},
       "callId": "call:library-management:files-picker-import-route:05",
       "maxInvocations": 1,
-      "operation": "operation:input.device-hub-pinch@2"
+      "operation": "operation:input.device-hub-prepare@1"
     },
     {
       "arguments": {
@@ -84,13 +81,22 @@
     },
     {
       "arguments": {
+        "systemControl": "home",
+        "targetDomain": "system-toolbar"
+      },
+      "callId": "call:library-management:files-picker-import-route:07",
+      "maxInvocations": 1,
+      "operation": "operation:input.device-hub-pinch@2"
+    },
+    {
+      "arguments": {
         "shotHeight": 2160,
         "shotWidth": 3840,
         "shotX": 1470,
         "shotY": 1221,
         "targetDomain": "canvas"
       },
-      "callId": "call:library-management:files-picker-import-route:07",
+      "callId": "call:library-management:files-picker-import-route:08",
       "maxInvocations": 1,
       "operation": "operation:input.device-hub-pinch@2"
     },
@@ -102,7 +108,7 @@
         "shotY": 1020,
         "targetDomain": "canvas"
       },
-      "callId": "call:library-management:files-picker-import-route:08",
+      "callId": "call:library-management:files-picker-import-route:09",
       "maxInvocations": 1,
       "operation": "operation:input.device-hub-pinch@2"
     },
@@ -114,7 +120,7 @@
         "shotY": 803,
         "targetDomain": "canvas"
       },
-      "callId": "call:library-management:files-picker-import-route:09",
+      "callId": "call:library-management:files-picker-import-route:10",
       "maxInvocations": 1,
       "operation": "operation:input.device-hub-pinch@2"
     },
@@ -122,7 +128,7 @@
       "arguments": {
         "systemImportExpectation": "files"
       },
-      "callId": "call:library-management:files-picker-import-route:10",
+      "callId": "call:library-management:files-picker-import-route:11",
       "maxInvocations": 1,
       "operation": "operation:library.snapshot@1"
     }
@@ -135,7 +141,7 @@
       "evidenceType": "library.command",
       "id": "obligation:library-management:files-picker-import-route:o01:default",
       "oracle": "oracle:agent-structured-library-command@1",
-      "producedByCall": "call:library-management:files-picker-import-route:10",
+      "producedByCall": "call:library-management:files-picker-import-route:11",
       "rubric": "rubric:library-management.files-picker-import-route.o01@1"
     }
   ],

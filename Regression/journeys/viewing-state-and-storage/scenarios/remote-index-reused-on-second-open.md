@@ -125,7 +125,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:10",
       "maxInvocations": 1,
@@ -203,6 +204,11 @@
           "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:02/viewingStorageDigest",
           "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:09/viewingStorageDigest",
           "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:11/viewingStorageDigest"
+        ],
+        "relatedResults": [
+          "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:02/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:09/viewingStorageObservation",
+          "result://call:viewing-state-and-storage:remote-index-reused-on-second-open:11/viewingStorageObservation"
         ]
       },
       "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",

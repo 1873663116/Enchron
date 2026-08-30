@@ -133,7 +133,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:11",
       "maxInvocations": 1,

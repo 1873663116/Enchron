@@ -112,7 +112,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:clear-all-local-progress:09",
       "maxInvocations": 1,
@@ -152,7 +153,8 @@
     },
     {
       "arguments": {
-        "positionMillionths": 997000
+        "positionMillionths": 997000,
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:clear-all-local-progress:13",
       "maxInvocations": 1,
@@ -186,7 +188,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:clear-all-local-progress:16",
       "maxInvocations": 1,

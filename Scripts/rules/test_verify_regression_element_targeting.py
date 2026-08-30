@@ -69,6 +69,19 @@ class ElementTargetingTests(unittest.TestCase):
 
         self.assertEqual(checker.failures(), [])
 
+    def test_typed_text_may_name_something_no_fixture_seeds(self) -> None:
+        self.catalog(
+            [
+                {
+                    "callId": "call:01",
+                    "operation": "operation:accessibility.type@2",
+                    "arguments": {"text": "Enchron Regression WebDAV Draft"},
+                }
+            ]
+        )
+
+        self.assertEqual(checker.failures(), [])
+
     def test_an_unrelated_label_is_not_policed(self) -> None:
         self.catalog([call("call:01", labels=["Movies"])])
 

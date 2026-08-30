@@ -38,11 +38,11 @@
     },
     {
       "arguments": {
-        "rootFolderName": "Journey Fixture"
+        "tab": "files"
       },
       "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:02",
       "maxInvocations": 1,
-      "operation": "operation:harness.reset-product-state@2"
+      "operation": "operation:navigation.select-tab@1"
     },
     {
       "arguments": {},
@@ -83,7 +83,7 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-name",
         "mode": "replace",
         "secret": false,
-        "text": "Enchron Regression WebDAV"
+        "text": "Enchron Regression WebDAV Draft"
       },
       "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:07",
       "maxInvocations": 1,
@@ -143,7 +143,8 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-SourceConnection-webDAV"
+        "identifier": "FileBrowsing-SourceConnection-webDAV",
+        "requireMatchedElement": true
       },
       "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:12",
       "maxInvocations": 1,
@@ -220,6 +221,10 @@
     {
       "arguments": {
         "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:05/cursorToken",
+        "relatedResults": [
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/response",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/matchedElement"
+        ],
         "remoteExpectation": "certificate-trust-boundary",
         "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
       },
@@ -230,6 +235,10 @@
     {
       "arguments": {
         "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:05/cursorToken",
+        "relatedResults": [
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/response",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:12/matchedElement"
+        ],
         "remoteExpectation": "certificate-trust-boundary",
         "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
       },

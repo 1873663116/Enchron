@@ -85,6 +85,9 @@
     {
       "arguments": {
         "context": "window",
+        "identifiers": [
+          "Emby-Season-Picker"
+        ],
         "labels": [
           "Season 2"
         ]

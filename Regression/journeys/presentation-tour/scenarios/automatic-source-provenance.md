@@ -88,7 +88,13 @@
       "operation": "operation:accessibility.activate@2"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "relatedResults": [
+          "result://call:presentation-tour:automatic-source-provenance:05/before",
+          "result://call:presentation-tour:automatic-source-provenance:05/after",
+          "result://call:presentation-tour:automatic-source-provenance:06/response"
+        ]
+      },
       "callId": "call:presentation-tour:automatic-source-provenance:07",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"

@@ -774,9 +774,13 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                     f"result://{operations[arm_index]['callId']}/generationToken"
                 )
                 self.assertGreater(fetch_index, arm_index + 1, scenario["id"])
+                fetch_arguments = operations[fetch_index]["arguments"]
                 self.assertEqual(
-                    operations[fetch_index]["arguments"],
-                    {"generationToken": token},
+                    fetch_arguments["generationToken"], token, scenario["id"]
+                )
+                self.assertLessEqual(
+                    set(fetch_arguments),
+                    {"generationToken", "relatedResults"},
                     scenario["id"],
                 )
                 self.assertEqual(
@@ -1223,13 +1227,13 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             [
                 [
                     "PlayerUI-window-playback-surface",
-                    "PlayerPanel-menu-more",
-                    "PlayerPanel-menu-audio",
+                    "PlayerUI-TopAction-more",
+                    "PlayerUI-menu-audio",
                 ],
                 [
                     "PlayerUI-window-playback-surface",
-                    "PlayerPanel-menu-more",
-                    "PlayerPanel-menu-speed",
+                    "PlayerUI-TopAction-more",
+                    "PlayerUI-menu-speed",
                 ],
             ],
         )
@@ -1284,6 +1288,10 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                     "key": "local-directory-subtitle-source-ready",
                     "schema": "media-source.local-directory-sidecars@1",
                 },
+                {
+                    "key": "emby-test-library-ready",
+                    "schema": "remote-source.emby-library@2",
+                },
             ],
         )
         operations = [item["operation"] for item in scenario["operations"]]
@@ -1307,7 +1315,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "operation:app.relaunch@1",
                 "operation:navigation.select-tab@1",
                 "operation:accessibility.activate@2",
-                "operation:media.open@2",
                 "operation:playback.await-window-state@1",
                 "operation:playback.select-subtitle@1",
                 "operation:evidence.capture-frames@1",
@@ -1405,7 +1412,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             },
         }
         arguments = {
-            "host": "playerPanel",
+            "host": "playerUI",
             "sourceKind": "local-sidecar",
             "deadlineSeconds": 30,
         }

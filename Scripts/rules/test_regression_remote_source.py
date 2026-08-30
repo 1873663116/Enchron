@@ -229,6 +229,7 @@ class RemoteSourceRecipeTests(RemoteSourceTestCase):
             self._status("credentials-rejected", 401),
             self._status("missing-object", 404),
             self._status("access-denied", 403),
+            self._status("transport-interrupted", 503),
         ]
 
         corrupt = self.activate("corrupt-media")

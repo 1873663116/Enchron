@@ -30,6 +30,21 @@
         "name": "sourceReceipt",
         "type": "string",
         "required": false
+      },
+      {
+        "name": "hostShareName",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "expectedVideoName",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "hostShares",
+        "type": "string",
+        "required": false
       }
     ],
     "rules": [],
@@ -48,7 +63,7 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:3b3773d1e84f8ddecd3a3a7839b29f3a4f4f4f949d65840d0efcf25c793ac62d"
+    "digest": "sha256:a2f53ab9b72521f76526433bf7a40437a4f693b546cab25a6e01331efa6349ef"
   }
 }
 ---

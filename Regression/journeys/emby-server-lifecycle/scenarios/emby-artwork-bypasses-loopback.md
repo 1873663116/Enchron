@@ -29,8 +29,16 @@
   ],
   "operations": [
     {
-      "arguments": {},
+      "arguments": {
+        "check": "emby-aggregate"
+      },
       "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01",
+      "maxInvocations": 1,
+      "operation": "operation:host.preflight@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:02",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -38,16 +46,19 @@
       "arguments": {
         "tab": "emby"
       },
-      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:02",
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:03",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "relatedResults": [
+          "result://call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01/report"
+        ]
       },
-      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:03",
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -60,7 +71,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:03",
+      "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
       "rubric": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o01@1"
     }
   ],

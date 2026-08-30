@@ -57,6 +57,7 @@ RECIPE_NAMES = (
     "finite-reconnect",
     "buffer-absorbed-interruption",
     "certificate-rotation",
+    "transport-interrupted",
 )
 RECONNECT_BACKOFF_MILLIS = (250, 500, 1000)
 RUNTIME_DOCUMENT_KEYS = frozenset(
@@ -718,6 +719,16 @@ class RemoteSourceService:
             return self._empty(404, condition="primary-object-read", triggered=True), logged_path
         if is_primary and self._recipe == "access-denied":
             return self._empty(403, condition="primary-object-read", triggered=True), logged_path
+        if is_primary and self._recipe == "transport-interrupted":
+            return (
+                self._empty(
+                    503,
+                    {"Retry-After": "0"},
+                    condition="primary-object-read",
+                    triggered=True,
+                ),
+                logged_path,
+            )
         selection = self._select_range(headers.get("Range"), item.size)
         if selection is None:
             return (

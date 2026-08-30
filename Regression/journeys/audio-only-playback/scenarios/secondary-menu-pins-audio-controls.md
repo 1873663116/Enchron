@@ -75,8 +75,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-window-playback-surface",
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-audio"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio"
         ]
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:06",
@@ -86,6 +86,9 @@
     {
       "arguments": {
         "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
+        "relatedResults": [
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/response"
+        ],
         "settleDelayMillis": 9000
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:07",
@@ -138,8 +141,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-window-playback-surface",
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-speed"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-speed"
         ]
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:13",
@@ -149,6 +152,9 @@
     {
       "arguments": {
         "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:12/cursorToken",
+        "relatedResults": [
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/response"
+        ],
         "settleDelayMillis": 9000
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:14",

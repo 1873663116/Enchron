@@ -187,10 +187,14 @@
     },
     {
       "arguments": {
+        "assertAbsent": [
+          "PlayerUI-VideoFormat-HDRFallback"
+        ],
         "context": "window",
         "identifiers": [
           "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat"
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-VideoFormat-cancel"
         ]
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17",
@@ -200,32 +204,13 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "PlayerUI-VideoFormat-HDRFallback",
-        "requireMatchedElement": false
-      },
-      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:18",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.inspect@2"
-    },
-    {
-      "arguments": {
-        "context": "window",
-        "identifiers": [
-          "PlayerUI-VideoFormat-cancel"
+        "count": 3,
+        "minimumIntervalMillis": 1000,
+        "relatedResults": [
+          "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17/assertAbsentObservations"
         ]
       },
-      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:19",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.activate@2"
-    },
-    {
-      "arguments": {
-        "context": "window",
-        "count": 3,
-        "includeHDRFallback": true,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:18",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -258,7 +243,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:o01:profile-5-no-fallback",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:20",
+      "producedByCall": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:18",
       "rubric": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1"
     }
   ],

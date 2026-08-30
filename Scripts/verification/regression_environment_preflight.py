@@ -385,6 +385,12 @@ def _verify_log_causality(
         )
     if recipe == "certificate-rotation":
         _require(fingerprint_changed, "certificate-rotation did not change the fingerprint")
+    if recipe == "transport-interrupted":
+        triggered = [item for item in entries if item.get("triggered") is True]
+        _require(
+            triggered and all(item.get("status") == 503 for item in triggered),
+            "transport-interrupted did not persist 503 on its triggered reads",
+        )
 
 
 def _verify_recipe(
@@ -416,6 +422,10 @@ def _verify_recipe(
         elif recipe == "access-denied":
             result = _range_request(configuration, manifest.primary.name, 0, 63)
             _require(result.status == 403, "access-denied did not return 403")
+            observed = {"statuses": [result.status]}
+        elif recipe == "transport-interrupted":
+            result = _range_request(configuration, manifest.primary.name, 0, 63)
+            _require(result.status == 503, "transport-interrupted did not return 503")
             observed = {"statuses": [result.status]}
         elif recipe == "corrupt-media":
             result = _range_request(configuration, manifest.primary.name, 0, 63)

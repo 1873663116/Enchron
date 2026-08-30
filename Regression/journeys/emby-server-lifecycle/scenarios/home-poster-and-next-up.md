@@ -29,8 +29,16 @@
   ],
   "operations": [
     {
-      "arguments": {},
+      "arguments": {
+        "check": "emby-aggregate"
+      },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:01",
+      "maxInvocations": 1,
+      "operation": "operation:host.preflight@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:02",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -38,7 +46,7 @@
       "arguments": {
         "tab": "emby"
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:02",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:03",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -47,7 +55,7 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:03",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -58,7 +66,7 @@
           "Enchron Regression Series"
         ]
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:05",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -67,13 +75,13 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:05",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {},
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:06",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:07",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -81,7 +89,7 @@
       "arguments": {
         "tab": "emby"
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:07",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:08",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -92,16 +100,21 @@
           "Enchron Regression Episode"
         ]
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:08",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "relatedResults": [
+          "result://call:emby-server-lifecycle:home-poster-and-next-up:01/report",
+          "result://call:emby-server-lifecycle:home-poster-and-next-up:04/matchedElement",
+          "result://call:emby-server-lifecycle:home-poster-and-next-up:06/matchedElement"
+        ]
       },
-      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:09",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -114,7 +127,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:09",
+      "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:10",
       "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1"
     }
   ],

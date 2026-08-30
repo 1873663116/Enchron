@@ -88,7 +88,12 @@
     },
     {
       "arguments": {
-        "generationToken": "result://call:presentation-tour:window-docked-round-trip:05/generationToken"
+        "generationToken": "result://call:presentation-tour:window-docked-round-trip:05/generationToken",
+        "relatedResults": [
+          "result://call:presentation-tour:window-docked-round-trip:06/spatialState",
+          "result://call:presentation-tour:window-docked-round-trip:06/action",
+          "result://call:presentation-tour:window-docked-round-trip:06/settlement"
+        ]
       },
       "callId": "call:presentation-tour:window-docked-round-trip:08",
       "maxInvocations": 1,

@@ -122,7 +122,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:network-resilience:finite-backoff-reconnect:10",
       "maxInvocations": 1,
@@ -140,7 +141,12 @@
     },
     {
       "arguments": {
+        "omitPlaybackState": true,
         "productBindingDigest": "result://call:network-resilience:finite-backoff-reconnect:09/bindingDigest",
+        "relatedResults": [
+          "result://call:network-resilience:finite-backoff-reconnect:09/fields",
+          "result://call:network-resilience:finite-backoff-reconnect:09/expectationObservation"
+        ],
         "remoteExpectation": "finite-backoff",
         "remoteReceiptID": "result://call:network-resilience:finite-backoff-reconnect:07/receiptID",
         "restoredGenerationToken": "result://call:network-resilience:finite-backoff-reconnect:11/restoredGenerationToken"

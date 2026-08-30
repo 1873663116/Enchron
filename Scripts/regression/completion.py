@@ -24,6 +24,7 @@ from regression.core.contracts import (
 )
 from regression.core.digest import canonical_bytes, canonical_digest, digest_bytes
 from regression.core.expression import OracleResult
+from regression.core import transition_trace
 from regression.core.plan import (
     BuildIdentity,
     LaneBuildArtifact,
@@ -2151,47 +2152,14 @@ def _executable_closure(context: _CompletionContext) -> str:
     for oracle in proof.catalog.oracles:
         if len(oracle.evidence_schemas) != 1:
             raise CompletionError(f"Oracle {oracle.id} must consume exactly one semantic evidence pair")
-    transition_count = 0
     for scenario in proof.blueprint["scenarios"]:
         if _contains_two_of_three(scenario["success"]):
             raise CompletionError(
                 f"{scenario['id']} contains a forced 2-of-3 runtime contract"
             )
-        calls = scenario["operations"]
-        index = 0
-        while index < len(calls):
-            if calls[index]["operation"] != "operation:transition-trace.arm@1":
-                index += 1
-                continue
-            transition_count += 1
-            arm = calls[index]
-            fetch = next(
-                (
-                    candidate
-                    for candidate in calls[index + 1 :]
-                    if candidate["operation"] == "operation:transition-trace.fetch@1"
-                ),
-                None,
-            )
-            if fetch is None:
-                raise CompletionError(f"{scenario['id']} transition trace has no fetch")
-            fetch_index = calls.index(fetch)
-            product_actions = calls[index + 1 : fetch_index]
-            trace_controls = {
-                "operation:transition-trace.arm@1",
-                "operation:transition-trace.fetch@1",
-                "operation:transition-trace.disarm@1",
-            }
-            if not product_actions or any(
-                item["operation"] in trace_controls for item in product_actions
-            ):
-                raise CompletionError(f"{scenario['id']} transition trace has no product action")
-            if fetch_index + 1 >= len(calls) or calls[fetch_index + 1]["operation"] != "operation:transition-trace.disarm@1":
-                raise CompletionError(f"{scenario['id']} transition trace is not fetch then disarm")
-            token = f"result://{arm['callId']}/generationToken"
-            if fetch["arguments"] != {"generationToken": token} or calls[fetch_index + 1]["arguments"] != {"generationToken": token}:
-                raise CompletionError(f"{scenario['id']} transition trace does not bind its arm token")
-            index = fetch_index + 2
+        for failure in transition_trace.failures(scenario):
+            raise CompletionError(failure)
+    transition_count = transition_trace.count(proof.blueprint["scenarios"])
     if transition_count == 0:
         raise CompletionError("active Catalog contains no transition capture sequence")
     return f"all runtime registry routes close without a 2-of-3 quorum; playback subtitle selection, local-directory Preparation, two dedicated evidence producers, 11 narrow Oracles, and {transition_count} arm/action/fetch/disarm traces are exact"

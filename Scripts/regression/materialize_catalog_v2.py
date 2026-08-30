@@ -17,6 +17,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
+from Scripts.regression.core import transition_trace  # noqa: E402
+
 from Scripts.verification import regression_operation_adapter as operation_adapter
 sys.modules["regression_operation_adapter"] = operation_adapter
 from Scripts.verification import regression_oracle_adapter as oracle_adapter
@@ -174,7 +176,6 @@ EXTERNAL_SUBTITLE_ATTEMPTS = (
             "operation:app.relaunch@1",
             "operation:navigation.select-tab@1",
             "operation:accessibility.activate@2",
-            "operation:media.open@2",
             "operation:playback.await-window-state@1",
             "operation:playback.select-subtitle@1",
             "operation:evidence.capture-frames@1",
@@ -724,68 +725,16 @@ def _validate_node_calls(
 def _validate_transition_trace_sequences(
     scenarios: Sequence[Mapping[str, Any]],
 ) -> None:
-    trace_controls = frozenset(
-        {
-            "operation:transition-trace.arm@1",
-            "operation:transition-trace.fetch@1",
-            "operation:transition-trace.disarm@1",
-        }
-    )
-    transition_count = 0
-    transition_scenarios: set[str] = set()
+    transition_scenarios = {
+        scenario["id"]
+        for scenario in scenarios
+        for call in scenario["operations"]
+        if call["operation"] == transition_trace.ARM
+    }
+    transition_count = transition_trace.count(scenarios)
     for scenario in scenarios:
-        scenario_id = scenario["id"]
-        calls = scenario["operations"]
-        index = 0
-        while index < len(calls):
-            operation = calls[index]["operation"]
-            if operation != "operation:transition-trace.arm@1":
-                _require(
-                    operation not in trace_controls,
-                    f"{scenario_id} transition trace control is outside an "
-                    "arm/action/fetch/disarm sequence",
-                )
-                index += 1
-                continue
-
-            transition_count += 1
-            transition_scenarios.add(scenario_id)
-            arm = calls[index]
-            fetch_index = next(
-                (
-                    candidate_index
-                    for candidate_index in range(index + 1, len(calls))
-                    if calls[candidate_index]["operation"]
-                    == "operation:transition-trace.fetch@1"
-                ),
-                None,
-            )
-            _require(
-                fetch_index is not None,
-                f"{scenario_id} transition trace has no fetch",
-            )
-            product_actions = calls[index + 1 : fetch_index]
-            _require(
-                product_actions
-                and not any(
-                    call["operation"] in trace_controls for call in product_actions
-                ),
-                f"{scenario_id} transition trace has no product action",
-            )
-            _require(
-                fetch_index + 1 < len(calls)
-                and calls[fetch_index + 1]["operation"]
-                == "operation:transition-trace.disarm@1",
-                f"{scenario_id} transition trace is not fetch then disarm",
-            )
-            token = f"result://{arm['callId']}/generationToken"
-            _require(
-                calls[fetch_index]["arguments"] == {"generationToken": token}
-                and calls[fetch_index + 1]["arguments"]
-                == {"generationToken": token},
-                f"{scenario_id} transition trace does not bind its arm token",
-            )
-            index = fetch_index + 2
+        for failure in transition_trace.failures(scenario):
+            _require(False, failure)
 
     _require(
         transition_count > 0,
@@ -973,6 +922,7 @@ def _validate_external_subtitle_matrix(
             "local-directory-subtitle-source-ready",
             "media-source.local-directory-sidecars@1",
         ),
+        ("emby-test-library-ready", "remote-source.emby-library@2"),
     }
     actual_prerequisites = {
         (item["key"], item["schema"]) for item in scenario["prerequisites"]
@@ -1015,7 +965,7 @@ def _validate_external_subtitle_matrix(
         _require(
             selection["arguments"]
             == {
-                "host": "playerPanel",
+                "host": "playerUI",
                 "sourceKind": source_kind,
                 "deadlineSeconds": 30,
             },

@@ -90,7 +90,8 @@
     },
     {
       "arguments": {
-        "positionMillionths": 997000
+        "positionMillionths": 997000,
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:07",
       "maxInvocations": 1,
@@ -123,7 +124,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:10",
       "maxInvocations": 1,

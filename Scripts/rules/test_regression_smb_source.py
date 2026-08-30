@@ -28,6 +28,11 @@ class FakeMount:
         self.failure = failure
         self.mounts: list[tuple[str, str, str, str, Path]] = []
         self.unmounts: list[Path] = []
+        self.listed: list[tuple[str, str, str]] = []
+
+    def shares(self, address: str, user: str, password: str) -> list[str]:
+        self.listed.append((address, user, password))
+        return ["Cortisol", "TestMedia"]
 
     def mount(
         self,
@@ -304,6 +309,36 @@ class SMBSourceTests(unittest.TestCase):
         self.assertEqual(configuration.environment_file, smb.DEFAULT_ENVIRONMENT_FILE)
         self.assertEqual(configuration.share_name, "TestMedia")
 
+
+
+class HostShareListingTests(unittest.TestCase):
+    LISTING = """Share                                           Type    Comments
+-------------------------------
+MacBackup                                       Disk    
+Cortisol                                        Disk    
+IPC$                                            Pipe    
+Macintosh HD                                    Disk    
+TestMedia                                       Disk    
+
+5 shares listed
+"""
+
+    def test_disk_shares_are_returned_sorted(self) -> None:
+        self.assertEqual(
+            smb._parse_shares(self.LISTING),
+            ["Cortisol", "MacBackup", "Macintosh HD", "TestMedia"],
+        )
+
+    def test_an_administrative_share_is_excluded(self) -> None:
+        self.assertNotIn("IPC$", smb._parse_shares(self.LISTING))
+
+    def test_a_dollar_suffixed_disk_share_is_excluded(self) -> None:
+        listing = self.LISTING.replace("MacBackup      ", "ADMIN$         ")
+
+        self.assertNotIn("ADMIN$", smb._parse_shares(listing))
+
+    def test_a_listing_with_no_disk_share_is_empty(self) -> None:
+        self.assertEqual(smb._parse_shares("Share  Type\n----\nIPC$  Pipe\n"), [])
 
 if __name__ == "__main__":
     unittest.main()

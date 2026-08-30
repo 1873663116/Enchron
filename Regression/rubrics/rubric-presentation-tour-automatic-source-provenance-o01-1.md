@@ -5,8 +5,8 @@
   "id": "rubric:presentation-tour.automatic-source-provenance.o01@1",
   "title": "Automatic Source Provenance",
   "criteria": [
-    "The initial internal-apple-apmp-180-v1 snapshot reports the reviewed half-equirectangular source declaration; a Flat override changes only the effective user format and revision, not that source declaration.",
-    "One surface→videoFormat→automatic→apply accessibility transaction resets the override, after which the bound playback state reports source provenance and the exact original projection/stereo values."
+    "relatedResults[0] is format.apply before (internal-apple-apmp-180-v1 source declaration) and relatedResults[1] is format.apply after the Flat override; after.fields.formatProvenance is userOverride while the source projection/stereo declaration in before.fields is unchanged.",
+    "relatedResults[2] is one surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-automatic→PlayerUI-VideoFormat-apply transaction, and the bound playback-state fields then report formatProvenance source with the original projection and stereo values."
   ],
   "negativeControls": [
     "Opening the editor without summoning controls, splitting one transient editor selection across controllers, mutating source declaration, leaving user provenance after Apply, or observing only UI selection without effective-format change fails the rubric.",

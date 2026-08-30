@@ -53,14 +53,16 @@
     {
       "arguments": {
         "context": "main-window-browser",
+        "expectedVideoName": "result://call:smb-source-lifecycle:smb-browse-shares-and-directories:01/aggregateVideoName",
+        "hostShareName": "result://call:smb-source-lifecycle:smb-browse-shares-and-directories:01/shareName",
+        "hostShares": "result://call:smb-source-lifecycle:smb-browse-shares-and-directories:01/hostShares",
         "pathComponents": [
           "TestMedia",
           "TestVectors",
           "Enchron",
           "PlaybackBehavior"
         ],
-        "sourceLabel": "Enchron Regression SMB",
-        "sourceReceipt": "result://call:smb-source-lifecycle:smb-browse-shares-and-directories:01/report"
+        "sourceLabel": "Enchron Regression SMB"
       },
       "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
       "maxInvocations": 1,

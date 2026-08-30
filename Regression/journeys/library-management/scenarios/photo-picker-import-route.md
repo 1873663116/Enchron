@@ -65,6 +65,12 @@
       "operation": "operation:accessibility.activate@2"
     },
     {
+      "arguments": {},
+      "callId": "call:library-management:photo-picker-import-route:05",
+      "maxInvocations": 1,
+      "operation": "operation:input.device-hub-prepare@1"
+    },
+    {
       "arguments": {
         "shotHeight": 2160,
         "shotWidth": 3840,
@@ -72,7 +78,7 @@
         "shotY": 1300,
         "targetDomain": "canvas"
       },
-      "callId": "call:library-management:photo-picker-import-route:05",
+      "callId": "call:library-management:photo-picker-import-route:06",
       "maxInvocations": 1,
       "operation": "operation:input.device-hub-pinch@2"
     },
@@ -80,7 +86,7 @@
       "arguments": {
         "systemImportExpectation": "photos"
       },
-      "callId": "call:library-management:photo-picker-import-route:06",
+      "callId": "call:library-management:photo-picker-import-route:07",
       "maxInvocations": 1,
       "operation": "operation:library.snapshot@1"
     }
@@ -93,7 +99,7 @@
       "evidenceType": "library.command",
       "id": "obligation:library-management:photo-picker-import-route:o01:default",
       "oracle": "oracle:agent-structured-library-command@1",
-      "producedByCall": "call:library-management:photo-picker-import-route:06",
+      "producedByCall": "call:library-management:photo-picker-import-route:07",
       "rubric": "rubric:library-management.photo-picker-import-route.o01@1"
     }
   ],

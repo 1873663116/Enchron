@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 760000,
+  "estimatedCostMillis": 940000,
   "staticCases": [
     "connection-interrupted",
     "file-missing",
@@ -47,11 +47,33 @@
     },
     {
       "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:03",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:04",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:03",
+      "callId": "call:network-resilience:playback-failure-category-matrix:05",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -62,7 +84,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:04",
+      "callId": "call:network-resilience:playback-failure-category-matrix:06",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -72,7 +94,7 @@
         "minimumPositionMillis": 1000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:05",
+      "callId": "call:network-resilience:playback-failure-category-matrix:07",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -80,9 +102,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "activate",
-        "recipe": "recoverable-read-interruption"
+        "recipe": "transport-interrupted"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:06",
+      "callId": "call:network-resilience:playback-failure-category-matrix:08",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -93,13 +115,13 @@
         "identifier": "PlayerUI-loadFailure-primary",
         "requireMatchedElement": true
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:07",
+      "callId": "call:network-resilience:playback-failure-category-matrix:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:08",
+      "callId": "call:network-resilience:playback-failure-category-matrix:10",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -107,9 +129,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "restore",
-        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:06/receiptID"
+        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:08/receiptID"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:09",
+      "callId": "call:network-resilience:playback-failure-category-matrix:11",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -120,7 +142,7 @@
           "PlayerUI-loadFailure-primary"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:10",
+      "callId": "call:network-resilience:playback-failure-category-matrix:12",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -131,7 +153,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:11",
+      "callId": "call:network-resilience:playback-failure-category-matrix:13",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -141,29 +163,30 @@
         "minimumPositionMillis": 2000,
         "minimumRemainingMillis": 5000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:12",
+      "callId": "call:network-resilience:playback-failure-category-matrix:14",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
     {
       "arguments": {
         "relatedResults": [
-          "result://call:network-resilience:playback-failure-category-matrix:06/activationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:07/matchedElement",
-          "result://call:network-resilience:playback-failure-category-matrix:08/fields",
-          "result://call:network-resilience:playback-failure-category-matrix:09/restorationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:10/interaction",
-          "result://call:network-resilience:playback-failure-category-matrix:11/playbackObservation",
-          "result://call:network-resilience:playback-failure-category-matrix:12/fields"
+          "result://call:network-resilience:playback-failure-category-matrix:08/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:11/triggeredRequests",
+          "result://call:network-resilience:playback-failure-category-matrix:09/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:10/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:11/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:12/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:13/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:14/fields"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:13",
+      "callId": "call:network-resilience:playback-failure-category-matrix:15",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:14",
+      "callId": "call:network-resilience:playback-failure-category-matrix:16",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -171,9 +194,31 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:15",
+      "callId": "call:network-resilience:playback-failure-category-matrix:17",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:18",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:19",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {
@@ -181,7 +226,7 @@
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:16",
+      "callId": "call:network-resilience:playback-failure-category-matrix:20",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -192,7 +237,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:17",
+      "callId": "call:network-resilience:playback-failure-category-matrix:21",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -202,7 +247,7 @@
         "minimumPositionMillis": 1000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:18",
+      "callId": "call:network-resilience:playback-failure-category-matrix:22",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -212,7 +257,7 @@
         "phase": "activate",
         "recipe": "missing-object"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:19",
+      "callId": "call:network-resilience:playback-failure-category-matrix:23",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -223,13 +268,13 @@
         "identifier": "PlayerUI-loadFailure-primary",
         "requireMatchedElement": true
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:20",
+      "callId": "call:network-resilience:playback-failure-category-matrix:24",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:21",
+      "callId": "call:network-resilience:playback-failure-category-matrix:25",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -237,9 +282,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "restore",
-        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:19/receiptID"
+        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:23/receiptID"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:22",
+      "callId": "call:network-resilience:playback-failure-category-matrix:26",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -250,7 +295,7 @@
           "PlayerUI-loadFailure-primary"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:23",
+      "callId": "call:network-resilience:playback-failure-category-matrix:27",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -261,7 +306,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:24",
+      "callId": "call:network-resilience:playback-failure-category-matrix:28",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -271,29 +316,30 @@
         "minimumPositionMillis": 2000,
         "minimumRemainingMillis": 5000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:25",
+      "callId": "call:network-resilience:playback-failure-category-matrix:29",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
     {
       "arguments": {
         "relatedResults": [
-          "result://call:network-resilience:playback-failure-category-matrix:19/activationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:20/matchedElement",
-          "result://call:network-resilience:playback-failure-category-matrix:21/fields",
-          "result://call:network-resilience:playback-failure-category-matrix:22/restorationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:23/interaction",
-          "result://call:network-resilience:playback-failure-category-matrix:24/playbackObservation",
-          "result://call:network-resilience:playback-failure-category-matrix:25/fields"
+          "result://call:network-resilience:playback-failure-category-matrix:23/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:26/triggeredRequests",
+          "result://call:network-resilience:playback-failure-category-matrix:24/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:25/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:26/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:27/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:28/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:29/fields"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:26",
+      "callId": "call:network-resilience:playback-failure-category-matrix:30",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:27",
+      "callId": "call:network-resilience:playback-failure-category-matrix:31",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -301,9 +347,31 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:28",
+      "callId": "call:network-resilience:playback-failure-category-matrix:32",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:33",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:34",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {
@@ -311,7 +379,7 @@
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:29",
+      "callId": "call:network-resilience:playback-failure-category-matrix:35",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -322,7 +390,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:30",
+      "callId": "call:network-resilience:playback-failure-category-matrix:36",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -332,7 +400,7 @@
         "minimumPositionMillis": 1000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:31",
+      "callId": "call:network-resilience:playback-failure-category-matrix:37",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -342,7 +410,7 @@
         "phase": "activate",
         "recipe": "access-denied"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:32",
+      "callId": "call:network-resilience:playback-failure-category-matrix:38",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -353,13 +421,13 @@
         "identifier": "PlayerUI-loadFailure-primary",
         "requireMatchedElement": true
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:33",
+      "callId": "call:network-resilience:playback-failure-category-matrix:39",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:34",
+      "callId": "call:network-resilience:playback-failure-category-matrix:40",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -367,9 +435,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "restore",
-        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:32/receiptID"
+        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:38/receiptID"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:35",
+      "callId": "call:network-resilience:playback-failure-category-matrix:41",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -380,7 +448,7 @@
           "PlayerUI-loadFailure-primary"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:36",
+      "callId": "call:network-resilience:playback-failure-category-matrix:42",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -391,7 +459,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:37",
+      "callId": "call:network-resilience:playback-failure-category-matrix:43",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -401,29 +469,30 @@
         "minimumPositionMillis": 2000,
         "minimumRemainingMillis": 5000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:38",
+      "callId": "call:network-resilience:playback-failure-category-matrix:44",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
     {
       "arguments": {
         "relatedResults": [
-          "result://call:network-resilience:playback-failure-category-matrix:32/activationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:33/matchedElement",
-          "result://call:network-resilience:playback-failure-category-matrix:34/fields",
-          "result://call:network-resilience:playback-failure-category-matrix:35/restorationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:36/interaction",
-          "result://call:network-resilience:playback-failure-category-matrix:37/playbackObservation",
-          "result://call:network-resilience:playback-failure-category-matrix:38/fields"
+          "result://call:network-resilience:playback-failure-category-matrix:38/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:41/triggeredRequests",
+          "result://call:network-resilience:playback-failure-category-matrix:39/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:40/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:41/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:42/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:43/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:44/fields"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:39",
+      "callId": "call:network-resilience:playback-failure-category-matrix:45",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:40",
+      "callId": "call:network-resilience:playback-failure-category-matrix:46",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -431,9 +500,31 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:41",
+      "callId": "call:network-resilience:playback-failure-category-matrix:47",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:48",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:playback-failure-category-matrix:49",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {
@@ -441,7 +532,7 @@
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:42",
+      "callId": "call:network-resilience:playback-failure-category-matrix:50",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -452,7 +543,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:43",
+      "callId": "call:network-resilience:playback-failure-category-matrix:51",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -462,7 +553,7 @@
         "minimumPositionMillis": 1000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:44",
+      "callId": "call:network-resilience:playback-failure-category-matrix:52",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -472,7 +563,7 @@
         "phase": "activate",
         "recipe": "corrupt-media"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:45",
+      "callId": "call:network-resilience:playback-failure-category-matrix:53",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -483,13 +574,13 @@
         "identifier": "PlayerUI-loadFailure-primary",
         "requireMatchedElement": true
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:46",
+      "callId": "call:network-resilience:playback-failure-category-matrix:54",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:playback-failure-category-matrix:47",
+      "callId": "call:network-resilience:playback-failure-category-matrix:55",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -497,9 +588,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "restore",
-        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:45/receiptID"
+        "receiptID": "result://call:network-resilience:playback-failure-category-matrix:53/receiptID"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:48",
+      "callId": "call:network-resilience:playback-failure-category-matrix:56",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -510,7 +601,7 @@
           "PlayerUI-loadFailure-primary"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:49",
+      "callId": "call:network-resilience:playback-failure-category-matrix:57",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -521,7 +612,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:50",
+      "callId": "call:network-resilience:playback-failure-category-matrix:58",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -531,23 +622,24 @@
         "minimumPositionMillis": 2000,
         "minimumRemainingMillis": 5000
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:51",
+      "callId": "call:network-resilience:playback-failure-category-matrix:59",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
     {
       "arguments": {
         "relatedResults": [
-          "result://call:network-resilience:playback-failure-category-matrix:45/activationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:46/matchedElement",
-          "result://call:network-resilience:playback-failure-category-matrix:47/fields",
-          "result://call:network-resilience:playback-failure-category-matrix:48/restorationReceipt",
-          "result://call:network-resilience:playback-failure-category-matrix:49/interaction",
-          "result://call:network-resilience:playback-failure-category-matrix:50/playbackObservation",
-          "result://call:network-resilience:playback-failure-category-matrix:51/fields"
+          "result://call:network-resilience:playback-failure-category-matrix:53/activationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:56/triggeredRequests",
+          "result://call:network-resilience:playback-failure-category-matrix:54/matchedElement",
+          "result://call:network-resilience:playback-failure-category-matrix:55/fields",
+          "result://call:network-resilience:playback-failure-category-matrix:56/restorationReceipt",
+          "result://call:network-resilience:playback-failure-category-matrix:57/interaction",
+          "result://call:network-resilience:playback-failure-category-matrix:58/playbackObservation",
+          "result://call:network-resilience:playback-failure-category-matrix:59/fields"
         ]
       },
-      "callId": "call:network-resilience:playback-failure-category-matrix:52",
+      "callId": "call:network-resilience:playback-failure-category-matrix:60",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     }
@@ -560,7 +652,7 @@
       "evidenceType": "playback.probe",
       "id": "obligation:network-resilience:playback-failure-category-matrix:o01:connection-interrupted",
       "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:network-resilience:playback-failure-category-matrix:13",
+      "producedByCall": "call:network-resilience:playback-failure-category-matrix:15",
       "rubric": "rubric:network-resilience.playback-failure-category-matrix.o01@1"
     },
     {
@@ -570,7 +662,7 @@
       "evidenceType": "playback.probe",
       "id": "obligation:network-resilience:playback-failure-category-matrix:o01:file-missing",
       "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:network-resilience:playback-failure-category-matrix:26",
+      "producedByCall": "call:network-resilience:playback-failure-category-matrix:30",
       "rubric": "rubric:network-resilience.playback-failure-category-matrix.o01@1"
     },
     {
@@ -580,7 +672,7 @@
       "evidenceType": "playback.probe",
       "id": "obligation:network-resilience:playback-failure-category-matrix:o01:access-refused",
       "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:network-resilience:playback-failure-category-matrix:39",
+      "producedByCall": "call:network-resilience:playback-failure-category-matrix:45",
       "rubric": "rubric:network-resilience.playback-failure-category-matrix.o01@1"
     },
     {
@@ -590,7 +682,7 @@
       "evidenceType": "playback.probe",
       "id": "obligation:network-resilience:playback-failure-category-matrix:o01:data-corrupt",
       "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:network-resilience:playback-failure-category-matrix:52",
+      "producedByCall": "call:network-resilience:playback-failure-category-matrix:60",
       "rubric": "rubric:network-resilience.playback-failure-category-matrix.o01@1"
     }
   ],

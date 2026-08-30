@@ -83,9 +83,10 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-audio",
-          "PlayerPanel-menu-audio-1"
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-1"
         ]
       },
       "callId": "call:local-media-lifecycle:audio-track-switch-same-session:07",
@@ -108,9 +109,10 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-audio",
-          "PlayerPanel-menu-audio-2"
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-2"
         ]
       },
       "callId": "call:local-media-lifecycle:audio-track-switch-same-session:09",
@@ -133,9 +135,10 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-audio",
-          "PlayerPanel-menu-audio-3"
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-3"
         ]
       },
       "callId": "call:local-media-lifecycle:audio-track-switch-same-session:11",

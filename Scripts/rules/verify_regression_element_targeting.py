@@ -32,6 +32,9 @@ SEEDED_PREFIX = "Enchron Regression"
 SEEDED_NAME = re.compile(rf"{SEEDED_PREFIX}[A-Za-z0-9 .'\-]*")
 
 ACTIVATE = "operation:accessibility.activate@2"
+SELECTING = ("labels", "identifiers")
+"""Arguments that look an element up. `text` types a new name into a form, so a
+name it has never seen is the point of the call rather than a mistake."""
 
 CONTAINER_IDENTIFIERS = (
     (
@@ -88,7 +91,7 @@ def failures() -> list[str]:
     for scenario, call in calls(catalog):
         where = call.get("callId", scenario)
         for key, value in string_arguments(call):
-            if value.startswith(SEEDED_PREFIX) and value not in seeded:
+            if key in SELECTING and value.startswith(SEEDED_PREFIX) and value not in seeded:
                 found.append(
                     f"{where}: {key} names {value!r}, which nothing under "
                     f"{VERIFICATION} seeds"

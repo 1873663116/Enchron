@@ -25,6 +25,7 @@ DEFAULT_REGISTRY = REPOSITORY_ROOT / "Tests/Fixtures/fixture-registry.json"
 DEFAULT_ENVIRONMENT_FILE = REPOSITORY_ROOT / ".env"
 DEFAULT_RUNTIME_ROOT = REPOSITORY_ROOT / ".build/regression-smb-source"
 SHARE_NAME = "TestMedia"
+SHARE_LISTING_TIMEOUT_SECONDS = 30
 REPORT_SCHEMA = "enchron.regression.smb-source-preflight@1"
 SHA256_PREFIX = "sha256:"
 RUNTIME_DOCUMENT_KEYS = frozenset(
@@ -37,6 +38,7 @@ RUNTIME_DOCUMENT_KEYS = frozenset(
         "aggregateDigest",
         "aggregateManifestHashes",
         "aggregatePaths",
+        "hostShares",
     }
 )
 
@@ -127,6 +129,8 @@ class MountBoundary(Protocol):
 
     def unmount(self, mount_point: Path) -> None: ...
 
+    def shares(self, address: str, user: str, password: str) -> list[str]: ...
+
 
 def _canonical_bytes(value: object) -> bytes:
     return json.dumps(
@@ -144,6 +148,45 @@ def _file_digest(path: Path) -> str:
         while chunk := source.read(1024 * 1024):
             hasher.update(chunk)
     return SHA256_PREFIX + hasher.hexdigest()
+
+
+def _parse_shares(listing: str) -> list[str]:
+    shares: list[str] = []
+    for line in listing.splitlines():
+        columns = line.rsplit(None, 1) if line.strip() else []
+        if len(columns) != 2 or columns[1] != "Disk":
+            continue
+        name = columns[0].strip()
+        if name and name != "Share" and not name.endswith("$"):
+            shares.append(name)
+    return sorted(shares)
+
+
+def host_shares(address: str, user: str, password: str) -> list[str]:
+    """Ask the server which shares it offers, so the product can be compared to it.
+
+    The fixture names one share, but this Mac answers `smbutil view` with six.
+    A rubric that only looked for the fixture's share would pass a product that
+    silently dropped the other five, which is the whole thing the SMB root is
+    supposed to show.
+    """
+    target = f"//{quote(user, safe='')}:{quote(password, safe='')}@{address}"
+    try:
+        listing = subprocess.run(
+            ["smbutil", "view", "-N", target],
+            capture_output=True,
+            text=True,
+            timeout=SHARE_LISTING_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SMBSourceUnavailable("SMB share enumeration failed") from error
+    if listing.returncode != 0:
+        raise SMBSourceUnavailable("SMB share enumeration was refused")
+    shares = _parse_shares(listing.stdout)
+    if not shares:
+        raise SMBSourceUnavailable("SMB server listed no non-administrative share")
+    return sorted(shares)
 
 
 def _read_credentials(path: Path) -> _Credentials:
@@ -280,6 +323,9 @@ class DarwinSMBMount:
         library.SMBReleaseServer.argtypes = (ctypes.c_void_p,)
         library.SMBReleaseServer.restype = ctypes.c_uint32
         return library
+
+    def shares(self, address: str, user: str, password: str) -> list[str]:
+        return host_shares(address, user, password)
 
     def mount(
         self,
@@ -448,6 +494,13 @@ def _runtime(path: Path) -> Mapping[str, object]:
     suffixes = sorted(PurePosixPath(item).suffix.casefold() for item in paths)
     if suffixes != [".ass", ".mkv", ".srt"]:
         raise SMBSourceConfigurationError("SMB runtime aggregate paths drifted")
+    shares = runtime.get("hostShares")
+    if not isinstance(shares, list) or not shares or not all(
+        isinstance(item, str) and item and not item.endswith("$") for item in shares
+    ):
+        raise SMBSourceConfigurationError("SMB runtime host shares are invalid")
+    if SHARE_NAME not in shares or sorted(shares) != list(shares):
+        raise SMBSourceConfigurationError("SMB runtime host shares drifted")
     expected_aggregate_digest = _digest(
         {"manifestHashes": hashes, "paths": paths}
     )
@@ -497,6 +550,7 @@ def _sanitized_report(
         },
         "aggregateManifestHashes": dict(runtime["aggregateManifestHashes"]),
         "aggregatePaths": list(runtime["aggregatePaths"]),
+        "hostShares": list(runtime["hostShares"]),
     }
 
 
@@ -564,6 +618,9 @@ def ensure(
             "user": credentials.user,
             "password": credentials.password,
             "shareName": configuration.share_name,
+            "hostShares": boundary.shares(
+                configuration.address, credentials.user, credentials.password
+            ),
             "sourceIdentity": "smb-source:" + source_digest.removeprefix(SHA256_PREFIX)[:24],
             "aggregateDigest": aggregate_digest,
             "aggregateManifestHashes": hashes,
@@ -646,6 +703,7 @@ def validate_preflight_report(report: object, runtime_file: Path) -> None:
         "runtimeIdentity",
         "aggregateManifestHashes",
         "aggregatePaths",
+        "hostShares",
     }:
         raise SMBSourceConfigurationError("SMB preflight report schema drifted")
     if (
@@ -688,6 +746,7 @@ def validate_preflight_report(report: object, runtime_file: Path) -> None:
         report.get("aggregateManifestHashes")
         != runtime["aggregateManifestHashes"]
         or report.get("aggregatePaths") != runtime["aggregatePaths"]
+        or report.get("hostShares") != runtime["hostShares"]
     ):
         raise SMBSourceConfigurationError(
             "SMB preflight differs from its mounted aggregate"

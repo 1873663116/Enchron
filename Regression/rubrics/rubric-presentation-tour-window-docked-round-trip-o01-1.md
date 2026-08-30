@@ -5,8 +5,8 @@
   "id": "rubric:presentation-tour.window-docked-round-trip.o01@1",
   "title": "Window Docked Round Trip",
   "criteria": [
-    "TopAction Dock followed by the selected environment reaches docked settlement with target attachment ownership and a new renderer identity.",
-    "The spatial exit returns to window steady state and restores the reviewed per-eye aspect lock without changing media session identity."
+    "relatedResults carry enter-docked settlement.actualPresentation=docked plus the public PlayerUI-TopAction-dock→PlayerUI-DockMenu-skybox action, and spatialState.fields reports attached=docked, rendererConsumer, and playbackEntity from PlayerUI-spatial-state.",
+    "The bound fetch terminalState after exit-spatial reports presentation=window, attached=window, the same media session identity, windowGeometryPolicyKind=aspectLocked, and windowGeometryResizingRestriction=uniform."
   ],
   "negativeControls": [
     "Controller success without the application-side delivery event is not evidence of product behavior.",

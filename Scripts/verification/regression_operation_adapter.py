@@ -506,6 +506,8 @@ def _accessibility_activate(arguments: Mapping[str, object]) -> None:
         )
     if identifiers:
         _validate_identifiers(identifiers)
+    if arguments.get("summonControls") is not None and arguments.get("summonControls") is not True:
+        raise OperationAdapterError("summonControls may only request true")
 
 
 def _related_results(arguments: Mapping[str, object]) -> None:
@@ -524,6 +526,19 @@ def _related_results(arguments: Mapping[str, object]) -> None:
 def _accessibility_single(arguments: Mapping[str, object]) -> None:
     _validate_identifiers([str(arguments["identifier"])])
     _related_results(arguments)
+
+
+def _browse_hierarchy_bound_name(value: object, label: str) -> None:
+    if not isinstance(value, str) or not value or value.strip() != value:
+        raise OperationAdapterError(
+            f"browse hierarchy {label} must be exact nonempty text"
+        )
+    if value.startswith("result://"):
+        return
+    if value in (".", "..") or "/" in value:
+        raise OperationAdapterError(
+            f"browse hierarchy {label} must be an exact direct-child name"
+        )
 
 
 def _browse_hierarchy(arguments: Mapping[str, object]) -> None:
@@ -554,10 +569,41 @@ def _browse_hierarchy(arguments: Mapping[str, object]) -> None:
         raise OperationAdapterError(
             "browse hierarchy sourceReceipt must select a host preflight /report"
         )
+    host_share = arguments.get("hostShareName")
+    if host_share is not None:
+        _browse_hierarchy_bound_name(host_share, "hostShareName")
+        if not str(host_share).startswith("result://") and host_share != components[0]:
+            raise OperationAdapterError(
+                "browse hierarchy hostShareName must equal the first path component"
+            )
+    expected_video = arguments.get("expectedVideoName")
+    if expected_video is not None:
+        _browse_hierarchy_bound_name(expected_video, "expectedVideoName")
+    host_shares = arguments.get("hostShares")
+    if host_shares is not None and (
+        not isinstance(host_shares, str)
+        or re.fullmatch(r"result://call:[a-z0-9:-]+/hostShares", host_shares) is None
+    ):
+        raise OperationAdapterError(
+            "browse hierarchy hostShares must select a host preflight /hostShares"
+        )
 
 
 def _accessibility_type(arguments: Mapping[str, object]) -> None:
-    _accessibility_single(arguments)
+    named = ("identifier" in arguments, "label" in arguments)
+    if named[0] == named[1]:
+        raise OperationAdapterError(
+            "accessibility.type requires exactly one identifier or label"
+        )
+    if named[0]:
+        _validate_identifiers([str(arguments["identifier"])])
+    else:
+        label = str(arguments["label"])
+        if not label or label.strip() != label:
+            raise OperationAdapterError(
+                "accessibility.type label must be exact nonempty text"
+            )
+    _related_results(arguments)
     direct = "text" in arguments
     file_pair = "textFile" in arguments or "textJSONKey" in arguments
     if direct == file_pair:
@@ -1408,6 +1454,27 @@ def _remote_check_payload(
     return result
 
 
+def _triggered_requests_from_log(log_path: object) -> list[dict[str, object]]:
+    if not isinstance(log_path, str) or not Path(log_path).is_file():
+        return []
+    try:
+        entries = [
+            json.loads(line)
+            for line in Path(log_path).read_text(encoding="utf-8").splitlines()
+            if line
+        ]
+    except (OSError, json.JSONDecodeError) as error:
+        raise OperationAdapterError(
+            "activation request log is unreadable"
+        ) from error
+    _reject_secret_result(entries, "triggeredRequests")
+    return [
+        item
+        for item in entries
+        if isinstance(item, dict) and item.get("triggered") is True
+    ]
+
+
 def _reject_secret_result(value: object, location: str = "report") -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
@@ -1691,6 +1758,20 @@ def validate_smb_preflight_report(
         raise OperationAdapterError(str(error)) from error
 
 
+def _smb_aggregate_video_name(report: Mapping[str, object]) -> str:
+    paths = report.get("aggregatePaths")
+    if not isinstance(paths, list):
+        raise OperationAdapterError("SMB aggregate omitted its paths")
+    names = [
+        PurePosixPath(path).name
+        for path in paths
+        if isinstance(path, str) and PurePosixPath(path).suffix.casefold() == ".mkv"
+    ]
+    if len(names) != 1 or not names[0]:
+        raise OperationAdapterError("SMB aggregate did not name one video")
+    return names[0]
+
+
 def _runtime_identity(path: Path) -> tuple[Mapping[str, object], Mapping[str, object]]:
     try:
         information = path.lstat()
@@ -1778,6 +1859,16 @@ def _cursor(arguments: Mapping[str, object]) -> None:
         deadline_seconds,
         remote_request_cursor,
     )
+    omit_playback_state = arguments.get("omitPlaybackState")
+    if omit_playback_state is not None and omit_playback_state is not True:
+        raise OperationAdapterError("omitPlaybackState may only request true")
+    if omit_playback_state is True and expectation not in (
+        "finite-backoff",
+        "recoverable-read",
+    ):
+        raise OperationAdapterError(
+            "omitPlaybackState requires a finite-backoff or recoverable-read remoteExpectation"
+        )
     if include_viewing_storage is not None and include_viewing_storage is not True:
         raise OperationAdapterError("includeViewingStorage may only request true")
     if any(value is not None for value in viewing_storage_options) and (
@@ -2105,6 +2196,11 @@ def _wait_position(arguments: Mapping[str, object]) -> None:
     _literal_or_result_reference(arguments, "differentSessionFrom", "session")
 
 
+def _playback_seek(arguments: Mapping[str, object]) -> None:
+    if arguments.get("summonControls") is not None and arguments.get("summonControls") is not True:
+        raise OperationAdapterError("summonControls may only request true")
+
+
 def _format_apply(arguments: Mapping[str, object]) -> None:
     projection = arguments["projection"]
     coverage = arguments.get("horizontalCoverageDegrees")
@@ -2355,6 +2451,7 @@ def _specs() -> tuple[OperationSpec, ...]:
             LANES,
             (
                 _field("count", integer, minimum=1, maximum=120),
+                _field("relatedResults", strings, required=False),
                 _field(
                     "minimumIntervalMillis",
                     integer,
@@ -2399,6 +2496,8 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("gesture", string, required=False, choices=_choices("tap", "press")),
                 _field("durationMillis", integer, required=False, minimum=1, maximum=5000),
                 _field("settleDelayMillis", integer, required=False, minimum=1, maximum=30000),
+                _field("summonControls", boolean, required=False),
+                _field("assertAbsent", strings, required=False),
             ),
             (("accessibility.tree", "accessibility-tree@1"),),
             _accessibility_activate,
@@ -2444,6 +2543,9 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("sourceLabel", string),
                 _field("pathComponents", strings),
                 _field("sourceReceipt", string, required=False),
+                _field("hostShareName", string, required=False),
+                _field("expectedVideoName", string, required=False),
+                _field("hostShares", string, required=False),
             ),
             (("accessibility.tree", "accessibility-tree@1"),),
             _browse_hierarchy,
@@ -2453,7 +2555,8 @@ def _specs() -> tuple[OperationSpec, ...]:
             LANES,
             (
                 _field("context", string, choices=CONTEXTS),
-                _field("identifier", string),
+                _field("identifier", string, required=False),
+                _field("label", string, required=False),
                 _index(),
                 _field("mode", string, choices=_choices("append", "replace")),
                 _field("text", string, required=False),
@@ -2551,6 +2654,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 ),
                 _field("remoteRequestCursor", string, required=False),
                 _field("relatedResults", strings, required=False),
+                _field("omitPlaybackState", boolean, required=False),
             ),
             (
                 ("interaction.trace", "interaction-trace@1"),
@@ -2670,7 +2774,16 @@ def _specs() -> tuple[OperationSpec, ...]:
         ),
         OperationSpec("operation:playback.await-window-state@1", LANES, (_field("presentation", string, choices=_choices("window", "portal", "either-main-window")), _field("lifecycle", string, choices=_choices("playing", "ready", "paused", "ended", "any-steady")), _field("controls", string, choices=_choices("shown", "hidden", "either")), _deadline()), (("window.control-plane", "window-control-plane@1"),)),
         OperationSpec("operation:playback.wait-position@2", LANES, (_field("minimumPositionMillis", integer, minimum=0), _field("minimumRemainingMillis", integer, minimum=0), _field("expectedMediaName", string, required=False), _field("differentSessionFrom", string, required=False), _deadline()), (), _wait_position),
-        OperationSpec("operation:playback.seek@2", LANES, (_field("positionMillionths", integer, minimum=0, maximum=1000000),), ()),
+        OperationSpec(
+            "operation:playback.seek@2",
+            LANES,
+            (
+                _field("positionMillionths", integer, minimum=0, maximum=1000000),
+                _field("summonControls", boolean, required=False),
+            ),
+            (),
+            _playback_seek,
+        ),
         OperationSpec(
             "operation:playback.select-subtitle@1",
             LANES,
@@ -2738,7 +2851,7 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
             (),
         ),
-        OperationSpec("operation:transition-trace.fetch@1", LANES, (_field("generationToken", string),), (("transition.trace", "transition-trace@1"),), _unsigned_token),
+        OperationSpec("operation:transition-trace.fetch@1", LANES, (_field("generationToken", string), _field("relatedResults", strings, required=False)), (("transition.trace", "transition-trace@1"),), _unsigned_token),
         OperationSpec(
             "operation:transition-trace.disarm@1",
             LANES,
@@ -3530,6 +3643,10 @@ class ResidentOperationBackend:
             "context": arguments["context"],
             "response": {},
         }
+        if arguments.get("summonControls") is True:
+            summon = self._app_command(context, "toggleControls", "visible=true")
+            self._require_success(summon, "controls summon")
+            result["summon"] = summon
         if settle_delay_millis > 0:
             before_response = self._controller(
                 context, "snapshot", "--no-screenshot"
@@ -3559,6 +3676,9 @@ class ResidentOperationBackend:
                         f"{int(arguments.get('durationMillis', 1000)) / 1000:.3f}",
                     )
                 )
+            absent = [str(item) for item in arguments.get("assertAbsent", [])]
+            if absent:
+                command.extend(("--assert-absent", *absent))
             identifier_response = self._controller(context, action, *command)
             self._require_success(identifier_response, "accessibility activate")
             result["response"] = identifier_response
@@ -3698,17 +3818,20 @@ class ResidentOperationBackend:
             "observationMode": "navigated-requested-hierarchy",
             "stages": stages,
             "sourceReceipt": arguments.get("sourceReceipt"),
+            "hostShareName": arguments.get("hostShareName"),
+            "expectedVideoName": arguments.get("expectedVideoName"),
+            "hostShares": arguments.get("hostShares"),
             "sourceSelectionResponse": source_selection,
             "response": stages[-1]["snapshot"],
         }
 
     def _accessibility_type_2(self, arguments, context):
-        command = [
-            "--identifier",
-            str(arguments["identifier"]),
-            "--index",
-            str(arguments.get("index", 0)),
-        ]
+        index = str(arguments.get("index", 0))
+        command = (
+            ["--identifier", str(arguments["identifier"]), "--index", index]
+            if "identifier" in arguments
+            else ["--index", index, "--label", str(arguments["label"])]
+        )
         typed_text: str
         if "text" in arguments:
             typed_text = str(arguments["text"])
@@ -4119,6 +4242,9 @@ class ResidentOperationBackend:
                 restoration,
                 receipt_id,
             )
+            triggered_requests = _triggered_requests_from_log(
+                restoration["activationLogPath"]
+            )
             return {
                 "succeeded": True,
                 "check": check,
@@ -4136,6 +4262,7 @@ class ResidentOperationBackend:
                     "restoredRequestLogPath"
                 ],
                 "restorationReceipt": dict(restoration),
+                "triggeredRequests": triggered_requests,
                 "implementations": {
                     identity: dict(binding)
                     for identity, binding in REMOTE_IMPLEMENTATION_IDENTITIES.items()
@@ -4263,10 +4390,19 @@ class ResidentOperationBackend:
             validate_smb_preflight_report(result, SMB_RUNTIME_FILE)
             identity = result["runtimeIdentity"]
             assert isinstance(identity, dict)
+            share_name = identity.get("shareName")
+            if not isinstance(share_name, str) or not share_name:
+                raise OperationAdapterError("SMB aggregate omitted its share name")
+            host_shares = result.get("hostShares")
+            if not isinstance(host_shares, list) or not host_shares:
+                raise OperationAdapterError("SMB aggregate omitted the server share list")
             return {
                 "succeeded": True,
                 "check": check,
                 "report": result,
+                "shareName": share_name,
+                "hostShares": list(host_shares),
+                "aggregateVideoName": _smb_aggregate_video_name(result),
                 "runtimeIdentity": dict(identity),
                 "implementations": {
                     name: dict(binding)
@@ -4474,6 +4610,7 @@ class ResidentOperationBackend:
             self._diagnostics_playback_state_1({}, context)
             if arguments.get("remoteExpectation")
             in ("finite-backoff", "recoverable-read")
+            and arguments.get("omitPlaybackState") is not True
             else None
         )
         return {
@@ -5981,6 +6118,10 @@ class ResidentOperationBackend:
             ) from error
         if duration_millis <= 0:
             raise OperationAdapterError("seek requires positive media duration")
+        summon = None
+        if arguments.get("summonControls") is True:
+            summon = self._app_command(context, "toggleControls", "visible=true")
+            self._require_success(summon, "seek controls summon")
         value = int(arguments["positionMillionths"]) / 1_000_000
         action = self._controller(
             context,
@@ -6038,6 +6179,7 @@ class ResidentOperationBackend:
                         "succeeded": True,
                         "drive": "accessibility-adjust",
                         "before": before,
+                        "summon": summon,
                         "action": action,
                         "settlement": {
                             "targetPositionMillis": target_millis,
@@ -6065,6 +6207,7 @@ class ResidentOperationBackend:
             "succeeded": False,
             "drive": "accessibility-adjust",
             "before": before,
+            "summon": summon,
             "action": action,
             "reason": "seek-settlement-deadline-expired",
             "settlement": {

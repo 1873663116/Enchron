@@ -131,8 +131,11 @@
       "arguments": {
         "productBindingDigest": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/bindingDigest",
         "relatedResults": [
-          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:06/binding",
-          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/expectationObservation"
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:06/fields",
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:06/session",
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/fields",
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/expectationObservation",
+          "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:09/binding"
         ],
         "remoteExpectation": "recoverable-read",
         "remoteReceiptID": "result://call:network-resilience:recoverable-read-resumes-from-checkpoint:07/receiptID",

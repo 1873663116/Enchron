@@ -121,7 +121,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:10",
       "maxInvocations": 1,
@@ -185,7 +186,8 @@
         "context": "window",
         "identifiers": [
           "PlayerUI-InfoBar-button-back"
-        ]
+        ],
+        "summonControls": true
       },
       "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:16",
       "maxInvocations": 1,

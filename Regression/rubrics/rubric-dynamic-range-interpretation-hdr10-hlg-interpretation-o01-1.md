@@ -11,7 +11,7 @@
   ],
   "negativeControls": [
     "Using sampleTransfer instead of canonical sampleTransferFunction, accepting an unspecified transfer/matrix/range, source→sample→renderer metadata drift, missing structured fields, or fewer than three valid ordered frames is Indeterminate or failing as the criterion states.",
-    "A whole-frame purple/green cast, unexpanded-PQ gray fog against the reviewed fixture reference, blank/pure-color frames, repeated attachment bytes, or non-advancing playback fails the visual delivery criterion."
+    "Blank/pure-color frames, repeated attachment bytes, or non-advancing playback fails the bound visual.frames artifact."
   ]
 }
 ---

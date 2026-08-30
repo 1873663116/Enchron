@@ -238,10 +238,13 @@
       "producedByCall": "call:preparation:presentation-fixtures-simulator:24",
       "dependsOnTags": [
         "app.session",
+        "certificate.trust",
         "fixture.corpus",
         "lane.instance",
         "library.contents",
         "presentation.state",
+        "source.connection",
+        "source.session",
         "source.webdav"
       ]
     }

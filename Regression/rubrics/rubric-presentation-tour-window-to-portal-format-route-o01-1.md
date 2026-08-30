@@ -6,12 +6,12 @@
   "title": "Window To Portal Format Route",
   "criteria": [
     "Applying a panoramic format from window reaches presentation=portal, attached=portal, transition=none, and pendingSpatialEffect=none.",
-    "The portal requests the reviewed 1280x720 default and uses a freely resizable window policy after the format revision updates."
+    "The bound fetch terminalState reports windowGeometryPolicyKind=aspectLocked, windowGeometryRequestedIdealWidth=1280, windowGeometryRequestedIdealHeight=720, and windowGeometryResizingRestriction=uniform from WindowPlaybackGeometryPolicy.portal (WindowPlaybackRootView.swift:166-199)."
   ],
   "negativeControls": [
     "Controller success without the application-side delivery event is not evidence of product behavior.",
     "Missing sequence numbers, mismatched revisions, reversed order, or a truncated timing window cannot satisfy the rubric.",
-    "Entering panorama directly, leaving a pending effect, or retaining the locked flat-window geometry violates the rubric."
+    "Entering panorama directly, leaving a pending effect, retaining locked flat-window geometry, or claiming a freely resizable PolicyKind the diagnostic vocabulary cannot emit violates the rubric."
   ]
 }
 ---

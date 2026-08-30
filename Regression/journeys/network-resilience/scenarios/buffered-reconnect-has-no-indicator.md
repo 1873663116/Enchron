@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 400000,
+  "estimatedCostMillis": 460000,
   "staticCases": [
     "paired-control",
     "buffer-absorbed-interruption"
@@ -45,11 +45,33 @@
     },
     {
       "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:03",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:04",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:03",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:05",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -60,7 +82,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:04",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:06",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -70,7 +92,7 @@
         "minimumPositionMillis": 3000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:05",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:07",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -80,7 +102,7 @@
         "phase": "activate",
         "recipe": "healthy"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:06",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:08",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -90,7 +112,7 @@
         "minimumPositionMillis": 6000,
         "minimumRemainingMillis": 5000
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:07",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:09",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -98,9 +120,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "restore",
-        "receiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:06/receiptID"
+        "receiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:08/receiptID"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:08",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:10",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -109,7 +131,7 @@
         "expectation": "webdav-loopback",
         "minimumPositionMillis": 6000
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:09",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:11",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -118,17 +140,17 @@
         "context": "window",
         "count": 3,
         "minimumIntervalMillis": 1000,
-        "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:09/bindingDigest",
+        "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:11/bindingDigest",
         "remoteExpectation": "webdav-playback-range",
-        "remoteGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:08/restoredGenerationToken"
+        "remoteGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:10/restoredGenerationToken"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:10",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:12",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     },
     {
       "arguments": {},
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:11",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:13",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -136,9 +158,31 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:12",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:14",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
+      },
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:15",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:16",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     },
     {
       "arguments": {
@@ -146,7 +190,7 @@
         "expectedLanding": "window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:13",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:17",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -157,7 +201,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:14",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:18",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -167,7 +211,7 @@
         "minimumPositionMillis": 3000,
         "minimumRemainingMillis": 10000
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:15",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:19",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -177,7 +221,7 @@
         "phase": "activate",
         "recipe": "buffer-absorbed-interruption"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:16",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -187,7 +231,7 @@
         "minimumPositionMillis": 6000,
         "minimumRemainingMillis": 5000
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:17",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:21",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -195,9 +239,9 @@
       "arguments": {
         "check": "remote-faults",
         "phase": "restore",
-        "receiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/receiptID"
+        "receiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:20/receiptID"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:18",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:22",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
@@ -206,7 +250,7 @@
         "expectation": "webdav-loopback",
         "minimumPositionMillis": 6000
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:19",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:23",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -215,12 +259,12 @@
         "context": "window",
         "count": 3,
         "minimumIntervalMillis": 1000,
-        "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:19/bindingDigest",
+        "productBindingDigest": "result://call:network-resilience:buffered-reconnect-has-no-indicator:23/bindingDigest",
         "remoteExpectation": "buffer-absorbed-interruption",
-        "remoteReceiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:16/receiptID",
-        "restoredGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:18/restoredGenerationToken"
+        "remoteReceiptID": "result://call:network-resilience:buffered-reconnect-has-no-indicator:20/receiptID",
+        "restoredGenerationToken": "result://call:network-resilience:buffered-reconnect-has-no-indicator:22/restoredGenerationToken"
       },
-      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:24",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -233,7 +277,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:network-resilience:buffered-reconnect-has-no-indicator:o01:paired-control",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:10",
+      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:12",
       "rubric": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1"
     },
     {
@@ -243,7 +287,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:network-resilience:buffered-reconnect-has-no-indicator:o01:buffer-absorbed-interruption",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:20",
+      "producedByCall": "call:network-resilience:buffered-reconnect-has-no-indicator:24",
       "rubric": "rubric:network-resilience.buffered-reconnect-has-no-indicator.o01@1"
     }
   ],

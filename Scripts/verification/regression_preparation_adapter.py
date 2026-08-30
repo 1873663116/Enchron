@@ -557,7 +557,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:presentation-fixtures-simulator", "simulator", "presentation-fixtures-ready",
-            "fixture-set.presentation-tour@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.webdav"),
+            "fixture-set.presentation-tour@2", ("app.session", "certificate.trust", "fixture.corpus", "lane.instance", "library.contents", "presentation.state", "source.connection", "source.session", "source.webdav"),
             fixture_ids=REGRESSION_FIXTURE_SETS["presentation-tour"], import_staged=True,
             preflight="webdav-regression",
             connect_webdav=True,
@@ -579,7 +579,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:viewing-storage-fixtures-simulator", "simulator", "viewing-storage-fixtures-ready",
-            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.connection", "source.session", "source.webdav", "viewing.state"),
+            "fixture-set.viewing-storage@2", ("app.session", "cache.state", "certificate.trust", "fixture.corpus", "lane.instance", "library.contents", "settings.state", "source.connection", "source.session", "source.webdav", "viewing.state"),
             fixture_ids=REGRESSION_FIXTURE_SETS["viewing-storage"], import_staged=False,
             preflight="webdav-regression",
             connect_webdav=True,
