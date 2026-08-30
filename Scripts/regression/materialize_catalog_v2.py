@@ -1131,15 +1131,15 @@ def _validate_high_risk_playback_semantics(
         for call in subtitles["operations"]
         if call["operation"] == "operation:accessibility.activate@2"
         for identifier in call["arguments"]["identifiers"]
-        if identifier.startswith("PlayerPanel-menu-subtitle-")
+        if identifier.startswith("PlayerUI-menu-subtitles-")
     ]
     _require(
         subtitle_items
         == [
-            "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3",
-            "PlayerPanel-menu-subtitle-ffmpeg.subtitle.5",
-            "PlayerPanel-menu-subtitle-off",
-            "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3",
+            "PlayerUI-menu-subtitles-ffmpeg.subtitle.3",
+            "PlayerUI-menu-subtitles-ffmpeg.subtitle.5",
+            "PlayerUI-menu-subtitles-off",
+            "PlayerUI-menu-subtitles-ffmpeg.subtitle.3",
         ],
         "subtitle sequence must select text, bitmap, off, then restore text",
     )

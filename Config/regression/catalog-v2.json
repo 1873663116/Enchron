@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:1963708201d7dd487f5098f0a7a6cbc3f08f8d23794937a0b2bd7bf6dc663463",
+  "contentDigest": "sha256:d7bc2e2c43684b46f6fda2119d6dc2c7e0a8d4d86e1e7c4161190910010d3e15",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -3438,9 +3438,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-subtitles",
-              "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-subtitles",
+              "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
             ]
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:06",
@@ -3461,9 +3461,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-subtitles",
-              "PlayerPanel-menu-subtitle-ffmpeg.subtitle.5"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-subtitles",
+              "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
             ]
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:08",
@@ -3484,9 +3484,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-subtitles",
-              "PlayerPanel-menu-subtitle-off"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-subtitles",
+              "PlayerUI-menu-subtitles-off"
             ]
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:10",
@@ -3507,9 +3507,9 @@
           "arguments": {
             "context": "window",
             "identifiers": [
-              "PlayerPanel-menu-more",
-              "PlayerPanel-menu-subtitles",
-              "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3"
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-subtitles",
+              "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
             ]
           },
           "callId": "call:local-media-lifecycle:subtitle-switch-and-off:12",

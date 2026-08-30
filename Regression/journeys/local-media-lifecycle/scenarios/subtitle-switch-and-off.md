@@ -78,9 +78,9 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-subtitles",
-          "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
         ]
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:06",
@@ -101,9 +101,9 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-subtitles",
-          "PlayerPanel-menu-subtitle-ffmpeg.subtitle.5"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
         ]
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:08",
@@ -124,9 +124,9 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-subtitles",
-          "PlayerPanel-menu-subtitle-off"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-off"
         ]
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:10",
@@ -147,9 +147,9 @@
       "arguments": {
         "context": "window",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-subtitles",
-          "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
         ]
       },
       "callId": "call:local-media-lifecycle:subtitle-switch-and-off:12",
