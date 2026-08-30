@@ -2051,15 +2051,35 @@ def _catalog_shape(context: _CompletionContext) -> str:
         raise CompletionError("all 65 current Promises must be included")
     if any(item.readiness is not ContractReadiness.READY for item in proof.catalog.scenarios):
         raise CompletionError("all 65 current Scenarios must have v2 readiness ready")
-    if any(item.readiness is not ContractReadiness.READY for item in proof.catalog.preparations):
-        raise CompletionError("all 18 current Preparations must have v2 readiness ready")
+    preparations = {str(item.id): item for item in proof.catalog.preparations}
+    emby = preparations.pop("preparation:emby-test-library", None)
+    if any(
+        item.readiness is not ContractReadiness.READY or item.blockers
+        for item in preparations.values()
+    ):
+        raise CompletionError("the other 17 current Preparations must have v2 readiness ready")
+    if (
+        emby is None
+        or emby.readiness is not ContractReadiness.IMPLEMENTATION_GAP
+        or {blocker.capability for blocker in emby.blockers}
+        != {"operation:preparation.emby-account@1"}
+    ):
+        raise CompletionError("the Emby Preparation must declare its missing account producer")
     if proof.report.get("scenarioReadiness") != {"ready": 65}:
         raise CompletionError("materialized Scenario readiness is not exactly 65 ready")
-    if proof.report.get("preparationReadiness") != {"ready": 18}:
-        raise CompletionError("materialized Preparation readiness is not exactly 18 ready")
-    if proof.report.get("scenarioReadinessGaps") or proof.report.get("preparationReadinessGaps"):
-        raise CompletionError("materialized Catalog still contains readiness gaps")
-    return "65 included Promises, 14 Journeys, 65 ready Scenarios, 35 Operations, 11 Oracles, 67 Rubrics, and 18 ready Preparations match v2"
+    if proof.report.get("preparationReadiness") != {
+        "implementation-gap": 1,
+        "ready": 17,
+    }:
+        raise CompletionError("materialized Preparation readiness differs from the declared gap")
+    if proof.report.get("scenarioReadinessGaps"):
+        raise CompletionError("materialized Catalog contains Scenario readiness gaps")
+    gaps = proof.report.get("preparationReadinessGaps")
+    if not isinstance(gaps, list) or {
+        item.get("id") for item in gaps if isinstance(item, dict)
+    } != {"preparation:emby-test-library"}:
+        raise CompletionError("materialized Catalog Preparation gaps differ from the declared Emby gap")
+    return "65 included Promises, 14 Journeys, 65 ready Scenarios, 35 Operations, 11 Oracles, 67 Rubrics, 17 ready Preparations, and one declared Emby gap match v2"
 
 
 def _no_legacy_contracts(context: _CompletionContext) -> str:

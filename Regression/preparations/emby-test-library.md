@@ -6,8 +6,14 @@
   "title": "Prepare emby test library",
   "lane": "device",
   "estimatedCostMillis": 60000,
-  "readiness": "ready",
-  "blockers": [],
+  "readiness": "implementation-gap",
+  "blockers": [
+    {
+      "kind": "implementation-gap",
+      "capability": "operation:preparation.emby-account@1",
+      "detail": "preparation:emby-test-library requires this runtime capability: operation:preparation.emby-account@1"
+    }
+  ],
   "prerequisites": [],
   "operations": [
     {
@@ -23,7 +29,7 @@
     {
       "key": "emby-test-library-ready",
       "schema": "remote-source.emby-library@2",
-      "producedByCall": "call:preparation:emby-test-library:01",
+      "producedByCall": null,
       "dependsOnTags": [
         "app.session",
         "emby.account",
@@ -37,4 +43,4 @@
 ---
 # Prepare emby test library
 
-The runtime Preparation adapter supplies this Preparation plan, implementation identity, readiness, blockers, and produced state.
+The runtime Preparation adapter can validate the seeded Emby server, but the Catalog has no registered producer Operation that establishes the in-app Emby account; this Preparation therefore remains blocked and produces no reusable state.

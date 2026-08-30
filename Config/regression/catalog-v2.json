@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:428a51ae5ead57586d52cd03a20d2d7b2e4e2f0d95c64e013f08be13c896d678",
+  "contentDigest": "sha256:d7965e098cdc1ef90fba1a1b152b8b2d41eed6b63297b3aa38659a20ec49decf",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -408,7 +408,7 @@
     }
   ],
   "objective": {
-    "preparationReadiness": "all-ready",
+    "preparationReadiness": "declared",
     "scenarioReadiness": "declared"
   },
   "operations": [
@@ -911,7 +911,7 @@
       "title": "Prepare local aggregate simulator"
     },
     {
-      "contract": "The runtime Preparation adapter supplies this Preparation plan, implementation identity, readiness, blockers, and produced state.",
+      "contract": "The runtime Preparation adapter validates the SMB fixture service, establishes an authenticated product source session through the public connection UI, verifies the fixture hierarchy and media, and produces reusable source.session state.",
       "estimatedCostMillis": 60000,
       "filename": "smb-test-source.md",
       "id": "preparation:smb-test-source",
@@ -939,7 +939,7 @@
       "title": "Prepare dynamic range corpus"
     },
     {
-      "contract": "The runtime Preparation adapter supplies this Preparation plan, implementation identity, readiness, blockers, and produced state.",
+      "contract": "The runtime Preparation adapter can validate the seeded Emby server, but the Catalog has no registered producer Operation that establishes the in-app Emby account; this Preparation therefore remains blocked and produces no reusable state.",
       "estimatedCostMillis": 60000,
       "filename": "emby-test-library.md",
       "id": "preparation:emby-test-library",

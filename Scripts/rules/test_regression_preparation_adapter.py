@@ -64,77 +64,6 @@ def write_emby_runtime_identity(
     return encoded
 
 
-def emby_seed_report(runtime_file: Path) -> dict[str, object]:
-    fixture_digest = "sha256:" + "2" * 64
-    subtitle_digest = "sha256:" + "4" * 64
-    receipt: dict[str, object] = {
-        "schema": emby.SEED_RECEIPT_SCHEMA,
-        "receiptID": "",
-        "status": "active",
-        "sourceIdentity": emby.implementation_identity(),
-        "runtimeIdentity": str(runtime_file.resolve()),
-        "serverID": "server-regression",
-        "userID": "user-regression",
-        "library": {
-            "libraryID": "library-regression",
-            "name": emby.LIBRARY_NAME,
-            "pathDigest": "sha256:" + "1" * 64,
-        },
-        "fixture": {
-            "registryID": emby.FIXTURE_ID,
-            "digest": fixture_digest,
-            "catalogByteDigest": fixture_digest,
-        },
-        "externalSubtitle": {
-            "registryID": emby.EXTERNAL_SUBTITLE_FIXTURE_ID,
-            "fileName": emby.EXTERNAL_SUBTITLE_FILE_NAME,
-            "digest": subtitle_digest,
-            "streamIndex": 7,
-            "codec": "subrip",
-            "deliveryPath": (
-                "/Videos/episode-regression/source-regression/"
-                "Subtitles/7/Stream.srt"
-            ),
-            "servedDigest": subtitle_digest,
-        },
-        "catalog": {
-            "libraryID": "library-regression",
-            "seriesID": "series-regression",
-            "seasonID": "season-regression",
-            "episodeID": "episode-regression",
-            "mediaSourceID": "source-regression",
-            "progressTicks": emby.SEEDED_PROGRESS_TICKS,
-            "imageTag": "image-tag-regression",
-            "artworkRequestPath": (
-                "/Items/series-regression/Images/Primary"
-                "?Tag=image-tag-regression&MaxWidth=420"
-            ),
-            "artworkStatusCode": 200,
-            "artworkResponseDigest": "sha256:" + "3" * 64,
-            "loopbackHitCount": 0,
-        },
-        "originalUserData": {"PlaybackPositionTicks": 0, "Played": False},
-        "deadlines": {
-            "productSeconds": emby.PRODUCT_DEADLINE_SECONDS,
-            "harnessLivenessSeconds": emby.HARNESS_LIVENESS_DEADLINE_SECONDS,
-        },
-    }
-    receipt["receiptID"] = emby._receipt_id_fields(
-        server_id=receipt["serverID"],
-        user_id=receipt["userID"],
-        fixture_id=emby.FIXTURE_ID,
-        fixture_digest=fixture_digest,
-        subtitle_fixture_id=emby.EXTERNAL_SUBTITLE_FIXTURE_ID,
-        subtitle_fixture_digest=subtitle_digest,
-    )
-    return {
-        "schema": emby.PREFLIGHT_REPORT_SCHEMA,
-        "check": "emby-aggregate",
-        "ready": True,
-        "receipt": receipt,
-    }
-
-
 def emby_account_response(
     identity_digest: str,
     **overrides: object,
@@ -196,11 +125,10 @@ READY_IDS = {
     "preparation:viewing-storage-fixtures-simulator",
     "preparation:webdav-test-source",
     "preparation:window-input-fixture",
-    "preparation:emby-test-library",
     "preparation:system-import-fixtures",
 }
 
-BLOCKED_IDS = set()
+BLOCKED_IDS = {"preparation:emby-test-library"}
 
 LOCAL_AGGREGATE_READY_IDS = {
     "preparation:local-aggregate-device",
@@ -239,49 +167,6 @@ class FakeBackend:
     def execute(self, operation_id, arguments, context):
         self.calls.append((operation_id, arguments, context))
         return {"succeeded": True}
-
-
-class EmbyReceiptInvoker:
-    def __init__(self, report: object):
-        self.report = report
-
-    def invoke(self, operation_id, arguments, context):
-        return type(
-            "Invocation",
-            (),
-            {"result": {"succeeded": True, "report": self.report}},
-        )()
-
-
-class RecordingEmbyAccountRoute:
-    def __init__(
-        self,
-        *,
-        receipt_overrides: dict[str, object] | None = None,
-        response: object | None = None,
-    ) -> None:
-        self.receipt_overrides = receipt_overrides or {}
-        self.response = response
-        self.calls: list[dict[str, object]] = []
-
-    def prepare(self, request, identity_file, secret_values, context):
-        self.calls.append(
-            {
-                "request": request,
-                "arguments": request.arguments(),
-                "identityPath": identity_file,
-                "identityBytes": identity_file.read_bytes(),
-                "identityMode": stat.S_IMODE(identity_file.stat().st_mode),
-                "secretValues": secret_values,
-                "context": context,
-            }
-        )
-        if self.response is not None:
-            return self.response
-        return emby_account_response(
-            request.identity_digest,
-            **self.receipt_overrides,
-        )
 
 
 class PreparationRegistryTests(unittest.TestCase):
@@ -899,16 +784,19 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             else:
                 self.assertNotIn(runtime_key, prerequisites)
 
-    def test_emby_preparation_is_ready_only_after_the_exact_seed_receipt(self) -> None:
+    def test_emby_preparation_declares_its_missing_account_producer(self) -> None:
         plan = self.plans()["preparation:emby-test-library"]
-        self.assertEqual(plan.readiness, "ready")
-        self.assertIsNone(plan.blocker)
+        self.assertEqual(plan.readiness, "implementation-blocked")
+        self.assertEqual(
+            plan.blocker.missing_capabilities,
+            ("operation:preparation.emby-account@1",),
+        )
         self.assertEqual(
             [call.operation_id for call in plan.calls],
             ["operation:host.preflight@1"],
         )
         self.assertEqual(plan.calls[0].arguments, {"check": "emby-aggregate"})
-        self.assertEqual(plan.state.produced_by_call, plan.calls[0].call_id)
+        self.assertIsNone(plan.state.produced_by_call)
         prerequisites = {
             (item.kind, item.identity): item.digest for item in plan.prerequisites
         }
@@ -933,243 +821,63 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         self.assertNotIn("username", canonical.casefold())
         self.assertNotIn("password", canonical.casefold())
 
-    def test_emby_preparation_binds_real_seed_ids_to_the_product_command(self) -> None:
+    def test_emby_blocker_names_an_unregistered_operation(self) -> None:
+        capability = "operation:preparation.emby-account@1"
+        self.assertNotIn(capability, operations.SPECS)
+        self.assertNotIn(capability, preparations.OPERATION_ALLOWLIST)
+
+    def test_emby_preflight_cannot_produce_evidence(self) -> None:
+        preflight = operations.SPECS["operation:host.preflight@1"]
+        self.assertEqual(preflight.outputs, ())
+
+    def test_blocked_emby_plan_does_not_invoke_any_route(self) -> None:
+        plan = self.plans()["preparation:emby-test-library"]
+        invoker = mock.Mock()
+        route = mock.Mock()
         context = type(
             "Context", (), {"lane": "device", "target": "literal-lane-target"}
         )()
-        with tempfile.TemporaryDirectory(prefix="emby-preparation-test-") as directory:
-            runtime_file = Path(directory) / "identity.json"
-            encoded = write_emby_runtime_identity(runtime_file)
-            report = emby_seed_report(runtime_file)
-            route = RecordingEmbyAccountRoute()
-            with mock.patch.object(preparations, "EMBY_RUNTIME_FILE", runtime_file):
-                plan = preparations.build_plan(
-                    "preparation:emby-test-library",
-                    "device",
-                    "literal-lane-target",
-                )
-                execution = preparations.execute_plan(
-                    plan,
-                    EmbyReceiptInvoker(report),
-                    context,
-                    emby_account_route=route,
-                )
+        with self.assertRaisesRegex(
+            preparations.PreparationImplementationBlocked,
+            "operation:preparation.emby-account@1",
+        ):
+            preparations.execute_plan(
+                plan,
+                invoker,
+                context,
+                emby_account_route=route,
+            )
+        invoker.invoke.assert_not_called()
+        route.prepare.assert_not_called()
 
-        self.assertEqual(len(route.calls), 1)
-        call = route.calls[0]
-        request = call["request"]
-        expected_digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
+    def test_emby_state_declaration_retains_only_semantic_tags(self) -> None:
+        state = self.plans()["preparation:emby-test-library"].state
         self.assertEqual(
-            call["arguments"],
-            {
-                "identityDigest": expected_digest,
-                "itemID": "episode-regression",
-                "mediaSourceID": "source-regression",
-                "externalSubtitleStreamIndex": "7",
-            },
+            state.tags,
+            (
+                "app.session",
+                "emby.account",
+                "lane.instance",
+                "source.emby",
+                "source.emby.fixture-revision",
+            ),
         )
-        self.assertEqual(request.identity_digest, expected_digest)
-        self.assertEqual(request.item_id, "episode-regression")
-        self.assertEqual(request.media_source_id, "source-regression")
-        self.assertEqual(request.external_subtitle_stream_index, 7)
-        self.assertEqual(call["identityBytes"], encoded)
-        self.assertEqual(call["identityMode"], 0o600)
-        self.assertFalse(call["identityPath"].exists())
-        self.assertEqual(
-            execution.emby_account_preparation_receipt.canonical(),
-            emby_account_response(expected_digest)[
-                "embyAccountPreparationReceipt"
-            ],
-        )
-        serialized = json.dumps(
-            {
-                "plan": plan.canonical(),
-                "request": call["arguments"],
-                "receipt": execution.emby_account_preparation_receipt.canonical(),
-            },
-            sort_keys=True,
-        )
-        self.assertNotIn(EMBY_TEST_USERNAME, serialized)
-        self.assertNotIn(EMBY_TEST_PASSWORD, serialized)
+        self.assertIsNone(state.produced_by_call)
 
-    def test_emby_preparation_rejects_non_typed_seed_receipts(self) -> None:
-        context = type(
-            "Context", (), {"lane": "device", "target": "literal-lane-target"}
-        )()
-        with tempfile.TemporaryDirectory(prefix="emby-preparation-test-") as directory:
-            runtime_file = Path(directory) / "identity.json"
-            write_emby_runtime_identity(runtime_file)
-            with mock.patch.object(preparations, "EMBY_RUNTIME_FILE", runtime_file):
-                plan = preparations.build_plan(
-                    "preparation:emby-test-library",
-                    "device",
-                    "literal-lane-target",
+    def test_every_ready_preparation_uses_its_final_call_as_producer(self) -> None:
+        plans = self.plans()
+        for identifier in sorted(READY_IDS):
+            with self.subTest(preparation=identifier):
+                plan = plans[identifier]
+                self.assertEqual(
+                    plan.state.produced_by_call,
+                    plan.calls[-1].call_id,
                 )
-                invalid_reports = [{"satisfied": True}, emby_seed_report(runtime_file)]
-                invalid_reports[1]["receipt"][
-                    "sourceIdentity"
-                ] = "emby-source:wrong-identity"
-                for report in invalid_reports:
-                    route = RecordingEmbyAccountRoute()
-                    with (
-                        self.subTest(report=report),
-                        self.assertRaisesRegex(
-                            preparations.PreparationExecutionError,
-                            "typed Emby seed receipt",
-                        ),
-                    ):
-                        preparations.execute_plan(
-                            plan,
-                            EmbyReceiptInvoker(report),
-                            context,
-                            emby_account_route=route,
-                        )
-                    self.assertEqual(route.calls, [])
 
-    def test_emby_preparation_rejects_runtime_identity_mismatch_before_staging(self) -> None:
-        context = type(
-            "Context", (), {"lane": "device", "target": "literal-lane-target"}
-        )()
-        with tempfile.TemporaryDirectory(prefix="emby-preparation-test-") as directory:
-            runtime_file = Path(directory) / "identity.json"
-            write_emby_runtime_identity(runtime_file, server_id="different-server")
-            report = emby_seed_report(runtime_file)
-            route = RecordingEmbyAccountRoute()
-            with mock.patch.object(preparations, "EMBY_RUNTIME_FILE", runtime_file):
-                plan = preparations.build_plan(
-                    "preparation:emby-test-library",
-                    "device",
-                    "literal-lane-target",
-                )
-                with self.assertRaisesRegex(
-                    preparations.PreparationExecutionError,
-                    "seed receipt identity",
-                ):
-                    preparations.execute_plan(
-                        plan,
-                        EmbyReceiptInvoker(report),
-                        context,
-                        emby_account_route=route,
-                    )
-        self.assertEqual(route.calls, [])
-
-    def test_emby_preparation_rejects_credentials_in_seed_result_or_evidence(self) -> None:
-        context = type(
-            "Context", (), {"lane": "device", "target": "literal-lane-target"}
-        )()
-        with tempfile.TemporaryDirectory(prefix="emby-preparation-test-") as directory:
-            runtime_file = Path(directory) / "identity.json"
-            write_emby_runtime_identity(runtime_file)
-            reports = []
-            matching_secret = emby_seed_report(runtime_file)
-            matching_secret["receipt"]["originalUserData"][
-                "Note"
-            ] = EMBY_TEST_PASSWORD
-            reports.append(matching_secret)
-            credential_field = emby_seed_report(runtime_file)
-            credential_field["receipt"]["originalUserData"][
-                "SessionToken"
-            ] = "different-sensitive-value"
-            reports.append(credential_field)
-            with mock.patch.object(preparations, "EMBY_RUNTIME_FILE", runtime_file):
-                plan = preparations.build_plan(
-                    "preparation:emby-test-library",
-                    "device",
-                    "literal-lane-target",
-                )
-                for report in reports:
-                    route = RecordingEmbyAccountRoute()
-                    with self.subTest(report=report):
-                        with self.assertRaises(
-                            preparations.PreparationExecutionError
-                        ) as raised:
-                            preparations.execute_plan(
-                                plan,
-                                EmbyReceiptInvoker(report),
-                                context,
-                                emby_account_route=route,
-                            )
-                        self.assertNotIn(
-                            EMBY_TEST_PASSWORD,
-                            str(raised.exception),
-                        )
-                        self.assertEqual(route.calls, [])
-
-    def test_emby_preparation_rejects_account_digest_or_identity_mismatch(self) -> None:
-        context = type(
-            "Context", (), {"lane": "device", "target": "literal-lane-target"}
-        )()
-        mismatches = {
-            "identityDigest": "sha256:" + "9" * 64,
-            "serverID": "wrong-server",
-            "userID": "wrong-user",
-            "itemID": "wrong-episode",
-            "mediaSourceID": "wrong-source",
-            "externalSubtitleStreamIndex": 8,
-            "externalSubtitleSourceID": "emby.subtitle.8",
-        }
-        with tempfile.TemporaryDirectory(prefix="emby-preparation-test-") as directory:
-            runtime_file = Path(directory) / "identity.json"
-            write_emby_runtime_identity(runtime_file)
-            report = emby_seed_report(runtime_file)
-            with mock.patch.object(preparations, "EMBY_RUNTIME_FILE", runtime_file):
-                plan = preparations.build_plan(
-                    "preparation:emby-test-library",
-                    "device",
-                    "literal-lane-target",
-                )
-                for field, value in mismatches.items():
-                    with (
-                        self.subTest(field=field),
-                        self.assertRaisesRegex(
-                            preparations.PreparationExecutionError,
-                            "receipt identity",
-                        ),
-                    ):
-                        preparations.execute_plan(
-                            plan,
-                            EmbyReceiptInvoker(report),
-                            context,
-                            emby_account_route=RecordingEmbyAccountRoute(
-                                receipt_overrides={field: value}
-                            ),
-                        )
-
-    def test_emby_preparation_rejects_untyped_or_secret_bearing_product_results(self) -> None:
-        context = type(
-            "Context", (), {"lane": "device", "target": "literal-lane-target"}
-        )()
-        with tempfile.TemporaryDirectory(prefix="emby-preparation-test-") as directory:
-            runtime_file = Path(directory) / "identity.json"
-            encoded = write_emby_runtime_identity(runtime_file)
-            digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
-            report = emby_seed_report(runtime_file)
-            untyped = emby_account_response(digest, unexpected="field")
-            leaked = emby_account_response(digest)
-            leaked["detail"] = f"credential={EMBY_TEST_PASSWORD}"
-            with mock.patch.object(preparations, "EMBY_RUNTIME_FILE", runtime_file):
-                plan = preparations.build_plan(
-                    "preparation:emby-test-library",
-                    "device",
-                    "literal-lane-target",
-                )
-                for response in (untyped, leaked):
-                    with self.subTest(response=response):
-                        with self.assertRaises(
-                            preparations.PreparationExecutionError
-                        ) as raised:
-                            preparations.execute_plan(
-                                plan,
-                                EmbyReceiptInvoker(report),
-                                context,
-                                emby_account_route=RecordingEmbyAccountRoute(
-                                    response=response
-                                ),
-                            )
-                        self.assertNotIn(
-                            EMBY_TEST_PASSWORD,
-                            str(raised.exception),
-                        )
+    def test_smb_preparation_exports_the_session_tag_it_establishes(self) -> None:
+        plan = self.plans()["preparation:smb-test-source"]
+        self.assertIn("source.session", plan.state.tags)
+        self.assertNotIn("source.smb", plan.state.tags)
 
     def test_resident_emby_route_stages_fixed_0600_file_and_uses_safe_argv(self) -> None:
         calls: list[tuple[list[str], dict[str, object]]] = []

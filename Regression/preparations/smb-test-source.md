@@ -210,7 +210,7 @@
         "app.session",
         "fixture.corpus",
         "lane.instance",
-        "source.smb"
+        "source.session"
       ]
     }
   ]
@@ -218,4 +218,4 @@
 ---
 # Prepare smb test source
 
-The runtime Preparation adapter supplies this Preparation plan, implementation identity, readiness, blockers, and produced state.
+The runtime Preparation adapter validates the SMB fixture service, establishes an authenticated product source session through the public connection UI, verifies the fixture hierarchy and media, and produces reusable source.session state.

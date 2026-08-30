@@ -960,7 +960,7 @@ def _validate_external_subtitle_matrix(
     _require(scenario is not None, "external subtitle source matrix is missing")
     _require(
         scenario["readiness"] == "ready" and not scenario["blockers"],
-        "external subtitle source matrix must be executable",
+        "external subtitle source matrix must have a complete Operation graph",
     )
     expected_prerequisites = {
         ("local-aggregate-staged", "fixture-set.local-aggregate-staged@2"),
@@ -978,15 +978,14 @@ def _validate_external_subtitle_matrix(
         actual_prerequisites == expected_prerequisites,
         "external subtitle source matrix lacks its exact Preparation identities",
     )
-    ready_states = {
+    declared_states = {
         (state["key"], state["schema"])
         for preparation in preparations.values()
-        if preparation["readiness"] == "ready"
         for state in preparation["produces"]
     }
     _require(
-        expected_prerequisites <= ready_states,
-        "external subtitle source matrix depends on a non-ready Preparation identity",
+        expected_prerequisites <= declared_states,
+        "external subtitle source matrix depends on an undeclared Preparation identity",
     )
 
     calls = scenario["operations"]
@@ -1314,10 +1313,10 @@ def _validate_blueprint(
     _require(
         blueprint["objective"]
         == {
-            "preparationReadiness": "all-ready",
+            "preparationReadiness": "declared",
             "scenarioReadiness": "declared",
         },
-        "the v2 objective must require ready Preparations and declared Scenario gaps",
+        "the v2 objective must require declared Preparation and Scenario gaps",
     )
     expected = blueprint["expectedCounts"]
     actual = {

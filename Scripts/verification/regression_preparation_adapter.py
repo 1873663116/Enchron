@@ -553,7 +553,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
         ),
         PreparationSpec(
             "preparation:smb-test-source", "device", "smb-test-source-ready",
-            "remote-source.smb-fixture@2", ("app.session", "fixture.corpus", "lane.instance", "source.smb"),
+            "remote-source.smb-fixture@2", ("app.session", "fixture.corpus", "lane.instance", "source.session"),
             preflight="smb-aggregate",
             connect_smb=True,
         ),
@@ -578,6 +578,7 @@ def _specs() -> tuple[PreparationSpec, ...]:
             "preparation:emby-test-library", "device", "emby-test-library-ready",
             "remote-source.emby-library@2", ("app.session", "emby.account", "lane.instance", "source.emby", "source.emby.fixture-revision"),
             preflight="emby-aggregate",
+            blocker_capabilities=("operation:preparation.emby-account@1",),
         ),
         PreparationSpec(
             "preparation:faultable-remote-source", "device", "faultable-remote-source-ready",

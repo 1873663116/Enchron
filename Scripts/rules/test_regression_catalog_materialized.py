@@ -242,9 +242,15 @@ class MaterializedCatalogTests(unittest.TestCase):
             },
         )
         self.assertEqual(report["scenarioReadiness"], {"ready": 65})
-        self.assertEqual(report["preparationReadiness"], {"ready": 18})
+        self.assertEqual(
+            report["preparationReadiness"],
+            {"implementation-gap": 1, "ready": 17},
+        )
         self.assertFalse(report["scenarioReadinessGaps"])
-        self.assertFalse(report["preparationReadinessGaps"])
+        self.assertEqual(
+            {item["id"] for item in report["preparationReadinessGaps"]},
+            {"preparation:emby-test-library"},
+        )
 
     def test_catalog_has_the_complete_v2_population(self) -> None:
         catalog = self.catalog
@@ -273,12 +279,19 @@ class MaterializedCatalogTests(unittest.TestCase):
                 for scenario in catalog.scenarios
             )
         )
+        preparations = {str(item.id): item for item in catalog.preparations}
+        emby = preparations.pop("preparation:emby-test-library")
         self.assertTrue(
             all(
                 preparation.readiness is ContractReadiness.READY
                 and not preparation.blockers
-                for preparation in catalog.preparations
+                for preparation in preparations.values()
             )
+        )
+        self.assertIs(emby.readiness, ContractReadiness.IMPLEMENTATION_GAP)
+        self.assertEqual(
+            {blocker.capability for blocker in emby.blockers},
+            {"operation:preparation.emby-account@1"},
         )
         covered = {
             promise_id
@@ -415,7 +428,16 @@ class MaterializedCatalogTests(unittest.TestCase):
                 )
                 self.assertEqual(len(preparation.produces), 1)
                 for state in preparation.produces:
-                    self.assertIsNotNone(state.produced_by_call)
+                    if state.produced_by_call is None:
+                        self.assertEqual(
+                            str(preparation.id),
+                            "preparation:emby-test-library",
+                        )
+                        self.assertIs(
+                            preparation.readiness,
+                            ContractReadiness.IMPLEMENTATION_GAP,
+                        )
+                        continue
                     self.assertIn(state.produced_by_call, call_by_id)
                     producer = call_by_id[state.produced_by_call]
                     self.assertIs(

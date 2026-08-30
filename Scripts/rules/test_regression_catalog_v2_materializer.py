@@ -374,12 +374,15 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             report["scenarioReadiness"],
             {"ready": 65},
         )
-        self.assertEqual(report["preparationReadiness"], {"ready": 18})
+        self.assertEqual(
+            report["preparationReadiness"],
+            {"implementation-gap": 1, "ready": 17},
+        )
         self.assertEqual(
             report["objective"],
             {
                 "scenarioReadiness": "declared",
-                "preparationReadiness": "all-ready",
+                "preparationReadiness": "declared",
             },
         )
         self.assertEqual(report["coreAnalysis"]["status"], "loaded-and-analyzed")
@@ -413,7 +416,10 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             {item["id"] for item in report["scenarioReadinessGaps"]},
             set(GAP_SCENARIO_CAPABILITIES),
         )
-        self.assertFalse(report["preparationReadinessGaps"])
+        self.assertEqual(
+            {item["id"] for item in report["preparationReadinessGaps"]},
+            {"preparation:emby-test-library"},
+        )
         authorities = report["runtimeAuthorities"]
         self.assertEqual(
             authorities["preparationRegistryDigest"], preparation_adapter.REGISTRY_DIGEST
