@@ -92,11 +92,11 @@
     {
       "artifactClass": "coverage",
       "caseKey": "default",
-      "evidenceSchema": "playback-probe@1",
-      "evidenceType": "playback.probe",
+      "evidenceSchema": "window-control-plane@1",
+      "evidenceType": "window.control-plane",
       "id": "obligation:local-media-lifecycle:clean-flat-playback-main-gate:o01:default",
-      "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:local-media-lifecycle:clean-flat-playback-main-gate:06",
+      "oracle": "oracle:agent-structured-window-control-plane@1",
+      "producedByCall": "call:local-media-lifecycle:clean-flat-playback-main-gate:05",
       "rubric": "rubric:local-media-lifecycle.clean-flat-playback-main-gate.o01@1"
     },
     {

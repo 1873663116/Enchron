@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:0930ec35babc9869877205708aa8ed9dcd8ce92300156fa5b520d9ab79ed6645",
+  "contentDigest": "sha256:c9f01cedcf431de2a08181f7230aa311b1d0f98f5dbec47edee678a4571ce151",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -2682,20 +2682,20 @@
         {
           "artifactClass": "coverage",
           "caseKey": "apple-apmp-180",
-          "evidenceSchema": "frame-sequence@2",
-          "evidenceType": "visual.frames",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:format-coverage:signalled-media-classification:o01:apple-apmp-180",
-          "oracle": "oracle:agent-visual@2",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:format-coverage:signalled-media-classification:05",
           "rubric": "rubric:format-coverage.signalled-media-classification.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "mv-hevc-stereo",
-          "evidenceSchema": "frame-sequence@2",
-          "evidenceType": "visual.frames",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:format-coverage:signalled-media-classification:o01:mv-hevc-stereo",
-          "oracle": "oracle:agent-visual@2",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:format-coverage:signalled-media-classification:10",
           "rubric": "rubric:format-coverage.signalled-media-classification.o01@1"
         }
@@ -2933,11 +2933,11 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:local-media-lifecycle:clean-flat-playback-main-gate:o01:default",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:local-media-lifecycle:clean-flat-playback-main-gate:06",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:local-media-lifecycle:clean-flat-playback-main-gate:05",
           "rubric": "rubric:local-media-lifecycle.clean-flat-playback-main-gate.o01@1"
         },
         {
@@ -7345,41 +7345,41 @@
         {
           "artifactClass": "coverage",
           "caseKey": "source-flat",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:presentation-tour:initial-presentation-routing:o01:source-flat",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:presentation-tour:initial-presentation-routing:05",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:presentation-tour:initial-presentation-routing:03",
           "rubric": "rubric:presentation-tour.initial-presentation-routing.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "source-panorama",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:presentation-tour:initial-presentation-routing:o01:source-panorama",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:presentation-tour:initial-presentation-routing:10",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:presentation-tour:initial-presentation-routing:08",
           "rubric": "rubric:presentation-tour.initial-presentation-routing.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "persisted-flat",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:presentation-tour:initial-presentation-routing:o01:persisted-flat",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:presentation-tour:initial-presentation-routing:20",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:presentation-tour:initial-presentation-routing:18",
           "rubric": "rubric:presentation-tour.initial-presentation-routing.o01@1"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "persisted-panorama",
-          "evidenceSchema": "playback-probe@1",
-          "evidenceType": "playback.probe",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:presentation-tour:initial-presentation-routing:o01:persisted-panorama",
-          "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:presentation-tour:initial-presentation-routing:30",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:presentation-tour:initial-presentation-routing:28",
           "rubric": "rubric:presentation-tour.initial-presentation-routing.o01@1"
         }
       ],
