@@ -1047,6 +1047,35 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         self.assertEqual(run.driven_cells, set())
         self.assertEqual(run.deferred_command_ids, {"seek-command"})
 
+    def test_replay_failure_carries_the_app_s_own_reason(self) -> None:
+        cells = {("window", "command:setEndBehavior"): {
+            "evidence": [], "verdict": "known-defect",
+        }}
+        replay = matrix.replay_deferred_evidence(
+            cells=cells,
+            deliveries=[{
+                "context": "window",
+                "operation": "command:setEndBehavior",
+                "probeRequirements": [],
+                "commandIDs": ["cmd-1", "cmd-2"],
+            }],
+            probe_lines=["2026-08-31T00:00:00Z reachability evidence session=s1 seq=1"],
+            responses={"cmd-1": {
+                "id": "cmd-1", "ok": False,
+                "detail": "settings.end-behavior has no target=Stop; available=stop,repeatOne.",
+            }},
+            session_id="s1",
+            started_at="2026-08-30T00:00:00+00:00",
+            ended_at="2026-09-01T00:00:00+00:00",
+            evidence="raw/probe.log",
+        )
+        failure = replay["failures"][0]
+        self.assertIn(
+            "settings.end-behavior has no target=Stop; available=stop,repeatOne.",
+            failure["commandDetails"],
+        )
+        self.assertEqual(failure["missingResponseIDs"], ["cmd-2"])
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

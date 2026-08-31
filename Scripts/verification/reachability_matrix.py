@@ -130,11 +130,11 @@ DEFERRED_MENU_TARGETS = {
     ("playerPanel", "episodes"): "__firstAvailable",
     ("emby", "season"): "__firstUnselected",
     ("emby", "version"): "__firstUnselected",
-    ("settings", "resume-strategy"): "Ask Every Time",
-    ("settings", "end-behavior"): "Stop",
-    ("settings", "default-scenic-environment"): "Scenic Environment 1",
-    ("settings", "default-speed"): "0.5×",
-    ("settings", "controls-auto-hide"): "8 Seconds",
+    ("settings", "resume-strategy"): "askEveryTime",
+    ("settings", "end-behavior"): "stop",
+    ("settings", "default-scenic-environment"): "scenic-one",
+    ("settings", "default-speed"): "0.5",
+    ("settings", "controls-auto-hide"): "8",
 }
 
 
@@ -451,6 +451,17 @@ def replay_deferred_evidence(
                 "sequenceOrdered": sequence_ordered,
                 "commandResponsesPassed": command_responses_pass,
                 "probeRequirementsPassed": probe_passes,
+                "commandDetails": [
+                    detail
+                    for command_id in command_ids
+                    if isinstance(responses.get(command_id), dict)
+                    and responses[command_id].get("ok") is not True
+                    and (detail := str(responses[command_id].get("detail", "")))
+                ],
+                "missingResponseIDs": [
+                    command_id for command_id in command_ids
+                    if not isinstance(responses.get(command_id), dict)
+                ],
             })
             continue
 
