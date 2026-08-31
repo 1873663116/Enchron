@@ -1222,6 +1222,42 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
         self.assertTrue(run.cells[("window", "accessibility:PlayerUI-play")]["existsInHierarchy"])
 
+    def test_marking_outside_a_derived_context_is_counted_not_raised(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.cells = {}
+        run.out_of_context_observations = {}
+
+        run.mark_observation(
+            "docked",
+            "accessibility:PlayerUI-loadFailure-primary",
+            exists=True,
+            evidence="raw/001-tap.json",
+            reason="the alert was over the docked panel",
+        )
+
+        self.assertEqual(
+            run.out_of_context_observations,
+            {("docked", "accessibility:PlayerUI-loadFailure-primary"): 1},
+        )
+
+    def test_marking_inside_the_derived_context_still_records(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        cell = {
+            "existsInHierarchy": False, "reportsHittable": False,
+            "applicationReceived": False, "verdict": "known-defect",
+            "reason": "", "evidence": [],
+        }
+        run.cells = {("docked", "accessibility:PlayerPanel-play"): cell}
+        run.out_of_context_observations = {}
+
+        run.mark_observation(
+            "docked", "accessibility:PlayerPanel-play",
+            exists=True, evidence="raw/001-tap.json", reason="tapped",
+        )
+
+        self.assertTrue(cell["existsInHierarchy"])
+        self.assertEqual(run.out_of_context_observations, {})
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

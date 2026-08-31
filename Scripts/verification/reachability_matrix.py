@@ -1080,6 +1080,7 @@ class ReachabilityRun:
         self.probe_status: dict[str, Any] = {}
         self.sensitive_values: tuple[str, ...] = ()
         self.consecutive_timeouts = 0
+        self.out_of_context_observations = {}
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
             (self.output / "segment-plan.json").write_text(
@@ -1940,9 +1941,19 @@ class ReachabilityRun:
     ) -> None:
         key = (presentation, operation_id)
         if key not in self.cells:
-            raise ValueError(
-                f"operation {operation_id} has no proof context {presentation}"
+            # The inventory derives from product source which contexts an
+            # operation can be proven in. Shared chrome stays in the hierarchy
+            # across surfaces, so a scenario driving one context reaches
+            # controls belonging to another: the ornament behind window
+            # playback, the load-failure alert over the docked panel. Seeing or
+            # tapping one proves nothing about the context doing the looking,
+            # and raising on it killed whole segments. Counted rather than
+            # dropped, so a plan aiming a scenario at the wrong context shows up
+            # as a number instead of silence.
+            self.out_of_context_observations[key] = (
+                self.out_of_context_observations.get(key, 0) + 1
             )
+            return
         cell = self.cells[key]
         if exists is not None:
             cell["existsInHierarchy"] = bool(cell["existsInHierarchy"] or exists)
@@ -2004,12 +2015,6 @@ class ReachabilityRun:
         for operation_id, operation in self.operations.items():
             template = operation.get("identifierTemplate")
             if not isinstance(template, str):
-                continue
-            if (presentation, operation_id) not in self.cells:
-                # The ornament stays in the hierarchy behind window playback, so
-                # a snapshot taken there sees the Emby tab. The inventory decides
-                # from product source where each operation has to be proven, and
-                # a sighting outside that set proves nothing about this context.
                 continue
             exists = any(
                 template_pattern(template).match(identifier)
@@ -2281,6 +2286,9 @@ class ReachabilityRun:
 
     consecutive_timeouts = 0
     """Declared on the class so every construction path starts from zero."""
+
+    out_of_context_observations: dict[tuple[str, str], int] = {}
+    """Sightings the inventory says this context cannot prove, kept for the report."""
 
     def ensure_session(self) -> bool:
         for attempt in range(2):
@@ -6435,6 +6443,12 @@ class ReachabilityRun:
             "segment": str(self.segment["id"]),
             "segmentPlan": self.segment,
             "sessionID": self.session_id,
+            "outOfContextObservations": [
+                {"context": context, "operation": operation, "count": count}
+                for (context, operation), count in sorted(
+                    getattr(self, "out_of_context_observations", {}).items()
+                )
+            ],
             "channelHealth": self.channel_health,
             "channelContinuity": {
                 "passed": not self.channel_failures,
