@@ -23,11 +23,10 @@ struct EnchronApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(
+        Window(
             "Enchron",
-            id: "main",
-            for: PlaybackWindowSceneIdentity.self
-        ) { sceneIdentity in
+            id: "main"
+        ) {
             Group {
 #if DEBUG
                 if ProcessInfo.processInfo.environment[
@@ -60,9 +59,7 @@ struct EnchronApp: App {
             }
             .enchronEnvironment(application)
             .onAppear {
-                let identity = sceneIdentity.wrappedValue
-                SurfaceInputProbes.record("mainWindowScene appeared identity=\(identity)")
-                application.playbackSessionModel.recordPlaybackWindowSceneAppeared(identity)
+                SurfaceInputProbes.record("mainWindowScene appeared")
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.open, for: .main)
                 Task { @MainActor in
@@ -72,14 +69,10 @@ struct EnchronApp: App {
                 }
             }
             .onDisappear {
-                let identity = sceneIdentity.wrappedValue
-                SurfaceInputProbes.record("mainWindowScene disappeared identity=\(identity)")
-                application.playbackSessionModel.recordPlaybackWindowSceneDisappeared(identity)
+                SurfaceInputProbes.record("mainWindowScene disappeared")
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.closed, for: .main)
             }
-        } defaultValue: {
-            PlaybackWindowSceneIdentity()
         }
         .defaultSize(
             width: BrowserWindowLayout.defaultSize.width,

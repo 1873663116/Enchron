@@ -19,6 +19,8 @@
 
 - **渲染器在 UIKit 断开来源 Window Scene 之前不能跨 RealityView 根**。运行时释放所有权是必要条件而不是充分条件——它不证明 RealityKit 已经移除了异步的视频目标。**SwiftUI 根的 `onDisappear` 在 visionOS 上不是 Window 生命周期契约。**
 - **新建的 WindowGroup 实例已经是 `openWindow` 的前台结果**。再去激活它的 UIKit scene 会引发系统呈现崩溃，并且不提供任何额外契约。
+- **visionOS 丢弃针对 App 唯一窗口的 `dismissWindow`**，不报错也不留日志。浏览与播放之间的窗口交接因此必须先开新窗口、观察到它开启、再关旧窗口；同一个同步回合里连发两个动作，关闭请求在新场景存在之前抵达，静默失效。2026-08-31 模拟器实测：等待 `windowObservation` 报出新窗口 `.open` 之后再关，同一次关闭即生效。
+- **`WindowGroup(id:for:)` 的 `defaultValue` 每次求值都产出一个新值时，无参数的 `openWindow(id:)` 每次都开一个新窗口**。产品语义上唯一的窗口必须声明为 `Window`，由场景类型保证唯一，而不是靠每个调用点记得携带同一个值。
 - **被 await 的 scene action 就是平台完成边界**。SwiftUI 不保证 ImmersiveSpace 内容的 `onDisappear` 在该 action 返回之前运行。
 - **一个已消失的场景不能再接受平台请求**，但它持有的活动 lease 仍然有效，好让同一次执行经由新注册的场景根继续下去；`currentCapability` 则立刻停止暴露那个退休场景的动作。
 
