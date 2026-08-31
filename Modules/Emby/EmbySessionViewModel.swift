@@ -455,6 +455,14 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
         case .movie, .boxSet: nil
         }
         let hasResume = (item.metadata.userData?.playbackPositionTicks ?? 0) > 0
+        let playbackActionIDs: [String] =
+            if item.isPlayable == false {
+                []
+            } else if hasResume {
+                ["Emby-Detail-Resume", "Emby-Detail-PlayFromBeginning"]
+            } else {
+                ["Emby-Detail-PlayFromBeginning"]
+            }
         detail = EmbyDetailEvidence(
             itemID: item.metadata.id.rawValue,
             itemKind: Self.kind(of: item),
@@ -462,9 +470,7 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
             declaredSeasonIDs: seasons.map { $0.metadata.id.rawValue },
             selectedSeasonID: selectedSeasonID?.rawValue,
             episodeIDs: episodes.map { $0.metadata.id.rawValue },
-            playbackActionIDs: hasResume
-                ? ["Emby-Detail-Resume", "Emby-Detail-PlayFromBeginning"]
-                : ["Emby-Detail-PlayFromBeginning"]
+            playbackActionIDs: playbackActionIDs
         )
     }
 

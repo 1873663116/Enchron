@@ -136,13 +136,14 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 90,
-        "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
+        "context": "main-window-browser",
+        "identifiers": [
+          "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
+        ]
       },
       "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:11",
       "maxInvocations": 1,
-      "operation": "operation:media.open@2"
+      "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {

@@ -21,4 +21,4 @@
 ---
 # 格式与解码覆盖
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

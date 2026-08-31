@@ -49,6 +49,15 @@ PERSISTENT_ROOT_DOCUMENTS = frozenset(
     }
 )
 PERSISTENT_SOURCE_DIRECTORIES = frozenset({"facts", "promises"})
+# The webdav pair carried a fifth edge until round sixteen. It was not a
+# handoff: both Scenarios consume preparation:webdav-test-source's
+# webdav-test-source-ready and neither produces state for the other, and
+# webdav-add-source's harness.reset-product-state@2 destroys the very
+# source.connection its successor needs rather than passing it on. Ordering
+# them only guaranteed that open-through-loopback met a source add-source had
+# just rebuilt through the form, so a stale connection left by the Preparation
+# alone could never be observed. Round fifteen removed the last implicit
+# dependency when it gave open-through-loopback its own sidebar selection.
 EXACT_JOURNEY_EDGES: frozenset[tuple[str, str]] = frozenset(
     {
         (
@@ -67,10 +76,7 @@ EXACT_JOURNEY_EDGES: frozenset[tuple[str, str]] = frozenset(
             "scenario:local-media-lifecycle:injected-import-rejoins-ingest",
             "scenario:local-media-lifecycle:subtitle-switch-and-off",
         ),
-        (
-            "scenario:webdav-source-lifecycle:webdav-add-source",
-            "scenario:webdav-source-lifecycle:webdav-open-through-loopback",
-        ),
+
     }
 )
 MEDIA_CARD_PREFIXES = (
@@ -631,7 +637,7 @@ def _render_journeys(blueprint: Mapping[str, Any], root: Path, written: set[str]
             "ordering": item["ordering"],
             "sharedState": item["sharedState"],
         }
-        body = f"# {item['title']}\n\nThe Journey groups scenarios and declares only the five reviewed state-handoff edges."
+        body = f"# {item['title']}\n\nThe Journey groups scenarios and declares only the reviewed state-handoff edges."
         slug = item["id"].removeprefix("journey:")
         _write(root, f"journeys/{slug}/journey.md", _document_bytes(metadata, body), written)
 
@@ -1164,8 +1170,13 @@ def _validate_high_risk_playback_semantics(
         ]
         == [
             "sdr-bframe-multiaudio-avsync-30s.mp4",
-            "sdr-bframe-multiaudio-avsync-120s.mp4",
+            "viewing-storage-16m01s.mp4",
         ],
+        # The trigger is imported first and ends naturally; the item Play Next
+        # advances to is imported second and must outlast
+        # ViewingStatePolicy.minimumContentDurationSeconds = 15 * 60
+        # (Modules/Playback/Domain/ViewingState.swift:50-56), or its exit saves
+        # nothing and no resume decision can be presented. 30.0 s then 961.0 s.
         "Play Next needs one naturally ordered two-item queue",
     )
     baseline = next(
@@ -1185,7 +1196,7 @@ def _validate_high_risk_playback_semantics(
     _require(
         terminal_wait is not None
         and terminal_wait["arguments"].get("expectedMediaName")
-        == "sdr-bframe-multiaudio-avsync-120s.mp4"
+        == "viewing-storage-16m01s.mp4"
         and terminal_wait["arguments"].get("differentSessionFrom")
         == f"result://{baseline['callId']}/session",
         "Play Next does not wait for the exact next media and a new session",
@@ -1703,7 +1714,7 @@ def materialize(blueprint_path: Path, output_root: Path, report_path: Path, chec
             for item in analysis.get("journeyDependencies", ())
         }
         == EXACT_JOURNEY_EDGES,
-        "compiler analysis Journey dependencies differ from the five state handoffs",
+        "compiler analysis Journey dependencies differ from the reviewed state handoffs",
     )
     _require(
         analysis.get("scenarioReadiness") == declared_scenario_readiness,

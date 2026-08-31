@@ -93,6 +93,7 @@ class RemoteSourceTestCase(unittest.TestCase):
         method: str,
         relative: str = "",
         *,
+        path: str | None = None,
         headers: dict[str, str] | None = None,
         body: bytes | None = None,
         authenticated: bool = True,
@@ -112,9 +113,9 @@ class RemoteSourceTestCase(unittest.TestCase):
             timeout=2,
             context=ssl._create_unverified_context(),
         )
-        path = endpoint.path + relative
+        target = endpoint.path + relative if path is None else path
         try:
-            connection.request(method, path, body=body, headers=request_headers)
+            connection.request(method, target, body=body, headers=request_headers)
             response = connection.getresponse()
             payload = response.read() if read_body else b""
             return response.status, dict(response.getheaders()), payload
@@ -214,6 +215,80 @@ class RemoteSourceProtocolTests(RemoteSourceTestCase):
         self.assertTrue(entries)
         self.assertTrue(all(item["generation"] == self.identity["generation"] for item in entries))
         self.assertIn("<rejected>", {item["path"] for item in entries})
+
+    def test_paths_outside_the_served_collection_are_refused_without_echoing_them(
+        self,
+    ) -> None:
+        for target in (
+            "/dav/g-000001/" + quote(self.media_name()),
+            "/private-key.pem",
+            "/dav/regression",
+        ):
+            with self.subTest(target=target):
+                status, _, _ = self.request("GET", path=target)
+                self.assertEqual(status, 404)
+        log = Path(str(self.identity["requestLogPath"])).read_text(encoding="utf-8")
+        self.assertNotIn("private-key", log)
+        entries = [json.loads(line) for line in log.splitlines()]
+        outside = [item for item in entries if item["path"] == "<outside-collection>"]
+        self.assertEqual(len(outside), 3)
+        self.assertEqual(
+            {item["condition"] for item in outside}, {"served-collection-path"}
+        )
+        self.assertEqual({item["triggered"] for item in outside}, {False})
+
+    def test_the_address_the_product_was_given_survives_every_activation(self) -> None:
+        # The product is told this address once, when the source is added, and
+        # it keeps requesting that path for the life of the session it opened.
+        # A recipe exists to reach that session, so an activation that moved
+        # the endpoint would answer the bound session before any recipe branch
+        # ran, and all four injected faults would carry one signature.
+        bound = urlsplit(str(self.runtime()["address"])).path
+        self.assertEqual(bound, remote.BASE_PATH)
+        target = bound + quote(self.media_name())
+        generations = [int(self.identity["generation"])]
+        logs = {str(self.identity["requestLogPath"])}
+
+        for recipe, expected in (
+            ("missing-object", 404),
+            ("access-denied", 403),
+            ("transport-interrupted", 503),
+            ("healthy", 206),
+        ):
+            with self.subTest(recipe=recipe):
+                receipt = self.activate(recipe)
+                self.assertEqual(urlsplit(str(self.runtime()["address"])).path, bound)
+                status, _, _ = self.request(
+                    "GET", path=target, headers={"Range": "bytes=0-31"}
+                )
+                self.assertEqual(status, expected)
+                entries = [
+                    json.loads(line)
+                    for line in Path(str(receipt["logPath"])).read_text().splitlines()
+                ]
+                self.assertEqual(
+                    {item["generation"] for item in entries},
+                    {receipt["generation"]},
+                )
+                self.assertNotIn(
+                    "<outside-collection>", {item["path"] for item in entries}
+                )
+                self.assertEqual(
+                    [item["triggered"] for item in entries], [recipe != "healthy"]
+                )
+                generations.append(int(receipt["generation"]))
+                logs.add(str(receipt["logPath"]))
+
+                self.restore(receipt)
+                restored = self.controller.status()
+                self.assertEqual(urlsplit(str(restored["address"])).path, bound)
+                generations.append(int(restored["generation"]))
+                logs.add(str(restored["requestLogPath"]))
+
+        # Isolation is unchanged: the generation still advances on every
+        # activation and restore, and each one still owns its own request log.
+        self.assertEqual(generations, sorted(set(generations)))
+        self.assertEqual(len(logs), len(generations))
 
 
 class RemoteSourceRecipeTests(RemoteSourceTestCase):

@@ -47,7 +47,7 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-inside.m4a"
+        "identifier": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a"
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:03",
       "maxInvocations": 1,
@@ -72,6 +72,12 @@
     },
     {
       "arguments": {
+        "assertAbsent": [
+          "PlayerUI-TopAction-dock",
+          "PlayerUI-TopAction-resumePanorama",
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-menu-subtitles"
+        ],
         "context": "window",
         "identifiers": [
           "PlayerUI-window-playback-surface",
@@ -87,7 +93,9 @@
       "arguments": {
         "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:05/cursorToken",
         "relatedResults": [
-          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/tappedIdentifiers"
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/tappedIdentifiers",
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/response",
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:06/assertAbsentObservations"
         ],
         "settleDelayMillis": 9000
       },
@@ -113,7 +121,7 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-inside.m4a"
+        "identifier": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a"
       },
       "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:10",
       "maxInvocations": 1,
@@ -138,6 +146,12 @@
     },
     {
       "arguments": {
+        "assertAbsent": [
+          "PlayerUI-TopAction-dock",
+          "PlayerUI-TopAction-resumePanorama",
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-menu-subtitles"
+        ],
         "context": "window",
         "identifiers": [
           "PlayerUI-window-playback-surface",
@@ -153,7 +167,9 @@
       "arguments": {
         "cursorToken": "result://call:audio-only-playback:secondary-menu-pins-audio-controls:12/cursorToken",
         "relatedResults": [
-          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/tappedIdentifiers"
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/tappedIdentifiers",
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/response",
+          "result://call:audio-only-playback:secondary-menu-pins-audio-controls:13/assertAbsentObservations"
         ],
         "settleDelayMillis": 9000
       },

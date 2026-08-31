@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 65000,
+  "estimatedCostMillis": 100000,
   "staticCases": [
     "default"
   ],
@@ -53,12 +53,35 @@
     {
       "arguments": {
         "context": "window",
+        "deadlineSeconds": 20,
+        "identifier": "Emby-Evidence",
+        "requireMatchedElement": true
+      },
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "labels": [
+          "Enchron Regression Series, poster"
+        ],
+        "settleDelayMillis": 20000
+      },
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:05",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "window",
         "identifier": "Emby-Evidence",
         "relatedResults": [
           "result://call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01/report"
         ]
       },
-      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -71,7 +94,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
+      "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:06",
       "rubric": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o01@1"
     }
   ],

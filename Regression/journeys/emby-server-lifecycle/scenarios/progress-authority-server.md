@@ -114,8 +114,8 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "minimumPositionMillis": 15000,
-        "minimumRemainingMillis": 30000
+        "minimumPositionMillis": 12000,
+        "minimumRemainingMillis": 10000
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:10",
       "maxInvocations": 1,

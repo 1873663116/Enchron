@@ -221,7 +221,8 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 30
+        "deadlineSeconds": 30,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:17",
       "maxInvocations": 1,
@@ -336,7 +337,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:27",
       "maxInvocations": 1,
@@ -346,7 +348,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "flat",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:28",
       "maxInvocations": 1,
@@ -452,7 +455,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:37",
       "maxInvocations": 1,

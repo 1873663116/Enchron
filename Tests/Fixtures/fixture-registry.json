@@ -1717,6 +1717,49 @@
         "colorRange": "video",
         "audioTrackCount": 0
       }
+    },
+    {
+      "id": "generated-audio-only-aac-stereo-181s-v1",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/audio-only-aac-stereo-181s.m4a",
+      "sha256": "3d5892469eef0d20a5c70857e75ed808ad57c3e2594ca425696b412bbea39b18",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "regressionSets": [
+        "audio-only"
+      ],
+      "container": "ISO BMFF / M4A",
+      "videoCodec": "none",
+      "audio": "AAC LC, 48 kHz, stereo, 64 kb/s; continuous 440 Hz tone",
+      "durationSeconds": 181.0,
+      "matrix": {
+        "container": "m4a",
+        "videoCodec": "none",
+        "audioCodecs": [
+          "aac"
+        ],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "not-applicable"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioOnlyPlayback"
+      ],
+      "generation": {
+        "script": "Scripts/fixtures/generate_regression_derivatives.sh",
+        "output": "TestVectors/Enchron/PlaybackBehavior/audio-only-aac-stereo-181s.m4a",
+        "ffmpegVersion": "N-125990-g5c395992f9",
+        "commandProfile": "sine-440hz-48khz-stereo-aac-64k-181s-no-video-stream"
+      },
+      "oracle": {
+        "audioProfile": "AAC LC",
+        "sampleRateHz": 48000,
+        "channels": 2,
+        "channelLayout": "stereo",
+        "audioToneFrequencyHz": 440,
+        "videoStreamCount": 0,
+        "attachedPictureDisposition": false
+      }
     }
   ]
 }

@@ -631,7 +631,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1546,
+          "line": 1539,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -657,11 +657,11 @@
       "scope": "product",
       "sources": [
         {
-          "line": 466,
+          "line": 462,
           "path": "Modules/Emby/EmbySessionViewModel.swift"
         },
         {
-          "line": 467,
+          "line": 464,
           "path": "Modules/Emby/EmbySessionViewModel.swift"
         }
       ],
@@ -674,7 +674,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 466,
+          "line": 462,
           "path": "Modules/Emby/EmbySessionViewModel.swift"
         }
       ],
@@ -726,7 +726,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1306,
+          "line": 1299,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -752,7 +752,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1451,
+          "line": 1444,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -843,7 +843,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1599,
+          "line": 1592,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -882,7 +882,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1362,
+          "line": 1355,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -895,7 +895,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1343,
+          "line": 1336,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -960,7 +960,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1623,
+          "line": 1616,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -3151,7 +3151,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 462,
+          "line": 466,
           "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3268,7 +3268,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 669,
+          "line": 684,
           "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3281,7 +3281,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 652,
+          "line": 667,
           "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
         }
       ],
@@ -3294,7 +3294,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 659,
+          "line": 674,
           "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
         }
       ],

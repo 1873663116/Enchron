@@ -21,7 +21,9 @@
     {
       "callId": "call:preparation:audio-only-fixtures:02",
       "operation": "operation:harness.ensure-session@1",
-      "arguments": {},
+      "arguments": {
+        "controlsAutoHideSeconds": 8
+      },
       "maxInvocations": 1
     },
     {
@@ -114,12 +116,29 @@
     },
     {
       "callId": "call:preparation:audio-only-fixtures:14",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "generated-audio-only-aac-stereo-181s-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:audio-only-fixtures:15",
+      "operation": "operation:media.import-staged@2",
+      "arguments": {
+        "fileName": "audio-only-aac-stereo-181s.m4a"
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:audio-only-fixtures:16",
       "operation": "operation:library.snapshot@1",
       "arguments": {},
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:audio-only-fixtures:15",
+      "callId": "call:preparation:audio-only-fixtures:17",
       "operation": "operation:harness.assert-channels@2",
       "arguments": {},
       "maxInvocations": 1
@@ -129,12 +148,13 @@
     {
       "key": "audio-only-fixtures-ready",
       "schema": "fixture-set.audio-only@2",
-      "producedByCall": "call:preparation:audio-only-fixtures:15",
+      "producedByCall": "call:preparation:audio-only-fixtures:17",
       "dependsOnTags": [
         "app.session",
         "fixture.corpus",
         "lane.instance",
-        "library.contents"
+        "library.contents",
+        "settings.state"
       ]
     }
   ]

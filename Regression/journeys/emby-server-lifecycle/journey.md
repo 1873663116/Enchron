@@ -24,4 +24,4 @@
 ---
 # Emby 浏览、播放与服务器观看状态
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

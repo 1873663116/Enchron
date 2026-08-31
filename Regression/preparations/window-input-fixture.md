@@ -14,7 +14,7 @@
       "callId": "call:preparation:window-input-fixture:01",
       "operation": "operation:harness.ensure-session@1",
       "arguments": {
-        "controlsAutoHideSeconds": 8
+        "controlsAutoHideSeconds": 25
       },
       "maxInvocations": 1
     },

@@ -105,20 +105,20 @@
       "operation": "operation:playback.await-window-state@1"
     },
     {
-      "arguments": {
-        "context": "window",
-        "count": 16,
-        "minimumIntervalMillis": 3000
-      },
+      "arguments": {},
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:09",
       "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
+      "operation": "operation:diagnostics.playback-state@1"
     },
     {
-      "arguments": {},
+      "arguments": {
+        "context": "window",
+        "count": 3,
+        "minimumIntervalMillis": 1000
+      },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:10",
       "maxInvocations": 1,
-      "operation": "operation:diagnostics.playback-state@1"
+      "operation": "operation:evidence.capture-frames@1"
     },
     {
       "arguments": {
@@ -168,8 +168,9 @@
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:05/matchedElement",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:06/matchedElement",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:07/activatedAtMonotonicMillis",
-          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/frames",
-          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:10/fields",
+          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:08/elapsedMillis",
+          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/fields",
+          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:10/frames",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:14/fields"
         ]
       },

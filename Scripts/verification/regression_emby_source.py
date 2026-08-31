@@ -725,9 +725,7 @@ class EmbySourceController:
         )
         if actual_subtitle_facts != expected_subtitle_facts:
             raise EmbySeedError("active Emby external subtitle catalog facts drifted")
-        user_data = self.boundary.user_data_for(session, catalog.episode_id)
-        if user_data.get("PlaybackPositionTicks") != SEEDED_PROGRESS_TICKS:
-            raise EmbySeedError("active Emby progress drifted")
+        self._reestablish_seeded_progress(session, catalog.episode_id)
         served = self.boundary.media_bytes(
             session,
             catalog,
@@ -760,6 +758,39 @@ class EmbySourceController:
         for key, value in artwork_document.items():
             if expected_catalog.get(key) != value:
                 raise EmbySeedError("active Emby artwork facts drifted")
+
+    def _reestablish_seeded_progress(
+        self, session: AuthenticatedSession, episode_id: str
+    ) -> None:
+        """Put the seeded resume position back before reporting readiness.
+
+        The seeded progress is the one part of this state a Scenario consumes:
+        the product reports its exit position through /Sessions/Playing/Progress
+        and /Sessions/Playing/Stopped, so the second Scenario in a pass would
+        otherwise find the position it was promised already spent. Every other
+        fact this method's caller checks - catalog identity, library bytes,
+        served digests, artwork facts - is immutable under playback and stays a
+        hard failure. Re-establishing declared state is what a setup Operation
+        is for; nothing here observes or reports what the previous Scenario
+        left behind.
+        """
+        user_data = self.boundary.user_data_for(session, episode_id)
+        if (
+            user_data.get("PlaybackPositionTicks") == SEEDED_PROGRESS_TICKS
+            and user_data.get("Played") is False
+        ):
+            return
+        reseeded = dict(user_data)
+        reseeded.update(
+            {"PlaybackPositionTicks": SEEDED_PROGRESS_TICKS, "Played": False}
+        )
+        self.boundary.set_user_data(session, episode_id, reseeded)
+        observed = self.boundary.user_data_for(session, episode_id)
+        if (
+            observed.get("PlaybackPositionTicks") != SEEDED_PROGRESS_TICKS
+            or observed.get("Played") is not False
+        ):
+            raise EmbySeedError("active Emby progress could not be re-established")
 
     def _rollback(
         self,

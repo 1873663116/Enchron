@@ -36,6 +36,16 @@ INSTRUCTION_ROOTS = (
 
 HISTORY_ROOTS = ("docs/archive",)
 
+# Review artifacts record what a reviewer observed; they do not instruct anyone.
+# A rationale quotes paths the way prose does, abbreviations included, and once
+# an assessment is accepted its bytes are bound by digest -- correcting the
+# quotation would invalidate the receipt that cites it. A rule satisfiable only
+# by editing immutable evidence is not a rule, so this population is out of
+# scope. The materialised Catalog under Regression/ stays in scope: journeys,
+# scenarios, rubrics and operations are instructions and their citations must
+# resolve.
+EVIDENCE_ROOTS = ("Regression/reviews",)
+
 # This check and its test quote dead paths as data. They define the rule
 # rather than instructing anyone, so scanning them only finds the examples.
 SELF = ("Scripts/rules/verify_documentation_references.py",
@@ -93,6 +103,8 @@ def tracked_text_files() -> list[Path]:
 def population(path: Path) -> str | None:
     relative = path.relative_to(REPOSITORY_ROOT).as_posix()
     if relative in SELF:
+        return None
+    if any(relative == root or relative.startswith(root + "/") for root in EVIDENCE_ROOTS):
         return None
     if any(relative == root or relative.startswith(root + "/") for root in HISTORY_ROOTS):
         return "history"

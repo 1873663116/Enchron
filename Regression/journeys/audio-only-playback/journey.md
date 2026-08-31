@@ -18,4 +18,4 @@
 ---
 # 纯音频播放与最小控件集
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

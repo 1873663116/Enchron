@@ -224,16 +224,24 @@
           "result://call:local-media-lifecycle:artwork-captured-on-exit:16/frameManifest"
         ],
         "relatedResults": [
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkCurrentDigest",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkStoredDigest",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkByteStreamScope",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:06/artworkByteStreamRequestCount",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkKey",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkCurrentDigest",
           "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkStoredDigest",
           "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkStoredBytes",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkCurrentDigest",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkStoredDigest",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkByteStreamScope",
-          "result://call:local-media-lifecycle:artwork-captured-on-exit:12/artworkByteStreamRequestCount"
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkByteStreamScope",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:08/artworkByteStreamRequestCount",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/artworkKey",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/artworkCurrentDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/artworkStoredDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/artworkStoredBytes",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/artworkByteStreamScope",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:10/artworkByteStreamRequestCount",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/artworkKey",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/artworkCurrentDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/artworkStoredDigest",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/artworkStoredBytes",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/artworkByteStreamScope",
+          "result://call:local-media-lifecycle:artwork-captured-on-exit:16/artworkByteStreamRequestCount"
         ]
       },
       "callId": "call:local-media-lifecycle:artwork-captured-on-exit:18",

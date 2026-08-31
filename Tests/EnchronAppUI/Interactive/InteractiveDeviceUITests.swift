@@ -156,8 +156,16 @@ private final class InteractiveDeviceUIChannel {
             ? nil
             : matchedElementObservation(for: command)
         let result = execute(command)
+        // A snapshot only reads, so the reading it publishes as matchedElement is
+        // already the state the command found. Every other action changes what it
+        // addressed, and the element it addressed is the one that has to exist for
+        // the action to be admissible, so matchedElement stays the pre-action
+        // reading -- a tap that dismisses its own target still has to say what it
+        // tapped. What the action did to that element is a second reading, taken
+        // here after execute, and nil when the element left the hierarchy.
+        let observationAfterAction = matchedElementObservation(for: command)
         let observation = command.action == .snapshot
-            ? matchedElementObservation(for: command)
+            ? observationAfterAction
             : observationBeforeAction
         let tapStep = command.identifier ?? command.label ?? ""
         try publish(
@@ -165,6 +173,7 @@ private final class InteractiveDeviceUIChannel {
             success: result.success,
             message: result.message,
             matchedElement: observation,
+            elementAfterAction: observationAfterAction,
             assertAbsentObservations: command.action == .tap && result.success
                 ? inspectIdentifiers(command.assertAbsent, afterStep: tapStep)
                 : []
@@ -584,6 +593,7 @@ private final class InteractiveDeviceUIChannel {
         success: Bool,
         message: String,
         matchedElement: InteractiveDeviceUIElementObservation?,
+        elementAfterAction: InteractiveDeviceUIElementObservation? = nil,
         alsoInspected: [InteractiveDeviceUIInspectedElement] = [],
         assertAbsentObservations: [InteractiveDeviceUIInspectedElement] = [],
         routeElements: [InteractiveDeviceUIElementObservation] = []
@@ -606,6 +616,7 @@ private final class InteractiveDeviceUIChannel {
             appState: appStateDescription,
             hierarchy: app.debugDescription,
             matchedElement: matchedElement,
+            elementAfterAction: elementAfterAction,
             screenshotRelativePath: screenshotName,
             alsoInspected: alsoInspected,
             assertAbsentObservations: assertAbsentObservations,
@@ -730,6 +741,7 @@ private struct InteractiveDeviceUIResponse: Codable {
     let appState: String
     let hierarchy: String
     let matchedElement: InteractiveDeviceUIElementObservation?
+    let elementAfterAction: InteractiveDeviceUIElementObservation?
     let screenshotRelativePath: String?
     let alsoInspected: [InteractiveDeviceUIInspectedElement]
     let assertAbsentObservations: [InteractiveDeviceUIInspectedElement]

@@ -223,3 +223,32 @@ class CurrentRepositoryFiles(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EvidencePopulationTests(unittest.TestCase):
+    """Review artifacts are evidence, and the materialised Catalog is not.
+
+    A reviewer's rationale quotes paths as prose does, abbreviations included,
+    and an accepted assessment is bound by digest -- a rule that could only be
+    satisfied by rewriting it would force the receipt citing it to go stale.
+    The Catalog documents under the same Regression/ root stay in scope.
+    """
+
+    def population_of(self, relative: str) -> str | None:
+        return checker.population(checker.REPOSITORY_ROOT / relative)
+
+    def test_review_assessments_and_reports_are_out_of_scope(self) -> None:
+        for relative in (
+            "Regression/reviews/assessments/sha256/a.json",
+            "Regression/reviews/reports/sha256/b.md",
+            "Regression/reviews/human-coverage/c.json",
+        ):
+            self.assertIsNone(self.population_of(relative), relative)
+
+    def test_the_materialised_catalog_stays_an_instruction(self) -> None:
+        for relative in (
+            "Regression/oracle-protocol.md",
+            "Regression/journeys/local-media-lifecycle/journey.md",
+            "Regression/operations/playback-seek-v2.md",
+        ):
+            self.assertEqual(self.population_of(relative), "instruction", relative)

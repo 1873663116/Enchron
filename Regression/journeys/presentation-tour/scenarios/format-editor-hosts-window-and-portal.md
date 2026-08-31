@@ -67,6 +67,7 @@
     {
       "arguments": {
         "context": "window",
+        "dismissControls": true,
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-videoFormat",
@@ -79,10 +80,21 @@
     },
     {
       "arguments": {
+        "alsoInspect": [
+          "PlayerUI-VideoFormat",
+          "PlayerUI-VideoFormat-automatic",
+          "PlayerUI-VideoFormat-apply",
+          "PlayerUI-VideoFormat-cancel"
+        ],
         "context": "window",
+        "dismissControls": true,
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-videoFormat"
+        ],
+        "relatedResults": [
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/response",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/tappedIdentifiers"
         ]
       },
       "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:06",
@@ -90,23 +102,8 @@
       "operation": "operation:accessibility.activate@2"
     },
     {
-      "arguments": {
-        "context": "window",
-        "identifier": "PlayerUI-VideoFormat",
-        "relatedResults": [
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/response",
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:05/tappedIdentifiers",
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:06/response",
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:06/tappedIdentifiers"
-        ]
-      },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:07",
-      "maxInvocations": 1,
-      "operation": "operation:accessibility.inspect@2"
-    },
-    {
       "arguments": {},
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:08",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:07",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -114,7 +111,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:09",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:08",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -124,7 +121,7 @@
         "expectedLanding": "window",
         "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:10",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:09",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -135,7 +132,7 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:11",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:10",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -143,20 +140,22 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:12",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:11",
       "maxInvocations": 1,
       "operation": "operation:format.apply@2"
     },
     {
       "arguments": {
         "context": "portal",
+        "dismissControls": true,
         "labels": [
           "Playback surface"
         ]
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:13",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:12",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -168,18 +167,19 @@
           "PlayerUI-VideoFormat-cancel"
         ]
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:14",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:13",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
         "context": "portal",
+        "dismissControls": true,
         "labels": [
           "Playback surface"
         ]
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:15",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:14",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -190,13 +190,13 @@
           "PlayerUI-TopAction-videoFormat"
         ],
         "relatedResults": [
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:12/response",
           "result://call:presentation-tour:format-editor-hosts-window-and-portal:13/response",
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/response",
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/tappedIdentifiers",
-          "result://call:presentation-tour:format-editor-hosts-window-and-portal:15/response"
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:13/tappedIdentifiers",
+          "result://call:presentation-tour:format-editor-hosts-window-and-portal:14/response"
         ]
       },
-      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:15",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     }
@@ -209,7 +209,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:presentation-tour:format-editor-hosts-window-and-portal:o01:window",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:07",
+      "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:06",
       "rubric": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1"
     },
     {
@@ -219,7 +219,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:presentation-tour:format-editor-hosts-window-and-portal:o01:portal",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:16",
+      "producedByCall": "call:presentation-tour:format-editor-hosts-window-and-portal:15",
       "rubric": "rubric:presentation-tour.format-editor-hosts-window-and-portal.o01@1"
     }
   ],

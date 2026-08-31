@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 302000,
+  "estimatedCostMillis": 360000,
   "staticCases": [
     "default"
   ],
@@ -47,9 +47,22 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "labels": [
+          "Enchron Regression WebDAV"
+        ]
       },
       "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:03",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 45,
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:04",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -59,7 +72,7 @@
         "expectedLanding": "either-main-window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:04",
+      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:05",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -70,7 +83,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:05",
+      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:06",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -80,7 +93,7 @@
         "minimumPositionMillis": 3000,
         "minimumRemainingMillis": 3000
       },
-      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:06",
+      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:07",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -89,7 +102,7 @@
         "expectation": "webdav-loopback",
         "minimumPositionMillis": 3000
       },
-      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:07",
+      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:08",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     },
@@ -98,11 +111,11 @@
         "context": "window",
         "count": 3,
         "minimumIntervalMillis": 1000,
-        "productBindingDigest": "result://call:webdav-source-lifecycle:webdav-open-through-loopback:07/bindingDigest",
+        "productBindingDigest": "result://call:webdav-source-lifecycle:webdav-open-through-loopback:08/bindingDigest",
         "remoteExpectation": "webdav-playback-range",
         "remoteGenerationToken": "result://call:webdav-source-lifecycle:webdav-open-through-loopback:01/generationToken"
       },
-      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:08",
+      "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:09",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -115,7 +128,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:webdav-source-lifecycle:webdav-open-through-loopback:o01:default",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:webdav-source-lifecycle:webdav-open-through-loopback:08",
+      "producedByCall": "call:webdav-source-lifecycle:webdav-open-through-loopback:09",
       "rubric": "rubric:webdav-source-lifecycle.webdav-open-through-loopback.o01@1"
     }
   ],

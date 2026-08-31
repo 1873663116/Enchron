@@ -67,7 +67,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:panorama-to-portal-exit:05",
       "maxInvocations": 1,
@@ -75,7 +76,8 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 30
+        "deadlineSeconds": 30,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:panorama-to-portal-exit:06",
       "maxInvocations": 1,

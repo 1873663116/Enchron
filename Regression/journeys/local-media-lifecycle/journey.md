@@ -42,4 +42,4 @@
 ---
 # 本地媒体导入、播放、轨道与留影
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

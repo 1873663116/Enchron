@@ -578,6 +578,12 @@ def _accessibility_activate(arguments: Mapping[str, object]) -> None:
         _validate_identifiers(also_inspect)
     if arguments.get("summonControls") is not None and arguments.get("summonControls") is not True:
         raise OperationAdapterError("summonControls may only request true")
+    if arguments.get("dismissControls") is not None and arguments.get("dismissControls") is not True:
+        raise OperationAdapterError("dismissControls may only request true")
+    if arguments.get("summonControls") is True and arguments.get("dismissControls") is True:
+        raise OperationAdapterError(
+            "summonControls and dismissControls are mutually exclusive"
+        )
     _related_results(arguments)
 
 
@@ -2289,6 +2295,7 @@ def _media_open(arguments: Mapping[str, object]) -> None:
     if not allowed:
         raise OperationAdapterError("identifier is not a playback-start identifier")
     _validate_identifiers([identifier])
+    _related_results(arguments)
     if (
         "expectedIssueCategory" in arguments
         and arguments["expectedLanding"] not in ("window", "either-main-window")
@@ -2402,7 +2409,13 @@ def _playback_seek(arguments: Mapping[str, object]) -> None:
         raise OperationAdapterError("summonControls may only request true")
 
 
+def _summon_controls_only_true(arguments: Mapping[str, object]) -> None:
+    if arguments.get("summonControls") is not None and arguments.get("summonControls") is not True:
+        raise OperationAdapterError("summonControls may only request true")
+
+
 def _format_apply(arguments: Mapping[str, object]) -> None:
+    _summon_controls_only_true(arguments)
     projection = arguments["projection"]
     coverage = arguments.get("horizontalCoverageDegrees")
     if projection == "customAngle":
@@ -2628,6 +2641,24 @@ STRUCTURAL_CHECKS = MappingProxyType(
     }
 )
 
+STRUCTURED_ASSERTION_CHECKS = frozenset(
+    (
+        "playback-core-network-resilience",
+        "audio-retirement-open",
+        "audio-retirement-prewarm",
+        "audio-retirement-playback",
+        "audio-retirement-seek",
+        "audio-retirement-renderer",
+    )
+)
+"""Checks whose artifact must carry one structured ENCHRON_ASSERTION payload.
+
+An exit code and a test name say a process succeeded, not what it observed, so
+a Rubric that decides lifecycle, session identity or a post-seek position needs
+the payload. These six checks emit exactly one line each and the adapter
+refuses the artifact without it.
+"""
+
 
 def _specs() -> tuple[OperationSpec, ...]:
     boolean = ValueKind.BOOLEAN
@@ -2702,6 +2733,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("durationMillis", integer, required=False, minimum=1, maximum=5000),
                 _field("settleDelayMillis", integer, required=False, minimum=1, maximum=30000),
                 _field("summonControls", boolean, required=False),
+                _field("dismissControls", boolean, required=False),
                 _field("labelsAfterIdentifiers", boolean, required=False),
                 _field("assertAbsent", strings, required=False),
                 _field("alsoInspect", strings, required=False),
@@ -2907,6 +2939,10 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("unsupportedVideoCodec"),
                 ),
                 _deadline(),
+                # An open that reopens something is a comparison: the identity it
+                # lands on has to be read against the identity that was persisted,
+                # and the open's own control plane carries only the first of those.
+                _field("relatedResults", strings, required=False),
             ),
             (("window.control-plane", "window-control-plane@1"),),
             _media_open,
@@ -3075,6 +3111,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                 _field("projection", string, choices=_choices("flat", "equirectangular180", "equirectangular360", "customAngle")),
                 _field("horizontalCoverageDegrees", integer, required=False, minimum=180, maximum=360),
                 _field("stereoLayout", string, choices=_choices("mono", "sideBySide", "topBottom")),
+                _field("summonControls", boolean, required=False),
                 _deadline(),
             ),
             (
@@ -3111,7 +3148,16 @@ def _specs() -> tuple[OperationSpec, ...]:
                 ),
             ),
         ),
-        OperationSpec("operation:presentation.enter-docked-skybox@1", LANES, (_deadline(),), ()),
+        OperationSpec(
+            "operation:presentation.enter-docked-skybox@1",
+            LANES,
+            (
+                _deadline(),
+                _field("summonControls", boolean, required=False),
+            ),
+            (),
+            _summon_controls_only_true,
+        ),
         OperationSpec(
             "operation:presentation.enter-panorama@1",
             LANES,
@@ -3123,8 +3169,10 @@ def _specs() -> tuple[OperationSpec, ...]:
                     required=False,
                     choices=_choices("settled", "rollback-after-settlement-timeout"),
                 ),
+                _field("summonControls", boolean, required=False),
             ),
             (("transition.trace", "transition-trace@1"),),
+            _summon_controls_only_true,
         ),
         OperationSpec("operation:presentation.exit-spatial@1", LANES, (_field("from", string, choices=_choices("docked", "panorama")), _deadline()), (("window.control-plane", "window-control-plane@1"),)),
         OperationSpec(
@@ -3390,6 +3438,14 @@ class ResidentOperationBackend:
 
         sanitized_hierarchy = redact(hierarchy)
         sanitized_matched = redact(response.get("matchedElement"))
+        # matchedElement is what the runner addressed, read before it acted, so a
+        # tap whose target leaves the hierarchy still names its target
+        # (Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift:154-176).
+        # elementAfterAction is the same element read again once the action
+        # returned, and is null when the action removed it. A criterion about the
+        # value a replaceText left behind reads elementAfterAction; a criterion
+        # about which element the command acted on reads matchedElement.
+        sanitized_after = redact(response.get("elementAfterAction"))
         assert isinstance(sanitized_hierarchy, str)
         return {
             "schema": "enchron.regression.post-action-product-state@1",
@@ -3398,6 +3454,7 @@ class ResidentOperationBackend:
             "hierarchyDigest": "sha256:"
             + hashlib.sha256(sanitized_hierarchy.encode("utf-8")).hexdigest(),
             "matchedElement": sanitized_matched,
+            "elementAfterAction": sanitized_after,
         }
 
     def _sanitize_interaction(
@@ -3784,9 +3841,14 @@ class ResidentOperationBackend:
         return completed.stdout.strip()
 
     def _harness_ensure_session_1(self, arguments, context):
+        # xcodebuild forwards only TEST_RUNNER_-prefixed names into the runner
+        # process, stripping the prefix (docs/UI_TEST_HARNESS_CONSTRAINTS.md:17).
+        # The resident runner copies every ENCHRON_ name out of its own process
+        # into the app's launch environment, so the bare name stops one hop
+        # short and the runner's hardcoded 300 stands.
         environment = (
             {
-                "ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": str(
+                "TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": str(
                     arguments["controlsAutoHideSeconds"]
                 )
             }
@@ -4123,6 +4185,20 @@ class ResidentOperationBackend:
             summon = self._app_command(context, "toggleControls", "visible=true")
             self._require_success(summon, "controls summon")
             result["summon"] = summon
+        # A route whose own first step is the PlayerUI-window-playback-surface
+        # tap needs the chrome down before it runs, because that tap is a bare
+        # showControls.toggle() (PlaybackSessionModel.swift:579-589): with the
+        # chrome already up it hides the deck instead of raising it, and the
+        # deck's actions leave the hierarchy with it (MainView.swift:222-234).
+        # toggleControls is idempotent (TestCommandChannel.swift:1070-1074), so
+        # this establishes the precondition without assuming what the previous
+        # call left behind.
+        if arguments.get("dismissControls") is True:
+            dismissal = self._app_command(
+                context, "toggleControls", "visible=false"
+            )
+            self._require_success(dismissal, "controls dismissal")
+            result["dismiss"] = dismissal
         if settle_delay_millis > 0:
             before_response = self._controller(
                 context, "snapshot", "--no-screenshot"
@@ -4612,7 +4688,18 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "remote observation request log is malformed"
             ) from error
-        if not entries or any(not isinstance(item, dict) for item in entries):
+        if any(not isinstance(item, dict) for item in entries):
+            raise OperationAdapterError(
+                "remote observation request log has a non-object row"
+            )
+        # certificate-change asserts that the product refuses the rotated
+        # certificate and stops, so it never completes a TLS handshake against
+        # the activation generation and the host logs nothing for it. An empty
+        # log is that behavior, not a lost observation: the receipt still binds
+        # logPath and logDigest, and the digest of an empty file is checked
+        # above like any other. Every other expectation is decided from rows the
+        # product produced, so emptiness there stays an error.
+        if not entries and expectation != "certificate-change":
             raise OperationAdapterError("remote observation request log is empty")
         _reject_secret_result(entries, "remoteRequestLog")
         if any(
@@ -4652,10 +4739,12 @@ class ResidentOperationBackend:
             and isinstance(item.get("range"), str)
             and item.get("range") != "<invalid>"
         ]
-        if expectation not in REMOTE_PLAYBACK_EXPECTATIONS | {
-            "webdav-connection",
-            "certificate-trust-boundary",
-        }:
+        # This guard exists so a new expectation cannot reach the observation
+        # without anyone noticing, and it has to name the registry to do that.
+        # Hand-listing the members let certificate-change fall out of the list
+        # it was supposed to be measured against, and every certificate-change
+        # observation raised here rather than publishing.
+        if expectation not in REMOTE_EXPECTATIONS:
             raise AssertionError("remote expectation registry drifted")
 
         successful_propfinds = [
@@ -4716,6 +4805,41 @@ class ResidentOperationBackend:
             if len(clocks) > 1 and all(type(value) is int for value in clocks)
             else []
         )
+        # observedRequestIntervalsMillis walks every ranged read in the log, so
+        # it mixes ordinary sequential reads with the reconnect gaps and names
+        # no comparison. The client's own backoff is the wait between the read
+        # the recipe refused and the next thing it asked for, so pair each
+        # refusal with its declared backoff and the delay the host measured.
+        reconnect_attempts: list[dict[str, object]] = []
+        for item in triggered:
+            declared = item.get("expectedBackoffMillis")
+            refused_at = item.get("monotonicMillis")
+            if type(declared) is not int or type(refused_at) is not int:
+                continue
+            following = [
+                entry
+                for entry in entries
+                if type(entry.get("monotonicMillis")) is int
+                and int(entry["monotonicMillis"]) > refused_at
+            ]
+            observed_delay = (
+                min(int(entry["monotonicMillis"]) for entry in following)
+                - refused_at
+                if following
+                else None
+            )
+            reconnect_attempts.append(
+                {
+                    "ordinal": item.get("recipeReadOrdinal"),
+                    "declaredBackoffMillis": declared,
+                    "observedDelayMillis": observed_delay,
+                    "range": item.get("range"),
+                    "recovered": any(
+                        entry.get("range") == item.get("range")
+                        for entry in recovered
+                    ),
+                }
+            )
         return {
             "expectation": expectation,
             "recipe": recipe,
@@ -4736,6 +4860,7 @@ class ResidentOperationBackend:
                 if type(item.get("expectedBackoffMillis")) is int
             ],
             "observedRequestIntervalsMillis": observed_intervals,
+            "reconnectAttempts": reconnect_attempts,
             "priorCertificateFingerprint": prior_certificate_fingerprint,
             "certificateFingerprint": certificate_fingerprint,
             "certificateAddress": certificate_address,
@@ -4746,6 +4871,8 @@ class ResidentOperationBackend:
                 "recoveredRequests": recovered,
                 "expectedBackoffMillis": expected_backoffs,
                 "observedRequestIntervalsMillis": observed_intervals,
+                "reconnectAttempts": reconnect_attempts,
+                "reconnectAttemptLimit": len(expected_backoffs),
                 "priorCertificateFingerprint": prior_certificate_fingerprint,
                 "certificateFingerprint": certificate_fingerprint,
             },
@@ -6258,6 +6385,7 @@ class ResidentOperationBackend:
                 "probe": after,
                 "deliveryObserved": delivered,
                 "expectedIssueCategory": expected_issue,
+                "relatedResults": list(arguments.get("relatedResults", [])),
             }
             for key in (
                 "alertMessage",
@@ -6288,6 +6416,7 @@ class ResidentOperationBackend:
             "response": landing.get("response", {}),
             "probe": after,
             "deliveryObserved": delivered,
+            "relatedResults": list(arguments.get("relatedResults", [])),
         }
 
     def _restore_active_remote_recipe(self, context: OperationContext):
@@ -6741,6 +6870,39 @@ class ResidentOperationBackend:
             "response": response,
         }
 
+    def _subtitle_window_state(
+        self,
+        context: OperationContext,
+        *,
+        include_screenshot: bool = False,
+    ) -> dict[str, object]:
+        """Read the channel operation:playback.select-subtitle@1 declares.
+
+        The Operation's one evidence pair is window.control-plane, and its
+        settlement predicate needs `transition`, which only
+        windowPlaybackStateValue publishes (Apps/Enchron/MainView.swift:717).
+        PlayerUI-playback-state carries neither that key nor the declared pair,
+        so reading it here made the pair dishonest and the predicate
+        unreachable. The control plane publishes every field this handler
+        compares -- session, mediaName, sourceIdentity, contentRevision,
+        collectionOrigin, playbackAddressKind, subtitleTrack, lifecycle,
+        transition and error (MainView.swift:782-841).
+        """
+        plane, response = self._read_control_plane(
+            context,
+            "PlayerUI-window-control-plane",
+            include_screenshot=include_screenshot,
+        )
+        if plane is None:
+            raise OperationAdapterError(
+                "subtitle selection window control plane is unavailable"
+            )
+        return {
+            "succeeded": True,
+            "fields": dict(plane),
+            "response": response,
+        }
+
     def _certificate_trust_probe(
         self,
         context: OperationContext,
@@ -6772,11 +6934,37 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "certificateTrustProbe returned the wrong schema"
             )
+        observed = {
+            "storedFingerprint": pairs["storedFingerprint"],
+            "currentFingerprintTrusted": pairs["currentFingerprintTrusted"],
+            "storedMatchesPreviousFingerprint": pairs[
+                "storedMatchesPreviousFingerprint"
+            ],
+        }
         return {
             "storedFingerprint": pairs["storedFingerprint"],
             "previousFingerprint": pairs["previousFingerprint"],
             "currentFingerprint": pairs["currentFingerprint"],
             "currentFingerprintTrusted": pairs["currentFingerprintTrusted"],
+            "storedMatchesPreviousFingerprint": pairs[
+                "storedMatchesPreviousFingerprint"
+            ],
+            # The probe no longer decides the trust boundary by raising, so the
+            # comparison travels as expected-beside-observed, the shape
+            # operation:diagnostics.playback-state@1 already uses.
+            "expectationObservation": {
+                "expected": {
+                    "storedFingerprint": previous,
+                    "currentFingerprintTrusted": "false",
+                    "storedMatchesPreviousFingerprint": "true",
+                },
+                "observed": observed,
+                "trustBoundaryHeld": observed == {
+                    "storedFingerprint": previous,
+                    "currentFingerprintTrusted": "false",
+                    "storedMatchesPreviousFingerprint": "true",
+                },
+            },
         }
 
     def _diagnostics_playback_state_1(
@@ -7260,7 +7448,7 @@ class ResidentOperationBackend:
         expected_source_kind = str(arguments["sourceKind"])
         track_label = arguments.get("trackLabel")
         deadline_seconds = int(arguments["deadlineSeconds"])
-        before = self._diagnostics_playback_state_1({}, context)
+        before = self._subtitle_window_state(context)
         before_fields = before.get("fields")
         if not isinstance(before_fields, Mapping):
             raise OperationAdapterError(
@@ -7323,8 +7511,8 @@ class ResidentOperationBackend:
         frames: list[dict[str, object]] = []
         last_state: Mapping[str, object] | None = None
         while time.monotonic() < deadline:
-            current = self._diagnostics_playback_state_1(
-                {}, context, include_screenshot=True
+            current = self._subtitle_window_state(
+                context, include_screenshot=True
             )
             current_fields = current.get("fields")
             if not isinstance(current_fields, Mapping):
@@ -7449,6 +7637,35 @@ class ResidentOperationBackend:
             },
         }
 
+    def _raise_playback_chrome(self, arguments, context, reason):
+        """Raise the window chrome this Operation's own route depends on.
+
+        The default route taps PlayerUI-window-playback-surface, which is a
+        bare showControls.toggle() (PlaybackSessionModel.swift:579-589): it
+        raises the chrome only when the chrome is already down. A caller that
+        has just finished a summonControls activation, or that reached a
+        presentation without a visual cutover, arrives here with the chrome up
+        and the tap hides it, taking WindowPlayerDeckView and its top actions
+        out of the hierarchy with it (MainView.swift:222-234, :273) before the
+        following tapSequence looks for them. summonControls asks for the
+        documented summon route instead (references/product.md:35): the
+        toggleControls app command, which switches only when the requested
+        visibility differs from the current one
+        (TestCommandChannel.swift:1070-1074) and therefore ends with the chrome
+        up whatever the previous call left behind.
+        """
+        if arguments.get("summonControls") is True:
+            summon = self._app_command(context, "toggleControls", "visible=true")
+        else:
+            summon = self._controller(
+                context,
+                "tap",
+                "--identifier",
+                "PlayerUI-window-playback-surface",
+            )
+        self._require_success(summon, reason)
+        return summon
+
     def _format_apply_2(self, arguments, context):
         projection_value = str(arguments["projection"])
         projection_identifier = {
@@ -7462,13 +7679,9 @@ class ResidentOperationBackend:
             "topBottom": "PlayerUI-VideoFormat-Stereo Layout-Top-Bottom",
         }[str(arguments["stereoLayout"])]
         before = self._window_control_plane_observation(context)
-        summon = self._controller(
-            context,
-            "tap",
-            "--identifier",
-            "PlayerUI-window-playback-surface",
+        summon = self._raise_playback_chrome(
+            arguments, context, "format controls summon"
         )
-        self._require_success(summon, "format controls summon")
         editor_sequence = None
         coverage_selection = None
         coverage_dismissal = None
@@ -7592,13 +7805,9 @@ class ResidentOperationBackend:
         }
 
     def _presentation_enter_docked_skybox_1(self, arguments, context):
-        summon = self._controller(
-            context,
-            "tap",
-            "--identifier",
-            "PlayerUI-window-playback-surface",
+        summon = self._raise_playback_chrome(
+            arguments, context, "docked controls summon"
         )
-        self._require_success(summon, "docked controls summon")
         result = self._enter_spatial(
             context,
             "docked",
@@ -7609,13 +7818,9 @@ class ResidentOperationBackend:
         return {**result, "summon": summon}
 
     def _presentation_enter_panorama_1(self, arguments, context):
-        summon = self._controller(
-            context,
-            "tap",
-            "--identifier",
-            "PlayerUI-window-playback-surface",
+        summon = self._raise_playback_chrome(
+            arguments, context, "panorama controls summon"
         )
-        self._require_success(summon, "panorama controls summon")
         if arguments.get("expectedResult") == "rollback-after-settlement-timeout":
             result = self._enter_panorama_expecting_settlement_rollback(
                 context,
@@ -8116,9 +8321,9 @@ class ResidentOperationBackend:
                     "structural assertion payload must be an object"
                 )
             assertion_payloads.append(payload)
-        if check == "playback-core-network-resilience" and len(assertion_payloads) != 1:
+        if check in STRUCTURED_ASSERTION_CHECKS and len(assertion_payloads) != 1:
             raise OperationAdapterError(
-                "network resilience structural check omitted its assertion payload"
+                f"structural check {check} omitted its assertion payload"
             )
         return {
             "succeeded": completed.returncode == 0,

@@ -549,6 +549,37 @@ class RegressionEmbySourceTests(unittest.TestCase):
         )
         self.assertEqual(self.boundary.add_count, 2)
 
+    def test_ensure_reestablishes_the_progress_a_scenario_consumed(self) -> None:
+        first = self.controller.ensure()
+        writes = self.boundary.user_data_write_count
+        self.boundary.user_data["PlaybackPositionTicks"] = 260_000_000
+        self.boundary.user_data["Played"] = True
+        second = self.controller.ensure()
+        self.assertEqual(second, first)
+        self.assertEqual(
+            self.boundary.user_data["PlaybackPositionTicks"],
+            emby.SEEDED_PROGRESS_TICKS,
+        )
+        self.assertIs(self.boundary.user_data["Played"], False)
+        self.assertEqual(self.boundary.user_data_write_count, writes + 1)
+        self.assertEqual(self.boundary.add_count, 1)
+        self.assertEqual(
+            first["receipt"]["originalUserData"],
+            {"PlaybackPositionTicks": 0, "Played": False},
+        )
+
+    def test_ensure_leaves_undrifted_progress_untouched(self) -> None:
+        self.controller.ensure()
+        writes = self.boundary.user_data_write_count
+        self.controller.ensure()
+        self.assertEqual(self.boundary.user_data_write_count, writes)
+
+    def test_ensure_still_refuses_drift_it_cannot_re_establish(self) -> None:
+        self.controller.ensure()
+        self.boundary.library_id = "library-rotated"
+        with self.assertRaisesRegex(emby.EmbySeedError, "library identity drifted"):
+            self.controller.ensure()
+
     def test_observe_progress_reads_live_user_data_without_reseed(self) -> None:
         self.controller.ensure()
         writes = self.boundary.user_data_write_count

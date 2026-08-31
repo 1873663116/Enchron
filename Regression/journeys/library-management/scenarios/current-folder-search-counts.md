@@ -118,7 +118,8 @@
         "identifier": "FileBrowsing-FilesScreen",
         "relatedResults": [
           "result://call:library-management:current-folder-search-counts:04/snapshot",
-          "result://call:library-management:current-folder-search-counts:06/afterSnapshot"
+          "result://call:library-management:current-folder-search-counts:06/afterSnapshot",
+          "result://call:library-management:current-folder-search-counts:07/postActionState"
         ]
       },
       "callId": "call:library-management:current-folder-search-counts:08",

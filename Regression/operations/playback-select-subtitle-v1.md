@@ -47,10 +47,10 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:2aca7cf32430446cf0e8e30832a2fbe3fc9653e8f05004679721c834e0b99e58"
+    "digest": "sha256:cdf09b29d702c42555a10665dddb2389ab0d290fbb3e4599e7a1bcb276352599"
   }
 }
 ---
 # Playback Select Subtitle
 
-The runtime Operation adapter selects one external subtitle through the public PlayerUI host in one controller transaction: PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items. host admits only playerUI, the host that can produce the declared window.control-plane pair after product.md:17 removes that window probe from an immersive settle. It then verifies the same playback identity and selected track in product state.
+The runtime Operation adapter selects one external subtitle through the public PlayerUI host in one controller transaction: PlayerUI-window-playback-surface, PlayerUI-TopAction-more, PlayerUI-menu-subtitles, and PlayerUI-menu-subtitles-external.subtitle.* items. host admits only playerUI, the host that can produce the declared window.control-plane pair after product.md:17 removes that window probe from an immersive settle. It reads PlayerUI-window-control-plane before and after the selection, the one channel that publishes both the selected subtitleTrack and the transition its settlement requires, and verifies the same playback identity and selected track there.

@@ -71,10 +71,6 @@ EXPECTED_JOURNEY_EDGES = frozenset(
             "scenario:local-media-lifecycle:injected-import-rejoins-ingest",
             "scenario:local-media-lifecycle:subtitle-switch-and-off",
         ),
-        (
-            "scenario:webdav-source-lifecycle:webdav-add-source",
-            "scenario:webdav-source-lifecycle:webdav-open-through-loopback",
-        ),
     }
 )
 
@@ -957,6 +953,11 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         edge["before"], edge["after"] = edge["after"], edge["before"]
         cases["reversed"] = reversed_edge
 
+        # Move one of local-media's own edges onto the webdav Journey, whose
+        # scenarios do not contain either endpoint. The mutation used to hand
+        # webdav's edge to local-media, but round sixteen removed that edge as a
+        # schedule preference and an empty list moves nothing, so the case
+        # silently stopped testing the rule it names.
         cross_journey = copy.deepcopy(self.blueprint)
         local = next(
             item for item in cross_journey["journeys"] if item["id"] == local_id
@@ -964,8 +965,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         webdav = next(
             item for item in cross_journey["journeys"] if item["id"] == webdav_id
         )
-        local["ordering"].extend(webdav["ordering"])
-        webdav["ordering"] = []
+        webdav["ordering"] = [local["ordering"].pop()]
         cases["cross-journey"] = cross_journey
 
         narrative = copy.deepcopy(self.blueprint)
@@ -1523,7 +1523,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         with (
             mock.patch.object(
                 backend,
-                "_diagnostics_playback_state_1",
+                "_subtitle_window_state",
                 return_value=state,
             ),
             mock.patch.object(
@@ -1541,7 +1541,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         with (
             mock.patch.object(
                 backend,
-                "_diagnostics_playback_state_1",
+                "_subtitle_window_state",
                 return_value=state,
             ),
             mock.patch.object(
@@ -2029,7 +2029,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             imported,
             [
                 "sdr-bframe-multiaudio-avsync-30s.mp4",
-                "sdr-bframe-multiaudio-avsync-120s.mp4",
+                "viewing-storage-16m01s.mp4",
             ],
         )
         baseline = next(
@@ -2045,7 +2045,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         )
         self.assertEqual(
             wait["arguments"]["expectedMediaName"],
-            "sdr-bframe-multiaudio-avsync-120s.mp4",
+            "viewing-storage-16m01s.mp4",
         )
         self.assertEqual(
             wait["arguments"]["differentSessionFrom"],
@@ -2441,19 +2441,31 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(scenario["readiness"], "ready")
         self.assertFalse(scenario["blockers"])
         calls = scenario["operations"]
-        self.assertEqual(len(calls), 44)
+        self.assertEqual(len(calls), 40)
         self.assertEqual(
             [item["producedByCall"] for item in scenario["obligations"]],
-            [calls[index]["callId"] for index in (10, 21, 32, 43)],
+            [calls[index]["callId"] for index in (9, 19, 29, 39)],
         )
-        for offset in (0, 11, 22, 33):
+        for offset in (0, 10, 20, 30):
             self.assertEqual(
                 calls[offset]["operation"], "operation:host.preflight@1"
             )
             self.assertEqual(
-                calls[offset + 10]["arguments"]["identifier"],
+                calls[offset + 9]["arguments"]["identifier"],
                 "FileBrowsing-SourceConnection-webDAV-error",
             )
+        # No case may reset product state. resetState deletes every
+        # server-certificate-fingerprint. key (TestCommandChannel.swift:199-205),
+        # which is why the Operation honestly declares certificate.trust — and
+        # this Scenario's own prerequisite, issue-fixtures-ready, is what
+        # established that trust. Without it the self-signed endpoint raises the
+        # trust alert, and answering that alert dismisses the connection sheet
+        # (FilesScreen.swift:213) that carries the -error element every
+        # obligation binds, so the case has nothing left to read.
+        self.assertNotIn(
+            "operation:harness.reset-product-state@2",
+            {call["operation"] for call in calls},
+        )
         password_calls = [
             call
             for call in calls

@@ -74,7 +74,8 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 30
+        "deadlineSeconds": 30,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:spatial-controls-summon:06",
       "maxInvocations": 1,
@@ -143,7 +144,8 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 30
+        "deadlineSeconds": 30,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:spatial-controls-summon:14",
       "maxInvocations": 1,
@@ -226,7 +228,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:spatial-controls-summon:23",
       "maxInvocations": 1,
@@ -234,7 +237,8 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 30
+        "deadlineSeconds": 30,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:spatial-controls-summon:24",
       "maxInvocations": 1,
@@ -283,7 +287,7 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedLanding": "window",
+        "expectedLanding": "either-main-window",
         "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:30",
@@ -295,7 +299,7 @@
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
-        "presentation": "window"
+        "presentation": "either-main-window"
       },
       "callId": "call:presentation-tour:spatial-controls-summon:31",
       "maxInvocations": 1,
@@ -305,7 +309,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:spatial-controls-summon:32",
       "maxInvocations": 1,
@@ -313,7 +318,8 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 30
+        "deadlineSeconds": 30,
+        "summonControls": true
       },
       "callId": "call:presentation-tour:spatial-controls-summon:33",
       "maxInvocations": 1,

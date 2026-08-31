@@ -15,7 +15,7 @@
     }
   },
   "lane": "device",
-  "estimatedCostMillis": 85000,
+  "estimatedCostMillis": 100000,
   "staticCases": [
     "default"
   ],
@@ -29,8 +29,16 @@
   ],
   "operations": [
     {
-      "arguments": {},
+      "arguments": {
+        "check": "emby-aggregate"
+      },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:01",
+      "maxInvocations": 1,
+      "operation": "operation:host.preflight@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:02",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -38,7 +46,7 @@
       "arguments": {
         "tab": "emby"
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:02",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:03",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -47,7 +55,7 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:03",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:04",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -58,7 +66,7 @@
           "Enchron Regression Emby"
         ]
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:04",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:05",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -69,7 +77,7 @@
           "Enchron Regression Series, poster"
         ]
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:05",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -78,7 +86,7 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:06",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -90,9 +98,10 @@
         ],
         "labels": [
           "Season 2"
-        ]
+        ],
+        "labelsAfterIdentifiers": true
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:08",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -101,7 +110,7 @@
         "context": "window",
         "identifier": "Emby-Evidence"
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:08",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -112,7 +121,7 @@
           "Enchron Regression Episode 2, episode"
         ]
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -121,11 +130,12 @@
         "context": "window",
         "identifier": "Emby-Evidence",
         "relatedResults": [
-          "result://call:emby-server-lifecycle:series-season-episode-navigation:06/response",
-          "result://call:emby-server-lifecycle:series-season-episode-navigation:08/response"
+          "result://call:emby-server-lifecycle:series-season-episode-navigation:01/report",
+          "result://call:emby-server-lifecycle:series-season-episode-navigation:07/response",
+          "result://call:emby-server-lifecycle:series-season-episode-navigation:09/response"
         ]
       },
-      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:10",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:11",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -138,7 +148,7 @@
       "evidenceType": "emby.evidence",
       "id": "obligation:emby-server-lifecycle:series-season-episode-navigation:o01:default",
       "oracle": "oracle:agent-structured-emby-evidence@1",
-      "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:10",
+      "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:11",
       "rubric": "rubric:emby-server-lifecycle.series-season-episode-navigation.o01@1"
     }
   ],

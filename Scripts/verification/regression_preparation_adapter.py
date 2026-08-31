@@ -463,6 +463,13 @@ LOCAL_AGGREGATE_FIXTURES = (
     "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3",
     "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
     "generated-sdr-avc-bframe-duplicate-label-audio-30s-v1",
+    # automatic-play-next-resume-policy needs an item whose exit actually leaves
+    # a resumable status. ViewingStatePolicy.mutation removes viewing state for
+    # anything under minimumContentDurationSeconds = 15 * 60
+    # (Modules/Playback/Domain/ViewingState.swift:50-56), and the longest item
+    # above is 120.064 s, so every local-aggregate fixture sits below the
+    # constant. This one runs 961.0 s in 898 KB.
+    "generated-viewing-storage-h264-16m01s-v1",
 )
 
 LOCAL_DIRECTORY_SUBTITLE_FIXTURES = (
@@ -489,10 +496,16 @@ def _specs() -> tuple[PreparationSpec, ...]:
     return (
         PreparationSpec(
             "preparation:audio-only-fixtures", "device", "audio-only-fixtures-ready",
-            "fixture-set.audio-only@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents"),
+            "fixture-set.audio-only@2", ("app.session", "fixture.corpus", "lane.instance", "library.contents", "settings.state"),
             fixture_ids=REGRESSION_FIXTURE_SETS["audio-only"],
             preflight="audio-fixtures",
             import_staged=True,
+            # secondary-menu-pins-audio-controls decides that an open menu pins
+            # the controls by probing controls=shown after a 9000 ms settle. The
+            # resident runner launches the app with a 300 s auto-hide, so without
+            # this override that reading is guaranteed by the harness and the
+            # paired controls=hidden control can never fire.
+            controls_auto_hide_seconds=8,
         ),
         PreparationSpec(
             "preparation:local-aggregate-device", "device", "local-aggregate-staged",
@@ -526,7 +539,15 @@ def _specs() -> tuple[PreparationSpec, ...]:
             "preparation:window-input-fixture", "simulator", "window-input-fixture-ready",
             "fixture-set.window-input@2", ("app.session", "fixture.corpus", "input.device-hub", "lane.instance", "library.contents", "settings.state"),
             fixture_ids=("generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",), import_staged=True,
-            controls_auto_hide_seconds=8,
+            # window-surface-controls-toggle-and-autohide reads shown->hidden->shown
+            # from three Device Hub pinches, and one pinch is a device_hub_canvas.py
+            # round trip plus a controller snapshot -- several seconds each. An 8 s
+            # idle window fires between them, so every pinch would land on hidden
+            # chrome and the hide half of the toggle would never run. 25 s outlasts
+            # the whole three-pinch sequence and still leaves the Scenario's final
+            # 30000 ms probe settle, the adapter ceiling, longer than the window it
+            # has to outlast.
+            controls_auto_hide_seconds=25,
             prepare_device_hub=True,
         ),
         PreparationSpec(
@@ -1173,9 +1194,24 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                         "settleDelayMillis": 30_000,
                     },
                 ),
+                # The Emby form declares textContentType(.username)/(.password),
+                # so submitting it raises the system Save-Password sheet. That
+                # sheet is outside the window hierarchy and nothing later in
+                # this Preparation can clear it, so dismiss it here, the way the
+                # WebDAV and SMB branches above do and the way the working Emby
+                # driver in reachability_matrix.py does right after this button.
                 _call(
                     spec.identifier,
                     len(calls) + 6,
+                    "operation:accessibility.activate@2",
+                    {
+                        "context": "main-window-browser",
+                        "labels": ["以后"],
+                    },
+                ),
+                _call(
+                    spec.identifier,
+                    len(calls) + 7,
                     "operation:accessibility.inspect@2",
                     {
                         "context": "main-window-browser",
@@ -1185,7 +1221,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                 ),
                 _call(
                     spec.identifier,
-                    len(calls) + 7,
+                    len(calls) + 8,
                     "operation:host.preflight@1",
                     {"check": "emby-aggregate"},
                 ),

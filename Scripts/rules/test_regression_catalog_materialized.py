@@ -127,10 +127,6 @@ EXPECTED_JOURNEY_EDGES = frozenset(
             "scenario:local-media-lifecycle:injected-import-rejoins-ingest",
             "scenario:local-media-lifecycle:subtitle-switch-and-off",
         ),
-        (
-            "scenario:webdav-source-lifecycle:webdav-add-source",
-            "scenario:webdav-source-lifecycle:webdav-open-through-loopback",
-        ),
     }
 )
 FORBIDDEN_ARGUMENT_KEYS = frozenset(
@@ -448,7 +444,7 @@ class MaterializedCatalogTests(unittest.TestCase):
             "operation:preparation.local-directory-subtitle-source@1",
         )
 
-    def test_journeys_have_the_reviewed_five_edges_and_one_main_gate(self) -> None:
+    def test_journeys_have_the_reviewed_edges_and_one_main_gate(self) -> None:
         edges = {
             (str(before), str(after))
             for journey in self.catalog.journeys
@@ -476,7 +472,7 @@ class MaterializedCatalogTests(unittest.TestCase):
             )
         )
 
-    def test_full_catalog_analysis_selects_all_scenarios_and_five_edges(self) -> None:
+    def test_full_catalog_analysis_selects_all_scenarios_and_edges(self) -> None:
         digest_a = "sha256:" + "a" * 64
         digest_b = "sha256:" + "b" * 64
         digest_c = "sha256:" + "c" * 64

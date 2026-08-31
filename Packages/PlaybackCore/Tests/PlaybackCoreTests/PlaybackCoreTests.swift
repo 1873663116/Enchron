@@ -3460,6 +3460,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
     try await expectRetiredAudioAllowsSeek(
         in: session,
+        check: "audio-retirement-open",
         expectedStage: "audioProvider.openFailed.videoContinues"
     )
 }
@@ -3485,6 +3486,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
     try await expectRetiredAudioAllowsSeek(
         in: session,
+        check: "audio-retirement-prewarm",
         expectedStage: "audioRenderer.prerollFailed.videoContinues"
     )
 }
@@ -3562,6 +3564,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
     try await expectRetiredAudioAllowsSeek(
         in: session,
+        check: "audio-retirement-playback",
         expectedStage: "audioProvider.readFailed.videoContinues"
     )
 }
@@ -3591,6 +3594,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
     try await expectRetiredAudioAllowsSeek(
         in: session,
+        check: "audio-retirement-seek",
         expectedStage: "audioProvider.seekOpenFailed.videoContinues",
         retirementOccursDuringSeek: true
     )
@@ -3878,6 +3882,7 @@ func terminalRendererFailurePublishesFailedOnce(
     #expect(snapshot.lastError == nil)
     try await expectRetiredAudioAllowsSeek(
         in: session,
+        check: "audio-retirement-renderer",
         expectedStage: "audioRenderer.failed.videoContinues"
     )
     #expect(statuses.withLock { values in
@@ -4568,32 +4573,71 @@ private func waitForAudioRetirement(
     Issue.record("Timed out waiting for audio retirement")
 }
 
+/// Drives the retired-audio seek and prints the structured observation the
+/// regression adapter binds as this check's evidence.
+///
+/// The five audio-retirement structural checks each run one of these tests and
+/// bind its artifact, and an exit code plus a `--filter` name cannot witness a
+/// lifecycle, a media session identity or a post-seek video position. The
+/// `ENCHRON_ASSERTION` line below carries those readings;
+/// `_evidence_structural_test_1` parses it into `assertionPayloads` and refuses
+/// any of the five checks that omits it.
 private func expectRetiredAudioAllowsSeek(
     in session: SampleBufferPlaybackSession,
+    check structuralCheck: String,
     expectedStage: String,
     retirementOccursDuringSeek: Bool = false
 ) async throws {
     let before = session.debugSnapshot()
     let sessionID = try #require(before.mediaSession?.mediaSessionID)
+    let audioRetiredBeforeSeek = session.diagnostics.audioRetired
     #expect(before.lifecycle == .playing || before.lifecycle == .paused)
     if retirementOccursDuringSeek {
-        #expect(session.diagnostics.audioRetired == false)
+        #expect(audioRetiredBeforeSeek == false)
     } else {
-        #expect(session.diagnostics.audioRetired)
+        #expect(audioRetiredBeforeSeek)
         #expect(before.lastFailure?.stage == expectedStage)
     }
 
+    let seekTargetSeconds = 30.0
     try await session.seek(
-        to: CMTime(seconds: 30, preferredTimescale: 600),
+        to: CMTime(seconds: seekTargetSeconds, preferredTimescale: 600),
         startsPaused: true
     )
 
     let after = session.debugSnapshot()
-    #expect(session.diagnostics.audioRetired)
+    let audioRetiredAfterSeek = session.diagnostics.audioRetired
+    #expect(audioRetiredAfterSeek)
     #expect(after.lifecycle == .paused)
     #expect(after.mediaSession?.mediaSessionID == sessionID)
     #expect(after.lastFailure?.stage == expectedStage)
-    #expect((after.lastVideoSample?.presentationTimeSeconds ?? -.infinity) >= 30)
+    let videoPresentationTimeSecondsAfterSeek = after.lastVideoSample?
+        .presentationTimeSeconds
+    #expect((videoPresentationTimeSecondsAfterSeek ?? -.infinity) >= seekTargetSeconds)
+
+    // Every value is an identifier, a UUID string, a Bool or a finite Double, so
+    // the line stays valid JSON without escaping; an absent video sample prints
+    // null rather than an unparsable infinity.
+    let fields = [
+        "\"assertion\":\"audio-retirement-nonfatal-seek\"",
+        "\"check\":\"\(structuralCheck)\"",
+        "\"expectedStage\":\"\(expectedStage)\"",
+        "\"retirementOccursDuringSeek\":\(retirementOccursDuringSeek)",
+        "\"lifecycleBeforeSeek\":\"\(before.lifecycle.rawValue)\"",
+        "\"lifecycleAfterSeek\":\"\(after.lifecycle.rawValue)\"",
+        "\"audioRetiredBeforeSeek\":\(audioRetiredBeforeSeek)",
+        "\"audioRetiredAfterSeek\":\(audioRetiredAfterSeek)",
+        "\"mediaSessionIDBeforeSeek\":\"\(sessionID)\"",
+        "\"mediaSessionIDAfterSeek\":\"\(after.mediaSession?.mediaSessionID ?? "")\"",
+        "\"failureStageBeforeSeek\":\"\(before.lastFailure?.stage ?? "")\"",
+        "\"failureStageAfterSeek\":\"\(after.lastFailure?.stage ?? "")\"",
+        "\"failureRecoverabilityAfterSeek\":\"\(after.lastFailure?.recoverability ?? "")\"",
+        "\"seekTargetSeconds\":\(seekTargetSeconds)",
+        "\"videoPresentationTimeSecondsAfterSeek\":"
+            + (videoPresentationTimeSecondsAfterSeek.map { String($0) } ?? "null"),
+        "\"lastErrorPresentAfterSeek\":\(after.lastError != nil)",
+    ]
+    print("ENCHRON_ASSERTION {\(fields.joined(separator: ","))}")
 }
 
 func makeCompressedH264Sample(

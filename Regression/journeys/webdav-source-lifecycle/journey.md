@@ -9,12 +9,7 @@
     "scenario:webdav-source-lifecycle:webdav-open-through-loopback",
     "scenario:webdav-source-lifecycle:certificate-trust-boundary"
   ],
-  "ordering": [
-    {
-      "after": "scenario:webdav-source-lifecycle:webdav-open-through-loopback",
-      "before": "scenario:webdav-source-lifecycle:webdav-add-source"
-    }
-  ],
+  "ordering": [],
   "sharedState": [
     {
       "key": "webdav-test-source-ready",
@@ -25,4 +20,4 @@
 ---
 # WebDAV 连接、证书、浏览与播放
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

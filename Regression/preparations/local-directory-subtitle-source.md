@@ -255,6 +255,17 @@
     },
     {
       "callId": "call:preparation:local-directory-subtitle-source:25",
+      "operation": "operation:accessibility.activate@2",
+      "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "以后"
+        ]
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:local-directory-subtitle-source:26",
       "operation": "operation:accessibility.inspect@2",
       "arguments": {
         "context": "main-window-browser",
@@ -264,7 +275,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:26",
+      "callId": "call:preparation:local-directory-subtitle-source:27",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "emby-aggregate"
@@ -272,7 +283,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:27",
+      "callId": "call:preparation:local-directory-subtitle-source:28",
       "operation": "operation:preparation.local-directory-subtitle-source@1",
       "arguments": {
         "directoryName": "sdr-bframe-aggregate-30s-sidecars",
@@ -290,7 +301,7 @@
     {
       "key": "local-directory-subtitle-source-ready",
       "schema": "media-source.local-directory-sidecars@1",
-      "producedByCall": "call:preparation:local-directory-subtitle-source:27",
+      "producedByCall": "call:preparation:local-directory-subtitle-source:28",
       "dependsOnTags": [
         "app.session",
         "certificate.trust",
@@ -310,4 +321,4 @@
 ---
 # Prepare local directory subtitle source
 
-The runtime Preparation adapter writes the WebDAV runtime identity before typing credentials, connects the same seeded Enchron Regression Emby library as preparation:emby-test-library, stages the registered media and sidecars, imports one directory-backed media reference, validates its typed bookmark receipt, and produces the local directory subtitle source identity.
+The runtime Preparation adapter writes the WebDAV runtime identity before typing credentials, connects the same seeded Enchron Regression Emby library as preparation:emby-test-library, dismisses the system Save-Password sheet raised by each credential form it submits, stages the registered media and sidecars, imports one directory-backed media reference, validates its typed bookmark receipt, and produces the local directory subtitle source identity.

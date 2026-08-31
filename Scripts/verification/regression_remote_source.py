@@ -60,6 +60,17 @@ RECIPE_NAMES = (
     "transport-interrupted",
 )
 RECONNECT_BACKOFF_MILLIS = (250, 500, 1000)
+BASE_PATH = "/dav/regression/"
+"""The served collection, fixed for the life of the service.
+
+The generation used to be in this path, so every activation moved the endpoint
+the product had already been told about. A recipe exists to reach the session a
+Scenario opened before it, and a session bound to the previous path answered
+404 before any recipe branch ran, which made all four injected faults produce
+one signature and left every triggered-request assertion empty. Generation
+still names the request log and the manifest, is still stamped on every logged
+row, and still binds the receipt, so nothing that reads a generation lost its
+binding; only the address the product holds stopped moving underneath it."""
 RUNTIME_DOCUMENT_KEYS = frozenset(
     {
         "address",
@@ -466,7 +477,7 @@ class RemoteSourceService:
         self._recipe_counter = 0
         self._request_log = Path()
         self._manifest_path = Path()
-        self._base_path = ""
+        self._base_path = BASE_PATH
         self._endpoint_digest = ""
         self._active_receipt_id: str | None = None
         self._receipts: dict[str, dict[str, object]] = {}
@@ -693,8 +704,8 @@ class RemoteSourceService:
             )
         if target_kind == "rejected":
             return self._empty(400, condition="sanitized-path"), logged_path
-        if target_kind == "stale":
-            return self._empty(404, condition="current-generation-path"), logged_path
+        if target_kind == "outside":
+            return self._empty(404, condition="served-collection-path"), logged_path
         if method == "OPTIONS":
             return (
                 self._empty(
@@ -918,10 +929,8 @@ class RemoteSourceService:
         parts = PurePosixPath(decoded).parts
         if any(part in {".", ".."} for part in parts):
             return "rejected", None, "<rejected>"
-        if not decoded.startswith("/dav/g-"):
-            return "stale", None, "<stale-generation>"
         if not decoded.startswith(self._base_path):
-            return "stale", None, "<stale-generation>"
+            return "outside", None, "<outside-collection>"
         relative = decoded[len(self._base_path) :]
         if not relative:
             return "root", None, self._base_path
@@ -1027,7 +1036,6 @@ class RemoteSourceService:
         self._recipe = recipe
         self._request_sequence = 0
         self._recipe_counter = 0
-        self._base_path = f"/dav/g-{self._generation:06d}/"
         logs = self.configuration.runtime_root / "request-logs"
         logs.mkdir(parents=True, exist_ok=True)
         os.chmod(logs, 0o700)

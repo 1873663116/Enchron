@@ -29,4 +29,4 @@
 ---
 # 呈现态、格式编辑与空间控件环游
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

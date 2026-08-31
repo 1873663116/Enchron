@@ -150,13 +150,50 @@
     },
     {
       "arguments": {
+        "assertAbsent": [
+          "FileBrowsing-CertificateTrust-cancel",
+          "FileBrowsing-SourceConnection-webDAV-password"
+        ],
         "context": "main-window-browser",
-        "identifier": "FileBrowsing-SourceConnection-webDAV",
-        "requireMatchedElement": true
+        "identifiers": [
+          "FileBrowsing-SourcesSidebar-sourceMore",
+          "FileBrowsing-SourcesSidebar-add",
+          "FileBrowsing-SourcesSidebar-addWebDAV"
+        ]
       },
       "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:13",
       "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "deadlineSeconds": 20,
+        "identifier": "FileBrowsing-SourceConnection-webDAV-password",
+        "requireMatchedElement": true
+      },
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:14",
+      "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:06/cursorToken",
+        "relatedResults": [
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:08/postActionState",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:09/postActionState",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:10/postActionState",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/tappedIdentifiers",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/assertAbsentObservations",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:14/response",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:14/matchedElement"
+        ],
+        "remoteExpectation": "certificate-trust-boundary",
+        "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
+      },
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:15",
+      "maxInvocations": 1,
+      "operation": "operation:diagnostics.surface-probe@1"
     },
     {
       "arguments": {
@@ -167,7 +204,7 @@
         "textFile": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/runtimePath",
         "textJSONKey": "password"
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:14",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:16",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -182,7 +219,7 @@
           "以后"
         ]
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:15",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:17",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -191,7 +228,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:16",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:18",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -201,7 +238,7 @@
         "expectedLanding": "either-main-window",
         "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:17",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -212,7 +249,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:18",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -222,7 +259,7 @@
         "minimumPositionMillis": 1000,
         "minimumRemainingMillis": 3000
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:19",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:21",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -230,27 +267,19 @@
       "arguments": {
         "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:06/cursorToken",
         "relatedResults": [
-          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/response",
-          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/matchedElement"
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:08/postActionState",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:09/postActionState",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:10/postActionState",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/tappedIdentifiers",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/assertAbsentObservations",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:14/response",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:14/matchedElement",
+          "result://call:webdav-source-lifecycle:certificate-trust-boundary:15/cursorToken"
         ],
         "remoteExpectation": "certificate-trust-boundary",
         "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
       },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
-      "maxInvocations": 1,
-      "operation": "operation:diagnostics.surface-probe@1"
-    },
-    {
-      "arguments": {
-        "cursorToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:06/cursorToken",
-        "relatedResults": [
-          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/response",
-          "result://call:webdav-source-lifecycle:certificate-trust-boundary:13/matchedElement"
-        ],
-        "remoteExpectation": "certificate-trust-boundary",
-        "remoteGenerationToken": "result://call:webdav-source-lifecycle:certificate-trust-boundary:01/generationToken"
-      },
-      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:21",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:22",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
     }
@@ -263,7 +292,7 @@
       "evidenceType": "interaction.trace",
       "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:cancelled-form",
       "oracle": "oracle:agent-structured-interaction-trace@1",
-      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:20",
+      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:15",
       "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
     },
     {
@@ -273,7 +302,7 @@
       "evidenceType": "interaction.trace",
       "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:connected-trace",
       "oracle": "oracle:agent-structured-interaction-trace@1",
-      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:21",
+      "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:22",
       "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
     }
   ],

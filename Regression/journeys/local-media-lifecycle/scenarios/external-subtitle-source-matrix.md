@@ -215,8 +215,8 @@
         "context": "window",
         "labels": [
           "Enchron Regression Emby",
-          "Enchron Regression Series",
-          "Enchron Regression Episode"
+          "Enchron Regression Series, poster",
+          "Enchron Regression Episode, episode"
         ]
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:18",

@@ -22,6 +22,7 @@ from regression.core.contracts import (
     ContractReadiness,
     OperationRole,
 )
+from regression.materialize_catalog_v2 import EXACT_JOURNEY_EDGES
 from regression.core.digest import canonical_bytes, canonical_digest, digest_bytes
 from regression.core.expression import OracleResult
 from regression.core import transition_trace
@@ -2085,8 +2086,17 @@ def _no_legacy_contracts(context: _CompletionContext) -> str:
     for value in values:
         if value.startswith("fixture:"):
             raise CompletionError(f"active Catalog retains symbolic fixture alias {value}")
-    if proof.report.get("journeyEdges") is None or len(proof.report["journeyEdges"]) != 5:
-        raise CompletionError("active Catalog does not have the exact five executable Journey edges")
+    # The count follows the materialiser's pinned edge set rather than a literal:
+    # round sixteen retired the webdav edge because both its Scenarios consume
+    # the same Preparation state and neither hands anything to the other, and a
+    # hard-coded five would have made the gate contradict the pin it exists to
+    # enforce.
+    if proof.report.get("journeyEdges") is None or len(
+        proof.report["journeyEdges"]
+    ) != len(EXACT_JOURNEY_EDGES):
+        raise CompletionError(
+            "active Catalog does not have the exact executable Journey edges"
+        )
     return "materialization rejects retired contracts, arbitrary dispatch, fixture aliases, evidence bundles, and narrative-only Journey edges"
 
 

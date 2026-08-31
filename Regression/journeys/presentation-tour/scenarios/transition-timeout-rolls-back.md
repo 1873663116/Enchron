@@ -67,7 +67,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:transition-timeout-rolls-back:05",
       "maxInvocations": 1,
@@ -84,7 +85,8 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedResult": "rollback-after-settlement-timeout"
+        "expectedResult": "rollback-after-settlement-timeout",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:transition-timeout-rolls-back:07",
       "maxInvocations": 1,

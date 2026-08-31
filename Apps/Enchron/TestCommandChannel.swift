@@ -1039,27 +1039,31 @@ final class TestCommandChannel {
                 let compact = hex.filter(\.isHexDigit).lowercased()
                 return compact.count == 64 ? "sha256:\(compact)" : nil
             }
-            let key = "server-certificate-fingerprint.\(address)"
-            guard let stored = defaults.string(forKey: key),
-                  let storedFingerprint = canonical(stored),
-                  let previousFingerprint = canonical(expectedPrevious),
+            guard let previousFingerprint = canonical(expectedPrevious),
                   let currentFingerprint = canonical(expectedCurrent),
-                  storedFingerprint == previousFingerprint,
-                  storedFingerprint != currentFingerprint else {
+                  previousFingerprint != currentFingerprint else {
                 throw CommandError(
-                    message: "The stored certificate trust boundary changed unexpectedly."
+                    message: "certificateTrustProbe requires two distinct SHA-256 fingerprints."
                 )
             }
+            let key = "server-certificate-fingerprint.\(address)"
+            let stored = defaults.string(forKey: key)
+            let storedFingerprint = stored.flatMap(canonical)
+            let storedReport = storedFingerprint
+                ?? (stored == nil ? "none" : "unrecognized")
+            let currentFingerprintTrusted = storedFingerprint == currentFingerprint
+            let storedMatchesPrevious = storedFingerprint == previousFingerprint
             return Response(
                 id: request.id,
                 ok: true,
                 detail: nil,
                 payload: [
                     "schema=enchron.regression.certificate-trust-probe@1",
-                    "storedFingerprint=\(storedFingerprint)",
+                    "storedFingerprint=\(storedReport)",
                     "previousFingerprint=\(previousFingerprint)",
                     "currentFingerprint=\(currentFingerprint)",
-                    "currentFingerprintTrusted=false"
+                    "currentFingerprintTrusted=\(currentFingerprintTrusted)",
+                    "storedMatchesPreviousFingerprint=\(storedMatchesPrevious)"
                 ]
             )
 #endif

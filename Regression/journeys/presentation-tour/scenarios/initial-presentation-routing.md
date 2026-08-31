@@ -162,13 +162,19 @@
       "arguments": {},
       "callId": "call:presentation-tour:initial-presentation-routing:16",
       "maxInvocations": 1,
+      "operation": "operation:diagnostics.playback-state@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:presentation-tour:initial-presentation-routing:17",
+      "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
     {
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:presentation-tour:initial-presentation-routing:17",
+      "callId": "call:presentation-tour:initial-presentation-routing:18",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -176,9 +182,13 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
+        "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4",
+        "relatedResults": [
+          "result://call:presentation-tour:initial-presentation-routing:16/sourceIdentity",
+          "result://call:presentation-tour:initial-presentation-routing:16/contentRevision"
+        ]
       },
-      "callId": "call:presentation-tour:initial-presentation-routing:18",
+      "callId": "call:presentation-tour:initial-presentation-routing:19",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -189,15 +199,9 @@
         "lifecycle": "playing",
         "presentation": "window"
       },
-      "callId": "call:presentation-tour:initial-presentation-routing:19",
-      "maxInvocations": 1,
-      "operation": "operation:playback.await-window-state@1"
-    },
-    {
-      "arguments": {},
       "callId": "call:presentation-tour:initial-presentation-routing:20",
       "maxInvocations": 1,
-      "operation": "operation:diagnostics.playback-state@1"
+      "operation": "operation:playback.await-window-state@1"
     },
     {
       "arguments": {},
@@ -248,13 +252,19 @@
       "arguments": {},
       "callId": "call:presentation-tour:initial-presentation-routing:26",
       "maxInvocations": 1,
+      "operation": "operation:diagnostics.playback-state@1"
+    },
+    {
+      "arguments": {},
+      "callId": "call:presentation-tour:initial-presentation-routing:27",
+      "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
     {
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:presentation-tour:initial-presentation-routing:27",
+      "callId": "call:presentation-tour:initial-presentation-routing:28",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -262,9 +272,13 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "either-main-window",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
+        "relatedResults": [
+          "result://call:presentation-tour:initial-presentation-routing:26/sourceIdentity",
+          "result://call:presentation-tour:initial-presentation-routing:26/contentRevision"
+        ]
       },
-      "callId": "call:presentation-tour:initial-presentation-routing:28",
+      "callId": "call:presentation-tour:initial-presentation-routing:29",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -275,15 +289,9 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:presentation-tour:initial-presentation-routing:29",
-      "maxInvocations": 1,
-      "operation": "operation:playback.await-window-state@1"
-    },
-    {
-      "arguments": {},
       "callId": "call:presentation-tour:initial-presentation-routing:30",
       "maxInvocations": 1,
-      "operation": "operation:diagnostics.playback-state@1"
+      "operation": "operation:playback.await-window-state@1"
     }
   ],
   "obligations": [
@@ -314,7 +322,7 @@
       "evidenceType": "window.control-plane",
       "id": "obligation:presentation-tour:initial-presentation-routing:o01:persisted-flat",
       "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:presentation-tour:initial-presentation-routing:18",
+      "producedByCall": "call:presentation-tour:initial-presentation-routing:19",
       "rubric": "rubric:presentation-tour.initial-presentation-routing.o01@1"
     },
     {
@@ -324,7 +332,7 @@
       "evidenceType": "window.control-plane",
       "id": "obligation:presentation-tour:initial-presentation-routing:o01:persisted-panorama",
       "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:presentation-tour:initial-presentation-routing:28",
+      "producedByCall": "call:presentation-tour:initial-presentation-routing:29",
       "rubric": "rubric:presentation-tour.initial-presentation-routing.o01@1"
     }
   ],

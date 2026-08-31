@@ -589,7 +589,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertEqual(
             dict(plan.calls[0].arguments),
-            {"controlsAutoHideSeconds": 8},
+            {"controlsAutoHideSeconds": 25},
         )
         self.assertIn(
             "operation:input.device-hub-prepare@1",
@@ -803,6 +803,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "operation:accessibility.type@2",
                 "operation:accessibility.type@2",
                 "operation:accessibility.activate@2",
+                "operation:accessibility.activate@2",
                 "operation:accessibility.inspect@2",
                 "operation:host.preflight@1",
             ],
@@ -834,12 +835,15 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertTrue(all("text" not in call.arguments for call in typed))
         self.assertEqual(
-            dict(plan.calls[9].arguments),
-            {
-                "context": "main-window-browser",
-                "identifiers": ["Emby-Connection-Connect"],
-                "settleDelayMillis": 30_000,
-            },
+            [dict(call.arguments) for call in plan.calls[9:11]],
+            [
+                {
+                    "context": "main-window-browser",
+                    "identifiers": ["Emby-Connection-Connect"],
+                    "settleDelayMillis": 30_000,
+                },
+                {"context": "main-window-browser", "labels": ["以后"]},
+            ],
         )
         self.assertEqual(
             dict(plan.calls[-2].arguments),
@@ -1158,38 +1162,62 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                     connection_tail(simulator_id),
                 )
 
+        # Every credential form the product submits raises the system
+        # Save-Password sheet, so each connect branch owns exactly one
+        # dismissal, and it has to follow that branch's connect button.
+        connect_buttons = {
+            "connect_webdav": ["FileBrowsing-SourceConnection-webDAV-connect"],
+            "connect_smb": ["FileBrowsing-SourceConnection-smb-connect"],
+            "connect_emby": ["Emby-Connection-Connect"],
+        }
         for identifier, spec in preparations.PREPARATION_REGISTRY.items():
-            if not spec.connect_webdav:
+            branches = [
+                identifiers
+                for attribute, identifiers in connect_buttons.items()
+                if getattr(spec, attribute)
+            ]
+            if not branches:
                 continue
             with self.subTest(preparation=identifier):
                 calls = plans[identifier].calls
-                menu_calls = [
-                    call
-                    for call in calls
-                    if call.operation_id == "operation:accessibility.activate@2"
-                    and call.arguments.get("identifiers")
-                    == [
-                        "FileBrowsing-SourcesSidebar-sourceMore",
-                        "FileBrowsing-SourcesSidebar-add",
-                        "FileBrowsing-SourcesSidebar-addWebDAV",
+                if spec.connect_webdav:
+                    menu_calls = [
+                        call
+                        for call in calls
+                        if call.operation_id == "operation:accessibility.activate@2"
+                        and call.arguments.get("identifiers")
+                        == [
+                            "FileBrowsing-SourcesSidebar-sourceMore",
+                            "FileBrowsing-SourcesSidebar-add",
+                            "FileBrowsing-SourcesSidebar-addWebDAV",
+                        ]
                     ]
-                ]
-                dismiss_calls = [
-                    call
-                    for call in calls
+                    self.assertEqual(len(menu_calls), 1)
+                dismiss_indexes = [
+                    index
+                    for index, call in enumerate(calls)
                     if call.operation_id == "operation:accessibility.activate@2"
                     and call.arguments.get("labels") == ["以后"]
                 ]
-                self.assertEqual(len(menu_calls), 1)
-                self.assertEqual(len(dismiss_calls), 1)
-                connect_index = next(
-                    index
-                    for index, call in enumerate(calls)
-                    if call.arguments.get("identifiers")
-                    == ["FileBrowsing-SourceConnection-webDAV-connect"]
-                )
-                dismiss_index = calls.index(dismiss_calls[0])
-                self.assertGreater(dismiss_index, connect_index)
+                self.assertEqual(len(dismiss_indexes), len(branches))
+                claimed: list[int] = []
+                for identifiers in branches:
+                    connect_index = next(
+                        index
+                        for index, call in enumerate(calls)
+                        if call.arguments.get("identifiers") == identifiers
+                    )
+                    following = [
+                        index for index in dismiss_indexes if index > connect_index
+                    ]
+                    self.assertTrue(
+                        following,
+                        f"{identifiers[0]} has no later Save-Password dismissal",
+                    )
+                    claimed.append(min(following))
+                # One dismissal cannot stand in for two connects: the nearest
+                # dismissal after each connect button has to be its own.
+                self.assertEqual(len(set(claimed)), len(branches))
 
     def test_remote_fault_and_issue_preparations_are_webdav_only_and_ready(self) -> None:
         plans = self.plans()

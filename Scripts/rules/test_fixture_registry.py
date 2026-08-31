@@ -72,6 +72,7 @@ EXPECTED_MEMBERSHIPS = {
     "internal-apple-immersive-video-beach-v1": ("projection-stereo",),
     "generated-viewing-storage-h264-16m01s-v1": ("viewing-storage",),
     "generated-viewing-storage-h264-16m01s-b-v1": ("viewing-storage",),
+    "generated-audio-only-aac-stereo-181s-v1": ("audio-only",),
 }
 EXPECTED_INTERNAL_PATHS = {
     "TestVectors/Upstream/FATE/ALAC/inside.m4a",
@@ -127,9 +128,9 @@ class FixtureRegistryTests(unittest.TestCase):
     def test_population_ids_and_workspace_source_root_are_exact(self) -> None:
         self.assertEqual(self.registry["schemaVersion"], 2)
         self.assertEqual(self.registry["deviceMediaRoot"], "$WORKSPACE/TestMedia")
-        self.assertEqual(len(self.fixtures), 37)
-        self.assertEqual(len(self.stageable), 36)
-        self.assertEqual(len(self.by_id), 37)
+        self.assertEqual(len(self.fixtures), 38)
+        self.assertEqual(len(self.stageable), 37)
+        self.assertEqual(len(self.by_id), 38)
 
     def test_every_stageable_fixture_has_a_safe_digest_bound_path(self) -> None:
         for fixture in self.stageable:
@@ -201,7 +202,37 @@ class FixtureRegistryTests(unittest.TestCase):
                 "internal-fate-dts-es-matroska-v1",
                 "internal-fate-truehd-atmos-matroska-v1",
                 "internal-fate-vorbis-v1",
+                "generated-audio-only-aac-stereo-181s-v1",
             },
+        )
+
+    def test_audio_only_set_carries_one_asset_that_outlasts_the_auto_hide(self) -> None:
+        # secondary-menu-pins-audio-controls opens a secondary menu, waits out the
+        # 8 s controls auto-hide window the audio-only Preparation pins, and then
+        # reads the control plane, which is three controller round trips past the
+        # tap. The FATE clips run 0.107 s to 11.9 s and none can still be Playing
+        # at that reading. This is the asset that can, and it carries no video
+        # stream at all: PlaybackFFmpegBridge derives a stream's category from
+        # codec_type alone, so the cover-art picture in inside.m4a is admitted as
+        # video and its mediaKind is video, not audioOnly.
+        long_enough = [
+            fixture
+            for fixture in self.fixtures_for("audio-only")
+            if fixture["durationSeconds"] >= 60
+        ]
+        self.assertEqual(
+            [fixture["id"] for fixture in long_enough],
+            ["generated-audio-only-aac-stereo-181s-v1"],
+        )
+        fixture = long_enough[0]
+        self.assertEqual(fixture["matrix"]["videoCodec"], "none")
+        self.assertTrue(fixture["matrix"]["hasAudio"])
+        self.assertEqual(fixture["oracle"]["videoStreamCount"], 0)
+        self.assertFalse(fixture["oracle"]["attachedPictureDisposition"])
+        self.assertTrue(
+            self.by_id["internal-fate-alac-cover-art-v1"]["oracle"][
+                "attachedPictureDisposition"
+            ]
         )
 
     def test_duplicate_label_audio_fixture_binds_stable_tracks_and_pulses(self) -> None:

@@ -40,16 +40,8 @@
       "operation": "operation:host.preflight@1"
     },
     {
-      "arguments": {
-        "rootFolderName": "Journey Fixture"
-      },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:02",
-      "maxInvocations": 1,
-      "operation": "operation:harness.reset-product-state@2"
-    },
-    {
       "arguments": {},
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:03",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:02",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -57,7 +49,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:04",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:03",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -70,7 +62,7 @@
           "FileBrowsing-SourcesSidebar-addWebDAV"
         ]
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:05",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:04",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -82,7 +74,7 @@
         "secret": false,
         "text": "Failure Matrix credentials-rejected"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:06",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:05",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -95,7 +87,7 @@
         "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:01/runtimePath",
         "textJSONKey": "address"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:07",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -108,7 +100,7 @@
         "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:01/runtimePath",
         "textJSONKey": "user"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:08",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:07",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -121,7 +113,7 @@
         "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:01/runtimePath",
         "textJSONKey": "user"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:09",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:08",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -133,7 +125,7 @@
         ],
         "settleDelayMillis": 9000
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:10",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -142,9 +134,14 @@
         "context": "main-window-browser",
         "deadlineSeconds": 20,
         "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "relatedResults": [
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:04/tappedIdentifiers",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:06/postActionState",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:07/postActionState"
+        ],
         "requireMatchedElement": true
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:11",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -152,21 +149,13 @@
       "arguments": {
         "check": "webdav-regression"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:12",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:11",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
     {
-      "arguments": {
-        "rootFolderName": "Journey Fixture"
-      },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:13",
-      "maxInvocations": 1,
-      "operation": "operation:harness.reset-product-state@2"
-    },
-    {
       "arguments": {},
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:14",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:12",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -174,7 +163,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:15",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:13",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -187,7 +176,7 @@
           "FileBrowsing-SourcesSidebar-addWebDAV"
         ]
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:16",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:14",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -199,7 +188,7 @@
         "secret": false,
         "text": "Failure Matrix server-unreachable"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:17",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:15",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -209,9 +198,9 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
         "secret": false,
-        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/unreachableAddress"
+        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:11/unreachableAddress"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:18",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:16",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -221,10 +210,10 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
         "secret": false,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/runtimePath",
+        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:11/runtimePath",
         "textJSONKey": "user"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:19",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:17",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -234,10 +223,10 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
         "secret": true,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:12/runtimePath",
+        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:11/runtimePath",
         "textJSONKey": "password"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:20",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:18",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -249,7 +238,7 @@
         ],
         "settleDelayMillis": 9000
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:21",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:19",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -258,9 +247,14 @@
         "context": "main-window-browser",
         "deadlineSeconds": 20,
         "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "relatedResults": [
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:14/tappedIdentifiers",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:16/postActionState",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:17/postActionState"
+        ],
         "requireMatchedElement": true
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:22",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:20",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -268,21 +262,13 @@
       "arguments": {
         "check": "webdav-regression"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:23",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:21",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
     {
-      "arguments": {
-        "rootFolderName": "Journey Fixture"
-      },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:24",
-      "maxInvocations": 1,
-      "operation": "operation:harness.reset-product-state@2"
-    },
-    {
       "arguments": {},
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:25",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:22",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -290,7 +276,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:26",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:23",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -303,7 +289,7 @@
           "FileBrowsing-SourcesSidebar-addWebDAV"
         ]
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:27",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:24",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -315,7 +301,7 @@
         "secret": false,
         "text": "Failure Matrix invalid-address"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:28",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:25",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -325,9 +311,9 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
         "secret": false,
-        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/missingPathAddress"
+        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:21/missingPathAddress"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:29",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:26",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -337,10 +323,10 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
         "secret": false,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/runtimePath",
+        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:21/runtimePath",
         "textJSONKey": "user"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:30",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:27",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -350,10 +336,10 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
         "secret": true,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:23/runtimePath",
+        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:21/runtimePath",
         "textJSONKey": "password"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:31",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:28",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -365,7 +351,7 @@
         ],
         "settleDelayMillis": 9000
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:32",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:29",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -374,9 +360,14 @@
         "context": "main-window-browser",
         "deadlineSeconds": 20,
         "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "relatedResults": [
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:24/tappedIdentifiers",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:26/postActionState",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:27/postActionState"
+        ],
         "requireMatchedElement": true
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:33",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:30",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     },
@@ -384,21 +375,13 @@
       "arguments": {
         "check": "webdav-regression"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:34",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:31",
       "maxInvocations": 1,
       "operation": "operation:host.preflight@1"
     },
     {
-      "arguments": {
-        "rootFolderName": "Journey Fixture"
-      },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:35",
-      "maxInvocations": 1,
-      "operation": "operation:harness.reset-product-state@2"
-    },
-    {
       "arguments": {},
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:36",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:32",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -406,7 +389,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:37",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:33",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -419,7 +402,7 @@
           "FileBrowsing-SourcesSidebar-addWebDAV"
         ]
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:38",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:34",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -431,7 +414,7 @@
         "secret": false,
         "text": "Failure Matrix requires-https"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:39",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:35",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -441,9 +424,9 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
         "secret": false,
-        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/httpAddress"
+        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:31/httpAddress"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:40",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:36",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -453,10 +436,10 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
         "secret": false,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/runtimePath",
+        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:31/runtimePath",
         "textJSONKey": "user"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:41",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:37",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -466,10 +449,10 @@
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
         "secret": true,
-        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/runtimePath",
+        "textFile": "result://call:issue-surface-behavior:source-failure-guidance-matrix:31/runtimePath",
         "textJSONKey": "password"
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:42",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:38",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -481,7 +464,7 @@
         ],
         "settleDelayMillis": 9000
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:43",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:39",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
@@ -490,9 +473,14 @@
         "context": "main-window-browser",
         "deadlineSeconds": 20,
         "identifier": "FileBrowsing-SourceConnection-webDAV-error",
+        "relatedResults": [
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:34/tappedIdentifiers",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:36/postActionState",
+          "result://call:issue-surface-behavior:source-failure-guidance-matrix:37/postActionState"
+        ],
         "requireMatchedElement": true
       },
-      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:44",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:40",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -505,7 +493,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:source-failure-guidance-matrix:o01:credentials-rejected",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:11",
+      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:10",
       "rubric": "rubric:issue-surface-behavior.source-failure-guidance-matrix.o01@1"
     },
     {
@@ -515,7 +503,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:source-failure-guidance-matrix:o01:server-unreachable",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:22",
+      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:20",
       "rubric": "rubric:issue-surface-behavior.source-failure-guidance-matrix.o01@1"
     },
     {
@@ -525,7 +513,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:source-failure-guidance-matrix:o01:invalid-address",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:33",
+      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:30",
       "rubric": "rubric:issue-surface-behavior.source-failure-guidance-matrix.o01@1"
     },
     {
@@ -535,7 +523,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:source-failure-guidance-matrix:o01:requires-https",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:44",
+      "producedByCall": "call:issue-surface-behavior:source-failure-guidance-matrix:40",
       "rubric": "rubric:issue-surface-behavior.source-failure-guidance-matrix.o01@1"
     }
   ],

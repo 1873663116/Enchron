@@ -202,8 +202,8 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "minimumPositionMillis": 500,
-        "minimumRemainingMillis": 500
+        "minimumPositionMillis": 100,
+        "minimumRemainingMillis": 0
       },
       "callId": "call:format-coverage:audio-delivery-codec-matrix:19",
       "maxInvocations": 1,

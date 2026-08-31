@@ -132,6 +132,10 @@ STRUCTURE_CHECKS = (
         "verify_regression_element_targeting.py",
     ),
     StructureCheck(
+        "regression-related-results-arity",
+        "verify_regression_related_results_arity.py",
+    ),
+    StructureCheck(
         "operation-evidence-payloads",
         "verify_operation_evidence_payloads.py",
     ),

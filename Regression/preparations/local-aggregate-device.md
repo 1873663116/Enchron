@@ -98,13 +98,22 @@
         "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
       },
       "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:local-aggregate-device:12",
+      "operation": "operation:media.stage-fixture@2",
+      "arguments": {
+        "fixtureID": "generated-viewing-storage-h264-16m01s-v1",
+        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+      },
+      "maxInvocations": 1
     }
   ],
   "produces": [
     {
       "key": "local-aggregate-staged",
       "schema": "fixture-set.local-aggregate-staged@2",
-      "producedByCall": "call:preparation:local-aggregate-device:11",
+      "producedByCall": "call:preparation:local-aggregate-device:12",
       "dependsOnTags": [
         "app.session",
         "fixture.corpus",

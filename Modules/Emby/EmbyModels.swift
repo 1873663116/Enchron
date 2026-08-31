@@ -361,6 +361,13 @@ public enum EmbyLibraryItem: Equatable, Hashable, Sendable {
         }
     }
 
+    public var isPlayable: Bool {
+        switch self {
+        case .movie, .episode: true
+        case .series, .season, .boxSet: false
+        }
+    }
+
     public var season: EmbySeason? {
         guard case .season(let season) = self else { return nil }
         return season

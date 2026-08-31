@@ -50,7 +50,9 @@
     "rules": [],
     "additionalProperties": false
   },
-  "invalidatesTags": [],
+  "invalidatesTags": [
+    "ui.state"
+  ],
   "evidenceSchemas": [
     {
       "evidenceType": "accessibility.tree",
@@ -63,7 +65,7 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:2aca7cf32430446cf0e8e30832a2fbe3fc9653e8f05004679721c834e0b99e58"
+    "digest": "sha256:cdf09b29d702c42555a10665dddb2389ab0d290fbb3e4599e7a1bcb276352599"
   }
 }
 ---

@@ -1172,7 +1172,7 @@ private struct EmbyDetailScreen: View {
     private func actionRow(_ item: EmbyLibraryItem) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             HStack(spacing: DesignTokens.Spacing.md) {
-                if isPlayable(item) {
+                if item.isPlayable {
                     if (item.metadata.userData?.playbackPositionTicks ?? 0) > 0 {
                         playButton("Resume", systemImage: "play.fill", action: .resume)
                         playButton("Play from Beginning", systemImage: "backward.end.fill", action: .fromBeginning)
@@ -1230,13 +1230,6 @@ private struct EmbyDetailScreen: View {
                 viewModel.selectedMediaSourceID = $0
             }
         )
-    }
-
-    private func isPlayable(_ item: EmbyLibraryItem) -> Bool {
-        switch item {
-        case .movie, .episode: true
-        case .series, .season, .boxSet: false
-        }
     }
 
     private func kindLabel(_ item: EmbyLibraryItem) -> String {

@@ -145,10 +145,10 @@ class StageRegisteredFixtureTests(unittest.TestCase):
         self.assertEqual(transport.target, "LEASE-TARGET")
         process_target.assert_not_called()
 
-    def test_current_registry_population_is_37_with_36_stageable(self) -> None:
+    def test_current_registry_population_is_38_with_37_stageable(self) -> None:
         registry = staging.FixtureRegistry.load(staging.DEFAULT_REGISTRY)
-        self.assertEqual(registry.total_count, 37)
-        self.assertEqual(len(registry.fixtures), 36)
+        self.assertEqual(registry.total_count, 38)
+        self.assertEqual(len(registry.fixtures), 37)
 
     def test_current_registry_source_root_is_workspace_test_media(self) -> None:
         payload = json.loads(staging.DEFAULT_REGISTRY.read_text(encoding="utf-8"))

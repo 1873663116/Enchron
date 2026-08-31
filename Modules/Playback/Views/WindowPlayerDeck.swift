@@ -435,6 +435,10 @@ struct ProductionPlaybackMoreMenu: View {
             }
             .onAppear {
                 recordReachability("menu.more")
+                reportPresentation(true)
+            }
+            .onDisappear {
+                reportPresentation(false)
             }
         }
         .accessibilityLabel("More playback settings")
@@ -511,6 +515,17 @@ struct ProductionPlaybackMoreMenu: View {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
             "reachability top actions delivered action=\(action)",
+            retention: .evidence
+        )
+#endif
+    }
+
+    private func reportPresentation(_ presented: Bool) {
+        appModel.setWindowSecondaryMenuPresented(presented)
+        appModel.setControlsFocused(presented)
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability top secondary menu visible=\(presented) menu=more",
             retention: .evidence
         )
 #endif

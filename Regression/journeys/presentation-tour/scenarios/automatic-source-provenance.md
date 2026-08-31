@@ -67,7 +67,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "flat",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:automatic-source-provenance:05",
       "maxInvocations": 1,
@@ -76,6 +77,7 @@
     {
       "arguments": {
         "context": "window",
+        "dismissControls": true,
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-videoFormat",

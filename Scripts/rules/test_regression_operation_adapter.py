@@ -755,9 +755,12 @@ class OperationAllowlistTests(unittest.TestCase):
                 {"controlsAutoHideSeconds": 8}, self.simulator
             )
         self.assertEqual(result["controlsAutoHideSeconds"], 8)
+        # The TEST_RUNNER_ prefix is what makes the value cross into the runner
+        # process; without it the runner's hardcoded 300 wins and every settle
+        # threshold expressed against this override silently stops discriminating.
         self.assertEqual(
             controller.call_args.kwargs["environment"],
-            {"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": "8"},
+            {"TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": "8"},
         )
 
     def test_unknown_operation_and_field_fail_before_backend_access(self) -> None:
@@ -3332,6 +3335,42 @@ class OperationAllowlistTests(unittest.TestCase):
             self.assertEqual(
                 observation["observedRequestIntervalsMillis"], [250, 500, 1000]
             )
+            # Each refusal is paired with the wait the client took before its
+            # next request, so the ordering claim reads off the reconnect gaps
+            # rather than off every ranged read in the log.
+            self.assertEqual(
+                observation["reconnectAttempts"],
+                [
+                    {
+                        "ordinal": 1,
+                        "declaredBackoffMillis": 250,
+                        "observedDelayMillis": 250,
+                        "range": "bytes=0-63",
+                        "recovered": True,
+                    },
+                    {
+                        "ordinal": 2,
+                        "declaredBackoffMillis": 500,
+                        "observedDelayMillis": 500,
+                        "range": "bytes=0-63",
+                        "recovered": True,
+                    },
+                    {
+                        "ordinal": 3,
+                        "declaredBackoffMillis": 1000,
+                        "observedDelayMillis": 1000,
+                        "range": "bytes=0-63",
+                        "recovered": True,
+                    },
+                ],
+            )
+            self.assertEqual(
+                observation["expectationObservation"]["reconnectAttempts"],
+                observation["reconnectAttempts"],
+            )
+            self.assertEqual(
+                observation["expectationObservation"]["reconnectAttemptLimit"], 3
+            )
             self.assertEqual(observation["rangeRequests"], ["bytes=0-63"] * 4)
             self.assertEqual(
                 observation["productBindingDigest"], "sha256:" + "8" * 64
@@ -3381,6 +3420,99 @@ class OperationAllowlistTests(unittest.TestCase):
                 ],
                 [250, 50, 1450],
             )
+
+    def test_certificate_change_reads_an_activation_generation_nobody_requested(
+        self,
+    ) -> None:
+        # The Scenario asserts the product refuses the rotated certificate and
+        # stops, so it completes no handshake against the activation
+        # generation and the host logs nothing for it. That silence is the
+        # observation; only certificate-change may publish it, because every
+        # other expectation is decided from rows the product produced.
+        backend = adapter.ResidentOperationBackend()
+        with tempfile.TemporaryDirectory(prefix="certificate-change-test-") as directory:
+            log_path = Path(directory).resolve() / "generation-4.jsonl"
+            log_path.write_text("", encoding="utf-8")
+            receipt = {
+                "schema": "enchron.regression.remote-source-receipt@1",
+                "receiptID": "receipt:g-000004:certificate-rotation",
+                "recipe": "certificate-rotation",
+                "generation": 4,
+                "endpointDigest": "sha256:" + "1" * 64,
+                "activationTime": "2026-08-29T00:00:00.000000Z",
+                "priorStateDigest": "sha256:" + "2" * 64,
+                "terminalStateDigest": "sha256:" + "3" * 64,
+                "restoredStateDigest": "sha256:" + "4" * 64,
+                "logPath": str(log_path),
+                "logDigest": "sha256:"
+                + hashlib.sha256(log_path.read_bytes()).hexdigest(),
+                "objectManifestHashes": {"fixture": "sha256:" + "5" * 64},
+                "priorCertificateFingerprint": "sha256:" + "6" * 64,
+                "certificateFingerprint": "sha256:" + "7" * 64,
+            }
+            terminal = {
+                "recipe": "healthy",
+                "generation": 5,
+                "address": "https://192.168.64.1:8443/dav/regression/",
+                "endpointDigest": "sha256:" + "8" * 64,
+                "certificateFingerprint": "sha256:" + "7" * 64,
+            }
+            controller = mock.Mock()
+            controller.receipt.return_value = receipt
+            controller.status.return_value = terminal
+            with (
+                mock.patch.object(
+                    adapter._remote_preflight.remote,
+                    "RemoteSourceController",
+                    return_value=controller,
+                ),
+                mock.patch.object(
+                    backend,
+                    "_remote_preflight_configuration",
+                    return_value=mock.Mock(service=object()),
+                ),
+            ):
+                observation = backend._remote_observation(
+                    {
+                        "remoteExpectation": "certificate-change",
+                        "remoteReceiptID": receipt["receiptID"],
+                        "restoredGenerationToken": "5",
+                    }
+                )
+
+                self.assertEqual(observation["requestEntries"], [])
+                self.assertEqual(observation["requestCursor"], "0")
+                self.assertEqual(observation["requestEntriesSinceCursor"], [])
+                self.assertEqual(
+                    observation["certificateAddress"], "192.168.64.1:8443"
+                )
+                self.assertEqual(
+                    observation["priorCertificateFingerprint"],
+                    receipt["priorCertificateFingerprint"],
+                )
+                self.assertEqual(
+                    observation["certificateFingerprint"],
+                    receipt["certificateFingerprint"],
+                )
+                self.assertEqual(
+                    observation["requestLogDigest"], receipt["logDigest"]
+                )
+
+                # A fault the product is meant to answer over HTTP keeps the
+                # nonempty request log its rubric reads.
+                receipt["recipe"] = "finite-reconnect"
+                receipt["receiptID"] = "receipt:g-000004:finite-reconnect"
+                with self.assertRaisesRegex(
+                    adapter.OperationAdapterError, "request log is empty"
+                ):
+                    backend._remote_observation(
+                        {
+                            "remoteExpectation": "finite-backoff",
+                            "remoteReceiptID": receipt["receiptID"],
+                            "restoredGenerationToken": "5",
+                            "productBindingDigest": "sha256:" + "9" * 64,
+                        }
+                    )
 
     def test_format_apply_accepts_only_exact_custom_angle_coverage(self) -> None:
         spec = adapter.SPECS["operation:format.apply@2"]
@@ -3984,7 +4116,20 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertIn(
             "schema=enchron.regression.certificate-trust-probe@1", source
         )
-        self.assertIn('"currentFingerprintTrusted=false"', source)
+        # The probe reports what the defaults hold instead of deciding the
+        # trust boundary by raising: a literal false could never fail, so the
+        # negative control it backs was unreachable.
+        self.assertNotIn('"currentFingerprintTrusted=false"', source)
+        for reported in (
+            "currentFingerprintTrusted=\\(currentFingerprintTrusted)",
+            "storedMatchesPreviousFingerprint=\\(storedMatchesPrevious)",
+            "storedFingerprint=\\(storedReport)",
+        ):
+            self.assertIn(reported, source)
+        self.assertIn(
+            "let currentFingerprintTrusted = storedFingerprint == currentFingerprint",
+            source,
+        )
 
     def test_certificate_surface_observation_requires_two_connection_decisions_in_order(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -4791,7 +4936,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         }
 
     @staticmethod
-    def subtitle_playback_state(**overrides: str) -> dict[str, object]:
+    def subtitle_control_plane_state(**overrides: str) -> dict[str, object]:
         fields = {
             "session": "session-a",
             "mediaName": "sdr-bframe-aggregate-30s.mkv",
@@ -4805,15 +4950,12 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "error": "none",
         }
         fields.update(overrides)
+        # _subtitle_window_state returns exactly these three keys, so the
+        # fixture may not carry fields the real reading never publishes.
         return {
             "succeeded": True,
-            "session": fields["session"],
-            "mediaName": fields["mediaName"],
-            "sourceIdentity": fields["sourceIdentity"],
-            "contentRevision": fields["contentRevision"],
             "fields": fields,
             "response": {"success": True},
-            "missingIdentityFields": [],
         }
 
     @staticmethod
@@ -5038,6 +5180,39 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             self.device,
         )
 
+    def test_subtitle_selection_reads_the_declared_window_control_plane(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        plane = {"subtitleTrack": "off", "transition": "none"}
+        document = {"success": True, "matchedElement": {"value": "x"}}
+        with mock.patch.object(
+            backend, "_read_control_plane", return_value=(plane, document)
+        ) as read:
+            observed = backend._subtitle_window_state(
+                self.device, include_screenshot=True
+            )
+        read.assert_called_once_with(
+            self.device,
+            "PlayerUI-window-control-plane",
+            include_screenshot=True,
+        )
+        self.assertEqual(
+            observed,
+            {"succeeded": True, "fields": plane, "response": document},
+        )
+        # transition= is published by windowPlaybackStateValue alone, so a
+        # settlement predicate that requires it cannot read playback-state.
+        self.assertIn("transition", observed["fields"])
+
+    def test_subtitle_selection_rejects_a_missing_window_control_plane(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        with mock.patch.object(
+            backend, "_read_control_plane", return_value=(None, {})
+        ):
+            with self.assertRaisesRegex(
+                adapter.OperationAdapterError, "window control plane"
+            ):
+                backend._subtitle_window_state(self.device)
+
     def test_subtitle_selection_discovers_dynamic_identity_and_waits_for_product_state(self) -> None:
         backend = adapter.ResidentOperationBackend()
         target_id = "external.subtitle.sha256-stable-source.0"
@@ -5048,15 +5223,15 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "sourceKind": "local-sidecar",
             "isSelected": False,
         }
-        before = self.subtitle_playback_state()
-        after = self.subtitle_playback_state(subtitleTrack=target_id)
+        before = self.subtitle_control_plane_state()
+        after = self.subtitle_control_plane_state(subtitleTrack=target_id)
         arguments = VALID_ARGUMENTS["operation:playback.select-subtitle@1"]
         with (
             mock.patch.object(
                 backend,
-                "_diagnostics_playback_state_1",
+                "_subtitle_window_state",
                 side_effect=[before, after],
-            ) as playback_state,
+            ) as window_state,
             mock.patch.object(
                 backend,
                 "_select_public_subtitle_item",
@@ -5078,10 +5253,10 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertEqual(result["semanticOutcome"], "selected")
         self.assertTrue(result["selectionSettled"])
         self.assertEqual(
-            playback_state.call_args_list,
+            window_state.call_args_list,
             [
-                mock.call({}, self.device),
-                mock.call({}, self.device, include_screenshot=True),
+                mock.call(self.device),
+                mock.call(self.device, include_screenshot=True),
             ],
         )
         self.assertEqual(len(result["frames"]), 1)
@@ -5140,8 +5315,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                     "sourceKind": "local-sidecar",
                     "isSelected": False,
                 }
-                before = self.subtitle_playback_state()
-                after = self.subtitle_playback_state(subtitleTrack=target_id)
+                before = self.subtitle_control_plane_state()
+                after = self.subtitle_control_plane_state(subtitleTrack=target_id)
                 arguments = {
                     "host": "playerUI",
                     "sourceKind": "local-sidecar",
@@ -5151,7 +5326,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 with (
                     mock.patch.object(
                         backend,
-                        "_diagnostics_playback_state_1",
+                        "_subtitle_window_state",
                         side_effect=[before, after],
                     ),
                     mock.patch.object(
@@ -5292,13 +5467,13 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                     track_label=None,
                 )
 
-        remote_state = self.subtitle_playback_state(
+        remote_state = self.subtitle_control_plane_state(
             collectionOrigin="sourceDirectory",
             playbackAddressKind="loopback",
         )
         with mock.patch.object(
             backend,
-            "_diagnostics_playback_state_1",
+            "_subtitle_window_state",
             return_value=remote_state,
         ), mock.patch.object(
             backend, "_select_public_subtitle_item"
@@ -5317,7 +5492,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "sourceKind": "local-sidecar",
             "isSelected": False,
         }
-        still_off = self.subtitle_playback_state()
+        still_off = self.subtitle_control_plane_state()
         arguments = {
             "host": "playerUI",
             "sourceKind": "local-sidecar",
@@ -5326,8 +5501,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         with (
             mock.patch.object(
                 backend,
-                "_diagnostics_playback_state_1",
-                side_effect=[self.subtitle_playback_state(), still_off],
+                "_subtitle_window_state",
+                side_effect=[self.subtitle_control_plane_state(), still_off],
             ),
             mock.patch.object(
                 backend,
@@ -5346,14 +5521,14 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertEqual(result["reason"], "subtitle-selection-deadline-expired")
         self.assertEqual(result["selectionResponse"], selection)
 
-        changed = self.subtitle_playback_state(
+        changed = self.subtitle_control_plane_state(
             session="session-b", subtitleTrack=target_id
         )
         with (
             mock.patch.object(
                 backend,
-                "_diagnostics_playback_state_1",
-                side_effect=[self.subtitle_playback_state(), changed],
+                "_subtitle_window_state",
+                side_effect=[self.subtitle_control_plane_state(), changed],
             ),
             mock.patch.object(
                 backend,
@@ -6365,6 +6540,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 f"previousFingerprint={previous}",
                 f"currentFingerprint={current}",
                 "currentFingerprintTrusted=false",
+                "storedMatchesPreviousFingerprint=true",
             ],
         }
         with (
@@ -6435,7 +6611,59 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertEqual(
             observation["currentFingerprintTrustedAfterClose"], "false"
         )
+        trust = observation["interruption"]["trust"]
+        self.assertEqual(
+            trust["expectationObservation"]["expected"],
+            {
+                "storedFingerprint": previous,
+                "currentFingerprintTrusted": "false",
+                "storedMatchesPreviousFingerprint": "true",
+            },
+        )
+        self.assertTrue(trust["expectationObservation"]["trustBoundaryHeld"])
         self.assertTrue(result["playbackObservation"]["available"])
+
+    def test_certificate_trust_probe_records_a_trusted_rotation_instead_of_raising(
+        self,
+    ) -> None:
+        backend = adapter.ResidentOperationBackend()
+        previous = "sha256:" + "a" * 64
+        current = "sha256:" + "b" * 64
+        # The product accepted the rotated certificate: the boundary is broken,
+        # so the probe has to return that reading for the Oracle to judge
+        # rather than abort the call into Indeterminate.
+        payload = {
+            "success": True,
+            "ok": True,
+            "payload": [
+                "schema=enchron.regression.certificate-trust-probe@1",
+                f"storedFingerprint={current}",
+                f"previousFingerprint={previous}",
+                f"currentFingerprint={current}",
+                "currentFingerprintTrusted=true",
+                "storedMatchesPreviousFingerprint=false",
+            ],
+        }
+        with mock.patch.object(backend, "_app_command", return_value=payload):
+            trust = backend._certificate_trust_probe(
+                self.device,
+                {
+                    "certificateAddress": "host:8443",
+                    "priorCertificateFingerprint": previous,
+                    "certificateFingerprint": current,
+                },
+            )
+        self.assertEqual(trust["storedFingerprint"], current)
+        self.assertEqual(trust["currentFingerprintTrusted"], "true")
+        self.assertEqual(
+            trust["expectationObservation"]["observed"],
+            {
+                "storedFingerprint": current,
+                "currentFingerprintTrusted": "true",
+                "storedMatchesPreviousFingerprint": "false",
+            },
+        )
+        self.assertFalse(trust["expectationObservation"]["trustBoundaryHeld"])
 
     def test_certificate_change_surface_probe_inlines_pre_close_state(self) -> None:
         backend = adapter.ResidentOperationBackend()
@@ -6503,6 +6731,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                         f"previousFingerprint={previous}",
                         f"currentFingerprint={current}",
                         "currentFingerprintTrusted=false",
+                        "storedMatchesPreviousFingerprint=true",
                     ],
                 },
             ),

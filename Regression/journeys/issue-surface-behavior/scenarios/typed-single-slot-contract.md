@@ -63,13 +63,7 @@
     {
       "arguments": {
         "context": "window",
-        "deadlineSeconds": 45,
-        "identifier": "PlayerUI-loadFailure-secondary",
-        "relatedResults": [
-          "result://call:issue-surface-behavior:typed-single-slot-contract:03/response",
-          "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement"
-        ],
-        "requireMatchedElement": true
+        "identifier": "PlayerUI-playbackIssue-confirm"
       },
       "callId": "call:issue-surface-behavior:typed-single-slot-contract:05",
       "maxInvocations": 1,
@@ -82,7 +76,8 @@
         "identifier": "PlayerUI-loadFailure-secondary",
         "relatedResults": [
           "result://call:issue-surface-behavior:typed-single-slot-contract:03/response",
-          "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement"
+          "result://call:issue-surface-behavior:typed-single-slot-contract:03/matchedElement",
+          "result://call:issue-surface-behavior:typed-single-slot-contract:05/observations"
         ],
         "requireMatchedElement": true
       },
@@ -99,7 +94,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:issue-surface-behavior:typed-single-slot-contract:o01:first-post-state",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:05",
+      "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:03",
       "rubric": "rubric:issue-surface-behavior.typed-single-slot-contract.o01@1"
     },
     {

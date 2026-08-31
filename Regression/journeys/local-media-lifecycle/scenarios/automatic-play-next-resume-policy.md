@@ -96,7 +96,7 @@
     },
     {
       "arguments": {
-        "fileName": "sdr-bframe-multiaudio-avsync-120s.mp4"
+        "fileName": "viewing-storage-16m01s.mp4"
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:08",
       "maxInvocations": 1,
@@ -114,7 +114,7 @@
       "arguments": {
         "deadlineSeconds": 45,
         "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:10",
       "maxInvocations": 1,
@@ -134,9 +134,9 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedMediaName": "sdr-bframe-multiaudio-avsync-120s.mp4",
-        "minimumPositionMillis": 16000,
-        "minimumRemainingMillis": 30000
+        "expectedMediaName": "viewing-storage-16m01s.mp4",
+        "minimumPositionMillis": 20000,
+        "minimumRemainingMillis": 300000
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:12",
       "maxInvocations": 1,
@@ -165,7 +165,7 @@
       "arguments": {
         "context": "main-window-browser",
         "identifiers": [
-          "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+          "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
         ]
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:15",
@@ -206,9 +206,9 @@
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedMediaName": "sdr-bframe-multiaudio-avsync-120s.mp4",
-        "minimumPositionMillis": 12000,
-        "minimumRemainingMillis": 30000
+        "expectedMediaName": "viewing-storage-16m01s.mp4",
+        "minimumPositionMillis": 20000,
+        "minimumRemainingMillis": 300000
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:19",
       "maxInvocations": 1,
@@ -264,9 +264,9 @@
       "arguments": {
         "deadlineSeconds": 90,
         "differentSessionFrom": "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session",
-        "expectedMediaName": "sdr-bframe-multiaudio-avsync-120s.mp4",
-        "minimumPositionMillis": 12000,
-        "minimumRemainingMillis": 30000
+        "expectedMediaName": "viewing-storage-16m01s.mp4",
+        "minimumPositionMillis": 20000,
+        "minimumRemainingMillis": 300000
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:25",
       "maxInvocations": 1,

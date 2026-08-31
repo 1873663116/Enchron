@@ -5,7 +5,7 @@
   "id": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o01@1",
   "title": "Portal Format And Panorama Actions Coexist",
   "criteria": [
-    "The bound accessibility.tree is one portal tapSequence return (product.md:21) whose alsoInspected JSON array records, after afterStep label:Playback surface, PlayerUI-TopAction-resumePanorama and PlayerUI-TopAction-videoFormat as exists, enabled, and hittable in that same controller command.",
+    "The bound accessibility.tree is one portal tapSequence return (product.md:21) whose alsoInspected JSON array records, after afterStep label:Playback surface, PlayerUI-TopAction-resumePanorama and PlayerUI-TopAction-videoFormat as exists, enabled, and hittable in that same controller command. The producer declares dismissControls true, so the label:Playback surface step raises the portal chrome: the surface is a bare showControls.toggle() (PlaybackSessionModel.swift:579-589) and the cancelled editor above it leaves the chrome shown, so without that declaration the step would hide both siblings in the same command that is supposed to read them.",
     "tappedIdentifiers contain only PlayerUI-TopAction-resumePanorama; videoFormat appears in alsoInspected and not in tappedIdentifiers; the command succeeds and does not deliver the sibling action."
   ],
   "negativeControls": [

@@ -23,4 +23,4 @@
 ---
 # 远程播放的网络韧性
 
-The Journey groups scenarios and declares only the five reviewed state-handoff edges.
+The Journey groups scenarios and declares only the reviewed state-handoff edges.

@@ -105,6 +105,17 @@
     },
     {
       "callId": "call:preparation:emby-test-library:11",
+      "operation": "operation:accessibility.activate@2",
+      "arguments": {
+        "context": "main-window-browser",
+        "labels": [
+          "以后"
+        ]
+      },
+      "maxInvocations": 1
+    },
+    {
+      "callId": "call:preparation:emby-test-library:12",
       "operation": "operation:accessibility.inspect@2",
       "arguments": {
         "context": "main-window-browser",
@@ -114,7 +125,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:emby-test-library:12",
+      "callId": "call:preparation:emby-test-library:13",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "emby-aggregate"
@@ -126,7 +137,7 @@
     {
       "key": "emby-test-library-ready",
       "schema": "remote-source.emby-library@2",
-      "producedByCall": "call:preparation:emby-test-library:12",
+      "producedByCall": "call:preparation:emby-test-library:13",
       "dependsOnTags": [
         "app.session",
         "emby.account",
@@ -142,4 +153,4 @@
 ---
 # Prepare emby test library
 
-The runtime Preparation adapter validates the seeded Emby server, resets any persisted Emby account, enters the live runtime address and credentials through the public Emby connection form, verifies the connected home screen, and produces reusable Emby library state.
+The runtime Preparation adapter validates the seeded Emby server, resets any persisted Emby account, enters the live runtime address and credentials through the public Emby connection form, dismisses the system Save-Password sheet that submitting those credentials raises, verifies the connected home screen, and produces reusable Emby library state.

@@ -15,7 +15,7 @@
     }
   },
   "lane": "simulator",
-  "estimatedCostMillis": 140000,
+  "estimatedCostMillis": 190000,
   "staticCases": [
     "three-toggle-sequence-and-autohide"
   ],
@@ -108,7 +108,7 @@
     {
       "arguments": {
         "cursorToken": "result://call:window-spatial-input:window-surface-controls-toggle-and-autohide:05/cursorToken",
-        "settleDelayMillis": 9000
+        "settleDelayMillis": 30000
       },
       "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:09",
       "maxInvocations": 1,

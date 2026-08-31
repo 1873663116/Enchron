@@ -77,26 +77,8 @@
       "operation": "operation:format.apply@2"
     },
     {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:06",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "count": 3,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:07",
-      "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
-    },
-    {
       "arguments": {},
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:08",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:06",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -104,7 +86,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:09",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:07",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -114,7 +96,7 @@
         "expectedLanding": "either-main-window",
         "identifier": "MediaLibrary-grid-video-360.mp4"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:10",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:08",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -125,7 +107,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:11",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:09",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -135,31 +117,13 @@
         "projection": "equirectangular360",
         "stereoLayout": "mono"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:12",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:10",
       "maxInvocations": 1,
       "operation": "operation:format.apply@2"
     },
     {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:13",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "count": 3,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:14",
-      "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
-    },
-    {
       "arguments": {},
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:15",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:11",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -167,7 +131,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:16",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:12",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -177,7 +141,7 @@
         "expectedLanding": "either-main-window",
         "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:17",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:13",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -188,7 +152,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:18",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:14",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -199,31 +163,13 @@
         "projection": "customAngle",
         "stereoLayout": "mono"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:19",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:15",
       "maxInvocations": 1,
       "operation": "operation:format.apply@2"
     },
     {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:20",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "count": 3,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:21",
-      "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
-    },
-    {
       "arguments": {},
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:22",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:16",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -231,7 +177,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:23",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:17",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -241,7 +187,7 @@
         "expectedLanding": "either-main-window",
         "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:24",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:18",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -252,7 +198,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:25",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:19",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -263,27 +209,9 @@
         "projection": "customAngle",
         "stereoLayout": "mono"
       },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:26",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:20",
       "maxInvocations": 1,
       "operation": "operation:format.apply@2"
-    },
-    {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:27",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "count": 3,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:projection-and-stereo:panorama-coverage-angle:28",
-      "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
     }
   ],
   "obligations": [
@@ -304,7 +232,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:equirectangular-360",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:12",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:10",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     },
     {
@@ -314,7 +242,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:custom-angle-200",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:19",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:15",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     },
     {
@@ -324,7 +252,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:panorama-coverage-angle:o01:custom-angle-240",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:26",
+      "producedByCall": "call:projection-and-stereo:panorama-coverage-angle:20",
       "rubric": "rubric:projection-and-stereo.panorama-coverage-angle.o01@1"
     }
   ],

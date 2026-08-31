@@ -67,7 +67,8 @@
       "arguments": {
         "deadlineSeconds": 30,
         "projection": "equirectangular180",
-        "stereoLayout": "mono"
+        "stereoLayout": "mono",
+        "summonControls": true
       },
       "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:05",
       "maxInvocations": 1,
@@ -76,6 +77,7 @@
     {
       "arguments": {
         "context": "portal",
+        "dismissControls": true,
         "labels": [
           "Playback surface"
         ]
@@ -113,6 +115,7 @@
           "PlayerUI-TopAction-videoFormat"
         ],
         "context": "portal",
+        "dismissControls": true,
         "identifiers": [
           "PlayerUI-TopAction-resumePanorama"
         ],

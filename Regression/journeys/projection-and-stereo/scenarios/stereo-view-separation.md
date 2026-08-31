@@ -76,26 +76,8 @@
       "operation": "operation:format.apply@2"
     },
     {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:stereo-view-separation:06",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "count": 3,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:projection-and-stereo:stereo-view-separation:07",
-      "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
-    },
-    {
       "arguments": {},
-      "callId": "call:projection-and-stereo:stereo-view-separation:08",
+      "callId": "call:projection-and-stereo:stereo-view-separation:06",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -103,7 +85,7 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:09",
+      "callId": "call:projection-and-stereo:stereo-view-separation:07",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
@@ -113,7 +95,7 @@
         "expectedLanding": "either-main-window",
         "identifier": "MediaLibrary-grid-video-180_3D_TB.mp4"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:10",
+      "callId": "call:projection-and-stereo:stereo-view-separation:08",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -124,7 +106,7 @@
         "lifecycle": "playing",
         "presentation": "either-main-window"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:11",
+      "callId": "call:projection-and-stereo:stereo-view-separation:09",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
@@ -134,31 +116,13 @@
         "projection": "equirectangular180",
         "stereoLayout": "topBottom"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:12",
+      "callId": "call:projection-and-stereo:stereo-view-separation:10",
       "maxInvocations": 1,
       "operation": "operation:format.apply@2"
     },
     {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:stereo-view-separation:13",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
-    },
-    {
-      "arguments": {
-        "context": "portal",
-        "count": 3,
-        "minimumIntervalMillis": 1000
-      },
-      "callId": "call:projection-and-stereo:stereo-view-separation:14",
-      "maxInvocations": 1,
-      "operation": "operation:evidence.capture-frames@1"
-    },
-    {
       "arguments": {},
-      "callId": "call:projection-and-stereo:stereo-view-separation:15",
+      "callId": "call:projection-and-stereo:stereo-view-separation:11",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -166,17 +130,17 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:16",
+      "callId": "call:projection-and-stereo:stereo-view-separation:12",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedLanding": "either-main-window",
-        "identifier": "MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov"
+        "expectedLanding": "window",
+        "identifier": "MediaLibrary-grid-video-3D-example.mp4"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:17",
+      "callId": "call:projection-and-stereo:stereo-view-separation:13",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -185,19 +149,11 @@
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
-        "presentation": "either-main-window"
+        "presentation": "window"
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:18",
+      "callId": "call:projection-and-stereo:stereo-view-separation:14",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
-    },
-    {
-      "arguments": {
-        "positionMillionths": 0
-      },
-      "callId": "call:projection-and-stereo:stereo-view-separation:19",
-      "maxInvocations": 1,
-      "operation": "operation:playback.seek@2"
     },
     {
       "arguments": {
@@ -205,7 +161,7 @@
         "count": 3,
         "minimumIntervalMillis": 500
       },
-      "callId": "call:projection-and-stereo:stereo-view-separation:20",
+      "callId": "call:projection-and-stereo:stereo-view-separation:15",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -228,7 +184,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:stereo-view-separation:o01:top-bottom",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:stereo-view-separation:12",
+      "producedByCall": "call:projection-and-stereo:stereo-view-separation:10",
       "rubric": "rubric:projection-and-stereo.stereo-view-separation.o01@1"
     },
     {
@@ -238,7 +194,7 @@
       "evidenceType": "visual.frames",
       "id": "obligation:projection-and-stereo:stereo-view-separation:o01:mv-hevc-two-view",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:projection-and-stereo:stereo-view-separation:20",
+      "producedByCall": "call:projection-and-stereo:stereo-view-separation:15",
       "rubric": "rubric:projection-and-stereo.stereo-view-separation.o01@1"
     }
   ],
