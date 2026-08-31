@@ -1174,6 +1174,40 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
         self.assertIn("3 times running", str(raised.exception))
 
+    def test_a_runner_that_stopped_answering_ends_the_run(self) -> None:
+        # The controller exits normally and reports the runner's silence, which
+        # is what a dead app looks like from here. One window segment took this
+        # shape for four calls and still reported eighty-one deliveries.
+        dead = SimpleNamespace(
+            stdout=json.dumps({
+                "success": False,
+                "message": "The runner did not answer tap within 90 seconds.",
+            }),
+            stderr="", returncode=0,
+        )
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            with patch.object(matrix.subprocess, "run", return_value=dead), \
+                 self.assertRaises(matrix.ControllerStopped):
+                for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS):
+                    run.controller("tap", "--identifier", "x")
+
+    def test_a_product_refusal_does_not_end_the_run(self) -> None:
+        refused = SimpleNamespace(
+            stdout=json.dumps({
+                "success": False,
+                "message": "settings.end-behavior has no target=Stop; available=stop.",
+            }),
+            stderr="", returncode=0,
+        )
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            with patch.object(matrix.subprocess, "run", return_value=refused):
+                for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS + 2):
+                    run.controller("app-command", "--verb", "selectMenuItem")
+
+            self.assertEqual(run.consecutive_timeouts, 0)
+
     def test_one_timeout_is_a_bad_step_not_a_dead_run(self) -> None:
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))

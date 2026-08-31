@@ -53,14 +53,25 @@ PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
 
 CONSECUTIVE_CONTROLLER_TIMEOUTS = 3
-"""Controller timeouts in a row that end the run.
+"""Unanswered controller calls in a row that end the run.
 
-Counted, not timed. A single timeout is a step that failed and the run is right
-to carry on past it. Three in a row is the device having stopped answering, and
-every step after that produces a refusal recorded as a product defect: one run
-spent forty minutes writing eight hundred pieces of evidence that way and
-reported no error at all, because each timeout looked like one bad step.
+Counted, not timed. A single unanswered call is a step that failed and the run
+is right to carry on past it. Three in a row is the app having stopped talking,
+and every step after that records a refusal that reads afterwards as a product
+defect.
+
+"Unanswered" is the controller not producing a usable answer, which is not the
+same as the subprocess timing out. When the runner dies the controller exits
+normally and reports it: `The runner did not answer tap within 90 seconds`. One
+window segment took ninety-seven seconds on a tap, then failed activate,
+snapshot and probeStatus in turn, and still finished with eighty-one deliveries
+that had never happened.
 """
+
+NO_ANSWER = re.compile(
+    r"did not (?:answer|respond)|exceeded [\d.]+ seconds|returned non-JSON"
+)
+"""What the controller says when nothing on the other end replied."""
 
 
 class ControllerStopped(Exception):
@@ -1157,9 +1168,7 @@ class ReachabilityRun:
                 "success": False,
                 "error": f"controller {action} exceeded {effective_timeout:.1f} seconds",
             }
-            self.consecutive_timeouts += 1
         else:
-            self.consecutive_timeouts = 0
             try:
                 document = json.loads(completed.stdout)
             except json.JSONDecodeError:
@@ -1172,6 +1181,12 @@ class ReachabilityRun:
         document = redact_sensitive_values(
             document, getattr(self, "sensitive_values", ())
         )
+        if document.get("success") is not True and NO_ANSWER.search(
+            str(document.get("error", "")) + str(document.get("message", ""))
+        ):
+            self.consecutive_timeouts += 1
+        elif document.get("success") is True:
+            self.consecutive_timeouts = 0
         if self.consecutive_timeouts >= CONSECUTIVE_CONTROLLER_TIMEOUTS:
             raise ControllerStopped(
                 action, effective_timeout, self.consecutive_timeouts
