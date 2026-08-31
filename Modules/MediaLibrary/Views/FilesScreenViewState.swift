@@ -232,8 +232,6 @@ public final class FilesScreenViewState {
     var isBatchRemoveConfirmationPresented = false
 
 #if DEBUG
-    public private(set) var debugMenuDeliveryRevision = 0
-    @ObservationIgnored private var debugMenuRequests: [DebugMenuSelectionRequest] = []
 #endif
 
     public init() {}
@@ -254,14 +252,5 @@ public final class FilesScreenViewState {
         return true
     }
 
-    public func deliverDebugMenuSelection(_ request: DebugMenuSelectionRequest) {
-        debugMenuRequests.append(request)
-        debugMenuDeliveryRevision &+= 1
-    }
-
-    func takeDebugMenuSelections() -> [DebugMenuSelectionRequest] {
-        defer { debugMenuRequests.removeAll() }
-        return debugMenuRequests
-    }
 #endif
 }

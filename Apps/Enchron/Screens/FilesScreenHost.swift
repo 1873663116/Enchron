@@ -279,14 +279,6 @@ struct FilesScreenHost: View {
                 return wasApplied
             }
         }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .debugMenuSelection)
-        ) { notification in
-            guard let request = notification.object as? DebugMenuSelectionRequest else {
-                return
-            }
-            screenState.deliverDebugMenuSelection(request)
-        }
 #endif
     }
 

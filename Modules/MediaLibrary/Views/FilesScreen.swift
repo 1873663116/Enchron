@@ -174,10 +174,13 @@ public struct FilesScreen: View {
             endMediaReferenceSelection()
         }
 #if DEBUG
-        .onChange(of: state.debugMenuDeliveryRevision) { _, _ in
-            for request in state.takeDebugMenuSelections() {
-                handleDebugMenuSelection(request)
+        .onReceive(
+            NotificationCenter.default.publisher(for: .debugMenuSelection)
+        ) { notification in
+            guard let request = notification.object as? DebugMenuSelectionRequest else {
+                return
             }
+            handleDebugMenuSelection(request)
         }
 #endif
         .sheet(
