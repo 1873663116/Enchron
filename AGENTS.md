@@ -24,8 +24,3 @@ Xcode IDE 的工具，包括构建、运行、测试、调试、工程结构读�
 XcodeBuildMCP 工具承担 Xcode IDE 的缺口：SwiftPM、代码覆盖率、macOS 目标。
 
 两者都由 Xcode 工具链 `mcpbridge` 提供，无需 Xcode 图形界面运行。
-
-## 验证
-
-端到端调试与回归读取 `.agents/skills/vp-e2e`。
-指令文档中的路径由 `Scripts/rules/verify_documentation_references.py` 核对：路径必须存在，已移除的登记在 `Config/retired_documents.json`。

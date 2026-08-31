@@ -1,11 +1,11 @@
 # 播放控件的显示与隐藏
 
-控件的显示与隐藏由 `showControls` 这一个状态唯一决定。在窗口模式下，它控制 chrome 与底部 ornament 的显隐。在 docked 与 panorama 呈现下，它控制同一个 RealityView attachment 的启用状态和透明度。这个 attachment 持续留在沉浸空间中，显隐过程不会开关 Window Scene。
+控件的显示与隐藏由 `showControls` 这一个状态唯一决定。在窗口模式下，它控制顶部 chrome 与底部 ornament 的显隐。在 docked 与 panorama 呈现下，它控制同一个 RealityView attachment 的启用状态和透明度。这个 attachment 持续留在沉浸空间中，显隐过程不会开关 Window Scene。
 
 ## Sub-features
 
 - 窗口模式：点击播放表面即可切换 chrome 的显隐；chrome 会在秒级时间后自动隐藏，任何交互都会重置这个计时。
-- docked 与 panorama：用户注视并捏合各自呈现的产品交互外壳，即可召唤跟随头部姿态的空间内控件。
+- docked 与 panorama：用户注视并捏合各自呈现的产品交互外壳，即可召唤根据当前头部姿态定位的空间内控件。
 - 控件会自动隐藏，但打开二级菜单会把控件钉住。
 
 ## How to get to it (user POV)
@@ -16,7 +16,8 @@
 
 Preconditions: 会话已经建立，且正处于播放中。要驱动沉浸态，先按 [mode-transitions.md](mode-transitions.md) 的路径进入目标呈现。
 
-在窗口模式下，直接执行 `tap PlayerUI-window-playback-surface`。模拟器 lane 的沉浸模式使用 Device Hub 画布：鼠标悬停产生 Gaze，鼠标点击产生 Pinch，并走系统空间输入管线。执行前先完成 Device Hub 的目标绑定、窗口放大、Fit 画布和 Pointer 模式预检，见[模拟器 lane](../references/simulator.md)。真机 lane 只在调查产品状态时使用以下等价动作；该动作不证明真机物理输入。
+在窗口模式下，直接执行 `tap PlayerUI-window-playback-surface`。模拟器 lane 的沉浸模式使用 Device Hub 画布：鼠标悬停产生 Gaze，鼠标点击产生 Pinch，并走系统空间输入管线。执行前先完成 Device Hub 的目标绑定、窗口放大、Fit 画布和 Pointer 模式预检，见[模拟器 lane](../references/simulator.md)。
+真机 lane 只在调查产品状态时使用以下等价动作；该动作不证明真机物理输入。
 
 ```sh
 python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \

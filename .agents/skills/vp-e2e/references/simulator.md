@@ -32,14 +32,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py \
 
 传输层有三处差异：命令与应答文件由 `devicectl device copy` 改为直接读写容器目录；唤醒由 `devicectl device notification post` 改为 `simctl spawn notifyutil -p`；destination 改为 `platform=visionOS Simulator`。应答中 `devicectlCallCount` 为 0 即表示模拟器通路生效，`devicectl` 的 120 秒传输死锁问题随之消失。
 
-| 环节 | 模拟器 | 真机 |
-| --- | --- | --- |
-| `ensure-session` | 24.3 秒 | 25.7 秒，且可能撞上佩戴者授权门槛 |
-| `snapshot` 往返 | 0.2 到 0.9 秒 | 2.3 到 2.5 秒 |
-
 两侧耗时在 `controller_timings.json` 中分开记账，模拟器的键带 `simulator:` 前缀。
-
-模拟器不存在佩戴者授权 Scene，因此 `Timed out while enabling automation mode.` 一族的故障分流在本 lane 不适用。
 
 打开本地媒体目前必须经真实点击完成。
 
@@ -49,10 +42,10 @@ XCUITest 面对 Immersive Space 以及 RealityView 中的 TapGesture 与碰撞�
 
 Xcode 的 Device Hub 窗口中，Vision Pro Simulator 画布呈现佩戴者的第一人称视野，并把 Mac 的输入解释为空间输入：
 
-- 鼠标指针在画布内悬停会产生 **Hover**，系统将它解释为 **Gaze**；
-- 鼠标左键点击会产生 **On Tap Gesture**，系统将它解释为 **Pinch**。
+- 鼠标指针在画布内悬停可产生 **Hover**，系统将它解释为 **Gaze**；
+- 鼠标左键点击可产生 **OnTapGesture**，系统将它解释为 **Pinch**。
 
-这条映射走系统真实的注视加捏合输入管线。它既覆盖普通 2D 窗口 UI，也能把 Pinch 与 Gaze 送达 Immersive Space 内的碰撞形状。2026-08-23 的实测截图（`.scratch/2026-08-23-device-hub-mouse/`）证实悬停高亮与点击开播均有效。无人值守的 Agent 可以通过合成 Mac 鼠标事件完成 Hover 与 On Tap Gesture，使空间手势验证在模拟器 lane 闭环。
+这条映射走系统真实的注视加捏合输入管线。它既覆盖普通 2D 窗口 UI，也能把 Pinch 与 Gaze 送达 Immersive Space 内的碰撞形状。Agent 可以通过合成 Mac 鼠标事件完成 Hover 与 On Tap Gesture，使空间手势验证在模拟器 lane 闭环。
 
 该通路驱动 Mac 侧 GUI，不经 XCUITest 控制器。使用探针日志中的 `spatialTap` 与 `toggle` 事件判定动作是否送达产品。该能力仅适用于 Simulator 画布。真机的 Device Hub `View Screen` 在当前环境无法产生可用画面，详情见[真机 lane](device.md)。
 
@@ -60,7 +53,7 @@ Xcode 的 Device Hub 窗口中，Vision Pro Simulator 画布呈现佩戴者的�
 
 Device Hub 默认窗口较小。开始定位前，先执行下方的 `enlarge` 流程，并把工具栏缩放挡位切到 fit。
 
-Mac 合成鼠标事件可以点击 Device Hub 顶部系统控制，包括等价于物理表冠按压的 Home 主菜单按钮、视角移动和 Tap Bar。画布内的权限对话框、Files 选择器、Photos 选择器、Home 主菜单与控制中心也可用同一通路操作。这些目标不需要出现在 App 的 Accessibility 树中。通过后继系统界面、App 收到的结果与产品证据确认动作到达。
+Mac 合成鼠标事件可以点击 Device Hub 底部系统控制，包括等价于物理表冠按压的 Home 主菜单按钮、视角移动和 Tap Bar。画布内的权限对话框、Files 选择器、Photos 选择器、Home 主菜单与控制中心也可用同一通路操作。这些目标不需要出现在 App 的 Accessibility 树中。通过后继系统界面、App 收到的结果与产品证据确认动作到达。
 
 编译计划遇到这些系统输入时，切换到 Device Hub 继续执行，不得以 XCUITest 无法触达为由标记 `blocked`。Simulator 仍不替代真机。Dolby Vision、AV1、MV-HEVC 第二视图与真实硬件音频输出继续使用 device lane。
 
@@ -72,7 +65,7 @@ Files 选择器在 visionOS 中是独立系统窗口。2026-08-29 的现场实�
 
 **Device Hub 必须是前台应用，否则 cliclick 的事件落到别处，而且没有任何报错。** 这是这条通路最阴险的失败形态：命令返回成功、探针一行不增，读起来与「产品没收到点击」完全一致。从终端发命令本身不夺焦点，但任何 `osascript activate`、人手点一下终端、或别的应用弹窗都会。脚本因此在每一次指针动作前断言前台应用，不满足就拒绝执行而不是照发。
 
-**画布有输入模式，默认那一档不是「交互」。** 画布底部工具栏的第二组有五个按钮：指针、平移、移动相机、环绕、缩放。停在「移动相机」时，鼠标点击被相机操作吞掉，应用侧一条探针都不增——命令全部返回成功，读起来与「碰撞体收不到点击」完全一致。2026-08-25 那一轮大量静默零命中、以及当时记下的「片源播完后播放窗塌缩至 {{607.8,321.0},{64.5,78.2}}」，都是这一档在动相机，不是产品。切到第一个按钮（指针）之后，第一次点击就产生了 `spatialTap`。脚本每次指针动作前都先按一次指针模式（重复按是空操作），按钮位置由画布下方白色工具栏内的深色字形聚类求出：合并间隙小于 20 像素的碎片、排除窗口边缘后应当恰好十个按钮，指针是第 4 个；数目对不上就报错，因为工具栏一改，序号就不能再信。
+**画布有输入模式，默认那一档不是「交互」。** 画布底部工具栏的第二组有五个按钮：指针、平移、移动相机、环绕、缩放。停在「移动相机」时，鼠标点击被相机操作吞掉，应用侧一条探针都不增——命令全部返回成功，读起来与「碰撞体收不到点击」完全一致。切到第一个按钮（指针）之后，第一次点击就产生了 `spatialTap`。
 
 **先把窗口拉大再瞄准。** 画布是等比缩放的，指点误差与画布尺寸成反比。实测把 Device Hub 窗口从 1306×809 拉到接近全屏 2297×1181，画布从 756×425 变成 1729×972，线性放大 2.29 倍，同一个目标的容错也随之放大同样倍数。顶栏按钮 60×60 app 点在 1280×720 播放窗上，画布小的时候只有约 12 个显示点，拉大之后约 27 个——这是能不能点中的分界。脚本的 `enlarge` 子命令做这件事；画布已经达到 1200 点时它幂等返回，`gaze`/`pinch` 在画布宽度不足 1200 点时直接拒绝。
 
