@@ -61,3 +61,22 @@ payload = json.dumps({"transcript_path": transcript([user(), assistant(wakeup(de
                       "cwd": ".", "stop_hook_active": True})
 done = subprocess.run(["python3", HOOK], input=payload, capture_output=True, text=True)
 print(("OK  " if done.returncode == 0 else "FAIL") + f" stop_hook_active 防死循环: 期望 0 实得 {done.returncode}")
+
+
+
+# 空转判据：任务完成而本轮没有后续动作时，长延迟等于把已就绪的工作停下来。
+DONE = "<task-notification><status>completed</status></task-notification>"
+idle = [
+    ("任务完成后无后续工具，长延迟被拦",
+     [user("继续"), assistant(other()), notification(DONE), assistant(wakeup(delaySeconds=1200))], 2),
+    ("任务完成后无后续工具，短延迟放行",
+     [user("继续"), assistant(other()), notification(DONE), assistant(wakeup(delaySeconds=240))], 0),
+    ("任务完成后继续做事，长延迟放行",
+     [user("继续"), notification(DONE), assistant(other()), assistant(wakeup(delaySeconds=1800))], 0),
+    ("没有完成通知时长延迟不受限",
+     [user("继续"), assistant(other()), assistant(wakeup(delaySeconds=1800))], 0),
+]
+for name, records, expected in idle:
+    code, message = run(records)
+    mark = "OK  " if code == expected else "FAIL"
+    print(f"{mark} {name}: 期望 {expected} 实得 {code}")

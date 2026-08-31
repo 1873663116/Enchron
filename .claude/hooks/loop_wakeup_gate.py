@@ -13,6 +13,12 @@ armed wakeup, or it ends the loop on purpose. Both are visible in the transcript
 as a ScheduleWakeup call, so this reads the entries written since the last user
 message and looks for one.
 
+An armed wakeup keeps the loop alive but says nothing about whether it is
+moving. A turn that reads a background task's completion, writes a report and
+arms twenty minutes has parked work that was ready to run, so when a task
+finished in this turn and nothing was done with the result, the delay has to be
+short enough that the pause is a pause rather than an idle.
+
 Silent unless the session is in a loop, so ordinary sessions are unaffected.
 Writing `.claude/loop-off` turns it off without editing settings.
 """
@@ -24,6 +30,8 @@ from pathlib import Path
 import sys
 
 TOOL = "ScheduleWakeup"
+IDLE_SECONDS = 300
+"""Longest pause allowed when a task finished this turn and nothing followed."""
 
 
 def entries(path: Path) -> list[dict]:
@@ -48,6 +56,26 @@ def calls_since_last_user(records: list[dict]) -> list[dict]:
             if block.get("type") == "tool_use" and block.get("name") == TOOL:
                 found.append(block.get("input") or {})
     return found
+
+
+def completed_without_followup(records: list[dict], start: int) -> bool:
+    """True when a task reported completion and no tool ran after it."""
+    finished = None
+    for index, record in enumerate(records[start:], start):
+        text = "".join(
+            block.get("text", "")
+            for block in _content(record)
+            if block.get("type") == "text"
+        )
+        if "<task-notification>" in text and "completed" in text:
+            finished = index
+    if finished is None:
+        return False
+    for record in records[finished:]:
+        for block in _content(record):
+            if block.get("type") == "tool_use" and block.get("name") != TOOL:
+                return False
+    return True
 
 
 def _is_tool_result(record: dict) -> bool:
@@ -108,7 +136,22 @@ def main() -> int:
     if any(call.get("stop") for call in turn):
         return 0
     if turn:
-        return 0
+        start = 0
+        for index, record in enumerate(records):
+            if record.get("type") == "user" and _is_real_turn(record):
+                start = index
+        if not completed_without_followup(records, start):
+            return 0
+        delay = turn[-1].get("delaySeconds")
+        if not isinstance(delay, (int, float)) or delay <= IDLE_SECONDS:
+            return 0
+        print(
+            f"A background task completed in this turn and nothing ran after it, "
+            f"so the {int(delay)}s wakeup parks work that is ready now. Either "
+            f"act on the result before stopping, or arm at most {IDLE_SECONDS}s.",
+            file=sys.stderr,
+        )
+        return 2
 
     print(
         "This turn is part of a /loop and armed no wakeup, so nothing would wake "
