@@ -73,6 +73,23 @@ NO_ANSWER = re.compile(
 )
 """What the controller says when nothing on the other end replied."""
 
+TRANSIENT_TRANSFER = re.compile(
+    r"CoreDeviceError error (?:7000|-1)|could not be transferred"
+    r"|Failed to retrieve the file node"
+)
+"""A device file copy that failed for a reason the next attempt usually survives.
+
+7000 is the app's own poller having consumed the file between devicectl deciding
+it was there and reading it; -1 is the unknown error the transfer service
+returns under load. Both look identical to a permanent failure at the call site,
+and six copy sites each treated them that way: one lost probe chunk left a
+segment with no session marker and every one of its ninety deliveries
+unverifiable.
+"""
+
+TRANSFER_ATTEMPTS = (1.0, 2.5, 5.0)
+"""Backoff between copy attempts. The last one is longer than the app's poll."""
+
 
 class ControllerStopped(Exception):
     """The controller stopped answering, so the run cannot mean anything."""
@@ -1115,6 +1132,46 @@ class ReachabilityRun:
                     "evidence": [],
                 }
 
+    def device_copy(
+        self, *arguments: str, timeout: float, label: str
+    ) -> subprocess.CompletedProcess[str] | None:
+        """Run one devicectl copy, retrying the failures that are not answers.
+
+        Every copy site used to decide on its own what a failure meant, and none
+        of them retried. A single transient error on a probe chunk cost a whole
+        segment: the session marker never arrived, so the replay could verify
+        nothing and the run reported ninety deliveries it had no evidence for.
+        """
+        completed: subprocess.CompletedProcess[str] | None = None
+        for attempt, delay in enumerate(TRANSFER_ATTEMPTS):
+            self.direct_devicectl_calls += 1
+            try:
+                completed = subprocess.run(
+                    ["xcrun", "devicectl", *arguments],
+                    cwd=ROOT,
+                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                completed = None
+            if completed is not None and completed.returncode == 0:
+                return completed
+            output = "" if completed is None else completed.stderr + completed.stdout
+            if not TRANSIENT_TRANSFER.search(output):
+                return completed
+            self.events.append({
+                "at": utc_now(),
+                "action": "retryDeviceCopy",
+                "label": label,
+                "attempt": attempt + 1,
+                "detail": output.strip()[:160],
+            })
+            time.sleep(delay)
+        return completed
+
     def controller(self, action: str, *extra: str, timeout: float = 180.0) -> dict[str, Any]:
         refuse_when_detached()
         if (
@@ -1414,24 +1471,16 @@ class ReachabilityRun:
             })
             return []
         destination = self.raw / f"{self.sequence + 1:03d}-{label}-probe.log"
-        try:
-            completed = subprocess.run(
-                [
-                    "xcrun", "devicectl", "device", "copy", "from",
-                    "--device", CORE_DEVICE,
-                    "--domain-type", "appDataContainer",
-                    "--domain-identifier", APP_BUNDLE,
-                    "--source", PROBE_REMOTE_PATH,
-                    "--destination", str(destination),
-                ],
-                cwd=ROOT,
-                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
+        completed = self.device_copy(
+            "device", "copy", "from",
+            "--device", CORE_DEVICE,
+            "--domain-type", "appDataContainer",
+            "--domain-identifier", APP_BUNDLE,
+            "--source", PROBE_REMOTE_PATH,
+            "--destination", str(destination),
+            timeout=timeout, label="copyProbe",
+        )
+        if completed is None:
             if self.segment is not None and timeout >= 120:
                 self.channel_failures.append({
                     "at": utc_now(),
@@ -1467,26 +1516,16 @@ class ReachabilityRun:
         self.direct_devicectl_calls += 1
         self.evidence_retrieval_devicectl_calls += 1
         self.probe_retrieval_count += 1
-        try:
-            completed = subprocess.run(
-                [
-                    "xcrun", "devicectl", "device", "copy", "from",
-                    "--device", CORE_DEVICE,
-                    "--domain-type", "appDataContainer",
-                    "--domain-identifier", APP_BUNDLE,
-                    "--source", PROBE_REMOTE_PATH,
-                    "--destination", str(destination),
-                    "--timeout", str(int(timeout)),
-                ],
-                cwd=ROOT,
-                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            completed = None
+        completed = self.device_copy(
+            "device", "copy", "from",
+            "--device", CORE_DEVICE,
+            "--domain-type", "appDataContainer",
+            "--domain-identifier", APP_BUNDLE,
+            "--source", PROBE_REMOTE_PATH,
+            "--destination", str(destination),
+            "--timeout", str(int(timeout)),
+            timeout=timeout, label="retrieveBoundedProbe",
+        )
         byte_count = destination.stat().st_size if destination.is_file() else None
         passed = (
             completed is not None

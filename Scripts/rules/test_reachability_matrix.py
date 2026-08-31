@@ -1324,6 +1324,56 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             {("docked", "accessibility:PlayerUI-TopAction-more"): 1},
         )
 
+    def _copying_run(self):
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = []
+        run.direct_devicectl_calls = 0
+        return run
+
+    def test_a_transient_transfer_error_is_retried(self) -> None:
+        run = self._copying_run()
+        flaky = SimpleNamespace(
+            returncode=1, stdout="",
+            stderr="ERROR: The specified file could not be transferred. "
+                   "(com.apple.dt.CoreDeviceError error 7000)",
+        )
+        answers = [flaky, SimpleNamespace(returncode=0, stdout="", stderr="")]
+
+        with patch.object(matrix.subprocess, "run", side_effect=answers), \
+             patch.object(matrix.time, "sleep"):
+            result = run.device_copy("device", "copy", "from", timeout=30, label="probe")
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(run.direct_devicectl_calls, 2)
+        self.assertEqual(run.events[0]["action"], "retryDeviceCopy")
+
+    def test_a_real_transfer_error_is_not_retried(self) -> None:
+        run = self._copying_run()
+        refused = SimpleNamespace(
+            returncode=1, stdout="", stderr="ERROR: No such application on the device.",
+        )
+
+        with patch.object(matrix.subprocess, "run", return_value=refused), \
+             patch.object(matrix.time, "sleep"):
+            result = run.device_copy("device", "copy", "from", timeout=30, label="probe")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(run.direct_devicectl_calls, 1)
+
+    def test_the_transfer_gives_up_after_the_backoff(self) -> None:
+        run = self._copying_run()
+        flaky = SimpleNamespace(
+            returncode=1, stdout="",
+            stderr="com.apple.dt.CoreDeviceError error -1 (0xFFFFFFFF)",
+        )
+
+        with patch.object(matrix.subprocess, "run", return_value=flaky), \
+             patch.object(matrix.time, "sleep"):
+            result = run.device_copy("device", "copy", "from", timeout=30, label="probe")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(run.direct_devicectl_calls, len(matrix.TRANSFER_ATTEMPTS))
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None
