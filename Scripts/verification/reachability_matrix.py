@@ -1242,11 +1242,15 @@ class ReachabilityRun:
         document = redact_sensitive_values(
             document, getattr(self, "sensitive_values", ())
         )
-        if document.get("success") is not True and NO_ANSWER.search(
+        # Any answer at all breaks the run of silence. Only resetting on success
+        # let three unanswered calls scattered across six steps count as three in
+        # a row, and a docked segment that lost one tap, ran fine, then lost two
+        # more was ended as though the app had stopped talking.
+        if NO_ANSWER.search(
             str(document.get("error", "")) + str(document.get("message", ""))
         ):
             self.consecutive_timeouts += 1
-        elif document.get("success") is True:
+        else:
             self.consecutive_timeouts = 0
         if self.consecutive_timeouts >= CONSECUTIVE_CONTROLLER_TIMEOUTS:
             raise ControllerStopped(

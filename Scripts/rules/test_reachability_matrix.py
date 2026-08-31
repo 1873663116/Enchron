@@ -1207,6 +1207,31 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS):
                     run.controller("tap", "--identifier", "x")
 
+    def test_scattered_silences_are_not_a_run_of_silence(self) -> None:
+        # Three unanswered calls with ordinary work between them is not the app
+        # having stopped talking, and a docked segment was ended as though it
+        # were: one lost tap at step 215, two more at 219 and 220.
+        silent = SimpleNamespace(
+            stdout=json.dumps({
+                "success": False,
+                "message": "The runner did not answer tap within 90 seconds.",
+            }),
+            stderr="", returncode=0,
+        )
+        # Neither silent nor a success: this is the shape deferProbeRead has,
+        # and it is what let the old counter carry a silence across it.
+        neither = SimpleNamespace(
+            stdout=json.dumps({"deferred": True}), stderr="", returncode=0,
+        )
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            with patch.object(matrix.subprocess, "run",
+                              side_effect=[silent, neither, silent, neither, silent]):
+                for _ in range(5):
+                    run.controller("tap", "--identifier", "x")
+
+            self.assertEqual(run.consecutive_timeouts, 1)
+
     def test_a_product_refusal_does_not_end_the_run(self) -> None:
         refused = SimpleNamespace(
             stdout=json.dumps({
