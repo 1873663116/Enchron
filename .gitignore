@@ -45,3 +45,8 @@ Modules/Playback/Resources/Immersive_Space.reality
 # without the headset, so it outlives .scratch, but far too large to commit.
 # Tiers are defined in AGENTS.md.
 TestEvidence/
+
+# Coordinator ledger: watches, dispatch records, drained messages
+.claude/state/
+.claude/hooks-off
+.claude/loop-off

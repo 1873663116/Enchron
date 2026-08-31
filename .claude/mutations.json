@@ -1,0 +1,415 @@
+{
+  "version": 1,
+  "probes": {
+    "gate": "hooks/test_orca_channel_gate.py",
+    "stop": "hooks/test_loop_wakeup_gate.py",
+    "channel": "tools/test_orca_channel.py",
+    "catalog": "hooks/test_catalog_write_gate.py"
+  },
+  "mutations": [
+    {
+      "id": "gate-detach",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "DETACHERS = re.compile(r\"(?<![\\w-])(?:nohup|setsid|disown)(?![\\w-])\")",
+      "replaceWith": "DETACHERS = re.compile(r\"(?!x)x\")",
+      "probe": "gate",
+      "expect": [
+        "detach-nohup",
+        "detach-setsid",
+        "detach-disown"
+      ]
+    },
+    {
+      "id": "gate-heredoc-not-stripped",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "    command = executable_text(text)",
+      "replaceWith": "    command = text",
+      "probe": "gate",
+      "expect": [
+        "lane-heredoc-quoting-a-banned-word",
+        "lane-heredoc-then-ordinary-work"
+      ]
+    },
+    {
+      "id": "gate-heredoc-swallows-everything",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        while index < len(lines) and lines[index].strip() != delimiter:",
+      "replaceWith": "        while index < len(lines) and lines[index].strip() != \"\\0\":",
+      "probe": "gate",
+      "expect": [
+        "heredoc-then-a-real-detacher"
+      ]
+    },
+    {
+      "id": "gate-trailing-ampersand",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "TRAILING_AMPERSAND = re.compile(r\"(?<![&>|])&\\s*(?:$|[;\\n])\")",
+      "replaceWith": "TRAILING_AMPERSAND = re.compile(r\"(?!x)x\")",
+      "probe": "gate",
+      "expect": [
+        "trailing-ampersand"
+      ]
+    },
+    {
+      "id": "gate-unbound-check",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        if \"--run\" not in command and \"--terminal\" not in command:",
+      "replaceWith": "        if False:",
+      "probe": "gate",
+      "expect": [
+        "check-without-run"
+      ]
+    },
+    {
+      "id": "gate-peek",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        if \"--peek\" in command:",
+      "replaceWith": "        if False:",
+      "probe": "gate",
+      "expect": [
+        "peek"
+      ]
+    },
+    {
+      "id": "gate-unsupervised-dispatch",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "    if TERMINAL_DISPATCH.search(command):",
+      "replaceWith": "    if False:",
+      "probe": "gate",
+      "expect": [
+        "unsupervised-dispatch"
+      ]
+    },
+    {
+      "id": "gate-bracket-escape",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "    unescaped = BRACKET_ESCAPE.sub(r\"\\1\", command)",
+      "replaceWith": "    unescaped = command",
+      "probe": "gate",
+      "expect": [
+        "ps-liveness"
+      ]
+    },
+    {
+      "id": "gate-process-listers",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "PROCESS_LISTERS = re.compile(r\"(?<![\\w-])(?:ps|pgrep|pkill)(?![\\w-])\")",
+      "replaceWith": "PROCESS_LISTERS = re.compile(r\"(?!x)x\")",
+      "probe": "gate",
+      "expect": [
+        "ps-liveness",
+        "pgrep-agent"
+      ]
+    },
+    {
+      "id": "gate-pipeline-status",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "            return previous.strip()",
+      "replaceWith": "            return None",
+      "probe": "gate",
+      "expect": [
+        "pipeline-status"
+      ]
+    },
+    {
+      "id": "gate-dispatch-backlog",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        if stale:",
+      "replaceWith": "        if False:",
+      "probe": "gate",
+      "expect": [
+        "dispatch-next-turn-needs-sweep"
+      ]
+    },
+    {
+      "id": "gate-dispatch-not-recorded",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        state[\"dispatches\"].append({\"turn\": turn, \"command\": command[:400]})",
+      "replaceWith": "        pass",
+      "probe": "gate",
+      "expect": [
+        "dispatch-next-turn-needs-sweep"
+      ]
+    },
+    {
+      "id": "state-unswept-window",
+      "file": "tools/coordinator_state.py",
+      "find": "        if isinstance(entry, dict) and int(entry.get(\"turn\") or 0) < turn",
+      "replaceWith": "        if isinstance(entry, dict) and int(entry.get(\"turn\") or 0) < 0",
+      "probe": "gate",
+      "expect": [
+        "dispatch-next-turn-needs-sweep"
+      ]
+    },
+    {
+      "id": "state-turn-boundary",
+      "file": "tools/coordinator_state.py",
+      "find": "        for marker in (\"<system-reminder>\", \"<task-notification>\", \"Stop hook feedback:\")",
+      "replaceWith": "        for marker in (\"<system-reminder>\", \"Stop hook feedback:\")",
+      "probe": "stop",
+      "expect": [
+        "notification-after-arming-does-not-reset-the-turn"
+      ]
+    },
+    {
+      "id": "state-stale-threshold",
+      "file": "tools/coordinator_state.py",
+      "find": "STALE_OBSERVATIONS = 3",
+      "replaceWith": "STALE_OBSERVATIONS = 99",
+      "probe": "channel",
+      "expect": [
+        "three-identical-samples-mark-a-stall",
+        "the-threshold-is-a-sample-count-of-three"
+      ]
+    },
+    {
+      "id": "state-read-this-turn",
+      "file": "tools/coordinator_state.py",
+      "find": "        int((observation or {}).get(\"turn\") or -1) == turn",
+      "replaceWith": "        int((observation or {}).get(\"turn\") or -1) >= 0",
+      "probe": "stop",
+      "expect": [
+        "open-watch-unread-this-turn-blocks"
+      ]
+    },
+    {
+      "id": "state-closed-watch",
+      "file": "tools/coordinator_state.py",
+      "find": "        if isinstance(watch, dict) and watch.get(\"closedTurn\") is None",
+      "replaceWith": "        if isinstance(watch, dict)",
+      "probe": "stop",
+      "expect": [
+        "closed-watch-is-not-a-wait"
+      ]
+    },
+    {
+      "id": "stop-unread-watch",
+      "file": "hooks/loop_wakeup_gate.py",
+      "find": "        if not ledger.read_this_turn(watch, turn):",
+      "replaceWith": "        if False:",
+      "probe": "stop",
+      "expect": [
+        "open-watch-unread-this-turn-blocks"
+      ]
+    },
+    {
+      "id": "stop-all-settled",
+      "file": "hooks/loop_wakeup_gate.py",
+      "find": "        if total and observation.get(\"settled\") == total and not drained_this_turn(records, start):",
+      "replaceWith": "        if False:",
+      "probe": "stop",
+      "expect": [
+        "all-settled-without-a-drain-blocks"
+      ]
+    },
+    {
+      "id": "stop-drain-detection",
+      "file": "hooks/loop_wakeup_gate.py",
+      "find": "        if \"orca_channel.py\" in command and (\" drain\" in command or \" sweep\" in command):",
+      "replaceWith": "        if False:",
+      "probe": "stop",
+      "expect": [
+        "all-settled-after-a-sweep-passes"
+      ]
+    },
+    {
+      "id": "stop-parked-work",
+      "file": "hooks/loop_wakeup_gate.py",
+      "find": "    return not any(name != WAKEUP for index, name, _ in tool_uses(records, finished))",
+      "replaceWith": "    return False",
+      "probe": "stop",
+      "expect": [
+        "completion-then-only-a-wakeup-blocks",
+        "completion-then-a-short-wakeup-still-blocks"
+      ]
+    },
+    {
+      "id": "stop-unarmed-loop",
+      "file": "hooks/loop_wakeup_gate.py",
+      "find": "    if in_loop and not arms:",
+      "replaceWith": "    if False:",
+      "probe": "stop",
+      "expect": [
+        "loop-unarmed-blocks",
+        "previous-turn-arm-does-not-count"
+      ]
+    },
+    {
+      "id": "channel-ack-not-chained",
+      "file": "tools/orca_channel.py",
+      "find": "        acknowledge = [\"--ack\", str(delivery)]",
+      "replaceWith": "        acknowledge = []",
+      "probe": "channel",
+      "expect": [
+        "drain-chains-each-ack-into-the-next-check"
+      ]
+    },
+    {
+      "id": "channel-question-ignored",
+      "file": "tools/orca_channel.py",
+      "find": "        if message.get(\"type\") in {\"worker_done\", \"heartbeat\"}:\n            continue\n        payload = message.get(\"payload\")",
+      "replaceWith": "        if True:\n            continue\n        payload = message.get(\"payload\")",
+      "probe": "channel",
+      "expect": [
+        "an-unanswered-question-keeps-its-terminal-open"
+      ]
+    },
+    {
+      "id": "channel-report-not-archived",
+      "file": "tools/orca_channel.py",
+      "find": "        read = orca(\"orchestration\", \"worker-read\", \"--dispatch\", str(worker[\"dispatchId\"]))",
+      "replaceWith": "        read = {}",
+      "probe": "channel",
+      "expect": [
+        "a-report-is-archived-before-the-terminal-closes"
+      ]
+    },
+    {
+      "id": "channel-heartbeat-kept",
+      "file": "tools/orca_channel.py",
+      "find": "            if kind == \"heartbeat\":",
+      "replaceWith": "            if kind == \"never\":",
+      "probe": "channel",
+      "expect": [
+        "a-heartbeat-is-not-kept-as-a-report"
+      ]
+    },
+    {
+      "id": "channel-accepts-any-channel",
+      "file": "tools/orca_channel.py",
+      "find": "    elif arguments.task:",
+      "replaceWith": "    elif True:",
+      "probe": "channel",
+      "expect": [
+        "a-watch-with-no-channel-is-refused"
+      ]
+    },
+    {
+      "id": "channel-sweep-does-not-clear",
+      "file": "tools/orca_channel.py",
+      "find": "        {\"turn\": payload.get(\"turn\", 0), \"kind\": \"sweep\", \"closed\": closed}\n    )\n    payload[\"dispatches\"] = []",
+      "replaceWith": "        {\"turn\": payload.get(\"turn\", 0), \"kind\": \"sweep\", \"closed\": closed}\n    )",
+      "probe": "channel",
+      "expect": [
+        "a-sweep-clears-what-dispatching-recorded"
+      ]
+    },
+    {
+      "id": "watchdog-never-wakes",
+      "file": "tools/orca_channel.py",
+      "find": "            if seen.get(\"settled\") != now[\"settled\"] or seen.get(\"digest\") != now[\"digest\"]:",
+      "replaceWith": "            if False:",
+      "probe": "channel",
+      "expect": [
+        "the-watchdog-wakes-when-every-dispatch-has-settled"
+      ]
+    },
+    {
+      "id": "watchdog-wakes-too-early",
+      "file": "tools/orca_channel.py",
+      "find": "        if now[\"total\"] and now[\"settled\"] == now[\"total\"]:",
+      "replaceWith": "        if now[\"total\"]:",
+      "probe": "channel",
+      "expect": [
+        "the-watchdog-does-not-wake-on-work-still-running"
+      ]
+    },
+    {
+      "id": "gate-ack-must-name-its-run",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        if \"--ack\" in command and \"--run\" not in command:",
+      "replaceWith": "        if False:",
+      "probe": "gate",
+      "expect": [
+        "ack-without-run"
+      ]
+    },
+    {
+      "id": "gate-wait-flag",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "WAIT_FLAG = re.compile(r\"orca\\s+orchestration(?=[^\\n]*(?<![\\w-])--wait(?![\\w-]))\")",
+      "replaceWith": "WAIT_FLAG = re.compile(r\"(?!x)x\")",
+      "probe": "gate",
+      "expect": [
+        "wait-flag"
+      ]
+    },
+    {
+      "id": "gate-file-poll",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "    if FILE_POLL.search(command):",
+      "replaceWith": "    if False:",
+      "probe": "gate",
+      "expect": [
+        "file-poll-while",
+        "file-poll-until-test"
+      ]
+    },
+    {
+      "id": "gate-file-poll-catches-one-shot-tests",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "    r\"(?<![\\w-])(?:while|until)(?![\\w-])[^\\n]*?\"",
+      "replaceWith": "    r\"\"",
+      "probe": "gate",
+      "expect": [
+        "lane-one-shot-file-test",
+        "lane-bracket-file-test"
+      ]
+    },
+    {
+      "id": "gate-logical-and-splits-statements",
+      "file": "hooks/orca_channel_gate.py",
+      "find": "        elif depth == 0 and character == \"&\" and command[index : index + 2] == \"&&\":",
+      "replaceWith": "        elif False:",
+      "probe": "gate",
+      "expect": [
+        "pipeline-status-across-and"
+      ]
+    },
+    {
+      "id": "channel-retire-ignores-settled-status",
+      "file": "tools/orca_channel.py",
+      "find": "        if worker.get(\"dispatchStatus\") not in SETTLED:\n            continue",
+      "replaceWith": "        if False:\n            continue",
+      "probe": "channel",
+      "expect": [
+        "a-running-dispatch-keeps-its-terminal",
+        "a-running-dispatch-is-not-read-out"
+      ]
+    },
+    {
+      "id": "channel-digest-is-constant",
+      "file": "tools/orca_channel.py",
+      "find": "    digest = hashlib.sha256(\n        json.dumps(rows, ensure_ascii=False).encode(\"utf-8\")\n    ).hexdigest()[:16]",
+      "replaceWith": "    digest = \"0\" * 16",
+      "probe": "channel",
+      "expect": [
+        "a-status-change-moves-the-digest",
+        "a-heartbeat-moves-the-digest"
+      ]
+    },
+    {
+      "id": "catalog-write-gate-off",
+      "file": "hooks/catalog_write_gate.py",
+      "find": "    for prefix, reason in MATERIALIZED.items():",
+      "replaceWith": "    for prefix, reason in []:",
+      "probe": "catalog",
+      "expect": [
+        "catalog-v2-write",
+        "catalog-v2-edit",
+        "catalog-v2-absolute",
+        "catalog-root-member"
+      ]
+    },
+    {
+      "id": "catalog-write-gate-blocks-reads",
+      "file": "hooks/catalog_write_gate.py",
+      "find": "    if payload.get(\"tool_name\") not in (\"Write\", \"Edit\", \"NotebookEdit\"):",
+      "replaceWith": "    if False:",
+      "probe": "catalog",
+      "expect": [
+        "lane-reading-is-never-blocked"
+      ]
+    }
+  ]
+}
