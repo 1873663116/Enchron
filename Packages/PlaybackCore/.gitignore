@@ -8,4 +8,4 @@ DerivedData/
 /PlaybackCore.xcodeproj/xcuserdata/
 /PlaybackCore.xcodeproj/**/xcuserdata/
 .derivedData*/
-/Vendor/FFmpeg/PlaybackFFmpeg.xcframework/
+/Vendor/FFmpeg/PlaybackFFmpeg.xcframework
