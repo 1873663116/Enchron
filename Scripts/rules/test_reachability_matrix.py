@@ -1399,6 +1399,33 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             run.controller.call_count, matrix.ReachabilityRun.CONTROLS_VISIBLE_SAMPLES
         )
 
+    def test_transport_accepts_the_panel_s_own_spelling_of_the_fact(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.copy_probe = Mock(side_effect=[
+            [],
+            ["reachability playerPanel delivered action=rewind"],
+            ["reachability playerPanel delivered action=rewind",
+             "reachability playerPanel delivered action=forward"],
+            ["reachability playerPanel delivered action=rewind",
+             "reachability playerPanel delivered action=forward",
+             "reachability playerPanel delivered action=playPause"],
+        ])
+        run.tap_control = Mock(return_value={"success": True})
+        run.events = [{"evidence": "raw/001-tap.json"}]
+        run.delivered = Mock()
+
+        run.transport_scenario("docked")
+
+        recorded = [call.args[1] for call in run.delivered.call_args_list]
+        self.assertEqual(
+            recorded,
+            [
+                "accessibility:PlayerPanel-button-rewind",
+                "accessibility:PlayerPanel-button-forward",
+                "accessibility:PlayerPanel-button-play",
+            ],
+        )
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

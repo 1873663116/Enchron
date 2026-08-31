@@ -1038,7 +1038,10 @@ public struct FusedPlayerPanel: View {
         GlassCircleIconButton(
             systemName: primaryPlayIcon,
             accessibilityLabel: primaryPlayLabel,
-            action: { live?.onPlayPause() },
+            action: {
+                live?.onReachabilityAction("playPause")
+                live?.onPlayPause()
+            },
             accessibilityIdentifier: "PlayerPanel-button-play",
             visualSize: DesignTokens.Interactive.regular,
             targetSize: DesignTokens.Interactive.large,
@@ -1118,6 +1121,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private func performBackwardAction() {
+        live?.onReachabilityAction("rewind")
         if expansion.layout == .timeline {
             stepFrame(-1)
         } else {
@@ -1127,6 +1131,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private func performForwardAction() {
+        live?.onReachabilityAction("forward")
         if expansion.layout == .timeline {
             stepFrame(1)
         } else {
@@ -1168,7 +1173,10 @@ public struct FusedPlayerPanel: View {
         GlassCircleIconButton(
             systemName: primaryPlayIcon,
             accessibilityLabel: primaryPlayLabel,
-            action: { live?.onPlayPause() },
+            action: {
+                live?.onReachabilityAction("playPause")
+                live?.onPlayPause()
+            },
             accessibilityIdentifier: "PlayerPanel-button-play",
             visualSize: DesignTokens.Interactive.regular,
             targetSize: DesignTokens.Interactive.large,

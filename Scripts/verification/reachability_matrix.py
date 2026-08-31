@@ -4935,9 +4935,18 @@ class ReachabilityRun:
         ):
             response = self.tap_control(presentation, identifier)
             probe = self.copy_probe(f"{presentation}-{fact}")
+            # The window deck writes the fact under its own name; the panel that
+            # owns these buttons in the docked and panorama surfaces writes it
+            # under the panel's. One action, two spellings, and the docked
+            # segment waited for a line only the deck ever emits.
+            spellings = (
+                f"playback control delivered action={fact}",
+                f"reachability playerPanel delivered action={fact}",
+            )
             if response.get("success") is True and any(
-                f"playback control delivered action={fact}" in line
+                spelling in line
                 for line in probe[offset:]
+                for spelling in spellings
             ):
                 self.delivered(
                     presentation, f"accessibility:{identifier}",
