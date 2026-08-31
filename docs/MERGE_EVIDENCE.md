@@ -115,3 +115,11 @@ python3 Scripts/rules/merge_authority.py generate origin/main..HEAD \
 ## verification 中的分类器
 
 `run_verification.py` 无参数运行 `merge_evidence_tier.py`，只把范围分类和所需证据写入 structure 日志。该步骤不生成授权，也不把任何 Tier 翻译为自动合并资格。真正的合并授权来自 `merge_authority.py generate` 产出的 RunReceipt，并以 `verify` 的成功复验为准。
+
+## 执法者自改由谁看住
+
+`Scripts/` 归 W1，因为规则、驱动器与它们的自测都在 W1 被执行——改松一条规则，跑一遍就知道。看住这件事的是三层：`run_verification.py` 扫描 `Scripts/rules/` 下的 `test_*.py` 并全部执行，所以新写的自测不需要登记也漏不掉；`verify_scripts_inventory.py` 要求每个脚本落进已声明的类别，文件名与内容一致，未归类即失败；`design_source_architecture_baseline.json` 与 `swiftlint_baseline.json` 的 `--write-baseline` 拒绝任何基线里尚不存在的条目，所以放宽只能靠改代码或论证规则不成立。
+
+第四层是坏样本：`Config/guard_selftests.json` 为每条结构检查保留一份应当被拒绝的样本，`verify_guard_selftests.py` 在工作树副本上施加变异后跑那条规则，要求它拒绝且理由正确。这一层回答的是前三层回答不了的问题——一条规则可能从未拒绝过任何东西，那样它和一个空函数在 CI 上长得一模一样。覆盖是强制的：新增一条检查而没有坏样本、没有自测、也没有写明理由的 `externalSubject` 声明，验证直接失败。
+
+仍未被机器看住的是断言写错：一条自测跑了、绿了，但断言的是错的事。坏样本把这一类收窄到「拒绝的理由也对」之外的部分，范围有界——它保护的比你以为的少，而不是完全不保护。
