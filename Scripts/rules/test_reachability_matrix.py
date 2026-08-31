@@ -1188,6 +1188,40 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
             self.assertEqual(run.consecutive_timeouts, 0)
 
+    def test_observe_ignores_an_operation_this_context_cannot_prove(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "window-01", "context": "window"}
+        run.operations = {
+            "accessibility:Emby-Navigation-Tab": {
+                "identifierTemplate": "Emby-Navigation-Tab", "kind": "activate",
+            },
+            "accessibility:PlayerUI-play": {
+                "identifierTemplate": "PlayerUI-play", "kind": "activate",
+            },
+        }
+        run.cells = {
+            ("window", "accessibility:PlayerUI-play"): {
+                "existsInHierarchy": False, "reportsHittable": False,
+                "applicationReceived": False, "verdict": "known-defect",
+                "reason": "", "evidence": [],
+            },
+        }
+        run.inventory = {"identifierFamilies": ["Emby", "PlayerUI"]}
+        run.events = [{"evidence": "raw/001-snapshot.json"}]
+        run.tapped_cells = set()
+        run.last_controller_document = {
+            "success": True,
+            "hierarchy": (
+                "identifier: 'Emby-Navigation-Tab'\n"
+                "identifier: 'PlayerUI-play'"
+            ),
+        }
+        run.controller = Mock(return_value=run.last_controller_document)
+
+        run.observe("window", "window playback")
+
+        self.assertTrue(run.cells[("window", "accessibility:PlayerUI-play")]["existsInHierarchy"])
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

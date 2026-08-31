@@ -2005,6 +2005,12 @@ class ReachabilityRun:
             template = operation.get("identifierTemplate")
             if not isinstance(template, str):
                 continue
+            if (presentation, operation_id) not in self.cells:
+                # The ornament stays in the hierarchy behind window playback, so
+                # a snapshot taken there sees the Emby tab. The inventory decides
+                # from product source where each operation has to be proven, and
+                # a sighting outside that set proves nothing about this context.
+                continue
             exists = any(
                 template_pattern(template).match(identifier)
                 for identifier in hierarchy_identifiers
