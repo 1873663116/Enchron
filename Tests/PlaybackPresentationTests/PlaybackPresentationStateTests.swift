@@ -154,36 +154,52 @@ struct PlaybackPresentationStateTests {
     @Test("Window session reconciliation swaps scenes only from the owning host window")
     func windowSessionReconciliationSwapsScenesOnlyFromOwningHostWindow() {
         #expect(
-            PlaybackWindowSessionReconciliationPolicy.action(
+            PlaybackWindowSessionReconciliationPolicy.handover(
                 hostWindow: .main,
                 sessionIsActive: true
-            ) == .presentPlaybackWindow
+            ) == PlaybackWindowHandover(incoming: .playback, outgoing: .main)
         )
         #expect(
-            PlaybackWindowSessionReconciliationPolicy.action(
+            PlaybackWindowSessionReconciliationPolicy.handover(
                 hostWindow: .main,
                 sessionIsActive: false
-            ) == .none
+            ) == nil
         )
         #expect(
-            PlaybackWindowSessionReconciliationPolicy.action(
+            PlaybackWindowSessionReconciliationPolicy.handover(
                 hostWindow: .playback,
                 sessionIsActive: false
-            ) == .restoreMainWindow
+            ) == PlaybackWindowHandover(incoming: .main, outgoing: .playback)
         )
         #expect(
-            PlaybackWindowSessionReconciliationPolicy.action(
+            PlaybackWindowSessionReconciliationPolicy.handover(
                 hostWindow: .playback,
                 sessionIsActive: true
-            ) == .none
+            ) == nil
         )
         for sessionIsActive in [true, false] {
             #expect(
-                PlaybackWindowSessionReconciliationPolicy.action(
+                PlaybackWindowSessionReconciliationPolicy.handover(
                     hostWindow: .immersivePlaybackResident,
                     sessionIsActive: sessionIsActive
-                ) == .none
+                ) == nil
             )
+        }
+    }
+
+    @Test("Every handover names the window that must arrive before the other leaves")
+    func everyHandoverNamesTheWindowThatMustArriveBeforeTheOtherLeaves() {
+        let hosts: [SpatialPlatformWindowIdentity] = [
+            .main, .playback, .immersivePlaybackResident
+        ]
+        for host in hosts {
+            for sessionIsActive in [true, false] {
+                guard let handover = PlaybackWindowSessionReconciliationPolicy
+                    .handover(hostWindow: host, sessionIsActive: sessionIsActive)
+                else { continue }
+                #expect(handover.outgoing == host)
+                #expect(handover.incoming != handover.outgoing)
+            }
         }
     }
 

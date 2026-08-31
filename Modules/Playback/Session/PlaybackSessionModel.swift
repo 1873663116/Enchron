@@ -3,14 +3,6 @@ import Observation
 import OSLog
 import CoreGraphics
 
-public struct PlaybackWindowSceneIdentity: Codable, Hashable {
-    public let instanceID: UUID
-
-    public init(instanceID: UUID = UUID()) {
-        self.instanceID = instanceID
-    }
-}
-
 public struct SpatialPlaybackSurfaceObservation: Equatable {
     public static let absent = SpatialPlaybackSurfaceObservation(
         presentation: "none",
@@ -219,7 +211,6 @@ public final class PlaybackSessionModel {
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
     public private(set) var playbackWindowSessionIsActive = false
-    private(set) var activePlaybackWindowSceneIdentity: PlaybackWindowSceneIdentity?
 
     public var screenDepthOffset: Double {
         playbackPresentationModel.dockedPlacement.distanceMeters
@@ -587,21 +578,6 @@ public final class PlaybackSessionModel {
         if showControls {
             registerControlsInteraction(at: date)
         }
-    }
-
-    func beginFreshPlaybackWindowScene() -> PlaybackWindowSceneIdentity {
-        let identity = PlaybackWindowSceneIdentity()
-        activePlaybackWindowSceneIdentity = identity
-        return identity
-    }
-
-    public func recordPlaybackWindowSceneAppeared(_ identity: PlaybackWindowSceneIdentity) {
-        activePlaybackWindowSceneIdentity = identity
-    }
-
-    public func recordPlaybackWindowSceneDisappeared(_ identity: PlaybackWindowSceneIdentity) {
-        guard activePlaybackWindowSceneIdentity == identity else { return }
-        activePlaybackWindowSceneIdentity = nil
     }
 
     public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {

@@ -334,24 +334,27 @@ enum SpatialPlatformPlaybackWindowPolicy {
     }
 }
 
-enum PlaybackWindowSessionReconciliationAction: Equatable, Sendable {
-    case presentPlaybackWindow
-    case restoreMainWindow
-    case none
+struct PlaybackWindowHandover: Equatable, Sendable {
+    let incoming: SpatialPlatformWindowIdentity
+    let outgoing: SpatialPlatformWindowIdentity
 }
 
 enum PlaybackWindowSessionReconciliationPolicy {
-    static func action(
+    static func handover(
         hostWindow: SpatialPlatformWindowIdentity,
         sessionIsActive: Bool
-    ) -> PlaybackWindowSessionReconciliationAction {
+    ) -> PlaybackWindowHandover? {
         switch hostWindow {
         case .main:
-            sessionIsActive ? .presentPlaybackWindow : .none
+            sessionIsActive
+                ? PlaybackWindowHandover(incoming: .playback, outgoing: .main)
+                : nil
         case .playback:
-            sessionIsActive ? .none : .restoreMainWindow
+            sessionIsActive
+                ? nil
+                : PlaybackWindowHandover(incoming: .main, outgoing: .playback)
         case .immersivePlaybackResident:
-            .none
+            nil
         }
     }
 }

@@ -176,6 +176,8 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var activeTask: ActiveTask?
     @ObservationIgnored
+    private var handoverTask: Task<Void, Never>?
+    @ObservationIgnored
     private let immersiveActionLane = SpatialPlatformSerializedActionLane()
     @ObservationIgnored
     private var executionProgress: [UUID: ExecutionProgress] = [:]
@@ -475,36 +477,51 @@ public final class SpatialPlatformEffectCoordinator {
         hostWindow: SpatialPlatformWindowIdentity,
         sessionIsActive: Bool
     ) {
-        let action = PlaybackWindowSessionReconciliationPolicy.action(
+        guard let handover = PlaybackWindowSessionReconciliationPolicy.handover(
             hostWindow: hostWindow,
             sessionIsActive: sessionIsActive
-        )
-        guard action != .none else { return }
-        guard let actions = leaseRegistry.currentCapability else {
+        ) else { return }
+        guard leaseRegistry.currentCapability != nil else {
             appModel.recordSurfaceInputProbe(
                 "playbackWindowReconcile dropped hostWindow=\(hostWindow.rawValue)"
                     + " sessionIsActive=\(sessionIsActive)"
             )
             return
         }
-        switch action {
-        case .presentPlaybackWindow:
-            actions.openWindow(
-                id: SpatialPlatformWindowIdentity.playback.rawValue
-            )
-            actions.dismissWindow(
-                id: SpatialPlatformWindowIdentity.main.rawValue
-            )
-        case .restoreMainWindow:
-            actions.openWindow(
-                id: SpatialPlatformWindowIdentity.main.rawValue
-            )
-            actions.dismissWindow(
-                id: SpatialPlatformWindowIdentity.playback.rawValue
-            )
-        case .none:
-            break
+        handoverTask?.cancel()
+        handoverTask = Task { @MainActor [weak self] in
+            await self?.performPlaybackWindowHandover(handover)
         }
+    }
+
+    private func performPlaybackWindowHandover(
+        _ handover: PlaybackWindowHandover
+    ) async {
+        guard let actions = leaseRegistry.currentCapability else { return }
+        actions.openWindow(id: handover.incoming.rawValue)
+
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(
+            by: Self.windowLifecycleConfirmationTimeout
+        )
+        while windowObservation.residency(for: handover.incoming) != .open {
+            guard clock.now < deadline else {
+                appModel.recordSurfaceInputProbe(
+                    "playbackWindowHandover timed out waiting for"
+                        + " \(handover.incoming.rawValue);"
+                        + " \(handover.outgoing.rawValue) stays open"
+                )
+                return
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(25))
+            } catch {
+                return
+            }
+        }
+
+        guard let actions = leaseRegistry.currentCapability else { return }
+        actions.dismissWindow(id: handover.outgoing.rawValue)
     }
 
     private func invalidateTask(_ lease: SpatialPlatformExecutionLease) {
@@ -1369,14 +1386,7 @@ public final class SpatialPlatformEffectCoordinator {
               let actions = leaseRegistry.currentCapability else { return false }
         markVisibleSpatialSideEffect(execution)
         lastPlatformOperation = "\(id)-window-requested"
-        switch id {
-        case SpatialPlatformWindowIdentity.main.rawValue:
-            let identity = appModel.activePlaybackWindowSceneIdentity
-                ?? appModel.beginFreshPlaybackWindowScene()
-            actions.openWindow(id: id, value: identity)
-        default:
-            actions.openWindow(id: id)
-        }
+        actions.openWindow(id: id)
         return true
     }
 
