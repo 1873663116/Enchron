@@ -1081,6 +1081,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = []
         run.session_id = None
+        run.channel_failures = [{"action": "ensure-session", "error": "timed out"}]
         run.controller = Mock(side_effect=[
             {"success": False, "error": "controller ensure-session exceeded 120.0 seconds"},
             {"success": True, "sessionID": "session-2"},
@@ -1097,10 +1098,22 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             removal.call_args.args[0],
         )
 
+    def test_retiring_the_runner_clears_what_blocks_the_retry(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = []
+        run.channel_failures = [{"action": "ensure-session", "error": "timed out"}]
+        removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
+
+        with patch.object(matrix.subprocess, "run", removal):
+            run.retire_stale_test_runner()
+
+        self.assertEqual(run.channel_failures, [])
+
     def test_ensure_session_gives_up_when_the_clean_device_also_fails(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = []
         run.session_id = None
+        run.channel_failures = []
         run.controller = Mock(return_value={"success": False, "error": "timed out"})
         removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
 

@@ -1117,7 +1117,11 @@ class ReachabilityRun:
 
     def controller(self, action: str, *extra: str, timeout: float = 180.0) -> dict[str, Any]:
         refuse_when_detached()
-        if self.segment is not None and self.channel_failures and action != "halt":
+        if (
+            self.segment is not None
+            and self.channel_failures
+            and action not in ("halt", "ensure-session")
+        ):
             document = {
                 "success": False,
                 "error": "segment channel continuity already failed",
@@ -1279,11 +1283,7 @@ class ReachabilityRun:
         return selected[0] if len(selected) == 1 else None
 
     def mark_driven(self, context: str, operation_id: str) -> None:
-        if operation_id in self.operations:
-            if (context, operation_id) not in self.cells:
-                raise ValueError(
-                    f"operation {operation_id} has no proof context {context}"
-                )
+        if operation_id in self.operations and self.provable(context, operation_id):
             self.driven_cells.add((context, operation_id))
 
     def channel_health_probe(self, phase: str) -> dict[str, Any]:
@@ -1943,6 +1943,26 @@ class ReachabilityRun:
         })
         return completed.returncode == 0
 
+    def provable(self, context: str, operation_id: str) -> bool:
+        """Whether this context is one the inventory says can prove this operation.
+
+        Shared chrome stays in the hierarchy across surfaces: the navigation
+        ornament sits behind window playback, the top-action menu behind the
+        docked panel. A scenario driving one context therefore sees, taps and
+        delivers controls the inventory derives for another. None of that proves
+        anything about the context doing the driving, and raising on it killed
+        whole segments one call site at a time - observe, then tap, then
+        delivered. The count reaches the result document so a plan aiming a
+        scenario at the wrong context reads as a number rather than silence.
+        """
+        key = (context, operation_id)
+        if key in self.cells:
+            return True
+        self.out_of_context_observations[key] = (
+            self.out_of_context_observations.get(key, 0) + 1
+        )
+        return False
+
     def mark_observation(
         self,
         presentation: str,
@@ -1954,22 +1974,9 @@ class ReachabilityRun:
         evidence: str,
         reason: str,
     ) -> None:
-        key = (presentation, operation_id)
-        if key not in self.cells:
-            # The inventory derives from product source which contexts an
-            # operation can be proven in. Shared chrome stays in the hierarchy
-            # across surfaces, so a scenario driving one context reaches
-            # controls belonging to another: the ornament behind window
-            # playback, the load-failure alert over the docked panel. Seeing or
-            # tapping one proves nothing about the context doing the looking,
-            # and raising on it killed whole segments. Counted rather than
-            # dropped, so a plan aiming a scenario at the wrong context shows up
-            # as a number instead of silence.
-            self.out_of_context_observations[key] = (
-                self.out_of_context_observations.get(key, 0) + 1
-            )
+        if not self.provable(presentation, operation_id):
             return
-        cell = self.cells[key]
+        cell = self.cells[(presentation, operation_id)]
         if exists is not None:
             cell["existsInHierarchy"] = bool(cell["existsInHierarchy"] or exists)
         if hittable is not None:
@@ -2330,7 +2337,13 @@ class ReachabilityRun:
         times out with nothing to read but "Failed to establish communication
         with the test runner". Uninstalling converges the device to the state a
         first run would find, which is what makes a segment safe to re-run.
+
+        The latch that stops a dead channel from being retried also stopped this
+        recovery: a first ensure-session timeout set it, and the retry came back
+        in 0.0 seconds without leaving the process. Clearing what that timeout
+        recorded is what makes the second attempt real.
         """
+        self.channel_failures.clear()
         removal = subprocess.run(
             [
                 "xcrun", "devicectl", "device", "uninstall", "app",
