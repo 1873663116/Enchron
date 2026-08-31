@@ -97,7 +97,15 @@ def copy_from_container(
                 returncode=1, stdout="", stderr=f"{source} is not in the container.",
             )
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(origin, destination)
+        if origin.is_dir():
+            # devicectl copies a directory whole, and the deferred response
+            # batch is one. Copying only files would have left every batched
+            # response behind on the simulator lane.
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(origin, destination)
+        else:
+            shutil.copyfile(origin, destination)
         return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
     return subprocess.run(
         [

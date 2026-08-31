@@ -1120,6 +1120,31 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         self.assertIn(" delivered action=enterPanorama", requirement["needles"])
         self.assertIn("reachability ", requirement["needles"])
 
+    def test_container_copy_takes_a_whole_directory_on_the_simulator(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            container = root / "container"
+            (container / "Documents/test-responses").mkdir(parents=True)
+            for name in ("a.json", "b.json"):
+                (container / "Documents/test-responses" / name).write_text("{}", encoding="utf-8")
+            destination = root / "batch"
+
+            with patch.object(matrix.enchron_target, "is_simulator", return_value=True), \
+                 patch.object(matrix.enchron_target, "simulator_container", return_value=container):
+                result = matrix.enchron_target.copy_from_container(
+                    target="sim-udid",
+                    bundle_id="com.example.app",
+                    source="Documents/test-responses",
+                    destination=destination,
+                    developer_dir="/Applications/Xcode.app/Contents/Developer",
+                )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(
+                sorted(path.name for path in destination.iterdir()),
+                ["a.json", "b.json"],
+            )
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

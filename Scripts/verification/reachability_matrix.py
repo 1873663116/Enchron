@@ -1692,22 +1692,13 @@ class ReachabilityRun:
             self.direct_devicectl_calls += 1
             if getattr(self, "segment_evidence_started", False):
                 self.evidence_retrieval_devicectl_calls += 1
-            completed = subprocess.run(
-                [
-                    "xcrun", "devicectl", "device", "copy", "from",
-                    "--device", CORE_DEVICE,
-                    "--domain-type", "appDataContainer",
-                    "--domain-identifier", APP_BUNDLE,
-                    "--source", APP_RESPONSE_REMOTE_PATH,
-                    "--destination", str(destination),
-                    "--timeout", str(int(timeout)),
-                ],
-                cwd=ROOT,
-                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
+            completed = enchron_target.copy_from_container(
+                target=DEVICE,
+                bundle_id=APP_BUNDLE,
+                source=APP_RESPONSE_REMOTE_PATH,
+                destination=destination,
+                developer_dir=DEVELOPER_DIR,
+                core_device_identifier=CORE_DEVICE,
             )
         except subprocess.TimeoutExpired:
             completed = None
