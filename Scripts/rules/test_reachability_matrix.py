@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from subprocess import TimeoutExpired
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import sys
@@ -1045,6 +1046,48 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(run.driven_cells, set())
         self.assertEqual(run.deferred_command_ids, {"seek-command"})
+
+    def test_app_command_retries_the_lost_command_file_race(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = None
+        run.session_id = None
+        run.operations = {}
+        run.cells = {}
+        run.driven_cells = set()
+        run.deferred_command_ids = set()
+        run.last_deferred_command_id = None
+        run.arguments = SimpleNamespace(contexts=[])
+        lost = {
+            "success": False,
+            "error": "ERROR: Failed to retrieve the file node for "
+                     "Documents/test-command.json (com.apple.dt.CoreDeviceError error 7000)",
+        }
+        run.controller = Mock(side_effect=[lost, {"success": True}])
+
+        with patch.object(matrix.time, "sleep"):
+            result = run.app_command("resetState", track_reachability=False)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(run.controller.call_count, 2)
+
+    def test_app_command_does_not_retry_a_product_failure(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = None
+        run.session_id = None
+        run.operations = {}
+        run.cells = {}
+        run.driven_cells = set()
+        run.deferred_command_ids = set()
+        run.last_deferred_command_id = None
+        run.arguments = SimpleNamespace(contexts=[])
+        run.controller = Mock(return_value={
+            "success": False, "error": "importMedia rejected the reference"
+        })
+
+        result = run.app_command("importMedia", track_reachability=False)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(run.controller.call_count, 1)
 
     def test_app_command_ignores_an_operation_owned_by_another_context(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)

@@ -1177,6 +1177,16 @@ class ReachabilityRun:
         for key, value in arguments.items():
             extra.extend(("--arg", f"{key}={value}"))
         response = self.controller("app-command", *extra)
+        if response.get("success") is not True and "test-command.json" in str(
+            response.get("error", "")
+        ):
+            # devicectl loses the race against the app's 0.5s poller while it
+            # writes command.json, and names that file in CoreDeviceError 7000.
+            # The command never reached the product, so retrying is safe for a
+            # mutating verb too. Without this, twenty-two commands in one run
+            # were read as unreachable product paths.
+            time.sleep(1.5)
+            response = self.controller("app-command", *extra)
         if self.segment is not None and defer_response:
             command_id = response.get("id")
             if isinstance(command_id, str):
