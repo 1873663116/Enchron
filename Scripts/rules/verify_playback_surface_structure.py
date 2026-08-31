@@ -471,6 +471,29 @@ def main() -> int:
         "Environment Card is not a singleton volumetric Window Scene",
     )
     require(
+        'Window(\n            "Enchron",\n            id: "main"\n        )' in app_scene
+        and "PlaybackWindowSceneIdentity" not in app_scene
+        and "PlaybackWindowSceneIdentity" not in session_model,
+        "Media Library is not a singleton Window Scene, so returning from "
+        "playback can open a second one",
+    )
+    handover = region(
+        platform_executor,
+        "public func reconcilePlaybackWindowPresentation(",
+        "private func invalidateTask(",
+    )
+    require(
+        order(
+            handover,
+            "openWindow(id: handover.incoming.rawValue",
+            "windowObservation.residency(for: handover.incoming)",
+            "dismissWindow(id: handover.outgoing.rawValue",
+        ),
+        "the playback window handover dismisses the outgoing window without "
+        "first observing the incoming one open, which visionOS drops because "
+        "the outgoing window is still the only one",
+    )
+    require(
         'id: "playerControls"' not in app_scene
         and "PlayerControlsSceneIdentity" not in session_model
         and "ImmersivePlaybackControlsAttachmentView(" in immersive,
