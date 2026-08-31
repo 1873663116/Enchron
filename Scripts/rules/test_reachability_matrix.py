@@ -1076,6 +1076,38 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(failure["missingResponseIDs"], ["cmd-2"])
 
+    def test_ensure_session_retires_a_stale_runner_before_giving_up(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = []
+        run.session_id = None
+        run.controller = Mock(side_effect=[
+            {"success": False, "error": "controller ensure-session exceeded 120.0 seconds"},
+            {"success": True, "sessionID": "session-2"},
+        ])
+        removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="App uninstalled.", stderr=""))
+
+        with patch.object(matrix.subprocess, "run", removal):
+            self.assertTrue(run.ensure_session())
+
+        self.assertEqual(run.session_id, "session-2")
+        self.assertEqual(run.controller.call_count, 2)
+        self.assertIn(
+            matrix.ReachabilityRun.UI_TEST_RUNNER_BUNDLE,
+            removal.call_args.args[0],
+        )
+
+    def test_ensure_session_gives_up_when_the_clean_device_also_fails(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = []
+        run.session_id = None
+        run.controller = Mock(return_value={"success": False, "error": "timed out"})
+        removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
+
+        with patch.object(matrix.subprocess, "run", removal):
+            self.assertFalse(run.ensure_session())
+
+        self.assertEqual(run.controller.call_count, 2)
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

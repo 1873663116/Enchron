@@ -2233,19 +2233,50 @@ class ReachabilityRun:
         self.controller("relaunch", "--no-screenshot", timeout=180)
         time.sleep(1)
 
+    UI_TEST_RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
+
     def ensure_session(self) -> bool:
-        ready = self.controller(
-            "ensure-session",
-            "--destination-id",
-            DEVICE,
-            "--no-screenshot",
-            timeout=420,
-        )
-        session_id = ready.get("sessionID")
-        if ready.get("success") is True and isinstance(session_id, str):
-            self.session_id = session_id
-            return True
+        for attempt in range(2):
+            ready = self.controller(
+                "ensure-session",
+                "--destination-id",
+                DEVICE,
+                "--no-screenshot",
+                timeout=420,
+            )
+            session_id = ready.get("sessionID")
+            if ready.get("success") is True and isinstance(session_id, str):
+                self.session_id = session_id
+                return True
+            if attempt or not self.retire_stale_test_runner():
+                return False
         return False
+
+    def retire_stale_test_runner(self) -> bool:
+        """Remove the runner a previous run left installed.
+
+        A runner left on the device from an earlier segment refuses both the
+        install and the connection the next one needs, and the session then
+        times out with nothing to read but "Failed to establish communication
+        with the test runner". Uninstalling converges the device to the state a
+        first run would find, which is what makes a segment safe to re-run.
+        """
+        removal = subprocess.run(
+            [
+                "xcrun", "devicectl", "device", "uninstall", "app",
+                "--device", DEVICE, self.UI_TEST_RUNNER_BUNDLE,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "retireStaleTestRunner",
+            "success": removal.returncode == 0,
+            "detail": (removal.stdout + removal.stderr).strip()[:200],
+        })
+        return removal.returncode == 0
 
     def show_controls(self, presentation: str | None = None) -> dict[str, Any]:
         result = self.app_command("toggleControls", visible="true")
