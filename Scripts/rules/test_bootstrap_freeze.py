@@ -482,8 +482,32 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
         return before, after
 
     def test_a_frozen_run_writes_no_sample(self) -> None:
-        before, after = self.record(ENCHRON_EXECUTION_INPUT="/tmp/execution-input.json")
-        self.assertEqual(before, after)
+        root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(root / "Scripts/verification"))
+        import interactive_visionpro_ui as controller
+        before = controller.TIMINGS_PATH.read_bytes()
+        controller.record_timing(
+            "probe-action", 1.25, device="00008142-0001", frozen=True
+        )
+        self.assertEqual(before, controller.TIMINGS_PATH.read_bytes())
+
+    def test_the_environment_alone_does_not_make_a_run_frozen(self) -> None:
+        """The matrix passes --execution-input on the command line, so a guard
+        that reads the environment let a hundred and thirty commands through."""
+        root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(root / "Scripts/verification"))
+        import interactive_visionpro_ui as controller
+        original = controller.TIMINGS_PATH.read_bytes()
+        try:
+            with mock.patch.dict(
+                os.environ,
+                {"ENCHRON_EXECUTION_INPUT": "/tmp/execution-input.json"},
+                clear=False,
+            ):
+                controller.record_timing("probe-action", 1.25, device="00008142-0001")
+            self.assertIn(b"probe-action", controller.TIMINGS_PATH.read_bytes())
+        finally:
+            controller.TIMINGS_PATH.write_bytes(original)
 
     def test_an_unfrozen_run_still_records(self) -> None:
         root = Path(__file__).resolve().parents[2]

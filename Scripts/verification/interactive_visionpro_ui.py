@@ -68,7 +68,9 @@ TIMING_SAMPLE_LIMIT = 20
 DEVICECTL_CALL_COUNT = 0
 
 
-def record_timing(action: str, seconds: float, *, device: str) -> None:
+def record_timing(
+    action: str, seconds: float, *, device: str, frozen: bool = False
+) -> None:
     """Rolling window of measured foreground round trips per action. The
     background-context hook reads this file and stays silent about any action
     that has no record here.
@@ -78,11 +80,14 @@ def record_timing(action: str, seconds: float, *, device: str) -> None:
     transport ran most recently define the expected duration of the other."""
     if is_simulator(device):
         action = f"simulator:{action}"
-    if os.environ.get("ENCHRON_EXECUTION_INPUT"):
+    if frozen:
         # A frozen run binds the source tree by digest, and this file is tracked,
-        # so appending a sample here makes the first command invalidate the
-        # freeze it is running under. The committed window stays the authority
-        # rubrics cite; a run that must not move it records nothing.
+        # so appending a sample here invalidates the freeze the run is executing
+        # under. The committed window stays the authority rubrics cite; a run
+        # that must not move it records nothing. The caller passes its resolved
+        # argument rather than reading the environment, because the matrix
+        # supplies --execution-input on the command line and an environment
+        # probe missed it for a hundred and thirty commands.
         return
     try:
         timings = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
@@ -1385,6 +1390,7 @@ def main() -> int:
             arguments.action,
             time.monotonic() - started_at,
             device=arguments.device,
+            frozen=getattr(arguments, "execution_input", None) is not None,
         )
     response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
