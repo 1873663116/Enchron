@@ -228,6 +228,23 @@
           "enlarged interaction target without a post-expansion inset hover shape"
         ]
       }
+    },
+    {
+      "id": "reachability-cell-access-rejects-an-unguarded-lookup",
+      "guard": "Scripts/rules/verify_reachability_cell_access.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/verification/reachability_matrix.py",
+        "find": "        if not self.provable(presentation, parent_operation_id):\n            return False\n        parent = self.cells[(presentation, parent_operation_id)]",
+        "replaceWith": "        parent = self.cells[(presentation, parent_operation_id)]  # unguarded",
+        "introduces": "self.cells[(presentation, parent_operation_id)]  # unguarded"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "reads self.cells without asking provable() first"
+        ]
+      }
     }
   ],
   "externalSubject": [

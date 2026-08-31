@@ -2138,6 +2138,8 @@ class ReachabilityRun:
         evidence: str,
         reason: str,
     ) -> bool:
+        if not self.provable(presentation, parent_operation_id):
+            return False
         parent = self.cells[(presentation, parent_operation_id)]
         if not (
             parent["existsInHierarchy"] is True
@@ -5983,7 +5985,9 @@ class ReachabilityRun:
                 "Opening the mechanism added no named or identifier-addressable Accessibility target.",
                 has_accessibility_target=False,
             )
-            if toggle.get("success") is not True:
+            if toggle.get("success") is not True and self.provable(
+                presentation, "negative:immersive-resident-window"
+            ):
                 self.cells[
                     (presentation, "negative:immersive-resident-window")
                 ]["evidence"].append(cleanup_evidence)
@@ -6152,11 +6156,13 @@ class ReachabilityRun:
                 "Opening the mechanism added no named or identifier-addressable Accessibility target.",
                 has_accessibility_target=False,
             )
-            if toggle.get("success") is not True:
+            if toggle.get("success") is not True and self.provable(
+                presentation, "negative:immersive-resident-window"
+            ):
                 self.cells[
                     (presentation, "negative:immersive-resident-window")
                 ]["evidence"].append(cleanup_evidence)
-        else:
+        elif self.provable(presentation, "negative:immersive-resident-window"):
             cell = self.cells[(presentation, "negative:immersive-resident-window")]
             cell["evidence"].extend((hierarchy_evidence, cleanup_evidence))
             if no_named_node and no_new_identifier:

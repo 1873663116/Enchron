@@ -145,6 +145,10 @@ STRUCTURE_CHECKS = (
         "generate_reachability_inventory.py",
     ),
     StructureCheck(
+        "reachability-cell-access",
+        "verify_reachability_cell_access.py",
+    ),
+    StructureCheck(
         "visionpro-core-regression-plan",
         "verify_visionpro_core_regression_plan.py",
     ),

@@ -1305,6 +1305,25 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         self.assertTrue(cell["existsInHierarchy"])
         self.assertEqual(run.out_of_context_observations, {})
 
+    def test_a_menu_whose_parent_is_out_of_context_delivers_nothing(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.cells = {}
+        run.out_of_context_observations = {}
+
+        delivered = run.delivered_by_debug_menu_selection(
+            "docked",
+            "accessibility:PlayerUI-menu-audio-1",
+            "accessibility:PlayerUI-TopAction-more",
+            evidence="raw/001-app-command.json",
+            reason="the top action menu answered",
+        )
+
+        self.assertFalse(delivered)
+        self.assertEqual(
+            run.out_of_context_observations,
+            {("docked", "accessibility:PlayerUI-TopAction-more"): 1},
+        )
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None
