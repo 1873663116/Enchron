@@ -1921,6 +1921,12 @@ class _CompletionContext:
                 "final artifact root",
             )
             execution = load_execution_input(execution_path)
+            if execution.bootstrap:
+                raise CompletionError(
+                    "frozen execution input was produced with --bootstrap, which "
+                    "carries no configuration receipt; completion requires the "
+                    "configuration-bound freeze taken after verification passes"
+                )
             revalidated_path, revalidated_source = _read_boundary_path(
                 self.paths.execution_input_path,
                 final_root,

@@ -221,6 +221,7 @@ class RunControlTests(unittest.TestCase):
             "--agent-model",
             "--agent-executable",
             "--output",
+            "--bootstrap",
         }
         self.assertEqual(expected, self.command_options("freeze"))
         valid = [
@@ -314,6 +315,7 @@ class RunControlTests(unittest.TestCase):
             },
             "gpt-5",
             "codex-custom",
+            bootstrap=False,
         )
         write.assert_called_once_with(output, value)
         self.assertEqual(0, status)
@@ -331,6 +333,7 @@ class RunControlTests(unittest.TestCase):
         execution = SimpleNamespace(
             build_identity="build-identity",
             evidence_environment_identity="evidence-identity",
+            bootstrap=False,
         )
         reviewed_catalog = SimpleNamespace(catalog="catalog")
         completed_review = object()

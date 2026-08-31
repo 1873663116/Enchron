@@ -217,6 +217,12 @@ def compile_execution_plan(
 ) -> tuple[Any, Any]:
     repository = Path(repository_root).resolve()
     execution = load_execution_input(execution_input_path)
+    if execution.bootstrap:
+        raise RunControlError(
+            "compile requires a configuration-bound execution input; this one was "
+            "frozen with --bootstrap, which omits the configuration receipt and "
+            "exists only to let the reachability matrix produce its first baseline"
+        )
     reviewed_catalog, completed = load_current_reviewed_catalog(
         repository, catalog_root, policy_path, reviews_root
     )
@@ -518,6 +524,11 @@ def _parser() -> argparse.ArgumentParser:
     freeze.add_argument("--agent-model", required=True)
     freeze.add_argument("--agent-executable", default="codex")
     freeze.add_argument("--output", type=Path, required=True)
+    freeze.add_argument(
+        "--bootstrap",
+        action="store_true",
+        help="produce a bootstrap execution input that is not bound to a configuration receipt",
+    )
     compile_parser = commands.add_parser("compile")
     _common(compile_parser)
     compile_parser.add_argument("--output", type=Path, required=True)
@@ -547,19 +558,23 @@ def _execute(arguments: argparse.Namespace) -> tuple[Mapping[str, Any], int]:
             },
             arguments.agent_model,
             arguments.agent_executable,
+            bootstrap=bool(getattr(arguments, "bootstrap", False)),
         )
         output = arguments.output
         if not output.is_absolute():
             output = artifact_root / output
         write_execution_input(output, value)
-        return {
+        payload: dict[str, object] = {
             "operation": "freeze",
             "path": str(output.resolve()),
             "buildIdentityDigest": str(value.build_identity.digest),
             "evidenceEnvironmentDigest": str(
                 value.evidence_environment_identity.digest
             ),
-        }, 0
+        }
+        if bool(getattr(value, "bootstrap", False)):
+            payload["bootstrap"] = True
+        return payload, 0
     if arguments.operation == "status":
         return {"operation": "status", "run": _view_payload(replay(arguments.run_directory))}, 0
 

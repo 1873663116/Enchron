@@ -200,6 +200,7 @@ class FrozenExecutionInput:
     configuration_receipt_digest: Digest
     agent_model: str
     agent_executable: str
+    bootstrap: bool = False
 
     def __post_init__(self) -> None:
         repository = _absolute_lexical(self.repository_root, "repository root")
@@ -220,6 +221,8 @@ class FrozenExecutionInput:
             raise ExecutionIdentityError("agent model must be non-empty")
         if not isinstance(self.agent_executable, str) or not self.agent_executable.strip():
             raise ExecutionIdentityError("agent executable must be non-empty")
+        if type(self.bootstrap) is not bool:
+            raise ExecutionIdentityError("bootstrap flag must be a boolean")
         object.__setattr__(self, "repository_root", repository)
         object.__setattr__(self, "artifact_root", artifact)
         object.__setattr__(self, "launches", launches)
@@ -1728,31 +1731,53 @@ def _assert_no_lane_collisions(artifacts: Sequence[LaneBuildArtifact]) -> None:
             )
 
 
+def _bootstrap_configuration_digest(source_digest: Digest) -> Digest:
+    return digest_bytes(canonical_bytes({"bootstrap": str(source_digest)}) + b"\n")
+
+
 def _freeze_current(
     repository: Path,
     artifact: Path,
     targets: Mapping[BoundLane, str],
     agent_model: str,
     agent_executable: str,
+    bootstrap: bool = False,
 ) -> FrozenExecutionInput:
+    if type(bootstrap) is not bool:
+        raise ExecutionIdentityError("bootstrap flag must be a boolean")
     if not _clean(repository):
         raise ExecutionIdentityError("execution freeze requires a clean integrated worktree")
     revision = _revision(repository)
     source_digest = repository_source_digest(repository)
     toolchain = query_toolchain_identity()
-    with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
-        configuration_digest, _ = _configuration_receipt(artifact_descriptor, source_digest)
-        states = tuple(
-            _bind_lane(
-                artifact,
-                artifact_descriptor,
-                lane,
-                revision,
-                source_digest,
-                toolchain,
+    if bootstrap:
+        configuration_digest = _bootstrap_configuration_digest(source_digest)
+        with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
+            states = tuple(
+                _bind_lane(
+                    artifact,
+                    artifact_descriptor,
+                    lane,
+                    revision,
+                    source_digest,
+                    toolchain,
+                )
+                for lane in _LANES
             )
-            for lane in _LANES
-        )
+    else:
+        with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
+            configuration_digest, _ = _configuration_receipt(artifact_descriptor, source_digest)
+            states = tuple(
+                _bind_lane(
+                    artifact,
+                    artifact_descriptor,
+                    lane,
+                    revision,
+                    source_digest,
+                    toolchain,
+                )
+                for lane in _LANES
+            )
     bundle_identifiers = {state.bundle_identifier for state in states}
     if len(bundle_identifiers) != 1:
         raise ExecutionIdentityError(
@@ -1792,6 +1817,7 @@ def _freeze_current(
         configuration_digest,
         agent_model,
         agent_executable,
+        bootstrap,
     )
 
 
@@ -1801,6 +1827,7 @@ def freeze_execution_input(
     lane_targets: Mapping[BoundLane, str],
     agent_model: str,
     agent_executable: str = "codex",
+    bootstrap: bool = False,
 ) -> FrozenExecutionInput:
     repository, artifact = _validated_roots(repo_root, artifact_root, create_artifact=False)
     targets = _validated_lane_targets(lane_targets, "lane targets")
@@ -1808,7 +1835,9 @@ def freeze_execution_input(
         raise ExecutionIdentityError("agent model must be non-empty")
     if not isinstance(agent_executable, str) or not agent_executable.strip():
         raise ExecutionIdentityError("agent executable must be non-empty")
-    return _freeze_current(repository, artifact, targets, agent_model, agent_executable)
+    if type(bootstrap) is not bool:
+        raise ExecutionIdentityError("bootstrap flag must be a boolean")
+    return _freeze_current(repository, artifact, targets, agent_model, agent_executable, bootstrap)
 
 
 def _stored_relative(root: Path, path: Path, label: str) -> str:
@@ -1820,7 +1849,7 @@ def execution_input_payload(value: FrozenExecutionInput) -> Mapping[str, Any]:
     agent = value.evidence_environment_identity.agent_environment
     if agent is None:
         raise ExecutionIdentityError("execution input requires an Agent environment")
-    return {
+    payload: dict[str, Any] = {
         "schema": INPUT_SCHEMA,
         "schemaVersion": INPUT_SCHEMA_VERSION,
         "repositoryRoot": str(value.repository_root),
@@ -1871,6 +1900,9 @@ def execution_input_payload(value: FrozenExecutionInput) -> Mapping[str, Any]:
             for launch in value.launches
         ],
     }
+    if value.bootstrap:
+        payload["bootstrap"] = True
+    return payload
 
 
 def write_execution_input(
@@ -2092,20 +2124,44 @@ def _parse_lanes(
 def load_execution_input(path: Path) -> FrozenExecutionInput:
     source_path = _absolute_lexical(path, "execution input")
     source = _read_absolute_regular(source_path, "execution input")
-    root = _object(
-        _decode_canonical_json(source, "execution input"),
-        (
-            "schema",
-            "schemaVersion",
-            "repositoryRoot",
-            "artifactRoot",
-            "buildIdentity",
-            "evidenceEnvironmentIdentity",
-            "configurationReceipt",
-            "lanes",
-        ),
-        "execution input",
-    )
+    raw_root = _decode_canonical_json(source, "execution input")
+    bootstrap_raw = raw_root.get("bootstrap")
+    if bootstrap_raw is not None:
+        if bootstrap_raw is not True:
+            raise ExecutionIdentityError("bootstrap flag must be true when present")
+        bootstrap = True
+        filtered = dict(raw_root)
+        filtered.pop("bootstrap", None)
+        root = _object(
+            filtered,
+            (
+                "schema",
+                "schemaVersion",
+                "repositoryRoot",
+                "artifactRoot",
+                "buildIdentity",
+                "evidenceEnvironmentIdentity",
+                "configurationReceipt",
+                "lanes",
+            ),
+            "execution input",
+        )
+    else:
+        bootstrap = False
+        root = _object(
+            raw_root,
+            (
+                "schema",
+                "schemaVersion",
+                "repositoryRoot",
+                "artifactRoot",
+                "buildIdentity",
+                "evidenceEnvironmentIdentity",
+                "configurationReceipt",
+                "lanes",
+            ),
+            "execution input",
+        )
     if (
         root["schema"] != INPUT_SCHEMA
         or type(root["schemaVersion"]) is not int
@@ -2149,34 +2205,62 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
     targets = _validated_lane_targets(
         {launch.lane: launch.target_id for launch in launches}, "lane targets"
     )
-    with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
-        configuration_digest, _ = _configuration_receipt(artifact_descriptor, source_digest)
-        states = tuple(
-            _bind_lane(
-                artifact,
-                artifact_descriptor,
-                lane,
-                revision,
-                source_digest,
-                toolchain,
+    if bootstrap:
+        expected_configuration_digest = _bootstrap_configuration_digest(source_digest)
+        with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
+            states = tuple(
+                _bind_lane(
+                    artifact,
+                    artifact_descriptor,
+                    lane,
+                    revision,
+                    source_digest,
+                    toolchain,
+                )
+                for lane in _LANES
             )
-            for lane in _LANES
+            relative_input = _relative_path(artifact, source_path, "execution input")
+            current_source, _ = _read_regular_at(
+                artifact_descriptor, relative_input, "execution input"
+            )
+        if current_source != source:
+            raise ExecutionIdentityError("execution input changed while it was loaded")
+        if _digest(configuration_value["digest"], "configurationReceipt.digest") != expected_configuration_digest:
+            raise ExecutionIdentityError("bootstrap configuration receipt digest is invalid")
+        if build.configuration_digest != expected_configuration_digest:
+            raise ExecutionIdentityError(
+                "BuildIdentity configuration digest does not bind the bootstrap receipt"
+            )
+        configuration_digest = expected_configuration_digest
+    else:
+        with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
+            configuration_digest, _ = _configuration_receipt(artifact_descriptor, source_digest)
+            states = tuple(
+                _bind_lane(
+                    artifact,
+                    artifact_descriptor,
+                    lane,
+                    revision,
+                    source_digest,
+                    toolchain,
+                )
+                for lane in _LANES
+            )
+            relative_input = _relative_path(artifact, source_path, "execution input")
+            current_source, _ = _read_regular_at(
+                artifact_descriptor, relative_input, "execution input"
+            )
+        if current_source != source:
+            raise ExecutionIdentityError("execution input changed while it was loaded")
+        expected_configuration_digest = _digest(
+            configuration_value["digest"], "configurationReceipt.digest"
         )
-        relative_input = _relative_path(artifact, source_path, "execution input")
-        current_source, _ = _read_regular_at(
-            artifact_descriptor, relative_input, "execution input"
-        )
-    if current_source != source:
-        raise ExecutionIdentityError("execution input changed while it was loaded")
-    expected_configuration_digest = _digest(
-        configuration_value["digest"], "configurationReceipt.digest"
-    )
-    if configuration_digest != expected_configuration_digest:
-        raise ExecutionIdentityError("configuration receipt differs from the frozen digest")
-    if build.configuration_digest != configuration_digest:
-        raise ExecutionIdentityError(
-            "BuildIdentity configuration digest does not bind the receipt"
-        )
+        if configuration_digest != expected_configuration_digest:
+            raise ExecutionIdentityError("configuration receipt differs from the frozen digest")
+        if build.configuration_digest != configuration_digest:
+            raise ExecutionIdentityError(
+                "BuildIdentity configuration digest does not bind the receipt"
+            )
     bundle_identifiers = {state.bundle_identifier for state in states}
     if len(bundle_identifiers) != 1:
         raise ExecutionIdentityError(
@@ -2241,6 +2325,7 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
         configuration_digest,
         model,
         executable,
+        bootstrap,
     )
     if canonical_bytes(execution_input_payload(value)) + b"\n" != source:
         raise ExecutionIdentityError("execution input does not bind its current values")

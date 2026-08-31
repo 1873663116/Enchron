@@ -539,6 +539,7 @@ class FinalBuildIdentityCompletionTests(unittest.TestCase):
         execution = SimpleNamespace(
             configuration_receipt=configuration_path,
             artifact_root=self.final_root,
+            bootstrap=False,
         )
 
         with (
