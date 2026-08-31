@@ -410,6 +410,16 @@
       "expect": [
         "lane-reading-is-never-blocked"
       ]
+    },
+    {
+      "id": "stop-loop-end-is-permanent",
+      "file": "hooks/loop_wakeup_gate.py",
+      "find": "in_loop = bool(wakeups) and not wakeups[-1].get(\"stop\")",
+      "replaceWith": "in_loop = bool(wakeups)",
+      "probe": "stop",
+      "expect": [
+        "a-stopped-loop-stays-stopped"
+      ]
     }
   ]
 }

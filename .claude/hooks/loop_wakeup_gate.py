@@ -93,7 +93,6 @@ def verdict(records: list[dict], project: Path) -> str | None:
     start = turn_start(records)
     uses = tool_uses(records, start)
     arms = [arguments for _, name, arguments in uses if name == WAKEUP]
-    ended_loop = any(arguments.get("stop") for arguments in arms)
 
     payload = ledger.load(project)
     turn = ledger.turn_of(records)
@@ -131,9 +130,12 @@ def verdict(records: list[dict], project: Path) -> str | None:
             "act on it, or end the loop with stop:true."
         )
 
-    if ended_loop:
-        return None
-    in_loop = any(name == WAKEUP for _, name, _ in tool_uses(records, 0))
+    wakeups = [arguments for _, name, arguments in tool_uses(records, 0) if name == WAKEUP]
+    # A loop is a two-state thing and the last transition names the state. Asking
+    # whether the transcript holds any wakeup at all made stop:true a no-op from
+    # the next turn onward, so a loop that was ended on purpose kept demanding a
+    # new interval every time the session tried to stop.
+    in_loop = bool(wakeups) and not wakeups[-1].get("stop")
     if in_loop and not arms:
         return (
             "This turn is part of a /loop and armed no wakeup, so nothing would "
