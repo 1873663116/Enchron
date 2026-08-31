@@ -6,6 +6,7 @@ import unittest
 import json
 from pathlib import Path
 from subprocess import TimeoutExpired
+import subprocess
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -1144,6 +1145,48 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 sorted(path.name for path in destination.iterdir()),
                 ["a.json", "b.json"],
             )
+
+    def _timing_out_run(self, raw: Path):
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.sequence = 0
+        run.segment = None
+        run.sensitive_values = ()
+        run.events = []
+        run.channel_failures = []
+        run.raw = raw
+        run.controller_output = raw / "controller"
+        run.arguments = SimpleNamespace(
+            contexts=[], reuse_session=False,
+            execution_input=raw / "execution-input.json",
+        )
+        run.last_controller_document = {}
+        return run
+
+    def test_three_controller_timeouts_in_a_row_end_the_run(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            timeout = subprocess.TimeoutExpired(cmd="controller", timeout=120.0)
+
+            with patch.object(matrix.subprocess, "run", side_effect=timeout), \
+                 self.assertRaises(matrix.ControllerStopped) as raised:
+                for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS):
+                    run.controller("tap", "--identifier", "x")
+
+        self.assertIn("3 times running", str(raised.exception))
+
+    def test_one_timeout_is_a_bad_step_not_a_dead_run(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            answers = [
+                subprocess.TimeoutExpired(cmd="controller", timeout=120.0),
+                SimpleNamespace(stdout='{"success": true}', stderr="", returncode=0),
+            ]
+
+            with patch.object(matrix.subprocess, "run", side_effect=answers):
+                run.controller("tap", "--identifier", "x")
+                run.controller("tap", "--identifier", "y")
+
+            self.assertEqual(run.consecutive_timeouts, 0)
 
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)

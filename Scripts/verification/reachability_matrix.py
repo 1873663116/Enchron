@@ -51,6 +51,28 @@ PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
+
+CONSECUTIVE_CONTROLLER_TIMEOUTS = 3
+"""Controller timeouts in a row that end the run.
+
+Counted, not timed. A single timeout is a step that failed and the run is right
+to carry on past it. Three in a row is the device having stopped answering, and
+every step after that produces a refusal recorded as a product defect: one run
+spent forty minutes writing eight hundred pieces of evidence that way and
+reported no error at all, because each timeout looked like one bad step.
+"""
+
+
+class ControllerStopped(Exception):
+    """The controller stopped answering, so the run cannot mean anything."""
+
+    def __init__(self, action: str, timeout: float, count: int) -> None:
+        super().__init__(
+            f"the controller returned nothing {count} times running, last on "
+            f"{action} after {timeout:.0f}s; the run was ended rather than "
+            "recording the refusals that follow as product defects"
+        )
+        self.action = action
 SEGMENT_SCENARIO_NAMES = {
     "browser-core",
     "breadcrumbs",
@@ -1057,6 +1079,7 @@ class ReachabilityRun:
         self.probe_retrieval_count = 0
         self.probe_status: dict[str, Any] = {}
         self.sensitive_values: tuple[str, ...] = ()
+        self.consecutive_timeouts = 0
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
             (self.output / "segment-plan.json").write_text(
@@ -1133,7 +1156,9 @@ class ReachabilityRun:
                 "success": False,
                 "error": f"controller {action} exceeded {effective_timeout:.1f} seconds",
             }
+            self.consecutive_timeouts += 1
         else:
+            self.consecutive_timeouts = 0
             try:
                 document = json.loads(completed.stdout)
             except json.JSONDecodeError:
@@ -1146,6 +1171,10 @@ class ReachabilityRun:
         document = redact_sensitive_values(
             document, getattr(self, "sensitive_values", ())
         )
+        if self.consecutive_timeouts >= CONSECUTIVE_CONTROLLER_TIMEOUTS:
+            raise ControllerStopped(
+                action, effective_timeout, self.consecutive_timeouts
+            )
         self.sequence += 1
         name = f"{self.sequence:03d}-{action}.json"
         (self.raw / name).write_text(
@@ -2243,6 +2272,9 @@ class ReachabilityRun:
         time.sleep(1)
 
     UI_TEST_RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
+
+    consecutive_timeouts = 0
+    """Declared on the class so every construction path starts from zero."""
 
     def ensure_session(self) -> bool:
         for attempt in range(2):
@@ -6809,7 +6841,16 @@ def main() -> int:
         return merge_segment_result_files(arguments)
     if arguments.segment_plan is not None or arguments.segment is not None:
         configure_segment(arguments)
-    return ReachabilityRun(arguments).run()
+    run = ReachabilityRun(arguments)
+    try:
+        return run.run()
+    except ControllerStopped as stopped:
+        # Loud on purpose. The run used to absorb every timeout as one more bad
+        # step and exit zero, so a device that had stopped answering produced a
+        # results file full of defects that were never measured.
+        print(f"reachability: {stopped}", file=sys.stderr)
+        run.finish("controller-stopped")
+        return 3
 
 
 if __name__ == "__main__":

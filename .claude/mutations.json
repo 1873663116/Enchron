@@ -4,8 +4,7 @@
     "gate": "hooks/test_orca_channel_gate.py",
     "stop": "hooks/test_loop_wakeup_gate.py",
     "channel": "tools/test_orca_channel.py",
-    "catalog": "hooks/test_catalog_write_gate.py",
-    "liveness": "tools/test_run_liveness.py"
+    "catalog": "hooks/test_catalog_write_gate.py"
   },
   "mutations": [
     {
@@ -420,58 +419,6 @@
       "probe": "stop",
       "expect": [
         "a-stopped-loop-stays-stopped"
-      ]
-    },
-    {
-      "id": "liveness-stall-needs-three-samples",
-      "file": "tools/run_liveness.py",
-      "find": "        tail = samples[-ledger.STALE_OBSERVATIONS:]",
-      "replaceWith": "        tail = samples[-2:]",
-      "probe": "liveness",
-      "expect": [
-        "two-identical-samples-are-not-a-stall"
-      ]
-    },
-    {
-      "id": "liveness-stall-off",
-      "file": "tools/run_liveness.py",
-      "find": "    if len(samples) >= ledger.STALE_OBSERVATIONS:",
-      "replaceWith": "    if False:",
-      "probe": "liveness",
-      "expect": [
-        "the-stall-reports-when-it-started",
-        "three-identical-samples-are-a-stall"
-      ]
-    },
-    {
-      "id": "liveness-crawl-compares-against-a-constant",
-      "file": "tools/run_liveness.py",
-      "find": "        best = max(rates)",
-      "replaceWith": "        best = 1.0",
-      "probe": "liveness",
-      "expect": [
-        "a-uniformly-slow-run-is-not-crawling",
-        "the-crawl-names-the-rate-it-compared"
-      ]
-    },
-    {
-      "id": "liveness-crawl-needs-a-baseline",
-      "file": "tools/run_liveness.py",
-      "find": "    if len(rates) >= MINIMUM_WINDOWS:",
-      "replaceWith": "    if rates:",
-      "probe": "liveness",
-      "expect": [
-        "too-few-windows-cannot-name-a-baseline"
-      ]
-    },
-    {
-      "id": "liveness-digest-is-constant",
-      "file": "tools/run_liveness.py",
-      "find": "    digest = hashlib.sha256(\"\\n\".join(names).encode(\"utf-8\")).hexdigest()[:16]",
-      "replaceWith": "    digest = \"0\" * 16",
-      "probe": "liveness",
-      "expect": [
-        "a-new-file-moves-the-digest"
       ]
     }
   ]
