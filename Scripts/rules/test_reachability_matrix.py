@@ -1108,6 +1108,18 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
         self.assertEqual(run.controller.call_count, 2)
 
+    def test_deferred_probe_records_the_suffix_a_predicate_anchors_on(self) -> None:
+        requirement = {"needles": []}
+        line = matrix.DeferredProbeLine(requirement)
+
+        delivered = matrix.reachability_action_was_delivered(
+            [line], "enterPanorama", offset=0
+        )
+
+        self.assertTrue(delivered)
+        self.assertIn(" delivered action=enterPanorama", requirement["needles"])
+        self.assertIn("reachability ", requirement["needles"])
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = None

@@ -498,13 +498,31 @@ def deferred_replay_failure_reason(replay: dict[str, Any]) -> str | None:
 
 
 class DeferredProbeLine:
+    """Stands in for a probe line and records what would have been matched.
+
+    A segment defers its probe reads, so the predicates run against this instead
+    of text and the needles they ask for are replayed against the real probe
+    afterwards. Every string operation a predicate uses has to be capturable
+    here; `endswith` is one, because an action name that ends the line is how a
+    nested name is told from its parent.
+    """
+
     def __init__(self, requirement: dict[str, Any]) -> None:
         self.requirement = requirement
 
+    def record(self, needle: str) -> None:
+        if needle not in self.requirement["needles"]:
+            self.requirement["needles"].append(needle)
+
     def __contains__(self, needle: object) -> bool:
-        text = str(needle)
-        if text not in self.requirement["needles"]:
-            self.requirement["needles"].append(text)
+        self.record(str(needle))
+        return True
+
+    def rstrip(self, characters: str | None = None) -> "DeferredProbeLine":
+        return self
+
+    def endswith(self, suffix: object) -> bool:
+        self.record(str(suffix))
         return True
 
 
