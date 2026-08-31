@@ -1289,7 +1289,6 @@ public struct FusedPlayerPanel: View {
         default:
             return
         }
-        guard items.isEmpty == false else { return }
         request.handle(
             host: .playerPanel,
             family: request.family,
