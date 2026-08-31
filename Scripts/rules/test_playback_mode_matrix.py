@@ -57,11 +57,18 @@ class SimulatorContainerTests(unittest.TestCase):
                 ) as copy_from_container,
                 patch.object(matrix.subprocess, "run") as run,
             ):
-                lines, error = matrix.copy_probe_lines_once(cell_directory)
+                lines, error = matrix.copy_probe_lines_once(
+                    cell_directory,
+                    target="SIMULATOR-LEASE-TARGET",
+                )
 
             self.assertEqual(lines, ["first", "second"])
             self.assertIsNone(error)
             copy_from_container.assert_called_once()
+            self.assertEqual(
+                copy_from_container.call_args.kwargs["target"],
+                "SIMULATOR-LEASE-TARGET",
+            )
             run.assert_not_called()
 
 
@@ -102,7 +109,11 @@ class PhysicalContainerTests(unittest.TestCase):
                 patch.object(matrix.enchron_target, "is_simulator", return_value=False),
                 patch.object(matrix.subprocess, "run", side_effect=copy_probe) as run,
             ):
-                lines, error = matrix.copy_probe_lines_once(cell_directory)
+                lines, error = matrix.copy_probe_lines_once(
+                    cell_directory,
+                    target="PHYSICAL-LEASE-TARGET",
+                    core_device_identifier="CORE-LEASE-TARGET",
+                )
 
             self.assertEqual(lines, ["physical"])
             self.assertIsNone(error)
@@ -111,7 +122,7 @@ class PhysicalContainerTests(unittest.TestCase):
                 command[:6],
                 ["xcrun", "devicectl", "device", "copy", "from", "--device"],
             )
-            self.assertEqual(command[6], matrix.CORE_DEVICE)
+            self.assertEqual(command[6], "CORE-LEASE-TARGET")
             self.assertEqual(
                 run.call_args.kwargs["timeout"],
                 matrix.PROBE_COPY_TIMEOUT_SECONDS,

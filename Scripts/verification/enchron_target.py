@@ -71,7 +71,13 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
 
 
 def copy_from_container(
-    *, bundle_id: str, source: str, destination: Path, developer_dir: str
+    *,
+    target: str,
+    bundle_id: str,
+    source: str,
+    destination: Path,
+    developer_dir: str,
+    core_device_identifier: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Fetch one file out of the app container, whichever lane the target is on.
 
@@ -80,13 +86,14 @@ def copy_from_container(
     running. Callers that treat a timeout as a signal should read the returned
     code, not the elapsed time.
     """
-    device = target_device()
-    if is_simulator(device):
-        container = simulator_container(device, bundle_id)
+    if not target:
+        raise ValueError("container target must not be empty")
+    if is_simulator(target):
+        container = simulator_container(target, bundle_id)
         origin = container / source if container else None
         if origin is None or not origin.exists():
             return subprocess.CompletedProcess(
-                ["simctl", "get_app_container", device, bundle_id],
+                ["simctl", "get_app_container", target, bundle_id],
                 returncode=1, stdout="", stderr=f"{source} is not in the container.",
             )
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -95,7 +102,7 @@ def copy_from_container(
     return subprocess.run(
         [
             "xcrun", "devicectl", "device", "copy", "from",
-            "--device", core_device(),
+            "--device", core_device_identifier or core_device(),
             "--domain-type", "appDataContainer",
             "--domain-identifier", bundle_id,
             "--source", source,

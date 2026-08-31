@@ -82,12 +82,33 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 )
             }
         } catch {
-            switch await failureDiagnoser.diagnose(error, attemptedURL: address) {
-            case .requiresHTTPS:
-                throw RemoteConnectionError.requiresHTTPS
-            case .unclassified:
-                throw error
+            if let failure = Self.authenticationFailure(for: error) {
+                throw failure
             }
+            throw await failureDiagnoser.diagnose(
+                error,
+                attemptedURL: address
+            )
+        }
+    }
+
+    private static func authenticationFailure(
+        for error: any Error
+    ) -> RemoteConnectionFailure? {
+        if let failure = error as? RemoteConnectionFailure {
+            return failure
+        }
+        guard let embyError = error as? EmbyError else { return nil }
+
+        switch embyError {
+        case .invalidBaseAddress:
+            return .invalidAddress
+        case .httpStatus(let statusCode) where statusCode == 401 || statusCode == 403:
+            return .credentialsRejected
+        case .invalidImageSize, .invalidResponse, .httpStatus, .missingRequiredField,
+             .childrenUnavailable, .directPlayUnavailable, .externalSubtitleUnavailable,
+             .mediaSourceUnavailable, .unsupportedVideoCodec, .notAuthenticated:
+            return nil
         }
     }
 

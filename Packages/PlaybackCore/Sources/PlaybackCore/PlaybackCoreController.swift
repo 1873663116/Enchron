@@ -26,9 +26,14 @@ public final class PlaybackCoreController {
     public private(set) var selectedStereoLayout: VideoStereoLayout?
     public private(set) var selectedProjectionOverride: VideoProjectionOverride?
     public private(set) var selectedDynamicRangeOverride: VideoDynamicRangeOverride?
+    public private(set) var activeFailureContext: PlaybackCoreActiveFailureContext?
+    public private(set) var deliveryContinuity: PlaybackDeliveryContinuityObservation?
 
     public var onStatusChange: ((PlaybackStatus) -> Void)?
     public var onDiagnosticsChange: ((PlaybackDiagnostics) -> Void)?
+    public var onDeliveryContinuityChange: ((
+        PlaybackDeliveryContinuityObservation
+    ) -> Void)?
     public var onAcceptedVideoFormatRevisionChange: ((UInt64) -> Void)?
     public var onSessionChange: ((SampleBufferPlaybackSession?) -> Void)?
     public var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
@@ -146,6 +151,8 @@ public final class PlaybackCoreController {
         selectedURL = url
         selectedAsset = asset
         selectedSourceTransport = sourceTransport
+        activeFailureContext = nil
+        deliveryContinuity = nil
         setStatus(.loading)
         let session = sessionFactory(sessionID)
         if initialStereoLayout != nil || initialProjectionOverride != nil
@@ -209,6 +216,8 @@ public final class PlaybackCoreController {
             activeSession = nil
             _ = mediaSlot.release(mediaSessionID: sessionID)
             onSessionChange?(nil)
+            activeFailureContext = nil
+            deliveryContinuity = nil
             setStatus(.failed(error.localizedDescription))
             throw error
         }
@@ -823,6 +832,8 @@ public final class PlaybackCoreController {
         activeSubtitleSelectionTask = nil
         latestRequestedSeekTime = nil
         guard let session = activeSession else {
+            activeFailureContext = nil
+            deliveryContinuity = nil
             setStatus(.idle)
             return
         }
@@ -849,6 +860,8 @@ public final class PlaybackCoreController {
             activeFormatOverrideTask = nil
             activeSubtitleSelectionTask?.cancel()
             activeSubtitleSelectionTask = nil
+            activeFailureContext = nil
+            deliveryContinuity = nil
             setStatus(.idle)
             await waitForPendingCleanup()
             await waitForReplacementRetirements()
@@ -902,6 +915,8 @@ public final class PlaybackCoreController {
         diagnostics = PlaybackDiagnostics()
         onDiagnosticsChange?(diagnostics)
         _ = mediaSlot.release(mediaSessionID: mediaSessionID)
+        activeFailureContext = nil
+        deliveryContinuity = nil
         setStatus(.idle)
 
         let retirementID = UUID()
@@ -948,6 +963,11 @@ public final class PlaybackCoreController {
                         mediaSessionID: session.traceID
                     )
                 }
+                if case .failed = status {
+                    self.activeFailureContext = session.activeFailureContext
+                } else {
+                    self.activeFailureContext = nil
+                }
                 self.setStatus(status)
                 if case .failed(let message) = status {
                     self.failedCleanupTask?.cancel()
@@ -967,6 +987,17 @@ public final class PlaybackCoreController {
                 }
                 self.diagnostics = diagnostics
                 self.onDiagnosticsChange?(diagnostics)
+            }
+        }
+        session.onDeliveryContinuityChange = { [weak self, weak session] observation in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                guard self.activeSession === session else {
+                    self.recordStaleCallback(from: session, kind: "deliveryContinuity")
+                    return
+                }
+                self.deliveryContinuity = observation
+                self.onDeliveryContinuityChange?(observation)
             }
         }
         session.onAcceptedVideoFormatRevisionChange = { [weak self, weak session] revision in
@@ -1033,6 +1064,13 @@ public final class PlaybackCoreController {
         onSessionChange?(nil)
         diagnostics = PlaybackDiagnostics()
         onDiagnosticsChange?(diagnostics)
+        deliveryContinuity = nil
+        switch statusWhileClosing {
+        case .failed:
+            break
+        default:
+            activeFailureContext = nil
+        }
         setStatus(statusWhileClosing)
         session.close { [weak self] in
             Task { @MainActor in
@@ -1164,6 +1202,7 @@ public enum PlaybackControlError: LocalizedError, Sendable {
     case invalidAudioTrack(Int)
     case invalidSubtitleTrack(String)
     case externalSubtitleHasNoSupportedTracks(String)
+    case unsupportedVideoCodec(codecName: String)
     case operationInProgress(PlaybackOperationKind)
     case mediaSessionClosed
 
@@ -1193,6 +1232,8 @@ public enum PlaybackControlError: LocalizedError, Sendable {
             "Subtitle track \(trackID) is not available in this source."
         case .externalSubtitleHasNoSupportedTracks(let displayName):
             "\(displayName) does not contain a supported subtitle track."
+        case .unsupportedVideoCodec(let codecName):
+            "The video codec \(codecName) is unsupported."
         case .operationInProgress(let kind):
             "The \(kind.rawValue) operation is still in progress."
         case .mediaSessionClosed:

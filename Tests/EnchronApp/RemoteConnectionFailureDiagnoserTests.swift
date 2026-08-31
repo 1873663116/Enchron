@@ -1,4 +1,5 @@
 import Foundation
+import MediaLibrary
 import MediaSource
 import XCTest
 
@@ -18,10 +19,6 @@ nonisolated final class RemoteConnectionFailureDiagnoserTests: XCTestCase {
         XCTAssertEqual(diagnosis, .requiresHTTPS)
         let probedEndpoints = await recorder.endpoints
         XCTAssertEqual(probedEndpoints, [])
-        XCTAssertEqual(
-            MediaSource.RemoteConnectionError.requiresHTTPS.localizedDescription,
-            "该地址需要使用 HTTPS。请在服务器地址前添加 https:// 后重试。"
-        )
     }
 
     func testPlainHTTPTransportFailureUsesExactEndpointTLSProbe() async throws {
@@ -56,7 +53,7 @@ nonisolated final class RemoteConnectionFailureDiagnoserTests: XCTestCase {
             attemptedURL: url
         )
 
-        XCTAssertEqual(diagnosis, .unclassified)
+        XCTAssertEqual(diagnosis, .serverUnreachable)
         let probedEndpoints = await recorder.endpoints
         XCTAssertEqual(
             probedEndpoints,
@@ -76,9 +73,75 @@ nonisolated final class RemoteConnectionFailureDiagnoserTests: XCTestCase {
             attemptedURL: url
         )
 
-        XCTAssertEqual(diagnosis, .unclassified)
+        XCTAssertEqual(diagnosis, .serverUnreachable)
         let probedEndpoints = await recorder.endpoints
         XCTAssertEqual(probedEndpoints, [])
+    }
+
+    func testAuthenticationURLFailureIsCredentialsRejected() async throws {
+        let diagnoser = MediaSource.RemoteConnectionFailureDiagnoser { _ in
+            XCTFail("HTTPS URLs must not trigger the plaintext TLS probe")
+            return false
+        }
+        let url = try XCTUnwrap(URL(string: "https://media.example.test"))
+
+        let diagnosis = await diagnoser.diagnose(
+            URLError(.userAuthenticationRequired),
+            attemptedURL: url
+        )
+
+        XCTAssertEqual(diagnosis, .credentialsRejected)
+    }
+
+    func testMalformedURLFailureIsInvalidAddress() async throws {
+        let diagnoser = MediaSource.RemoteConnectionFailureDiagnoser { _ in
+            XCTFail("HTTPS URLs must not trigger the plaintext TLS probe")
+            return false
+        }
+        let url = try XCTUnwrap(URL(string: "https://media.example.test"))
+
+        let diagnosis = await diagnoser.diagnose(
+            URLError(.badURL),
+            attemptedURL: url
+        )
+
+        XCTAssertEqual(diagnosis, .invalidAddress)
+    }
+
+    func testNonURLFailureUsesTheClosedFallback() async throws {
+        let recorder = TLSProbeRecorder(result: true)
+        let diagnoser = MediaSource.RemoteConnectionFailureDiagnoser { endpoint in
+            await recorder.probe(endpoint)
+        }
+        let url = try XCTUnwrap(URL(string: "https://media.example.test"))
+
+        let diagnosis = await diagnoser.diagnose(
+            CocoaError(.fileReadCorruptFile),
+            attemptedURL: url
+        )
+
+        XCTAssertEqual(diagnosis, .serverUnreachable)
+        let probedEndpoints = await recorder.endpoints
+        XCTAssertEqual(probedEndpoints, [])
+    }
+
+    func testPresentationCopyGivesEachFailureAnActionableMessage() {
+        XCTAssertEqual(
+            MediaSource.RemoteConnectionFailure.credentialsRejected.sourceConnectionMessage,
+            "Credentials rejected. Check your username and password."
+        )
+        XCTAssertEqual(
+            MediaSource.RemoteConnectionFailure.serverUnreachable.sourceConnectionMessage,
+            "Server unreachable. Check the address and your network connection."
+        )
+        XCTAssertEqual(
+            MediaSource.RemoteConnectionFailure.invalidAddress.sourceConnectionMessage,
+            "Invalid address. Check the server address and try again."
+        )
+        XCTAssertEqual(
+            MediaSource.RemoteConnectionFailure.requiresHTTPS.sourceConnectionMessage,
+            "This server requires HTTPS. Add https:// to the address and try again."
+        )
     }
 }
 

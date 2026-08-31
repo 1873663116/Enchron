@@ -1,4 +1,5 @@
 import Observation
+import Playback
 import SwiftUI
 
 struct AppModalPresentationID: Hashable, Sendable {
@@ -41,6 +42,12 @@ final class AppModalPresentationCoordinator {
     func modalDidDismiss(_ id: AppModalPresentationID) {
         if presentedModal?.id == id {
             presentedModal = nil
+        }
+        if id == .sourceConnection {
+            SurfaceInputProbes.record(
+                "certificateBoundary modalDismissed id=\(id.rawValue)",
+                retention: .evidence
+            )
         }
         let waiters = dismissalWaiters.removeValue(forKey: id) ?? []
         for waiter in waiters {

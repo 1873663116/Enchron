@@ -22,33 +22,20 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
-import tempfile
+
+if __package__:
+    from . import regression_smb_source as smb_source
+else:
+    import regression_smb_source as smb_source
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKSPACE_ROOT = REPOSITORY_ROOT.parent
 TEST_MEDIA = WORKSPACE_ROOT / "TestMedia"
 ENVIRONMENT_FILE = REPOSITORY_ROOT / ".env"
-SHARE_NAME = "TestMedia"
-AGGREGATE_STEM = "sdr-bframe-aggregate-30s"
 AUDIO_SUFFIXES = (
     ".aac", ".ac3", ".aob", ".ape", ".caf", ".dts", ".eac3", ".flac", ".m4a",
     ".mka", ".mp3", ".oga", ".ogg", ".opus", ".thd", ".wav", ".wv",
 )
-
-
-def read_environment() -> dict[str, str]:
-    values: dict[str, str] = {}
-    if not ENVIRONMENT_FILE.exists():
-        return values
-    for line in ENVIRONMENT_FILE.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        values[key.strip()] = value.strip().strip("'\"")
-    return values
-
 
 def host_address() -> str:
     for interface in ("en0", "en1"):
@@ -61,65 +48,21 @@ def host_address() -> str:
 
 
 def check_smb() -> dict[str, object]:
-    environment = read_environment()
-    user = environment.get("SMB_USER", "")
-    password = environment.get("SMB_PASSWORD", "")
-    address = host_address()
-    if not user or not password:
-        return {
-            "check": "smb",
-            "ready": False,
-            "reason": "SMB_USER or SMB_PASSWORD missing from .env",
-            "address": address,
-        }
-    listening = (
-        subprocess.run(
-            ["nc", "-z", "-G", "2", address, "445"], capture_output=True
-        ).returncode
-        == 0
-    )
-    if not listening:
-        return {
-            "check": "smb",
-            "ready": False,
-            "reason": f"nothing listening on {address}:445; enable File Sharing in System Settings",
-            "address": address,
-        }
-    mount_point = Path(tempfile.mkdtemp(prefix="journey-smb-"))
     try:
-        mounted = subprocess.run(
-            [
-                "mount_smbfs",
-                f"//{user}:{password}@{address}/{SHARE_NAME}",
-                str(mount_point),
-            ],
-            capture_output=True,
-            text=True,
+        configuration = smb_source.SMBSourceConfiguration(
+            runtime_root=smb_source.DEFAULT_RUNTIME_ROOT,
+            registry_path=smb_source.DEFAULT_REGISTRY,
+            environment_file=ENVIRONMENT_FILE,
+            address=host_address(),
         )
-        if mounted.returncode != 0:
-            return {
-                "check": "smb",
-                "ready": False,
-                "reason": f"mount rejected: {mounted.stderr.strip()}",
-                "address": address,
-            }
-        try:
-            found = sorted(
-                str(path.relative_to(mount_point))
-                for path in mount_point.rglob(f"{AGGREGATE_STEM}.*")
-            )
-            return {
-                "check": "smb",
-                "ready": bool(found),
-                "reason": "" if found else f"{AGGREGATE_STEM}.* not present on the share",
-                "address": address,
-                "share": SHARE_NAME,
-                "aggregate": found,
-            }
-        finally:
-            subprocess.run(["umount", str(mount_point)], capture_output=True)
-    finally:
-        shutil.rmtree(mount_point, ignore_errors=True)
+    except smb_source.SMBSourceError as error:
+        return {
+            "schema": smb_source.REPORT_SCHEMA,
+            "check": "smb-aggregate",
+            "ready": False,
+            "reason": str(error),
+        }
+    return smb_source.run_preflight(configuration)
 
 
 def probe_streams(path: Path) -> list[dict[str, object]]:

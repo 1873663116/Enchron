@@ -293,30 +293,6 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/PlaybackTimeline.swift",
-      "signature": ".blur(radius: lineWidth * 2)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
-      "signature": ".strokeBorder(DesignTokens.Theme.accent.opacity(0.3), lineWidth: 1)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
-      "signature": ".white.opacity(0.9),",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
-      "signature": "DesignTokens.Theme.accent.opacity(0.15),",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackTimeline.swift",
       "signature": "with: .color(Color.black.opacity(0.12))",
       "count": 1
     },

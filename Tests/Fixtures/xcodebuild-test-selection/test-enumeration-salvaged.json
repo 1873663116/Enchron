@@ -150,7 +150,7 @@ Command line invocation:
           "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAcceptedCoreFormatRevisionIsObservableSessionIdentityOnly()"
         },
         {
-          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAppleImmersiveVideoFailsBeforePublishingAudioOrVideoPlayback()"
+          "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAppleImmersiveVideoOpensWithItsExactSourcePresentationFacts()"
         },
         {
           "identifier" : "EnchronAppTests/PlaybackSourceAndAudioSessionTests/testAudioSessionLifecycleActivatesMoviePlaybackAndDeactivatesExactlyOnce()"
@@ -285,7 +285,7 @@ Command line invocation:
           "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAPMPWideFOVAutomaticSourcePlaybackOnVisionPro()"
         },
         {
-          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAppleImmersiveVideoIsRejectedBeforePlaybackOnVisionPro()"
+          "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testAppleImmersiveVideoDecodesOnItsImmersiveSurfaceOnVisionPro()"
         },
         {
           "identifier" : "EnchronAppUITests/DeviceFixtureImportUITests/testDolbyVisionProfile10AutomaticSourcePlaybackOnVisionPro()"

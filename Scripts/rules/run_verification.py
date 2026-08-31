@@ -94,19 +94,55 @@ STRUCTURE_CHECKS = (
     StructureCheck("media-discovery-admission", "verify_media_discovery_admission.py"),
     StructureCheck("glass-usage", "verify_glass_usage.py"),
     StructureCheck("documentation-references", "verify_documentation_references.py"),
+    StructureCheck(
+        "regression-core-layering",
+        "verify_regression_core_layering.py",
+    ),
     StructureCheck("recording-extractor", "check_recording_extractor.py"),
     StructureCheck(
         "playback-issue-ownership",
         "verify_playback_issue_ownership.py",
     ),
+    StructureCheck(
+        "product-source-comments",
+        "verify_product_source_comments.py",
+    ),
+    StructureCheck(
+        "release-test-channel-absent",
+        "verify_release_test_channel_absent.py",
+    ),
+    StructureCheck(
+        "regression-fact-provenance",
+        "verify_regression_fact_provenance.py",
+    ),
+    StructureCheck(
+        "playback-runtime-ownership",
+        "verify_playback_runtime_ownership.py",
+    ),
+    StructureCheck(
+        "regression-oracle-producers",
+        "verify_regression_oracle_producers.py",
+    ),
+    StructureCheck(
+        "controller-invocations",
+        "verify_controller_invocations.py",
+    ),
+    StructureCheck(
+        "regression-element-targeting",
+        "verify_regression_element_targeting.py",
+    ),
+    StructureCheck(
+        "regression-related-results-arity",
+        "verify_regression_related_results_arity.py",
+    ),
+    StructureCheck(
+        "operation-evidence-payloads",
+        "verify_operation_evidence_payloads.py",
+    ),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
     StructureCheck(
         "reachability-inventory",
         "generate_reachability_inventory.py",
-    ),
-    StructureCheck(
-        "journey-operation-coverage",
-        "journey_units.py",
     ),
     StructureCheck(
         "visionpro-core-regression-plan",
@@ -128,6 +164,11 @@ STRUCTURE_CHECKS = (
         "scripts-inventory",
         "verify_scripts_inventory.py",
     ),
+    StructureCheck(
+        "ensure-test-services",
+        "ensure_test_services.py",
+        runs_in_quick_mode=False,
+    ),
     StructureCheck("disc-image-format", "check_disc_image_format.py"),
     StructureCheck(
         "dolby-vision-premises",
@@ -148,6 +189,10 @@ STRUCTURE_CHECKS = (
         "verify_organic_architecture_xcode.sh",
     ),
     StructureCheck("swiftlint", "verify_swiftlint.py"),
+    StructureCheck(
+        "bootstrap-freeze",
+        "verify_bootstrap_freeze.py",
+    ),
 )
 
 
@@ -378,6 +423,20 @@ def test_failure_has_marker(
     return False
 
 
+def discard_playback_core_scratch() -> bool:
+    """Throw away the shared build directory after a step failed to report.
+
+    A terminated `swift test` leaves that directory wedged, and every later run
+    inherits it: the suite then fails a different handful of timing-sensitive
+    tests each time, which reads as a flaky product rather than as stale state.
+    Rebuilding costs minutes; a poisoned directory costs every run after it.
+    """
+    if not PLAYBACK_CORE_SCRATCH.exists():
+        return False
+    shutil.rmtree(PLAYBACK_CORE_SCRATCH, ignore_errors=True)
+    return not PLAYBACK_CORE_SCRATCH.exists()
+
+
 def run_playback_core_tests(
     run_directory: Path,
     environment: dict[str, str],
@@ -387,6 +446,7 @@ def run_playback_core_tests(
     command = [
         swift,
         "test",
+        "--no-parallel",
         "--package-path",
         str(REPOSITORY_ROOT / "Packages/PlaybackCore"),
         "--scratch-path",
@@ -397,10 +457,12 @@ def run_playback_core_tests(
     logs = [relative_log(log, run_directory)]
     summary = test_summary(output)
     if summary is None:
+        discarded = discard_playback_core_scratch()
         return LayerResult(
             "PlaybackCore tests",
             "FAIL",
-            f"full test summary is missing; command exited {code}",
+            f"full test summary is missing; command exited {code}"
+            + ("; discarded the shared build directory" if discarded else ""),
             tuple(logs),
         )
 
@@ -918,6 +980,7 @@ def main() -> int:
             )
         except (OSError, subprocess.SubprocessError) as error:
             results.append(LayerResult("PlaybackCore tests", "FAIL", str(error)))
+        results.append(run_guard_selftests(run_directory, environment))
         if arguments.quick:
             results.extend(
                 [
@@ -925,7 +988,6 @@ def main() -> int:
                     skipped("Source parity"),
                     skipped("Media discovery capability matrix"),
                     skipped("Feature evidence coverage"),
-                    skipped("Guard self-tests"),
                 ]
             )
         else:
@@ -938,7 +1000,6 @@ def main() -> int:
                 run_media_discovery_capability_matrix(run_directory, environment)
             )
             results.append(run_feature_coverage(run_directory, environment))
-            results.append(run_guard_selftests(run_directory, environment))
 
         write_summary(
             run_directory,

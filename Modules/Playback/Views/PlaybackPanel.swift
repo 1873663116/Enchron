@@ -1631,6 +1631,7 @@ public struct FusedPlayerPanel: View {
         progress = target
         armPendingSeek(for: target)
         live?.onSeek(target)
+        live?.onReachabilityAction("progress.seekToTrack")
         onInteraction()
     }
 

@@ -37,12 +37,32 @@ class Script:
 
 
 def defines_test_cases(tree: ast.Module) -> bool:
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        bases = {getattr(base, "attr", getattr(base, "id", "")) for base in node.bases}
-        if "TestCase" not in bases:
-            continue
+    classes = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+    }
+    test_cases = {
+        name
+        for name, node in classes.items()
+        if "TestCase"
+        in {getattr(base, "attr", getattr(base, "id", "")) for base in node.bases}
+    }
+    while True:
+        derived = {
+            name
+            for name, node in classes.items()
+            if any(
+                getattr(base, "attr", getattr(base, "id", "")) in test_cases
+                for base in node.bases
+            )
+        }
+        expanded = test_cases | derived
+        if expanded == test_cases:
+            break
+        test_cases = expanded
+    for name in test_cases:
+        node = classes[name]
         if any(
             isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
             and member.name.startswith(TEST_PREFIX)
@@ -132,8 +152,9 @@ def cited(path: Path) -> bool:
             continue
         if candidate.suffix not in (".py", ".sh", ".zsh", ".md", ".yml", ".json"):
             continue
-        if any(part.startswith(".") and part != "." for part in candidate.parts):
-            if ".agents" not in candidate.parts and ".github" not in candidate.parts:
+        parts = candidate.relative_to(REPOSITORY_ROOT).parts
+        if any(part.startswith(".") for part in parts):
+            if ".agents" not in parts and ".github" not in parts:
                 continue
         try:
             if path.name in candidate.read_text(encoding="utf-8", errors="replace"):

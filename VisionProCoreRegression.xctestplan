@@ -37,7 +37,7 @@
         "DeviceFixtureImportUITests/testOfficialMVHEVCAutomaticMonoOverrideAndRestoreOnVisionPro()",
         "DeviceFixtureImportUITests/testDolbyVisionProfile5AutomaticSourcePlaybackOnVisionPro()",
         "DeviceFixtureImportUITests/testDolbyVisionProfile10AutomaticSourcePlaybackOnVisionPro()",
-        "DeviceFixtureImportUITests/testAppleImmersiveVideoIsRejectedBeforePlaybackOnVisionPro()",
+        "DeviceFixtureImportUITests/testAppleImmersiveVideoDecodesOnItsImmersiveSurfaceOnVisionPro()",
         "MediaLibraryRegressionUITests/testSingleItemGridGeometryAndVisualComposition()",
         "MediaLibraryRegressionUITests/testSparseMixedGridGeometryAndVisualComposition()",
         "MediaLibraryRegressionUITests/testLargeMixedGridGeometryScrollingAndVisualComposition()",

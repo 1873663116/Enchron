@@ -56,6 +56,9 @@ public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
     public var audioSessionOutputPortTypes: [String]
     public var systemOutputVolume: Float
     public var sourceReadBytesPerSecond: UInt64
+    public var loadingVisibility: PlaybackLoadingVisibility
+    public var loadingStage: PlaybackLoadingStage?
+    public var loadingCausalEvidence: PlaybackLoadingCausalEvidence?
 
     public init(
         capturedAt: Date = Date(),
@@ -90,7 +93,10 @@ public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
         audioSessionMode: String,
         audioSessionOutputPortTypes: [String],
         systemOutputVolume: Float,
-        sourceReadBytesPerSecond: UInt64 = 0
+        sourceReadBytesPerSecond: UInt64 = 0,
+        loadingVisibility: PlaybackLoadingVisibility = .none,
+        loadingStage: PlaybackLoadingStage? = nil,
+        loadingCausalEvidence: PlaybackLoadingCausalEvidence? = nil
     ) {
         self.capturedAt = capturedAt
         self.mediaSessionID = mediaSessionID
@@ -125,6 +131,9 @@ public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
         self.audioSessionOutputPortTypes = audioSessionOutputPortTypes
         self.systemOutputVolume = systemOutputVolume
         self.sourceReadBytesPerSecond = sourceReadBytesPerSecond
+        self.loadingVisibility = loadingVisibility
+        self.loadingStage = loadingStage
+        self.loadingCausalEvidence = loadingCausalEvidence
     }
 }
 

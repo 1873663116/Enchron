@@ -790,7 +790,7 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     #expect(mvhevc.hasStereoVideoEnhancementLayer)
 }
 
-@Test func appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat() async throws {
+@Test func appleImmersiveProviderPreservesExactPayloadAndMultiviewMetadata() async throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
         "Samples/Spatial/Apple-Immersive/Apple-Streaming-Examples/Immersive-Video-example.f99766.mp4"
@@ -815,14 +815,89 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     )
     let sourceFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
     let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    let assetReaderSample = try await firstCompressedVideoSample(
+        in: AVURLAsset(url: fixture)
+    )
 
-    #expect(atoms["hvcC"] != sourceAtoms["hvcC"])
-    #expect(atoms["lhvC"] == nil)
-    #expect(extensions[kCMFormatDescriptionExtension_ProjectionKind as String] == nil)
-    #expect(provider.info.formatSignaling.provenance == "FFmpeg.codecParameters")
+    #expect(atoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(atoms["lhvC"] == sourceAtoms["lhvC"])
+    #expect(atoms["lhvC"]?.isEmpty == false)
+    #expect(
+        extensions[kCMFormatDescriptionExtension_ProjectionKind as String] as? String
+            == "AppleImmersiveVideo"
+    )
+    #expect(
+        extensions[kCMFormatDescriptionExtension_HasLeftStereoEyeView as String] as? Bool
+            == true
+    )
+    #expect(
+        extensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String] as? Bool
+            == true
+    )
+    #expect(try compressedPayload(in: sample) == compressedPayload(in: assetReaderSample))
+    #expect(try compressedPayload(in: sample).count == 1_361_070)
+    #expect(provider.info.isMVHEVC)
+    #expect(provider.info.codecConfigurationSummary.value == "hvcC,lhvC")
+    #expect(provider.info.formatSignaling.provenance == "AVAssetTrack.sourceFormatDescription")
     #expect(provider.info.formatSignaling.projectionKind.value == "AppleImmersiveVideo")
     #expect(provider.info.formatSignaling.hasLeftStereoEyeView.value == true)
     #expect(provider.info.formatSignaling.hasRightStereoEyeView.value == true)
+    #expect(provider.info.formatSignaling.lhvC.value == true)
+}
+
+@Test func appleImmersiveProviderRejectsBaseEyeDelivery() async throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/Spatial/Apple-Immersive/Apple-Streaming-Examples/Immersive-Video-example.f99766.mp4"
+    )
+    let sourceFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let baseEyeFormat = try videoFormatDescription(
+        byRemovingSampleDescriptionAtom: "lhvC",
+        from: sourceFormat
+    )
+    let baseEyeSample = try compressedVideoSample(formatDescription: baseEyeFormat)
+    let dimensions = CMVideoFormatDescriptionGetDimensions(baseEyeFormat)
+    let operations = FixedFormatVideoReaderOperations(
+        formatDescription: baseEyeFormat,
+        sample: baseEyeSample,
+        info: VideoSampleProviderInfo(
+            providerKind: "FixedBaseEyeVideoTest",
+            containerFormat: "mov,mp4,m4a,3gp,3g2,mj2",
+            codecName: "hevc",
+            codecTag: "hvc1",
+            isMVHEVC: false,
+            dimensions: "\(dimensions.width)x\(dimensions.height)",
+            codecConfigurationSummary: .init(known: "hvcC"),
+            formatSignaling: VideoFormatSignalingSummary(
+                provenance: "FFmpeg.codecParameters",
+                hvcC: .init(known: true),
+                lhvC: .init(.none)
+            )
+        )
+    )
+    let provider = FFmpegSampleProvider(operations: operations)
+    defer { provider.cancel() }
+    let sourceInformation = MediaSourceInformation(
+        containerFormat: "mov,mp4,m4a,3gp,3g2,mj2",
+        durationSeconds: 29.355_733,
+        streams: [],
+        containerSupportsSourceFormatDescription: true
+    )
+
+    do {
+        try await provider.prepare(
+            url: fixture,
+            asset: nil,
+            sourceInformation: sourceInformation,
+            startTime: .zero
+        )
+        Issue.record("Apple Immersive Video must not deliver a flat base-eye sample.")
+    } catch let error as PlaybackProviderError {
+        guard case .appleImmersivePayloadMismatch = error else {
+            Issue.record("Expected an Apple Immersive payload mismatch, got \(error).")
+            return
+        }
+    }
 }
 
 @Test func officialAppleProjectedMediaKeepsItsSourceProjectionKind() async throws {
@@ -1591,6 +1666,7 @@ func ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout(
     defer { PBFFmpegAudioReaderDestroy(activeReader) }
 
     var frameCounts: [Int] = []
+    var observations: [PBFFmpegAudioSampleMetadata] = []
     while true {
         var sample: Unmanaged<CMSampleBuffer>?
         var metadata = PBFFmpegAudioSampleMetadata()
@@ -1605,10 +1681,21 @@ func ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout(
         #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
         let buffer = try #require(sample?.takeRetainedValue())
         frameCounts.append(CMSampleBufferGetNumSamples(buffer))
+        observations.append(metadata)
     }
 
     #expect(frameCounts == [4_800, 4_800, 2_400])
     #expect(frameCounts.reduce(0, +) == 12_000)
+    let finalObservation = try #require(observations.last)
+    #expect(finalObservation.trueHDDecoderInputPacketCount > 0)
+    #expect(finalObservation.trueHDDecoderBatchCount > 0)
+    #expect(
+        finalObservation.trueHDDecoderInputPacketCount
+            > finalObservation.trueHDDecoderBatchCount
+    )
+    #expect(finalObservation.trueHDAggregatedDecoderBatchCount > 0)
+    #expect(finalObservation.trueHDOutputSampleBufferCount == observations.count)
+    #expect(finalObservation.trueHDLastDecoderBatchInputPacketCount > 0)
 }
 
 @Test func ffmpegUndecodableAudioNamesTheCodecInsteadOfGuessing() throws {
@@ -2358,6 +2445,42 @@ private func cString(_ buffer: [CChar]) -> String {
 private func firstVideoFormatDescription(in asset: AVAsset) async throws -> CMFormatDescription {
     let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
     return try #require(try await track.load(.formatDescriptions).first)
+}
+
+private func firstCompressedVideoSample(in asset: AVAsset) async throws -> CMSampleBuffer {
+    let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
+    let reader = try AVAssetReader(asset: asset)
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+    try #require(reader.canAdd(output))
+    reader.add(output)
+    try #require(reader.startReading())
+    while let sample = output.copyNextSampleBuffer() {
+        guard CMSampleBufferGetNumSamples(sample) > 0,
+              let buffer = CMSampleBufferGetDataBuffer(sample),
+              CMBlockBufferGetDataLength(buffer) > 0 else { continue }
+        return sample
+    }
+    Issue.record("AVAssetReader did not publish a compressed video sample.")
+    throw CancellationError()
+}
+
+private func compressedPayload(in sample: CMSampleBuffer) throws -> Data {
+    let buffer = try #require(CMSampleBufferGetDataBuffer(sample))
+    let length = CMBlockBufferGetDataLength(buffer)
+    var data = Data(count: length)
+    let status = data.withUnsafeMutableBytes { bytes in
+        guard let baseAddress = bytes.baseAddress else {
+            return kCMBlockBufferBadLengthParameterErr
+        }
+        return CMBlockBufferCopyDataBytes(
+            buffer,
+            atOffset: 0,
+            dataLength: length,
+            destination: baseAddress
+        )
+    }
+    try #require(status == noErr)
+    return data
 }
 
 private func sampleDescriptionAtoms(

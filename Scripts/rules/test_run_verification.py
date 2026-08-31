@@ -75,6 +75,81 @@ class StepSilenceGuardTests(unittest.TestCase):
         self.assertEqual(output, "done\n")
 
 
+class PoisonedBuildDirectoryTests(unittest.TestCase):
+    """A terminated `swift test` leaves the shared build directory wedged.
+
+    Every later run inherited it and failed a different handful of
+    timing-sensitive tests, which reads as a flaky product rather than as
+    stale state carried over from a run that never finished.
+    """
+
+    @contextlib.contextmanager
+    def scratch_at(self, directory: str, reported: tuple[int, str]):
+        scratch = Path(directory) / "PlaybackCore"
+        scratch.mkdir()
+        (scratch / "wedged.o").write_text("stale", encoding="utf-8")
+        original_scratch = verification.PLAYBACK_CORE_SCRATCH
+        original_run_logged = verification.run_logged
+        verification.PLAYBACK_CORE_SCRATCH = scratch
+        verification.run_logged = lambda *arguments, **keywords: reported
+        try:
+            yield scratch
+        finally:
+            verification.PLAYBACK_CORE_SCRATCH = original_scratch
+            verification.run_logged = original_run_logged
+
+    def test_a_step_that_never_reports_discards_the_build_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.scratch_at(directory, (124, "")) as scratch:
+                with captured():
+                    result = verification.run_playback_core_tests(
+                        Path(directory), {}, verification.load_baseline()
+                    )
+                self.assertEqual(result.state, "FAIL")
+                self.assertIn("discarded the shared build directory", result.detail)
+                self.assertFalse(scratch.exists())
+
+    def test_a_step_that_reports_leaves_the_build_directory_alone(self) -> None:
+        reported = (1, "Test run with 1 test in 1 suite failed after 0.1 seconds.")
+        with tempfile.TemporaryDirectory() as directory:
+            with self.scratch_at(directory, reported) as scratch:
+                with captured():
+                    result = verification.run_playback_core_tests(
+                        Path(directory), {}, verification.load_baseline()
+                    )
+                self.assertEqual(result.state, "FAIL")
+                self.assertNotIn("discarded", result.detail)
+                self.assertTrue(scratch.exists())
+
+    def test_playback_core_suite_is_forced_to_run_serially(self) -> None:
+        recorded: list[str] = []
+
+        def run_logged(*arguments, **keywords):
+            recorded.extend(arguments[1])
+            return (
+                1,
+                "Test controllerRejectsSecondOpenAndRecordsTheRejection() "
+                "failed after 0.1 seconds with 1 issue.\n"
+                "Test run with 1 test in 1 suite failed after 0.1 seconds.\n",
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            original_scratch = verification.PLAYBACK_CORE_SCRATCH
+            original_run_logged = verification.run_logged
+            verification.PLAYBACK_CORE_SCRATCH = Path(directory) / "PlaybackCore"
+            verification.run_logged = run_logged
+            try:
+                result = verification.run_playback_core_tests(
+                    Path(directory), {}, verification.load_baseline()
+                )
+            finally:
+                verification.PLAYBACK_CORE_SCRATCH = original_scratch
+                verification.run_logged = original_run_logged
+
+        self.assertEqual(result.state, "PASS")
+        self.assertIn("--no-parallel", recorded)
+
+
 class LockWaitGuardTests(unittest.TestCase):
     def test_a_held_lock_names_its_holder_and_gives_up(self) -> None:
         original = verification.LOCK_WAIT_SECONDS

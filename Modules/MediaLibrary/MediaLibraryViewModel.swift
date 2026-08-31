@@ -292,10 +292,17 @@ public final class MediaLibraryViewModel {
     }
 
     public func addFiles(_ urls: [URL]) {
-        mutate {
+        guard urls.isEmpty == false else { return }
+        do {
+            var candidate = library
             for url in urls {
-                try addFile(url)
+                try addFile(url, to: &candidate)
             }
+            try store.save(candidate)
+            library = candidate
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = error.localizedDescription
         }
     }
 
@@ -495,8 +502,15 @@ public final class MediaLibraryViewModel {
         return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
     }
 
-    private func addFile(_ url: URL) throws {
-        guard FileBrowsingDomain.FileFilter.playable.matches(fileURL: url) else { return }
+    private func addFile(
+        _ url: URL,
+        to candidate: inout FileBrowsingDomain.MediaLibrary
+    ) throws {
+        guard FileBrowsingDomain.FileFilter.playable.matches(fileURL: url) else {
+            throw ManagedMediaImportError.unsupportedMedia(
+                filename: url.lastPathComponent
+            )
+        }
         let accessStarted = url.startAccessingSecurityScopedResource()
         defer { if accessStarted { url.stopAccessingSecurityScopedResource() } }
         let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
@@ -511,7 +525,7 @@ public final class MediaLibraryViewModel {
             sizeInBytes: Int64(values.fileSize ?? 0),
             modifiedAt: values.contentModificationDate ?? .distantPast
         )
-        try library.add(reference, to: currentFolderID)
+        try candidate.add(reference, to: currentFolderID)
     }
 
     private func mutate(_ operation: () throws -> Void) {

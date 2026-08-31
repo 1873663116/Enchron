@@ -136,6 +136,55 @@ struct WebDAVDataSourceAdapterTests {
         #expect(playableSource.url.password == nil)
     }
 
+    @Test("WebDAV range status records one typed source failure on the active handle", arguments: [
+        (404, MediaSourceReadFailure.resourceMissing),
+        (403, MediaSourceReadFailure.accessDenied),
+        (416, MediaSourceReadFailure.invalidData),
+        (503, MediaSourceReadFailure.transportInterrupted)
+    ])
+    func rangeFailureIdentity(status: Int, expected: MediaSourceReadFailure) async throws {
+        WebDAVTestURLProtocol.setHandler { request in
+            let isPROPFIND = request.httpMethod == "PROPFIND"
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: isPROPFIND ? 207 : status,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: isPROPFIND
+                        ? ["Content-Type": "application/xml"]
+                        : nil
+                  ) else {
+                throw URLError(.badURL)
+            }
+            return (response, isPROPFIND ? Data(Self.directoryListing.utf8) : Data())
+        }
+        defer { WebDAVTestURLProtocol.setHandler(nil) }
+
+        let adapter = WebDAVDataSourceAdapter(session: Self.makeSession())
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "https://media.example.test/library",
+            username: ""
+        )
+        try await adapter.connect(with: info)
+        let movie = try #require(try await adapter.listContents(at: "/").first)
+        let source = try await adapter.resolvePlayableSource(for: movie)
+        let handle = try #require(source.byteStreamHandle)
+        defer { handle.release() }
+
+        var request = URLRequest(url: source.url)
+        request.setValue("bytes=0-3", forHTTPHeaderField: "Range")
+        _ = try? await URLSession.shared.data(for: request)
+        for _ in 0..<20 where handle.latestReadFailure() == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(
+            handle.latestReadFailure()
+                == MediaSourceReadFailureObservation(sequence: 1, failure: expected)
+        )
+    }
+
     @Test("WebDAV playback lease survives browsing adapter disconnect")
     func playbackLeaseSurvivesAdapterDisconnect() async throws {
         let recorder = WebDAVRequestRecorder()
@@ -223,13 +272,14 @@ struct WebDAVDataSourceAdapterTests {
             username: "viewer"
         )
 
-        await #expect(throws: WebDAVError.self) {
+        await #expect(throws: RemoteConnectionFailure.credentialsRejected) {
             try await adapter.connect(with: info)
         }
-        guard case .failed = adapter.connectionStatus else {
+        guard case .failed(let failure) = adapter.connectionStatus else {
             Issue.record("WebDAV adapter should remain failed after HTTP 401")
             return
         }
+        #expect(failure == .credentialsRejected)
     }
 
     @Test("WebDAV reports when an HTTP endpoint accepts TLS")
@@ -249,14 +299,14 @@ struct WebDAVDataSourceAdapterTests {
             username: "viewer"
         )
 
-        await #expect(throws: RemoteConnectionError.self) {
+        await #expect(throws: RemoteConnectionFailure.requiresHTTPS) {
             try await adapter.connect(with: info)
         }
-        guard case .failed(let message) = adapter.connectionStatus else {
+        guard case .failed(let failure) = adapter.connectionStatus else {
             Issue.record("WebDAV adapter should remain failed after HTTP diagnosis")
             return
         }
-        #expect(message == RemoteConnectionError.requiresHTTPS.localizedDescription)
+        #expect(failure == .requiresHTTPS)
     }
 
     private static func makeSession() -> URLSession {

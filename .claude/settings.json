@@ -6,7 +6,20 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/orca_channel_gate.py\""
+          },
+          {
+            "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/controller_background_context.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/catalog_write_gate.py\""
           }
         ]
       }
@@ -16,8 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/regression_journey_stop_gate.py\"",
-            "timeout": 15
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/loop_wakeup_gate.py\""
           }
         ]
       }

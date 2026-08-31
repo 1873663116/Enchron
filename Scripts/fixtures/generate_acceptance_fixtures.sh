@@ -16,7 +16,8 @@ usage() {
 Usage: generate_acceptance_fixtures.sh [output-directory] [--fixture fixture-name]
 
 With no --fixture option, generates the legacy acceptance fixture set with FFmpeg 8.0.1.
-The only fixture currently available for targeted generation is sdr-bframe-aggregate-30s.
+Targeted generation supports sdr-bframe-aggregate-30s and
+sdr-bframe-duplicate-label-audio-30s.
 EOF
 }
 
@@ -47,10 +48,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$SELECTED_FIXTURE" in
-  ""|sdr-bframe-aggregate-30s)
+  ""|sdr-bframe-aggregate-30s|sdr-bframe-duplicate-label-audio-30s)
     ;;
   sdr-bframe-aggregate-30s.mkv)
     SELECTED_FIXTURE="sdr-bframe-aggregate-30s"
+    ;;
+  sdr-bframe-duplicate-label-audio-30s.mkv)
+    SELECTED_FIXTURE="sdr-bframe-duplicate-label-audio-30s"
     ;;
   *)
     printf 'unsupported targeted fixture: %s\n' "$SELECTED_FIXTURE" >&2
@@ -67,7 +71,13 @@ command -v "$JQ" >/dev/null
 FFMPEG_VERSION_LINE="$("$FFMPEG" -version | sed -n '1p')"
 FFMPEG_VERSION="${FFMPEG_VERSION_LINE#ffmpeg version }"
 FFMPEG_VERSION="${FFMPEG_VERSION%% Copyright*}"
-if [[ -z "$SELECTED_FIXTURE" && "$FFMPEG_VERSION" != "8.0.1" ]]; then
+if [[ "$SELECTED_FIXTURE" == "sdr-bframe-duplicate-label-audio-30s" ]]; then
+  if [[ "$FFMPEG_VERSION" != "N-125990-g5c395992f9" ]]; then
+    printf 'duplicate-label audio fixture requires FFmpeg N-125990-g5c395992f9, found %s\n' \
+      "$FFMPEG_VERSION" >&2
+    exit 1
+  fi
+elif [[ "$SELECTED_FIXTURE" != "sdr-bframe-aggregate-30s" && "$FFMPEG_VERSION" != "8.0.1" ]]; then
   printf 'legacy acceptance fixtures require FFmpeg 8.0.1, found %s\n' \
     "$FFMPEG_VERSION" >&2
   exit 1
@@ -220,6 +230,23 @@ generate_audio_codec_matrix() {
     -t 15 -bitexact "$output"
 }
 
+generate_duplicate_label_audio() {
+  local output="$OUTPUT_DIR/sdr-bframe-duplicate-label-audio-30s.mkv"
+  local source_path="TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4"
+  verify_registered_source "$source_path"
+  "$FFMPEG" -hide_banner -loglevel error -y \
+    -i "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4" \
+    -f lavfi -i "$(audio_pulse 660 30)" \
+    -map 0:v:0 -map 0:a:0 -map 0:a:1 -map 1:a:0 \
+    -map_metadata -1 -c:v copy \
+    -c:a:0 copy -c:a:1 copy -c:a:2 aac -b:a:2 128k \
+    -metadata:s:a:0 title='Primary' \
+    -metadata:s:a:1 title='Alternate' \
+    -metadata:s:a:2 title='Alternate' \
+    -disposition:a:0 default -disposition:a:1 0 -disposition:a:2 0 \
+    -t 30 -bitexact "$output"
+}
+
 generate_aggregate() {
   local output="$OUTPUT_DIR/sdr-bframe-aggregate-30s.mkv"
   local source_path="TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4"
@@ -298,6 +325,9 @@ if [[ "$SELECTED_FIXTURE" == "sdr-bframe-aggregate-30s" ]]; then
   printf 'Generating %s with FFmpeg %s\n' "$SELECTED_FIXTURE" "$FFMPEG_VERSION"
   generate_aggregate
   generate_aggregate_external_subtitles
+elif [[ "$SELECTED_FIXTURE" == "sdr-bframe-duplicate-label-audio-30s" ]]; then
+  printf 'Generating %s with FFmpeg %s\n' "$SELECTED_FIXTURE" "$FFMPEG_VERSION"
+  generate_duplicate_label_audio
 else
   generate_sdr
   generate_long_sdr
@@ -320,6 +350,9 @@ done < <(
         if $selected == "sdr-bframe-aggregate-30s" then
           .deviceImportPath
           | startswith("TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.")
+        elif $selected == "sdr-bframe-duplicate-label-audio-30s" then
+          .deviceImportPath
+          | endswith("/sdr-bframe-duplicate-label-audio-30s.mkv")
         else
           .deviceImportPath
           | startswith("TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.")

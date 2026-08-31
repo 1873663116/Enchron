@@ -218,10 +218,31 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
     var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
+    var onDeliveryContinuityChange: (@Sendable (
+        PlaybackDeliveryContinuityObservation
+    ) -> Void)?
     var onAcceptedVideoFormatRevisionChange: (@Sendable (UInt64) -> Void)?
     var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
     var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
     var onAudioSpectrumFrameChange: (@Sendable (AudioSpectrumFrame) -> Void)?
+    private let activeFailureContextLock = NSLock()
+    private var storedActiveFailureContext: PlaybackCoreActiveFailureContext?
+
+    var activeFailureContext: PlaybackCoreActiveFailureContext? {
+        activeFailureContextLock.withLock { storedActiveFailureContext }
+    }
+
+    func publishFailureStatus(
+        _ error: Error,
+        context: PlaybackCoreActiveFailureContext
+    ) {
+        activeFailureContextLock.withLock {
+            if storedActiveFailureContext == nil {
+                storedActiveFailureContext = context
+            }
+        }
+        onStatusChange?(.failed(error.localizedDescription))
+    }
 
     #if DEBUG
         let playbackSwitchSampleSinkLock = NSLock()
@@ -249,6 +270,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let deliveryTaskLock = NSLock()
     let timelineProgressRecoveryLock = NSLock()
     var timelineProgressRecovery = PlaybackTimelineProgressRecovery()
+    var deliveryContinuity = PlaybackDeliveryContinuity()
     let timelineProgressWatchdogQueue = DispatchQueue(
         label: "PlaybackCore.timeline-progress-watchdog"
     )
@@ -317,6 +339,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let audioTimestampOffsetLock = NSLock()
     var audioTimestampOffsetEpoch: UInt64 = 0
     var audioTimestampOffset: CMTime = .zero
+    let audioDeliveryObservationLock = NSLock()
+    var audioDeliveryObservationEpoch: UInt64 = 0
+    var lastAudioDeliveryPresentationTime: CMTime?
+    var audioDeliveryTimestampsMonotonic = true
+    var audioDeliveryTimestampObservationCount: UInt64 = 0
     let videoPerformanceMetricsLock = NSLock()
     var videoPerformanceMetricsRequestInFlight = false
     let displayedPixelBufferProbeLock = NSLock()
@@ -792,14 +819,19 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration,
             currentState: timelineControlStateRecord()
         )
-        timelineProgressRecoveryLock.withLock {
-            invalidateTimelineProgressRecoveryLocked()
+        let continuityObservation = timelineProgressRecoveryLock.withLock {
+            let continuityObservation = invalidateTimelineProgressRecoveryLocked()
             synchronizer.setRate(rate, time: time, atHostTime: hostTime)
-            guard rate > 0 else { return }
-            activateTimelineProgressRecoveryLocked(
-                requestedRate: rate,
-                applicationHostTime: hostTime
-            )
+            if rate > 0 {
+                activateTimelineProgressRecoveryLocked(
+                    requestedRate: rate,
+                    applicationHostTime: hostTime
+                )
+            }
+            return continuityObservation
+        }
+        if let continuityObservation {
+            publishDeliveryContinuity(continuityObservation)
         }
         debugStore.recordTimelineRateActivationReturned(sequence: activationSequence)
     }
@@ -808,9 +840,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         reason: PlaybackTimelineControlReason,
         capturedVideoDeliveryGeneration: UInt64? = nil
     ) {
-        timelineProgressRecoveryLock.withLock {
-            invalidateTimelineProgressRecoveryLocked()
+        let continuityObservation = timelineProgressRecoveryLock.withLock {
+            let continuityObservation = invalidateTimelineProgressRecoveryLocked()
             synchronizer.rate = 0
+            return continuityObservation
+        }
+        if let continuityObservation {
+            publishDeliveryContinuity(continuityObservation)
         }
         debugStore.recordTimelineStop(
             reason: reason,
@@ -826,9 +862,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         reason: PlaybackTimelineControlReason,
         capturedVideoDeliveryGeneration: UInt64? = nil
     ) {
-        timelineProgressRecoveryLock.withLock {
-            invalidateTimelineProgressRecoveryLocked()
+        let continuityObservation = timelineProgressRecoveryLock.withLock {
+            let continuityObservation = invalidateTimelineProgressRecoveryLocked()
             synchronizer.setRate(0, time: time)
+            return continuityObservation
+        }
+        if let continuityObservation {
+            publishDeliveryContinuity(continuityObservation)
         }
         debugStore.recordTimelineStop(
             reason: reason,
@@ -854,8 +894,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 currentState: timelineControlStateRecord()
             )
             : nil
-        timelineProgressRecoveryLock.withLock {
-            invalidateTimelineProgressRecoveryLocked()
+        let continuityObservation = timelineProgressRecoveryLock.withLock {
+            let continuityObservation = invalidateTimelineProgressRecoveryLocked()
             synchronizer.setRate(rate, time: time)
             if rate > 0 {
                 activateTimelineProgressRecoveryLocked(
@@ -863,6 +903,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                     applicationHostTime: CMClockGetTime(CMClockGetHostTimeClock())
                 )
             }
+            return continuityObservation
+        }
+        if let continuityObservation {
+            publishDeliveryContinuity(continuityObservation)
         }
         if let activationSequence {
             debugStore.recordTimelineRateActivationReturned(
@@ -881,18 +925,25 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     func armTimelineProgressRecoveryForCurrentMapping() {
         guard timelineStartRate > 0 else { return }
-        timelineProgressRecoveryLock.withLock {
-            invalidateTimelineProgressRecoveryLocked()
+        let continuityObservation = timelineProgressRecoveryLock.withLock {
+            let continuityObservation = invalidateTimelineProgressRecoveryLocked()
             activateTimelineProgressRecoveryLocked(
                 requestedRate: timelineStartRate,
                 applicationHostTime: CMClockGetTime(CMClockGetHostTimeClock())
             )
+            return continuityObservation
+        }
+        if let continuityObservation {
+            publishDeliveryContinuity(continuityObservation)
         }
     }
 
     func invalidateTimelineProgressRecovery() {
-        timelineProgressRecoveryLock.withLock {
+        let continuityObservation = timelineProgressRecoveryLock.withLock {
             invalidateTimelineProgressRecoveryLocked()
+        }
+        if let continuityObservation {
+            publishDeliveryContinuity(continuityObservation)
         }
     }
 
@@ -906,6 +957,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             videoStreamEpoch: streamEpoch,
             audioStreamEpoch: audioStreamEpoch
         )
+        deliveryContinuity.activate(run)
         let timer = DispatchSource.makeTimerSource(queue: timelineProgressWatchdogQueue)
         timer.schedule(
             deadline: .now() + .milliseconds(500),
@@ -920,11 +972,14 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         timer.resume()
     }
 
-    private func invalidateTimelineProgressRecoveryLocked() {
+    private func invalidateTimelineProgressRecoveryLocked()
+        -> PlaybackDeliveryContinuityObservation? {
         timelineProgressRecovery.invalidate()
+        let continuityObservation = deliveryContinuity.invalidate()
         timelineProgressWatchdog?.setEventHandler {}
         timelineProgressWatchdog?.cancel()
         timelineProgressWatchdog = nil
+        return continuityObservation
     }
 
     func play(armingFirstVideoFrameDeadline: Bool = true) throws {

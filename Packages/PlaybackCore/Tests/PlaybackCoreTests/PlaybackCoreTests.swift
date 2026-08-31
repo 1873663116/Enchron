@@ -252,6 +252,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     )
     object.removeValue(forKey: "projectionKind")
     object.removeValue(forKey: "viewPackingKind")
+    object.removeValue(forKey: "lhvC")
     let legacy = try JSONSerialization.data(withJSONObject: object)
 
     let decoded = try JSONDecoder().decode(
@@ -260,6 +261,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     )
     #expect(decoded.projectionKind.availability == .notExposed)
     #expect(decoded.viewPackingKind.availability == .notExposed)
+    #expect(decoded.lhvC.availability == .notExposed)
 }
 
 @Test func debugSnapshotV1DecodesBeforeAudioTrackCatalogWasAdded() throws {
@@ -313,6 +315,25 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
 }
 
 @Test func audioSampleRecordPreservesLaneDetailsAndDecodesLegacyV1() throws {
+    let deliveryObservation = AudioDeliveryObservation(
+        providerKind: "FFmpegDecodedPCM",
+        sourceCodecName: "truehd",
+        mediaSubtype: "lpcm",
+        formatID: "lpcm",
+        formatFlags: 41,
+        sourceSampleRate: 48_000,
+        deliveredSampleRate: 48_000,
+        sourceChannelCount: 6,
+        deliveredChannelCount: 6,
+        bitsPerChannel: 32,
+        bytesPerFrame: 24,
+        framesPerPacket: 1,
+        isFloatPCM: true,
+        isInterleaved: true,
+        channelLayoutTag: kAudioChannelLayoutTag_WAVE_5_1_A,
+        presentationTimestampsMonotonic: true,
+        timestampObservationCount: 4
+    )
     let current = AudioSampleRecord(
         mediaSessionID: "session-1",
         audioTrackID: "session-1.audio.3",
@@ -323,7 +344,8 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         sampleRate: 48_000,
         channelCount: 6,
         sampleCount: 960,
-        payloadOwnershipState: "retainedCMSampleBuffer"
+        payloadOwnershipState: "retainedCMSampleBuffer",
+        deliveryObservation: deliveryObservation
     )
     let encoded = try JSONEncoder().encode(current)
     var object = try #require(
@@ -333,11 +355,13 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(object["sampleRate"] as? Int == 48_000)
     #expect(object["channelCount"] as? Int == 6)
     #expect(object["payloadOwnershipState"] as? String == "retainedCMSampleBuffer")
+    #expect(current.deliveryObservation == deliveryObservation)
 
     object.removeValue(forKey: "rawStreamIndex")
     object.removeValue(forKey: "sampleRate")
     object.removeValue(forKey: "channelCount")
     object.removeValue(forKey: "payloadOwnershipState")
+    object.removeValue(forKey: "deliveryObservation")
     let legacy = try JSONSerialization.data(withJSONObject: object)
     let decoded = try JSONDecoder().decode(AudioSampleRecord.self, from: legacy)
 
@@ -345,6 +369,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(decoded.sampleRate == 0)
     #expect(decoded.channelCount == 0)
     #expect(decoded.payloadOwnershipState == "unknown")
+    #expect(decoded.deliveryObservation == nil)
 }
 
 @Test func presentationStateIsRetainedByDebugSnapshot() {
@@ -3092,6 +3117,71 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(details["duration.timescale"] != nil)
 }
 
+@Test func audioDeliveryObservationExposesFormatAndEpochMonotonicity() throws {
+    let sample = try makeAudioSample(durationSeconds: 0.5)
+    let session = SampleBufferPlaybackSession(traceID: "audio-delivery-observation")
+    defer { session.close() }
+    let first = session.recordAudioDeliveryPresentationTime(.zero)
+    let second = session.recordAudioDeliveryPresentationTime(
+        CMTime(value: 1, timescale: 2)
+    )
+    CMSetAttachment(
+        sample,
+        key: "com.enchron.playbackcore.ffmpegAudioMetadata" as CFString,
+        value: [
+            "trueHDDecoderInputPacketCount": 120,
+            "trueHDDecoderBatchCount": 2,
+            "trueHDAggregatedDecoderBatchCount": 2,
+            "trueHDOutputSampleBufferCount": 1,
+            "trueHDLastDecoderBatchInputPacketCount": 60
+        ] as CFDictionary,
+        attachmentMode: kCMAttachmentMode_ShouldNotPropagate
+    )
+    let observation = try #require(
+        session.audioDeliveryObservation(
+            for: sample,
+            providerInfo: AudioSampleProviderInfo(
+                providerKind: "FFmpegDecodedPCM",
+                streamIndex: 2,
+                codecName: "truehd",
+                sampleRate: 48_000,
+                channelCount: 2
+            ),
+            timestampsMonotonic: second.monotonic,
+            timestampObservationCount: second.count
+        )
+    )
+
+    #expect(first.monotonic)
+    #expect(first.count == 1)
+    #expect(observation.providerKind == "FFmpegDecodedPCM")
+    #expect(observation.sourceCodecName == "truehd")
+    #expect(observation.formatID == "lpcm")
+    #expect(observation.isFloatPCM)
+    #expect(observation.isInterleaved == true)
+    #expect(observation.sourceSampleRate == 48_000)
+    #expect(observation.deliveredSampleRate == 48_000)
+    #expect(observation.bitsPerChannel == 32)
+    #expect(observation.presentationTimestampsMonotonic)
+    #expect(observation.timestampObservationCount == 2)
+    #expect(observation.trueHDDecoderInputPacketCount == 120)
+    #expect(observation.trueHDDecoderBatchCount == 2)
+    #expect(observation.trueHDAggregatedDecoderBatchCount == 2)
+    #expect(observation.trueHDOutputSampleBufferCount == 1)
+    #expect(observation.trueHDLastDecoderBatchInputPacketCount == 60)
+
+    let duplicate = session.recordAudioDeliveryPresentationTime(
+        CMTime(value: 1, timescale: 2)
+    )
+    #expect(duplicate.monotonic == false)
+    #expect(duplicate.count == 3)
+
+    session.audioStreamEpoch &+= 1
+    let nextEpoch = session.recordAudioDeliveryPresentationTime(.zero)
+    #expect(nextEpoch.monotonic)
+    #expect(nextEpoch.count == 1)
+}
+
 @Test func audioPrerollsBeforeTimelineStartsAndResumeKeepsQueuedAudio() async throws {
     let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
     let audioSample = try makeAudioSample(durationSeconds: 0.5)
@@ -3347,12 +3437,15 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 }
 
 @Test func audioOpenFailureRetiresAudioButVideoStillDelivers() async throws {
-    let videoSample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
         traceID: "audio-open-error-session",
-        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        provider: FakeVideoSampleProvider(
+            events: try audioRetirementVideoEvents(),
+            eventDelay: .milliseconds(25)
+        ),
         audioProvider: FailingAudioOpenProvider(),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true }
     )
     defer { session.close() }
 
@@ -3365,6 +3458,37 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.stage == "audioProvider.openFailed.videoContinues")
     #expect(snapshot.lastFailure?.message == MisleadingAudioOpenError.failed.localizedDescription)
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
+    try await expectRetiredAudioAllowsSeek(
+        in: session,
+        check: "audio-retirement-open",
+        expectedStage: "audioProvider.openFailed.videoContinues"
+    )
+}
+
+@Test func audioPrerollFailureRetiresAudioButVideoStillDelivers() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-preroll-error-session",
+        provider: FakeVideoSampleProvider(
+            events: try audioRetirementVideoEvents(),
+            eventDelay: .milliseconds(25)
+        ),
+        audioProvider: FakeAudioSampleProvider(),
+        rendererSink: FakeRendererInputSink(),
+        audioRendererSink: FakeAudioRendererInputSink(),
+        firstVideoFrameObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-preroll-error.mp4"))
+    try session.start()
+    try await waitForAudioRetirement(in: session)
+    try await waitForSampleCount(1, in: session)
+
+    try await expectRetiredAudioAllowsSeek(
+        in: session,
+        check: "audio-retirement-prewarm",
+        expectedStage: "audioRenderer.prerollFailed.videoContinues"
+    )
 }
 
 @Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {
@@ -3417,12 +3541,15 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 }
 
 @Test func audioReadFailureRetiresAudioButVideoStillDelivers() async throws {
-    let videoSample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
         traceID: "audio-read-error-session",
-        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        provider: FakeVideoSampleProvider(
+            events: try audioRetirementVideoEvents(),
+            eventDelay: .milliseconds(25)
+        ),
         audioProvider: FakeAudioSampleProvider(readError: FakeSampleError.audioRead),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true }
     )
     defer { session.close() }
 
@@ -3435,6 +3562,42 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.stage == "audioProvider.readFailed.videoContinues")
     #expect(snapshot.lastFailure?.message == FakeSampleError.audioRead.localizedDescription)
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
+    try await expectRetiredAudioAllowsSeek(
+        in: session,
+        check: "audio-retirement-playback",
+        expectedStage: "audioProvider.readFailed.videoContinues"
+    )
+}
+
+@Test func audioSeekOpenFailureRetiresAudioButVideoStillDelivers() async throws {
+    let audioSample = try makeAudioSample(durationSeconds: 5)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-seek-open-error-session",
+        provider: FakeVideoSampleProvider(
+            events: try audioRetirementVideoEvents(),
+            eventDelay: .milliseconds(25)
+        ),
+        audioProvider: FakeAudioSampleProvider(
+            sampleAfterPrepare: audioSample,
+            failingPrepareOrdinal: 2
+        ),
+        rendererSink: FakeRendererInputSink(),
+        audioRendererSink: FakeAudioRendererInputSink(),
+        firstVideoFrameObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-seek-open-error.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try await waitForAudioSampleCount(1, in: session)
+
+    try await expectRetiredAudioAllowsSeek(
+        in: session,
+        check: "audio-retirement-seek",
+        expectedStage: "audioProvider.seekOpenFailed.videoContinues",
+        retirementOccursDuringSeek: true
+    )
 }
 
 @Test func missingFirstDisplayedFrameFailsWithoutGuessingTheCause() async throws {
@@ -3664,19 +3827,20 @@ func terminalRendererFailurePublishesFailedOnce(
 }
 
 @Test func audioRendererFailureRetiresAudioAndVideoContinues() async throws {
-    let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
     let audioSample = try makeAudioSample(durationSeconds: 5)
     let sink = FakeRendererInputSink()
     let monitor = FakeRendererFailureMonitor()
     let session = SampleBufferPlaybackSession(
         traceID: "audio-renderer-retirement-session",
         provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(videoSample), count: 3) + [.end],
+            events: try audioRetirementVideoEvents(),
             eventDelay: .milliseconds(25)
         ),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
         rendererSink: sink,
-        rendererFailureMonitor: monitor
+        audioRendererSink: FakeAudioRendererInputSink(),
+        rendererFailureMonitor: monitor,
+        firstVideoFrameObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -3716,6 +3880,11 @@ func terminalRendererFailurePublishesFailedOnce(
     #expect(snapshot.lastFailure?.errorType == fact.errorType)
     #expect(snapshot.audioRendererState?.error == fact.message)
     #expect(snapshot.lastError == nil)
+    try await expectRetiredAudioAllowsSeek(
+        in: session,
+        check: "audio-retirement-renderer",
+        expectedStage: "audioRenderer.failed.videoContinues"
+    )
     #expect(statuses.withLock { values in
         values.contains { status in
             if case .failed = status { true } else { false }
@@ -4172,18 +4341,22 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     private let sampleAfterPrepare: CMSampleBuffer?
     private let repeatsSample: Bool
     private let readError: Error?
+    private let failingPrepareOrdinal: Int?
     private var nextSample: CMSampleBuffer?
+    private var prepareOrdinal = 0
 
     init(
         failingStreamIndex: Int? = nil,
         sampleAfterPrepare: CMSampleBuffer? = nil,
         repeatsSample: Bool = false,
-        readError: Error? = nil
+        readError: Error? = nil,
+        failingPrepareOrdinal: Int? = nil
     ) {
         self.failingStreamIndex = failingStreamIndex
         self.sampleAfterPrepare = sampleAfterPrepare
         self.repeatsSample = repeatsSample
         self.readError = readError
+        self.failingPrepareOrdinal = failingPrepareOrdinal
     }
 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
@@ -4217,7 +4390,11 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         startTime: CMTime,
         streamIndex: Int?
     ) async throws {
+        prepareOrdinal += 1
         preparedStreamIndices.append(streamIndex)
+        if prepareOrdinal == failingPrepareOrdinal {
+            throw FakeSampleError.audioPrepare
+        }
         let selected = streamIndex ?? 1
         if selected == failingStreamIndex {
             throw FakeSampleError.audioPrepare
@@ -4372,6 +4549,95 @@ private func unsupportedAC4Fixture() throws -> URL {
         options: .atomic
     )
     return fixture
+}
+
+private func audioRetirementVideoEvents() throws -> [VideoSampleProviderEvent] {
+    try [0.0, 30.0, 31.0, 32.0]
+        .map {
+            try makeCompressedH264Sample(
+                presentationTimeSeconds: $0,
+                durationSeconds: 1
+            )
+        }
+        .map(VideoSampleProviderEvent.sample) + [.end]
+}
+
+private func waitForAudioRetirement(
+    in session: SampleBufferPlaybackSession
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(7)
+    while ContinuousClock.now < deadline {
+        if session.diagnostics.audioRetired { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Timed out waiting for audio retirement")
+}
+
+/// Drives the retired-audio seek and prints the structured observation the
+/// regression adapter binds as this check's evidence.
+///
+/// The five audio-retirement structural checks each run one of these tests and
+/// bind its artifact, and an exit code plus a `--filter` name cannot witness a
+/// lifecycle, a media session identity or a post-seek video position. The
+/// `ENCHRON_ASSERTION` line below carries those readings;
+/// `_evidence_structural_test_1` parses it into `assertionPayloads` and refuses
+/// any of the five checks that omits it.
+private func expectRetiredAudioAllowsSeek(
+    in session: SampleBufferPlaybackSession,
+    check structuralCheck: String,
+    expectedStage: String,
+    retirementOccursDuringSeek: Bool = false
+) async throws {
+    let before = session.debugSnapshot()
+    let sessionID = try #require(before.mediaSession?.mediaSessionID)
+    let audioRetiredBeforeSeek = session.diagnostics.audioRetired
+    #expect(before.lifecycle == .playing || before.lifecycle == .paused)
+    if retirementOccursDuringSeek {
+        #expect(audioRetiredBeforeSeek == false)
+    } else {
+        #expect(audioRetiredBeforeSeek)
+        #expect(before.lastFailure?.stage == expectedStage)
+    }
+
+    let seekTargetSeconds = 30.0
+    try await session.seek(
+        to: CMTime(seconds: seekTargetSeconds, preferredTimescale: 600),
+        startsPaused: true
+    )
+
+    let after = session.debugSnapshot()
+    let audioRetiredAfterSeek = session.diagnostics.audioRetired
+    #expect(audioRetiredAfterSeek)
+    #expect(after.lifecycle == .paused)
+    #expect(after.mediaSession?.mediaSessionID == sessionID)
+    #expect(after.lastFailure?.stage == expectedStage)
+    let videoPresentationTimeSecondsAfterSeek = after.lastVideoSample?
+        .presentationTimeSeconds
+    #expect((videoPresentationTimeSecondsAfterSeek ?? -.infinity) >= seekTargetSeconds)
+
+    // Every value is an identifier, a UUID string, a Bool or a finite Double, so
+    // the line stays valid JSON without escaping; an absent video sample prints
+    // null rather than an unparsable infinity.
+    let fields = [
+        "\"assertion\":\"audio-retirement-nonfatal-seek\"",
+        "\"check\":\"\(structuralCheck)\"",
+        "\"expectedStage\":\"\(expectedStage)\"",
+        "\"retirementOccursDuringSeek\":\(retirementOccursDuringSeek)",
+        "\"lifecycleBeforeSeek\":\"\(before.lifecycle.rawValue)\"",
+        "\"lifecycleAfterSeek\":\"\(after.lifecycle.rawValue)\"",
+        "\"audioRetiredBeforeSeek\":\(audioRetiredBeforeSeek)",
+        "\"audioRetiredAfterSeek\":\(audioRetiredAfterSeek)",
+        "\"mediaSessionIDBeforeSeek\":\"\(sessionID)\"",
+        "\"mediaSessionIDAfterSeek\":\"\(after.mediaSession?.mediaSessionID ?? "")\"",
+        "\"failureStageBeforeSeek\":\"\(before.lastFailure?.stage ?? "")\"",
+        "\"failureStageAfterSeek\":\"\(after.lastFailure?.stage ?? "")\"",
+        "\"failureRecoverabilityAfterSeek\":\"\(after.lastFailure?.recoverability ?? "")\"",
+        "\"seekTargetSeconds\":\(seekTargetSeconds)",
+        "\"videoPresentationTimeSecondsAfterSeek\":"
+            + (videoPresentationTimeSecondsAfterSeek.map { String($0) } ?? "null"),
+        "\"lastErrorPresentAfterSeek\":\(after.lastError != nil)",
+    ]
+    print("ENCHRON_ASSERTION {\(fields.joined(separator: ","))}")
 }
 
 func makeCompressedH264Sample(

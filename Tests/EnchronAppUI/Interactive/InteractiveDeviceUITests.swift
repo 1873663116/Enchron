@@ -22,6 +22,7 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
+        app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         for (name, value) in ProcessInfo.processInfo.environment
         where name.hasPrefix("ENCHRON_") {
@@ -128,20 +129,116 @@ private final class InteractiveDeviceUIChannel {
     }
 
     func executeAndPublish(_ command: InteractiveDeviceUICommand) throws -> Bool {
+        if command.action == .tapFirstMatch {
+            let result = executeTapFirstMatch(command)
+            try publish(
+                responseFor: command,
+                success: result.success,
+                message: result.message,
+                matchedElement: result.matchedElement
+            )
+            return false
+        }
+        if command.action == .tapSequence {
+            let result = executeTapSequence(command)
+            try publish(
+                responseFor: command,
+                success: result.success,
+                message: result.message,
+                matchedElement: nil,
+                alsoInspected: result.alsoInspected,
+                assertAbsentObservations: result.assertAbsentObservations,
+                routeElements: result.routeElements
+            )
+            return false
+        }
         let observationBeforeAction = command.action == .snapshot
             ? nil
             : matchedElementObservation(for: command)
         let result = execute(command)
+        // A snapshot only reads, so the reading it publishes as matchedElement is
+        // already the state the command found. Every other action changes what it
+        // addressed, and the element it addressed is the one that has to exist for
+        // the action to be admissible, so matchedElement stays the pre-action
+        // reading -- a tap that dismisses its own target still has to say what it
+        // tapped. What the action did to that element is a second reading, taken
+        // here after execute, and nil when the element left the hierarchy.
+        let observationAfterAction = matchedElementObservation(for: command)
         let observation = command.action == .snapshot
-            ? matchedElementObservation(for: command)
+            ? observationAfterAction
             : observationBeforeAction
+        let tapStep = command.identifier ?? command.label ?? ""
         try publish(
             responseFor: command,
             success: result.success,
             message: result.message,
-            matchedElement: observation
+            matchedElement: observation,
+            elementAfterAction: observationAfterAction,
+            assertAbsentObservations: command.action == .tap && result.success
+                ? inspectIdentifiers(command.assertAbsent, afterStep: tapStep)
+                : []
         )
         return command.action == .stop
+    }
+
+    private func executeTapFirstMatch(
+        _ command: InteractiveDeviceUICommand
+    ) -> (
+        success: Bool,
+        message: String,
+        matchedElement: InteractiveDeviceUIElementObservation?
+    ) {
+        guard let route = command.identifiers, route.isEmpty == false else {
+            return (false, "tapFirstMatch requires route identifiers.", nil)
+        }
+        guard let prefix = command.identifierPrefix, prefix.isEmpty == false else {
+            return (false, "tapFirstMatch requires an identifier prefix.", nil)
+        }
+        for (position, identifier) in route.enumerated() {
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: 0)
+            guard element.waitForExistence(timeout: 3) else {
+                return (
+                    false,
+                    "tapFirstMatch stopped at [\(position)] \(identifier): no matching element appeared.",
+                    nil
+                )
+            }
+            guard element.isHittable else {
+                return (
+                    false,
+                    "tapFirstMatch stopped at [\(position)] \(identifier): the element is not hittable.",
+                    nil
+                )
+            }
+            element.tap()
+        }
+        let predicate: NSPredicate
+        if let label = command.label, label.isEmpty == false {
+            predicate = NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label == %@",
+                prefix,
+                label
+            )
+        } else {
+            predicate = NSPredicate(format: "identifier BEGINSWITH %@", prefix)
+        }
+        let matches = app.descendants(matching: .any).matching(predicate)
+        let count = matches.count
+        guard count > 0 else {
+            return (false, "tapFirstMatch found no matching public element.", nil)
+        }
+        guard count == 1 else {
+            return (false, "tapFirstMatch found \(count) matching public elements.", nil)
+        }
+        let element = matches.element(boundBy: 0)
+        guard element.isHittable else {
+            return (false, "The matching public element is not currently hittable.", nil)
+        }
+        let observation = matchedElementObservation(for: element)
+        element.tap()
+        return (true, "Matching public element tapped.", observation)
     }
 
     private func execute(
@@ -163,29 +260,9 @@ private final class InteractiveDeviceUIChannel {
             element.tap()
             return (true, "Element tapped.")
         case .tapSequence:
-            guard let identifiers = command.identifiers,
-                  identifiers.isEmpty == false else {
-                return (false, "tapSequence requires identifiers.")
-            }
-            for (position, identifier) in identifiers.enumerated() {
-                let element = app.descendants(matching: .any)
-                    .matching(identifier: identifier)
-                    .element(boundBy: 0)
-                guard element.waitForExistence(timeout: 3) else {
-                    return (
-                        false,
-                        "tapSequence stopped at [\(position)] \(identifier): no matching element appeared."
-                    )
-                }
-                guard element.isHittable else {
-                    return (
-                        false,
-                        "tapSequence stopped at [\(position)] \(identifier): the element is not hittable."
-                    )
-                }
-                element.tap()
-            }
-            return (true, "Tapped \(identifiers.count) elements in sequence.")
+            return (false, "tapSequence must execute through its sequence transaction.")
+        case .tapFirstMatch:
+            return (false, "tapFirstMatch must execute through its matching transaction.")
         case .doubleTap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -207,6 +284,19 @@ private final class InteractiveDeviceUIChannel {
             }
             element.press(forDuration: duration)
             return (true, "Element pressed.")
+        case .adjust:
+            guard let element = element(for: command) else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard element.isHittable else {
+                return (false, "The requested element exists but is not currently hittable.")
+            }
+            guard let position = command.normalizedX,
+                  (0...1).contains(position) else {
+                return (false, "Adjust requires normalizedX between 0 and 1.")
+            }
+            element.adjust(toNormalizedSliderPosition: position)
+            return (true, "Element adjusted through Accessibility.")
         case .typeText, .replaceText:
             guard let text = command.text else {
                 return (false, "typeText requires text.")
@@ -285,6 +375,164 @@ private final class InteractiveDeviceUIChannel {
         }
     }
 
+    private func executeTapSequence(
+        _ command: InteractiveDeviceUICommand
+    ) -> (
+        success: Bool,
+        message: String,
+        alsoInspected: [InteractiveDeviceUIInspectedElement],
+        assertAbsentObservations: [InteractiveDeviceUIInspectedElement],
+        routeElements: [InteractiveDeviceUIElementObservation]
+    ) {
+        guard let identifiers = command.identifiers,
+              identifiers.isEmpty == false else {
+            return (false, "tapSequence requires identifiers.", [], [], [])
+        }
+        var alsoInspected: [InteractiveDeviceUIInspectedElement] = []
+        var observations: [InteractiveDeviceUIInspectedElement] = []
+        // The route each step resolved, read while the element is still on
+        // screen. A tapped element is gone by the time the response is
+        // published, so this is the only place its label can be recorded.
+        var routeElements: [InteractiveDeviceUIElementObservation] = []
+
+        func record(afterStep: String) {
+            alsoInspected.append(
+                contentsOf: inspectIdentifiers(
+                    command.alsoInspect,
+                    afterStep: afterStep
+                )
+            )
+            observations.append(
+                contentsOf: inspectIdentifiers(
+                    command.assertAbsent,
+                    afterStep: afterStep
+                )
+            )
+        }
+
+        if let label = command.label, label.isEmpty == false {
+            let matches = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label == %@", label)
+            )
+            let element = matches.element(boundBy: 0)
+            guard element.waitForExistence(timeout: 3) else {
+                return (
+                    false,
+                    "tapSequence stopped at label \(label): no matching element appeared.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            guard element.isHittable else {
+                return (
+                    false,
+                    "tapSequence stopped at label \(label): the element is not hittable.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            routeElements.append(matchedElementObservation(for: element))
+            element.tap()
+            record(afterStep: "label:\(label)")
+        }
+        for (position, identifier) in identifiers.enumerated() {
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: 0)
+            guard element.waitForExistence(timeout: 3) else {
+                return (
+                    false,
+                    "tapSequence stopped at [\(position)] \(identifier): no matching element appeared.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            guard element.isHittable else {
+                return (
+                    false,
+                    "tapSequence stopped at [\(position)] \(identifier): the element is not hittable.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            routeElements.append(matchedElementObservation(for: element))
+            element.tap()
+            record(afterStep: identifier)
+        }
+        // A nested menu route addresses its leaf row by label, and that row
+        // only exists once the identifier steps above have opened the submenu.
+        // `label` is tapped before the identifiers, so a route that ends on a
+        // label needs this step instead of a second command: the menu does not
+        // survive two controller round trips.
+        if let trailingLabel = command.trailingLabel,
+           trailingLabel.isEmpty == false {
+            let matches = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label == %@", trailingLabel)
+            )
+            let element = matches.element(boundBy: 0)
+            guard element.waitForExistence(timeout: 3) else {
+                return (
+                    false,
+                    "tapSequence stopped at trailing label \(trailingLabel): no matching element appeared.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            guard element.isHittable else {
+                return (
+                    false,
+                    "tapSequence stopped at trailing label \(trailingLabel): the element is not hittable.",
+                    alsoInspected,
+                    observations,
+                    routeElements
+                )
+            }
+            routeElements.append(matchedElementObservation(for: element))
+            element.tap()
+            record(afterStep: "label:\(trailingLabel)")
+            return (
+                true,
+                "Tapped \(identifiers.count) elements in sequence, then label \(trailingLabel).",
+                alsoInspected,
+                observations,
+                routeElements
+            )
+        }
+        return (
+            true,
+            "Tapped \(identifiers.count) elements in sequence.",
+            alsoInspected,
+            observations,
+            routeElements
+        )
+    }
+
+    private func inspectIdentifiers(
+        _ identifiers: [String]?,
+        afterStep: String
+    ) -> [InteractiveDeviceUIInspectedElement] {
+        guard let identifiers else { return [] }
+        return identifiers.map { identifier in
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: 0)
+            let exists = element.exists
+            return InteractiveDeviceUIInspectedElement(
+                afterStep: afterStep,
+                identifier: identifier,
+                exists: exists,
+                isEnabled: exists && element.isEnabled,
+                isHittable: exists && element.isHittable,
+                label: exists ? element.label : ""
+            )
+        }
+    }
+
     private func element(
         for command: InteractiveDeviceUICommand
     ) -> XCUIElement? {
@@ -344,7 +592,11 @@ private final class InteractiveDeviceUIChannel {
         responseFor command: InteractiveDeviceUICommand,
         success: Bool,
         message: String,
-        matchedElement: InteractiveDeviceUIElementObservation?
+        matchedElement: InteractiveDeviceUIElementObservation?,
+        elementAfterAction: InteractiveDeviceUIElementObservation? = nil,
+        alsoInspected: [InteractiveDeviceUIInspectedElement] = [],
+        assertAbsentObservations: [InteractiveDeviceUIInspectedElement] = [],
+        routeElements: [InteractiveDeviceUIElementObservation] = []
     ) throws {
         let screenshotName: String?
         if command.includeScreenshot == false {
@@ -364,7 +616,11 @@ private final class InteractiveDeviceUIChannel {
             appState: appStateDescription,
             hierarchy: app.debugDescription,
             matchedElement: matchedElement,
-            screenshotRelativePath: screenshotName
+            elementAfterAction: elementAfterAction,
+            screenshotRelativePath: screenshotName,
+            alsoInspected: alsoInspected,
+            assertAbsentObservations: assertAbsentObservations,
+            routeElements: routeElements
         )
         let responseURL = responsesURL.appending(
             path: "\(command.id).json"
@@ -396,6 +652,12 @@ private final class InteractiveDeviceUIChannel {
         for command: InteractiveDeviceUICommand
     ) -> InteractiveDeviceUIElementObservation? {
         guard let element = element(for: command) else { return nil }
+        return matchedElementObservation(for: element)
+    }
+
+    private func matchedElementObservation(
+        for element: XCUIElement
+    ) -> InteractiveDeviceUIElementObservation {
         let frame = element.frame
         return InteractiveDeviceUIElementObservation(
             identifier: element.identifier,
@@ -436,8 +698,10 @@ private struct InteractiveDeviceUICommand: Codable {
         case snapshot
         case tap
         case tapSequence
+        case tapFirstMatch
         case doubleTap
         case press
+        case adjust
         case typeText
         case replaceText
         case swipeUp
@@ -456,7 +720,11 @@ private struct InteractiveDeviceUICommand: Codable {
     let action: Action
     let identifier: String?
     let identifiers: [String]?
+    let identifierPrefix: String?
+    let assertAbsent: [String]?
+    let alsoInspect: [String]?
     let label: String?
+    let trailingLabel: String?
     let index: Int?
     let text: String?
     let duration: TimeInterval?
@@ -473,7 +741,20 @@ private struct InteractiveDeviceUIResponse: Codable {
     let appState: String
     let hierarchy: String
     let matchedElement: InteractiveDeviceUIElementObservation?
+    let elementAfterAction: InteractiveDeviceUIElementObservation?
     let screenshotRelativePath: String?
+    let alsoInspected: [InteractiveDeviceUIInspectedElement]
+    let assertAbsentObservations: [InteractiveDeviceUIInspectedElement]
+    let routeElements: [InteractiveDeviceUIElementObservation]
+}
+
+private struct InteractiveDeviceUIInspectedElement: Codable {
+    let afterStep: String
+    let identifier: String
+    let exists: Bool
+    let isEnabled: Bool
+    let isHittable: Bool
+    let label: String
 }
 
 private struct InteractiveDeviceUIElementObservation: Codable {

@@ -236,6 +236,8 @@ def check_delivery(controller: Path, failures: list[str]) -> None:
     # same scope markers this controller kills by, so the process table is put out
     # of reach twice: nothing to find, and a signal that raises instead of landing.
     module.scoped_processes = lambda: []
+    module.registered_simulator_udids = lambda: frozenset()
+    module._SIMULATOR_UDIDS = None
     module.os = UnkillableOS()
     module.GRACEFUL_STOP_DEADLINE_SECONDS = 2.0
     module.RESULT_BUNDLE_WRITE_DEADLINE_SECONDS = 2.0
@@ -310,6 +312,8 @@ def check_reporting(controller: Path, failures: list[str]) -> None:
     print("\nreporting: a wake that devicectl rejects is raised, not discarded")
     binaries, state = build_emulator("reporting")
     module = load_controller(controller)
+    module.registered_simulator_udids = lambda: frozenset()
+    module._SIMULATOR_UDIDS = None
     wake = getattr(module, "wake_runner", None)
     if wake is None:
         failures.append(

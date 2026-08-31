@@ -126,6 +126,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
 
     private static func requiresImmediateSnapshot(_ kind: String) -> Bool {
         kind == "audioRenderer.firstEnqueue"
+            || kind.hasPrefix("deliveryContinuity.")
             || kind == "renderer.firstEnqueue"
             || kind == "audioRenderer.prerollCompleted"
             || kind == "audioRenderer.rateActivated"
@@ -156,6 +157,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
 
     private static func isDiagnosticEvent(_ kind: String) -> Bool {
         kind == "audioRenderer.firstEnqueue"
+            || kind.hasPrefix("deliveryContinuity.")
             || kind == "audioRenderer.prerollCompleted"
             || kind == "audioRenderer.rateActivated"
             || kind == "audioRenderer.statusChanged"

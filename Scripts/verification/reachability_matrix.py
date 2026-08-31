@@ -27,14 +27,13 @@ import uuid
 
 if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
-from enchron_artifact_paths import artifact_root, evidence_root
+from enchron_artifact_paths import evidence_root
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = evidence_root() / f"reachability-{date.today():%Y%m%d}"
-DEFAULT_DERIVED_DATA = artifact_root() / "DerivedData/Reachability"
 if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 import enchron_target
@@ -154,8 +153,8 @@ def refuse_when_detached() -> None:
         "reachability_matrix was started detached. It holds the device's only "
         "resident runner, so nothing else can drive the device until it finishes, "
         "and no one is reading its verdicts while it does. Run it in the foreground, "
-        "or drive the operation units one at a time: "
-        "python3 Scripts/verification/journey_units.py list"
+        "or compile and drive the approved Catalog through "
+        "python3 Scripts/regression/runctl.py --help"
     )
 
 
@@ -1084,8 +1083,8 @@ class ReachabilityRun:
             str(self.controller_output),
             "--developer-dir",
             DEVELOPER_DIR,
-            "--derived-data-path",
-            str(self.arguments.derived_data_path),
+            "--execution-input",
+            str(self.arguments.execution_input),
             action,
             *extra,
         ]
@@ -6596,7 +6595,12 @@ class ReachabilityRun:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-directory", type=Path, default=DEFAULT_EVIDENCE)
-    parser.add_argument("--derived-data-path", type=Path, default=DEFAULT_DERIVED_DATA)
+    parser.add_argument(
+        "--execution-input",
+        type=Path,
+        default=os.environ.get("ENCHRON_EXECUTION_INPUT"),
+        help="frozen execution input the controller launches from",
+    )
     parser.add_argument("--reuse-session", action="store_true")
     parser.add_argument("--accept-baseline", action="store_true")
     parser.add_argument("--require-complete", action="store_true")

@@ -637,78 +637,38 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
-    func testAppleImmersiveVideoIsRejectedBeforePlaybackOnVisionPro() throws {
-        let filename = "Immersive-Video-example.f99766.mp4"
-        let app = launchMediaLibrary()
-        let identifier = "MediaLibrary-grid-video-\(filename)"
-        let card = app.buttons.matching(identifier: identifier).firstMatch
-        try requireMatrix(
-            importExactRealMediaReference(
-                card: card,
-                identifier: identifier,
+    func testAppleImmersiveVideoDecodesOnItsImmersiveSurfaceOnVisionPro() throws {
+        _ = try openAutomaticSourcePlayback(
+            .init(
+                filename: "Immersive-Video-example.f99766.mp4",
                 pickerPath: ["Samples", "Spatial", "Apple-Immersive"],
-                pickerLabels: ["Immersive-Video-example.f99766", filename],
-                filename: filename,
-                in: app
-            ),
-            "Apple Immersive fixture could not be imported from its exact path."
-        )
-
-        card.tap()
-        resolveResumeDecisionIfNeeded(in: app)
-        let alert = app.alerts["Failed to Load"].firstMatch
-        try requireMatrix(
-            alert.waitForExistence(timeout: 45),
-            "Apple Immersive Video did not produce the generic load failure."
-        )
-        try requireMatrix(
-            app.staticTexts["Unable to open this file."].firstMatch
-                .waitForExistence(timeout: 5),
-            "Apple Immersive Video exposed a non-generic failure message."
-        )
-        let applicationState = app.descendants(matching: .any)[
-            "PlayerUI-application-state"
-        ].firstMatch
-        let failed = try requireMatrix(
-            waitForState(applicationState, timeout: 15) {
-                $0.string("lifecycle")?.lowercased().hasPrefix("failed") == true
-                    && $0.string("session") == "none"
-                    && $0.string("attached") == "none"
-            },
-            "Rejected Apple Immersive Video did not publish its terminal failure state."
-        )
-        for field in [
-            "videoSamples", "rendererInputs", "audioSamples", "audioRendererSamples"
-        ] {
-            let count = try requireMatrix(
-                failed.uint64(field),
-                "Rejected Apple Immersive Video did not expose \(field)."
+                pickerLabels: [
+                    "Immersive-Video-example.f99766",
+                    "Immersive-Video-example.f99766.mp4"
+                ],
+                evidenceSlug: "matrix-apple-immersive",
+                sourceContentKind: "appleImmersiveVideo",
+                projection: "flat",
+                stereoLayout: "multiview",
+                presentation: "panorama",
+                contentType: "immersive",
+                formatSignalingProjectionKind: "AppleImmersiveVideo",
+                actualViewingMode: "stereo",
+                actualImmersiveMode: "progressive",
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: true,
+                compressedFormat: .init(
+                    providerCodecName: "hevc",
+                    providerCodecTag: "hvc1",
+                    sampleMediaSubtype: "hvc1",
+                    requiredProviderConfigurationAtoms: ["hvcC", "lhvC"],
+                    sampleHasLhvC: true,
+                    rendererHasLhvC: true,
+                    rendererInputIsMultiview: true
+                ),
+                requiresChangingDisplayedFrames: true
             )
-            try requireMatrix(
-                count == 0,
-                "Rejected Apple Immersive Video published \(field)=\(count)."
-            )
-        }
-        try requireMatrix(
-            failed.bool("componentReady") == false,
-            "Rejected Apple Immersive Video prepared a video component."
         )
-        try requireMatrix(
-            failed.bool("hasAudio") == false,
-            "Rejected Apple Immersive Video published an audio output."
-        )
-        try requireMatrix(
-            failed.string("rendererConsumer") == "none"
-                && failed.string("rendererConsumerEntity") == "none",
-            "Rejected Apple Immersive Video bound a renderer consumer."
-        )
-        try requireMatrix(
-            app.descendants(matching: .any)["PlayerUI-spatial-state"]
-                .firstMatch.waitForNonExistence(timeout: 5),
-            "Rejected Apple Immersive Video must not enter a spatial presentation."
-        )
-        attachState(failed, name: "matrix-apple-immersive-rejected-state")
-        attachScreenshot(from: app, name: "matrix-apple-immersive-rejected")
     }
 
     private struct CompressedFormatExpectation {
@@ -718,6 +678,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         let providerTransferToken: String?
         let sampleTransferToken: String?
         let requiredProviderConfigurationAtoms: Set<String>
+        let sampleHasLhvC: Bool?
+        let rendererHasLhvC: Bool?
+        let rendererInputIsMultiview: Bool?
         let sampleHasDvcC: Bool?
         let sampleHasDvvC: Bool?
 
@@ -728,6 +691,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             providerTransferToken: String? = nil,
             sampleTransferToken: String? = nil,
             requiredProviderConfigurationAtoms: Set<String> = [],
+            sampleHasLhvC: Bool? = nil,
+            rendererHasLhvC: Bool? = nil,
+            rendererInputIsMultiview: Bool? = nil,
             sampleHasDvcC: Bool? = nil,
             sampleHasDvvC: Bool? = nil
         ) {
@@ -738,6 +704,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             self.sampleTransferToken = sampleTransferToken
             self.requiredProviderConfigurationAtoms =
                 requiredProviderConfigurationAtoms
+            self.sampleHasLhvC = sampleHasLhvC
+            self.rendererHasLhvC = rendererHasLhvC
+            self.rendererInputIsMultiview = rendererInputIsMultiview
             self.sampleHasDvcC = sampleHasDvcC
             self.sampleHasDvvC = sampleHasDvvC
         }
@@ -759,6 +728,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         let actualSpatialVideoMode: String?
         let isMVHEVC: Bool
         let compressedFormat: CompressedFormatExpectation?
+        var requiresChangingDisplayedFrames = false
     }
 
     private struct AutomaticSourcePlayback {
@@ -921,6 +891,8 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                 presentation: expectation.presentation,
                 app: app,
                 evidenceName: "\(expectation.evidenceSlug)-01-automatic-source",
+                requiresChangingDisplayedFrames:
+                    expectation.requiresChangingDisplayedFrames,
                 observedFailures: &observedFailures
             ),
             "\(expectation.filename) did not continue after Automatic source detection."
@@ -1973,6 +1945,18 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         }
         if let expected = expectation.sampleHasDvcC,
            state.bool("sampleHasDvcC") != expected {
+            return false
+        }
+        if let expected = expectation.sampleHasLhvC,
+           state.bool("sampleHasLhvC") != expected {
+            return false
+        }
+        if let expected = expectation.rendererHasLhvC,
+           state.bool("rendererHasLhvC") != expected {
+            return false
+        }
+        if let expected = expectation.rendererInputIsMultiview,
+           state.bool("rendererInputIsMultiview") != expected {
             return false
         }
         if let expected = expectation.sampleHasDvvC,
@@ -3201,6 +3185,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         app: XCUIApplication,
         evidenceName: String,
         requiresCurrentPixelEpoch: Bool = true,
+        requiresChangingDisplayedFrames: Bool = false,
         observedFailures: inout [String]
     ) -> RegressionStateSnapshot? {
         var state = RegressionStateSnapshot(
@@ -3240,6 +3225,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         guard let baselinePosition = state.double("position"),
               let baselineVideoSamples = state.uint64("videoSamples"),
               let baselineRendererInputs = state.uint64("rendererInputs"),
+              let baselineDisplayedFrames = state.uint64("displayedFrameObservations"),
               let baselineSession = state.string("session"),
               let baselineEpoch = state.uint64("streamEpoch") else {
             attachState(state, name: "\(evidenceName)-baseline-state-invalid")
@@ -3262,6 +3248,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                 && ($0.double("position") ?? 0) >= baselinePosition + 0.25
                 && ($0.uint64("videoSamples") ?? 0) > baselineVideoSamples
                 && ($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs
+                && (requiresChangingDisplayedFrames == false
+                    || ($0.uint64("displayedFrameObservations") ?? 0)
+                        > baselineDisplayedFrames)
                 && $0.string("session") == baselineSession
                 && $0.uint64("streamEpoch") == baselineEpoch
                 && $0.bool("displayedPixel") == true

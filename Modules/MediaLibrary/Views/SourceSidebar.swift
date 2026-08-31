@@ -251,6 +251,7 @@ public struct SourceSidebar: View {
                 } label: {
                     Label("Add", systemImage: "plus")
                 }
+                .accessibilityIdentifier("\(identifierPrefix)-add")
                 Button {
                     performRefresh()
                 } label: {

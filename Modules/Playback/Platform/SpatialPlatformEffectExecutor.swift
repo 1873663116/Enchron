@@ -24,6 +24,33 @@ enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
     }
 }
 
+enum SpatialPlatformPresentationFailureRecovery: Equatable, Sendable {
+    case unavailable
+    case previousPresentationRestored
+}
+
+enum SpatialPlatformPresentationFailurePolicy {
+    static func shouldStopPlayback(
+        effect: SpatialPlatformEffect,
+        recovery: SpatialPlatformPresentationFailureRecovery
+    ) -> Bool {
+        guard recovery != .previousPresentationRestored else { return false }
+        switch effect {
+        case .enterImmersivePlayback,
+             .exitImmersivePlayback,
+             .collapseImmersivePlayback,
+             .swapWindowPlaybackProjection:
+            return true
+        case .presentEnvironmentPreview,
+             .dismissEnvironmentPreview,
+             .presentEnvironmentCard,
+             .normalizeStoppedSpatialPlayback,
+             .normalizeInvalidatedSpatialPlayback:
+            return false
+        }
+    }
+}
+
 public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldRevealMainWindow(
         sourceRendererIsReleased: Bool,
@@ -812,13 +839,17 @@ public final class SpatialPlatformEffectCoordinator {
                 .surfaceAttachmentFailed,
                 execution: execution
             ) else { return }
-            _ = await restorePlaybackWindow(
+            let restoration = await restorePlaybackWindow(
                 for: .normalizeSpatialPlayback,
                 execution: execution
             )
+            lastPlatformOperation = "spatial-surface-settlement-failed"
             _ = await complete(
                 execution,
-                outcome: .failed(.spatialPlaybackSurfaceUnavailable)
+                outcome: .failed(.spatialPlaybackSurfaceUnavailable),
+                failureRecovery: restoration.isReady
+                    ? .previousPresentationRestored
+                    : .unavailable
             )
             return
         }
@@ -1956,7 +1987,8 @@ public final class SpatialPlatformEffectCoordinator {
     private func complete(
         _ execution: Execution,
         outcome: SpatialPlatformEffectOutcome,
-        performsAfterTransport: Bool = true
+        performsAfterTransport: Bool = true,
+        failureRecovery: SpatialPlatformPresentationFailureRecovery = .unavailable
     ) async -> SpatialPlatformEffectResolution {
         guard executionIsLive(execution) else { return .ignored }
         if case .failed = outcome {
@@ -1971,11 +2003,10 @@ public final class SpatialPlatformEffectCoordinator {
             logger.error(
                 "Playback presentation conversion failed \(diagnostic, privacy: .public)"
             )
-            switch execution.request.effect {
-            case .enterImmersivePlayback,
-                 .exitImmersivePlayback,
-                 .collapseImmersivePlayback,
-                 .swapWindowPlaybackProjection:
+            if SpatialPlatformPresentationFailurePolicy.shouldStopPlayback(
+                effect: execution.request.effect,
+                recovery: failureRecovery
+            ) {
                 await stopPlaybackForFailedPresentationTransfer()
                 appModel.requestStoppedPlaybackCleanup()
                 playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
@@ -1983,8 +2014,6 @@ public final class SpatialPlatformEffectCoordinator {
                     "\(String(describing: outcome))-playback-stopped"
                 lastExecutionCheckpoint = "presentation-conversion-failed"
                 return .ignored
-            default:
-                break
             }
         }
         let presentationRestoredAfterFailure: PlaybackPresentation? = switch outcome {
@@ -2023,6 +2052,27 @@ public final class SpatialPlatformEffectCoordinator {
             return resolution
         }
 
+        if let presentationRestoredAfterFailure {
+            let restored = await playbackRuntime.waitUntilPresentationSettled(
+                to: presentationRestoredAfterFailure
+            )
+            guard executionIsLive(execution, phase: .settledRequest) else {
+                return resolution
+            }
+            guard restored else {
+                await stopPlaybackForFailedPresentationTransfer()
+                appModel.requestStoppedPlaybackCleanup()
+                playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
+                lastExecutionResolution =
+                    "\(String(describing: outcome))-rollback-settlement-failed"
+                lastExecutionCheckpoint = "presentation-rollback-settlement-failed"
+                return .ignored
+            }
+            await releaseDepartingPresentationResources()
+            lastExecutionCheckpoint =
+                "presentation-rollback-settled-\(presentationRestoredAfterFailure.rawValue)"
+        }
+
         let transportIntent: SpatialPlaybackTransportIntent?
         switch outcome {
         case .succeeded:
@@ -2033,15 +2083,6 @@ public final class SpatialPlatformEffectCoordinator {
                 execution.request.playbackTransportPlan?.afterFailure
         }
         guard let transportIntent else { return resolution }
-
-        if let presentationRestoredAfterFailure {
-            let restored = await playbackRuntime.waitUntilPresentationSettled(
-                to: presentationRestoredAfterFailure
-            )
-            guard executionIsLive(execution, phase: .settledRequest), restored else {
-                return resolution
-            }
-        }
 
         switch await executePlaybackTransport(
             transportIntent,

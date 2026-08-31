@@ -16,6 +16,14 @@ typedef enum PBFFmpegReadResult {
     PBFFmpegReadResultError = -1,
 } PBFFmpegReadResult;
 
+typedef enum PBFFmpegActiveFailureCause {
+    PBFFmpegActiveFailureCauseNone = 0,
+    PBFFmpegActiveFailureCauseConnectionInterrupted = 1,
+    PBFFmpegActiveFailureCauseSourceFileMissing = 2,
+    PBFFmpegActiveFailureCauseSourceAccessDenied = 3,
+    PBFFmpegActiveFailureCauseMediaDataCorrupt = 4,
+} PBFFmpegActiveFailureCause;
+
 typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
 typedef struct PBFFmpegDemuxSource PBFFmpegDemuxSource;
@@ -61,6 +69,11 @@ typedef struct PBFFmpegAudioSampleMetadata {
     int timeBaseDenominator;
     size_t payloadByteCount;
     PBFFmpegAudioCookieSource cookieSource;
+    uint64_t trueHDDecoderInputPacketCount;
+    uint64_t trueHDDecoderBatchCount;
+    uint64_t trueHDAggregatedDecoderBatchCount;
+    uint64_t trueHDOutputSampleBufferCount;
+    uint32_t trueHDLastDecoderBatchInputPacketCount;
 } PBFFmpegAudioSampleMetadata;
 typedef struct PBFFmpegSubtitleReader PBFFmpegSubtitleReader;
 typedef struct PBSubtitleFrameRenderer PBSubtitleFrameRenderer;
@@ -281,10 +294,16 @@ PBFFmpegReadResult PBFFmpegReaderCopyNextSample(
     char *errorBuffer,
     size_t errorBufferSize
 );
+PBFFmpegActiveFailureCause PBFFmpegReaderGetLastActiveFailureCause(
+    const PBFFmpegReader *reader
+);
 
 double PBFFmpegReaderGetDurationSeconds(const PBFFmpegReader *reader);
 double PBFFmpegReaderGetNominalFrameRate(const PBFFmpegReader *reader);
 const char *PBFFmpegReaderGetCodecName(const PBFFmpegReader *reader);
+bool PBFFmpegReaderOpenFailedWithUnsupportedVideoCodec(
+    const PBFFmpegReader *reader
+);
 const char *PBFFmpegReaderGetCodecTag(const PBFFmpegReader *reader);
 const char *PBFFmpegReaderGetContainerFormat(const PBFFmpegReader *reader);
 const char *PBFFmpegReaderGetColorPrimaries(const PBFFmpegReader *reader);
@@ -338,6 +357,9 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
     PBFFmpegAudioSampleMetadata *metadataOut,
     char *errorBuffer,
     size_t errorBufferSize
+);
+PBFFmpegActiveFailureCause PBFFmpegAudioReaderGetLastActiveFailureCause(
+    const PBFFmpegAudioReader *reader
 );
 int PBFFmpegAudioReaderGetStreamIndex(const PBFFmpegAudioReader *reader);
 int PBFFmpegAudioReaderGetSampleRate(const PBFFmpegAudioReader *reader);

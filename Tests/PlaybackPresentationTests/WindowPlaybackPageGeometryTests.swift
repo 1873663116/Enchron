@@ -194,6 +194,41 @@ struct WindowPlaybackPageGeometryTests {
         #expect(idealWidth < WindowPlaybackLayout.fallback.defaultSize.width)
     }
 
+    @Test("window geometry diagnostics describe the policy supplied to the root view")
+    func windowGeometryDiagnosticSnapshot() {
+        let layout = WindowPlaybackLayout(aspectRatio: 4.0 / 3.0)
+        let snapshot = WindowPlaybackGeometryPolicy
+            .aspectLocked(layout)
+            .diagnosticSnapshot
+
+        #expect(snapshot.policyKind == .aspectLocked)
+        #expect(snapshot.requestedIdealWidth == layout.defaultSize.width)
+        #expect(snapshot.requestedIdealHeight == layout.defaultSize.height)
+        #expect(snapshot.minimumWidth == layout.minimumSize.width)
+        #expect(snapshot.minimumHeight == layout.minimumSize.height)
+        #expect(snapshot.maximumWidth == layout.maximumSize.width)
+        #expect(snapshot.maximumHeight == layout.maximumSize.height)
+        #expect(snapshot.resizingRestriction == .uniform)
+    }
+
+    @Test("audio window geometry diagnostics expose exact control-plane fields")
+    func audioWindowGeometryControlPlaneFields() {
+        let fields = WindowPlaybackGeometryPolicy.audioOnly
+            .diagnosticSnapshot
+            .accessibilityFields
+
+        #expect(fields == [
+            "windowGeometryPolicyKind=audioOnly",
+            "windowGeometryRequestedIdealWidth=800.0",
+            "windowGeometryRequestedIdealHeight=450.0",
+            "windowGeometryMinimumWidth=750.0",
+            "windowGeometryMinimumHeight=380.0",
+            "windowGeometryMaximumWidth=960.0",
+            "windowGeometryMaximumHeight=540.0",
+            "windowGeometryResizingRestriction=uniform"
+        ])
+    }
+
     @Test("a 4:3 source sits inside its tiers without touching both ceilings")
     func fourByThreeSourceStaysInsideItsTiers() {
         let layout = WindowPlaybackLayout(aspectRatio: 4.0 / 3.0)
@@ -312,6 +347,23 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.projection == .customAngle)
         #expect(state.horizontalFieldOfViewDegrees == 220)
         #expect(state.stereoLayout == .sideBySide)
+    }
+
+    @Test("every custom-angle row preserves its editor host identifier")
+    func customAngleAccessibilityIdentifiers() {
+        for identifierPrefix in [
+            "PlayerUI-VideoFormat",
+            "PlayerPanel-VideoFormat"
+        ] {
+            for degrees in PanoramaHorizontalCoverage.selectableAngles {
+                #expect(
+                    PlaybackVideoFormatEditor.customAngleAccessibilityIdentifier(
+                        for: degrees,
+                        identifierPrefix: identifierPrefix
+                    ) == "\(identifierPrefix)-CustomAngle-\(degrees)"
+                )
+            }
+        }
     }
 
     @Test("Portal top actions include Enter Panorama and Video Format")

@@ -3,7 +3,7 @@ import MediaSource
 import Playback
 import Synchronization
 
-public enum EmbyPlaybackStartAction: Sendable, Equatable {
+public enum EmbyPlaybackStartAction: String, Codable, Sendable, Equatable {
     case resume
     case fromBeginning
 }
@@ -38,8 +38,117 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
     }
 }
 
+public struct EmbyPreparedPlaybackEvidence: Equatable, Sendable {
+    public let serverID: EmbyServerID
+    public let userID: EmbyUserID
+    public let itemID: EmbyItemID
+    public let mediaSourceID: EmbyMediaSourceID
+    public let playSessionID: EmbyPlaySessionID
+    public let requestedAction: EmbyPlaybackStartAction
+    public let freshServerProgressTicks: Int64?
+    public let appliedStartTicks: Int64
+
+    public init(
+        serverID: EmbyServerID,
+        userID: EmbyUserID,
+        itemID: EmbyItemID,
+        mediaSourceID: EmbyMediaSourceID,
+        playSessionID: EmbyPlaySessionID,
+        requestedAction: EmbyPlaybackStartAction,
+        freshServerProgressTicks: Int64?,
+        appliedStartTicks: Int64
+    ) {
+        self.serverID = serverID
+        self.userID = userID
+        self.itemID = itemID
+        self.mediaSourceID = mediaSourceID
+        self.playSessionID = playSessionID
+        self.requestedAction = requestedAction
+        self.freshServerProgressTicks = freshServerProgressTicks
+        self.appliedStartTicks = appliedStartTicks
+    }
+}
+
+public struct EmbyAcceptedPlaybackReport: Equatable, Sendable {
+    public enum Event: String, Codable, Equatable, Sendable {
+        case started
+        case progress
+        case stopped
+    }
+
+    public let event: Event
+    public let serverID: EmbyServerID
+    public let userID: EmbyUserID
+    public let itemID: EmbyItemID
+    public let mediaSourceID: EmbyMediaSourceID
+    public let playSessionID: EmbyPlaySessionID
+    public let positionTicks: Int64
+}
+
+public struct EmbyPlaybackEvidence: Equatable, Sendable {
+    private static let retainedReportLimit = 64
+
+    public let serverID: EmbyServerID
+    public let userID: EmbyUserID
+    public let itemID: EmbyItemID
+    public let mediaSourceID: EmbyMediaSourceID
+    public let playSessionID: EmbyPlaySessionID
+    public private(set) var activePositionTicks: Int64?
+    public private(set) var latestPositionTicks: Int64
+    public private(set) var exitPositionTicks: Int64?
+    public private(set) var acceptedProgressReportCount: Int
+    public private(set) var acceptedReports: [EmbyAcceptedPlaybackReport]
+    public private(set) var totalAcceptedReportCount: Int
+
+    public var acceptedReportsWereTruncated: Bool {
+        totalAcceptedReportCount > acceptedReports.count
+    }
+
+    public init(report: EmbyAcceptedPlaybackReport) {
+        serverID = report.serverID
+        userID = report.userID
+        itemID = report.itemID
+        mediaSourceID = report.mediaSourceID
+        playSessionID = report.playSessionID
+        activePositionTicks = report.event == .started ? report.positionTicks : nil
+        latestPositionTicks = report.positionTicks
+        exitPositionTicks = report.event == .stopped ? report.positionTicks : nil
+        acceptedProgressReportCount = report.event == .progress ? 1 : 0
+        acceptedReports = [report]
+        totalAcceptedReportCount = 1
+    }
+
+    public mutating func record(_ report: EmbyAcceptedPlaybackReport) {
+        guard report.serverID == serverID,
+              report.userID == userID,
+              report.itemID == itemID,
+              report.mediaSourceID == mediaSourceID,
+              report.playSessionID == playSessionID else {
+            return
+        }
+        if report.event == .started {
+            activePositionTicks = report.positionTicks
+        }
+        if report.event == .progress {
+            acceptedProgressReportCount += 1
+        }
+        if report.event == .stopped {
+            exitPositionTicks = report.positionTicks
+        }
+        latestPositionTicks = report.positionTicks
+        totalAcceptedReportCount += 1
+        acceptedReports.append(report)
+        if acceptedReports.count > Self.retainedReportLimit {
+            acceptedReports.removeFirst(acceptedReports.count - Self.retainedReportLimit)
+        }
+    }
+}
+
 public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unchecked Sendable {
     public typealias UnauthorizedHandler = @Sendable () async -> Void
+    public typealias AcceptedReportHandler = @Sendable (
+        EmbyAcceptedPlaybackReport
+    ) async -> Void
 
     private enum Event: Sendable {
         case started
@@ -54,6 +163,7 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
     private let playSessionID: EmbyPlaySessionID
     private let externalSubtitleStreamIndexBySourceID: [String: Int]
     private let onUnauthorized: UnauthorizedHandler?
+    private let onAcceptedReport: AcceptedReportHandler?
     private let pendingTask = Mutex<Task<Void, Never>?>(nil)
 
     public init(
@@ -63,7 +173,8 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
         mediaSourceID: EmbyMediaSourceID,
         playSessionID: EmbyPlaySessionID,
         externalSubtitleStreamIndexBySourceID: [String: Int] = [:],
-        onUnauthorized: UnauthorizedHandler? = nil
+        onUnauthorized: UnauthorizedHandler? = nil,
+        onAcceptedReport: AcceptedReportHandler? = nil
     ) {
         self.client = client
         self.server = server
@@ -72,6 +183,7 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
         self.playSessionID = playSessionID
         self.externalSubtitleStreamIndexBySourceID = externalSubtitleStreamIndexBySourceID
         self.onUnauthorized = onUnauthorized
+        self.onAcceptedReport = onAcceptedReport
     }
 
     public func playbackStarted(_ report: PlaybackSessionReport) {
@@ -103,7 +215,15 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
         )
         pendingTask.withLock { pendingTask in
             let precedingTask = pendingTask
-            pendingTask = Task { [client, server, onUnauthorized] in
+            pendingTask = Task { [
+                client,
+                server,
+                onUnauthorized,
+                onAcceptedReport,
+                itemID,
+                mediaSourceID,
+                playSessionID,
+            ] in
                 await precedingTask?.value
                 do {
                     switch event {
@@ -114,6 +234,20 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
                     case .stopped:
                         try await client.sendStopped(embyReport, on: server)
                     }
+                    let acceptedEvent: EmbyAcceptedPlaybackReport.Event = switch event {
+                    case .started: .started
+                    case .progress: .progress
+                    case .stopped: .stopped
+                    }
+                    await onAcceptedReport?(EmbyAcceptedPlaybackReport(
+                        event: acceptedEvent,
+                        serverID: server.id,
+                        userID: server.userID,
+                        itemID: itemID,
+                        mediaSourceID: mediaSourceID,
+                        playSessionID: playSessionID,
+                        positionTicks: embyReport.positionTicks
+                    ))
                 } catch EmbyError.httpStatus(401) {
                     await onUnauthorized?()
                 } catch {}
@@ -151,6 +285,8 @@ public actor EmbyPlaybackBridge {
     private let mediaByteSession: URLSession
     private var server: EmbyAuthenticatedServer?
     private var onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
+    private var onAcceptedReport: EmbyPlaybackSessionReporter.AcceptedReportHandler?
+    private var onPreparedPlayback: (@Sendable (EmbyPreparedPlaybackEvidence) async -> Void)?
     private var queue: [QueuedEpisode] = []
     private var currentQueueID: UUID?
 
@@ -158,12 +294,16 @@ public actor EmbyPlaybackBridge {
         client: any EmbyClientProtocol,
         server: EmbyAuthenticatedServer?,
         onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
+        onAcceptedReport: EmbyPlaybackSessionReporter.AcceptedReportHandler? = nil,
+        onPreparedPlayback: (@Sendable (EmbyPreparedPlaybackEvidence) async -> Void)? = nil,
         mediaByteSession: URLSession = .shared
     ) {
         self.client = client
         self.mediaByteSession = mediaByteSession
         self.server = server
         self.onUnauthorized = onUnauthorized
+        self.onAcceptedReport = onAcceptedReport
+        self.onPreparedPlayback = onPreparedPlayback
     }
 
     public init(client: any EmbyClientProtocol) {
@@ -171,11 +311,15 @@ public actor EmbyPlaybackBridge {
         mediaByteSession = .shared
         server = nil
         onUnauthorized = nil
+        onAcceptedReport = nil
+        onPreparedPlayback = nil
     }
 
     public func configure(
         server: EmbyAuthenticatedServer?,
-        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil
+        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
+        onAcceptedReport: EmbyPlaybackSessionReporter.AcceptedReportHandler? = nil,
+        onPreparedPlayback: (@Sendable (EmbyPreparedPlaybackEvidence) async -> Void)? = nil
     ) {
         if self.server != server {
             queue = []
@@ -183,6 +327,8 @@ public actor EmbyPlaybackBridge {
         }
         self.server = server
         self.onUnauthorized = onUnauthorized
+        self.onAcceptedReport = onAcceptedReport
+        self.onPreparedPlayback = onPreparedPlayback
     }
 
     public func request(for selection: EmbyPlaybackSelection) async throws -> PlaybackLaunchRequest {
@@ -293,14 +439,17 @@ public actor EmbyPlaybackBridge {
             mediaSourceID: source.id,
             playSessionID: playback.id,
             externalSubtitleStreamIndexBySourceID: externalIndexes,
-            onUnauthorized: onUnauthorized
+            onUnauthorized: onUnauthorized,
+            onAcceptedReport: onAcceptedReport
         )
-        let startPosition: Double = switch startAction {
+        let freshServerProgressTicks = freshItem.metadata.userData?.playbackPositionTicks
+        let appliedStartTicks: Int64 = switch startAction {
         case .resume:
-            Double(freshItem.metadata.userData?.playbackPositionTicks ?? 0) / 10_000_000
+            freshServerProgressTicks ?? 0
         case .fromBeginning:
             0
         }
+        let startPosition = Double(appliedStartTicks) / 10_000_000
         let byteSource = EmbyMediaByteSource(
             streamURL: source.directPlayURL,
             accessToken: server.accessToken,
@@ -312,6 +461,16 @@ public actor EmbyPlaybackBridge {
             filename: source.displayName,
             preferredBufferDepth: .automatic
         )
+        await onPreparedPlayback?(EmbyPreparedPlaybackEvidence(
+            serverID: server.id,
+            userID: server.userID,
+            itemID: freshItem.metadata.id,
+            mediaSourceID: source.id,
+            playSessionID: playback.id,
+            requestedAction: startAction,
+            freshServerProgressTicks: freshServerProgressTicks,
+            appliedStartTicks: appliedStartTicks
+        ))
         return PlaybackLaunchRequest(
             source: PlaybackAddress(byteStreamHandle: byteStreamHandle),
             displayName: freshItem.metadata.name,
@@ -338,7 +497,7 @@ public actor EmbyPlaybackBridge {
         currentQueueID = queue.first { $0.episode.metadata.id == currentItemID }?.id
     }
 
-    private static func externalSubtitleSourceID(for streamIndex: Int) -> String {
+    static func externalSubtitleSourceID(for streamIndex: Int) -> String {
         "emby.subtitle.\(streamIndex)"
     }
 
@@ -378,8 +537,19 @@ private final class EmbyByteRangeSource: MediaByteRangeSource, @unchecked Sendab
         var request = URLRequest(url: url)
         request.setValue("bytes=\(range.lowerBound)-\(range.upperBound - 1)", forHTTPHeaderField: "Range")
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        let (data, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse else { throw EmbyError.invalidResponse }
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            if let failure = MediaSourceReadFailure(classifying: error) {
+                throw failure
+            }
+            throw error
+        }
+        guard let response = response as? HTTPURLResponse else {
+            throw MediaSourceReadFailure.invalidData
+        }
         if response.statusCode == 200 {
             return MediaByteRangeRead(
                 data: data,
@@ -389,10 +559,17 @@ private final class EmbyByteRangeSource: MediaByteRangeSource, @unchecked Sendab
                 supportsSeeking: false
             )
         }
-        guard response.statusCode == 206 else { throw EmbyError.httpStatus(response.statusCode) }
+        guard response.statusCode == 206 else {
+            if let failure = MediaSourceReadFailure(
+                httpStatusCode: response.statusCode
+            ) {
+                throw failure
+            }
+            throw EmbyError.httpStatus(response.statusCode)
+        }
         guard let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
               contentRange.lowercased().hasPrefix("bytes \(range.lowerBound)-") else {
-            throw EmbyError.invalidResponse
+            throw MediaSourceReadFailure.invalidData
         }
         let total = contentRange.lastIndex(of: "/").flatMap {
             Int64(contentRange[contentRange.index(after: $0)...])

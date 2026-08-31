@@ -1,3 +1,4 @@
+import Foundation
 @testable import Playback
 import Testing
 
@@ -11,6 +12,22 @@ private struct PlaybackIssueExpectation {
     let locations: [PlaybackIssuePresentationLocation]
 }
 
+@MainActor
+private func activeFailureIssue(
+    _ cause: PlaybackActiveFailure.Cause
+) -> PlaybackUserVisibleIssue {
+    .activePlaybackFailure(
+        PlaybackActiveFailure(
+            cause: cause,
+            causalPosition: .init(seconds: 42, duration: 600),
+            runtimeGeneration: 7,
+            requestID: URL(fileURLWithPath: "/tests/movie.mkv"),
+            mediaSessionID: "session-7"
+        )
+    )
+}
+
+@MainActor
 private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
     .init(
         issue: .mediaOpeningFailed,
@@ -53,6 +70,78 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         category: .playbackFailed,
         title: "Playback Error",
         message: "Playback could not continue.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: .serverCertificateChanged,
+        category: .serverCertificateChanged,
+        title: "Server Certificate Changed",
+        message: "The server certificate changed. Close playback before reconnecting.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.connectionInterrupted),
+        category: .connectionInterrupted,
+        title: "Playback Error",
+        message: "The connection to this media source was interrupted.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.sourceFileMissing),
+        category: .sourceFileMissing,
+        title: "Playback Error",
+        message: "The source file is no longer available.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.sourceAccessDenied),
+        category: .sourceAccessDenied,
+        title: "Playback Error",
+        message: "Enchron no longer has permission to read the source file.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.mediaDataCorrupt),
+        category: .mediaDataCorrupt,
+        title: "Playback Error",
+        message: "Playback encountered unreadable media data.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.rendererRequiresFlush),
+        category: .rendererRequiresFlush,
+        title: "Playback Error",
+        message: "The video decoder needs to restart before playback can continue.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.mediaServicesReset),
+        category: .mediaServicesReset,
+        title: "Playback Error",
+        message: "The system media service restarted during playback.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .immersiveSpace]
+    ),
+    .init(
+        issue: activeFailureIssue(.rendererFailed),
+        category: .rendererFailed,
+        title: "Playback Error",
+        message: "The video renderer could not continue.",
         messageStrategy: .fixedProductCopy,
         actions: [.retry, .close],
         locations: [.mainWindow, .immersiveSpace]
@@ -167,6 +256,33 @@ func everyPlaybackIssueCategoryHasOnePolicy() {
     }
 }
 
+@Test("active playback failures have one exact recovery policy")
+@MainActor
+func activePlaybackFailuresHaveOneRecoveryPolicy() {
+    #expect(PlaybackActiveFailure.Cause.allCases.count == 7)
+
+    for cause in PlaybackActiveFailure.Cause.allCases {
+        let issue = activeFailureIssue(cause)
+        #expect(issue.category.rawValue == cause.rawValue)
+        #expect(issue.allowedActions == [.retry, .close])
+        #expect(issue.presentationLocations == [.mainWindow, .immersiveSpace])
+        #expect(issue.interruptsPlayback)
+        #expect(issue.activePlaybackFailure?.cause == cause)
+    }
+}
+
+@Test("server certificate changes are not active playback failure causes")
+@MainActor
+func serverCertificateChangesRemainOutsideActiveFailureCauses() {
+    let issue = PlaybackUserVisibleIssue.serverCertificateChanged
+
+    #expect(issue.category.rawValue == "server-certificate-changed")
+    #expect(issue.allowedActions == [.close])
+    #expect(issue.presentationLocations == [.mainWindow, .immersiveSpace])
+    #expect(issue.interruptsPlayback)
+    #expect(issue.activePlaybackFailure == nil)
+}
+
 @Test("unsupported codec names are reduced to bounded product facts")
 @MainActor
 func unsupportedCodecNamesDoNotBecomeProductCopy() {
@@ -176,4 +292,12 @@ func unsupportedCodecNamesDoNotBecomeProductCopy() {
 
     #expect(arbitrary.message == "This video uses a codec that Enchron does not support.")
     #expect(arbitrary.message.contains("secret-server-diagnostic") == false)
+    #expect(
+        PlaybackUserVisibleIssue.unsupportedVideoCodec(
+            PlaybackUnsupportedVideoCodec(codecName: "mpeg4")
+        ).message
+            == "This video uses MPEG-4 Part 2 video, which Enchron does not support."
+    )
+    #expect(PlaybackUnsupportedVideoCodec(codecName: "mpeg2video") == .mpeg2Video)
+    #expect(PlaybackUnsupportedVideoCodec(codecName: "vc1") == .vc1)
 }

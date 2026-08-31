@@ -91,6 +91,19 @@ struct PlaybackTimelineProgressRecovery: Sendable {
     private var nextGeneration: UInt64 = 0
     private var nextIncidentID: UInt64 = 0
 
+    var currentRun: PlaybackTimelineProgressRun? {
+        switch phase {
+        case .inactive:
+            nil
+        case .observing(let run, _, _, _):
+            run
+        case .claimed(let incident),
+             .reanchorApplied(let incident),
+             .notResumed(let incident):
+            incident.run
+        }
+    }
+
     mutating func activate(
         requestedRate: Float,
         applicationHostTime: CMTime,

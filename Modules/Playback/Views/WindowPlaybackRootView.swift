@@ -109,6 +109,51 @@ extension View {
     }
 }
 
+public struct WindowPlaybackGeometryDiagnosticSnapshot: Equatable, Sendable {
+    public enum PolicyKind: String, Equatable, Sendable {
+        case aspectLocked
+        case audioOnly
+    }
+
+    public enum ResizingRestriction: String, Equatable, Sendable {
+        case uniform
+    }
+
+    public let policyKind: PolicyKind
+    public let requestedIdealWidth: CGFloat
+    public let requestedIdealHeight: CGFloat
+    public let minimumWidth: CGFloat
+    public let minimumHeight: CGFloat
+    public let maximumWidth: CGFloat
+    public let maximumHeight: CGFloat
+    public let resizingRestriction: ResizingRestriction
+
+    public var accessibilityFields: [String] {
+        [
+            "windowGeometryPolicyKind=\(policyKind.rawValue)",
+            "windowGeometryRequestedIdealWidth=\(requestedIdealWidth)",
+            "windowGeometryRequestedIdealHeight=\(requestedIdealHeight)",
+            "windowGeometryMinimumWidth=\(minimumWidth)",
+            "windowGeometryMinimumHeight=\(minimumHeight)",
+            "windowGeometryMaximumWidth=\(maximumWidth)",
+            "windowGeometryMaximumHeight=\(maximumHeight)",
+            "windowGeometryResizingRestriction=\(resizingRestriction.rawValue)"
+        ]
+    }
+
+    fileprivate var requestedIdealSize: CGSize {
+        CGSize(width: requestedIdealWidth, height: requestedIdealHeight)
+    }
+
+    fileprivate var minimumSize: CGSize {
+        CGSize(width: minimumWidth, height: minimumHeight)
+    }
+
+    fileprivate var maximumSize: CGSize {
+        CGSize(width: maximumWidth, height: maximumHeight)
+    }
+}
+
 public enum WindowPlaybackGeometryPolicy: Equatable {
     case aspectLocked(WindowPlaybackLayout)
     case audioOnly
@@ -125,25 +170,45 @@ public enum WindowPlaybackGeometryPolicy: Equatable {
         }
     }
 
-    var minimumSize: CGSize? {
+    public var diagnosticSnapshot: WindowPlaybackGeometryDiagnosticSnapshot {
+        let policyKind: WindowPlaybackGeometryDiagnosticSnapshot.PolicyKind
+        let minimumSize: CGSize
+        let idealSize: CGSize
+        let maximumSize: CGSize
         switch self {
-        case let .aspectLocked(layout): layout.minimumSize
-        case .audioOnly: CGSize(width: 750, height: 380)
+        case let .aspectLocked(layout):
+            policyKind = .aspectLocked
+            minimumSize = layout.minimumSize
+            idealSize = layout.defaultSize
+            maximumSize = layout.maximumSize
+        case .audioOnly:
+            policyKind = .audioOnly
+            minimumSize = CGSize(width: 750, height: 380)
+            idealSize = CGSize(width: 800, height: 450)
+            maximumSize = CGSize(width: 960, height: 540)
         }
+        return WindowPlaybackGeometryDiagnosticSnapshot(
+            policyKind: policyKind,
+            requestedIdealWidth: idealSize.width,
+            requestedIdealHeight: idealSize.height,
+            minimumWidth: minimumSize.width,
+            minimumHeight: minimumSize.height,
+            maximumWidth: maximumSize.width,
+            maximumHeight: maximumSize.height,
+            resizingRestriction: .uniform
+        )
+    }
+
+    var minimumSize: CGSize? {
+        diagnosticSnapshot.minimumSize
     }
 
     var idealSize: CGSize? {
-        switch self {
-        case let .aspectLocked(layout): layout.defaultSize
-        case .audioOnly: CGSize(width: 800, height: 450)
-        }
+        diagnosticSnapshot.requestedIdealSize
     }
 
     var maximumSize: CGSize? {
-        switch self {
-        case let .aspectLocked(layout): layout.maximumSize
-        case .audioOnly: CGSize(width: 960, height: 540)
-        }
+        diagnosticSnapshot.maximumSize
     }
 }
 

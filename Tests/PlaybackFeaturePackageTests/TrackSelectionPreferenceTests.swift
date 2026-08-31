@@ -312,6 +312,8 @@ struct TrackSelectionPreferenceTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(resumeCoordinator.pendingResumeDecision?.seconds == 120)
+        #expect(resumeCoordinator.resumePromptPresentationCount == 1)
+        #expect(resumeCoordinator.automaticResumeBypassCount == 0)
 
         resumeCoordinator.startPendingPlaybackFromBeginning()
         try await resumeRuntime.waitUntilOpened()
@@ -326,6 +328,57 @@ struct TrackSelectionPreferenceTests {
             return
         }
         #expect(seconds == 120)
+    }
+
+    @Test("Play Next resumes saved progress without presenting an Ask Every Time decision")
+    func playNextBypassesAskEveryTimeAndResumesSavedProgress() async throws {
+        let suiteName = "app.enchron.tests.play-next-resume.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let nextRequest = Self.request(revision: "next-revision")
+
+        let persistenceRuntime = TrackSelectionRuntime()
+        let persistenceCoordinator = Self.coordinator(
+            runtime: persistenceRuntime,
+            suiteName: suiteName
+        )
+        persistenceCoordinator.beginPlayback(nextRequest)
+        try await persistenceRuntime.waitUntilOpened()
+        persistenceRuntime.playbackPosition = .init(seconds: 120, duration: 1_200)
+        persistenceRuntime.actualPlaybackSeconds = 20
+        persistenceCoordinator.stopPlayback()
+        let nextIdentity = try #require(nextRequest.versionedIdentity?.mediaIdentity)
+        let persistedDeadline = ContinuousClock.now + .seconds(2)
+        while await persistenceCoordinator.viewingState(for: nextIdentity) == nil,
+              ContinuousClock.now < persistedDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let runtime = TrackSelectionRuntime()
+        let coordinator = PlaybackLaunchCoordinator(
+            playbackRuntime: runtime,
+            mediaStateSuiteName: suiteName,
+            preferencesProvider: AskToResumeAndPlayNextPreferences()
+        )
+        let currentRequest = PlaybackLaunchRequest(
+            url: try #require(URL(string: "https://example.invalid/Current.mkv")),
+            displayName: "Current.mkv",
+            viewingStateAuthority: .mediaServer
+        )
+        coordinator.beginPlayback(currentRequest)
+        try await runtime.waitUntilOpened()
+        let currentSessionID = runtime.activeSessionID
+        coordinator.nextFileProvider = { nextRequest }
+
+        _ = coordinator.handlePlaybackEnded()
+        try await runtime.waitUntilCurrentMediaIs(
+            nextRequest,
+            replacing: currentSessionID
+        )
+
+        #expect(coordinator.pendingResumeDecision == nil)
+        #expect(runtime.lastStartTimeSeconds == 120)
+        #expect(coordinator.resumePromptPresentationCount == 0)
+        #expect(coordinator.automaticResumeBypassCount == 1)
     }
 
     @Test("reopening unchanged media restores the selected audio track")
@@ -950,6 +1003,12 @@ private struct AskToResumePreferences: PlaybackPreferencesProviding {
     }
 }
 
+private struct AskToResumeAndPlayNextPreferences: PlaybackPreferencesProviding {
+    func loadPlaybackPreferences() -> PlaybackPreferences {
+        PlaybackPreferences(resumePolicy: .askEveryTime, endBehavior: .playNext)
+    }
+}
+
 private enum PlaybackSessionReporterCall: Equatable {
     case started(PlaybackSessionReport)
     case progressed(PlaybackSessionReport)
@@ -1010,25 +1069,17 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var prefetchedMetadata: PlaybackMediaMetadata?
     var displayMediaProfile: PlaybackModel.MediaProfile?
     var displayFileSizeInBytes: Int64?
-    var activeMediaFormatProvenance: MediaFormatProvenance = .source
-    var dolbyVisionFallbackIsAvailable = false
-    var dolbyVisionFallbackIsEnabled = false
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation {
         MediaFormatInterpretationResolver.resolve(
             source: SourceMediaFormatFact(
-                contentKind: sourceVideoContentKind,
-                projection: effectiveContentIsPanoramic ? .equirectangular180 : .flat,
+                contentKind: .rectilinear,
+                projection: .flat,
                 stereoLayout: .mono
             ),
-            override: activeMediaFormatProvenance == .source ? nil : .standard
+            override: lastAppliedFormat
         )
     }
     var mediaKind: PlaybackMediaKind = .video
-    var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind = .rectilinear
-    var sourceMediaFormatSummary = "Flat · Mono"
-    var effectiveContentIsPanoramic = false
-    var effectiveVideoFormatRevision: UInt64?
-    var requestsSpatialVideoMode = false
     var activeSessionID: String?
     var actualPlaybackSeconds: Double = 0
     var didEndNaturally = false
@@ -1071,7 +1122,6 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         }
         currentLaunchRequest = request
         productLifecycle = .loading
-        activeMediaFormatProvenance = .source
         lastAppliedFormat = nil
     }
 
@@ -1098,7 +1148,6 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         lastStartTimeSeconds = startTimeSeconds
         if let initialFormat {
             lastAppliedFormat = initialFormat
-            activeMediaFormatProvenance = .userOverride
             formatApplicationCount += 1
         }
         openCount += 1
@@ -1127,14 +1176,11 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
             stereoLayout: Self.mediaStereoLayout(from: stereo),
             usesDolbyVisionFallback: usesDolbyVisionFallback
         )
-        dolbyVisionFallbackIsEnabled = usesDolbyVisionFallback
-        activeMediaFormatProvenance = .userOverride
     }
 
     func useSourceFormat() async throws {
         sourceFormatApplicationCount += 1
         lastAppliedFormat = nil
-        activeMediaFormatProvenance = .source
     }
 
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
@@ -1146,7 +1192,6 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = track?.id
     }
 
-    func setSpeed(_ speed: PlaybackModel.PlaybackSpeed) {}
     func replay() {}
 
     func stop(releasingSourceAccess: Bool) {

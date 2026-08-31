@@ -14,6 +14,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
@@ -27,15 +28,26 @@ APP_COMMAND_PATH = "Documents/test-command.json"
 DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
 APP_RESPONSE_ROOT = "Documents/test-responses"
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
-if str(Path(__file__).parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).parent))
-from enchron_artifact_paths import artifact_root, evidence_root
+SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
+from regression.core.contracts import BoundLane
+from regression.execution_identity import (
+    PhysicalVisionOSDevice,
+    PhysicalVisionOSDeviceRegistry,
+    PhysicalVisionOSDeviceRegistrySource,
+    SimulatorUDIDSource,
+    load_frozen_test_launch,
+    registered_physical_visionos_devices,
+    registered_simulator_udids,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER_PROCESS_MARKER = Path(__file__).name
 RUNNER_PROCESS_MARKERS = (
     "xcodebuild test-without-building",
-    "InteractiveDeviceUITests/testInteractiveDeviceSession",
+    "-xctestrun",
+    "InteractiveDeviceSession",
 )
 # A stop is an ordinary command round trip, and those were measured at a 2.6
 # second median with the device busy. Five seconds sat close enough to that to
@@ -56,7 +68,9 @@ TIMING_SAMPLE_LIMIT = 20
 DEVICECTL_CALL_COUNT = 0
 
 
-def record_timing(action: str, seconds: float, *, device: str) -> None:
+def record_timing(
+    action: str, seconds: float, *, device: str, frozen: bool = False
+) -> None:
     """Rolling window of measured foreground round trips per action. The
     background-context hook reads this file and stays silent about any action
     that has no record here.
@@ -66,6 +80,15 @@ def record_timing(action: str, seconds: float, *, device: str) -> None:
     transport ran most recently define the expected duration of the other."""
     if is_simulator(device):
         action = f"simulator:{action}"
+    if frozen:
+        # A frozen run binds the source tree by digest, and this file is tracked,
+        # so appending a sample here invalidates the freeze the run is executing
+        # under. The committed window stays the authority rubrics cite; a run
+        # that must not move it records nothing. The caller passes its resolved
+        # argument rather than reading the environment, because the matrix
+        # supplies --execution-input on the command line and an environment
+        # probe missed it for a hundred and thirty commands.
+        return
     try:
         timings = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -113,28 +136,23 @@ def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.Co
         )
 
 
-_SIMULATOR_UDIDS: set[str] | None = None
+_SIMULATOR_UDIDS: frozenset[str] | None = None
 
 
-def is_simulator(device: str) -> bool:
+def is_simulator(
+    device: str, *, simulator_udids: frozenset[str] | None = None
+) -> bool:
     """A simulator carries the whole channel on this Mac's filesystem, so every
     `devicectl` round trip below has a local equivalent that is both faster and
     incapable of the 120s transport hang."""
     global _SIMULATOR_UDIDS
-    if _SIMULATOR_UDIDS is None:
-        listing = subprocess.run(
-            ["xcrun", "simctl", "list", "devices", "--json"],
-            check=False, text=True, capture_output=True,
-        )
-        udids: set[str] = set()
-        if listing.returncode == 0:
-            try:
-                for runtime in json.loads(listing.stdout).get("devices", {}).values():
-                    udids.update(entry["udid"] for entry in runtime)
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
-        _SIMULATOR_UDIDS = udids
-    return device in _SIMULATOR_UDIDS
+    if not isinstance(device, str) or not device.strip():
+        raise RuntimeError("The controller target must be non-empty text.")
+    if simulator_udids is None:
+        if _SIMULATOR_UDIDS is None:
+            _SIMULATOR_UDIDS = registered_simulator_udids()
+        simulator_udids = _SIMULATOR_UDIDS
+    return device in simulator_udids
 
 
 def simulator_container(device: str, bundle_id: str) -> Path | None:
@@ -341,9 +359,8 @@ def working_directory(pid: int) -> str | None:
 
 
 def scoped_processes() -> list[tuple[int, str]]:
-    """`xcodebuild -project Enchron.xcodeproj` carries no absolute path, so the
-    repository is identified by the process working directory. A second checkout
-    or worktree of the same project therefore stays out of scope."""
+    """The frozen xctestrun path does not have to name the repository, so the
+    process working directory distinguishes another checkout or worktree."""
     rows = process_table()
     lineage = own_lineage(rows)
     root = str(REPOSITORY_ROOT)
@@ -441,7 +458,14 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
 
 
 IMMERSIVE_ATTACHMENT_MARKER = "PlayerUI-immersive"
-TAP_ACTIONS = ("tap", "tapSequence", "doubleTap", "press")
+TAP_ACTIONS = (
+    "tap",
+    "tapSequence",
+    "tapFirstMatch",
+    "doubleTap",
+    "press",
+    "adjust",
+)
 
 
 def session_state_path(arguments: argparse.Namespace) -> Path:
@@ -634,7 +658,11 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
     for key in (
         "identifier",
         "identifiers",
+        "identifierPrefix",
+        "assertAbsent",
+        "alsoInspect",
         "label",
+        "trailingLabel",
         "index",
         "duration",
         "normalizedX",
@@ -797,44 +825,231 @@ def current_session_id(arguments: argparse.Namespace) -> str | None:
 AUTOMATION_AUTHORIZATION_SIGNATURE = "Timed out while enabling automation mode."
 
 
-def launch_runner(
-    arguments: argparse.Namespace, log_path: Path, result_bundle: Path
-) -> None:
-    command = [
-        "xcodebuild",
-        "test-without-building",
-        "-project",
-        arguments.project,
-        "-scheme",
-        arguments.scheme,
-        "-testPlan",
-        arguments.test_plan,
-        "-configuration",
-        "Debug",
-        "-destination",
-        (
-            f"platform=visionOS Simulator,id={arguments.device}"
-            if is_simulator(arguments.device)
-            else f"platform=visionOS,id={arguments.destination_id or arguments.device}"
-        ),
-        "-derivedDataPath",
-        arguments.derived_data_path,
-        "-parallel-testing-enabled",
-        "NO",
-        "-test-timeouts-enabled",
-        "NO",
-        f"-only-testing:{arguments.only_testing}",
-        "-resultBundlePath",
-        str(result_bundle),
-    ]
-    if arguments.cloned_packages_path:
-        command[2:2] = ["-clonedSourcePackagesDirPath", arguments.cloned_packages_path]
+FrozenTestLaunchLoader = Callable[[Path, BoundLane, str], object]
 
+
+def _execution_input_path(arguments: argparse.Namespace) -> Path:
+    value = getattr(arguments, "execution_input", None)
+    if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
+        raise RuntimeError(
+            "Runner launch requires --execution-input or ENCHRON_EXECUTION_INPUT."
+        )
+    path = Path(value)
+    return path if path.is_absolute() else REPOSITORY_ROOT / path
+
+
+def _developer_environment(developer_dir: str | None) -> dict[str, str]:
     environment = dict(os.environ)
-    if arguments.developer_dir:
-        environment["DEVELOPER_DIR"] = arguments.developer_dir
+    if not developer_dir:
+        return environment
+    ambient = os.environ.get("DEVELOPER_DIR")
+    if ambient is None:
+        selected = subprocess.run(
+            ["xcode-select", "-p"],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if selected.returncode != 0 or not selected.stdout.strip():
+            raise RuntimeError(
+                selected.stderr.strip()
+                or "Cannot determine the active Xcode developer directory."
+            )
+        ambient = selected.stdout.strip()
+    if Path(developer_dir).resolve() != Path(ambient).resolve():
+        raise RuntimeError(
+            "--developer-dir must match the developer directory used to validate "
+            "the frozen execution input."
+        )
+    environment["DEVELOPER_DIR"] = developer_dir
+    return environment
+
+
+def _load_frozen_test_launch(
+    path: Path,
+    lane: BoundLane,
+    target_id: str,
+    loader: FrozenTestLaunchLoader | None,
+) -> object:
+    selected_loader = loader or load_frozen_test_launch
+    if not callable(selected_loader):
+        raise RuntimeError("Frozen test launch loading is unavailable.")
+    return selected_loader(path, lane, target_id)
+
+
+def _validate_frozen_test_launch(
+    launch: object,
+    *,
+    lane: BoundLane,
+    target_id: str,
+    destination_specifier: str,
+) -> None:
+    if getattr(launch, "lane", None) != lane:
+        raise RuntimeError("The frozen test launch resolved to a different lane.")
+    if getattr(launch, "target_id", None) != target_id:
+        raise RuntimeError("The frozen test launch resolved to a different target.")
+    if getattr(launch, "destination_specifier", None) != destination_specifier:
+        raise RuntimeError("The frozen test launch destination is not the validated target.")
+    if not isinstance(getattr(launch, "xctestrun_path", None), Path):
+        raise RuntimeError("The frozen test launch has no typed .xctestrun path.")
+    artifact = getattr(launch, "lane_artifact", None)
+    if artifact is None or getattr(artifact, "lane", None) != lane:
+        raise RuntimeError("The frozen test launch artifact resolved to a different lane.")
+    for field_name in (
+        "xctestrun_digest",
+        "test_products_digest",
+        "application_code_digest",
+    ):
+        if not str(getattr(artifact, field_name, "")).strip():
+            raise RuntimeError(
+                f"The frozen test launch artifact has no {field_name}."
+            )
+
+
+def _launch_provenance(
+    launch: object,
+    *,
+    execution_input_path: Path,
+    result_bundle: Path,
+    process_id: int,
+) -> dict[str, object]:
+    artifact = getattr(launch, "lane_artifact")
+    lane = getattr(launch, "lane")
+    return {
+        "executionInputPath": str(execution_input_path),
+        "lane": lane.value,
+        "targetId": getattr(launch, "target_id"),
+        "xctestrunPath": str(getattr(launch, "xctestrun_path")),
+        "destinationSpecifier": getattr(launch, "destination_specifier"),
+        "xctestrunDigest": str(getattr(artifact, "xctestrun_digest")),
+        "testProductsDigest": str(getattr(artifact, "test_products_digest")),
+        "applicationCodeDigest": str(
+            getattr(artifact, "application_code_digest")
+        ),
+        "resultBundlePath": str(result_bundle),
+        "processId": process_id,
+    }
+
+
+def launch_runner(
+    arguments: argparse.Namespace,
+    log_path: Path,
+    result_bundle: Path,
+    *,
+    simulator_udid_source: SimulatorUDIDSource | None = None,
+    physical_visionos_device_registry_source: (
+        PhysicalVisionOSDeviceRegistrySource | None
+    ) = None,
+    frozen_test_launch_loader: FrozenTestLaunchLoader | None = None,
+) -> dict[str, object]:
+    global _SIMULATOR_UDIDS
+    simulator_udids = (simulator_udid_source or registered_simulator_udids)()
+    physical_visionos_devices = (
+        physical_visionos_device_registry_source
+        or registered_physical_visionos_devices
+    )()
+    if not isinstance(physical_visionos_devices, PhysicalVisionOSDeviceRegistry):
+        raise RuntimeError("The physical device registry source returned the wrong value.")
+    _SIMULATOR_UDIDS = simulator_udids
+    launch_destination = arguments.destination_id or arguments.device
+    if arguments.destination_id is not None and (
+        not isinstance(arguments.destination_id, str)
+        or not arguments.destination_id.strip()
+    ):
+        raise RuntimeError("The runner launch destination must be non-empty text.")
+    simulator = is_simulator(
+        arguments.device, simulator_udids=simulator_udids
+    )
+    controller_device: PhysicalVisionOSDevice | None = None
+    if not simulator:
+        controller_device = physical_visionos_devices.get(arguments.device)
+    if not simulator and controller_device is None:
+        raise RuntimeError(
+            "The controller target is not a paired physical visionOS device."
+        )
+    launch_is_simulator = is_simulator(
+        launch_destination, simulator_udids=simulator_udids
+    )
+    destination_device: PhysicalVisionOSDevice | None = None
+    if not launch_is_simulator:
+        destination_device = physical_visionos_devices.get(launch_destination)
+    if not launch_is_simulator and destination_device is None:
+        raise RuntimeError(
+            "The runner destination is not a paired physical visionOS device."
+        )
+    if launch_is_simulator is not simulator:
+        raise RuntimeError(
+            "The controller transport target and runner launch destination "
+            "resolve to different lanes."
+        )
+    if simulator and launch_destination != arguments.device:
+        raise RuntimeError(
+            "The controller transport target and runner launch destination "
+            "resolve to different simulator devices."
+        )
+    if (
+        controller_device is not None
+        and destination_device is not None
+        and controller_device != destination_device
+    ):
+        raise RuntimeError(
+            "The controller transport target and runner launch destination "
+            "resolve to different physical visionOS devices."
+        )
+    physical_destination = (
+        destination_device.hardware_udid
+        if destination_device is not None
+        else None
+    )
+    lane = BoundLane.SIMULATOR if simulator else BoundLane.DEVICE
+    target_id = arguments.device if simulator else physical_destination
+    assert target_id is not None
+    destination_specifier = (
+        f"platform=visionOS Simulator,id={target_id}"
+        if simulator
+        else f"platform=visionOS,id={target_id}"
+    )
+    execution_input_path = _execution_input_path(arguments)
+
+    environment = _developer_environment(arguments.developer_dir)
+    launch = _load_frozen_test_launch(
+        execution_input_path, lane, target_id, frozen_test_launch_loader
+    )
+    _validate_frozen_test_launch(
+        launch,
+        lane=lane,
+        target_id=target_id,
+        destination_specifier=destination_specifier,
+    )
     with log_path.open("w", encoding="utf-8") as log:
-        subprocess.Popen(
+        revalidated = _load_frozen_test_launch(
+            execution_input_path, lane, target_id, frozen_test_launch_loader
+        )
+        _validate_frozen_test_launch(
+            revalidated,
+            lane=lane,
+            target_id=target_id,
+            destination_specifier=destination_specifier,
+        )
+        if revalidated != launch:
+            raise RuntimeError(
+                "The frozen test launch changed during runner preparation."
+            )
+        command = [
+            "xcodebuild",
+            "test-without-building",
+            "-xctestrun",
+            str(getattr(revalidated, "xctestrun_path")),
+            "-destination",
+            str(getattr(revalidated, "destination_specifier")),
+            "-parallel-testing-enabled",
+            "NO",
+            "-test-timeouts-enabled",
+            "NO",
+            "-resultBundlePath",
+            str(result_bundle),
+        ]
+        process = subprocess.Popen(
             command,
             cwd=str(REPOSITORY_ROOT),
             env=environment,
@@ -842,6 +1057,12 @@ def launch_runner(
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+    return _launch_provenance(
+        revalidated,
+        execution_input_path=execution_input_path,
+        result_bundle=result_bundle,
+        process_id=process.pid,
+    )
 
 
 def log_tail(log_path: Path, lines: int = 5) -> list[str]:
@@ -881,12 +1102,10 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     archived_log = output_directory / "runner-authorization-timeout.log"
 
     for attempt in (1, 2):
-        result_bundle = (
-            Path(arguments.result_bundle_path)
-            if arguments.result_bundle_path and attempt == 1
-            else output_directory / f"Interactive-{int(time.time())}-{attempt}.xcresult"
+        result_bundle = output_directory / (
+            f"Interactive-{int(time.time())}-{attempt}.xcresult"
         )
-        launch_runner(arguments, log_path, result_bundle)
+        launch_provenance = launch_runner(arguments, log_path, result_bundle)
 
         deadline = time.monotonic() + arguments.ready_timeout
         signature_seen = False
@@ -914,6 +1133,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                     "stage": "ready",
                     "sessionID": session_id,
                     "appState": response.get("appState"),
+                    "launchProvenance": launch_provenance,
                     "resultBundlePath": str(result_bundle),
                     "runnerLog": str(log_path),
                     "haltedProcessCount": len(halt["terminated"]),
@@ -955,6 +1175,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                     "what was seen, not why."
                 ),
                 "observations": observations,
+                "launchProvenance": launch_provenance,
                 "runnerLog": str(log_path),
                 "elapsedSeconds": round(time.monotonic() - started_at, 1),
             }
@@ -983,12 +1204,13 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                 "confirmation on the headset, then rerun ensure-session."
             ),
             "runnerLogs": [str(archived_log), str(log_path)],
+            "launchProvenance": launch_provenance,
             "elapsedSeconds": round(time.monotonic() - started_at, 1),
         }
     raise AssertionError("unreachable: both attempts return")
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Control one step of a live Vision Pro XCUITest session and return "
@@ -1007,8 +1229,10 @@ def parse_arguments() -> argparse.Namespace:
             "snapshot",
             "tap",
             "tapSequence",
+            "tapFirstMatch",
             "doubleTap",
             "press",
+            "adjust",
             "typeText",
             "replaceText",
             "swipeUp",
@@ -1025,38 +1249,22 @@ def parse_arguments() -> argparse.Namespace:
             "app-command",
         ),
     )
-    parser.add_argument("--project", default="Enchron.xcodeproj")
-    parser.add_argument("--scheme", default="Enchron")
     parser.add_argument(
-        "--test-plan", dest="test_plan", default="InteractiveDeviceSession"
+        "--execution-input",
+        dest="execution_input",
+        type=Path,
+        default=os.environ.get("ENCHRON_EXECUTION_INPUT"),
     )
     parser.add_argument("--destination-id", dest="destination_id")
     parser.add_argument("--developer-dir", dest="developer_dir")
-    parser.add_argument(
-        "--derived-data-path",
-        dest="derived_data_path",
-        # Every runner reaches the device through this controller, and none of
-        # them had a way to say which build to install. A run that silently used
-        # a stale app reported the previous build's diagnostics as if they were
-        # the current one's.
-        default=os.environ.get("ENCHRON_DERIVED_DATA")
-            or str(artifact_root() / "DerivedData"),
-    )
-    parser.add_argument(
-        "--cloned-packages-path",
-        dest="cloned_packages_path",
-        default=str(artifact_root() / "SourcePackages/VisionProCoreRegression"),
-    )
-    parser.add_argument(
-        "--only-testing",
-        dest="only_testing",
-        default="EnchronAppUITests/InteractiveDeviceUITests/testInteractiveDeviceSession",
-    )
-    parser.add_argument("--result-bundle-path", dest="result_bundle_path")
     parser.add_argument("--ready-timeout", dest="ready_timeout", type=float, default=300.0)
     parser.add_argument("--identifier")
     parser.add_argument("--identifiers", nargs="+")
+    parser.add_argument("--identifier-prefix", dest="identifierPrefix")
+    parser.add_argument("--assert-absent", dest="assertAbsent", nargs="+")
+    parser.add_argument("--also-inspect", dest="alsoInspect", nargs="+")
     parser.add_argument("--label")
+    parser.add_argument("--trailing-label", dest="trailingLabel")
     parser.add_argument("--index", type=int)
     text_source = parser.add_mutually_exclusive_group()
     text_source.add_argument("--text")
@@ -1080,7 +1288,7 @@ def parse_arguments() -> argparse.Namespace:
         type=float,
         default=30.0,
     )
-    arguments = parser.parse_args()
+    arguments = parser.parse_args(argv)
     if arguments.text_json_key is not None and arguments.text_file is None:
         parser.error("--text-json-key requires --text-file")
     return arguments
@@ -1182,6 +1390,7 @@ def main() -> int:
             arguments.action,
             time.monotonic() - started_at,
             device=arguments.device,
+            frozen=getattr(arguments, "execution_input", None) is not None,
         )
     response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))

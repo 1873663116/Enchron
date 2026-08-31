@@ -12,6 +12,172 @@ public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
     case failed
 }
 
+public enum PlaybackLoadingStage: String, Codable, Sendable, Equatable {
+    case opening
+    case starved
+}
+
+public enum PlaybackLoadingVisibility: String, Codable, Sendable, Equatable {
+    case none
+    case loading
+}
+
+public struct PlaybackOpeningEvidence: Codable, Sendable, Equatable {
+    public var runtimeGeneration: UInt64
+    public var requestID: String
+    public var technicalSessionID: String?
+
+    public init(
+        runtimeGeneration: UInt64,
+        requestID: String,
+        technicalSessionID: String?
+    ) {
+        self.runtimeGeneration = runtimeGeneration
+        self.requestID = requestID
+        self.technicalSessionID = technicalSessionID
+    }
+}
+
+public struct PlaybackStarvationEvidence: Codable, Sendable, Equatable {
+    public var runtimeGeneration: UInt64
+    public var technicalSessionID: String
+    public var deliveryContinuity: PlaybackDeliveryContinuityEvidence
+
+    public init(
+        runtimeGeneration: UInt64,
+        technicalSessionID: String,
+        deliveryContinuity: PlaybackDeliveryContinuityEvidence
+    ) {
+        self.runtimeGeneration = runtimeGeneration
+        self.technicalSessionID = technicalSessionID
+        self.deliveryContinuity = deliveryContinuity
+    }
+}
+
+public enum PlaybackLoadingCausalEvidence: Codable, Sendable, Equatable {
+    case opening(PlaybackOpeningEvidence)
+    case starved(PlaybackStarvationEvidence)
+
+    public var stage: PlaybackLoadingStage {
+        switch self {
+        case .opening:
+            .opening
+        case .starved:
+            .starved
+        }
+    }
+}
+
+public enum PlaybackLoadingState: Codable, Sendable, Equatable {
+    case none
+    case loading(PlaybackLoadingCausalEvidence)
+
+    public var visibility: PlaybackLoadingVisibility {
+        switch self {
+        case .none:
+            .none
+        case .loading:
+            .loading
+        }
+    }
+
+    public var stage: PlaybackLoadingStage? {
+        guard case .loading(let evidence) = self else { return nil }
+        return evidence.stage
+    }
+
+    public var causalEvidence: PlaybackLoadingCausalEvidence? {
+        guard case .loading(let evidence) = self else { return nil }
+        return evidence
+    }
+}
+
+struct PlaybackLoadingStateMachine {
+    private(set) var state = PlaybackLoadingState.none
+    private var runtimeGeneration: UInt64?
+    private var requestID = ""
+    private var technicalSessionID: String?
+
+    mutating func beginOpening(
+        runtimeGeneration: UInt64,
+        requestID: String,
+        technicalSessionID: String? = nil
+    ) {
+        self.runtimeGeneration = runtimeGeneration
+        self.requestID = requestID
+        self.technicalSessionID = technicalSessionID
+        state = .loading(.opening(PlaybackOpeningEvidence(
+            runtimeGeneration: runtimeGeneration,
+            requestID: requestID,
+            technicalSessionID: technicalSessionID
+        )))
+    }
+
+    mutating func bindTechnicalSession(
+        _ technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration else { return }
+        self.technicalSessionID = technicalSessionID
+        guard state.stage == .opening else { return }
+        state = .loading(.opening(PlaybackOpeningEvidence(
+            runtimeGeneration: runtimeGeneration,
+            requestID: requestID,
+            technicalSessionID: technicalSessionID
+        )))
+    }
+
+    mutating func presentationBecameUsable(
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID,
+              state.stage == .opening else { return }
+        state = .none
+    }
+
+    mutating func receive(
+        _ observation: PlaybackDeliveryContinuityObservation,
+        technicalSessionID: String,
+        runtimeGeneration: UInt64,
+        lifecycle: ProductPlaybackLifecycle
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID else { return }
+        switch observation.phase {
+        case .starved:
+            guard lifecycle == .playing,
+                  let evidence = observation.evidence else { return }
+            state = .loading(.starved(PlaybackStarvationEvidence(
+                runtimeGeneration: runtimeGeneration,
+                technicalSessionID: technicalSessionID,
+                deliveryContinuity: evidence
+            )))
+        case .recovered:
+            guard case .loading(.starved(let current)) = state,
+                  current.technicalSessionID == technicalSessionID,
+                  current.deliveryContinuity.incidentID
+                    == observation.evidence?.incidentID else { return }
+            state = .none
+        case .inactive:
+            clearStarvation()
+        }
+    }
+
+    mutating func clearStarvation() {
+        guard state.stage == .starved else { return }
+        state = .none
+    }
+
+    mutating func clear() {
+        state = .none
+        runtimeGeneration = nil
+        requestID = ""
+        technicalSessionID = nil
+    }
+}
+
 public struct PlaybackRuntimeObservation: Sendable, Equatable {
     public enum Event: Sendable, Equatable {
         case diagnostics(
@@ -19,6 +185,7 @@ public struct PlaybackRuntimeObservation: Sendable, Equatable {
             actualPlaybackSeconds: Double
         )
         case lifecycle(ProductPlaybackLifecycle)
+        case activeFailure(PlaybackActiveFailure)
         case seekCompleted(positionSeconds: Double)
         case stopped
     }
@@ -40,16 +207,8 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var prefetchedMetadata: PlaybackMediaMetadata? { get }
     var displayMediaProfile: PlaybackModel.MediaProfile? { get }
     var displayFileSizeInBytes: Int64? { get }
-    var activeMediaFormatProvenance: MediaFormatProvenance { get }
-    var dolbyVisionFallbackIsAvailable: Bool { get }
-    var dolbyVisionFallbackIsEnabled: Bool { get }
     var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation { get }
     var mediaKind: PlaybackMediaKind { get }
-    var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind { get }
-    var sourceMediaFormatSummary: String { get }
-    var effectiveContentIsPanoramic: Bool { get }
-    var effectiveVideoFormatRevision: UInt64? { get }
-    var requestsSpatialVideoMode: Bool { get }
     var activeSessionID: String? { get }
     var actualPlaybackSeconds: Double { get }
     var didEndNaturally: Bool { get }
@@ -79,7 +238,6 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func useSourceFormat() async throws
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
-    func setSpeed(_ speed: PlaybackModel.PlaybackSpeed)
     func replay()
     func displayedArtworkImage() -> CGImage?
     func stop(releasingSourceAccess: Bool)
@@ -89,29 +247,4 @@ public protocol PlaybackRuntimeControlling: AnyObject {
 
 public extension PlaybackRuntimeControlling {
     func displayedArtworkImage() -> CGImage? { nil }
-
-    func setFormat(
-        projection: PlaybackModel.ProjectionType,
-        horizontalFieldOfViewDegrees: Int?,
-        stereo: PlaybackModel.StereoLayout
-    ) async throws {
-        try await setFormat(
-            projection: projection,
-            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereo: stereo,
-            usesDolbyVisionFallback: false
-        )
-    }
-
-    func setFormat(
-        projection: PlaybackModel.ProjectionType,
-        stereo: PlaybackModel.StereoLayout
-    ) async throws {
-        try await setFormat(
-            projection: projection,
-            horizontalFieldOfViewDegrees: nil,
-            stereo: stereo,
-            usesDolbyVisionFallback: false
-        )
-    }
 }

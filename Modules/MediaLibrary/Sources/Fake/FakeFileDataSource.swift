@@ -91,7 +91,7 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
 
     private func throwIfFailing() throws {
         if case let .listingFails(message) = failureMode {
-            connectionStatus = .failed(message)
+            connectionStatus = .failed(.serverUnreachable)
             throw FakeFileDataSourceError.listingFailed(message)
         }
     }

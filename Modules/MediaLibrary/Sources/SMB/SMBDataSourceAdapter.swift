@@ -1,4 +1,5 @@
 import AMSMB2
+import CryptoKit
 import Foundation
 import MediaSource
 
@@ -56,8 +57,9 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         connectionStatus = .connecting
 
         do {
-            let connection = try SMBConnectionPool.shared.connection(for: info) {
-                try self.makeManager(for: info)
+            let session = try resolveSession(for: info)
+            let connection = try SMBConnectionPool.shared.connection(for: session.identity) {
+                try Self.makeManager(for: session)
             }
             _ = try await connection.listShares()
 
@@ -69,8 +71,9 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
             connectionInfo = nil
             connectedShareName = nil
             let mappedError = Self.classify(error)
-            connectionStatus = .failed(mappedError.localizedDescription)
-            throw mappedError
+            let failure = Self.connectionFailure(for: mappedError)
+            connectionStatus = .failed(failure)
+            throw failure
         }
     }
 
@@ -216,14 +219,15 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         }
     }
 
-    private func makeManager(
+    func resolveSession(
         for info: FileBrowsingDomain.ConnectionInfo
-    ) throws -> SMB2Manager {
+    ) throws -> SMBSession {
         guard let host = info.host?.trimmingCharacters(in: .whitespacesAndNewlines),
               host.isEmpty == false else {
             throw SMBError.invalidConnectionInfo
         }
 
+        let port = info.port ?? 445
         var username = info.username ?? "guest"
         var password = ""
         if let credentialStore,
@@ -232,16 +236,29 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
             password = credential.password
         }
 
-        guard let serverURL = URL(string: "smb://\(host):\(info.port ?? 445)") else {
+        guard let serverURL = URL(string: "smb://\(host):\(port)") else {
             throw SMBError.invalidConnectionInfo
         }
-        guard let manager = SMB2Manager(
-            url: serverURL,
+        return SMBSession(
+            identity: SMBSessionIdentity(
+                host: host.lowercased(),
+                port: port,
+                username: username,
+                secretFingerprint: SMBSessionIdentity.fingerprint(of: password)
+            ),
+            serverURL: serverURL,
             credential: URLCredential(
                 user: username,
                 password: password,
                 persistence: .forSession
             )
+        )
+    }
+
+    static func makeManager(for session: SMBSession) throws -> SMB2Manager {
+        guard let manager = SMB2Manager(
+            url: session.serverURL,
+            credential: session.credential
         ) else {
             throw SMBError.protocolFailed("Failed to initialize SMB client.")
         }
@@ -274,6 +291,18 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         }
 
         return .protocolFailed(reason)
+    }
+
+    static func connectionFailure(for error: SMBError) -> RemoteConnectionFailure {
+        switch error {
+        case .authenticationFailed:
+            return .credentialsRejected
+        case .invalidConnectionInfo:
+            return .invalidAddress
+        case .notConnected, .networkFailed, .protocolFailed, .streamingFailed,
+             .noShareSelected:
+            return .serverUnreachable
+        }
     }
 
     private func smbRelativePath(from path: String) -> String {
@@ -391,28 +420,46 @@ private nonisolated final class SMBByteRangeSource: MediaByteRangeSource, @unche
     }
 }
 
-private nonisolated final class SMBConnectionPool: @unchecked Sendable {
+nonisolated struct SMBSessionIdentity: Hashable, Sendable {
+    let host: String
+    let port: Int
+    let username: String
+    let secretFingerprint: String
+
+    static func fingerprint(of secret: String) -> String {
+        SHA256.hash(data: Data(secret.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+}
+
+nonisolated struct SMBSession: Sendable {
+    let identity: SMBSessionIdentity
+    let serverURL: URL
+    let credential: URLCredential
+}
+
+nonisolated final class SMBConnectionPool: @unchecked Sendable {
     static let shared = SMBConnectionPool()
 
     private let lock = NSLock()
-    private var connections: [String: SMBServerConnection] = [:]
+    private var connections: [SMBSessionIdentity: SMBServerConnection] = [:]
 
     func connection(
-        for info: FileBrowsingDomain.ConnectionInfo,
+        for identity: SMBSessionIdentity,
         makeManager: () throws -> SMB2Manager
     ) throws -> SMBServerConnection {
-        let key = "\((info.host ?? "").lowercased()):\(info.port ?? 445)"
-        if let existing = lock.withLock({ connections[key] }) { return existing }
+        if let existing = lock.withLock({ connections[identity] }) { return existing }
         let connection = SMBServerConnection(manager: try makeManager())
         return lock.withLock {
-            if let existing = connections[key] { return existing }
-            connections[key] = connection
+            if let existing = connections[identity] { return existing }
+            connections[identity] = connection
             return connection
         }
     }
 }
 
-private actor SMBServerConnection {
+actor SMBServerConnection {
     struct DirectoryItem: Sendable {
         let name: String
         let isDirectory: Bool

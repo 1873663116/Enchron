@@ -92,6 +92,80 @@ public struct SubtitleStateRecord: Codable, Equatable, Sendable {
     }
 }
 
+public struct AudioDeliveryObservation: Codable, Equatable, Sendable {
+    public var providerKind: String
+    public var sourceCodecName: String
+    public var mediaSubtype: String
+    public var formatID: String
+    public var formatFlags: UInt32
+    public var sourceSampleRate: Int
+    public var deliveredSampleRate: Double
+    public var sourceChannelCount: Int
+    public var deliveredChannelCount: UInt32
+    public var bitsPerChannel: UInt32
+    public var bytesPerFrame: UInt32
+    public var framesPerPacket: UInt32
+    public var isFloatPCM: Bool
+    public var isInterleaved: Bool?
+    public var channelLayoutTag: UInt32?
+    public var presentationTimestampsMonotonic: Bool
+    public var timestampObservationCount: UInt64
+    public var trueHDDecoderInputPacketCount: UInt64?
+    public var trueHDDecoderBatchCount: UInt64?
+    public var trueHDAggregatedDecoderBatchCount: UInt64?
+    public var trueHDOutputSampleBufferCount: UInt64?
+    public var trueHDLastDecoderBatchInputPacketCount: UInt32?
+
+    public init(
+        providerKind: String,
+        sourceCodecName: String,
+        mediaSubtype: String,
+        formatID: String,
+        formatFlags: UInt32,
+        sourceSampleRate: Int,
+        deliveredSampleRate: Double,
+        sourceChannelCount: Int,
+        deliveredChannelCount: UInt32,
+        bitsPerChannel: UInt32,
+        bytesPerFrame: UInt32,
+        framesPerPacket: UInt32,
+        isFloatPCM: Bool,
+        isInterleaved: Bool?,
+        channelLayoutTag: UInt32?,
+        presentationTimestampsMonotonic: Bool,
+        timestampObservationCount: UInt64,
+        trueHDDecoderInputPacketCount: UInt64? = nil,
+        trueHDDecoderBatchCount: UInt64? = nil,
+        trueHDAggregatedDecoderBatchCount: UInt64? = nil,
+        trueHDOutputSampleBufferCount: UInt64? = nil,
+        trueHDLastDecoderBatchInputPacketCount: UInt32? = nil
+    ) {
+        self.providerKind = providerKind
+        self.sourceCodecName = sourceCodecName
+        self.mediaSubtype = mediaSubtype
+        self.formatID = formatID
+        self.formatFlags = formatFlags
+        self.sourceSampleRate = sourceSampleRate
+        self.deliveredSampleRate = deliveredSampleRate
+        self.sourceChannelCount = sourceChannelCount
+        self.deliveredChannelCount = deliveredChannelCount
+        self.bitsPerChannel = bitsPerChannel
+        self.bytesPerFrame = bytesPerFrame
+        self.framesPerPacket = framesPerPacket
+        self.isFloatPCM = isFloatPCM
+        self.isInterleaved = isInterleaved
+        self.channelLayoutTag = channelLayoutTag
+        self.presentationTimestampsMonotonic = presentationTimestampsMonotonic
+        self.timestampObservationCount = timestampObservationCount
+        self.trueHDDecoderInputPacketCount = trueHDDecoderInputPacketCount
+        self.trueHDDecoderBatchCount = trueHDDecoderBatchCount
+        self.trueHDAggregatedDecoderBatchCount = trueHDAggregatedDecoderBatchCount
+        self.trueHDOutputSampleBufferCount = trueHDOutputSampleBufferCount
+        self.trueHDLastDecoderBatchInputPacketCount =
+            trueHDLastDecoderBatchInputPacketCount
+    }
+}
+
 public struct AudioSampleRecord: Codable, Equatable, Sendable {
     public var mediaSessionID: String
     public var audioTrackID: String
@@ -103,6 +177,7 @@ public struct AudioSampleRecord: Codable, Equatable, Sendable {
     public var channelCount: Int
     public var sampleCount: Int
     public var payloadOwnershipState: String
+    public var deliveryObservation: AudioDeliveryObservation?
 
     public init(
         mediaSessionID: String,
@@ -114,7 +189,8 @@ public struct AudioSampleRecord: Codable, Equatable, Sendable {
         sampleRate: Int = 0,
         channelCount: Int = 0,
         sampleCount: Int,
-        payloadOwnershipState: String = "unknown"
+        payloadOwnershipState: String = "unknown",
+        deliveryObservation: AudioDeliveryObservation? = nil
     ) {
         self.mediaSessionID = mediaSessionID
         self.audioTrackID = audioTrackID
@@ -126,6 +202,7 @@ public struct AudioSampleRecord: Codable, Equatable, Sendable {
         self.channelCount = channelCount
         self.sampleCount = sampleCount
         self.payloadOwnershipState = payloadOwnershipState
+        self.deliveryObservation = deliveryObservation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -139,6 +216,7 @@ public struct AudioSampleRecord: Codable, Equatable, Sendable {
         case channelCount
         case sampleCount
         case payloadOwnershipState
+        case deliveryObservation
     }
 
     public init(from decoder: Decoder) throws {
@@ -162,6 +240,10 @@ public struct AudioSampleRecord: Codable, Equatable, Sendable {
             String.self,
             forKey: .payloadOwnershipState
         ) ?? "unknown"
+        deliveryObservation = try container.decodeIfPresent(
+            AudioDeliveryObservation.self,
+            forKey: .deliveryObservation
+        )
     }
 }
 

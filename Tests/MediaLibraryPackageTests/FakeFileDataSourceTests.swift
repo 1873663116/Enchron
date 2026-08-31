@@ -61,6 +61,11 @@ struct FakeFileDataSourceTests {
         await #expect(throws: (any Error).self) {
             _ = try await source.listContents(at: "/")
         }
+        guard case .failed(let failure) = source.connectionStatus else {
+            Issue.record("The armed failure must leave a typed failed status")
+            return
+        }
+        #expect(failure == .serverUnreachable)
     }
 
     @Test("demoDeep root lists the four top-level folders")

@@ -156,14 +156,20 @@ nonisolated extension FileBrowsingDomain {
         }
 
         public mutating func removeFolder(_ folderID: UUID) {
+            guard let removedRoot = allFolders.first(where: { $0.id == folderID }) else { return }
             var removedIDs: Set<UUID> = [folderID]
             while let child = allFolders.first(where: { folder in
                 folder.parentID.map(removedIDs.contains) == true && !removedIDs.contains(folder.id)
             }) {
                 removedIDs.insert(child.id)
             }
+            for index in entries.indices where entries[index].folderID.map(removedIDs.contains) == true {
+                entries[index] = Entry(
+                    folderID: removedRoot.parentID,
+                    reference: entries[index].reference
+                )
+            }
             allFolders.removeAll { removedIDs.contains($0.id) }
-            entries.removeAll { $0.folderID.map(removedIDs.contains) == true }
             importedDirectories.removeAll { removedIDs.contains($0.rootFolderID) }
         }
 

@@ -1,10 +1,38 @@
 import DesignSystem
 import Emby
+import Foundation
 import MediaSource
 import OSLog
 import PlaybackCore
 import Playback
 import SwiftUI
+
+private enum PlaybackRegressionIdentity {
+    static func addressKind(_ request: PlaybackLaunchRequest?) -> String {
+        guard let request else { return "none" }
+        guard request.source.isRemote else { return "local-file" }
+        switch request.source.url.host?.lowercased() {
+        case "127.0.0.1", "::1": return "loopback"
+        default: return "remote-url"
+        }
+    }
+
+    static func sourceIdentity(_ request: PlaybackLaunchRequest?) -> String {
+        request?.versionedIdentity.map {
+            "sha256:" + $0.mediaIdentity.storageKey
+        } ?? "none"
+    }
+
+    static func contentRevision(_ request: PlaybackLaunchRequest?) -> String {
+        request?.versionedIdentity.map {
+            "sha256:" + $0.contentRevision.storageKey
+        } ?? "none"
+    }
+
+    static func collectionOrigin(_ request: PlaybackLaunchRequest?) -> String {
+        request?.collectionOrigin.rawValue ?? "none"
+    }
+}
 
 enum PlaybackSurfaceMountPolicy {
     static func shouldMount(showsWindowPlayback: Bool) -> Bool {
@@ -39,12 +67,11 @@ enum BrowserWindowGeometryPolicy {
 enum WindowPlaybackLoadingVisibility {
     static func shouldShow(
         hasPlaybackError: Bool,
-        presentationState: PlaybackRuntime.PresentationState,
+        loadingVisibility: PlaybackLoadingVisibility,
         isPresentationTransitionActive: Bool
     ) -> Bool {
         hasPlaybackError == false
-            && presentationState != .videoVisible
-            && presentationState != .audioVisible
+            && loadingVisibility == .loading
             && isPresentationTransitionActive == false
     }
 }
@@ -151,7 +178,11 @@ public struct MainView: View {
                     .opacity(0.001)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("PlayerUI-application-state")
-                    .accessibilityValue(windowPlaybackStateValue)
+                    .accessibilityValue(
+                        windowPlaybackStateValue(
+                            geometryPolicy: windowPlaybackGeometryPolicy
+                        )
+                    )
             }
         }
         .alert(
@@ -324,7 +355,7 @@ public struct MainView: View {
     private var browser: some View {
         TabView(selection: browserTabSelection) {
             Tab("Files", systemImage: "folder", value: AppModel.NavigationTab.files) {
-                FilesScreen()
+                FilesScreenHost()
                     .enchronScreenAppearance()
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
@@ -417,8 +448,9 @@ public struct MainView: View {
 
     @ViewBuilder
     private var windowPlayback: some View {
+        let geometryPolicy = windowPlaybackGeometryPolicy
         WindowPlaybackRootView(
-            geometryPolicy: windowPlaybackGeometryPolicy,
+            geometryPolicy: geometryPolicy,
             geometryRefreshRevision: spatialPlatformEffectCoordinator
                 .mainWindowPlaybackSurfaceRefreshRevision,
             freeformSizeOnDisappear: {
@@ -474,7 +506,9 @@ public struct MainView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
-        .accessibilityValue(windowPlaybackStateValue)
+        .accessibilityValue(
+            windowPlaybackStateValue(geometryPolicy: geometryPolicy)
+        )
         .opacity(windowPlaybackOpacity)
         .animation(
             PlaybackPresentationTransitionAppearance.animation(
@@ -495,7 +529,7 @@ public struct MainView: View {
     private var windowPlaybackCanvas: some View {
         let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
             hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
-            presentationState: playbackRuntime.presentationState,
+            loadingVisibility: playbackRuntime.loadingState.visibility,
             isPresentationTransitionActive: playbackSession.presentationTransition != nil
         )
 
@@ -576,7 +610,9 @@ public struct MainView: View {
         .accessibilityValue(playbackRuntime.lifecycle.label)
     }
 
-    private var windowPlaybackStateValue: String {
+    private func windowPlaybackStateValue(
+        geometryPolicy: WindowPlaybackGeometryPolicy
+    ) -> String {
         _ = reapplyVerificationSnapshotTick
         let position = playbackRuntime.playbackPosition
         let output = playbackRuntime.outputObservation()
@@ -609,12 +645,6 @@ public struct MainView: View {
                 String(describing: $0.formatSignaling.transferFunction.availability)
             }
             ?? "none"
-        let sampleTransferFunction = debugSnapshot?.lastVideoSample?.formatSignaling
-            .transferFunction.value
-            ?? debugSnapshot?.lastVideoSample.map {
-                String(describing: $0.formatSignaling.transferFunction.availability)
-            }
-            ?? "none"
         let presentationRecord = debugSnapshot?.presentationState
         let displayedFrameObservations = (
             debugSnapshot?.rendererState?.displayedFrameObservationCount
@@ -633,9 +663,53 @@ public struct MainView: View {
         } ?? "none"
         let loadingSpinnerVisible = WindowPlaybackLoadingVisibility.shouldShow(
             hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
-            presentationState: playbackRuntime.presentationState,
+            loadingVisibility: output.loadingVisibility,
             isPresentationTransitionActive: playbackSession.presentationTransition != nil
         )
+        let deliveryContinuity = debugSnapshot?.deliveryContinuity
+        let loadingEvidenceIncident = deliveryContinuity?.evidence
+            .map { String($0.incidentID) } ?? "none"
+        let loadingEvidenceFrozenMediaTime = deliveryContinuity?.evidence
+            .map { String($0.frozenMediaTimeSeconds) } ?? "none"
+        let loadingEvidenceRecoveredMediaTime = deliveryContinuity?.evidence?
+            .recoveredMediaTimeSeconds.map { String($0) } ?? "none"
+        let loadingEvidencePhase = deliveryContinuity?.phase.rawValue ?? "none"
+        let loadingEvidenceSource = deliveryContinuity?.evidence?
+            .detectionSource.rawValue ?? "none"
+        let loadingEvidenceLanes = deliveryContinuity?.evidence?
+            .requiredLanes.joined(separator: "+") ?? "none"
+        let loadingEvidenceRateGeneration = deliveryContinuity?.evidence
+            .map { String($0.rateApplicationGeneration) } ?? "none"
+        let loadingEvidenceVideoEpoch = deliveryContinuity?.evidence
+            .map { String($0.videoStreamEpoch) } ?? "none"
+        let loadingEvidenceAudioEpoch = deliveryContinuity?.evidence
+            .map { String($0.audioStreamEpoch) } ?? "none"
+        let loadingEvidenceRequestedRate = deliveryContinuity?.evidence
+            .map { String($0.requestedRate) } ?? "none"
+        let loadingEvidenceExhaustedEnds = deliveryContinuity?.evidence?
+            .exhaustedPresentationEndSeconds.sorted { $0.key < $1.key }
+            .map { "\($0.key):\($0.value)" }.joined(separator: "+") ?? "none"
+        let loadingEvidenceRecoveredEnds = deliveryContinuity?.evidence?
+            .recoveredPresentationEndSeconds?
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key):\($0.value)" }.joined(separator: "+") ?? "none"
+        let loadingCausalRuntimeGeneration: String
+        let loadingCausalRequestID: String
+        let loadingCausalTechnicalSessionID: String
+        switch output.loadingCausalEvidence {
+        case .opening(let evidence):
+            loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
+            loadingCausalRequestID = evidence.requestID
+            loadingCausalTechnicalSessionID = evidence.technicalSessionID ?? "none"
+        case .starved(let evidence):
+            loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
+            loadingCausalRequestID = "none"
+            loadingCausalTechnicalSessionID = evidence.technicalSessionID
+        case nil:
+            loadingCausalRuntimeGeneration = "none"
+            loadingCausalRequestID = "none"
+            loadingCausalTechnicalSessionID = "none"
+        }
         var fields: [String] = [
             "active=\(playbackRuntime.hasActivePlaybackRequest)",
             "formatReady=\(playbackRuntime.mediaFormatIsKnown)",
@@ -676,6 +750,7 @@ public struct MainView: View {
             "audioVisible=\(playbackRuntime.presentationState == .audioVisible)",
             "spectrumActive=\(playbackRuntime.audioSpectrumFrame.bands.contains(where: { $0 > 0.01 }))",
             "projection=\(playbackRuntime.effectiveProjectionType.rawValue)",
+            "horizontalFieldOfViewDegrees=\(playbackRuntime.effectiveHorizontalFieldOfViewDegrees)",
             "formatProvenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)",
             "sourceContentKind=\(playbackRuntime.sourceVideoContentKind.rawValue)",
             "effectiveContentIsPanoramic=\(playbackRuntime.effectiveContentIsPanoramic)",
@@ -688,7 +763,9 @@ public struct MainView: View {
             "providerCodecConfiguration=\(debugSnapshot?.providerOpen?.codecConfigurationSummary.value ?? "none")",
             "sampleMediaSubtype=\(debugSnapshot?.lastVideoSample?.mediaSubtype ?? "none")",
             "providerTransferFunction=\(providerTransferFunction)",
-            "sampleTransferFunction=\(sampleTransferFunction)",
+            "sampleHasLhvC=\(debugSnapshot?.lastVideoSample?.formatSignaling.lhvC.value.map(String.init) ?? "none")",
+            "rendererHasLhvC=\(debugSnapshot?.lastAcceptedRendererInput?.formatSignaling?.lhvC.value.map(String.init) ?? "none")",
+            "rendererInputIsMultiview=\(playbackRuntime.diagnostics.rendererInputIsMultiview.map(String.init) ?? "none")",
             "sampleHasDvcC=\(debugSnapshot?.lastVideoSample?.formatSignaling.dvcC.value.map(String.init) ?? "none")",
             "sampleHasDvvC=\(debugSnapshot?.lastVideoSample?.formatSignaling.dvvC.value.map(String.init) ?? "none")",
             "windowComponentContentType=\(playbackVideoEntityStore.realityKitContentType)",
@@ -704,6 +781,14 @@ public struct MainView: View {
             "tapTrace=\(playbackSession.debugSurfaceTapTrace)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
+            "mediaName=\((playbackRuntime.currentLaunchRequest?.displayName ?? "none").replacingOccurrences(of: ";", with: ","))",
+            "playbackAddressKind=\(PlaybackRegressionIdentity.addressKind(playbackRuntime.currentLaunchRequest))",
+            "collectionOrigin=\(PlaybackRegressionIdentity.collectionOrigin(playbackRuntime.currentLaunchRequest))",
+            "sourceIdentity=\(PlaybackRegressionIdentity.sourceIdentity(playbackRuntime.currentLaunchRequest))",
+            "contentRevision=\(PlaybackRegressionIdentity.contentRevision(playbackRuntime.currentLaunchRequest))",
+            "resumePromptPresentations=\(playbackLauncher.resumePromptPresentationCount)",
+            "automaticResumeBypasses=\(playbackLauncher.automaticResumeBypassCount)",
+            "pendingResumePrompt=\(playbackLauncher.pendingResumeDecision != nil)",
             "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")",
             "technicalSessionReplacementStage=\(playbackRuntime.technicalSessionReplacementStage.rawValue)",
             "seekInProgress=\(playbackRuntime.seekIsInProgress)",
@@ -755,8 +840,36 @@ public struct MainView: View {
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
             "error=\(playbackRuntime.userVisibleIssue?.category.rawValue ?? "none")"
         ]
+        fields.append(contentsOf: [
+            "loadingVisibility=\(output.loadingVisibility.rawValue)",
+            "loadingStage=\(output.loadingStage?.rawValue ?? "none")",
+            "loadingRuntimeGeneration=\(loadingCausalRuntimeGeneration)",
+            "loadingRequestID=\(loadingCausalRequestID)",
+            "loadingTechnicalSessionID=\(loadingCausalTechnicalSessionID)",
+            "loadingEvidencePhase=\(loadingEvidencePhase)",
+            "loadingEvidenceIncident=\(loadingEvidenceIncident)",
+            "loadingEvidenceSource=\(loadingEvidenceSource)",
+            "loadingEvidenceLanes=\(loadingEvidenceLanes)",
+            "loadingEvidenceRateGeneration=\(loadingEvidenceRateGeneration)",
+            "loadingEvidenceVideoEpoch=\(loadingEvidenceVideoEpoch)",
+            "loadingEvidenceAudioEpoch=\(loadingEvidenceAudioEpoch)",
+            "loadingEvidenceRequestedRate=\(loadingEvidenceRequestedRate)",
+            "loadingEvidenceFrozenMediaTime=\(loadingEvidenceFrozenMediaTime)",
+            "loadingEvidenceExhaustedEnds=\(loadingEvidenceExhaustedEnds)",
+            "loadingEvidenceRecoveredMediaTime=\(loadingEvidenceRecoveredMediaTime)",
+            "loadingEvidenceRecoveredEnds=\(loadingEvidenceRecoveredEnds)"
+        ])
+        fields.append(
+            contentsOf: geometryPolicy
+                .diagnosticSnapshot
+                .accessibilityFields
+        )
         fields.append(contentsOf: PlaybackStateAccessibility.rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
+        ))
+        fields.append(contentsOf: PlaybackStateAccessibility.deliveryAccessibilityFields(
+            diagnostics: playbackRuntime.diagnostics,
+            debugSnapshot: debugSnapshot
         ))
         #if DEBUG
         if ProcessInfo.processInfo.environment[
@@ -852,7 +965,6 @@ public struct MainView: View {
     }
 
     private func retryPlayback() {
-        playbackRuntime.setUserVisibleIssue(nil)
         playbackLauncher.retryPlayback()
     }
 
@@ -860,6 +972,15 @@ public struct MainView: View {
         controlsTimer?.cancel()
         guard playbackSession.controlsAutoHideSeconds > 0 else { return }
         let delay = Duration.seconds(playbackSession.controlsAutoHideSeconds)
+        let scheduledAtMillis = Int(Date().timeIntervalSince1970 * 1000)
+        SurfaceInputProbes.record(
+            "controlsVisibility event=timer-scheduled "
+                + "state=\(playbackSession.showControls ? "shown" : "hidden") "
+                + "scheduledAtMillis=\(scheduledAtMillis) "
+                + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
+                + "lifecycle=\(playbackRuntime.lifecycle)",
+            retention: .evidence
+        )
         controlsTimer = Task { @MainActor in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled,
@@ -868,6 +989,14 @@ public struct MainView: View {
             withAnimation(DesignTokens.AnimationToken.controlsTransition) {
                 playbackSession.showControls = false
             }
+            SurfaceInputProbes.record(
+                "controlsVisibility event=auto-hide state=hidden "
+                    + "scheduledAtMillis=\(scheduledAtMillis) "
+                    + "hiddenAtMillis=\(Int(Date().timeIntervalSince1970 * 1000)) "
+                    + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
+                    + "lifecycle=\(playbackRuntime.lifecycle)",
+                retention: .evidence
+            )
         }
     }
 
@@ -886,6 +1015,7 @@ private struct PlaybackAutomationStateProbe: View {
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     let hostedPresentation: PlaybackPresentation
 
     var body: some View {
@@ -940,6 +1070,14 @@ private struct PlaybackAutomationStateProbe: View {
             "firstTechnicalSessionAttachment=\(playbackRuntime.firstAttachedPresentationForActiveTechnicalSession?.rawValue ?? "none")",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
+            "mediaName=\((playbackRuntime.currentLaunchRequest?.displayName ?? "none").replacingOccurrences(of: ";", with: ","))",
+            "playbackAddressKind=\(PlaybackRegressionIdentity.addressKind(playbackRuntime.currentLaunchRequest))",
+            "collectionOrigin=\(PlaybackRegressionIdentity.collectionOrigin(playbackRuntime.currentLaunchRequest))",
+            "sourceIdentity=\(PlaybackRegressionIdentity.sourceIdentity(playbackRuntime.currentLaunchRequest))",
+            "contentRevision=\(PlaybackRegressionIdentity.contentRevision(playbackRuntime.currentLaunchRequest))",
+            "resumePromptPresentations=\(playbackLauncher.resumePromptPresentationCount)",
+            "automaticResumeBypasses=\(playbackLauncher.automaticResumeBypassCount)",
+            "pendingResumePrompt=\(playbackLauncher.pendingResumeDecision != nil)",
             "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")",
             "technicalSessionReplacementStage=\(playbackRuntime.technicalSessionReplacementStage.rawValue)",
             "seekInProgress=\(playbackRuntime.seekIsInProgress)",
@@ -957,6 +1095,7 @@ private struct PlaybackAutomationStateProbe: View {
             "sampleProjectionKind=\(sampleProjectionKind)",
             "rendererProjectionKind=\(rendererProjectionKind)",
             "rendererViewPackingKind=\(rendererViewPackingKind)",
+            "horizontalFieldOfViewDegrees=\(playbackRuntime.effectiveHorizontalFieldOfViewDegrees)",
             "windowComponentContentType=\(playbackVideoEntityStore.realityKitContentType)",
             "corePresentationMode=\(presentationRecord?.requestedMode ?? "none")",
             "corePresentationPhase=\(presentationRecord?.phase ?? "none")",
@@ -1007,6 +1146,10 @@ private struct PlaybackAutomationStateProbe: View {
         ]
         fields.append(contentsOf: PlaybackStateAccessibility.rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
+        ))
+        fields.append(contentsOf: PlaybackStateAccessibility.deliveryAccessibilityFields(
+            diagnostics: playbackRuntime.diagnostics,
+            debugSnapshot: debugSnapshot
         ))
         return fields.joined(separator: ";")
     }
@@ -1089,7 +1232,9 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
             isPresented: Binding(
                 get: { presentation != nil },
                 set: { presented in
-                    if presented == false, presentation != nil {
+                    if presented == false,
+                       let issue = presentation?.issue,
+                       issue.activePlaybackFailure == nil {
                         playbackRuntime.setUserVisibleIssue(nil)
                     }
                 }
@@ -1128,7 +1273,9 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
         case .retry:
             Button("Retry") {
                 recordReachability(action, at: location)
-                playbackRuntime.setUserVisibleIssue(nil)
+                if presentation?.issue.activePlaybackFailure == nil {
+                    playbackRuntime.setUserVisibleIssue(nil)
+                }
                 onRetry()
             }
             .keyboardShortcut(.defaultAction)

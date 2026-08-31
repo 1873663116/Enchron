@@ -580,6 +580,10 @@ public final class PlaybackSessionModel {
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")
         debugSurfaceTapTrace = "toggled:\(showControls ? "shown" : "hidden")"
+        SurfaceInputProbes.record(
+            "controlsVisibility event=surface-toggle state=\(showControls ? "shown" : "hidden") interactionMillis=\(Int(date.timeIntervalSince1970 * 1000)) autoHideSeconds=\(controlsAutoHideSeconds)",
+            retention: .evidence
+        )
         if showControls {
             registerControlsInteraction(at: date)
         }

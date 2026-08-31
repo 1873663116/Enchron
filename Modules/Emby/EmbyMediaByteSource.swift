@@ -66,7 +66,7 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
     func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
         guard range.lowerBound >= 0,
               range.upperBound > range.lowerBound else {
-            throw EmbyMediaByteSourceError.invalidRange
+            throw MediaSourceReadFailure.invalidData
         }
 
         var request = URLRequest(url: streamURL)
@@ -77,9 +77,18 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         request.setValue(accessToken, forHTTPHeaderField: "X-Emby-Token")
 
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            if let failure = MediaSourceReadFailure(classifying: error) {
+                throw failure
+            }
+            throw error
+        }
         guard let response = response as? HTTPURLResponse else {
-            throw EmbyMediaByteSourceError.invalidResponse
+            throw MediaSourceReadFailure.invalidData
         }
         if response.statusCode == 416 {
             let length = Self.unsatisfiedLength(
@@ -93,29 +102,31 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
                     supportsSeeking: true
                 )
             }
-            throw EmbyMediaByteSourceError.unsatisfiableRange(totalLength: length)
+            throw MediaSourceReadFailure.invalidData
         }
         guard response.statusCode == 206 else {
+            if let failure = MediaSourceReadFailure(
+                httpStatusCode: response.statusCode
+            ) {
+                throw failure
+            }
             throw EmbyMediaByteSourceError.httpStatus(response.statusCode)
         }
         guard let contentRange = Self.contentRange(
             response.value(forHTTPHeaderField: "Content-Range")
         ) else {
-            throw EmbyMediaByteSourceError.invalidResponse
+            throw MediaSourceReadFailure.invalidData
         }
 
         updateServerLength(contentRange.totalLength)
         guard contentRange.start == range.lowerBound,
               contentRange.end == min(range.upperBound - 1, contentRange.totalLength - 1),
               contentRange.end < contentRange.totalLength else {
-            throw EmbyMediaByteSourceError.mismatchedRange
+            throw MediaSourceReadFailure.invalidData
         }
         let expectedCount = Int(contentRange.end - contentRange.start + 1)
         guard data.count == expectedCount else {
-            throw EmbyMediaByteSourceError.shortRead(
-                expected: expectedCount,
-                actual: data.count
-            )
+            throw MediaSourceReadFailure.invalidData
         }
         return MediaByteRangeRead(
             data: data,

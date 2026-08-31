@@ -250,7 +250,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testAppleImmersiveVideoFailsBeforePublishingAudioOrVideoPlayback() async throws {
+    func testAppleImmersiveVideoOpensWithItsExactSourcePresentationFacts() async throws {
         let testMedia = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -264,22 +264,37 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             throw XCTSkip("Apple Immersive Video fixture is not available in this test process.")
         }
         let runtime = PlaybackRuntime()
+        defer { runtime.stop() }
         let request = PlaybackLaunchRequest(
             url: fixture,
             displayName: fixture.lastPathComponent
         )
 
-        do {
-            try await runtime.open(request)
-            XCTFail("Apple Immersive Video must fail before renderer publication.")
-        } catch {
-            XCTAssertEqual(error.localizedDescription, "Unable to open this file.")
-        }
+        try await runtime.open(request)
 
+        XCTAssertNotNil(runtime.activeSessionID)
+        XCTAssertNotNil(runtime.renderer)
+        XCTAssertNil(runtime.userVisibleIssue)
+        XCTAssertEqual(runtime.activeMediaFormatProvenance, .source)
+        XCTAssertEqual(runtime.sourceVideoContentKind, .appleImmersiveVideo)
+        XCTAssertEqual(runtime.effectiveProjectionType, .flat)
+        XCTAssertEqual(runtime.effectiveStereoLayout, .multiview)
+        XCTAssertTrue(runtime.effectiveContentIsPanoramic)
+        XCTAssertTrue(runtime.diagnostics.isMVHEVC)
+        let snapshot = try XCTUnwrap(runtime.debugSnapshot())
+        XCTAssertEqual(
+            snapshot.providerOpen?.formatSignaling.projectionKind.value,
+            "AppleImmersiveVideo"
+        )
+        XCTAssertEqual(snapshot.providerOpen?.formatSignaling.lhvC.value, true)
+        XCTAssertEqual(
+            snapshot.providerOpen?.codecConfigurationSummary.value,
+            "hvcC,lhvC"
+        )
+
+        await runtime.stopAndWait()
         XCTAssertNil(runtime.activeSessionID)
         XCTAssertNil(runtime.renderer)
-        XCTAssertTrue(runtime.availableAudioTracks.isEmpty)
-        XCTAssertEqual(runtime.userVisibleIssue, .mediaOpeningFailed)
     }
 
     @MainActor
@@ -290,73 +305,6 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertEqual(ascii, .init(width: 3840, height: 2160))
         XCTAssertEqual(typographic, ascii)
         XCTAssertNil(PlaybackRuntime.parseResolution("unknown"))
-    }
-
-    @MainActor
-    func testPlaybackCoreSpatialFormatFactsMapToProductProfile() {
-        XCTAssertEqual(
-            PlaybackRuntime.projectionType(from: "HalfEquirectangular"),
-            .equirectangular180
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.projectionType(from: "Equirectangular"),
-            .equirectangular360
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.projectionType(from: "AppleImmersiveVideo"),
-            .flat
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.sourceVideoContentKind(
-                from: "AppleImmersiveVideo",
-                isMVHEVC: true
-            ),
-            .appleImmersiveVideo
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.sourceVideoContentKind(
-                from: "ParametricImmersive",
-                isMVHEVC: false
-            ),
-            .parametricImmersive
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.sourceVideoContentKind(from: "missing", isMVHEVC: true),
-            .spatialVideo
-        )
-        XCTAssertEqual(PlaybackRuntime.stereoLayout(from: "SideBySide"), .sideBySide)
-        XCTAssertEqual(PlaybackRuntime.stereoLayout(from: "OverUnder"), .topBottom)
-        XCTAssertEqual(
-            PlaybackRuntime.stereoLayout(from: "missing", isMVHEVC: true),
-            .multiview
-        )
-        XCTAssertNil(PlaybackRuntime.projectionType(from: "missing"))
-        XCTAssertNil(PlaybackRuntime.stereoLayout(from: "missing"))
-    }
-
-    @MainActor
-    func testEffectiveHorizontalCoverageMatchesTheSelectedProjection() {
-        XCTAssertEqual(
-            PlaybackRuntime.effectiveHorizontalFieldOfViewDegrees(
-                for: .equirectangular180,
-                explicitDegrees: nil
-            ),
-            180
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.effectiveHorizontalFieldOfViewDegrees(
-                for: .equirectangular360,
-                explicitDegrees: nil
-            ),
-            360
-        )
-        XCTAssertEqual(
-            PlaybackRuntime.effectiveHorizontalFieldOfViewDegrees(
-                for: .customAngle,
-                explicitDegrees: 230
-            ),
-            230
-        )
     }
 
     @MainActor

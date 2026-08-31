@@ -131,6 +131,60 @@ struct PlaybackDomainContractTests {
             "browser projection must read last-known viewing state without revision validation"
         )
 
+        #if DEBUG
+        let completedIdentity = MediaIdentity.local(resourceIdentifier: Data([0x02]))
+        let completedVersion = VersionedMediaIdentity(
+            mediaIdentity: completedIdentity,
+            contentRevision: .file(
+                resourceIdentifier: Data([0x02]),
+                sizeInBytes: 961,
+                modifiedAt: Date(timeIntervalSince1970: 300)
+            )
+        )
+        await stateStore.applyViewingMutation(
+            .save(.completed(durationSeconds: 961)),
+            for: completedVersion
+        )
+        let beforeClear = await stateStore.debugSnapshot()
+        #expect(beforeClear.schema == ViewingStateDiagnosticSnapshot.schemaValue)
+        #expect(beforeClear.persistedRecordCount == 2)
+        #expect(beforeClear.viewingRecordCount == 2)
+        #expect(beforeClear.resumableCount == 1)
+        #expect(beforeClear.completedCount == 1)
+        #expect(beforeClear.invalidRecordCount == 0)
+        #expect(beforeClear.entries.contains(
+            ViewingStateDiagnosticEntry(
+                mediaIdentity: "sha256:\(mediaIdentity.storageKey)",
+                contentRevision: "sha256:\(originalVersion.contentRevision.storageKey)",
+                status: .resumable,
+                positionSeconds: 120,
+                durationSeconds: 3_600,
+                completed: false
+            )
+        ))
+        #expect(beforeClear.entries.contains(
+            ViewingStateDiagnosticEntry(
+                mediaIdentity: "sha256:\(completedIdentity.storageKey)",
+                contentRevision: "sha256:\(completedVersion.contentRevision.storageKey)",
+                status: .completed,
+                positionSeconds: 961,
+                durationSeconds: 961,
+                completed: true
+            )
+        ))
+        #expect(beforeClear.protectedEntries.count == 1)
+
+        await stateStore.clearViewingStates()
+        let afterClear = await stateStore.debugSnapshot()
+        #expect(afterClear.storeIdentity == beforeClear.storeIdentity)
+        #expect(afterClear.persistedRecordCount == 1)
+        #expect(afterClear.viewingRecordCount == 0)
+        #expect(afterClear.resumableCount == 0)
+        #expect(afterClear.completedCount == 0)
+        #expect(afterClear.protectedEntries == beforeClear.protectedEntries)
+        #expect(afterClear.protectedStateDigest == beforeClear.protectedStateDigest)
+        #endif
+
         let storedReplacement = await stateStore.loadValidated(for: replacementVersion)
         #expect(
             storedReplacement == nil,

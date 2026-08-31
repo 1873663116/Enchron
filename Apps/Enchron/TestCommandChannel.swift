@@ -1,3 +1,4 @@
+#if DEBUG
 import DesignSystem
 import CryptoKit
 import Emby
@@ -8,6 +9,476 @@ import PlaybackCore
 import Playback
 #if os(visionOS)
 import UIKit
+#endif
+
+struct LibraryEvidenceSnapshot: Encodable, Equatable {
+    struct Folder: Encodable, Equatable {
+        let id: String
+        let parentID: String?
+        let name: String
+    }
+
+    struct Reference: Encodable, Equatable {
+        let id: String
+        let folderID: String?
+        let name: String
+        let locatorKind: String
+        let sourceIdentity: String
+        let sourcePath: String
+        let sourceExists: Bool?
+        let sourceDigest: String?
+        let sizeInBytes: Int64
+    }
+
+    struct StagedFile: Encodable, Equatable {
+        let name: String
+        let sizeInBytes: Int64
+        let digest: String
+    }
+
+    let folders: [Folder]
+    let references: [Reference]
+    let stagedFiles: [StagedFile]
+
+    init(
+        library: FileBrowsingDomain.MediaLibrary,
+        folders sourceFolders: [FileBrowsingDomain.LibraryFolder],
+        inboxURL: URL,
+        fileManager: FileManager
+    ) {
+        folders = sourceFolders
+            .map {
+                Folder(
+                    id: $0.id.uuidString.lowercased(),
+                    parentID: $0.parentID?.uuidString.lowercased(),
+                    name: $0.name
+                )
+            }
+            .sorted { $0.id < $1.id }
+
+        let locations: [(UUID?, FileBrowsingDomain.MediaReference)] =
+            library.references(in: nil).map { (nil, $0) }
+            + sourceFolders.flatMap { folder in
+                library.references(in: folder.id).map { (folder.id, $0) }
+            }
+        references = locations
+            .map { folderID, reference in
+                Self.reference(
+                    reference,
+                    folderID: folderID,
+                    fileManager: fileManager
+                )
+            }
+            .sorted { $0.id < $1.id }
+
+        let candidates = (try? fileManager.contentsOfDirectory(
+            at: inboxURL,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        stagedFiles = candidates.compactMap { url in
+            guard let values = try? url.resourceValues(
+                forKeys: [.isRegularFileKey, .fileSizeKey]
+            ), values.isRegularFile == true,
+                  let digest = Self.fileDigest(url) else { return nil }
+            return StagedFile(
+                name: url.lastPathComponent,
+                sizeInBytes: Int64(values.fileSize ?? 0),
+                digest: digest
+            )
+        }
+        .sorted { $0.name < $1.name }
+    }
+
+    private static func reference(
+        _ reference: FileBrowsingDomain.MediaReference,
+        folderID: UUID?,
+        fileManager: FileManager
+    ) -> Reference {
+        switch reference.locator {
+        case .sourceItem(let dataSourceID, let path):
+            let identity = digest(
+                Data("sourceItem\u{0}\(dataSourceID.uuidString.lowercased())\u{0}\(path)".utf8)
+            )
+            return Reference(
+                id: reference.id.uuidString.lowercased(),
+                folderID: folderID?.uuidString.lowercased(),
+                name: reference.name,
+                locatorKind: "sourceItem",
+                sourceIdentity: identity,
+                sourcePath: path,
+                sourceExists: nil,
+                sourceDigest: nil,
+                sizeInBytes: reference.sizeInBytes
+            )
+        case .file(let bookmark, let relativePath):
+            let identity = digest(
+                bookmark + Data([0]) + Data(relativePath.utf8)
+            )
+            var stale = false
+            let root = try? URL(
+                resolvingBookmarkData: bookmark,
+                options: [.withoutUI],
+                relativeTo: nil,
+                bookmarkDataIsStale: &stale
+            )
+            let source = stale ? nil : root.map {
+                relativePath.isEmpty
+                    ? $0
+                    : $0.appending(path: relativePath).standardizedFileURL
+            }
+            let accessStarted = source?.startAccessingSecurityScopedResource() == true
+            defer {
+                if accessStarted { source?.stopAccessingSecurityScopedResource() }
+            }
+            let exists = source.map { fileManager.fileExists(atPath: $0.path) }
+            return Reference(
+                id: reference.id.uuidString.lowercased(),
+                folderID: folderID?.uuidString.lowercased(),
+                name: reference.name,
+                locatorKind: "file",
+                sourceIdentity: identity,
+                sourcePath: source?.path ?? "unresolved",
+                sourceExists: exists,
+                sourceDigest: source.flatMap(Self.fileDigest),
+                sizeInBytes: reference.sizeInBytes
+            )
+        }
+    }
+
+    private static func fileDigest(_ url: URL) -> String? {
+        guard let input = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? input.close() }
+        var hasher = SHA256()
+        do {
+            while let data = try input.read(upToCount: 1_048_576), !data.isEmpty {
+                hasher.update(data: data)
+            }
+        } catch {
+            return nil
+        }
+        return "sha256:" + hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func digest(_ data: Data) -> String {
+        "sha256:" + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+struct ProductStateResetReceipt: Encodable, Equatable {
+    static let schemaValue = "enchron.regression.product-state-reset@1"
+
+    let schema: String
+    let removedReferenceCount: Int
+    let removedFolderCount: Int
+    let removedManagedDefaultKeys: [String]
+    let remainingReferenceCount: Int
+    let remainingFolderCount: Int
+    let remainingManagedDefaultKeys: [String]
+    let createdFolderNames: [String]
+
+    init(
+        removedReferenceCount: Int,
+        removedFolderCount: Int,
+        removedManagedDefaultKeys: [String],
+        remainingReferenceCount: Int,
+        remainingFolderCount: Int,
+        remainingManagedDefaultKeys: [String],
+        createdFolderNames: [String]
+    ) {
+        self.schema = Self.schemaValue
+        self.removedReferenceCount = removedReferenceCount
+        self.removedFolderCount = removedFolderCount
+        self.removedManagedDefaultKeys = removedManagedDefaultKeys.sorted()
+        self.remainingReferenceCount = remainingReferenceCount
+        self.remainingFolderCount = remainingFolderCount
+        self.remainingManagedDefaultKeys = remainingManagedDefaultKeys.sorted()
+        self.createdFolderNames = createdFolderNames.sorted()
+    }
+
+    static func managedDefaultKeys(in defaults: UserDefaults) -> [String] {
+        defaults.dictionaryRepresentation().keys.filter {
+            $0.hasPrefix("enchron.")
+                || $0.hasPrefix("server-certificate-fingerprint.")
+        }
+        .sorted()
+    }
+}
+
+struct TestMediaDirectorySource: Equatable {
+    enum SourceError: LocalizedError {
+        case invalidDirectoryName
+        case invalidMediaFileName
+        case invalidMemberFileName(String)
+        case duplicateMemberFileName(String)
+        case missingMediaFile
+        case directoryConflictsWithMember
+        case unavailableInbox
+        case unavailableMember(String)
+        case destinationIsNotDirectory
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidDirectoryName:
+                return "The media directory name must be one direct TestMediaInbox child."
+            case .invalidMediaFileName:
+                return "The media file name must be one direct TestMediaInbox child."
+            case .invalidMemberFileName(let name):
+                return "The directory member is not one direct TestMediaInbox file: \(name)."
+            case .duplicateMemberFileName(let name):
+                return "The media directory contains a duplicate member name: \(name)."
+            case .missingMediaFile:
+                return "The media directory members must include the requested media file."
+            case .directoryConflictsWithMember:
+                return "The media directory name conflicts with one of its member files."
+            case .unavailableInbox:
+                return "TestMediaInbox is unavailable."
+            case .unavailableMember(let name):
+                return "TestMediaInbox does not contain the regular staged file \(name)."
+            case .destinationIsNotDirectory:
+                return "The requested TestMediaInbox directory name is occupied by a file."
+            }
+        }
+    }
+
+    let directoryName: String
+    let mediaFileName: String
+    let memberFileNames: [String]
+
+    init(
+        directoryName: String,
+        mediaFileName: String,
+        memberFileNames: [String]
+    ) throws {
+        guard Self.isDirectChildName(directoryName) else {
+            throw SourceError.invalidDirectoryName
+        }
+        guard Self.isDirectChildName(mediaFileName) else {
+            throw SourceError.invalidMediaFileName
+        }
+        var uniqueNames: Set<String> = []
+        for name in memberFileNames {
+            guard Self.isDirectChildName(name) else {
+                throw SourceError.invalidMemberFileName(name)
+            }
+            guard uniqueNames.insert(name).inserted else {
+                throw SourceError.duplicateMemberFileName(name)
+            }
+        }
+        guard uniqueNames.contains(mediaFileName) else {
+            throw SourceError.missingMediaFile
+        }
+        guard uniqueNames.contains(directoryName) == false else {
+            throw SourceError.directoryConflictsWithMember
+        }
+        self.directoryName = directoryName
+        self.mediaFileName = mediaFileName
+        self.memberFileNames = uniqueNames.sorted()
+    }
+
+    func materialize(in inboxURL: URL, fileManager: FileManager) throws -> URL {
+        let inbox = inboxURL.standardizedFileURL
+        let inboxValues = try? inbox.resourceValues(forKeys: [
+            .isDirectoryKey,
+            .isSymbolicLinkKey
+        ])
+        guard inboxValues?.isDirectory == true,
+              inboxValues?.isSymbolicLink != true else {
+            throw SourceError.unavailableInbox
+        }
+
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
+        let members = try memberFileNames.map { name in
+            let url = inbox.appending(path: name, directoryHint: .notDirectory)
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true,
+                  values?.isSymbolicLink != true else {
+                throw SourceError.unavailableMember(name)
+            }
+            return url
+        }
+
+        let stagingURL = inbox.appending(
+            path: ".enchron-directory-import-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        try fileManager.createDirectory(at: stagingURL, withIntermediateDirectories: false)
+        defer { try? fileManager.removeItem(at: stagingURL) }
+        for memberURL in members {
+            try fileManager.copyItem(
+                at: memberURL,
+                to: stagingURL.appending(
+                    path: memberURL.lastPathComponent,
+                    directoryHint: .notDirectory
+                )
+            )
+        }
+
+        let directoryURL = inbox.appending(
+            path: directoryName,
+            directoryHint: .isDirectory
+        )
+        var destinationIsDirectory: ObjCBool = false
+        if fileManager.fileExists(
+            atPath: directoryURL.path,
+            isDirectory: &destinationIsDirectory
+        ) {
+            guard destinationIsDirectory.boolValue else {
+                throw SourceError.destinationIsNotDirectory
+            }
+            try fileManager.removeItem(at: directoryURL)
+        }
+        try fileManager.moveItem(at: stagingURL, to: directoryURL)
+        return directoryURL
+    }
+
+    private static func isDirectChildName(_ value: String) -> Bool {
+        value.isEmpty == false
+            && value != "."
+            && value != ".."
+            && value.trimmingCharacters(in: .whitespacesAndNewlines) == value
+            && (value as NSString).lastPathComponent == value
+    }
+}
+
+struct DirectoryMediaImportReceipt: Encodable, Equatable {
+    static let schemaValue = "enchron.regression.directory-media-import@1"
+
+    enum ReceiptError: LocalizedError {
+        case mismatchedReference
+        case unresolvedBookmark
+        case bookmarkRootIsNotDirectory
+        case unavailableMember(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .mismatchedReference:
+                return "The imported media reference does not identify the requested directory media."
+            case .unresolvedBookmark:
+                return "The imported media directory bookmark is unavailable."
+            case .bookmarkRootIsNotDirectory:
+                return "The imported bookmark does not resolve to a directory."
+            case .unavailableMember(let name):
+                return "The imported directory does not contain the regular member \(name)."
+            }
+        }
+    }
+
+    let schema: String
+    let directoryName: String
+    let mediaFileName: String
+    let memberFileNames: [String]
+    let referenceID: String
+    let bookmarkRootPath: String
+    let bookmarkRootIsDirectory: Bool
+    let mediaRelativePath: String
+    let mediaSourcePath: String
+
+    init(
+        source: TestMediaDirectorySource,
+        reference: FileBrowsingDomain.MediaReference,
+        fileManager: FileManager
+    ) throws {
+        guard reference.name == source.mediaFileName,
+              case .file(let bookmark, let relativePath) = reference.locator,
+              relativePath == source.mediaFileName,
+              relativePath.isEmpty == false else {
+            throw ReceiptError.mismatchedReference
+        }
+
+        var stale = false
+        guard let resolvedRoot = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: [.withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ), stale == false else {
+            throw ReceiptError.unresolvedBookmark
+        }
+        let root = resolvedRoot.standardizedFileURL
+        let accessStarted = root.startAccessingSecurityScopedResource()
+        defer { if accessStarted { root.stopAccessingSecurityScopedResource() } }
+        let rootValues = try? root.resourceValues(forKeys: [
+            .isDirectoryKey,
+            .isSymbolicLinkKey
+        ])
+        guard rootValues?.isDirectory == true,
+              rootValues?.isSymbolicLink != true else {
+            throw ReceiptError.bookmarkRootIsNotDirectory
+        }
+
+        let memberKeys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
+        for name in source.memberFileNames {
+            let member = root.appending(path: name, directoryHint: .notDirectory)
+            let values = try? member.resourceValues(forKeys: memberKeys)
+            guard values?.isRegularFile == true,
+                  values?.isSymbolicLink != true else {
+                throw ReceiptError.unavailableMember(name)
+            }
+        }
+
+        schema = Self.schemaValue
+        directoryName = source.directoryName
+        mediaFileName = source.mediaFileName
+        memberFileNames = source.memberFileNames
+        referenceID = reference.id.uuidString.lowercased()
+        bookmarkRootPath = root.path
+        bookmarkRootIsDirectory = true
+        mediaRelativePath = relativePath
+        mediaSourcePath = root.appending(
+            path: relativePath,
+            directoryHint: .notDirectory
+        ).standardizedFileURL.path
+    }
+}
+
+#if DEBUG
+nonisolated struct EmbyRuntimeIdentityCleanup {
+    enum CleanupError: LocalizedError {
+        case removalFailed
+
+        var errorDescription: String? {
+            "The staged Emby runtime identity could not be removed."
+        }
+    }
+
+    private let fileURL: URL
+    private let removeFile: (URL) throws -> Void
+
+    init(fileURL: URL, fileManager: FileManager) {
+        self.init(
+            fileURL: fileURL,
+            removeFile: { try fileManager.removeItem(at: $0) }
+        )
+    }
+
+    init(
+        fileURL: URL,
+        removeFile: @escaping (URL) throws -> Void
+    ) {
+        self.fileURL = fileURL
+        self.removeFile = removeFile
+    }
+
+    func perform<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        let outcome: Result<T, any Error>
+        do {
+            outcome = .success(try await operation())
+        } catch {
+            outcome = .failure(error)
+        }
+
+        do {
+            try removeFile(fileURL)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+        } catch {
+            throw CleanupError.removalFailed
+        }
+        return try outcome.get()
+    }
+}
 #endif
 
 @MainActor
@@ -30,9 +501,15 @@ final class TestCommandChannel {
         let detail: String?
         let payload: [String]?
         var menuItems: [MenuItem]?
+        var librarySnapshot: LibraryEvidenceSnapshot?
+        var productStateResetReceipt: ProductStateResetReceipt?
+        var directoryMediaImportReceipt: DirectoryMediaImportReceipt?
         #if DEBUG
+            var systemImportDeliverySnapshot: SystemImportDeliveryDiagnostics.Snapshot?
+            var viewingStorageSnapshot: ViewingStorageDiagnosticSnapshot?
             var transitionTraceSnapshot: PlaybackSwitchStateSnapshot?
             var transitionTraceAnalysis: PlaybackSwitchStateAnalysis?
+            var embyAccountPreparationReceipt: EmbyAutomationAccountPreparationReceipt?
         #endif
 
         #if DEBUG
@@ -42,16 +519,28 @@ final class TestCommandChannel {
             detail: String?,
             payload: [String]?,
             menuItems: [MenuItem]? = nil,
+            librarySnapshot: LibraryEvidenceSnapshot? = nil,
+            productStateResetReceipt: ProductStateResetReceipt? = nil,
+            directoryMediaImportReceipt: DirectoryMediaImportReceipt? = nil,
+            systemImportDeliverySnapshot: SystemImportDeliveryDiagnostics.Snapshot? = nil,
+            viewingStorageSnapshot: ViewingStorageDiagnosticSnapshot? = nil,
             transitionTraceSnapshot: PlaybackSwitchStateSnapshot? = nil,
-            transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil
+            transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil,
+            embyAccountPreparationReceipt: EmbyAutomationAccountPreparationReceipt? = nil
         ) {
             self.id = id
             self.ok = ok
             self.detail = detail
             self.payload = payload
             self.menuItems = menuItems
+            self.librarySnapshot = librarySnapshot
+            self.productStateResetReceipt = productStateResetReceipt
+            self.directoryMediaImportReceipt = directoryMediaImportReceipt
+            self.systemImportDeliverySnapshot = systemImportDeliverySnapshot
+            self.viewingStorageSnapshot = viewingStorageSnapshot
             self.transitionTraceSnapshot = transitionTraceSnapshot
             self.transitionTraceAnalysis = transitionTraceAnalysis
+            self.embyAccountPreparationReceipt = embyAccountPreparationReceipt
         }
         #else
         init(
@@ -59,13 +548,19 @@ final class TestCommandChannel {
             ok: Bool,
             detail: String?,
             payload: [String]?,
-            menuItems: [MenuItem]? = nil
+            menuItems: [MenuItem]? = nil,
+            librarySnapshot: LibraryEvidenceSnapshot? = nil,
+            productStateResetReceipt: ProductStateResetReceipt? = nil,
+            directoryMediaImportReceipt: DirectoryMediaImportReceipt? = nil
         ) {
             self.id = id
             self.ok = ok
             self.detail = detail
             self.payload = payload
             self.menuItems = menuItems
+            self.librarySnapshot = librarySnapshot
+            self.productStateResetReceipt = productStateResetReceipt
+            self.directoryMediaImportReceipt = directoryMediaImportReceipt
         }
         #endif
     }
@@ -79,6 +574,8 @@ final class TestCommandChannel {
     private let mediaLibrary: MediaLibraryViewModel
     private let playbackSession: PlaybackSessionModel
     private let playbackRuntime: PlaybackRuntime
+    private let playbackLauncher: PlaybackLaunchCoordinator
+    private let settings: SettingsViewModel
     #if DEBUG
         private var playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
     #endif
@@ -90,12 +587,17 @@ final class TestCommandChannel {
     private let responsesURL: URL
     private let responseSessionURL: URL
     private let inboxURL: URL
+#if DEBUG
+    private let embyRuntimeIdentityURL: URL
+#endif
     private var pollingTask: Task<Void, Never>?
 
     init(
         mediaLibrary: MediaLibraryViewModel,
         playbackSession: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
+        playbackLauncher: PlaybackLaunchCoordinator,
+        settings: SettingsViewModel,
         embySession: EmbySessionViewModel,
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
@@ -103,6 +605,8 @@ final class TestCommandChannel {
         self.mediaLibrary = mediaLibrary
         self.playbackSession = playbackSession
         self.playbackRuntime = playbackRuntime
+        self.playbackLauncher = playbackLauncher
+        self.settings = settings
         self.embySession = embySession
         self.fileManager = fileManager
         self.defaults = defaults
@@ -129,6 +633,16 @@ final class TestCommandChannel {
             path: "TestMediaInbox",
             directoryHint: .isDirectory
         )
+#if DEBUG
+        let regressionURL = documentsURL.appending(
+            path: "Regression",
+            directoryHint: .isDirectory
+        )
+        embyRuntimeIdentityURL = regressionURL.appending(
+            path: "emby-runtime-identity.json",
+            directoryHint: .notDirectory
+        )
+#endif
         var inboxIsDirectory: ObjCBool = false
         if fileManager.fileExists(
             atPath: inboxURL.path,
@@ -154,13 +668,26 @@ final class TestCommandChannel {
             at: inboxURL,
             withIntermediateDirectories: true
         )
+#if DEBUG
+        var regressionIsDirectory: ObjCBool = false
+        if fileManager.fileExists(
+            atPath: regressionURL.path,
+            isDirectory: &regressionIsDirectory
+        ), regressionIsDirectory.boolValue == false {
+            try fileManager.removeItem(at: regressionURL)
+        }
+        try fileManager.createDirectory(
+            at: regressionURL,
+            withIntermediateDirectories: true
+        )
+#endif
     }
 
     func start() {
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
             while Task.isCancelled == false {
-                self?.processRequestIfPresent()
+                await self?.processRequestIfPresent()
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
@@ -172,7 +699,7 @@ final class TestCommandChannel {
         }
     #endif
 
-    private func processRequestIfPresent() {
+    private func processRequestIfPresent() async {
         do {
             guard let requestURL = try nextRequestURL() else { return }
             let request = try JSONDecoder().decode(
@@ -206,7 +733,7 @@ final class TestCommandChannel {
             )
             let response: Response
             do {
-                response = try execute(request)
+                response = try await execute(request)
             } catch {
                 response = Response(
                     id: request.id,
@@ -304,7 +831,7 @@ final class TestCommandChannel {
     }
 #endif
 
-    private func execute(_ request: Request) throws -> Response {
+    private func execute(_ request: Request) async throws -> Response {
         switch request.verb {
         case "ping":
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
@@ -331,6 +858,19 @@ final class TestCommandChannel {
             guard let logicalSessionID = playbackRuntime.activeSessionID else {
                 throw CommandError(message: "armTransitionTrace requires active playback.")
             }
+            let settlementFault: PlaybackRuntime.DebugPresentationSettlementFault?
+            if let rawFault = request.args["fault"] {
+                guard let fault = PlaybackRuntime.DebugPresentationSettlementFault(
+                    rawValue: rawFault
+                ) else {
+                    throw CommandError(
+                        message: "armTransitionTrace received an unsupported fault."
+                    )
+                }
+                settlementFault = fault
+            } else {
+                settlementFault = nil
+            }
             let generation = playbackSwitchStateRing.arm(
                 context: PlaybackSwitchTraceContext(
                     logicalSessionID: logicalSessionID,
@@ -347,13 +887,24 @@ final class TestCommandChannel {
                     byteStreamCounters: Self.switchCounters(counters)
                 )
             }
+            if let settlementFault {
+                playbackRuntime.debugArmPresentationSettlementFault(
+                    settlementFault
+                )
+            }
+            SurfaceInputProbes.record(
+                "testcmd transitionTrace.arm generation=\(generation)"
+                    + " fault=\(settlementFault?.rawValue ?? "none")",
+                retention: .evidence
+            )
             return Response(
                 id: request.id,
                 ok: true,
                 detail: nil,
                 payload: [
                     "generation=\(generation)",
-                    "capacity=\(playbackSwitchStateRing.snapshot().capacity)"
+                    "capacity=\(playbackSwitchStateRing.snapshot().capacity)",
+                    "fault=\(settlementFault?.rawValue ?? "none")"
                 ]
             )
         case "disarmTransitionTrace":
@@ -363,6 +914,7 @@ final class TestCommandChannel {
             let disarmed = playbackSwitchStateRing.disarm(generation: requestedGeneration)
             if disarmed {
                 playbackRuntime.debugSetPlaybackSwitchSampleHandler(nil)
+                playbackRuntime.debugClearPresentationSettlementFault()
             }
             return Response(
                 id: request.id,
@@ -396,6 +948,123 @@ final class TestCommandChannel {
                 ok: true,
                 detail: nil,
                 payload: [digest]
+            )
+        case "prepareEmbyAccount":
+            let cleanup = EmbyRuntimeIdentityCleanup(
+                fileURL: embyRuntimeIdentityURL,
+                fileManager: fileManager
+            )
+            return try await cleanup.perform {
+                guard let identityDigest = request.args["identityDigest"],
+                      identityDigest.hasPrefix("sha256:"),
+                      identityDigest.count == "sha256:".count + 64,
+                      identityDigest.dropFirst("sha256:".count).allSatisfy({
+                          "0123456789abcdef".contains($0)
+                      }),
+                      let itemID = request.args["itemID"],
+                      itemID.isEmpty == false,
+                      let mediaSourceID = request.args["mediaSourceID"],
+                      mediaSourceID.isEmpty == false,
+                      let streamIndexValue = request.args["externalSubtitleStreamIndex"],
+                      let streamIndex = Int(streamIndexValue),
+                      streamIndex >= 0 else {
+                    throw CommandError(
+                        message: "prepareEmbyAccount requires a canonical identity digest and fixture IDs."
+                    )
+                }
+                guard fileManager.fileExists(atPath: embyRuntimeIdentityURL.path) else {
+                    throw CommandError(
+                        message: "The staged Emby runtime identity is unavailable."
+                    )
+                }
+                let attributes = try fileManager.attributesOfItem(
+                    atPath: embyRuntimeIdentityURL.path
+                )
+                guard let permissions = attributes[.posixPermissions] as? NSNumber,
+                      permissions.intValue & 0o777 == 0o600 else {
+                    throw CommandError(
+                        message: "The staged Emby runtime identity must use mode 0600."
+                    )
+                }
+                let identityData = try Data(contentsOf: embyRuntimeIdentityURL)
+                let receipt = try await embySession.prepareAutomationAccount(
+                    identityData: identityData,
+                    expectedIdentityDigest: identityDigest,
+                    fixture: EmbyAutomationFixtureExpectation(
+                        itemID: EmbyItemID(rawValue: itemID),
+                        mediaSourceID: EmbyMediaSourceID(rawValue: mediaSourceID),
+                        externalSubtitleStreamIndex: streamIndex
+                    )
+                )
+                return Response(
+                    id: request.id,
+                    ok: true,
+                    detail: nil,
+                    payload: nil,
+                    embyAccountPreparationReceipt: receipt
+                )
+            }
+        case "artworkProbe":
+            return try artworkProbe(request)
+        case "containerIndexProbe":
+            return containerIndexProbe(request)
+        case "viewingStorageProbe":
+            let snapshot = ViewingStorageDiagnosticSnapshot(
+                viewingState: await playbackLauncher.debugViewingStateSnapshot(),
+                containerIndex: ContainerIndexCache.shared.debugSnapshot(),
+                artwork: ArtworkStore.shared.debugSnapshot(),
+                mediaLibrary: mediaLibrary,
+                settings: settings,
+                playbackRuntime: playbackRuntime
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: nil,
+                viewingStorageSnapshot: snapshot
+            )
+        case "certificateTrustProbe":
+            guard let address = request.args["address"], address.isEmpty == false,
+                  let expectedPrevious = request.args["expectedPrevious"],
+                  let expectedCurrent = request.args["expectedCurrent"] else {
+                throw CommandError(
+                    message: "certificateTrustProbe requires address and both fingerprints."
+                )
+            }
+            let canonical: (String) -> String? = { value in
+                let hex = value.hasPrefix("sha256:")
+                    ? String(value.dropFirst("sha256:".count))
+                    : value
+                let compact = hex.filter(\.isHexDigit).lowercased()
+                return compact.count == 64 ? "sha256:\(compact)" : nil
+            }
+            guard let previousFingerprint = canonical(expectedPrevious),
+                  let currentFingerprint = canonical(expectedCurrent),
+                  previousFingerprint != currentFingerprint else {
+                throw CommandError(
+                    message: "certificateTrustProbe requires two distinct SHA-256 fingerprints."
+                )
+            }
+            let key = "server-certificate-fingerprint.\(address)"
+            let stored = defaults.string(forKey: key)
+            let storedFingerprint = stored.flatMap(canonical)
+            let storedReport = storedFingerprint
+                ?? (stored == nil ? "none" : "unrecognized")
+            let currentFingerprintTrusted = storedFingerprint == currentFingerprint
+            let storedMatchesPrevious = storedFingerprint == previousFingerprint
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "schema=enchron.regression.certificate-trust-probe@1",
+                    "storedFingerprint=\(storedReport)",
+                    "previousFingerprint=\(previousFingerprint)",
+                    "currentFingerprint=\(currentFingerprint)",
+                    "currentFingerprintTrusted=\(currentFingerprintTrusted)",
+                    "storedMatchesPreviousFingerprint=\(storedMatchesPrevious)"
+                ]
             )
 #endif
         case "toggleControls":
@@ -486,6 +1155,7 @@ final class TestCommandChannel {
             )
 #endif
         case "resetState":
+            await embySession.signOut()
             let references = allReferences
             for reference in references {
                 mediaLibrary.remove(reference)
@@ -495,27 +1165,38 @@ final class TestCommandChannel {
             for folder in folders.reversed() {
                 mediaLibrary.remove(folder)
             }
-            let keys = defaults.dictionaryRepresentation().keys.filter {
-                $0.hasPrefix("enchron.")
-                    || $0.hasPrefix("server-certificate-fingerprint.")
-            }
+            let keys = ProductStateResetReceipt.managedDefaultKeys(in: defaults)
             for key in keys {
                 defaults.removeObject(forKey: key)
             }
+            var createdFolderNames: [String] = []
             if let folderName = request.args["libraryFolder"],
                folderName.isEmpty == false {
                 mediaLibrary.createFolder(named: folderName)
                 if let detail = mediaLibrary.lastErrorMessage {
                     throw CommandError(message: detail)
                 }
+                createdFolderNames.append(folderName)
             }
+            let remainingReferences = allReferences
+            let remainingFolders = mediaLibrary.allFolders
+            let remainingKeys = ProductStateResetReceipt.managedDefaultKeys(in: defaults)
             return Response(
                 id: request.id,
                 ok: true,
                 detail: "Removed \(references.count) library references, "
                     + "removed \(folders.count) library folders, and "
-                    + "deleted \(keys.count) enchron.* defaults keys.",
-                payload: libraryState
+                    + "deleted \(keys.count) managed defaults keys.",
+                payload: libraryState,
+                productStateResetReceipt: ProductStateResetReceipt(
+                    removedReferenceCount: references.count,
+                    removedFolderCount: folders.count,
+                    removedManagedDefaultKeys: keys,
+                    remainingReferenceCount: remainingReferences.count,
+                    remainingFolderCount: remainingFolders.count,
+                    remainingManagedDefaultKeys: remainingKeys,
+                    createdFolderNames: createdFolderNames
+                )
             )
         case "importMedia":
             guard let fileName = request.args["file"],
@@ -559,19 +1240,173 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: allReferenceNames
             )
-        case "listLibrary":
+        case "importMediaDirectory":
+            guard let directoryName = request.args["directory"],
+                  let mediaFileName = request.args["media"],
+                  let memberFileNamesJSON = request.args["files"],
+                  let encodedMemberFileNames = memberFileNamesJSON.data(using: .utf8),
+                  let memberFileNames = try? JSONDecoder().decode(
+                    [String].self,
+                    from: encodedMemberFileNames
+                  ) else {
+                throw CommandError(
+                    message: "importMediaDirectory requires directory, media, and a files JSON array."
+                )
+            }
+            let source = try TestMediaDirectorySource(
+                directoryName: directoryName,
+                mediaFileName: mediaFileName,
+                memberFileNames: memberFileNames
+            )
+            let directoryURL = try source.materialize(
+                in: inboxURL,
+                fileManager: fileManager
+            )
+            let referenceIDsBeforeImport = Set(allReferences.map(\.id))
+            await mediaLibrary.addFolder(directoryURL)
+            if let detail = mediaLibrary.lastErrorMessage {
+                throw CommandError(message: detail)
+            }
+            let additions = allReferences.filter {
+                referenceIDsBeforeImport.contains($0.id) == false
+            }
+            guard additions.count == 1,
+                  let reference = additions.first,
+                  reference.name == mediaFileName else {
+                throw CommandError(
+                    message: "The production directory import pipeline did not add exactly one requested media reference."
+                )
+            }
+            let receipt = try DirectoryMediaImportReceipt(
+                source: source,
+                reference: reference,
+                fileManager: fileManager
+            )
             return Response(
                 id: request.id,
                 ok: true,
                 detail: nil,
-                payload: libraryState
+                payload: allReferenceNames,
+                directoryMediaImportReceipt: receipt
             )
+        case "listLibrary":
+            var response = Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: libraryState,
+                librarySnapshot: LibraryEvidenceSnapshot(
+                    library: mediaLibrary.library,
+                    folders: mediaLibrary.allFolders,
+                    inboxURL: inboxURL,
+                    fileManager: fileManager
+                )
+            )
+#if DEBUG
+            response.systemImportDeliverySnapshot =
+                SystemImportDeliveryDiagnostics.latestSnapshot
+#endif
+            return response
         default:
             throw CommandError(
                 message: "Unknown app command verb: \(request.verb)."
             )
         }
     }
+
+#if DEBUG
+    private func artworkProbe(_ request: Request) throws -> Response {
+        let currentIdentity = playbackRuntime.currentLaunchRequest?
+            .versionedIdentity?.mediaIdentity
+        let key: ArtworkKey
+        if let requested = request.args["key"] {
+            guard let parsed = ArtworkKey(debugStorageKey: requested) else {
+                throw CommandError(
+                    message: "artworkProbe key must be one exact media artwork key."
+                )
+            }
+            key = parsed
+        } else if let currentIdentity {
+            key = ArtworkKey(mediaIdentity: currentIdentity)
+        } else {
+            throw CommandError(
+                message: "artworkProbe requires active playback or an exact key."
+            )
+        }
+
+        let currentKey = currentIdentity.map { ArtworkKey(mediaIdentity: $0) }
+        let current: ArtworkDebugIdentity? = if currentKey == key,
+                                                let image = playbackRuntime.displayedArtworkImage() {
+            try ArtworkStore.shared.debugEncodedIdentity(image, for: key)
+        } else {
+            nil
+        }
+        let stored = ArtworkStore.shared.debugStoredIdentity(for: key)
+        let counters = currentKey == key
+            ? playbackRuntime.debugCurrentByteStreamCounters()
+            : nil
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [
+                "schema=enchron.regression.artwork-probe@1",
+                "artworkKey=\(key.debugStorageKey)",
+                "currentDigest=\(current?.digest ?? "none")",
+                "storedDigest=\(stored?.digest ?? "none")",
+                "currentWidth=\(current?.width ?? 0)",
+                "currentHeight=\(current?.height ?? 0)",
+                "storedBytes=\(stored?.bytes ?? 0)",
+                "byteStreamScope=\(counters.map { String($0.scope) } ?? "none")",
+                "byteStreamRequestCount=\(counters.map { String($0.requestCount) } ?? "none")"
+            ]
+        )
+    }
+
+    private func containerIndexProbe(_ request: Request) -> Response {
+        let snapshot = ContainerIndexCache.shared.debugSnapshot()
+        let launch = playbackRuntime.currentLaunchRequest
+        let addressKind: String
+        if let launch {
+            if launch.source.isRemote == false {
+                addressKind = "local-file"
+            } else {
+                addressKind = switch launch.source.url.host?.lowercased() {
+                case "127.0.0.1", "::1": "loopback"
+                default: "remote-url"
+                }
+            }
+        } else {
+            addressKind = "none"
+        }
+        let sourceIdentity = launch?.versionedIdentity.map {
+            "sha256:" + $0.mediaIdentity.storageKey
+        } ?? "none"
+        let contentRevision = launch?.versionedIdentity.map {
+            "sha256:" + $0.contentRevision.storageKey
+        } ?? "none"
+        let counters = playbackRuntime.debugCurrentByteStreamCounters()
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [
+                "schema=enchron.regression.container-index-probe@1",
+                "cacheDigest=\(snapshot.digest)",
+                "entryKeys=\(snapshot.entries.map(\.contentRevision).joined(separator: ","))",
+                "entryCount=\(snapshot.entries.count)",
+                "totalBytes=\(snapshot.totalBytes)",
+                "playbackAddressKind=\(addressKind)",
+                "sourceIdentity=\(sourceIdentity)",
+                "contentRevision=\(contentRevision)",
+                "session=\(playbackRuntime.activeSessionID ?? "none")",
+                "mediaName=\((launch?.displayName ?? "none").replacingOccurrences(of: ";", with: ","))",
+                "byteStreamScope=\(counters.map { String($0.scope) } ?? "none")",
+                "byteStreamRequestCount=\(counters.map { String($0.requestCount) } ?? "none")"
+            ]
+        )
+    }
+#endif
 
 #if DEBUG && os(visionOS)
     private func performMenuSelection(
@@ -767,20 +1602,38 @@ final class TestCommandChannel {
                 message: "showPlaybackIssue requires a category argument."
             )
         }
-        let issue: PlaybackUserVisibleIssue = switch category {
-        case "mediaOpeningFailed": .mediaOpeningFailed
-        case "playbackFailed": .playbackFailed
-        case "playbackControlFailed": .playbackControlFailed
-        case "mediaFormatChangeFailed": .mediaFormatChangeFailed
-        case "presentationConversionFailed": .presentationConversionFailed
-        case "surfaceAttachmentFailed": .surfaceAttachmentFailed
-        case "environmentLoadingFailed": .environmentLoadingFailed
-        case "capabilityUnavailable":
-            .capabilityUnavailable(.videoDecoderUnavailable)
-        default:
-            throw CommandError(
-                message: "showPlaybackIssue does not support category \(category)."
+        let issue: PlaybackUserVisibleIssue
+        if let cause = PlaybackActiveFailure.Cause(rawValue: category) {
+            guard let requestID = playbackRuntime.currentLaunchRequest?.id,
+                  let mediaSessionID = playbackRuntime.activeSessionID else {
+                throw CommandError(
+                    message: "showPlaybackIssue active failures require an active media session."
+                )
+            }
+            issue = .activePlaybackFailure(
+                PlaybackActiveFailure(
+                    cause: cause,
+                    causalPosition: playbackRuntime.playbackPosition,
+                    runtimeGeneration: playbackRuntime.observationGeneration,
+                    requestID: requestID,
+                    mediaSessionID: mediaSessionID
+                )
             )
+        } else {
+            issue = switch category {
+            case "mediaOpeningFailed": .mediaOpeningFailed
+            case "playbackControlFailed": .playbackControlFailed
+            case "mediaFormatChangeFailed": .mediaFormatChangeFailed
+            case "presentationConversionFailed": .presentationConversionFailed
+            case "surfaceAttachmentFailed": .surfaceAttachmentFailed
+            case "environmentLoadingFailed": .environmentLoadingFailed
+            case "capabilityUnavailable":
+                .capabilityUnavailable(.videoDecoderUnavailable)
+            default:
+                throw CommandError(
+                    message: "showPlaybackIssue does not support category \(category)."
+                )
+            }
         }
         playbackRuntime.setUserVisibleIssue(issue)
         SurfaceInputProbes.record(
@@ -989,6 +1842,8 @@ private enum TestCommandChannelBootstrap {
                 mediaLibrary: application.mediaLibraryViewModel,
                 playbackSession: application.playbackSessionModel,
                 playbackRuntime: application.playbackRuntime,
+                playbackLauncher: application.playbackLauncher,
+                settings: application.settingsViewModel,
                 embySession: application.embySessionViewModel
             )
             #if DEBUG
@@ -1006,12 +1861,12 @@ private enum TestCommandChannelBootstrap {
 }
 
 extension EnchronApplication {
-    convenience init() {
-        let environment = ProcessInfo.processInfo.environment
-        self.init(environment: environment)
+    func installTestCommandChannelIfEnabled(environment: [String: String]) {
         TestCommandChannelBootstrap.installIfEnabled(
             environment: environment,
             application: self
         )
     }
 }
+
+#endif

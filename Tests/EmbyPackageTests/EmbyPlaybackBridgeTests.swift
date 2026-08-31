@@ -42,12 +42,18 @@ struct EmbyPlaybackBridgeTests {
     func requestConstruction() async throws {
         let item = movie(id: "movie", resumeTicks: 50_000_000)
         let firstSource = mediaSource(id: "source-1", container: "mp4")
+        let externalStreamIndex = 17
         let selectedSource = mediaSource(
             id: "source-2",
             container: "mkv",
             streams: [
                 mediaStream(index: 3, kind: .subtitle, external: false),
-                mediaStream(index: 4, kind: .subtitle, external: true, deliveryURL: "/subtitle/4")
+                mediaStream(
+                    index: externalStreamIndex,
+                    kind: .subtitle,
+                    external: true,
+                    deliveryURL: "/subtitle/\(externalStreamIndex)"
+                )
             ]
         )
         let client = FakeEmbyClient(
@@ -78,22 +84,68 @@ struct EmbyPlaybackBridgeTests {
         #expect(resumed.source.byteStreamHandle != nil)
         #expect(resumed.url != selectedSource.directPlayURL)
         #expect(resumed.versionedIdentity == selectedSource.versionedIdentity)
+        #expect(resumed.externalSubtitleSources.map(\.id) == [
+            "emby.subtitle.\(externalStreamIndex)"
+        ])
         #expect(resumed.collectionOrigin == .standalone)
-        #expect(resumed.externalSubtitleSources.map(\.id) == ["emby.subtitle.4"])
         #expect(resumed.externalSubtitleSources.map(\.url.host) == ["127.0.0.1"])
         #expect(resumed.externalSubtitleSources.allSatisfy { $0.byteStreamHandle != nil })
+    }
+
+    @Test("prepared playback evidence preserves the requested action, fresh progress, and applied start")
+    func preparedPlaybackEvidence() async throws {
+        let item = movie(id: "movie", resumeTicks: 50_000_000)
+        let source = mediaSource(id: "source", container: "mkv")
+        let client = FakeEmbyClient(
+            items: [item.metadata.id: item],
+            playback: [item.metadata.id: EmbyPlaybackSession(
+                id: EmbyPlaySessionID(rawValue: "play-session"),
+                mediaSources: [source]
+            )]
+        )
+        let observations = Mutex<[EmbyPreparedPlaybackEvidence]>([])
+        let bridge = EmbyPlaybackBridge(client: client)
+        await bridge.configure(
+            server: server,
+            onPreparedPlayback: { observation in
+                observations.withLock { $0.append(observation) }
+            }
+        )
+
+        _ = try await bridge.request(for: EmbyPlaybackSelection(
+            item: item,
+            mediaSourceID: source.id,
+            startAction: .resume
+        ))
+        _ = try await bridge.request(for: EmbyPlaybackSelection(
+            item: item,
+            mediaSourceID: source.id,
+            startAction: .fromBeginning
+        ))
+
+        let recorded = observations.withLock { $0 }
+        #expect(recorded.map(\.requestedAction) == [.resume, .fromBeginning])
+        #expect(recorded.map(\.freshServerProgressTicks) == [50_000_000, 50_000_000])
+        #expect(recorded.map(\.appliedStartTicks) == [50_000_000, 0])
+        #expect(recorded.map(\.itemID) == [item.metadata.id, item.metadata.id])
+        #expect(recorded.map(\.mediaSourceID) == [source.id, source.id])
+        #expect(recorded.map(\.playSessionID.rawValue) == ["play-session", "play-session"])
     }
 
     @Test("the reporter preserves callback order and maps runtime track IDs")
     func orderedReporting() async throws {
         let client = FakeEmbyClient()
+        let acceptedReports = Mutex<[EmbyAcceptedPlaybackReport]>([])
         let reporter = EmbyPlaybackSessionReporter(
             client: client,
             server: server,
             itemID: EmbyItemID(rawValue: "movie"),
             mediaSourceID: EmbyMediaSourceID(rawValue: "source"),
             playSessionID: EmbyPlaySessionID(rawValue: "session"),
-            externalSubtitleStreamIndexBySourceID: ["emby.subtitle.4": 4]
+            externalSubtitleStreamIndexBySourceID: ["emby.subtitle.4": 4],
+            onAcceptedReport: { report in
+                acceptedReports.withLock { $0.append(report) }
+            }
         )
 
         reporter.playbackStarted(PlaybackSessionReport(
@@ -123,6 +175,78 @@ struct EmbyPlaybackBridgeTests {
         #expect(reports[0].report.subtitleStreamIndex == 3)
         #expect(reports[1].report.subtitleStreamIndex == 4)
         #expect(reports[1].report.isPaused)
+        #expect(acceptedReports.withLock { $0.map(\.event) } == [
+            .started,
+            .progress,
+            .stopped
+        ])
+        #expect(acceptedReports.withLock { $0.map(\.serverID) } == [
+            server.id,
+            server.id,
+            server.id
+        ])
+    }
+
+    @Test("rejected reports never become accepted product evidence")
+    func rejectedReportsAreNotEvidence() async {
+        let client = FakeEmbyClient(failingReportEvent: .progress)
+        let acceptedReports = Mutex<[EmbyAcceptedPlaybackReport]>([])
+        let reporter = EmbyPlaybackSessionReporter(
+            client: client,
+            server: server,
+            itemID: EmbyItemID(rawValue: "movie"),
+            mediaSourceID: EmbyMediaSourceID(rawValue: "source"),
+            playSessionID: EmbyPlaySessionID(rawValue: "session"),
+            onAcceptedReport: { report in
+                acceptedReports.withLock { $0.append(report) }
+            }
+        )
+
+        reporter.playbackProgressed(PlaybackSessionReport(
+            positionSeconds: 2,
+            isPaused: false,
+            selectedAudioTrackID: nil,
+            selectedSubtitleTrackID: nil
+        ))
+        await reporter.waitForPendingReports()
+
+        #expect(client.reports.isEmpty)
+        #expect(acceptedReports.withLock { $0 }.isEmpty)
+    }
+
+    @Test("accepted playback evidence retains the ordered report positions")
+    func acceptedReportSequence() {
+        let itemID = EmbyItemID(rawValue: "movie")
+        let sourceID = EmbyMediaSourceID(rawValue: "source")
+        let sessionID = EmbyPlaySessionID(rawValue: "session")
+        func report(
+            _ event: EmbyAcceptedPlaybackReport.Event,
+            _ position: Int64
+        ) -> EmbyAcceptedPlaybackReport {
+            EmbyAcceptedPlaybackReport(
+                event: event,
+                serverID: server.id,
+                userID: server.userID,
+                itemID: itemID,
+                mediaSourceID: sourceID,
+                playSessionID: sessionID,
+                positionTicks: position
+            )
+        }
+
+        var evidence = EmbyPlaybackEvidence(report: report(.started, 10_000_000))
+        evidence.record(report(.progress, 20_000_000))
+        evidence.record(report(.stopped, 30_000_000))
+
+        #expect(evidence.acceptedReports.map(\.event) == [.started, .progress, .stopped])
+        #expect(evidence.acceptedReports.map(\.positionTicks) == [
+            10_000_000,
+            20_000_000,
+            30_000_000
+        ])
+        #expect(evidence.latestPositionTicks == 30_000_000)
+        #expect(evidence.totalAcceptedReportCount == 3)
+        #expect(evidence.acceptedReportsWereTruncated == false)
     }
 
     @Test("the UUID queue stays inside one season")
@@ -178,14 +302,17 @@ private struct FakeReport: Equatable, Sendable {
 private final class FakeEmbyClient: EmbyClientProtocol, @unchecked Sendable {
     private let itemsByID: [EmbyItemID: EmbyLibraryItem]
     private let playbackByID: [EmbyItemID: EmbyPlaybackSession]
+    private let failingReportEvent: FakeReportEvent?
     private let recordedReports = Mutex<[FakeReport]>([])
 
     init(
         items: [EmbyItemID: EmbyLibraryItem] = [:],
-        playback: [EmbyItemID: EmbyPlaybackSession] = [:]
+        playback: [EmbyItemID: EmbyPlaybackSession] = [:],
+        failingReportEvent: FakeReportEvent? = nil
     ) {
         itemsByID = items
         playbackByID = playback
+        self.failingReportEvent = failingReportEvent
     }
 
     var reports: [FakeReport] { recordedReports.withLock { $0 } }
@@ -238,14 +365,17 @@ private final class FakeEmbyClient: EmbyClientProtocol, @unchecked Sendable {
     }
 
     func sendPlayingStarted(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+        if failingReportEvent == .started { throw FakeEmbyError.unexpected }
         recordedReports.withLock { $0.append(FakeReport(event: .started, report: report)) }
     }
 
     func sendProgress(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+        if failingReportEvent == .progress { throw FakeEmbyError.unexpected }
         recordedReports.withLock { $0.append(FakeReport(event: .progress, report: report)) }
     }
 
     func sendStopped(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+        if failingReportEvent == .stopped { throw FakeEmbyError.unexpected }
         recordedReports.withLock { $0.append(FakeReport(event: .stopped, report: report)) }
     }
 }

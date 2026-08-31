@@ -1,0 +1,20 @@
+---
+{
+  "schema": "enchron.regression.rubric",
+  "schemaVersion": 1,
+  "id": "rubric:projection-and-stereo.apple-immersive-projection.o01@1",
+  "title": "Apple Immersive Projection",
+  "criteria": [
+    "The media is opened without a later format.apply or seek, presentation.enter-panorama requests deadlineSeconds 45, the panorama-resident probe is read by exactly one accessibility.inspect@2 of PlayerUI-spatial-state with context panorama, summonControls true, requireMatchedElement true and deadlineSeconds 20, and the bound producer requests exactly context panorama, count 3, minimumIntervalMillis 1000, and relatedResults naming that inspect's matchedElement and response in that order.",
+    "The producer returns exactly three indexed frames; every playbackState is available, presentationObservation is expected and observed panorama, each record has a content-bound screenshot attachment, and adjacent capture times differ by at least 1000 ms.",
+    "relatedResults[0] is the PlayerUI-spatial-state matchedElement read in settled panorama, and its semicolon-separated value establishes the source declaration and the delivered graph: sourceFormatProvenance and formatProvenance name the source rather than a user override; providerProjectionKind, sampleProjectionKind and rendererProjectionKind carry the same Apple Immersive projection signal with effectiveContentIsPanoramic true and sourceContentKind naming immersive content; stereoLayout and rendererViewPackingKind carry multiview stereo; mvHEVC and rendererInputIsMultiview are true; providerCodecTag is hvc1 and providerCodecConfiguration lists both hvcC and lhvC; sampleHasLhvC and rendererHasLhvC are true. In every frame playbackState.fields independently repeats providerProjectionKind, sampleProjectionKind, rendererProjectionKind, rendererViewPackingKind and sourceFormatProvenance with the same values; a disagreement between the two channels is Indeterminate, not Satisfied.",
+    "Across all three frames session and streamEpoch are non-none and unchanged, presentation is panorama, error is none, and no screenshot is blank, pure-colour or undecodable. Frame 0 additionally reports lifecycle Playing with displayedPixel true and nonblank Beach imagery, and at least one later frame has a screenshotDigest differing from frame 0's. Liveness is not demanded of frames 1 and 2: internal-apple-immersive-video-beach-v1 runs 29.355729 s (Tests/Fixtures/fixture-registry.json) and it is the only fixture in the corpus whose projection is appleImmersiveVideo with AIME signalling, while the route from the call 05 Playing observation to the last frame costs enter-panorama's tap and tapSequence at device medians 4.30 s and 7.59 s, the settled panorama probe, and four PlayerUI-playback-state snapshots at a 3.91 s median (Scripts/verification/controller_timings.json), which leaves under two seconds of margin. With the default endBehavior .stop a correct product can therefore reach end of media inside the capture, and the sibling stereo-view-separation case was moved onto a longer fixture instead precisely because one existed there. relatedResults[0] reports the same session and streamEpoch and, for the settled panorama geometry, actualViewingMode stereo and actualImmersiveMode progressive with a displayed pixel buffer."
+  ],
+  "negativeControls": [
+    "A user format override or seek, short capture interval, non-Apple projection signal, packed stereo, missing lhvC or multiview facts, mono geometry, changed session or epoch, zero displayed pixels, an active issue, or a blank, pure-colour or undecodable screenshot at any index, or three identical screenshots, fails or makes the claim indeterminate according to the missing evidence. An absent PlayerUI-spatial-state matchedElement, a window control-plane reading substituted for the panorama probe, or a probe captured outside settled panorama is Indeterminate."
+  ]
+}
+---
+# Apple Immersive Projection
+
+The Oracle evaluates only the bound case artifact and returns a structured result for every criterion and negative control.

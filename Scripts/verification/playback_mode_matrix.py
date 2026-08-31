@@ -455,20 +455,36 @@ def read_control_plane(
     return parse_control_plane(document), document
 
 
-def copy_probe_lines(cell_directory: Path) -> tuple[list[str] | None, str | None]:
+def copy_probe_lines(
+    cell_directory: Path,
+    *,
+    target: str = DEVICE,
+    core_device_identifier: str = CORE_DEVICE,
+) -> tuple[list[str] | None, str | None]:
     # The probe copy races the app appending to the same file; one retry
     # keeps a passed step from being downgraded over a transient transfer.
-    lines, error = copy_probe_lines_once(cell_directory)
+    lines, error = copy_probe_lines_once(
+        cell_directory,
+        target=target,
+        core_device_identifier=core_device_identifier,
+    )
     # A timeout means the container link is congested, and a second copy only
     # doubles the poll's cost while the caller's settle deadline runs down.
     if lines is None and "exceeded" not in (error or ""):
         time.sleep(1.5)
-        lines, error = copy_probe_lines_once(cell_directory)
+        lines, error = copy_probe_lines_once(
+            cell_directory,
+            target=target,
+            core_device_identifier=core_device_identifier,
+        )
     return lines, error
 
 
 def copy_probe_lines_once(
     cell_directory: Path,
+    *,
+    target: str = DEVICE,
+    core_device_identifier: str = CORE_DEVICE,
 ) -> tuple[list[str] | None, str | None]:
     destination = cell_directory / f".probe-{uuid.uuid4()}.log"
     environment = {
@@ -476,8 +492,9 @@ def copy_probe_lines_once(
         "PATH": "/usr/bin:/bin",
     }
     try:
-        if enchron_target.is_simulator(DEVICE):
+        if enchron_target.is_simulator(target):
             completed = enchron_target.copy_from_container(
+                target=target,
                 bundle_id=BUNDLE,
                 source=PROBE_REMOTE_PATH,
                 destination=destination,
@@ -492,7 +509,7 @@ def copy_probe_lines_once(
                     "copy",
                     "from",
                     "--device",
-                    CORE_DEVICE,
+                    core_device_identifier,
                     "--domain-type",
                     "appDataContainer",
                     "--domain-identifier",

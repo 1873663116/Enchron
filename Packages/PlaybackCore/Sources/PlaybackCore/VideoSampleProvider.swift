@@ -161,6 +161,11 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
             }
         }
         guard opened else {
+            if PBFFmpegReaderOpenFailedWithUnsupportedVideoCodec(reader.pointer) {
+                throw PlaybackControlError.unsupportedVideoCodec(
+                    codecName: String(cString: PBFFmpegReaderGetCodecName(reader.pointer))
+                )
+            }
             throw PlaybackProviderError.ffmpeg(ffmpegErrorMessage(error))
         }
         let configurationAtoms = [
@@ -242,7 +247,11 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
         case PBFFmpegReadResultCancelled:
             return .cancelled
         default:
-            throw PlaybackProviderError.ffmpeg(ffmpegErrorMessage(error))
+            let message = ffmpegErrorMessage(error)
+            throw PlaybackProviderError(
+                bridgeCause: PBFFmpegReaderGetLastActiveFailureCause(reader.pointer),
+                message: message
+            ) ?? PlaybackProviderError.ffmpeg(message)
         }
     }
 
@@ -436,18 +445,15 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                         throw CancellationError()
                     }
                 } else {
+                    if appleImmersiveClassificationFormat != nil {
+                        throw PlaybackProviderError.appleImmersivePayloadMismatch
+                    }
                     guard readerLock.withLock({
                         guard generation == operationGeneration else { return false }
                         storedInfo = Self.infoByClassifyingDeliveredDescription(
                             storedInfo,
                             format: bridgeFormat
                         )
-                        if let appleImmersiveClassificationFormat {
-                            storedInfo = Self.infoByAddingAppleImmersiveSourceClassification(
-                                storedInfo,
-                                sourceFormat: appleImmersiveClassificationFormat
-                            )
-                        }
                         return true
                     }) else {
                         throw CancellationError()
@@ -760,6 +766,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                 extensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String]
             ),
             hvcC: atoms["hvcC"]?.isEmpty == false ? .init(known: true) : .init(.none),
+            lhvC: atoms["lhvC"]?.isEmpty == false ? .init(known: true) : .init(.none),
             dvcC: atoms["dvcC"]?.isEmpty == false ? .init(known: true) : .init(.none),
             dvvC: atoms["dvvC"]?.isEmpty == false ? .init(known: true) : .init(.none)
         )
@@ -773,27 +780,6 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         var updated = info
         let atoms = decoderConfigurationAtoms(in: format)
         updated.isMVHEVC = atoms["lhvC"]?.isEmpty == false
-        return updated
-    }
-
-    private static func infoByAddingAppleImmersiveSourceClassification(
-        _ info: VideoSampleProviderInfo,
-        sourceFormat: CMFormatDescription
-    ) -> VideoSampleProviderInfo {
-        var updated = info
-        let extensions = CMFormatDescriptionGetExtensions(sourceFormat) as? [String: Any] ?? [:]
-        updated.formatSignaling.projectionKind = stringFact(
-            extensions[kCMFormatDescriptionExtension_ProjectionKind as String]
-        )
-        updated.formatSignaling.viewPackingKind = stringFact(
-            extensions[kCMFormatDescriptionExtension_ViewPackingKind as String]
-        )
-        updated.formatSignaling.hasLeftStereoEyeView = boolFact(
-            extensions[kCMFormatDescriptionExtension_HasLeftStereoEyeView as String]
-        )
-        updated.formatSignaling.hasRightStereoEyeView = boolFact(
-            extensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String]
-        )
         return updated
     }
 
@@ -818,6 +804,28 @@ enum PlaybackProviderError: LocalizedError {
     case readerDidNotStart
     case readerFailed(String)
     case ffmpeg(String)
+    case appleImmersivePayloadMismatch
+    case activeFailure(PlaybackCoreActiveFailureCause, String)
+
+    init?(bridgeCause: PBFFmpegActiveFailureCause, message: String) {
+        switch bridgeCause {
+        case PBFFmpegActiveFailureCauseConnectionInterrupted:
+            self = .activeFailure(.connectionInterrupted, message)
+        case PBFFmpegActiveFailureCauseSourceFileMissing:
+            self = .activeFailure(.sourceFileMissing, message)
+        case PBFFmpegActiveFailureCauseSourceAccessDenied:
+            self = .activeFailure(.sourceAccessDenied, message)
+        case PBFFmpegActiveFailureCauseMediaDataCorrupt:
+            self = .activeFailure(.mediaDataCorrupt, message)
+        default:
+            return nil
+        }
+    }
+
+    var activeFailureCause: PlaybackCoreActiveFailureCause? {
+        guard case .activeFailure(let cause, _) = self else { return nil }
+        return cause
+    }
 
     var errorDescription: String? {
         switch self {
@@ -825,6 +833,9 @@ enum PlaybackProviderError: LocalizedError {
         case .readerDidNotStart: "AVAssetReader could not start reading."
         case .readerFailed(let message): "AVAssetReader failed: \(message)"
         case .ffmpeg(let message): "FFmpeg: \(message)"
+        case .appleImmersivePayloadMismatch:
+            "Apple Immersive Video payload metadata could not be preserved."
+        case .activeFailure(_, let message): "FFmpeg: \(message)"
         }
     }
 }

@@ -201,6 +201,7 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var audioRendererState: AudioRendererStateRecord?
     public var activationReapplyVerification: PlaybackActivationReapplyVerificationRecord?
     public var timelineProgressRecovery: PlaybackTimelineProgressRecoveryRecord?
+    public var deliveryContinuity: PlaybackDeliveryContinuityObservation?
     public var timelineControlState: PlaybackTimelineControlStateRecord?
     public var cleanupState: PlaybackCleanupStateRecord?
     public var realityKitBinding: RealityKitBindingRecord?
@@ -472,6 +473,14 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         currentSnapshot.timelineProgressRecovery = record
+    }
+
+    public func recordDeliveryContinuity(
+        _ observation: PlaybackDeliveryContinuityObservation
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        currentSnapshot.deliveryContinuity = observation
     }
 
     func recordTimelineControlState(_ refreshedState: PlaybackTimelineControlStateRecord) {

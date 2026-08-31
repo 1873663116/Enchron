@@ -42,6 +42,226 @@
           "playback-issue-write-outside-owner"
         ]
       }
+    },
+    {
+      "id": "regression-core-layering-rejects-verification-import",
+      "guard": "Scripts/rules/verify_regression_core_layering.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/regression/core/errors.py",
+        "find": "from __future__ import annotations\n\n",
+        "replaceWith": "from __future__ import annotations\n\nimport Scripts.verification\n\n",
+        "introduces": "import Scripts.verification"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "core/errors.py:3",
+          "[forbidden-core-import]"
+        ]
+      }
+    },
+    {
+      "id": "product-source-comments-rejects-line-comment",
+      "guard": "Scripts/rules/verify_product_source_comments.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/View+Platform.swift",
+        "find": "import SwiftUI\n\n",
+        "replaceWith": "import SwiftUI\n\n// forbidden guard self-test comment\n",
+        "introduces": "// forbidden guard self-test comment"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "Modules/DesignSystem/View+Platform.swift:3:1",
+          "product source comment // is forbidden"
+        ]
+      }
+    },
+    {
+      "id": "media-byte-stream-foundation-rejects-missing-range-protocol",
+      "guard": "Scripts/rules/verify_media_byte_stream_foundation.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaSource/MediaByteStream.swift",
+        "find": "public protocol MediaByteRangeSource",
+        "replaceWith": "public protocol RenamedAwayByTheSelfTest"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "byte-range source protocol is missing"
+        ]
+      }
+    },
+    {
+      "id": "media-byte-stream-rejects-missing-app-singleton",
+      "guard": "Scripts/rules/verify_media_byte_stream.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaSource/MediaByteStream.swift",
+        "find": "static let shared = MediaByteStreamServer()",
+        "replaceWith": "static let instance = MediaByteStreamServer()"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "M2: App singleton is missing"
+        ]
+      }
+    },
+    {
+      "id": "demux-buffer-policy-rejects-drifted-cache-defaults",
+      "guard": "Scripts/rules/verify_demux_buffer_policy.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+        "find": "150LL * 1024 * 1024",
+        "replaceWith": "200LL * 1024 * 1024"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "mpv demux_conf byte and cache-duration defaults drifted"
+        ]
+      }
+    },
+    {
+      "id": "core-regression-plan-rejects-a-test-that-does-not-exist",
+      "guard": "Scripts/rules/verify_visionpro_core_regression_plan.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "VisionProCoreRegression.xctestplan",
+        "find": "SmokeLaunchUITests/testAppLaunchesToInteractiveMainWindow()",
+        "replaceWith": "SmokeLaunchUITests/testThisMethodWasDeleted()"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "selected tests without XCTest declarations"
+        ]
+      }
+    },
+    {
+      "id": "format-description-ownership-rejects-a-second-exported-declaration",
+      "guard": "Scripts/rules/verify_format_description_ownership.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+        "find": "OSStatus PBFFmpegVideoFormatDescriptionCreate(",
+        "replaceWith": "OSStatus PBFFmpegVideoFormatDescriptionCreate(void);\nOSStatus PBFFmpegVideoFormatDescriptionCreate(",
+        "introduces": "OSStatus PBFFmpegVideoFormatDescriptionCreate(void);"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must have exactly one exported declaration"
+        ]
+      }
+    },
+    {
+      "id": "glass-usage-rejects-raw-glass-outside-its-owner",
+      "guard": "Scripts/rules/verify_glass_usage.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Views/PlaybackPanel.swift",
+        "find": ".enchronGlassBackground(in: shape)",
+        "replaceWith": ".glassBackgroundEffect()",
+        "introduces": ".glassBackgroundEffect()"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "raw-glass-outside-owner"
+        ]
+      }
+    },
+    {
+      "id": "scripts-inventory-rejects-a-missing-structure-check-table",
+      "guard": "Scripts/rules/verify_scripts_inventory.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/rules/run_verification.py",
+        "find": "STRUCTURE_CHECKS = (",
+        "replaceWith": "STRUCTURE_CHECK_TABLE = ("
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "no STRUCTURE_CHECKS table"
+        ]
+      }
+    },
+    {
+      "id": "swiftlint-rejects-a-force-unwrap-outside-the-baseline",
+      "guard": "Scripts/rules/verify_swiftlint.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/View+Platform.swift",
+        "find": "import SwiftUI",
+        "replaceWith": "import SwiftUI\n\nprivate let guardSelfTestForcedUnwrap = Optional(1)!",
+        "introduces": "private let guardSelfTestForcedUnwrap = Optional(1)!"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "outside the baseline"
+        ]
+      }
+    },
+    {
+      "id": "hover-region-clipping-rejects-a-hit-target-larger-than-its-hover-shape",
+      "guard": "Scripts/rules/check_hover_region_clipping.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/SettingsComponents.swift",
+        "find": ".frame(width: cardWidth)",
+        "replaceWith": ".frame(width: DesignTokens.Interactive.large)",
+        "occurrences": 2,
+        "introduces": ".frame(width: DesignTokens.Interactive.large)"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "Confirmed violations: 1",
+          "enlarged interaction target without a post-expansion inset hover shape"
+        ]
+      }
+    }
+  ],
+  "externalSubject": [
+    {
+      "check": "check_disc_image_format.py",
+      "reason": "判定对象是 TestMedia 里的真实碟片镜像，坏样本要改的是那个媒体文件，不是仓库文本。"
+    },
+    {
+      "check": "check_dolby_vision_premises.py",
+      "reason": "判定对象是 TestMedia 媒体经 ffprobe 得到的实测流参数，仓库里没有可变异的来源。"
+    },
+    {
+      "check": "check_interactive_halt_wake.py",
+      "reason": "判定对象是真机经 devicectl 的暂停与唤醒行为，坏样本需要一台行为异常的设备。"
+    },
+    {
+      "check": "check_recording_extractor.py",
+      "reason": "判定对象是录制文件经 ffprobe 的解析结果，仓库里没有可变异的来源。"
+    },
+    {
+      "check": "check_vision_test_suite_coverage.py",
+      "reason": "判定对象是 xcodebuild 的测试枚举行为，它自带 fixture 与 trap，坏样本需要另一个版本的 xcodebuild。"
+    },
+    {
+      "check": "check_xcodebuild_test_selection.py",
+      "reason": "判定对象是 xcodebuild 的 -only-testing 选择行为，坏样本需要另一个版本的 xcodebuild。"
+    },
+    {
+      "check": "verify_media_byte_stream_conformance.py",
+      "reason": "判定对象是一个独立 Swift 测试包的运行结果，变异要经过编译，属于 W1 而非结构检查。"
+    },
+    {
+      "check": "verify_organic_architecture_xcode.sh",
+      "reason": "判定对象是 Xcode 产品构建能否通过，坏样本就是一次构建失败，属于 W1 而非结构检查。"
     }
   ]
 }

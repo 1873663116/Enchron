@@ -98,6 +98,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var destinationBufferHasMasteringDisplayMetadata = false
     public var destinationBufferHasContentLightLevelMetadata = false
     public var formatHasHvcC = false
+    public var formatHasLhvC = false
     public var dolbyVisionProfile = 0
     public var dolbyVisionCrossCompatibilityID = 0
     public var dolbyVisionHasEnhancementLayer = false
@@ -153,7 +154,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         hdrMetadata.trackFormat: masteringDisplay=\(trackFormatHasMasteringDisplayMetadata), contentLightLevel=\(trackFormatHasContentLightLevelMetadata)
         hdrMetadata.sourceFormat: masteringDisplay=\(sourceFormatHasMasteringDisplayMetadata), contentLightLevel=\(sourceFormatHasContentLightLevelMetadata)
         hdrMetadata.destinationBuffer: masteringDisplay=\(destinationBufferHasMasteringDisplayMetadata), contentLightLevel=\(destinationBufferHasContentLightLevelMetadata)
-        compressedFormat: hvcC=\(formatHasHvcC), dvcC=\(formatHasDvcC), dvvC=\(formatHasDvvC), amve=\(formatHasAmbientViewingEnvironment)
+        compressedFormat: hvcC=\(formatHasHvcC), lhvC=\(formatHasLhvC), dvcC=\(formatHasDvcC), dvvC=\(formatHasDvvC), amve=\(formatHasAmbientViewingEnvironment)
         renderer: status=\(rendererStatus), error=\(rendererError)
         rendererInputIsMultiview: \(rendererInputIsMultiview.map(String.init) ?? "notObserved")
         audioRetired: \(audioRetired), reason=\(audioRetirementReason ?? "none")
