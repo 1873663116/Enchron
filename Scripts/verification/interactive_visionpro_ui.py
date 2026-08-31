@@ -78,6 +78,12 @@ def record_timing(action: str, seconds: float, *, device: str) -> None:
     transport ran most recently define the expected duration of the other."""
     if is_simulator(device):
         action = f"simulator:{action}"
+    if os.environ.get("ENCHRON_EXECUTION_INPUT"):
+        # A frozen run binds the source tree by digest, and this file is tracked,
+        # so appending a sample here makes the first command invalidate the
+        # freeze it is running under. The committed window stays the authority
+        # rubrics cite; a run that must not move it records nothing.
+        return
     try:
         timings = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

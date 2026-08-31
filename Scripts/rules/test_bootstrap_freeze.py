@@ -462,3 +462,39 @@ class BootstrapRejectionTests(unittest.TestCase):
         after = source[source.index(marker):source.index(marker) + 400]
         self.assertIn("CompletionError", after)
         self.assertIn("bootstrap", after)
+
+
+class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
+    """A frozen run binds the source tree by digest, and controller_timings.json
+    is tracked, so a sample appended by the first command invalidates the freeze
+    that command is running under. The matrix reported drive-error on
+    ensure-session for exactly this reason.
+    """
+
+    def record(self, **environment):
+        root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(root / "Scripts/verification"))
+        import interactive_visionpro_ui as controller
+        before = controller.TIMINGS_PATH.read_bytes()
+        with mock.patch.dict(os.environ, environment, clear=False):
+            controller.record_timing("probe-action", 1.25, device="00008142-0001")
+        after = controller.TIMINGS_PATH.read_bytes()
+        return before, after
+
+    def test_a_frozen_run_writes_no_sample(self) -> None:
+        before, after = self.record(ENCHRON_EXECUTION_INPUT="/tmp/execution-input.json")
+        self.assertEqual(before, after)
+
+    def test_an_unfrozen_run_still_records(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(root / "Scripts/verification"))
+        import interactive_visionpro_ui as controller
+        original = controller.TIMINGS_PATH.read_bytes()
+        try:
+            environment = {k: v for k, v in os.environ.items()
+                           if k != "ENCHRON_EXECUTION_INPUT"}
+            with mock.patch.dict(os.environ, environment, clear=True):
+                controller.record_timing("probe-action", 1.25, device="00008142-0001")
+            self.assertIn(b"probe-action", controller.TIMINGS_PATH.read_bytes())
+        finally:
+            controller.TIMINGS_PATH.write_bytes(original)
