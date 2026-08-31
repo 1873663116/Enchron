@@ -195,6 +195,7 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = [{"evidence": "raw/menu.json"}]
         run.show_controls = Mock()
+        run.await_controls = Mock(return_value=True)
         run.wait_for_identifier = Mock(return_value={})
         run.copy_probe = Mock(return_value=[])
         run.select_debug_menu_item = Mock(
@@ -222,6 +223,7 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
         }
         run.events = [{"evidence": "raw/menu.json"}]
         run.show_controls = Mock()
+        run.await_controls = Mock(return_value=True)
         run.wait_for_identifier = Mock(return_value={})
         run.copy_probe = Mock(return_value=[])
         run.select_debug_menu_item = Mock(
@@ -1373,6 +1375,29 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertEqual(run.direct_devicectl_calls, len(matrix.TRANSFER_ATTEMPTS))
+
+    def test_a_summon_waits_for_the_panel_to_reach_the_hierarchy(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        absent = {"success": True, "hierarchy": "identifier: 'PlayerUI-play'"}
+        present = {
+            "success": True,
+            "hierarchy": "identifier: 'PlayerPanel-controls'",
+        }
+        run.controller = Mock(side_effect=[absent, present])
+
+        self.assertTrue(run.await_controls())
+        self.assertEqual(run.controller.call_count, 2)
+
+    def test_a_summon_that_never_arrives_is_reported(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.controller = Mock(return_value={
+            "success": True, "hierarchy": "identifier: 'PlayerUI-play'",
+        })
+
+        self.assertFalse(run.await_controls())
+        self.assertEqual(
+            run.controller.call_count, matrix.ReachabilityRun.CONTROLS_VISIBLE_SAMPLES
+        )
 
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)

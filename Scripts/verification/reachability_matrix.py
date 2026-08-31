@@ -2402,6 +2402,30 @@ class ReachabilityRun:
         })
         return removal.returncode == 0
 
+    CONTROLS_VISIBLE_SAMPLES = 3
+    """Hierarchy samples allowed before a summon is called unanswered."""
+
+    def await_controls(self, identifier: str = "PlayerPanel-controls") -> bool:
+        """Wait until the summoned panel is actually in the hierarchy.
+
+        toggleControls flips a flag and answers ok in the same breath; SwiftUI
+        mounts the panel a frame or more later. In a segment every app command
+        is deferred, so the menu request that follows goes out before the panel
+        exists and the app answers it, much later, with "No visible playerPanel
+        host accepted". That answer only surfaces in the replay, far too late to
+        retry, and it was the whole reason the docked and panorama segments
+        could not be accepted.
+
+        The hierarchy is a fact available synchronously even in a segment, so
+        the summon waits on it. Counted in samples for the same reason the rest
+        of this file counts them: how long a frame takes is not knowable here.
+        """
+        for _ in range(self.CONTROLS_VISIBLE_SAMPLES):
+            document = self.controller("snapshot", "--no-screenshot")
+            if identifier in self.hierarchy_identifiers(document):
+                return True
+        return False
+
     def show_controls(self, presentation: str | None = None) -> dict[str, Any]:
         result = self.app_command("toggleControls", visible="true")
         if result.get("success") is not True and "file node" in str(
@@ -5243,6 +5267,7 @@ class ReachabilityRun:
         for family, operation_id, preferred in family_operations:
             if not opens_system_menu:
                 self.show_controls()
+                self.await_controls()
             item_offset = len(probe)
             target, _, selected = self.select_debug_menu_item(
                 presentation=presentation,
