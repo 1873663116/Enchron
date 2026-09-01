@@ -90,11 +90,12 @@ class HarnessPrimitivesGateTests(unittest.TestCase):
         found = checker.failures()
         self.assertTrue(any("harness_user.py" in line for line in found))
 
-    def test_allowlist_object_form_is_respected(self) -> None:
+    def test_allowlist_object_form_is_rejected(self) -> None:
         self.write("Scripts/verification/needs_allow2.py", "import subprocess\n")
         path = self.repository / "Config/harness_primitives_allowlist.json"
         path.write_text(json.dumps({"allowlist": ["Scripts/verification/needs_allow2.py"]}), encoding="utf-8")
-        self.assertEqual(checker.failures(), [])
+        with self.assertRaises(AssertionError):
+            checker.failures()
 
     def test_clean_file_with_allowlist_still_passes(self) -> None:
         self.write("Scripts/verification/clean3.py", "x = 1\n")
