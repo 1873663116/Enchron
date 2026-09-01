@@ -1076,6 +1076,16 @@
       "context": "docked",
       "operation": "accessibility:PlayerPanel-media-information",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CleartextExposure-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CleartextExposure-proceed",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

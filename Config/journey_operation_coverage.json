@@ -416,6 +416,22 @@
     },
     {
       "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CleartextExposure-cancel",
+      "unit": "source.cleartext-refused",
+      "step": 4,
+      "drive": "real",
+      "expect": "No request is sent and no source is added."
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CleartextExposure-proceed",
+      "unit": "source.cleartext-proceed",
+      "step": 5,
+      "drive": "real",
+      "expect": "The prompt closes and the connection is attempted."
+    },
+    {
+      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
       "unit": "files.chrome",
       "step": 7,

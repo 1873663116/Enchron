@@ -1,6 +1,6 @@
 $(SRCROOT)/Apps/Enchron/AppModalPresentationCoordinator.swift
 $(SRCROOT)/Apps/Enchron/AppModel.swift
-$(SRCROOT)/Apps/Enchron/CertificateTrustPrompt.swift
+$(SRCROOT)/Apps/Enchron/ConnectionSecurityPrompt.swift
 $(SRCROOT)/Apps/Enchron/EnchronApp.swift
 $(SRCROOT)/Apps/Enchron/EnchronApplication.swift
 $(SRCROOT)/Apps/Enchron/MainView.swift
@@ -69,6 +69,7 @@ $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
 $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
 $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
+$(SRCROOT)/Modules/MediaSource/RemoteAddressScope.swift
 $(SRCROOT)/Modules/MediaSource/RemoteConnectionFailureDiagnoser.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedMediaSource.swift

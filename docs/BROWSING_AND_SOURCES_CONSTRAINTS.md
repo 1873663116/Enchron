@@ -36,6 +36,13 @@
 - **换季时旧集留在屏幕上**，新的一季在后面加载。先清空会让那一行塌陷，把它下面的一切上移再下移。行的身份跟随**屏幕上真实的集**而不是菜单选中的季，淡入因此发生在新集到达时。
 - **多列信息用网格而不是行**。各列长度不同，网格让每一列都从同一条左边缘与同一条基线开始，不论页面放得下几列。
 
+## 明文 HTTP 与 App Transport Security
+
+- **iOS 17 一代起，ATS 默认拒绝一切以 IP 地址为主机的明文加载**。自建 Emby 与 WebDAV 正是这种地址：佩戴者输入一串数字，没有域名，也没有为任何名字签发的证书。`Config/Enchron-Info.plist` 因此设 `NSAllowsArbitraryLoads`，这是唯一能覆盖无法预先枚举的地址的键。
+- **`NSAllowsLocalNetworking` 只豁免回环、RFC 1918 与链路本地地址**。100.64.0.0/10（Tailscale 等 CGNAT）与任何公网 IP 都不在其中，它们会以 `NSURLErrorDomain -1022` 被拒。
+- **`NSAllowsArbitraryLoads` 在被 `NSAllowsLocalNetworking`、`NSAllowsArbitraryLoadsInWebContent` 或 `NSAllowsArbitraryLoadsForMedia` 中任意一个同时声明时被系统忽略**，取默认值 NO。三者并存的 plist 读起来是放行的，实际拦截每一个可路由地址，既无编译警告也无运行日志。[`Scripts/rules/check_ats_cleartext_policy.py`](../Scripts/rules/check_ats_cleartext_policy.py) 断言这一点。
+- **ATS 的拒绝不描述服务器**。`-1022` 说明的是本 App 的传输策略，不是对端要求 HTTPS；把它当作“请改用 https://”的依据，会把佩戴者指向一个只讲明文的端口。`RemoteConnectionFailureDiagnoser` 因此只凭 TLS 握手探测下判断。
+
 ## 文件浏览的导航栈
 
 - **栈里存的是逻辑查询键，不是显示路径**。本地根必须与加载器在空栈时首次列出用的那个逻辑根一致；在这里播下绝对路径，会让 `navigateUp` / `navigateForward` / 面包屑回根去查询一个来源不认识的键，返回一个空的根。

@@ -3,21 +3,24 @@ import MediaSource
 import XCTest
 
 nonisolated final class RemoteConnectionFailureDiagnoserTests: XCTestCase {
-    func testATSBlockRequiresHTTPSWithoutAProbe() async throws {
-        let recorder = TLSProbeRecorder(result: true)
+    func testTheAppsOwnTransportRefusalIsAnsweredByTheProbeNotByTheErrorCode() async throws {
+        let recorder = TLSProbeRecorder(result: false)
         let diagnoser = MediaSource.RemoteConnectionFailureDiagnoser { endpoint in
             await recorder.probe(endpoint)
         }
-        let url = try XCTUnwrap(URL(string: "http://media.example.com:8096"))
+        let url = try XCTUnwrap(URL(string: "http://100.108.103.46:8096"))
 
         let diagnosis = await diagnoser.diagnose(
             URLError(.appTransportSecurityRequiresSecureConnection),
             attemptedURL: url
         )
 
-        XCTAssertEqual(diagnosis, .requiresHTTPS)
+        XCTAssertEqual(diagnosis, .unclassified)
         let probedEndpoints = await recorder.endpoints
-        XCTAssertEqual(probedEndpoints, [])
+        XCTAssertEqual(
+            probedEndpoints,
+            [MediaSource.RemoteConnectionEndpoint(host: "100.108.103.46", port: 8_096)]
+        )
         XCTAssertEqual(
             MediaSource.RemoteConnectionError.requiresHTTPS.localizedDescription,
             "该地址需要使用 HTTPS。请在服务器地址前添加 https:// 后重试。"

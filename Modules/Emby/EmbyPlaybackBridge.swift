@@ -148,7 +148,6 @@ public actor EmbyPlaybackBridge {
     }
 
     private let client: any EmbyClientProtocol
-    private let mediaByteSession: URLSession
     private var server: EmbyAuthenticatedServer?
     private var onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
     private var queue: [QueuedEpisode] = []
@@ -157,18 +156,15 @@ public actor EmbyPlaybackBridge {
     public init(
         client: any EmbyClientProtocol,
         server: EmbyAuthenticatedServer?,
-        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
-        mediaByteSession: URLSession = .shared
+        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil
     ) {
         self.client = client
-        self.mediaByteSession = mediaByteSession
         self.server = server
         self.onUnauthorized = onUnauthorized
     }
 
     public init(client: any EmbyClientProtocol) {
         self.client = client
-        mediaByteSession = .shared
         server = nil
         onUnauthorized = nil
     }
@@ -304,8 +300,7 @@ public actor EmbyPlaybackBridge {
         let byteSource = EmbyMediaByteSource(
             streamURL: source.directPlayURL,
             accessToken: server.accessToken,
-            contentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,
-            session: mediaByteSession
+            contentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes
         )
         let byteStreamHandle = try await MediaByteStreamServer.shared.register(
             source: byteSource,

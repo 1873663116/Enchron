@@ -192,6 +192,22 @@
           "enlarged interaction target without a post-expansion inset hover shape"
         ]
       }
+    },
+    {
+      "id": "ats-cleartext-policy-rejects-an-overruled-arbitrary-loads-key",
+      "guard": "Scripts/rules/check_ats_cleartext_policy.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Config/Enchron-Info.plist",
+        "find": "<key>NSAllowsArbitraryLoads</key>",
+        "replaceWith": "<key>NSAllowsLocalNetworking</key>"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "NSAllowsLocalNetworking makes the system ignore NSAllowsArbitraryLoads and substitute NO"
+        ]
+      }
     }
   ],
   "externalSubject": [

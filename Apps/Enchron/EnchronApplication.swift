@@ -54,7 +54,7 @@ final class EnchronApplication {
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
     let modalPresentationCoordinator: AppModalPresentationCoordinator
-    let certificateTrustPrompt: CertificateTrustPrompt
+    let connectionSecurityPrompt: ConnectionSecurityPrompt
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
     #if DEBUG
         let playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
@@ -147,11 +147,16 @@ final class EnchronApplication {
             }
         )
         let modalPresentationCoordinator = AppModalPresentationCoordinator()
-        let certificateTrustPrompt = CertificateTrustPrompt(
+        let connectionSecurityPrompt = ConnectionSecurityPrompt(
             modalPresentationCoordinator: modalPresentationCoordinator
         )
-        ServerTrustPolicy.shared.approvalHandler = { [weak certificateTrustPrompt] certificate in
-            await certificateTrustPrompt?.requestApproval(for: certificate) ?? false
+        ServerTrustPolicy.shared.approvalHandler = { [weak connectionSecurityPrompt] approval in
+            await connectionSecurityPrompt?
+                .requestApproval(for: .unverifiedCertificate(approval)) ?? false
+        }
+        CleartextExposurePolicy.shared.approvalHandler = { [weak connectionSecurityPrompt] host in
+            await connectionSecurityPrompt?
+                .requestApproval(for: .cleartextCredentials(host: host)) ?? false
         }
         let playbackVideoEntityStore = PlaybackVideoEntityStore()
         let launcher = PlaybackLaunchCoordinator(
@@ -369,7 +374,7 @@ final class EnchronApplication {
         mediaLibraryUIState = mediaLibraryFeature.uiState
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
-        self.certificateTrustPrompt = certificateTrustPrompt
+        self.connectionSecurityPrompt = connectionSecurityPrompt
         self.modalPresentationCoordinator = modalPresentationCoordinator
         #if DEBUG
             playbackSessionModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
@@ -489,6 +494,6 @@ extension View {
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
             .environment(application.modalPresentationCoordinator)
-            .environment(application.certificateTrustPrompt)
+            .environment(application.connectionSecurityPrompt)
     }
 }

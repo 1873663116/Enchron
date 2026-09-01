@@ -5,9 +5,22 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
+
+GIT_REDIRECTS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_QUARANTINE_PATH",
+)
+"""Named here because they outrank `git -C`, silently."""
 
 if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
@@ -122,11 +135,24 @@ def unresolved_verdict(range_expression: str, detail: str) -> Verdict:
 
 
 def changed_paths(repository: Path, range_expression: str) -> list[str]:
+    """The paths that changed in `repository`, which is the one named here.
+
+    `git -C` reads as though it settles which repository is being asked, and it
+    does not: GIT_DIR and its relatives outrank it. A pre-push hook exports
+    GIT_DIR, so a run started by pushing would answer about the pushing
+    repository no matter which path it was handed, and say nothing about the
+    substitution.
+    """
     completed = subprocess.run(
         ["git", "-C", str(repository), "diff", "--name-only", "-z", range_expression],
         capture_output=True,
         text=True,
         check=True,
+        env={
+            name: value
+            for name, value in os.environ.items()
+            if name not in GIT_REDIRECTS
+        },
     )
     return [path for path in completed.stdout.split("\0") if path]
 

@@ -100,6 +100,7 @@ STRUCTURE_CHECKS = (
         "verify_playback_issue_ownership.py",
     ),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
+    StructureCheck("ats-cleartext-policy", "check_ats_cleartext_policy.py"),
     StructureCheck(
         "reachability-inventory",
         "generate_reachability_inventory.py",

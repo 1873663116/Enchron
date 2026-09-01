@@ -38,7 +38,7 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
 
     private let streamURL: URL
     private let accessToken: String
-    private let session: URLSession
+    let session: URLSession
     private let lock = NSLock()
     private var serverLength: Int64?
 
@@ -50,7 +50,7 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
         streamURL: URL,
         accessToken: String,
         contentLength: Int64?,
-        session: URLSession
+        session: URLSession = MediaSourceNetwork.shared.session
     ) {
         self.streamURL = Self.authenticatedURL(streamURL, accessToken: accessToken)
         self.accessToken = accessToken

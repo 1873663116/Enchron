@@ -65,7 +65,7 @@ public struct MainView: View {
     @Environment(EmbyHomeViewModel.self) private var embyHome
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
-    @Environment(CertificateTrustPrompt.self) private var certificateTrustPrompt
+    @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
@@ -155,33 +155,37 @@ public struct MainView: View {
             }
         }
         .alert(
-            "无法验证服务器证书",
+            Text(connectionSecurityPrompt.question?.title ?? ""),
             isPresented: Binding(
-                get: { certificateTrustPrompt.certificate != nil },
-                set: { if $0 == false { certificateTrustPrompt.resolve(approved: false) } }
+                get: { connectionSecurityPrompt.question != nil },
+                set: { if $0 == false { connectionSecurityPrompt.resolve(approved: false) } }
             )
         ) {
-            Button("信任", role: .destructive) {
-                certificateTrustPrompt.resolve(approved: true)
+            switch connectionSecurityPrompt.question {
+            case .cleartextCredentials:
+                Button("仍然连接", role: .destructive) {
+                    connectionSecurityPrompt.resolve(approved: true)
+                }
+                .accessibilityIdentifier("FileBrowsing-CleartextExposure-proceed")
+                Button("取消", role: .cancel) {
+                    connectionSecurityPrompt.resolve(approved: false)
+                }
+                .accessibilityIdentifier("FileBrowsing-CleartextExposure-cancel")
+            case .unverifiedCertificate, .none:
+                Button("信任", role: .destructive) {
+                    connectionSecurityPrompt.resolve(approved: true)
+                }
+                .accessibilityIdentifier("FileBrowsing-CertificateTrust-trust")
+                Button("取消", role: .cancel) {
+                    connectionSecurityPrompt.resolve(approved: false)
+                }
+                .accessibilityIdentifier("FileBrowsing-CertificateTrust-cancel")
             }
-            .accessibilityIdentifier("FileBrowsing-CertificateTrust-trust")
-            Button("取消", role: .cancel) {
-                certificateTrustPrompt.resolve(approved: false)
-            }
-            .accessibilityIdentifier("FileBrowsing-CertificateTrust-cancel")
         } message: {
-            if let certificate = certificateTrustPrompt.certificate {
-                Text(Self.certificateDescription(certificate))
+            if let question = connectionSecurityPrompt.question {
+                Text(question.message)
             }
         }
-    }
-
-    private static func certificateDescription(_ certificate: ServerCertificateInfo) -> String {
-        let validFrom = certificate.validFrom?.formatted(date: .abbreviated, time: .shortened)
-            ?? "未知"
-        let validUntil = certificate.validUntil?.formatted(date: .abbreviated, time: .shortened)
-            ?? "未知"
-        return "地址：\(certificate.address)\n证书名：\(certificate.certificateName)\n指纹：\(certificate.sha256Fingerprint)\n有效期：\(validFrom) – \(validUntil)"
     }
 
     private var hostsPlaybackOrnament: Bool {

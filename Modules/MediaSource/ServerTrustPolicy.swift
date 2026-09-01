@@ -25,8 +25,20 @@ public struct ServerCertificateInfo: Sendable, Equatable, Identifiable {
     }
 }
 
+public enum ServerCertificateApproval: Sendable, Equatable {
+    case firstContact(ServerCertificateInfo)
+    case replacement(ServerCertificateInfo, previousFingerprint: String)
+
+    public var certificate: ServerCertificateInfo {
+        switch self {
+        case .firstContact(let certificate): certificate
+        case .replacement(let certificate, _): certificate
+        }
+    }
+}
+
 public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked Sendable {
-    public typealias ApprovalHandler = @MainActor @Sendable (ServerCertificateInfo) async -> Bool
+    public typealias ApprovalHandler = @MainActor @Sendable (ServerCertificateApproval) async -> Bool
 
     public static let shared = ServerTrustPolicy()
 
@@ -80,7 +92,8 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
             port: challenge.protectionSpace.port
         )
         let fingerprint = Self.fingerprint(of: certificate)
-        if defaults.string(forKey: Self.fingerprintKey(address: address)) == fingerprint {
+        let storedFingerprint = defaults.string(forKey: Self.fingerprintKey(address: address))
+        if storedFingerprint == fingerprint {
             completionHandler(.useCredential, URLCredential(trust: trust))
             return
         }
@@ -98,8 +111,10 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
             validFrom: validity.from,
             validUntil: validity.until
         )
+        let approval: ServerCertificateApproval = storedFingerprint
+            .map { .replacement(info, previousFingerprint: $0) } ?? .firstContact(info)
         Task { @MainActor [defaults] in
-            if await approvalHandler(info) {
+            if await approvalHandler(approval) {
                 defaults.set(fingerprint, forKey: Self.fingerprintKey(address: address))
                 completionHandler(.useCredential, URLCredential(trust: trust))
             } else {

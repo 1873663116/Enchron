@@ -13,6 +13,18 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 
+GIT_REDIRECTS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_QUARANTINE_PATH",
+)
+"""Outrank cwd, so a fixture repository built under them is not the one built."""
+
 import journey_units
 import merge_evidence_tier as tiers
 
@@ -489,8 +501,14 @@ class VerificationRegistrationTests(unittest.TestCase):
     def test_the_gate_never_turns_a_w3_range_into_a_failure(self) -> None:
         repository = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, repository, ignore_errors=True)
+        environment = {
+            name: value
+            for name, value in os.environ.items()
+            if name not in GIT_REDIRECTS
+        }
         run = lambda *arguments: subprocess.run(
-            ["git", *arguments], cwd=repository, capture_output=True, text=True, check=True
+            ["git", *arguments], cwd=repository, capture_output=True, text=True,
+            check=True, env=environment,
         )
         run("init", "--quiet")
         run("config", "user.email", "verification@enchron.invalid")

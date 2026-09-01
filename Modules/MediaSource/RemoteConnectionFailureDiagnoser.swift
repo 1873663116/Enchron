@@ -45,13 +45,6 @@ public struct RemoteConnectionFailureDiagnoser: Sendable {
         _ error: any Error,
         attemptedURL: URL
     ) async -> RemoteConnectionFailureDiagnosis {
-        if Self.containsURLFailure(
-            error,
-            code: NSURLErrorAppTransportSecurityRequiresSecureConnection
-        ) {
-            return .requiresHTTPS
-        }
-
         guard attemptedURL.scheme?.lowercased() == "http",
               Self.containsURLFailure(error),
               let endpoint = RemoteConnectionEndpoint(httpURL: attemptedURL)
@@ -62,18 +55,14 @@ public struct RemoteConnectionFailureDiagnoser: Sendable {
         return await tlsProbe(endpoint) ? .requiresHTTPS : .unclassified
     }
 
-    private static func containsURLFailure(
-        _ error: any Error,
-        code expectedCode: Int? = nil
-    ) -> Bool {
+    private static func containsURLFailure(_ error: any Error) -> Bool {
         var current: NSError? = error as NSError
         var visited: Set<ObjectIdentifier> = []
 
         while let candidate = current {
             let identity = ObjectIdentifier(candidate)
             guard visited.insert(identity).inserted else { return false }
-            if candidate.domain == NSURLErrorDomain,
-               expectedCode == nil || candidate.code == expectedCode {
+            if candidate.domain == NSURLErrorDomain {
                 return true
             }
             current = candidate.userInfo[NSUnderlyingErrorKey] as? NSError

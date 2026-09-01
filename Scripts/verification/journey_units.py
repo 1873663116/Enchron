@@ -723,6 +723,98 @@ UNITS: tuple[Unit, ...] = (
         ),
     ),
     Unit(
+        id="source.cleartext-proceed",
+        title="Sending credentials in the clear is approved once, knowingly",
+        contexts=("main-window-browser",),
+        precondition=(
+            "No remembered cleartext approval for CLEARTEXT_ADDRESS. It must be "
+            "an http:// address of public scope, so the question is asked, and "
+            "one that belongs to nobody, so the credentials cannot reach a real "
+            "host even when the wearer proceeds. RFC 5737 documentation space "
+            "(203.0.113.0/24) satisfies both."
+        ),
+        proves=(
+            "The warning is raised before the request leaves, and proceeding "
+            "past it is a decision the wearer makes rather than a default."
+        ),
+        needs=("library.reset",),
+        steps=(
+            real(
+                "tap",
+                "FileBrowsing-SourcesSidebar-addWebDAV",
+                expect="Connection form appears.",
+            ),
+            real(
+                "type",
+                "FileBrowsing-SourceConnection-webDAV-address",
+                text="${CLEARTEXT_ADDRESS}",
+                expect="Address field holds the value.",
+            ),
+            real(
+                "type",
+                "FileBrowsing-SourceConnection-webDAV-username",
+                text="${WEBDAV_USERNAME}",
+                expect="Username field holds the value.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-SourceConnection-webDAV-connect",
+                expect="Cleartext exposure prompt appears, naming the host.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-CleartextExposure-proceed",
+                expect="The prompt closes and the connection is attempted.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-SourceConnection-webDAV-cancel",
+                expect="Form closes with nothing added.",
+            ),
+        ),
+    ),
+    Unit(
+        id="source.cleartext-refused",
+        title="Refusing the cleartext warning sends nothing",
+        contexts=("main-window-browser",),
+        precondition=(
+            "No remembered cleartext approval for CLEARTEXT_SECOND_ADDRESS. It "
+            "carries the same requirements as CLEARTEXT_ADDRESS and must be a "
+            "different host, because approval is remembered per host and "
+            "reusing an approved one would ask nothing."
+        ),
+        proves="Cancel on the cleartext prompt is a real decision, not a no-op.",
+        needs=("library.reset",),
+        steps=(
+            real(
+                "tap",
+                "FileBrowsing-SourcesSidebar-addWebDAV",
+                expect="Connection form appears.",
+            ),
+            real(
+                "type",
+                "FileBrowsing-SourceConnection-webDAV-address",
+                text="${CLEARTEXT_SECOND_ADDRESS}",
+                expect="Address field holds the value.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-SourceConnection-webDAV-connect",
+                expect="Cleartext exposure prompt appears.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-CleartextExposure-cancel",
+                expect="No request is sent and no source is added.",
+            ),
+            real(
+                "tap",
+                "FileBrowsing-SourceConnection-webDAV-cancel",
+                expect="Form closes with nothing added.",
+            ),
+        ),
+    ),
+    Unit(
         id="source.smb",
         title="Connect an SMB share, credentialed and as guest",
         contexts=("main-window-browser",),
