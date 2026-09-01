@@ -6750,6 +6750,31 @@ class ReachabilityRun:
         if before_health["passed"] is not True:
             self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("channel-health-failed")
+        # Emptied before the segment writes anything, because the replay reads
+        # the journal by session and inherits whatever the last run left. The
+        # headset reinstalls between segments and hid this; the simulator keeps
+        # its container, so a panorama segment came back with four hundred and
+        # sixty-two lines under a session id from an earlier run.
+        cleared = enchron_target.truncate_in_container(
+            target=DEVICE,
+            bundle_id=APP_BUNDLE,
+            source=PROBE_REMOTE_PATH,
+            developer_dir=DEVELOPER_DIR,
+            core_device_identifier=CORE_DEVICE,
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "clearProbeBeforeSegment",
+            "success": cleared.returncode == 0,
+            "detail": (cleared.stderr or cleared.stdout)[-200:],
+        })
+        if cleared.returncode != 0:
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "clearProbeBeforeSegment",
+                "error": (cleared.stderr or cleared.stdout)[-200:]
+                or "the journal could not be emptied",
+            })
         self.probe_offset = 0
         segment_started_at = utc_now()
         self.probe_markers = {0: segment_started_at}

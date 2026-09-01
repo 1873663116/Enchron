@@ -22,6 +22,7 @@ import os
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 # Last reconciled 2026-08-09. `xcrun devicectl list devices` is the source of
@@ -68,6 +69,54 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
     if result.returncode != 0:
         return None
     return Path(result.stdout.strip())
+
+
+def truncate_in_container(
+    *,
+    target: str,
+    bundle_id: str,
+    source: str,
+    developer_dir: str,
+    core_device_identifier: str | None = None,
+    timeout: float = 120.0,
+) -> subprocess.CompletedProcess[str]:
+    """Empty one file inside the app container, whichever lane the target is on.
+
+    Reads were routed per lane and writes were not, so clearing the probe went
+    through `devicectl --device <CoreDevice>` on both. A simulator has no
+    CoreDevice, so the clear could only fail there, and a segment inherited
+    whatever the previous run had written. That is how a panorama segment came
+    back with four hundred and sixty-two journal lines carrying a session id
+    from an earlier run, and a replay that could verify nothing.
+    """
+    if not target:
+        raise ValueError("container target must not be empty")
+    if is_simulator(target):
+        container = simulator_container(target, bundle_id)
+        origin = container / source if container else None
+        if origin is None:
+            return subprocess.CompletedProcess(
+                ["simctl", "get_app_container", target, bundle_id],
+                returncode=1, stdout="", stderr="container is not readable.",
+            )
+        origin.parent.mkdir(parents=True, exist_ok=True)
+        origin.write_text("", encoding="utf-8")
+        return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+    empty = Path(tempfile.gettempdir()) / "enchron-container-truncate.empty"
+    empty.write_text("", encoding="utf-8")
+    return subprocess.run(
+        [
+            "xcrun", "devicectl", "device", "copy", "to",
+            "--device", str(core_device_identifier),
+            "--domain-type", "appDataContainer",
+            "--domain-identifier", bundle_id,
+            "--source", str(empty),
+            "--destination", source,
+            "--timeout", str(int(timeout)),
+        ],
+        env={"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"},
+        capture_output=True, text=True, timeout=timeout, check=False,
+    )
 
 
 def copy_from_container(
