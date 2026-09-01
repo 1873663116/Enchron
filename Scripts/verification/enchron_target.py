@@ -243,3 +243,83 @@ def copy_from_container(
         env={"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"},
         check=False, text=True, capture_output=True, timeout=budget_seconds,
     )
+
+
+def list_container_file(
+    *,
+    target: str,
+    bundle_id: str,
+    source: str,
+    json_output: Path,
+    developer_dir: str,
+    core_device_identifier: str | None = None,
+    budget_seconds: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if not target:
+        raise ValueError("container target must not be empty")
+    remote = Path(source)
+    if is_simulator(target):
+        container = simulator_container(target, bundle_id)
+        origin = container / source if container else None
+        if origin is None or not origin.exists():
+            return subprocess.CompletedProcess(
+                ["simctl", "get_app_container", target, bundle_id],
+                returncode=1, stdout="", stderr=f"{source} is not in the container.",
+            )
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(
+            json.dumps({
+                "result": {
+                    "files": [{
+                        "name": remote.name,
+                        "path": source,
+                        "size": origin.stat().st_size,
+                    }]
+                }
+            }, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+    command = [
+        "xcrun", "devicectl", "device", "info", "files",
+        "--device", str(core_device_identifier or core_device()),
+        "--domain-type", "appDataContainer",
+        "--domain-identifier", bundle_id,
+        "--subdirectory", str(remote.parent),
+        "--filter", f"Name = '{remote.name}'",
+        "--no-recurse",
+        "--json-output", str(json_output),
+    ]
+    if budget_seconds is not None:
+        command.extend(("--timeout", str(int(budget_seconds))))
+    return subprocess.run(
+        command,
+        env={"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"},
+        capture_output=True, text=True, timeout=budget_seconds, check=False,
+    )
+
+
+def uninstall_app(
+    *,
+    target: str,
+    bundle_id: str,
+    developer_dir: str | None = None,
+    budget_seconds: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if not target:
+        raise ValueError("uninstall target must not be empty")
+    if is_simulator(target):
+        command = ["xcrun", "simctl", "uninstall", target, bundle_id]
+    else:
+        command = [
+            "xcrun", "devicectl", "device", "uninstall", "app",
+            "--device", target, bundle_id,
+        ]
+    env = None
+    if developer_dir is not None:
+        env = {"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"}
+    return subprocess.run(
+        command,
+        env=env,
+        capture_output=True, text=True, timeout=budget_seconds, check=False,
+    )

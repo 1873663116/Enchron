@@ -1391,6 +1391,7 @@ def main() -> int:
         response = {"success": False, "error": f"{arguments.action} requires --identifier or --label. Swiping the application element kills the session on visionOS."}
         response = _attach_failure(arguments, response)
         response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
+        response["transportCallCount"] = DEVICECTL_CALL_COUNT
         print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
         return 2
     started_at = time.monotonic()
@@ -1407,6 +1408,7 @@ def main() -> int:
         response = {"success": False, "error": str(error)}
         response = _attach_failure(arguments, response)
         response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
+        response["transportCallCount"] = DEVICECTL_CALL_COUNT
         print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
         return 1
     if not response.get("success"):
@@ -1440,6 +1442,7 @@ def main() -> int:
         seconds = time.monotonic() - started_at
     record_timing(arguments.action, seconds, device=arguments.device, frozen=getattr(arguments, "execution_input", None) is not None, censored=censored)
     response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
+    response["transportCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if response.get("success") else 2
 
