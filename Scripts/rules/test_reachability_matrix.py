@@ -291,6 +291,51 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
 
 class ReachabilityScenarioSequencingTests(unittest.TestCase):
+    def test_the_media_information_open_is_credited_not_only_the_close(self) -> None:
+        """Opening the panel is a delivery of its own.
+
+        The scenario waits for the close button to appear, which only happens
+        because the open tap ran, and the panel appends mediaInformation.open.
+        Crediting only the close left the open cell known-defect in all four
+        placements, with a probe journal that names the delivery twice.
+        """
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/063-tap.json"}]
+        run.show_controls = Mock()
+        run.tap = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(
+            return_value={"matchedElement": {"identifier": "close"}}
+        )
+        opened = "reachability playerPanel delivered action=mediaInformation.open"
+        closed = "reachability playerPanel delivered action=mediaInformation.close"
+        run.copy_probe = Mock(side_effect=[[], [opened], [opened, closed]])
+        run.delivered = Mock()
+
+        run.player_panel_media_information_scenario("panorama")
+
+        credited = [call.args[1] for call in run.delivered.call_args_list]
+        self.assertIn("accessibility:PlayerPanel-media-information", credited)
+        self.assertIn("accessibility:PlayerPanel-media-information-close", credited)
+
+    def test_an_open_the_panel_never_reported_is_not_credited(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/063-tap.json"}]
+        run.show_controls = Mock()
+        run.tap = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(
+            return_value={"matchedElement": {"identifier": "close"}}
+        )
+        other = "reachability playerPanel delivered action=somethingElse"
+        closed = "reachability playerPanel delivered action=mediaInformation.close"
+        run.copy_probe = Mock(side_effect=[[], [other], [other, closed]])
+        run.delivered = Mock()
+
+        run.player_panel_media_information_scenario("panorama")
+
+        credited = [call.args[1] for call in run.delivered.call_args_list]
+        self.assertNotIn("accessibility:PlayerPanel-media-information", credited)
+        self.assertIn("accessibility:PlayerPanel-media-information-close", credited)
+
     def test_remote_source_selection_skips_the_delete_child(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = [{"evidence": "raw/source.json"}]

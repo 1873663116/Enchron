@@ -5842,6 +5842,23 @@ class ReachabilityRun:
             close.get("matchedElement"), dict
         ):
             return
+        # Only the close button used to be credited. The open tap that reached
+        # this line has already proved itself twice over - the close button it
+        # revealed is waited for above, and the panel appends
+        # mediaInformation.open - yet its cell stayed known-defect in all four
+        # placements because nothing claimed the delivery.
+        probe = self.copy_probe("docked-media-information-open")
+        if any(
+            "reachability playerPanel delivered action=mediaInformation.open"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-media-information",
+                self.events[-1]["evidence"],
+                "The media information control expanded the panel and appended a probe.",
+            )
+        offset = len(probe)
         closed = self.tap(
             presentation, "PlayerPanel-media-information-close"
         )
