@@ -127,8 +127,11 @@ FIXTURE_SOURCES = {
         "Samples/DynamicRange/DolbyVision/Experiments/dvvC-ab/furyroad-with-dv.mkv",
     "sdr-bframe-multiaudio-subtitles-30s.mkv":
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv",
+    "reachability-resume-16m.mp4":
+        "TestVectors/Enchron/PlaybackBehavior/reachability-resume-16m.mp4",
 }
 SCENARIO_FIXTURES = {
+    "resume-decision": ("reachability-resume-16m.mp4",),
     "docked-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
     "panorama-content-round11": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
     "portal-dv-round11": ("furyroad-with-dv.mkv",),
@@ -1945,34 +1948,34 @@ class ReachabilityRun:
                 "detail": f"Fixture is missing: {source}",
             })
             return False
-        existing = self.app_command("importMedia", file=file_name)
-        if existing.get("success") is True:
+        listing_output = self.output / "raw" / f"stage-listing-{file_name}.json"
+        listed = self.local_call(
+            "probe-copy",
+            lambda budget: enchron_target.list_container_file(
+                target=DEVICE,
+                bundle_id=APP_BUNDLE,
+                source=f"Documents/TestMediaInbox/{file_name}",
+                json_output=listing_output,
+                developer_dir=DEVELOPER_DIR,
+                core_device_identifier=CORE_DEVICE,
+                budget_seconds=budget.seconds,
+            ),
+        )
+        if listed is not None and listed.returncode == 0:
+            existing = self.app_command("importMedia", file=file_name)
             self.events.append({
                 "at": utc_now(),
                 "action": "stageFixture",
                 "fixture": file_name,
-                "success": True,
+                "success": existing.get("success") is True,
                 "detail": (
-                    "Reused the existing harness-owned TestMediaInbox file; "
-                    "resetState will remove the temporary library reference."
+                    "The inbox file is present on disk and the import probe ran "
+                    "against it; resetState will remove the temporary library "
+                    "reference."
                 ),
                 "evidence": self.events[-1]["evidence"],
             })
-            return True
-        missing_message = f"TestMediaInbox does not contain {file_name}."
-        if missing_message not in json.dumps(existing, ensure_ascii=False):
-            self.events.append({
-                "at": utc_now(),
-                "action": "stageFixture",
-                "fixture": file_name,
-                "success": False,
-                "detail": (
-                    "The staged-file check failed outside the product's "
-                    "missing-file condition; the fixture was not recopied."
-                ),
-                "evidence": self.events[-1]["evidence"],
-            })
-            return False
+            return existing.get("success") is True
         self.direct_transfer_calls += 1
         completed = self.local_call(
             "fixture-copy",
@@ -1995,14 +1998,30 @@ class ReachabilityRun:
                 "detail": "The fixture copy raised an instrument fault.",
             })
             return False
+        if completed.returncode != 0:
+            self.events.append({
+                "at": utc_now(),
+                "action": "stageFixture",
+                "fixture": file_name,
+                "success": False,
+                "detail": (completed.stderr or completed.stdout)[-1000:],
+            })
+            return False
+        imported = self.app_command("importMedia", file=file_name)
         self.events.append({
             "at": utc_now(),
             "action": "stageFixture",
             "fixture": file_name,
-            "success": completed.returncode == 0,
-            "detail": (completed.stderr or completed.stdout)[-1000:],
+            "success": imported.get("success") is True,
+            "detail": (
+                "The fixture was copied into TestMediaInbox and the import "
+                "probe confirmed delivery."
+                if imported.get("success") is True
+                else "The fixture was copied but the import probe still failed."
+            ),
+            "evidence": self.events[-1]["evidence"],
         })
-        return completed.returncode == 0
+        return imported.get("success") is True
 
     def provable(self, context: str, operation_id: str) -> bool:
         key = (context, operation_id)
