@@ -1223,6 +1223,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = {"id": "panorama", "context": "panorama"}
         run.session_id = "session-10"
+        run.evidence_session = None
         run.operations = {"command:toggleControls": {}}
         run.cells = {("panorama", "command:toggleControls"): {}}
         run.driven_cells = set()
@@ -1254,6 +1255,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = {"id": "resume", "context": "main-window-browser"}
         run.session_id = "session-11"
+        run.evidence_session = None
         run.operations = {"command:seekNormalized": {}}
         run.cells = {("window", "command:seekNormalized"): {}}
         run.driven_cells = set()
@@ -1826,6 +1828,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = {"id": "resume", "context": "main-window-browser"}
         run.session_id = "session-12"
+        run.evidence_session = None
         run.operations = {"command:toggleControls": {}}
         run.cells = {("window", "command:toggleControls"): {}}
         run.driven_cells = set()

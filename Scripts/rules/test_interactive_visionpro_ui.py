@@ -526,6 +526,12 @@ class RunnerSessionOutputTests(unittest.TestCase):
                 controller,
                 "send_command",
                 return_value={"success": True, "appState": "runningForeground"},
+            ), patch.object(
+                controller, "read_ready_state", side_effect=RuntimeError("The interactive XCUI runner is not ready. Start its dedicated UI test first.")
+            ), patch.object(
+                controller, "_resident_runner_path", return_value=Path(directory) / "resident.json"
+            ), patch.object(
+                controller, "_write_resident_runner"
             ):
                 response = controller.ensure_session(arguments)
 
@@ -659,6 +665,8 @@ class EnsureSessionAdoptionTests(unittest.TestCase):
                 runner_bundle_id="runner",
                 result_bundle_path="/tmp/not.xcresult",
             )
+            resident_path = Path(directory) / "resident.json"
+            resident_path.write_text(json.dumps({"sessionID": "s-adopted", "xctestrunDigest": "sha256:xctestrun-current", "testProductsDigest": "sha256:products-current", "applicationCodeDigest": "sha256:app-current"}), encoding="utf-8")
             with patch.object(
                 controller, "read_ready_state", side_effect=[
                     {"sessionID": "s-adopted"},
@@ -670,13 +678,18 @@ class EnsureSessionAdoptionTests(unittest.TestCase):
                 controller, "halt_session"
             ) as mock_halt, patch.object(
                 controller, "launch_runner"
-            ) as mock_launch:
+            ) as mock_launch, patch.object(
+                controller, "_resident_runner_path", return_value=resident_path
+            ), patch.object(
+                controller, "_current_lane_digests", return_value=("sha256:xctestrun-current", "sha256:products-current", "sha256:app-current")
+            ):
                 mock_halt.side_effect = AssertionError("halt must not be called on adoption")
                 mock_launch.side_effect = AssertionError("launch must not be called on adoption")
                 response = controller.ensure_session(arguments)
             self.assertEqual(response["stage"], "adopted")
             self.assertEqual(response["sessionID"], "s-adopted")
             self.assertTrue(response["success"])
+            self.assertEqual(response["adoption"], {"attempted": True, "refused": None})
             self.assertEqual(mock_read.call_count, 2)
             self.assertTrue(all(call.kwargs.get("fresh") is True for call in mock_read.call_args_list))
             mock_send.assert_called_once()
@@ -699,6 +712,8 @@ class EnsureSessionAdoptionTests(unittest.TestCase):
                 runner_bundle_id="runner",
                 result_bundle_path="/tmp/not.xcresult",
             )
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s-old", "xctestrunDigest": "sha256:xctestrun-current", "testProductsDigest": "sha256:products-current", "applicationCodeDigest": "sha256:app-current"}), encoding="utf-8")
             with patch.object(
                 controller, "read_ready_state", return_value={"sessionID": "s-old"}
             ), patch.object(
@@ -712,12 +727,20 @@ class EnsureSessionAdoptionTests(unittest.TestCase):
                 controller, "current_session_id", side_effect=("s-old", "s-new")
             ), patch.object(
                 controller, "launch_runner", return_value=provenance
-            ) as mock_launch:
+            ) as mock_launch, patch.object(
+                controller, "_resident_runner_path", return_value=resident
+            ), patch.object(
+                controller, "_current_lane_digests", return_value=("sha256:xctestrun-current", "sha256:products-current", "sha256:app-current")
+            ), patch.object(
+                controller, "_write_resident_runner"
+            ):
                 response = controller.ensure_session(arguments)
             self.assertEqual(response["stage"], "ready")
             self.assertEqual(mock_launch.call_count, 1)
             self.assertEqual(mock_halt.call_count, 1)
             self.assertEqual(mock_send.call_count, 2)
+            self.assertEqual(response["adoption"]["attempted"], True)
+            self.assertIsNotNone(response["adoption"]["refused"])
 
     def test_adoption_never_returns_session_whose_ready_disappeared(self) -> None:
         provenance = {
@@ -734,10 +757,12 @@ class EnsureSessionAdoptionTests(unittest.TestCase):
                 runner_bundle_id="runner",
                 result_bundle_path="/tmp/not.xcresult",
             )
+            resident_path = Path(directory) / "resident.json"
+            resident_path.write_text(json.dumps({"sessionID": "s-vanish", "xctestrunDigest": "sha256:xctestrun-current", "testProductsDigest": "sha256:products-current", "applicationCodeDigest": "sha256:app-current"}), encoding="utf-8")
             with patch.object(
                 controller, "read_ready_state", side_effect=[
                     {"sessionID": "s-vanish"},
-                    RuntimeError("ready.json disappeared"),
+                    RuntimeError("The interactive XCUI runner is not ready. Start its dedicated UI test first."),
                 ]
             ), patch.object(
                 controller, "send_command", side_effect=[
@@ -750,12 +775,175 @@ class EnsureSessionAdoptionTests(unittest.TestCase):
                 controller, "launch_runner", return_value=provenance
             ) as mock_launch, patch.object(
                 controller, "current_session_id", side_effect=("s-vanish", "s-new")
+            ), patch.object(
+                controller, "_resident_runner_path", return_value=resident_path
+            ), patch.object(
+                controller, "_current_lane_digests", return_value=("sha256:xctestrun-current", "sha256:products-current", "sha256:app-current")
+            ), patch.object(
+                controller, "_write_resident_runner"
             ):
                 response = controller.ensure_session(arguments)
             self.assertNotEqual(response.get("stage"), "adopted")
             self.assertEqual(mock_launch.call_count, 1)
             self.assertEqual(response["stage"], "ready")
             self.assertEqual(response["sessionID"], "s-new")
+
+
+class ResidentRunnerStalenessTests(unittest.TestCase):
+    def test_adoption_refused_when_file_missing(self) -> None:
+        provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "sha256:xctestrun", "testProductsDigest": "sha256:products", "applicationCodeDigest": "sha256:app", "processId": 4102}
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            missing = Path(directory) / "nope.json"
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance) as mock_launch, patch.object(controller, "_resident_runner_path", return_value=missing), patch.object(controller, "_current_lane_digests", return_value=("sha256:xctestrun", "sha256:products", "sha256:app")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["stage"], "ready")
+            self.assertEqual(response["adoption"]["attempted"], True)
+            self.assertEqual(response["adoption"]["refused"], "resident-file-missing")
+            self.assertEqual(mock_launch.call_count, 1)
+
+    def test_adoption_refused_when_applicationCodeDigest_differs(self) -> None:
+        provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "sha256:xctestrun", "testProductsDigest": "sha256:products", "applicationCodeDigest": "sha256:app-new", "processId": 4102}
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "sha256:xctestrun", "testProductsDigest": "sha256:products", "applicationCodeDigest": "sha256:app-old"}), encoding="utf-8")
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance) as mock_launch, patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("sha256:xctestrun", "sha256:products", "sha256:app-new")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["stage"], "ready")
+            self.assertEqual(response["adoption"]["refused"], "applicationCodeDigest-mismatch")
+            self.assertEqual(mock_launch.call_count, 1)
+
+    def test_adoption_accepted_when_all_three_match(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "sha256:xctestrun", "testProductsDigest": "sha256:products", "applicationCodeDigest": "sha256:app"}), encoding="utf-8")
+            with patch.object(controller, "read_ready_state", side_effect=[{"sessionID": "s1"}, {"sessionID": "s1"}]), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session") as mock_halt, patch.object(controller, "launch_runner") as mock_launch, patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("sha256:xctestrun", "sha256:products", "sha256:app")):
+                mock_halt.side_effect = AssertionError("halt must not be called")
+                mock_launch.side_effect = AssertionError("launch must not be called")
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["stage"], "adopted")
+            self.assertEqual(response["adoption"], {"attempted": True, "refused": None})
+
+    def test_file_is_rewritten_on_every_real_launch(self) -> None:
+        provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "sha256:xctestrun-new", "testProductsDigest": "sha256:products-new", "applicationCodeDigest": "sha256:app-new", "processId": 4102}
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            missing = Path(directory) / "missing.json"
+            written: dict[str, object] = {}
+            def fake_write(path, session_id, prov):
+                written["path"] = path
+                written["sessionID"] = session_id
+                written["provenance"] = prov
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                Path(path).write_text(json.dumps({"sessionID": session_id, "xctestrunDigest": prov["xctestrunDigest"], "testProductsDigest": prov["testProductsDigest"], "applicationCodeDigest": prov["applicationCodeDigest"]}), encoding="utf-8")
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s-old"}), patch.object(controller, "send_command", side_effect=[{"success": False}, {"success": True, "appState": "runningForeground"}]), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s-old", "s-new")), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "_resident_runner_path", return_value=missing), patch.object(controller, "_current_lane_digests", return_value=("sha256:xctestrun-new", "sha256:products-new", "sha256:app-new")), patch.object(controller, "_write_resident_runner", side_effect=fake_write) as mock_write:
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["stage"], "ready")
+            mock_write.assert_called_once()
+            self.assertEqual(written["sessionID"], "s-new")
+            self.assertEqual(written["provenance"]["applicationCodeDigest"], "sha256:app-new")
+            self.assertTrue(missing.is_file())
+            data = json.loads(missing.read_text(encoding="utf-8"))
+            self.assertEqual(data["sessionID"], "s-new")
+            self.assertEqual(data["applicationCodeDigest"], "sha256:app-new")
+            provenance2 = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "sha256:xctestrun-v2", "testProductsDigest": "sha256:products-v2", "applicationCodeDigest": "sha256:app-v2", "processId": 4103}
+            written.clear()
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s-new"}), patch.object(controller, "send_command", side_effect=[{"success": False}, {"success": True, "appState": "runningForeground"}]), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s-new", "s-new2")), patch.object(controller, "launch_runner", return_value=provenance2), patch.object(controller, "_resident_runner_path", return_value=missing), patch.object(controller, "_current_lane_digests", return_value=("sha256:xctestrun-v2", "sha256:products-v2", "sha256:app-v2")), patch.object(controller, "_write_resident_runner", side_effect=fake_write):
+                response2 = controller.ensure_session(arguments)
+            self.assertEqual(response2["stage"], "ready")
+            data2 = json.loads(missing.read_text(encoding="utf-8"))
+            self.assertEqual(data2["sessionID"], "s-new2")
+            self.assertEqual(data2["applicationCodeDigest"], "sha256:app-v2")
+
+
+class EnsureSessionAdoptionFieldTests(unittest.TestCase):
+    def test_adoption_field_present_on_adopted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c"}), encoding="utf-8")
+            with patch.object(controller, "read_ready_state", side_effect=[{"sessionID": "s1"}, {"sessionID": "s1"}]), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("a", "b", "c")):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"], {"attempted": True, "refused": None})
+
+    def test_adoption_field_shows_refused_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            missing = Path(directory) / "missing.json"
+            provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c", "processId": 1}
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "_resident_runner_path", return_value=missing), patch.object(controller, "_current_lane_digests", return_value=("a", "b", "c")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"]["attempted"], True)
+            self.assertEqual(response["adoption"]["refused"], "resident-file-missing")
+
+    def test_unexpected_exception_propagates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c"}), encoding="utf-8")
+            with patch.object(controller, "read_ready_state", side_effect=[{"sessionID": "s1"}, ValueError("bad json")]), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("a", "b", "c")):
+                with self.assertRaises(ValueError):
+                    controller.ensure_session(arguments)
+
+    def test_send_command_unexpected_exception_propagates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c"}), encoding="utf-8")
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", side_effect=ValueError("unexpected")), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("a", "b", "c")):
+                with self.assertRaises(ValueError):
+                    controller.ensure_session(arguments)
+
+    def test_xctestrunDigest_mismatch_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "old", "testProductsDigest": "b", "applicationCodeDigest": "c"}), encoding="utf-8")
+            provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "new", "testProductsDigest": "b", "applicationCodeDigest": "c", "processId": 1}
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("new", "b", "c")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"]["refused"], "xctestrunDigest-mismatch")
+
+    def test_testProductsDigest_mismatch_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "a", "testProductsDigest": "old", "applicationCodeDigest": "c"}), encoding="utf-8")
+            provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "a", "testProductsDigest": "new", "applicationCodeDigest": "c", "processId": 1}
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("a", "new", "c")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"]["refused"], "testProductsDigest-mismatch")
+
+    def test_resident_session_mismatch_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s-other", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c"}), encoding="utf-8")
+            provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c", "processId": 1}
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": True}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("a", "b", "c")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"]["refused"], "resident-session-mismatch")
+
+    def test_probe_not_success_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            resident = Path(directory) / "resident.json"
+            resident.write_text(json.dumps({"sessionID": "s1", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c"}), encoding="utf-8")
+            provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c", "processId": 1}
+            with patch.object(controller, "read_ready_state", return_value={"sessionID": "s1"}), patch.object(controller, "send_command", return_value={"success": False}), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", side_effect=("s1", "s2")), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "_resident_runner_path", return_value=resident), patch.object(controller, "_current_lane_digests", return_value=("a", "b", "c")), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"]["refused"], "probe-not-success")
+
+    def test_no_ready_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(device="SIM-UDID", output_directory=directory, ready_timeout=30.0, runner_bundle_id="runner", result_bundle_path="/tmp/not.xcresult")
+            missing = Path(directory) / "missing.json"
+            provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c", "processId": 1}
+            with patch.object(controller, "read_ready_state", side_effect=RuntimeError("The interactive XCUI runner is not ready. Start its dedicated UI test first.")), patch.object(controller, "halt_session", return_value={"remaining": [], "terminated": []}), patch.object(controller, "current_session_id", return_value="s2"), patch.object(controller, "launch_runner", return_value=provenance), patch.object(controller, "send_command", return_value={"success": True, "appState": "runningForeground"}), patch.object(controller, "_write_resident_runner"):
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["adoption"]["refused"], "no-ready")
 
 
 if __name__ == "__main__":

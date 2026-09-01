@@ -37,6 +37,7 @@ from regression.execution_identity import (
     PhysicalVisionOSDeviceRegistry,
     PhysicalVisionOSDeviceRegistrySource,
     SimulatorUDIDSource,
+    load_execution_input,
     load_frozen_test_launch,
     registered_physical_visionos_devices,
     registered_simulator_udids,
@@ -988,6 +989,61 @@ def _launch_provenance(
     }
 
 
+def _resident_runner_path(arguments: argparse.Namespace) -> Path:
+    execution_input = _execution_input_path(arguments)
+    artifact_root = execution_input.parent
+    lane = BoundLane.SIMULATOR if is_simulator(arguments.device) else BoundLane.DEVICE
+    return artifact_root / "lanes" / lane.value / "resident-runner.json"
+
+
+def _current_lane_digests(arguments: argparse.Namespace) -> tuple[str, str, str]:
+    execution_input = _execution_input_path(arguments)
+    lane = BoundLane.SIMULATOR if is_simulator(arguments.device) else BoundLane.DEVICE
+    execution = load_execution_input(execution_input)
+    for artifact in execution.build_identity.lane_artifacts:
+        if artifact.lane == lane:
+            return (
+                str(artifact.xctestrun_digest),
+                str(artifact.test_products_digest),
+                str(artifact.application_code_digest),
+            )
+    raise RuntimeError("current lane artifact not found")
+
+
+def _read_resident_runner(path: Path) -> dict[str, object] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    for key in ("sessionID", "xctestrunDigest", "testProductsDigest", "applicationCodeDigest"):
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return None
+    return data
+
+
+def _write_resident_runner(path: Path, session_id: str, provenance: dict[str, object]) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "sessionID": session_id,
+            "xctestrunDigest": str(provenance.get("xctestrunDigest", "")),
+            "testProductsDigest": str(provenance.get("testProductsDigest", "")),
+            "applicationCodeDigest": str(provenance.get("applicationCodeDigest", "")),
+        }
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        pass
+
+
+def _is_no_runner_error(error: Exception) -> bool:
+    return isinstance(error, RuntimeError) and "The interactive XCUI runner is not ready" in str(error)
+
+
 def launch_runner(
     arguments: argparse.Namespace,
     log_path: Path,
@@ -1141,32 +1197,91 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     single continuous run: the caller asked for a ready session, and everything
     here executes that one intent."""
     started_at = time.monotonic()
+    adoption_refused: str | None = None
+    ready: dict[str, object] | None = None
     try:
         ready = read_ready_state(arguments, fresh=True)
+    except RuntimeError as error:
+        if _is_no_runner_error(error):
+            adoption_refused = "no-ready"
+            ready = None
+        else:
+            raise
+    if ready is not None:
         session_id = ready.get("sessionID")
-        if isinstance(session_id, str) and session_id:
-            probe = argparse.Namespace(**vars(arguments))
-            probe.action = "snapshot"
-            probe.no_screenshot = True
-            response = None
+        if not isinstance(session_id, str) or not session_id:
+            adoption_refused = "missing-sessionID"
+        else:
+            resident_path: Path | None = None
             try:
-                response = send_command(probe)
-            except Exception:
-                response = None
-            if isinstance(response, dict) and response.get("success") is True:
-                try:
-                    fresh = read_ready_state(arguments, fresh=True)
-                except Exception:
-                    fresh = None
-                if isinstance(fresh, dict) and fresh.get("sessionID") == session_id:
-                    return {
-                        "success": True,
-                        "stage": "adopted",
-                        "sessionID": session_id,
-                        "elapsedSeconds": round(time.monotonic() - started_at, 1),
-                    }
-    except Exception:
-        pass
+                resident_path = _resident_runner_path(arguments)
+            except RuntimeError as error:
+                adoption_refused = str(error)
+            if adoption_refused is None and resident_path is not None:
+                resident = _read_resident_runner(resident_path)
+                if resident is None:
+                    try:
+                        exists = resident_path.exists()
+                    except OSError:
+                        exists = False
+                    if not exists:
+                        adoption_refused = "resident-file-missing"
+                    else:
+                        adoption_refused = "resident-file-unreadable"
+                elif resident.get("sessionID") != session_id:
+                    adoption_refused = "resident-session-mismatch"
+                else:
+                    try:
+                        expected_x, expected_t, expected_a = _current_lane_digests(arguments)
+                    except Exception:
+                        adoption_refused = "current-digests-unavailable"
+                        expected_x = expected_t = expected_a = None
+                    if adoption_refused is None:
+                        if resident.get("xctestrunDigest") != expected_x:
+                            adoption_refused = "xctestrunDigest-mismatch"
+                        elif resident.get("testProductsDigest") != expected_t:
+                            adoption_refused = "testProductsDigest-mismatch"
+                        elif resident.get("applicationCodeDigest") != expected_a:
+                            adoption_refused = "applicationCodeDigest-mismatch"
+                        else:
+                            probe = argparse.Namespace(**vars(arguments))
+                            probe.action = "snapshot"
+                            probe.no_screenshot = True
+                            response: dict[str, object] | None = None
+                            try:
+                                response = send_command(probe)
+                            except RuntimeError as error:
+                                if _is_no_runner_error(error):
+                                    adoption_refused = "probe-error"
+                                    response = None
+                                else:
+                                    raise
+                            if adoption_refused is None:
+                                if not isinstance(response, dict) or response.get("success") is not True:
+                                    adoption_refused = "probe-not-success"
+                                else:
+                                    fresh: dict[str, object] | None = None
+                                    try:
+                                        fresh = read_ready_state(arguments, fresh=True)
+                                    except RuntimeError as error:
+                                        if _is_no_runner_error(error):
+                                            adoption_refused = "no-ready-after-probe"
+                                            fresh = None
+                                        else:
+                                            raise
+                                    if adoption_refused is None:
+                                        if not isinstance(fresh, dict) or fresh.get("sessionID") != session_id:
+                                            adoption_refused = "sessionID-changed-after-probe"
+                                        else:
+                                            return {
+                                                "success": True,
+                                                "stage": "adopted",
+                                                "sessionID": session_id,
+                                                "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                                                "adoption": {"attempted": True, "refused": None},
+                                            }
+    if adoption_refused is None:
+        adoption_refused = "no-ready" if ready is None else "unknown"
     halt = halt_session(arguments)
     if halt["remaining"]:
         return {
@@ -1174,6 +1289,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
             "stage": "halt",
             "message": "A previous automation process survived halt.",
             "halt": halt,
+            "adoption": {"attempted": True, "refused": adoption_refused},
         }
     stale_session_id = current_session_id(arguments)
 
@@ -1208,7 +1324,9 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                         "message": str(error),
                         "sessionID": session_id,
                         "runnerLog": str(log_path),
+                        "adoption": {"attempted": True, "refused": adoption_refused},
                     }
+                _write_resident_runner(_resident_runner_path(arguments), session_id, launch_provenance)
                 return {
                     "success": bool(response.get("success")),
                     "stage": "ready",
@@ -1220,6 +1338,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                     "haltedProcessCount": len(halt["terminated"]),
                     "authorizationRestarts": attempt - 1,
                     "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                    "adoption": {"attempted": True, "refused": adoption_refused},
                 }
             time.sleep(3)
 
@@ -1259,10 +1378,9 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                 "launchProvenance": launch_provenance,
                 "runnerLog": str(log_path),
                 "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                "adoption": {"attempted": True, "refused": adoption_refused},
             }
 
-        # The signature means this runner has already lost its chance to
-        # publish a usable session (device-diagnosed 2026-08-10).
         halt_session(arguments)
         if attempt == 1:
             try:
@@ -1287,6 +1405,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
             "runnerLogs": [str(archived_log), str(log_path)],
             "launchProvenance": launch_provenance,
             "elapsedSeconds": round(time.monotonic() - started_at, 1),
+            "adoption": {"attempted": True, "refused": adoption_refused},
         }
     raise AssertionError("unreachable: both attempts return")
 

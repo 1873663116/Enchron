@@ -1433,9 +1433,9 @@ class ReachabilityRun:
         if getattr(self, "segment", None) is not None and defer_response:
             extra.append("--defer-response")
         if getattr(self, "segment", None) is not None:
-            marker = getattr(self, "evidence_session", None)
+            marker = self.evidence_session
             if marker is None:
-                marker = getattr(self, "session_id", None)
+                marker = self.session_id
             if marker is not None:
                 extra.extend(("--arg", f"evidenceSession={marker}"))
         for key, value in arguments.items():
@@ -6816,7 +6816,7 @@ class ReachabilityRun:
             deliveries=self.deferred_deliveries,
             probe_lines=final_probe,
             responses=responses,
-            evidence_session=str(getattr(self, "evidence_session", None) or self.session_id),
+            evidence_session=str(self.evidence_session or self.session_id),
             started_at=segment_started_at,
             ended_at=segment_ended_at,
             evidence="raw/segment-after-surface-probe.log",
@@ -6926,7 +6926,7 @@ class ReachabilityRun:
             "segment": str(self.segment["id"]),
             "segmentPlan": self.segment,
             "sessionID": self.session_id,
-            "evidenceSession": getattr(self, "evidence_session", None),
+            "evidenceSession": self.evidence_session,
             "outOfContextObservations": [
                 {"context": context, "operation": operation, "count": count}
                 for (context, operation), count in sorted(
