@@ -37,6 +37,7 @@ from regression.execution_identity import (
     PhysicalVisionOSDeviceRegistry,
     PhysicalVisionOSDeviceRegistrySource,
     SimulatorUDIDSource,
+    load_execution_input,
     load_frozen_test_launch,
     registered_physical_visionos_devices,
     registered_simulator_udids,
@@ -284,7 +285,46 @@ def wake_runner(arguments: argparse.Namespace) -> None:
         )
 
 
-def read_ready_state(arguments: argparse.Namespace) -> dict[str, object]:
+READY_CACHE_KEY = "readyCache"
+
+
+def ready_cache_applies(arguments: argparse.Namespace) -> bool:
+    if getattr(arguments, "output_directory", None) is None:
+        return False
+    return not is_simulator(arguments.device)
+
+
+def cached_ready_state(arguments: argparse.Namespace) -> dict[str, object] | None:
+    if not ready_cache_applies(arguments):
+        return None
+    cached = load_session_state(arguments).get(READY_CACHE_KEY)
+    return cached if isinstance(cached, dict) and "sessionID" in cached else None
+
+
+def remember_ready_state(arguments: argparse.Namespace, ready: dict[str, object]) -> None:
+    if not ready_cache_applies(arguments):
+        return
+    state = load_session_state(arguments)
+    state[READY_CACHE_KEY] = ready
+    save_session_state(arguments, state)
+
+
+def forget_ready_state(arguments: argparse.Namespace) -> None:
+    if getattr(arguments, "output_directory", None) is None:
+        return
+    state = load_session_state(arguments)
+    if READY_CACHE_KEY in state:
+        del state[READY_CACHE_KEY]
+        save_session_state(arguments, state)
+
+
+def read_ready_state(
+    arguments: argparse.Namespace, *, fresh: bool = False
+) -> dict[str, object]:
+    if not fresh:
+        cached = cached_ready_state(arguments)
+        if cached is not None:
+            return cached
     with tempfile.TemporaryDirectory(prefix="enchron-interactive-ready-") as directory:
         ready_path = Path(directory) / "ready.json"
         if not copy_from_device(
@@ -294,10 +334,13 @@ def read_ready_state(arguments: argparse.Namespace) -> dict[str, object]:
             local_path=ready_path,
             quiet=True,
         ):
+            forget_ready_state(arguments)
             raise RuntimeError(
                 "The interactive XCUI runner is not ready. Start its dedicated UI test first."
             )
-        return json.loads(ready_path.read_text(encoding="utf-8"))
+        ready = json.loads(ready_path.read_text(encoding="utf-8"))
+        remember_ready_state(arguments, ready)
+        return ready
 
 
 def wait_for_response(
@@ -397,8 +440,9 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     runner's own stop command so XCTest saves its result bundle, then resolves
     the remaining Mac-side processes by repository-scoped command line."""
     graceful = "unavailable"
+    forget_ready_state(arguments)
     try:
-        ready = read_ready_state(arguments)
+        ready = read_ready_state(arguments, fresh=True)
         command_id = str(uuid.uuid4())
         with tempfile.TemporaryDirectory(prefix="enchron-interactive-halt-") as directory:
             command_path = Path(directory) / "command.json"
@@ -710,6 +754,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
             deadline_seconds=arguments.timeout_seconds,
         )
         if not arrived:
+            forget_ready_state(arguments)
             return {
                 "success": False,
                 "stage": "responseTimeout",
@@ -830,7 +875,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
 
 def current_session_id(arguments: argparse.Namespace) -> str | None:
     try:
-        return str(read_ready_state(arguments)["sessionID"])
+        return str(read_ready_state(arguments, fresh=True)["sessionID"])
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError, KeyError):
         return None
 
@@ -942,6 +987,61 @@ def _launch_provenance(
         "resultBundlePath": str(result_bundle),
         "processId": process_id,
     }
+
+
+def _resident_runner_path(arguments: argparse.Namespace) -> Path:
+    execution_input = _execution_input_path(arguments)
+    artifact_root = execution_input.parent
+    lane = BoundLane.SIMULATOR if is_simulator(arguments.device) else BoundLane.DEVICE
+    return artifact_root / "lanes" / lane.value / "resident-runner.json"
+
+
+def _current_lane_digests(arguments: argparse.Namespace) -> tuple[str, str, str]:
+    execution_input = _execution_input_path(arguments)
+    lane = BoundLane.SIMULATOR if is_simulator(arguments.device) else BoundLane.DEVICE
+    execution = load_execution_input(execution_input)
+    for artifact in execution.build_identity.lane_artifacts:
+        if artifact.lane == lane:
+            return (
+                str(artifact.xctestrun_digest),
+                str(artifact.test_products_digest),
+                str(artifact.application_code_digest),
+            )
+    raise RuntimeError("current lane artifact not found")
+
+
+def _read_resident_runner(path: Path) -> dict[str, object] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    for key in ("sessionID", "xctestrunDigest", "testProductsDigest", "applicationCodeDigest"):
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return None
+    return data
+
+
+def _write_resident_runner(path: Path, session_id: str, provenance: dict[str, object]) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "sessionID": session_id,
+            "xctestrunDigest": str(provenance.get("xctestrunDigest", "")),
+            "testProductsDigest": str(provenance.get("testProductsDigest", "")),
+            "applicationCodeDigest": str(provenance.get("applicationCodeDigest", "")),
+        }
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        pass
+
+
+def _is_no_runner_error(error: Exception) -> bool:
+    return isinstance(error, RuntimeError) and "The interactive XCUI runner is not ready" in str(error)
 
 
 def launch_runner(
@@ -1097,6 +1197,91 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     single continuous run: the caller asked for a ready session, and everything
     here executes that one intent."""
     started_at = time.monotonic()
+    adoption_refused: str | None = None
+    ready: dict[str, object] | None = None
+    try:
+        ready = read_ready_state(arguments, fresh=True)
+    except RuntimeError as error:
+        if _is_no_runner_error(error):
+            adoption_refused = "no-ready"
+            ready = None
+        else:
+            raise
+    if ready is not None:
+        session_id = ready.get("sessionID")
+        if not isinstance(session_id, str) or not session_id:
+            adoption_refused = "missing-sessionID"
+        else:
+            resident_path: Path | None = None
+            try:
+                resident_path = _resident_runner_path(arguments)
+            except RuntimeError as error:
+                adoption_refused = str(error)
+            if adoption_refused is None and resident_path is not None:
+                resident = _read_resident_runner(resident_path)
+                if resident is None:
+                    try:
+                        exists = resident_path.exists()
+                    except OSError:
+                        exists = False
+                    if not exists:
+                        adoption_refused = "resident-file-missing"
+                    else:
+                        adoption_refused = "resident-file-unreadable"
+                elif resident.get("sessionID") != session_id:
+                    adoption_refused = "resident-session-mismatch"
+                else:
+                    try:
+                        expected_x, expected_t, expected_a = _current_lane_digests(arguments)
+                    except Exception:
+                        adoption_refused = "current-digests-unavailable"
+                        expected_x = expected_t = expected_a = None
+                    if adoption_refused is None:
+                        if resident.get("xctestrunDigest") != expected_x:
+                            adoption_refused = "xctestrunDigest-mismatch"
+                        elif resident.get("testProductsDigest") != expected_t:
+                            adoption_refused = "testProductsDigest-mismatch"
+                        elif resident.get("applicationCodeDigest") != expected_a:
+                            adoption_refused = "applicationCodeDigest-mismatch"
+                        else:
+                            probe = argparse.Namespace(**vars(arguments))
+                            probe.action = "snapshot"
+                            probe.no_screenshot = True
+                            response: dict[str, object] | None = None
+                            try:
+                                response = send_command(probe)
+                            except RuntimeError as error:
+                                if _is_no_runner_error(error):
+                                    adoption_refused = "probe-error"
+                                    response = None
+                                else:
+                                    raise
+                            if adoption_refused is None:
+                                if not isinstance(response, dict) or response.get("success") is not True:
+                                    adoption_refused = "probe-not-success"
+                                else:
+                                    fresh: dict[str, object] | None = None
+                                    try:
+                                        fresh = read_ready_state(arguments, fresh=True)
+                                    except RuntimeError as error:
+                                        if _is_no_runner_error(error):
+                                            adoption_refused = "no-ready-after-probe"
+                                            fresh = None
+                                        else:
+                                            raise
+                                    if adoption_refused is None:
+                                        if not isinstance(fresh, dict) or fresh.get("sessionID") != session_id:
+                                            adoption_refused = "sessionID-changed-after-probe"
+                                        else:
+                                            return {
+                                                "success": True,
+                                                "stage": "adopted",
+                                                "sessionID": session_id,
+                                                "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                                                "adoption": {"attempted": True, "refused": None},
+                                            }
+    if adoption_refused is None:
+        adoption_refused = "no-ready" if ready is None else "unknown"
     halt = halt_session(arguments)
     if halt["remaining"]:
         return {
@@ -1104,9 +1289,8 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
             "stage": "halt",
             "message": "A previous automation process survived halt.",
             "halt": halt,
+            "adoption": {"attempted": True, "refused": adoption_refused},
         }
-    # ready.json outlives the runner that wrote it, so a stale identity would
-    # otherwise read as success the moment halt finishes.
     stale_session_id = current_session_id(arguments)
 
     output_directory = Path(arguments.output_directory)
@@ -1140,7 +1324,9 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                         "message": str(error),
                         "sessionID": session_id,
                         "runnerLog": str(log_path),
+                        "adoption": {"attempted": True, "refused": adoption_refused},
                     }
+                _write_resident_runner(_resident_runner_path(arguments), session_id, launch_provenance)
                 return {
                     "success": bool(response.get("success")),
                     "stage": "ready",
@@ -1152,6 +1338,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                     "haltedProcessCount": len(halt["terminated"]),
                     "authorizationRestarts": attempt - 1,
                     "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                    "adoption": {"attempted": True, "refused": adoption_refused},
                 }
             time.sleep(3)
 
@@ -1191,10 +1378,9 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
                 "launchProvenance": launch_provenance,
                 "runnerLog": str(log_path),
                 "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                "adoption": {"attempted": True, "refused": adoption_refused},
             }
 
-        # The signature means this runner has already lost its chance to
-        # publish a usable session (device-diagnosed 2026-08-10).
         halt_session(arguments)
         if attempt == 1:
             try:
@@ -1219,6 +1405,7 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
             "runnerLogs": [str(archived_log), str(log_path)],
             "launchProvenance": launch_provenance,
             "elapsedSeconds": round(time.monotonic() - started_at, 1),
+            "adoption": {"attempted": True, "refused": adoption_refused},
         }
     raise AssertionError("unreachable: both attempts return")
 
