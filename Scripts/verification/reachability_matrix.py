@@ -2137,28 +2137,32 @@ class ReachabilityRun:
         return document
 
     def read_probe_status(self) -> dict[str, Any]:
-        """Ask twice, restoring the session in between.
+        """Ask twice, and never by restoring the session.
 
-        probeStatus names the byte limit the journal copy is bounded by. When
-        it goes unanswered every field is null, the copy is skipped, and the
-        replay runs against an empty journal - two of five segments reported
-        their whole delivery set unverified that way, 81 facts and 53 facts,
-        after every scenario had already run.
+        probeStatus names the byte limit the journal copy is bounded by.
+        Unanswered, every field comes back null, the copy is skipped, and the
+        replay runs against nothing - two segments reported their whole delivery
+        set unverified that way after every scenario had already finished.
 
-        Retrying is worth it because the journal outlives the app. One segment
-        relaunched thirty-seven times and its journal stayed one unbroken run,
-        sequence 71469 through 71891 under a single probeSession, so a session
-        restored after the scenarios still reads the evidence they wrote.
+        Asking again is worth one command. Restoring the session to make it
+        answer is not: ensure-session starts a new test session, and the app
+        comes back with an empty evidence journal and an empty response batch.
+        A portal segment proved it - the retry got an answer at 07:38:44 and the
+        journal it then copied held three lines, all written after the recovery,
+        in place of the fifty-nine deliveries the segment had spent a quarter of
+        an hour producing. Evidence that has to be destroyed to be read is not
+        evidence, so the second refusal is reported rather than worked around.
         """
         document = self.app_command("probeStatus", defer_response=False)
         if document.get("success") is True:
             return document
+        retry = self.app_command("probeStatus", defer_response=False)
         self.events.append({
             "at": utc_now(),
             "action": "probeStatusRetry",
-            "success": self.ensure_session(),
+            "success": retry.get("success") is True,
         })
-        return self.app_command("probeStatus", defer_response=False)
+        return retry
 
     def record_silent_tap(
         self,

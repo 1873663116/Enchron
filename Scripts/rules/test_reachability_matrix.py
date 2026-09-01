@@ -1993,6 +1993,26 @@ class ProbeStatusRetryTests(unittest.TestCase):
         run.ensure_session = Mock(return_value=True)
         return run, run.app_command
 
+    def test_the_retry_never_restores_the_session(self) -> None:
+        """Recovering the session to get an answer destroys the answer.
+
+        ensure-session starts a new test session and the app returns with an
+        empty journal and an empty response batch. A portal segment retried at
+        07:38:44 and copied a journal of three lines, all written after the
+        recovery, in place of the fifty-nine deliveries it had spent a quarter
+        of an hour producing.
+        """
+        run, app_command = self.run_with([
+            {"success": False, "message": "App command probeStatus did not respond."},
+            {"success": False, "message": "App command probeStatus did not respond."},
+        ])
+
+        document = run.read_probe_status()
+
+        self.assertIs(document["success"], False)
+        self.assertEqual(app_command.call_count, 2)
+        run.ensure_session.assert_not_called()
+
     def test_an_unanswered_probe_status_is_asked_again(self) -> None:
         answered = {"success": True, "payload": ["byteLimit=196608"]}
         run, app_command = self.run_with([
@@ -2004,7 +2024,7 @@ class ProbeStatusRetryTests(unittest.TestCase):
 
         self.assertEqual(document, answered)
         self.assertEqual(app_command.call_count, 2)
-        run.ensure_session.assert_called_once_with()
+        run.ensure_session.assert_not_called()
         self.assertEqual(
             [event["action"] for event in run.events], ["probeStatusRetry"]
         )
@@ -2020,12 +2040,11 @@ class ProbeStatusRetryTests(unittest.TestCase):
         run.ensure_session.assert_not_called()
         self.assertEqual(run.events, [])
 
-    def test_the_retry_reports_a_session_it_could_not_restore(self) -> None:
+    def test_the_retry_records_whether_the_second_ask_was_answered(self) -> None:
         run, _ = self.run_with([
             {"success": False, "message": "App command probeStatus did not respond."},
             {"success": False, "message": "App command probeStatus did not respond."},
         ])
-        run.ensure_session = Mock(return_value=False)
 
         run.read_probe_status()
 
