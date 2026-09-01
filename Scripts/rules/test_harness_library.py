@@ -215,7 +215,7 @@ class ControllerReconciliationTests(unittest.TestCase):
         response = self.client(run).invoke("press", ["--identifier", "Play"])
         self.assertIsNone(response.failure)
         self.assertEqual(response.document["value"], 7)
-        self.assertEqual(run.commands, [["runner", "press", "--identifier", "Play"]])
+        self.assertEqual(run.commands, [["runner", "press", "--identifier", "Play", "--timeout-seconds", "5.0"]])
         self.assertEqual(run.timeouts, [6.0])
         samples = self.budgets.samples("device", "press")
         self.assertEqual(len(samples), 11)

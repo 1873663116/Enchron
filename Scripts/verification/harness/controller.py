@@ -67,6 +67,10 @@ class ControllerClient:
     def invoke(self, verb: str, arguments: Sequence[str] = ()) -> RunnerResponse:
         budget = self.budgets.budget(self.lane, verb)
         command = [*self.command_prefix, verb, *arguments]
+        if verb != "ensure-session" and "--timeout-seconds" not in arguments:
+            command.extend(
+                ("--timeout-seconds", f"{max(budget.seconds - 5.0, 5.0):.1f}")
+            )
         started = self.clock()
         try:
             completed = self.run(command, budget.seconds)
