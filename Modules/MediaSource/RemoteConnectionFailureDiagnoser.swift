@@ -58,10 +58,6 @@ public struct RemoteConnectionFailureDiagnoser: Sendable {
             return .serverUnreachable
         }
 
-        if urlFailureCode == NSURLErrorAppTransportSecurityRequiresSecureConnection {
-            return .requiresHTTPS
-        }
-
         switch URLError.Code(rawValue: urlFailureCode) {
         case .userAuthenticationRequired, .userCancelledAuthentication:
             return .credentialsRejected

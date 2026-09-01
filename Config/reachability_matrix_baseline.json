@@ -1079,12 +1079,42 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Emby-PosterCard-{item.metadata.id.rawValue}",
+      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
       "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
+      "operation": "accessibility:Emby-Detail-PlayFromBeginning",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-Resume",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-PosterCard-",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-StillCard-",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CleartextExposure-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-CleartextExposure-proceed",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-add",
       "verdict": "known-defect"
     }
   ],

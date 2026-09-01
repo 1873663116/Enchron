@@ -10,6 +10,17 @@ import sys
 import tempfile
 import unittest
 
+GIT_REDIRECTS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_QUARANTINE_PATH",
+)
+"""Outrank cwd, so a fixture repository built under them is not the one built."""
 import merge_evidence_tier as tiers
 
 TOOL = Path(__file__).resolve().parent / "merge_evidence_tier.py"

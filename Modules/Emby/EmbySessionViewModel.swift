@@ -862,9 +862,14 @@ public final class EmbyConnectionViewModel {
     public private(set) var errorMessage: String?
 
     private let session: EmbySessionViewModel
+    private let cleartextExposurePolicy: CleartextExposurePolicy
 
-    public init(session: EmbySessionViewModel) {
+    public init(
+        session: EmbySessionViewModel,
+        cleartextExposurePolicy: CleartextExposurePolicy = .shared
+    ) {
         self.session = session
+        self.cleartextExposurePolicy = cleartextExposurePolicy
         address = session.server?.baseAddress.absoluteString ?? ""
     }
 
@@ -874,6 +879,10 @@ public final class EmbyConnectionViewModel {
         let addressValue = value.contains("://") ? value : "http://" + value
         guard let url = URL(string: addressValue), url.host != nil else {
             errorMessage = "Enter a valid server address."
+            return false
+        }
+        guard await cleartextExposurePolicy.authorize(url) else {
+            errorMessage = nil
             return false
         }
         isConnecting = true

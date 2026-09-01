@@ -3,4 +3,19 @@
 set -euo pipefail
 
 repository_root=$(git rev-parse --show-toplevel)
+
+# git exports GIT_DIR to its hooks, naming this worktree's admin directory with
+# no GIT_WORK_TREE beside it, and every git command the verification run makes
+# inherits it. Two structure checks build fixtures by running `git init` inside
+# a temporary directory: init ignores its cwd, re-initialises the repository
+# GIT_DIR names, and writes core.bare = true onto the shared config because that
+# view has no work tree. Every worktree then refuses to work, those two checks
+# fail because their fixtures were never created, and the report blames the
+# checks rather than the push that had just broken the repository underneath
+# them. Pushing from a linked worktree is what makes GIT_DIR point somewhere the
+# run should not follow.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX \
+      GIT_QUARANTINE_PATH
+
 exec "$repository_root/Scripts/rules/run_verification.py" --quick

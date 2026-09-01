@@ -101,7 +101,7 @@ final class EnchronApplication {
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
     let modalPresentationCoordinator: AppModalPresentationCoordinator
-    let certificateTrustPrompt: CertificateTrustPrompt
+    let connectionSecurityPrompt: ConnectionSecurityPrompt
     private let certificateChangePlaybackBoundary: ServerCertificateChangePlaybackBoundary
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
     #if DEBUG
@@ -195,22 +195,32 @@ final class EnchronApplication {
             }
         )
         let modalPresentationCoordinator = AppModalPresentationCoordinator()
-        let certificateTrustPrompt = CertificateTrustPrompt(
+        let connectionSecurityPrompt = ConnectionSecurityPrompt(
             modalPresentationCoordinator: modalPresentationCoordinator
         )
         ServerTrustPolicy.shared.approvalHandler = {
-            [weak certificateTrustPrompt, weak playbackRuntime] certificate in
+            [weak connectionSecurityPrompt, weak playbackRuntime] approval in
             let phase = playbackRuntime?.currentLaunchRequest == nil
                 ? "connection"
                 : "playback"
+            let certificate = approval.certificate
             SurfaceInputProbes.record(
                 "certificateBoundary promptRequested phase=\(phase)"
                     + " address=\(certificate.address)"
                     + " fingerprint=\(certificate.sha256Fingerprint)",
                 retention: .evidence
             )
-            return await certificateTrustPrompt?.requestApproval(for: certificate)
-                ?? false
+            return await connectionSecurityPrompt?
+                .requestApproval(for: .unverifiedCertificate(approval)) ?? false
+        }
+        CleartextExposurePolicy.shared.approvalHandler = {
+            [weak connectionSecurityPrompt] host in
+            SurfaceInputProbes.record(
+                "cleartextBoundary promptRequested host=\(host)",
+                retention: .evidence
+            )
+            return await connectionSecurityPrompt?
+                .requestApproval(for: .cleartextCredentials(host: host)) ?? false
         }
         let playbackVideoEntityStore = PlaybackVideoEntityStore()
         let launcher = PlaybackLaunchCoordinator(
@@ -455,7 +465,7 @@ final class EnchronApplication {
         mediaLibraryUIState = mediaLibraryFeature.uiState
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
-        self.certificateTrustPrompt = certificateTrustPrompt
+        self.connectionSecurityPrompt = connectionSecurityPrompt
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
         #if DEBUG
@@ -586,6 +596,6 @@ extension View {
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
             .environment(application.modalPresentationCoordinator)
-            .environment(application.certificateTrustPrompt)
+            .environment(application.connectionSecurityPrompt)
     }
 }

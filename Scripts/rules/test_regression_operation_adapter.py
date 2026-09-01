@@ -3999,7 +3999,7 @@ class OperationAllowlistTests(unittest.TestCase):
 
     def test_certificate_boundary_probe_records_order_phase_and_redacted_identity(self) -> None:
         prompt = (
-            adapter.REPOSITORY_ROOT / "Apps/Enchron/CertificateTrustPrompt.swift"
+            adapter.REPOSITORY_ROOT / "Apps/Enchron/ConnectionSecurityPrompt.swift"
         ).read_text(encoding="utf-8")
         modal = (
             adapter.REPOSITORY_ROOT

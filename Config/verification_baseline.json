@@ -1,39 +1,39 @@
 {
-  "version": 1,
   "playbackCoreExpectedFailures": [
     "controllerRejectsSecondOpenAndRecordsTheRejection"
   ],
   "playbackCoreIntermittentTimeout": {
-    "test": "acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim",
     "markers": [
       "Timed out",
       "time limit"
-    ]
+    ],
+    "test": "acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim"
   },
   "sourceParityKnownStatuses": [
     {
-      "name": "Samples/DynamicRange/DolbyVision/Profile20/Apple-Historic-Planet-HLS/DoVi_P20_09180_t1080p/fileSequence0.mp4",
-      "decode": "no_frames"
+      "decode": "no_frames",
+      "name": "Samples/DynamicRange/DolbyVision/Profile20/Apple-Historic-Planet-HLS/DoVi_P20_09180_t1080p/fileSequence0.mp4"
     },
     {
-      "name": "Samples/DynamicRange/HLG/LG_Cymatic_Jazz_HLG_Astra_teststream.ts",
-      "decode": "partial"
+      "decode": "partial",
+      "name": "Samples/DynamicRange/HLG/LG_Cymatic_Jazz_HLG_Astra_teststream.ts"
     },
     {
-      "name": "Samples/Professional/ProRes/ProRes RAW HQ 4.2K 23.976 HDR PQ 10.23.2021 Sample Footage.mov",
-      "decode": "probe_failed"
+      "decode": "probe_failed",
+      "name": "Samples/Professional/ProRes/ProRes RAW HQ 4.2K 23.976 HDR PQ 10.23.2021 Sample Footage.mov"
     },
     {
-      "name": "TestVectors/Upstream/FATE/DVB/dvbsubtest_filter.ts",
-      "decode": "probe_failed"
+      "decode": "probe_failed",
+      "name": "TestVectors/Upstream/FATE/DVB/dvbsubtest_filter.ts"
     },
     {
-      "name": "TestVectors/Upstream/FATE/MPEG4-Part2/demo.m4v",
-      "decode": "probe_failed"
+      "decode": "probe_failed",
+      "name": "TestVectors/Upstream/FATE/MPEG4-Part2/demo.m4v"
     },
     {
-      "name": "TestVectors/Upstream/FATE/MPEG4-Part2/mpeg4_sstp_dpcm.m4v",
-      "decode": "probe_failed"
+      "decode": "probe_failed",
+      "name": "TestVectors/Upstream/FATE/MPEG4-Part2/mpeg4_sstp_dpcm.m4v"
     }
-  ]
+  ],
+  "version": 1
 }
