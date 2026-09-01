@@ -80,51 +80,47 @@ modified during a view update. Those are worth their own investigation.
 
 Two seconds lets an ordinary exit finish without being signalled."""
 
-TIMINGS_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.json"
-TIMING_SAMPLE_LIMIT = 20
+TIMINGS_DEVICE_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.device.json"
+TIMINGS_SIMULATOR_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.simulator.json"
+TIMING_SAMPLE_LIMIT = 40
 DEVICECTL_CALL_COUNT = 0
 
 
 def record_timing(
-    action: str, seconds: float, *, device: str, frozen: bool = False
+    action: str, seconds: float, *, device: str, frozen: bool = False, censored: bool = False
 ) -> None:
-    """Rolling window of measured foreground round trips per action. The
-    background-context hook reads this file and stays silent about any action
-    that has no record here.
-
-    Simulator round trips are roughly an order of magnitude shorter than device
-    ones, so they are keyed separately. Sharing one window would let whichever
-    transport ran most recently define the expected duration of the other."""
-    if is_simulator(device):
-        action = f"simulator:{action}"
     if frozen:
-        # A frozen run binds the source tree by digest, and this file is tracked,
-        # so appending a sample here invalidates the freeze the run is executing
-        # under. The committed window stays the authority rubrics cite; a run
-        # that must not move it records nothing. The caller passes its resolved
-        # argument rather than reading the environment, because the matrix
-        # supplies --execution-input on the command line and an environment
-        # probe missed it for a hundred and thirty commands.
         return
+    path = TIMINGS_SIMULATOR_PATH if is_simulator(device) else TIMINGS_DEVICE_PATH
     try:
-        timings = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        timings = {}
-    entry = timings.get(action) or {}
-    samples = list(entry.get("samples") or [])
-    samples.append(round(seconds, 2))
-    timings[action] = {
-        "samples": samples[-TIMING_SAMPLE_LIMIT:],
-        "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
+        data = {"verbs": {}, "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    if not isinstance(data, dict):
+        data = {"verbs": {}, "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    verbs = data.get("verbs")
+    if not isinstance(verbs, dict):
+        verbs = {}
+        for key, value in list(data.items()):
+            if key in ("verbs", "updatedAt"):
+                continue
+            if isinstance(value, dict) and "samples" in value:
+                verbs[key] = value
+    entry = verbs.get(action)
+    if not isinstance(entry, dict):
+        entry = {}
+    samples = entry.get("samples")
+    if not isinstance(samples, list):
+        samples = []
+    at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    samples.append({"seconds": round(seconds, 2), "censored": bool(censored), "at": at})
+    verbs[action] = {"samples": samples[-TIMING_SAMPLE_LIMIT:]}
+    data = {"verbs": verbs, "updatedAt": at}
     try:
-        temporary = TIMINGS_PATH.with_name(TIMINGS_PATH.name + ".tmp")
-        temporary.write_text(
-            json.dumps(timings, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        temporary.replace(TIMINGS_PATH)
+        temporary = path.with_name(path.name + ".tmp")
+        temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(path)
     except OSError:
-        # Timing telemetry must not fail the device command it rode on.
         pass
 
 
@@ -1319,48 +1315,70 @@ AUTO_HIDING_PREFIXES = (
     "PlayerPanel-",
 )
 
+_AUTO_HIDE_DIAGNOSIS = "Player chrome auto-hides about eight seconds after it is summoned (measured design behavior, 2026-08-10), and each controller command pays a device round trip, so a tap sent as its own command can arrive after the hide; a tapSequence delivers several taps inside one round trip (controller design). A load-failure view replaces the chrome entirely when a load fails (PlayerUI-loadFailure-primary/-secondary in the hierarchy)."
+_NOT_RUNNING_DIAGNOSIS = "The runner reports appState notRunning: no running app was attached to this session when the event was sent (runner-reported state)."
 
-def explain_failure(arguments, response: dict) -> dict:
-    """Attach the design-state facts behind the failures that otherwise read
-    as a missing accessibility surface. Facts only, stated with their source;
-    what to do about them stays with the caller."""
+
+def _attach_failure(arguments, response: dict) -> dict:
     if response.get("success") is True:
         return response
-    if response.get("stage") == "responseTimeout":
-        # No runner report arrived, so there is no runner-reported state to
-        # explain; the timeout observations already carry the scene.
+    if "failure" in response:
         return response
-    identifiers = list(getattr(arguments, "identifiers", None) or [])
-    identifier = getattr(arguments, "identifier", None)
-    if identifier:
-        identifiers.append(identifier)
-    message = str(response.get("message", ""))
-
-    if response.get("appState") in (None, "notRunning"):
-        response["diagnosis"] = (
-            "The runner reports appState notRunning: no running app was "
-            "attached to this session when the event was sent "
-            "(runner-reported state)."
-        )
-        return response
-
-    lowered = message.lower()
-    element_is_absent = (
-        "no matching element" in lowered or "no current element matches" in lowered
-    )
-    if element_is_absent and any(
-        name.startswith(AUTO_HIDING_PREFIXES) for name in identifiers
-    ):
-        response["diagnosis"] = (
-            "Player chrome auto-hides about eight seconds after it is "
-            "summoned (measured design behavior, 2026-08-10), and each "
-            "controller command pays a device round trip, so a tap sent as "
-            "its own command can arrive after the hide; a tapSequence "
-            "delivers several taps inside one round trip (controller "
-            "design). A load-failure view replaces the chrome entirely "
-            "when a load fails (PlayerUI-loadFailure-primary/-secondary in "
-            "the hierarchy)."
-        )
+    stage = response.get("stage")
+    app_state = response.get("appState")
+    message = str(response.get("message", response.get("error", "")))
+    lower = message.lower()
+    raw_obs = response.pop("observations", None)
+    observations = raw_obs if isinstance(raw_obs, list) else []
+    response.pop("diagnosis", None)
+    kind = ""
+    diagnosis = ""
+    if stage == "responseTimeout":
+        kind = "response-timeout"
+        diagnosis = message
+    elif stage == "authorizationTimeout":
+        kind = "authorization-required"
+        diagnosis = message
+    elif stage == "readyTimeout":
+        kind = "session-lost"
+        diagnosis = message
+    elif stage == "halt":
+        kind = "session-lost"
+        diagnosis = message
+    elif stage == "firstCommand":
+        kind = "app-not-running"
+        diagnosis = message
+    elif isinstance(arguments, argparse.Namespace) and getattr(arguments, "action", None) == "app-command" and "did not respond within" in lower:
+        kind = "response-timeout"
+        diagnosis = message
+    elif "appState" in response and app_state in (None, "notRunning"):
+        kind = "app-not-running"
+        diagnosis = _NOT_RUNNING_DIAGNOSIS
+    elif "crashed" in lower or "crash" in lower:
+        kind = "app-crashed"
+        diagnosis = message
+    else:
+        element_is_absent = "no matching element" in lower or "no current element matches" in lower
+        hittable_missing = "is not currently hittable" in lower
+        identifiers = list(getattr(arguments, "identifiers", None) or [])
+        identifier = getattr(arguments, "identifier", None)
+        if identifier:
+            identifiers.append(identifier)
+        has_auto = any(name.startswith(AUTO_HIDING_PREFIXES) for name in identifiers) if identifiers else False
+        if element_is_absent and has_auto:
+            kind = "assertion-mismatch"
+            diagnosis = _AUTO_HIDE_DIAGNOSIS
+        elif element_is_absent or hittable_missing:
+            kind = "assertion-mismatch"
+            diagnosis = message if message else "Element not found"
+        else:
+            kind = "assertion-mismatch"
+            diagnosis = message if message else "Assertion mismatch"
+    if not kind:
+        kind = "assertion-mismatch"
+        diagnosis = message
+    cls = "product" if kind in ("app-crashed", "assertion-mismatch") else "instrument"
+    response["failure"] = {"class": cls, "kind": kind, "evidence": {"diagnosis": diagnosis, "observations": observations}}
     return response
 
 
@@ -1369,25 +1387,11 @@ SWIPE_ACTIONS = ("swipeUp", "swipeDown", "swipeLeft", "swipeRight")
 
 def main() -> int:
     arguments = parse_arguments()
-    if arguments.action in SWIPE_ACTIONS and not (
-        arguments.identifier or arguments.label
-    ):
-        # Without a target the runner swipes the Application element, which
-        # belongs to no visionOS Scene; the resulting failure ends the
-        # long-lived test method and tears the session down.
-        print(
-            json.dumps(
-                {
-                    "success": False,
-                    "error": (
-                        f"{arguments.action} requires --identifier or --label."
-                        " Swiping the application element kills the session"
-                        " on visionOS."
-                    ),
-                },
-                ensure_ascii=False,
-            )
-        )
+    if arguments.action in SWIPE_ACTIONS and not (arguments.identifier or arguments.label):
+        response = {"success": False, "error": f"{arguments.action} requires --identifier or --label. Swiping the application element kills the session on visionOS."}
+        response = _attach_failure(arguments, response)
+        response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
+        print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
         return 2
     started_at = time.monotonic()
     try:
@@ -1398,17 +1402,43 @@ def main() -> int:
         elif arguments.action == "app-command":
             response = app_command(arguments)
         else:
-            response = explain_failure(arguments, send_command(arguments))
+            response = send_command(arguments)
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
-        print(json.dumps({"success": False, "error": str(error)}, ensure_ascii=False))
+        response = {"success": False, "error": str(error)}
+        response = _attach_failure(arguments, response)
+        response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
+        print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
         return 1
-    if response.get("success"):
-        record_timing(
-            arguments.action,
-            time.monotonic() - started_at,
-            device=arguments.device,
-            frozen=getattr(arguments, "execution_input", None) is not None,
-        )
+    if not response.get("success"):
+        response = _attach_failure(arguments, response)
+    censored = False
+    failure_kind = ""
+    try:
+        failure_kind = response.get("failure", {}).get("kind", "")
+    except (AttributeError, TypeError):
+        failure_kind = ""
+    if failure_kind == "response-timeout":
+        censored = True
+    elif response.get("stage") == "responseTimeout":
+        censored = True
+    elif arguments.action == "app-command" and "did not respond within" in str(response.get("message", "")).lower():
+        censored = True
+    elif arguments.action == "ensure-session" and response.get("stage") == "readyTimeout":
+        censored = True
+    if censored:
+        if arguments.action == "ensure-session":
+            try:
+                seconds = float(getattr(arguments, "ready_timeout", 300.0))
+            except (TypeError, ValueError):
+                seconds = 300.0
+        else:
+            try:
+                seconds = float(getattr(arguments, "timeout_seconds", 30.0))
+            except (TypeError, ValueError):
+                seconds = 30.0
+    else:
+        seconds = time.monotonic() - started_at
+    record_timing(arguments.action, seconds, device=arguments.device, frozen=getattr(arguments, "execution_input", None) is not None, censored=censored)
     response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if response.get("success") else 2
