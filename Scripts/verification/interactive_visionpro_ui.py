@@ -284,7 +284,46 @@ def wake_runner(arguments: argparse.Namespace) -> None:
         )
 
 
-def read_ready_state(arguments: argparse.Namespace) -> dict[str, object]:
+READY_CACHE_KEY = "readyCache"
+
+
+def ready_cache_applies(arguments: argparse.Namespace) -> bool:
+    if getattr(arguments, "output_directory", None) is None:
+        return False
+    return not is_simulator(arguments.device)
+
+
+def cached_ready_state(arguments: argparse.Namespace) -> dict[str, object] | None:
+    if not ready_cache_applies(arguments):
+        return None
+    cached = load_session_state(arguments).get(READY_CACHE_KEY)
+    return cached if isinstance(cached, dict) and "sessionID" in cached else None
+
+
+def remember_ready_state(arguments: argparse.Namespace, ready: dict[str, object]) -> None:
+    if not ready_cache_applies(arguments):
+        return
+    state = load_session_state(arguments)
+    state[READY_CACHE_KEY] = ready
+    save_session_state(arguments, state)
+
+
+def forget_ready_state(arguments: argparse.Namespace) -> None:
+    if getattr(arguments, "output_directory", None) is None:
+        return
+    state = load_session_state(arguments)
+    if READY_CACHE_KEY in state:
+        del state[READY_CACHE_KEY]
+        save_session_state(arguments, state)
+
+
+def read_ready_state(
+    arguments: argparse.Namespace, *, fresh: bool = False
+) -> dict[str, object]:
+    if not fresh:
+        cached = cached_ready_state(arguments)
+        if cached is not None:
+            return cached
     with tempfile.TemporaryDirectory(prefix="enchron-interactive-ready-") as directory:
         ready_path = Path(directory) / "ready.json"
         if not copy_from_device(
@@ -294,10 +333,13 @@ def read_ready_state(arguments: argparse.Namespace) -> dict[str, object]:
             local_path=ready_path,
             quiet=True,
         ):
+            forget_ready_state(arguments)
             raise RuntimeError(
                 "The interactive XCUI runner is not ready. Start its dedicated UI test first."
             )
-        return json.loads(ready_path.read_text(encoding="utf-8"))
+        ready = json.loads(ready_path.read_text(encoding="utf-8"))
+        remember_ready_state(arguments, ready)
+        return ready
 
 
 def wait_for_response(
@@ -397,8 +439,9 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     runner's own stop command so XCTest saves its result bundle, then resolves
     the remaining Mac-side processes by repository-scoped command line."""
     graceful = "unavailable"
+    forget_ready_state(arguments)
     try:
-        ready = read_ready_state(arguments)
+        ready = read_ready_state(arguments, fresh=True)
         command_id = str(uuid.uuid4())
         with tempfile.TemporaryDirectory(prefix="enchron-interactive-halt-") as directory:
             command_path = Path(directory) / "command.json"
@@ -710,6 +753,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
             deadline_seconds=arguments.timeout_seconds,
         )
         if not arrived:
+            forget_ready_state(arguments)
             return {
                 "success": False,
                 "stage": "responseTimeout",
@@ -830,7 +874,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
 
 def current_session_id(arguments: argparse.Namespace) -> str | None:
     try:
-        return str(read_ready_state(arguments)["sessionID"])
+        return str(read_ready_state(arguments, fresh=True)["sessionID"])
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError, KeyError):
         return None
 

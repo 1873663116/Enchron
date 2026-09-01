@@ -16,6 +16,61 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 import interactive_visionpro_ui as controller
 
 
+class ReadyStateCacheTests(unittest.TestCase):
+    def arguments(self, device: str) -> argparse.Namespace:
+        return argparse.Namespace(
+            device=device,
+            runner_bundle_id="runner",
+            output_directory=tempfile.mkdtemp(prefix="ready-cache-"),
+        )
+
+    def ready_writer(self, session_id: str):
+        def write(**kwargs) -> bool:
+            kwargs["local_path"].write_text(
+                json.dumps({"sessionID": session_id}), encoding="utf-8"
+            )
+            return True
+        return write
+
+    def test_physical_device_reads_ready_once_per_session(self) -> None:
+        arguments = self.arguments("00008142-0001")
+        with patch.object(controller, "is_simulator", return_value=False), patch.object(
+            controller, "copy_from_device", side_effect=self.ready_writer("s1")
+        ) as copy_from:
+            first = controller.read_ready_state(arguments)
+            second = controller.read_ready_state(arguments)
+        self.assertEqual((first["sessionID"], second["sessionID"]), ("s1", "s1"))
+        self.assertEqual(copy_from.call_count, 1)
+
+    def test_fresh_read_bypasses_the_cache(self) -> None:
+        arguments = self.arguments("00008142-0001")
+        with patch.object(controller, "is_simulator", return_value=False), patch.object(
+            controller, "copy_from_device", side_effect=self.ready_writer("s1")
+        ) as copy_from:
+            controller.read_ready_state(arguments)
+            controller.read_ready_state(arguments, fresh=True)
+        self.assertEqual(copy_from.call_count, 2)
+
+    def test_forgetting_the_cache_forces_the_next_read_to_copy(self) -> None:
+        arguments = self.arguments("00008142-0001")
+        with patch.object(controller, "is_simulator", return_value=False), patch.object(
+            controller, "copy_from_device", side_effect=self.ready_writer("s1")
+        ) as copy_from:
+            controller.read_ready_state(arguments)
+            controller.forget_ready_state(arguments)
+            controller.read_ready_state(arguments)
+        self.assertEqual(copy_from.call_count, 2)
+
+    def test_simulator_never_caches_ready_state(self) -> None:
+        arguments = self.arguments("3DD8E196-SIM")
+        with patch.object(controller, "is_simulator", return_value=True), patch.object(
+            controller, "copy_from_device", side_effect=self.ready_writer("s1")
+        ) as copy_from:
+            controller.read_ready_state(arguments)
+            controller.read_ready_state(arguments)
+        self.assertEqual(copy_from.call_count, 2)
+
+
 class DeferredAppCommandTests(unittest.TestCase):
     def test_deferred_command_sends_once_without_copying_its_response(self) -> None:
         sent: dict[str, object] = {}
