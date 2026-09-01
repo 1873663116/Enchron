@@ -1151,6 +1151,8 @@ class ReachabilityRun:
     def channel_refuses(self, action: str) -> bool:
         if action in RECOVERY_VERBS:
             return False
+        if getattr(self, "salvaging", False):
+            return False
         if getattr(self, "halted", False):
             return True
         return self.segment is not None and bool(self.channel_failures)
@@ -6699,6 +6701,7 @@ class ReachabilityRun:
             if self.channel_failures:
                 break
 
+        self.salvaging = True
         status_document = self.read_probe_status()
         self.probe_status = parse_probe_status_response(status_document)
         status_path = self.raw / "probe-status.json"
@@ -6786,6 +6789,23 @@ class ReachabilityRun:
                 "error": replay_failure,
                 "evidence": f"raw/{replay_path.name}",
             })
+            journal_level = (
+                replay.get("journalRetrieved") is False
+                or replay.get("sessionAligned") is not True
+                or replay.get("sequenceOrdered") is not True
+            )
+            if journal_level:
+                for failed in replay.get("failures", []):
+                    key = (failed.get("context"), failed.get("operation"))
+                    cell = self.cells.get(key)
+                    if cell is not None and cell.get("verdict") == "known-defect":
+                        cell["verdict"] = "unmeasured"
+                        cell["reason"] = (
+                            "The probe journal behind this cell's deferred "
+                            "delivery was never retrieved or aligned; missing "
+                            "delivery facts here are instrument silence, never "
+                            "a product verdict."
+                        )
         after_health = self.record_segment_health_context(
             "after",
             probe_status_passed=self.probe_status["passed"] is True,
