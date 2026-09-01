@@ -90,6 +90,15 @@ unverifiable.
 TRANSFER_ATTEMPTS = (1.0, 2.5, 5.0)
 """Backoff between copy attempts. The last one is longer than the app's poll."""
 
+RECOVERY_ACTIONS = frozenset({"relaunch", "ensure-session", "halt", "stop"})
+"""Actions issued in response to silence, which do not themselves count as more.
+
+A relaunch that goes unanswered is the same fault as the tap that prompted it,
+not a second one. Counting it spent two thirds of the budget on one event, and a
+window segment ended after a single unanswered tap plus the relaunch that tried
+to recover from it.
+"""
+
 
 class ControllerStopped(Exception):
     """The controller stopped answering, so the run cannot mean anything."""
@@ -1249,7 +1258,8 @@ class ReachabilityRun:
         if NO_ANSWER.search(
             str(document.get("error", "")) + str(document.get("message", ""))
         ):
-            self.consecutive_timeouts += 1
+            if action not in RECOVERY_ACTIONS:
+                self.consecutive_timeouts += 1
         else:
             self.consecutive_timeouts = 0
         stopped = self.consecutive_timeouts >= CONSECUTIVE_CONTROLLER_TIMEOUTS

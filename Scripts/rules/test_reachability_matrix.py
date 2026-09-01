@@ -1236,6 +1236,31 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
             self.assertEqual(run.consecutive_timeouts, 1)
 
+    def test_a_recovery_that_goes_unanswered_is_not_a_second_fault(self) -> None:
+        silent = SimpleNamespace(
+            stdout=json.dumps({
+                "success": False,
+                "message": "The runner did not answer tap within 90 seconds.",
+            }),
+            stderr="", returncode=0,
+        )
+        silent_recovery = SimpleNamespace(
+            stdout=json.dumps({
+                "success": False,
+                "message": "The runner did not answer relaunch within 30 seconds.",
+            }),
+            stderr="", returncode=0,
+        )
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            with patch.object(matrix.subprocess, "run",
+                              side_effect=[silent, silent_recovery, silent_recovery]):
+                run.controller("tap", "--identifier", "x")
+                run.controller("relaunch", "--no-screenshot")
+                run.controller("relaunch", "--no-screenshot")
+
+            self.assertEqual(run.consecutive_timeouts, 1)
+
     def test_a_product_refusal_does_not_end_the_run(self) -> None:
         refused = SimpleNamespace(
             stdout=json.dumps({
