@@ -1870,6 +1870,61 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         )
 
 
+class ProbeStatusRetryTests(unittest.TestCase):
+    """One unanswered command must not cost the segment its whole journal.
+
+    probeStatus names the byte limit the bounded copy needs. Unanswered, every
+    field is null, the copy is skipped, and the replay runs against nothing -
+    81 and 53 delivery facts reported unverified in one run, after every
+    scenario had already finished.
+    """
+
+    def run_with(self, answers: list[dict]) -> tuple[matrix.ReachabilityRun, Mock]:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = []
+        run.app_command = Mock(side_effect=answers)
+        run.ensure_session = Mock(return_value=True)
+        return run, run.app_command
+
+    def test_an_unanswered_probe_status_is_asked_again(self) -> None:
+        answered = {"success": True, "payload": ["byteLimit=196608"]}
+        run, app_command = self.run_with([
+            {"success": False, "message": "App command probeStatus did not respond."},
+            answered,
+        ])
+
+        document = run.read_probe_status()
+
+        self.assertEqual(document, answered)
+        self.assertEqual(app_command.call_count, 2)
+        run.ensure_session.assert_called_once_with()
+        self.assertEqual(
+            [event["action"] for event in run.events], ["probeStatusRetry"]
+        )
+
+    def test_an_answered_probe_status_is_not_asked_twice(self) -> None:
+        answered = {"success": True, "payload": ["byteLimit=196608"]}
+        run, app_command = self.run_with([answered])
+
+        document = run.read_probe_status()
+
+        self.assertEqual(document, answered)
+        self.assertEqual(app_command.call_count, 1)
+        run.ensure_session.assert_not_called()
+        self.assertEqual(run.events, [])
+
+    def test_the_retry_reports_a_session_it_could_not_restore(self) -> None:
+        run, _ = self.run_with([
+            {"success": False, "message": "App command probeStatus did not respond."},
+            {"success": False, "message": "App command probeStatus did not respond."},
+        ])
+        run.ensure_session = Mock(return_value=False)
+
+        run.read_probe_status()
+
+        self.assertIs(run.events[0]["success"], False)
+
+
 class MissingProbeJournalTests(unittest.TestCase):
     """A journal that was never read is not evidence of anything.
 

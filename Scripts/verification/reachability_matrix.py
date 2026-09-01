@@ -2123,6 +2123,30 @@ class ReachabilityRun:
                 )
         return document
 
+    def read_probe_status(self) -> dict[str, Any]:
+        """Ask twice, restoring the session in between.
+
+        probeStatus names the byte limit the journal copy is bounded by. When
+        it goes unanswered every field is null, the copy is skipped, and the
+        replay runs against an empty journal - two of five segments reported
+        their whole delivery set unverified that way, 81 facts and 53 facts,
+        after every scenario had already run.
+
+        Retrying is worth it because the journal outlives the app. One segment
+        relaunched thirty-seven times and its journal stayed one unbroken run,
+        sequence 71469 through 71891 under a single probeSession, so a session
+        restored after the scenarios still reads the evidence they wrote.
+        """
+        document = self.app_command("probeStatus", defer_response=False)
+        if document.get("success") is True:
+            return document
+        self.events.append({
+            "at": utc_now(),
+            "action": "probeStatusRetry",
+            "success": self.ensure_session(),
+        })
+        return self.app_command("probeStatus", defer_response=False)
+
     def record_silent_tap(
         self,
         presentation: str,
@@ -6497,10 +6521,7 @@ class ReachabilityRun:
             if self.channel_failures:
                 break
 
-        status_document = self.app_command(
-            "probeStatus",
-            defer_response=False,
-        )
+        status_document = self.read_probe_status()
         self.probe_status = parse_probe_status_response(status_document)
         status_path = self.raw / "probe-status.json"
         status_path.write_text(
