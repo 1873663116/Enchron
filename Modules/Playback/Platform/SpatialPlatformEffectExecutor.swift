@@ -177,6 +177,8 @@ public final class SpatialPlatformEffectCoordinator {
     private var activeTask: ActiveTask?
     @ObservationIgnored
     private var handoverTask: Task<Void, Never>?
+    private var pendingHandoverDismissal: SpatialPlatformWindowIdentity?
+    private var mainSceneActive = true
     @ObservationIgnored
     private let immersiveActionLane = SpatialPlatformSerializedActionLane()
     @ObservationIgnored
@@ -521,7 +523,31 @@ public final class SpatialPlatformEffectCoordinator {
         }
 
         guard let actions = leaseRegistry.currentCapability else { return }
+        if handover.incoming == .main {
+            pendingHandoverDismissal = handover.outgoing
+            appModel.recordSurfaceInputProbe(
+                "playbackWindowHandover deferredDismissal"
+                    + " outgoing=\(handover.outgoing.rawValue)"
+                    + " until=main-scene-active"
+            )
+            return
+        }
         actions.dismissWindow(id: handover.outgoing.rawValue)
+    }
+
+    public func recordMainScenePhaseActive(_ active: Bool) {
+        mainSceneActive = active
+        guard active, let outgoing = pendingHandoverDismissal else { return }
+        guard let actions = leaseRegistry.currentCapability else {
+            pendingHandoverDismissal = nil
+            return
+        }
+        pendingHandoverDismissal = nil
+        actions.dismissWindow(id: outgoing.rawValue)
+        appModel.recordSurfaceInputProbe(
+            "playbackWindowHandover dismissed outgoing=\(outgoing.rawValue)"
+                + " trigger=main-scene-active"
+        )
     }
 
     private func invalidateTask(_ lease: SpatialPlatformExecutionLease) {

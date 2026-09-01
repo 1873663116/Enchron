@@ -49,6 +49,8 @@ struct EnchronApp: App {
             }
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
+                application.spatialPlatformEffectCoordinator
+                    .recordMainScenePhaseActive(current == .active)
                 guard current == .active else { return }
                 Task { @MainActor in
                     await Task.yield()
