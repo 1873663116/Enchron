@@ -475,21 +475,21 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         sys.path.insert(0, str(root / "Scripts/verification"))
         import interactive_visionpro_ui as controller
-        before = controller.TIMINGS_PATH.read_bytes()
+        before = controller.TIMINGS_DEVICE_PATH.read_bytes()
         with mock.patch.dict(os.environ, environment, clear=False):
             controller.record_timing("probe-action", 1.25, device="00008142-0001")
-        after = controller.TIMINGS_PATH.read_bytes()
+        after = controller.TIMINGS_DEVICE_PATH.read_bytes()
         return before, after
 
     def test_a_frozen_run_writes_no_sample(self) -> None:
         root = Path(__file__).resolve().parents[2]
         sys.path.insert(0, str(root / "Scripts/verification"))
         import interactive_visionpro_ui as controller
-        before = controller.TIMINGS_PATH.read_bytes()
+        before = controller.TIMINGS_DEVICE_PATH.read_bytes()
         controller.record_timing(
             "probe-action", 1.25, device="00008142-0001", frozen=True
         )
-        self.assertEqual(before, controller.TIMINGS_PATH.read_bytes())
+        self.assertEqual(before, controller.TIMINGS_DEVICE_PATH.read_bytes())
 
     def test_the_environment_alone_does_not_make_a_run_frozen(self) -> None:
         """The matrix passes --execution-input on the command line, so a guard
@@ -497,7 +497,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         sys.path.insert(0, str(root / "Scripts/verification"))
         import interactive_visionpro_ui as controller
-        original = controller.TIMINGS_PATH.read_bytes()
+        original = controller.TIMINGS_DEVICE_PATH.read_bytes()
         try:
             with mock.patch.dict(
                 os.environ,
@@ -505,20 +505,20 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
                 clear=False,
             ):
                 controller.record_timing("probe-action", 1.25, device="00008142-0001")
-            self.assertIn(b"probe-action", controller.TIMINGS_PATH.read_bytes())
+            self.assertIn(b"probe-action", controller.TIMINGS_DEVICE_PATH.read_bytes())
         finally:
-            controller.TIMINGS_PATH.write_bytes(original)
+            controller.TIMINGS_DEVICE_PATH.write_bytes(original)
 
     def test_an_unfrozen_run_still_records(self) -> None:
         root = Path(__file__).resolve().parents[2]
         sys.path.insert(0, str(root / "Scripts/verification"))
         import interactive_visionpro_ui as controller
-        original = controller.TIMINGS_PATH.read_bytes()
+        original = controller.TIMINGS_DEVICE_PATH.read_bytes()
         try:
             environment = {k: v for k, v in os.environ.items()
                            if k != "ENCHRON_EXECUTION_INPUT"}
             with mock.patch.dict(os.environ, environment, clear=True):
                 controller.record_timing("probe-action", 1.25, device="00008142-0001")
-            self.assertIn(b"probe-action", controller.TIMINGS_PATH.read_bytes())
+            self.assertIn(b"probe-action", controller.TIMINGS_DEVICE_PATH.read_bytes())
         finally:
-            controller.TIMINGS_PATH.write_bytes(original)
+            controller.TIMINGS_DEVICE_PATH.write_bytes(original)
