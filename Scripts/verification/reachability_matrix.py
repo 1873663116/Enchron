@@ -3124,10 +3124,10 @@ class ReachabilityRun:
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         reference = self.wait_for_identifier(
-            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            self.primary_video_identifier()
         )
         if not isinstance(reference.get("matchedElement"), dict):
-            self.app_command("importMedia", file="furyroad-stripped.mkv")
+            self.app_command("importMedia", file=self.primary_video_file())
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")
 
@@ -3408,7 +3408,7 @@ class ReachabilityRun:
         before = probe
         offset = len(before)
         reference = self.tap(
-            presentation, "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            presentation, self.primary_video_identifier(),
             operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
         )
         probe = self.copy_probe("browser-reference-selected")
@@ -3447,7 +3447,7 @@ class ReachabilityRun:
         )
         self.tap(
             presentation,
-            "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            self.primary_video_identifier(),
             operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
         )
         before = self.copy_probe("browser-move-selection-before")
@@ -3533,7 +3533,7 @@ class ReachabilityRun:
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         if self.app_command(
-            "importMedia", file="furyroad-stripped.mkv"
+            "importMedia", file=self.primary_video_file()
         ).get("success") is not True:
             return
         self.relaunch()
@@ -3634,7 +3634,7 @@ class ReachabilityRun:
             return
         selected = self.tap(
             presentation,
-            "MediaLibrary-grid-video-furyroad-stripped.mkv",
+            self.primary_video_identifier(),
             operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
         )
         if selected.get("success") is not True:
@@ -3777,7 +3777,7 @@ class ReachabilityRun:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
-        imported = self.app_command("importMedia", file="furyroad-stripped.mkv")
+        imported = self.app_command("importMedia", file=self.primary_video_file())
         if imported.get("success") is True:
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")
@@ -4580,7 +4580,7 @@ class ReachabilityRun:
                     )
 
     def player_panel_portal_menu_scenario(self) -> None:
-        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        opened = self.open_media(self.primary_video_identifier())
         if opened.get("success") is not True:
             return
         if not self.ensure_window_projection("180°"):
@@ -4593,7 +4593,17 @@ class ReachabilityRun:
             return
         self.player_panel_menu_scenario("portal")
 
+    def primary_video_file(self) -> str:
+        if getattr(self, "lane", "device") == "simulator":
+            return "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        return "furyroad-stripped.mkv"
+
+    def primary_video_identifier(self) -> str:
+        return "MediaLibrary-grid-video-" + self.primary_video_file()
+
     def open_media(self, identifier: str) -> dict[str, Any]:
+        if identifier == "MediaLibrary-grid-video-furyroad-stripped.mkv":
+            identifier = self.primary_video_identifier()
         self.relaunch()
         self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
         before = self.copy_probe("open-media-before")
@@ -4666,7 +4676,9 @@ class ReachabilityRun:
         self.hold("pace", 2)
         return result
 
-    def open_local_media(self, file_name: str) -> dict[str, Any]:
+    def open_local_media(self, file_name: str | None = None) -> dict[str, Any]:
+        if file_name is None:
+            file_name = self.primary_video_file()
         return self.open_media(f"MediaLibrary-grid-video-{file_name}")
 
     def video_format_editor_scenario(
@@ -4924,7 +4936,7 @@ class ReachabilityRun:
     def window_scenario(self) -> None:
         presentation = "window"
         opened = self.open_media(
-            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            self.primary_video_identifier()
         )
         if opened.get("success") is not True:
             return
@@ -4955,7 +4967,7 @@ class ReachabilityRun:
         self.resume_decision_scenario()
 
     def window_issue_scenario(self) -> None:
-        if self.open_local_media("furyroad-stripped.mkv").get("success") is not True:
+        if self.open_local_media(self.primary_video_file()).get("success") is not True:
             return
         if not self.ensure_window_projection("Flat"):
             return
@@ -5135,7 +5147,7 @@ class ReachabilityRun:
     def player_ui_candidate_scenario(self) -> None:
         presentation = "window"
         opened = self.open_media(
-            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            self.primary_video_identifier()
         )
         if opened.get("success") is not True:
             return
@@ -5631,7 +5643,7 @@ class ReachabilityRun:
 
 
     def enter_panorama_playback(
-        self, file_name: str = "furyroad-stripped.mkv"
+        self, file_name: str | None = None
     ) -> bool:
         presentation = "panorama"
         opened = self.open_local_media(file_name)
@@ -5694,7 +5706,7 @@ class ReachabilityRun:
 
     def portal_scenario(self) -> None:
         presentation = "portal"
-        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        opened = self.open_media(self.primary_video_identifier())
         if opened.get("success") is not True:
             return
         if not self.ensure_window_projection("180°"):
@@ -5728,7 +5740,7 @@ class ReachabilityRun:
         self.top_menu_scenario(presentation)
 
     def enter_portal_playback(
-        self, file_name: str = "furyroad-stripped.mkv"
+        self, file_name: str | None = None
     ) -> bool:
         if self.open_local_media(file_name).get("success") is not True:
             return False
@@ -5777,7 +5789,7 @@ class ReachabilityRun:
         self,
         *,
         dock_choice: str = "skybox",
-        file_name: str = "furyroad-stripped.mkv",
+        file_name: str | None = None,
         record_route: bool = False,
     ) -> bool:
         presentation = "docked"
@@ -6191,7 +6203,7 @@ class ReachabilityRun:
             ("PlayerUI-loadFailure-secondary", "close"),
         ):
             opened = self.open_media(
-                "MediaLibrary-grid-video-furyroad-stripped.mkv"
+                self.primary_video_identifier()
             )
             if opened.get("success") is not True:
                 return
@@ -6424,7 +6436,7 @@ class ReachabilityRun:
         self.docked_main_window_issue_scenario()
 
         opened = self.open_media(
-            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+            self.primary_video_identifier()
         )
         if opened.get("success") is not True:
             return
@@ -6694,7 +6706,11 @@ class ReachabilityRun:
         planned_scenarios = {str(value) for value in self.segment["scenarios"]}
         fixture_files: set[str] = set()
         if planned_scenarios & fixture_scenarios:
-            fixture_files.add("furyroad-stripped.mkv")
+            fixture_files.add(
+                "sdr-bframe-multiaudio-subtitles-30s.mkv"
+                if self.lane == "simulator"
+                else "furyroad-stripped.mkv"
+            )
         for scenario in planned_scenarios:
             fixture_files.update(SCENARIO_FIXTURES.get(scenario, ()))
         for fixture_file in sorted(fixture_files):
@@ -6993,7 +7009,7 @@ class ReachabilityRun:
                 self.finish("drive-error")
                 return 2
             if context == "docked" and not self.stage_fixture(
-                "furyroad-stripped.mkv"
+                self.primary_video_file()
             ):
                 if not self.arguments.reuse_session:
                     self.controller("halt", "--no-screenshot")
