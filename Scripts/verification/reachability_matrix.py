@@ -52,6 +52,42 @@ MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
 
+# Measured, not chosen. Scripts/verification/controller_timings.json keeps the
+# last twenty samples of every verb on both lanes, and each limit here is the
+# larger lane's 95th percentile with half again on top. The simulator runs one
+# and a half to two times slower than the headset and the same code serves both,
+# so the slower lane sets the number.
+#
+#                     device p95   simulator p95
+#   tap                      8.6            13.5
+#   snapshot                 5.8            14.2
+#   relaunch                 9.9            19.0
+#
+# The two verbs that hang rather than slow down get the upper edge of their
+# working range instead: halt answers in about seven seconds on the headset and
+# sixteen on the simulator, and twice in twenty samples it took two hundred and
+# seventeen and two hundred and fifty-eight. ensure-session installs a runner
+# and legitimately takes between twenty-six and eighty-eight seconds. Waiting
+# out the hung case buys nothing, so the limit ends just past the working one.
+INTERACTION_TIMEOUT = 20.0
+"""tap, press, swipe, typeText - the verbs that wait on a hit test."""
+
+READ_TIMEOUT = 20.0
+"""snapshot and app-command, which only read."""
+
+RELAUNCH_TIMEOUT = 30.0
+"""relaunch, whose simulator p95 of 19.0s is the widest of the fast verbs."""
+
+HALT_TIMEOUT = 30.0
+"""halt and stop, which answer in seconds or hang for four minutes."""
+
+SESSION_TIMEOUT = 150.0
+"""ensure-session, whose working range tops out at eighty-eight seconds."""
+
+PROBE_COPY_TIMEOUT = 120.0
+"""Not measured yet. The copies now record how long they took, so a run's worth
+of samples is what will replace this the way the others were replaced."""
+
 CONSECUTIVE_CONTROLLER_TIMEOUTS = 3
 """Unanswered controller calls in a row that end the run.
 
@@ -1121,6 +1157,7 @@ class ReachabilityRun:
         self.driven_cells: set[tuple[str, str]] = set()
         self.tapped_cells: set[tuple[str, str]] = set()
         self.silent_taps: list[dict[str, Any]] = []
+        self.copy_timings: list[dict[str, Any]] = []
         self.session_id: str | None = None
         self.channel_health: dict[str, dict[str, Any]] = {}
         self.channel_failures: list[dict[str, Any]] = []
@@ -1178,6 +1215,7 @@ class ReachabilityRun:
         completed: subprocess.CompletedProcess[str] | None = None
         for attempt, delay in enumerate(TRANSFER_ATTEMPTS):
             self.direct_devicectl_calls += 1
+            started = time.monotonic()
             try:
                 completed = subprocess.run(
                     ["xcrun", "devicectl", *arguments],
@@ -1190,8 +1228,16 @@ class ReachabilityRun:
                 )
             except subprocess.TimeoutExpired:
                 completed = None
+            # Recorded before the successful copy returns, because a limit set
+            # from failures alone would describe the wrong distribution.
+            self.copy_timings.append({
+                "label": label,
+                "elapsedSeconds": round(time.monotonic() - started, 3),
+                "succeeded": completed is not None and completed.returncode == 0,
+            })
             if completed is not None and completed.returncode == 0:
                 return completed
+            elapsed = self.copy_timings[-1]["elapsedSeconds"]
             output = "" if completed is None else completed.stderr + completed.stdout
             if not TRANSIENT_TRANSFER.search(output):
                 return completed
@@ -1200,12 +1246,13 @@ class ReachabilityRun:
                 "action": "retryDeviceCopy",
                 "label": label,
                 "attempt": attempt + 1,
+                "elapsedSeconds": elapsed,
                 "detail": output.strip()[:160],
             })
             time.sleep(delay)
         return completed
 
-    def controller(self, action: str, *extra: str, timeout: float = 180.0) -> dict[str, Any]:
+    def controller(self, action: str, *extra: str, timeout: float = INTERACTION_TIMEOUT) -> dict[str, Any]:
         refuse_when_detached()
         if (
             self.segment is not None
@@ -1246,7 +1293,7 @@ class ReachabilityRun:
             action,
             *extra,
         ]
-        effective_timeout = min(timeout, 120.0) if self.segment is not None else timeout
+        effective_timeout = timeout
         started = time.monotonic()
         try:
             completed = subprocess.run(
@@ -1552,7 +1599,7 @@ class ReachabilityRun:
         label: str,
         *,
         byte_limit: int,
-        timeout: float = 120,
+        timeout: float = PROBE_COPY_TIMEOUT,
     ) -> list[str]:
         destination = self.raw / f"{label}-probe.log"
         self.direct_devicectl_calls += 1
@@ -1676,7 +1723,7 @@ class ReachabilityRun:
         label: str,
         *,
         clear_after: bool = False,
-        timeout: float = 120,
+        timeout: float = PROBE_COPY_TIMEOUT,
     ) -> list[str]:
         listing_path = self.raw / f"{label}-files.json"
         destination = self.raw / f"{label}-probe.log"
@@ -2215,7 +2262,7 @@ class ReachabilityRun:
             target_arguments.extend(("--index", str(index)))
         document = self.controller(
             "tap", *target_arguments,
-            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+            "--no-screenshot", "--timeout-seconds", str(int(INTERACTION_TIMEOUT)), timeout=INTERACTION_TIMEOUT,
         )
         matched = document.get("matchedElement")
         if isinstance(matched, dict):
@@ -2249,7 +2296,7 @@ class ReachabilityRun:
             self.tapped_cells.add((presentation, operation_id))
         document = self.controller(
             "tap", "--label", label,
-            "--no-screenshot", "--timeout-seconds", "90", timeout=120,
+            "--no-screenshot", "--timeout-seconds", str(int(INTERACTION_TIMEOUT)), timeout=INTERACTION_TIMEOUT,
         )
         matched = document.get("matchedElement")
         if isinstance(matched, dict):
@@ -2465,7 +2512,7 @@ class ReachabilityRun:
         return None, latest
 
     def relaunch(self) -> None:
-        self.controller("relaunch", "--no-screenshot", timeout=180)
+        self.controller("relaunch", "--no-screenshot", timeout=RELAUNCH_TIMEOUT)
         time.sleep(1)
 
     UI_TEST_RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
@@ -2483,7 +2530,7 @@ class ReachabilityRun:
                 "--destination-id",
                 DEVICE,
                 "--no-screenshot",
-                timeout=420,
+                timeout=SESSION_TIMEOUT,
             )
             session_id = ready.get("sessionID")
             if ready.get("success") is True and isinstance(session_id, str):
@@ -2754,7 +2801,7 @@ class ReachabilityRun:
         self.observe(presentation, "file folder")
         scroll = self.controller(
             "swipeUp", "--identifier", "FileBrowsing-FilesScreen-list",
-            "--no-screenshot", timeout=90,
+            "--no-screenshot", timeout=INTERACTION_TIMEOUT,
         )
         time.sleep(0.5)
         probe = self.copy_probe("file-scroll")
@@ -2853,7 +2900,7 @@ class ReachabilityRun:
             "--text",
             value,
             "--no-screenshot",
-            timeout=90,
+            timeout=INTERACTION_TIMEOUT,
         )
         updated = self.wait_for_probe(
             f"source-connection-{source}-{field}",
@@ -2923,7 +2970,7 @@ class ReachabilityRun:
             # Leaving the password field can expose the system-owned save-password
             # alert. Dismiss it before addressing the product Connect button.
             self.controller(
-                "tap", "--label", "以后", "--no-screenshot", timeout=90
+                "tap", "--label", "以后", "--no-screenshot", timeout=INTERACTION_TIMEOUT
             )
 
         offset = len(probe)
@@ -3188,7 +3235,7 @@ class ReachabilityRun:
         offset = len(before)
         search = self.controller(
             "typeText", "--identifier", "FileBrowsing-FilesScreen-search",
-            "--text", "fury", "--no-screenshot", timeout=90,
+            "--text", "fury", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
         )
         probe = self.copy_probe("browser-search-typed")
         if search.get("success") is True and any(
@@ -3374,7 +3421,7 @@ class ReachabilityRun:
                 )
             self.controller(
                 "tap", "--label", "Media Library", "--no-screenshot",
-                timeout=90,
+                timeout=INTERACTION_TIMEOUT,
             )
 
         before = self.copy_probe("browser-multiselect-before")
@@ -3560,10 +3607,10 @@ class ReachabilityRun:
         )
         pressed = self.controller(
             "press", "--identifier", folder_identifier,
-            "--duration", "1.2", "--no-screenshot", timeout=90,
+            "--duration", "1.2", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
         )
         rename_menu = self.controller(
-            "tap", "--label", "Rename", "--no-screenshot", timeout=90,
+            "tap", "--label", "Rename", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
         )
         rename_opened = (
             pressed.get("success") is True
@@ -3602,10 +3649,10 @@ class ReachabilityRun:
             offset = len(before)
             self.controller(
                 "press", "--identifier", folder_identifier,
-                "--duration", "1.2", "--no-screenshot", timeout=90,
+                "--duration", "1.2", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
             reopened = self.controller(
-                "tap", "--label", "Rename", "--no-screenshot", timeout=90,
+                "tap", "--label", "Rename", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
             if reopened.get("success") is True:
                 cancelled = self.tap(
@@ -3933,7 +3980,7 @@ class ReachabilityRun:
                     "--identifier", source_identifier,
                     "--index", str(index),
                     "--no-screenshot",
-                    timeout=90,
+                    timeout=INTERACTION_TIMEOUT,
                 )
                 matched = selected.get("matchedElement")
                 if isinstance(matched, dict):
@@ -4070,7 +4117,7 @@ class ReachabilityRun:
             "swipeUp",
             "--identifier", scroll_identifier,
             "--no-screenshot",
-            timeout=90,
+            timeout=INTERACTION_TIMEOUT,
         )
         probe = self.copy_probe("round11-remote-scroll")
         if scroll.get("success") is True and any(
@@ -4221,7 +4268,7 @@ class ReachabilityRun:
             "app-command",
             "--verb", "embyServerIdentityDigest",
             "--no-screenshot",
-            timeout=120,
+            timeout=READ_TIMEOUT,
         )
         readiness = verify_emby_recovery_credentials(credentials_path)
         readiness_path = self.raw / "emby-recovery-readiness.json"
@@ -4265,8 +4312,8 @@ class ReachabilityRun:
             "--identifier", "Emby-SignOut",
             "--index", "1",
             "--no-screenshot",
-            "--timeout-seconds", "90",
-            timeout=120,
+            "--timeout-seconds", str(int(INTERACTION_TIMEOUT)),
+            timeout=INTERACTION_TIMEOUT,
         )
         matched = signed_out.get("matchedElement")
         if isinstance(matched, dict):
@@ -4312,7 +4359,7 @@ class ReachabilityRun:
                 "--text-json-key", key,
                 "--redact-response-text",
                 "--no-screenshot",
-                timeout=120,
+                timeout=INTERACTION_TIMEOUT,
             )
             probe = self.copy_probe(f"emby-connection-{key}")
             if typed.get("success") is True and any(
@@ -4330,7 +4377,7 @@ class ReachabilityRun:
         offset = len(before)
         connected = self.tap(presentation, "Emby-Connection-Connect")
         self.controller(
-            "tap", "--label", "以后", "--no-screenshot", timeout=120
+            "tap", "--label", "以后", "--no-screenshot", timeout=INTERACTION_TIMEOUT
         )
         authenticated = self.wait_for_identifier("Emby-SignOut", timeout=35)
         probe = self.copy_probe("emby-reconnected")
@@ -4338,7 +4385,7 @@ class ReachabilityRun:
             "app-command",
             "--verb", "embyServerIdentityDigest",
             "--no-screenshot",
-            timeout=120,
+            timeout=READ_TIMEOUT,
         )
         reconnect_payload = reconnected_identity.get("payload")
         reconnected_digest = (
@@ -4537,7 +4584,7 @@ class ReachabilityRun:
             offset = len(before)
             typed = self.controller(
                 "typeText", "--identifier", "Emby-Search-Field",
-                "--text", "a", "--no-screenshot", timeout=90,
+                "--text", "a", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
             probe = self.copy_probe("round11-emby-search")
             if typed.get("success") is True and any(
@@ -4564,7 +4611,7 @@ class ReachabilityRun:
         if library_identifier is not None:
             self.controller(
                 "tap", "--identifier", library_identifier,
-                "--index", "2", "--no-screenshot", timeout=90,
+                "--index", "2", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
             sort = self.wait_for_identifier("Emby-Library-Sort", timeout=20)
             matched = sort.get("matchedElement")
@@ -4581,7 +4628,7 @@ class ReachabilityRun:
                 before = self.copy_probe("round11-emby-sort-before")
                 offset = len(before)
                 changed = self.controller(
-                    "tap", "--label", "Alphabetical", "--no-screenshot", timeout=90,
+                    "tap", "--label", "Alphabetical", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
                 )
                 probe = self.copy_probe("round11-emby-sort")
                 if changed.get("success") is True and any(
@@ -4822,7 +4869,7 @@ class ReachabilityRun:
                     "product probe confirmed delivery.",
                 )
             self.controller(
-                "tap", "--label", "180°", "--no-screenshot", timeout=90
+                "tap", "--label", "180°", "--no-screenshot", timeout=INTERACTION_TIMEOUT
             )
             cancel_editor()
 
@@ -4925,8 +4972,8 @@ class ReachabilityRun:
             "PlayerUI-VideoFormat-apply",
             "--no-screenshot",
             "--timeout-seconds",
-            "90",
-            timeout=120,
+            str(int(INTERACTION_TIMEOUT)),
+            timeout=INTERACTION_TIMEOUT,
         )
         if conversion.get("success") is not True:
             return False
@@ -5335,11 +5382,11 @@ class ReachabilityRun:
         # The equivalent action does not dismiss the system-owned menu. A label
         # action is cleanup only and never contributes delivery evidence.
         speed = self.controller(
-            "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+            "tap", "--label", "Playback Speed", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
         )
         if speed.get("success") is True:
             self.controller(
-                "tap", "--label", "1.25×", "--no-screenshot", timeout=90,
+                "tap", "--label", "1.25×", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
 
     def stop_playback(self, presentation: str) -> bool:
@@ -5393,12 +5440,12 @@ class ReachabilityRun:
             selected = {"success": True}
         else:
             opened = self.controller(
-                "tap", "--label", current_policy, "--no-screenshot", timeout=90,
+                "tap", "--label", current_policy, "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
             if opened.get("success") is not True:
                 return
             selected = self.controller(
-                "tap", "--label", "Ask Every Time", "--no-screenshot", timeout=90,
+                "tap", "--label", "Ask Every Time", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
         if selected.get("success") is not True:
             return
@@ -5630,10 +5677,10 @@ class ReachabilityRun:
         # label actions are cleanup only and never contribute delivery evidence.
         if opens_system_menu:
             self.controller(
-                "tap", "--label", "Playback Speed", "--no-screenshot", timeout=90,
+                "tap", "--label", "Playback Speed", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
             self.controller(
-                "tap", "--label", "1×", "--no-screenshot", timeout=90,
+                "tap", "--label", "1×", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
 
     def docked_settings_scenario(self) -> None:
@@ -5685,8 +5732,8 @@ class ReachabilityRun:
             "PlayerUI-TopAction-resumePanorama",
             "--no-screenshot",
             "--timeout-seconds",
-            "90",
-            timeout=120,
+            str(int(INTERACTION_TIMEOUT)),
+            timeout=INTERACTION_TIMEOUT,
         )
         if entered.get("success") is not True:
             return False
@@ -5839,8 +5886,8 @@ class ReachabilityRun:
                 "PlayerUI-VideoFormat-apply",
                 "--no-screenshot",
                 "--timeout-seconds",
-                "90",
-                timeout=120,
+                str(int(INTERACTION_TIMEOUT)),
+                timeout=INTERACTION_TIMEOUT,
             )
             probe = self.copy_probe("docked-video-format-applied")
             if changed.get("success") is True and all(
@@ -5864,8 +5911,8 @@ class ReachabilityRun:
             f"PlayerUI-DockMenu-{dock_choice}",
             "--no-screenshot",
             "--timeout-seconds",
-            "90",
-            timeout=120,
+            str(int(INTERACTION_TIMEOUT)),
+            timeout=INTERACTION_TIMEOUT,
         )
         spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
         value = str((spatial.get("matchedElement") or {}).get("value", ""))
@@ -6684,12 +6731,12 @@ class ReachabilityRun:
         if getattr(self.arguments, "reuse_session", False):
             raise ValueError("Segmented runs require an independent XCTest session.")
         if not self.ensure_session():
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("session-failed")
 
         before_health = self.record_segment_health_context("before")
         if before_health["passed"] is not True:
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("channel-health-failed")
         self.probe_offset = 0
         segment_started_at = utc_now()
@@ -6725,12 +6772,12 @@ class ReachabilityRun:
         for fixture_file in sorted(fixture_files):
             if self.stage_fixture(fixture_file):
                 continue
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("drive-error")
 
         reset = self.reset_reachability_state()
         if reset.get("success") is not True:
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("drive-error")
         self.relaunch()
         if planned_scenarios.isdisjoint(
@@ -6844,14 +6891,14 @@ class ReachabilityRun:
             probe_retrieval_passed=final_copied,
         )
         if self.channel_failures:
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("channel-continuity-failed")
         if after_health["passed"] is not True:
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("channel-health-failed")
-        stopped = self.controller("stop", "--no-screenshot", timeout=240)
+        stopped = self.controller("stop", "--no-screenshot", timeout=INTERACTION_TIMEOUT)
         if stopped.get("success") is not True:
-            self.controller("halt", "--no-screenshot", timeout=240)
+            self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
             return self.finish_segment("stop-failed")
         return self.finish_segment("complete")
 
@@ -7000,21 +7047,21 @@ class ReachabilityRun:
             if context not in selected:
                 continue
             if not self.arguments.reuse_session and not self.ensure_session():
-                self.controller("halt", "--no-screenshot", timeout=240)
+                self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
                 self.finish("drive-error")
                 return 2
             if context == "docked" and not self.stage_fixture(
                 "furyroad-stripped.mkv"
             ):
                 if not self.arguments.reuse_session:
-                    self.controller("halt", "--no-screenshot", timeout=240)
+                    self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
                 self.finish("drive-error")
                 return 2
             if not state_reset:
                 reset = self.reset_reachability_state()
                 if reset.get("success") is not True:
                     if not self.arguments.reuse_session:
-                        self.controller("halt", "--no-screenshot", timeout=240)
+                        self.controller("halt", "--no-screenshot", timeout=HALT_TIMEOUT)
                     self.finish("drive-error")
                     return 2
                 self.relaunch()
@@ -7026,7 +7073,7 @@ class ReachabilityRun:
                 self.probe_offset = len(initial)
             scenarios[context]()
         if not self.arguments.reuse_session:
-            self.controller("stop", "--no-screenshot", timeout=240)
+            self.controller("stop", "--no-screenshot", timeout=INTERACTION_TIMEOUT)
         return self.finish("complete")
 
     def finish(self, status: str) -> int:
@@ -7072,6 +7119,7 @@ class ReachabilityRun:
             "proofContexts": list(PROOF_CONTEXTS),
             "summary": summary,
             "silentTaps": self.silent_taps,
+            "copyTimings": self.copy_timings,
             "cells": ordered_cells,
             "events": prior_events + self.events,
         }

@@ -432,7 +432,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "--index",
             "1",
             "--no-screenshot",
-            timeout=90,
+            timeout=matrix.INTERACTION_TIMEOUT,
         )
 
     def test_docked_content_collects_menu_facts_before_removing_expanded_media(self) -> None:
@@ -570,6 +570,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         }
         run.events = [{"evidence": "raw/indexed-tap.json"}]
         run.silent_taps = []
+        run.copy_timings = []
         run.controller = Mock(return_value={"success": False})
 
         run.tap(
@@ -587,8 +588,8 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "2",
             "--no-screenshot",
             "--timeout-seconds",
-            "90",
-            timeout=120,
+            str(int(matrix.INTERACTION_TIMEOUT)),
+            timeout=matrix.INTERACTION_TIMEOUT,
         )
 
     def test_a_target_xctest_cannot_find_is_named_not_counted(self) -> None:
@@ -606,6 +607,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.cells = {}
         run.events = [{"evidence": "raw/107-tap.json"}]
         run.silent_taps = []
+        run.copy_timings = []
         run.controller = Mock(return_value={
             "success": False,
             "message": "No current element matches the requested identifier and index.",
@@ -637,6 +639,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.cells = {}
         run.events = [{"evidence": "raw/108-tap.json"}]
         run.silent_taps = []
+        run.copy_timings = []
         run.controller = Mock(return_value={
             "success": True,
             "message": "Element tapped.",
@@ -664,6 +667,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.cells = {}
         run.events = [{"evidence": "raw/064-tap.json"}]
         run.silent_taps = []
+        run.copy_timings = []
         run.controller = Mock(return_value={
             "success": True,
             "matchedElement": {
@@ -742,7 +746,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             libraryFolder=matrix.REACHABILITY_LIBRARY_FOLDER,
         )
 
-    def test_segment_probe_archive_enforces_the_120_second_continuity_deadline(self) -> None:
+    def test_segment_probe_archive_waits_only_as_long_as_a_copy_has_taken(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
             run.segment = {"id": "panorama"}
@@ -751,6 +755,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             run.raw = Path(directory)
             run.sequence = 0
             run.direct_devicectl_calls = 0
+            run.copy_timings = []
 
             with patch.object(
                 matrix.subprocess,
@@ -761,9 +766,14 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
                     run.archive_probe_chunk("segment-after-surface"), []
                 )
 
-            self.assertEqual(subprocess_run.call_args.kwargs["timeout"], 120)
+            self.assertEqual(
+                subprocess_run.call_args.kwargs["timeout"], matrix.PROBE_COPY_TIMEOUT
+            )
             self.assertEqual(run.channel_failures[0]["action"], "copyProbe")
-            self.assertIn("120.0 seconds", run.channel_failures[0]["error"])
+            self.assertIn(
+                f"{matrix.PROBE_COPY_TIMEOUT} seconds",
+                run.channel_failures[0]["error"],
+            )
 
     def test_probe_clear_retries_a_transient_destination_exists_error(self) -> None:
         with TemporaryDirectory() as directory:
@@ -773,6 +783,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             run.channel_failures = []
             run.raw = Path(directory)
             run.direct_devicectl_calls = 0
+            run.copy_timings = []
             destination_exists = Mock(
                 returncode=1,
                 stderr="NSPOSIXErrorDomain error 17",
@@ -791,7 +802,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             self.assertEqual(run.events[-1]["attemptCount"], 2)
             self.assertTrue(run.events[-1]["success"])
 
-    def test_controller_enforces_the_120_second_continuity_deadline_by_default(self) -> None:
+    def test_controller_waits_only_as_long_as_an_answer_has_ever_taken(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
             run.segment = {"id": "panorama"}
@@ -809,10 +820,15 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             ) as subprocess_run:
                 result = run.controller("snapshot", "--no-screenshot")
 
-            self.assertEqual(subprocess_run.call_args.kwargs["timeout"], 120)
+            self.assertEqual(
+            subprocess_run.call_args.kwargs["timeout"], matrix.INTERACTION_TIMEOUT
+        )
             self.assertFalse(result["success"])
             self.assertEqual(run.channel_failures[0]["action"], "snapshot")
-            self.assertIn("120.0 seconds", run.channel_failures[0]["error"])
+            self.assertIn(
+                f"{matrix.INTERACTION_TIMEOUT} seconds",
+                run.channel_failures[0]["error"],
+            )
 
     def test_window_seek_precedes_transport_controls(self) -> None:
         actions: list[str] = []
@@ -1080,6 +1096,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             run.events = []
             run.channel_failures = []
             run.direct_devicectl_calls = 0
+            run.copy_timings = []
             run.evidence_retrieval_devicectl_calls = 0
             run.probe_retrieval_count = 0
 
@@ -1578,7 +1595,28 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = []
         run.direct_devicectl_calls = 0
+        run.copy_timings = []
         return run
+
+    def test_every_copy_records_what_it_cost(self) -> None:
+        """PROBE_COPY_TIMEOUT is the one limit nobody measured.
+
+        Every other verb has twenty samples in controller_timings.json and a
+        limit derived from them. The copies recorded nothing, so their limit is
+        the number the run inherited. Recording the elapsed time is what lets it
+        be earned the way the others were.
+        """
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = []
+        run.direct_devicectl_calls = 0
+        run.copy_timings = []
+        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with patch.object(matrix.subprocess, "run", return_value=completed):
+            run.device_copy("device", "copy", "from", timeout=1, label="probeChunk")
+
+        self.assertEqual(len(run.copy_timings), 1)
+        self.assertEqual(run.copy_timings[0]["label"], "probeChunk")
+        self.assertIsInstance(run.copy_timings[0]["elapsedSeconds"], float)
 
     def test_a_transient_transfer_error_is_retried(self) -> None:
         run = self._copying_run()
@@ -2598,6 +2636,7 @@ class CompletionHonestyTests(unittest.TestCase):
         run.arguments = Mock(contexts=list(matrix.PROOF_CONTEXTS))
         run.events = []
         run.silent_taps = []
+        run.copy_timings = []
         run.cells = {
             ("main-window-browser", "accessibility:measured"): {
                 "context": "main-window-browser",
