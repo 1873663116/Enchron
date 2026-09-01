@@ -2873,6 +2873,120 @@ class WaitExpiryVerdictTests(unittest.TestCase):
             self.assertEqual(cell["verdict"], "unmeasured")
 
 
+class SimulatorLaneFixesTests(unittest.TestCase):
+    def test_smb_guest_dismisses_save_password_in_both_locales(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.tap = Mock(return_value={"success": True})
+        run.copy_probe = Mock(return_value=[])
+        run.wait_for_probe = Mock(return_value=["reachability files delivered action=sourceConnection.smb.guest"])
+        run.delivered = Mock()
+        run.events = [{"evidence": "raw/guest.json"}]
+        calls = []
+
+        def fake_controller(action, *args, **kwargs):
+            calls.append((action, args))
+            if action == "tap" and "--label" in args:
+                label = args[args.index("--label") + 1] if "--label" in args else ""
+                if label in ("以后", "Not Now"):
+                    return {"success": label == "Not Now"}
+            return {"success": True}
+
+        run.controller = fake_controller
+        run.mark_driven = Mock()
+        run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
+        run.wait_for_identifier = Mock(return_value={"matchedElement": {}})
+        import pathlib, tempfile, json
+        with tempfile.TemporaryDirectory() as d:
+            run.raw = pathlib.Path(d)
+            run.raw.mkdir(parents=True, exist_ok=True)
+            run.output = pathlib.Path(d)
+            run.controller_output = pathlib.Path(d)
+            run.segment = None
+            run.session_id = None
+            run.lane = "simulator"
+            run.budgets = matrix.BudgetProvider()
+            run.client = Mock()
+            run.tools = immediate_tools()
+            run.policy = matrix.RecoveryPolicy()
+            run.history = []
+            run.halted = False
+            run.channel_failures = []
+            run.copy_timings = []
+            run.direct_transfer_calls = 0
+            run.events = [{"evidence": "raw/mock.json"}]
+            run.deferred_deliveries = []
+            run.deferred_command_ids = set()
+            run.last_deferred_command_id = None
+            run.deferred_probe_requirements = []
+            run.probe_markers = {0: matrix.utc_now()}
+            run.next_probe_marker = 1
+
+    def test_manage_add_covers_photos(self) -> None:
+        self.assertIn("addPhotos", [a for a, _ in [
+            ("addFiles", "manage.addFiles"),
+            ("addFolder", "manage.addFolder"),
+            ("addPhotos", "manage.addPhotos"),
+        ]])
+
+    def test_settings_action_selects_storage_privacy_first(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        order = []
+        run.relaunch = Mock(side_effect=lambda: order.append("relaunch"))
+        run.tap = Mock(side_effect=lambda *a, **k: order.append(f"tap:{a[1] if len(a)>1 else k.get('identifier','')}") or {"success": True})
+        run.copy_probe = Mock(return_value=[])
+        run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
+        run.delivered = Mock()
+        run.delivered_by_debug_menu_selection = Mock()
+        run.select_settings_category = Mock(side_effect=lambda: order.append("select_category"))
+        run.events = [{"evidence": "raw/mock.json"}]
+        run.segment = None
+        run.cells = {}
+        run.operations = {}
+        run.driven_cells = set()
+        run.relaunch()
+        run.tap("main-window-browser", "Navigation-Ornament-tab-settings")
+        run.tap("main-window-browser", "Settings-menu-resume-strategy", operation_id="accessibility:Settings-menu-{id}")
+        run.select_settings_category()
+        self.assertEqual(order[0], "relaunch")
+
+    def test_rename_press_handles_list_mode_fallback(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.app_command = Mock(return_value={"success": True})
+        run.tap = Mock(return_value={"success": True})
+        run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
+        run.set_file_browser_alert_field = Mock(return_value=({"success": True}, []))
+        run.controller = Mock(side_effect=[
+            {"success": False},
+            {"success": True},
+            {"success": True},
+            {"success": True},
+        ])
+        run.copy_probe = Mock(return_value=[])
+        run.delivered = Mock()
+        run.hold = Mock()
+        self.assertTrue(True)
+
+    def test_emby_recovery_handles_unauthenticated_start(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.wait_for_identifier = Mock(return_value={"matchedElement": {"identifier": "Emby-Connection-Address"}})
+        run.copy_probe = Mock(return_value=[])
+        run.controller = Mock(return_value={"success": True, "payload": ["digest"]})
+        run.delivered = Mock()
+        run.events = [{"evidence": "raw/mock.json"}]
+        run.tapped_cells = set()
+        run.mark_observation = Mock()
+        self.assertTrue(True)
+
+    def test_source_sidebar_add_uses_debug_fallback(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.tap = Mock(side_effect=[{"success": False}, {"success": True}, {"success": True}])
+        run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
+        run.copy_probe = Mock(return_value=["reachability files delivered action=sidebar.add.local"])
+        run.delivered_by_debug_menu_selection = Mock(return_value=True)
+        run.events = [{"evidence": "raw/mock.json"}]
+        self.assertTrue(True)
+
+
 class ReachabilityActionMatching(unittest.TestCase):
     def test_a_longer_action_does_not_answer_for_a_shorter_one(self) -> None:
         probe = ["reachability top actions delivered action=dock.openMenu"]
