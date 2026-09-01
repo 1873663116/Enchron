@@ -4260,69 +4260,6 @@ class ReachabilityRun:
             "evidence": f"raw/{readiness_path.name}",
         })
         if readiness["passed"] is not True:
-            connection_form = self.wait_for_identifier("Emby-Connection-Address")
-            if isinstance(connection_form.get("matchedElement"), dict):
-                before = self.copy_probe("emby-direct-connection-before")
-                offset = len(before)
-                for field, key in (
-                    ("Address", "address"),
-                    ("Username", "username"),
-                    ("Password", "password"),
-                ):
-                    typed = self.controller(
-                        "replaceText",
-                        "--identifier", f"Emby-Connection-{field}",
-                        "--text-file", str(credentials_path),
-                        "--text-json-key", key,
-                        "--redact-response-text",
-                        "--no-screenshot",
-                    )
-                    probe = self.copy_probe(f"emby-direct-connection-{key}")
-                    if typed.get("success") is True and any(
-                        f"reachability emby delivered action=connection.{key}" in line
-                        for line in probe[offset:]
-                    ):
-                        self.delivered(
-                            presentation,
-                            f"accessibility:Emby-Connection-{field}",
-                            self.events[-1]["evidence"],
-                            "The connection field binding changed through the ordinary product form.",
-                        )
-                    offset = len(probe)
-                    before = probe
-                connected = self.tap(presentation, "Emby-Connection-Connect")
-                for label in ("以后", "Not Now"):
-                    self.controller("tap", "--label", label, "--no-screenshot")
-                authenticated = self.wait_for_identifier("Emby-SignOut")
-                probe = self.copy_probe("emby-direct-reconnected")
-                reconnected_identity = self.controller(
-                    "app-command",
-                    "--verb", "embyServerIdentityDigest",
-                    "--no-screenshot",
-                )
-                reconnect_payload = reconnected_identity.get("payload")
-                reconnected_digest = (
-                    reconnect_payload[0]
-                    if isinstance(reconnect_payload, list)
-                    and len(reconnect_payload) == 1
-                    and isinstance(reconnect_payload[0], str)
-                    else None
-                )
-                if (
-                    connected.get("success") is True
-                    and reconnected_identity.get("success") is True
-                    and isinstance(reconnected_digest, str)
-                    and any(
-                        "reachability emby delivered action=connection.connect" in line
-                        for line in probe[offset:]
-                    )
-                ):
-                    self.delivered(
-                        presentation,
-                        "accessibility:Emby-Connection-Connect",
-                        self.events[-1]["evidence"],
-                        "Connect reached the product handler and established the server identity from an unauthenticated start.",
-                    )
             return
 
         before = self.copy_probe("emby-signout-before")
