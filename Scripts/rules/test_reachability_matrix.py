@@ -336,6 +336,68 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         self.assertNotIn("accessibility:PlayerPanel-media-information", credited)
         self.assertIn("accessibility:PlayerPanel-media-information-close", credited)
 
+    def test_the_top_menu_drives_every_family_the_inventory_derives(self) -> None:
+        """Subtitles proved the route; the other three were never asked.
+
+        audio, speed and episodes sat as known defects in both window and
+        portal while PlayerUI-menu-subtitles, reached by the identical DEBUG
+        equivalent through the identical parent, was reachable.
+        """
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = None
+        run.events = [{"evidence": "raw/top-menu.json"}]
+        run.tap_with_fresh_controls = Mock(return_value=({"success": True}, []))
+        run.copy_probe = Mock(return_value=[])
+        run.controller = Mock(return_value={"success": False})
+        run.delivered = Mock()
+        run.delivered_by_debug_menu_selection = Mock(return_value=True)
+        run.select_debug_menu_item = Mock(
+            return_value=(None, {"success": True}, {"success": False})
+        )
+
+        run.top_menu_scenario("window")
+
+        self.assertEqual(
+            [call.kwargs["family"] for call in run.select_debug_menu_item.call_args_list],
+            ["speed", "subtitles", "audio", "episodes"],
+        )
+
+    def test_a_segment_drives_only_the_top_menu_families_it_plans(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {
+            "context": "portal",
+            "decisions": [
+                {"context": "portal", "operation": "accessibility:PlayerUI-menu-audio"},
+            ],
+        }
+        run.events = [{"evidence": "raw/top-menu.json"}]
+        run.tap_with_fresh_controls = Mock(return_value=({"success": True}, []))
+        run.copy_probe = Mock(return_value=[])
+        run.controller = Mock(return_value={"success": False})
+        run.delivered = Mock()
+        run.delivered_by_debug_menu_selection = Mock(return_value=True)
+        run.select_debug_menu_item = Mock(
+            return_value=(None, {"success": True}, {"success": False})
+        )
+
+        run.top_menu_scenario("portal")
+
+        self.assertEqual(
+            [call.kwargs["family"] for call in run.select_debug_menu_item.call_args_list],
+            ["audio"],
+        )
+
+    def test_a_placeholder_target_looks_for_the_item_the_product_chose(self) -> None:
+        """__firstUnselected names no item, so no line can end with it."""
+        self.assertEqual(
+            matrix.top_menu_delivery_probe_needle("__firstUnselected"),
+            "reachability top actions delivered action=menu.item.",
+        )
+        self.assertEqual(
+            matrix.top_menu_delivery_probe_needle("off"),
+            "reachability top actions delivered action=menu.item.off",
+        )
+
     def test_remote_source_selection_skips_the_delete_child(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = [{"evidence": "raw/source.json"}]

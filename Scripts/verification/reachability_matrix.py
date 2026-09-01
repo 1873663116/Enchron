@@ -710,6 +710,19 @@ def menu_delivery_probe_needle(target: str) -> str:
     return prefix + target
 
 
+def top_menu_delivery_probe_needle(target: str) -> str:
+    """The same rule for the window deck's own menu host.
+
+    A placeholder target names no item, so the probe line carries the item the
+    product chose rather than the word asked for. Appending the placeholder
+    would look for a line that cannot exist.
+    """
+    prefix = "reachability top actions delivered action=menu.item."
+    if target in {"__firstUnselected", "__firstAvailable"}:
+        return prefix
+    return prefix + target
+
+
 def should_open_player_panel_system_menu(presentation: str) -> bool:
     return presentation in {"window", "portal"}
 
@@ -5102,29 +5115,62 @@ class ReachabilityRun:
         # supplies the hierarchy and hittability evidence; the DEBUG verb invokes
         # the same Picker binding setter and its existing product probe proves
         # delivery beyond XCTest.
-        item_offset = len(probe)
-        target, _, selected = self.select_debug_menu_item(
-            presentation=presentation,
-            host="playerUI",
-            family="subtitles",
-            preferred=("off",),
-            driven_operations=("accessibility:PlayerUI-menu-subtitles",),
+        # Only subtitles used to be driven here, so audio, speed and episodes
+        # stayed known-defect in both window and portal even though the
+        # inventory derives them for exactly these contexts and the DEBUG
+        # equivalent that proves subtitles reaches them the same way. The panel
+        # scenario has driven its four families this way all along.
+        family_operations = (
+            ("speed", "accessibility:PlayerUI-menu-speed", ("1.25",)),
+            ("subtitles", "accessibility:PlayerUI-menu-subtitles", ("off",)),
+            ("audio", "accessibility:PlayerUI-menu-audio", ()),
+            ("episodes", "accessibility:PlayerUI-menu-episodes", ()),
         )
-        probe = self.copy_probe(f"{presentation}-top-subtitles-selected")
-        if selected.get("success") is True and target is not None and any(
-            "reachability top actions delivered action=menu.item."
-            + target in line
-            for line in probe[item_offset:]
-        ):
-            self.delivered_by_debug_menu_selection(
-                presentation,
-                "accessibility:PlayerUI-menu-subtitles",
-                "accessibility:PlayerUI-TopAction-more",
-                self.events[-1]["evidence"],
-                "The named More parent supplied hierarchy and hittability evidence; "
-                "the DEBUG equivalent entered the subtitle Picker binding and its "
-                "menu.item product probe confirmed delivery.",
+        segment = getattr(self, "segment", None)
+        if segment is not None:
+            planned = {
+                (str(value["context"]), str(value["operation"]))
+                for value in segment["decisions"]
+            }
+            family_operations = tuple(
+                entry for entry in family_operations
+                if (presentation, entry[1]) in planned
             )
+        for family, operation_id, preferred in family_operations:
+            item_offset = len(probe)
+            target, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="playerUI",
+                family=family,
+                preferred=preferred,
+                driven_operations=(
+                    operation_id,
+                    "accessibility:PlayerUI-menu-{category}-{item.id}",
+                ),
+            )
+            probe = self.copy_probe(f"{presentation}-top-{family}-selected")
+            if selected.get("success") is True and target is not None and any(
+                top_menu_delivery_probe_needle(target) in line
+                for line in probe[item_offset:]
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    operation_id,
+                    "accessibility:PlayerUI-TopAction-more",
+                    self.events[-1]["evidence"],
+                    "The named More parent supplied hierarchy and hittability evidence; "
+                    f"the DEBUG equivalent entered the {family} Picker binding and its "
+                    "menu.item product probe confirmed delivery.",
+                )
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:PlayerUI-menu-{category}-{item.id}",
+                    "accessibility:PlayerUI-TopAction-more",
+                    self.events[-1]["evidence"],
+                    "The named More parent supplied hierarchy and hittability evidence; "
+                    "the DEBUG equivalent entered the exact item action and its product "
+                    "probe confirmed delivery.",
+                )
 
         # The equivalent action does not dismiss the system-owned menu. A label
         # action is cleanup only and never contributes delivery evidence.
