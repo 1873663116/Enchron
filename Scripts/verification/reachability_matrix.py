@@ -78,11 +78,28 @@ READ_TIMEOUT = 20.0
 RELAUNCH_TIMEOUT = 30.0
 """relaunch, whose simulator p95 of 19.0s is the widest of the fast verbs."""
 
-HALT_TIMEOUT = 30.0
-"""halt and stop, which answer in seconds or hang for four minutes."""
+HALT_TIMEOUT = 60.0
+"""halt, once it stopped waiting three minutes for a bundle nobody reads.
 
-SESSION_TIMEOUT = 150.0
-"""ensure-session, whose working range tops out at eighty-eight seconds."""
+Its long tail was that wait: three simulator halts at a hundred and eighty-two
+seconds are the old deadline plus the kill after it. What remains is the
+graceful stop's own thirty seconds plus the signalling, so sixty covers it with
+room. Setting this to thirty before the wait was removed refused halts that
+would have completed."""
+
+SESSION_TIMEOUT = 300.0
+"""ensure-session, which halts, launches a runner and waits for it to answer.
+
+Twenty samples on each lane run from twenty-three to ninety-nine seconds, with
+four simulator outliers between two hundred and thirty-eight and two hundred and
+sixty-three and one headset outlier at two hundred and sixty-eight. Cutting at a
+hundred and fifty landed in the gap between the two groups: it looked safe and
+refused every run in the upper group, which killed two lanes and four segments
+before the mistake was visible. This covers every sample observed.
+
+The outliers are not understood yet. They are worth understanding rather than
+waiting out, and until they are, refusing a run that would have succeeded is the
+worse of the two errors."""
 
 APPEARANCE_TIMEOUT = 8.0
 """How long a control gets to appear before its absence is the answer.

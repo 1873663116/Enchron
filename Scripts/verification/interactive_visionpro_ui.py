@@ -62,7 +62,24 @@ TERMINATION_DEADLINE_SECONDS = 5.0
 # graceful stop may take to become an exit on its own; a session with no
 # recording exits well inside it, so waiting costs nothing when there is nothing
 # to write.
-RESULT_BUNDLE_WRITE_DEADLINE_SECONDS = 180.0
+RESULT_BUNDLE_SETTLE_SECONDS = 2.0
+"""How long xcodebuild gets to exit on its own after a stop, before it is asked.
+
+Nothing reads the bundle this waits for. Interactive-*.xcresult has no consumer
+anywhere in the repository and resultBundleWritten is written and never read, so
+the wait was buying a file the run does not use.
+
+Waiting longer would not have bought it either. On the headset xcodebuild
+starts a devicectl diagnose before it exits, and one panorama run shows the test
+suite passing at 17:34:30 and the diagnose failing at 18:34:31 - an hour, with
+the bundle finalised only afterwards. A hundred and eighty seconds was never
+going to reach the other side of that. The simulator never does this, and the
+runner log carries two product warnings beside it: a window that cannot be
+presented because the scene was invalidated before create completion, and state
+modified during a view update. Those are worth their own investigation.
+
+Two seconds lets an ordinary exit finish without being signalled."""
+
 TIMINGS_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.json"
 TIMING_SAMPLE_LIMIT = 20
 DEVICECTL_CALL_COUNT = 0
@@ -425,7 +442,7 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     # xcodebuild to exit is the only observation that distinguishes the two, and
     # it is also the one that matters: that exit is when the result bundle and any
     # screen recording finish being written.
-    deadline = time.monotonic() + RESULT_BUNDLE_WRITE_DEADLINE_SECONDS
+    deadline = time.monotonic() + RESULT_BUNDLE_SETTLE_SECONDS
     while time.monotonic() < deadline and scoped_processes():
         time.sleep(0.5)
     settled = not scoped_processes()
