@@ -240,7 +240,10 @@ public struct FilesScreen: View {
                 text: newFolderNameBinding
             )
                 .accessibilityIdentifier("MediaLibrary-NewFolder-name")
-            Button("Cancel") { newFolderName = "" }
+            Button("Cancel") {
+                recordReachability(.newFolderCancel)
+                newFolderName = ""
+            }
                 .accessibilityIdentifier("MediaLibrary-NewFolder-cancel")
             Button("Create") {
                 recordReachability(.newFolderCreate)
@@ -261,7 +264,10 @@ public struct FilesScreen: View {
                 text: renamedFolderNameBinding
             )
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-name")
-            Button("Cancel") { folderToRename = nil }
+            Button("Cancel") {
+                recordReachability(.renameFolderCancel)
+                folderToRename = nil
+            }
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-cancel")
             Button("Rename") {
                 recordReachability(.renameFolderConfirm)

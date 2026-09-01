@@ -260,7 +260,10 @@ struct SettingsScreen: View {
                     feedback: nil,
                     systemName: nil,
                     role: .normal,
-                    action: { showsLicenses = true }
+                    action: {
+                        recordActionReachability("licenses")
+                        showsLicenses = true
+                    }
                 )
             )
         ]
@@ -295,6 +298,15 @@ struct SettingsScreen: View {
 #if DEBUG
         playbackSession.recordSurfaceInputProbe(
             "reachability settings delivered action=menu.\(family)",
+            retention: .evidence
+        )
+#endif
+    }
+
+    private func recordActionReachability(_ id: String) {
+#if DEBUG
+        playbackSession.recordSurfaceInputProbe(
+            "reachability settings delivered action=action.\(id)",
             retention: .evidence
         )
 #endif
@@ -360,6 +372,7 @@ struct SettingsScreen: View {
     }
 
     private func clearContainerIndexCache() {
+        recordActionReachability("container-index-cache")
         Task {
             await ContainerIndexCache.shared.clear()
             await refreshCacheUsage()
@@ -367,6 +380,7 @@ struct SettingsScreen: View {
     }
 
     private func clearProgress() {
+        recordActionReachability("clear-progress")
         playbackLauncher.clearViewingStates()
     }
 }

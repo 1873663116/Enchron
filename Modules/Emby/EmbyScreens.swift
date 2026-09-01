@@ -322,11 +322,21 @@ private struct EmbyPageHeader<Trailing: View>: View {
     let sidebarIsVisible: Binding<Bool>?
     @ViewBuilder let trailing: () -> Trailing
 
+    @Environment(EmbySessionViewModel.self) private var session
+
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.lg) {
             if let sidebarIsVisible {
                 SidebarToggleButton(
-                    isVisible: sidebarIsVisible,
+                    isVisible: Binding(
+                        get: { sidebarIsVisible.wrappedValue },
+                        set: {
+#if DEBUG
+                            session.recordReachability("sidebarToggle")
+#endif
+                            sidebarIsVisible.wrappedValue = $0
+                        }
+                    ),
                     accessibilityIdentifier: "Emby-Sidebar-Toggle"
                 )
             }

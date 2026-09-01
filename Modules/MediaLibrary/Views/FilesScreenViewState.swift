@@ -111,7 +111,9 @@ public enum FilesScreenReachabilityAction: Equatable, Sendable {
         FilesScreenSourceConnectionInteraction
     )
     case newFolderCreate
+    case newFolderCancel
     case renameFolderConfirm
+    case renameFolderCancel
     case multiSelection(FilesScreenMultiSelectionInteraction)
     case fileBrowserError(FilesScreenFileBrowserErrorInteraction)
     case mediaLibraryErrorDismiss
@@ -144,8 +146,12 @@ public enum FilesScreenReachabilityAction: Equatable, Sendable {
             "sourceConnection.\(kind.rawValue).\(interaction.rawValue)"
         case .newFolderCreate:
             "newFolder.create"
+        case .newFolderCancel:
+            "newFolder.cancel"
         case .renameFolderConfirm:
             "renameFolder.confirm"
+        case .renameFolderCancel:
+            "renameFolder.cancel"
         case .multiSelection(let interaction):
             "multiSelect.\(interaction.rawValue)"
         case .fileBrowserError(let interaction):

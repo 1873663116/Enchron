@@ -3256,6 +3256,28 @@ class ReachabilityRun:
                 "The confirmation invoked MediaLibrary.createFolder and appended a probe.",
             )
 
+        # Cancel needs its own opening. The alert only exists once, and Create
+        # closed it, so refusing has to be driven from a second one.
+        before = self.copy_probe("browser-new-folder-cancel-before")
+        offset = len(before)
+        self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="manage",
+            preferred=("newFolder",),
+        )
+        cancelled = self.tap(presentation, "MediaLibrary-NewFolder-cancel")
+        probe = self.copy_probe("browser-new-folder-cancelled")
+        if cancelled.get("success") is True and any(
+            "reachability files delivered action=newFolder.cancel" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:MediaLibrary-NewFolder-cancel",
+                self.events[-1]["evidence"],
+                "Refusing the alert cleared the pending name and appended its probe.",
+            )
+
         error = self.wait_for_identifier("MediaLibrary-error-dismiss", timeout=5)
         if isinstance(error.get("matchedElement"), dict):
             before = self.copy_probe("browser-error-before")
@@ -3570,6 +3592,34 @@ class ReachabilityRun:
                     "Rename reached MediaLibrary.rename through the product alert action.",
                 )
 
+            # Rename closed the alert, so refusing needs a second one opened the
+            # same way the first was.
+            before = self.copy_probe("round13-rename-cancel-before")
+            offset = len(before)
+            self.controller(
+                "press", "--identifier", folder_identifier,
+                "--duration", "1.2", "--no-screenshot", timeout=90,
+            )
+            reopened = self.controller(
+                "tap", "--label", "Rename", "--no-screenshot", timeout=90,
+            )
+            if reopened.get("success") is True:
+                cancelled = self.tap(
+                    presentation, "MediaLibrary-RenameFolder-cancel"
+                )
+                probe = self.copy_probe("round13-rename-cancelled")
+                if cancelled.get("success") is True and any(
+                    "reachability files delivered action=renameFolder.cancel" in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:MediaLibrary-RenameFolder-cancel",
+                        self.events[-1]["evidence"],
+                        "Refusing the alert cleared the pending rename and appended "
+                        "its probe.",
+                    )
+
         self.tap(presentation, "FileBrowsing-Manage-button")
         _, _, selection = self.select_debug_menu_item(
             presentation=presentation,
@@ -3678,6 +3728,24 @@ class ReachabilityRun:
                     "DEBUG equivalent entered the exact option action and its product "
                     "probe confirmed delivery.",
                 )
+        before = self.copy_probe("settings-action-before")
+        offset = len(before)
+        action = self.tap(
+            presentation,
+            "Settings-action-clear-progress",
+            operation_id="accessibility:Settings-action-{id}",
+        )
+        probe = self.copy_probe("settings-action-cleared")
+        if action.get("success") is True and any(
+            "reachability settings delivered action=action.clear-progress" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Settings-action-{id}",
+                self.events[-1]["evidence"],
+                "Clear All ran the product viewing-state reset and appended its probe.",
+            )
         self.select_settings_category()
 
     def settings_category_scenario(self) -> None:
@@ -4046,6 +4114,25 @@ class ReachabilityRun:
         found_families: set[str] = set()
         self.relaunch()
         self.tap(presentation, "Emby-Navigation-Tab")
+
+        # The Files screen wraps this same component's binding so the toggle
+        # reports; the Emby header passed the binding straight through, so the
+        # chip worked and said nothing.
+        before = self.copy_probe("emby-sidebar-toggle-before")
+        offset = len(before)
+        toggled = self.tap(presentation, "Emby-Sidebar-Toggle")
+        probe = self.copy_probe("emby-sidebar-toggled")
+        if toggled.get("success") is True and any(
+            "reachability emby delivered action=sidebarToggle" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:Emby-Sidebar-Toggle",
+                self.events[-1]["evidence"],
+                "The header chip moved the product sidebar visibility binding.",
+            )
+
         home = self.controller("snapshot", "--no-screenshot")
         candidate_identifiers = sorted(
             identifier
