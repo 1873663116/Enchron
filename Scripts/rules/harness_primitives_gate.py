@@ -18,19 +18,11 @@ def load_allowlist() -> set[str]:
     path = allowlist_path()
     if not path.is_file():
         return set()
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return set()
-    if isinstance(data, list):
-        return {str(item) for item in data if isinstance(item, str)}
-    if isinstance(data, dict):
-        for key in ("allowlist", "allowed", "files", "exempt", "allow"):
-            value = data.get(key)
-            if isinstance(value, list):
-                return {str(item) for item in value if isinstance(item, str)}
-        return set()
-    return set()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert isinstance(data, list), (
+        f"{path} must hold a flat JSON list of repository-relative paths"
+    )
+    return {str(item) for item in data}
 
 
 def scan_roots() -> tuple[Path, ...]:
