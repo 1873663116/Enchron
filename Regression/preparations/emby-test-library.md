@@ -59,7 +59,7 @@
         "context": "main-window-browser",
         "identifier": "Emby-Connection-Address",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -72,7 +72,7 @@
         "context": "main-window-browser",
         "identifier": "Emby-Connection-Username",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
         "textJSONKey": "username",
         "secret": false
       },
@@ -85,7 +85,7 @@
         "context": "main-window-browser",
         "identifier": "Emby-Connection-Password",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
         "textJSONKey": "password",
         "secret": true
       },

@@ -1,11 +1,66 @@
 {
-  "halt": {"seconds": 60, "expires": "2026-10-01"},
-  "ensure-session": {"seconds": 300, "expires": "2026-10-01"},
-  "probe-copy": {"seconds": 120, "expires": "2026-10-01"},
-  "stop": {"seconds": 60, "expires": "2026-10-01"},
-  "panorama-settle": {"seconds": 60, "expires": "2026-10-01"},
-  "result-bundle": {"seconds": 60, "expires": "2026-10-01"},
-  "xcresult-summary": {"seconds": 60, "expires": "2026-10-01"},
-  "recording-extraction": {"seconds": 600, "expires": "2026-10-01"},
-  "luma-analysis": {"seconds": 600, "expires": "2026-10-01"}
+  "device-hub": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "ensure-session": {
+    "expires": "2026-10-01",
+    "seconds": 300
+  },
+  "expected-issue": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "fixture-copy": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "halt": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "issue-slot": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "local-tool": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "luma-analysis": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "panorama-settle": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "probe-copy": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "recording-extraction": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "result-bundle": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "stop": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "structural-test": {
+    "expires": "2026-10-01",
+    "seconds": 1800
+  },
+  "window-wait": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "xcresult-summary": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  }
 }

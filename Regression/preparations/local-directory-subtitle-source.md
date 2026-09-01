@@ -119,7 +119,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/.build/regression-remote-source/runtime.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -132,7 +132,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/.build/regression-remote-source/runtime.json",
         "textJSONKey": "user",
         "secret": false
       },
@@ -145,7 +145,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/.build/regression-remote-source/runtime.json",
         "textJSONKey": "password",
         "secret": true
       },
@@ -209,7 +209,7 @@
         "context": "main-window-browser",
         "identifier": "Emby-Connection-Address",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -222,7 +222,7 @@
         "context": "main-window-browser",
         "identifier": "Emby-Connection-Username",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
         "textJSONKey": "username",
         "secret": false
       },
@@ -235,7 +235,7 @@
         "context": "main-window-browser",
         "identifier": "Emby-Connection-Password",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
         "textJSONKey": "password",
         "secret": true
       },

@@ -147,7 +147,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/.build/regression-remote-source/runtime.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -160,7 +160,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/.build/regression-remote-source/runtime.json",
         "textJSONKey": "user",
         "secret": false
       },
@@ -173,7 +173,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "/Volumes/Cortisol/DevSpace/orca/workspace/Enchron/harness-adapters/.build/regression-remote-source/runtime.json",
         "textJSONKey": "password",
         "secret": true
       },

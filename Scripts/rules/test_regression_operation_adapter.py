@@ -5869,7 +5869,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 side_effect=stage,
             ),
             mock.patch.object(backend, "_developer_dir", return_value="/Developer"),
-            mock.patch.object(adapter.subprocess, "run", return_value=completed) as run,
+            mock.patch("enchron_target.copy_to_container", return_value=completed) as mock_copy,
         ):
             result = backend._media_stage_fixture_2(
                 {"fixtureID": "fixture", "sourceRoot": str(self.device.attempt_root)},
@@ -5877,10 +5877,10 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             )
 
         self.assertEqual(result["receipt"]["target"], self.device.target)
-        command = run.call_args.args[0]
-        self.assertEqual(
-            command[command.index("--device") + 1], self.device.target
-        )
+        self.assertTrue(mock_copy.called)
+        call_kwargs = mock_copy.call_args.kwargs
+        self.assertEqual(call_kwargs.get("target"), self.device.target)
+        self.assertEqual(call_kwargs.get("core_device_identifier"), self.device.target)
         self.assertEqual(captured["transport"].target, self.device.target)
 
     @staticmethod
