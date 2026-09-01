@@ -651,36 +651,6 @@
       "template": "Emby-Detail-Overview-Expand"
     },
     {
-      "action": "activate",
-      "family": "Emby",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 462,
-          "path": "Modules/Emby/EmbySessionViewModel.swift"
-        },
-        {
-          "line": 464,
-          "path": "Modules/Emby/EmbySessionViewModel.swift"
-        }
-      ],
-      "template": "Emby-Detail-PlayFromBeginning"
-    },
-    {
-      "action": "activate",
-      "family": "Emby",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 462,
-          "path": "Modules/Emby/EmbySessionViewModel.swift"
-        }
-      ],
-      "template": "Emby-Detail-Resume"
-    },
-    {
       "action": null,
       "family": "Emby",
       "role": "observation",
@@ -830,19 +800,6 @@
       "scope": "product",
       "sources": [
         {
-          "line": 716,
-          "path": "Modules/Emby/EmbyScreens.swift"
-        }
-      ],
-      "template": "Emby-PosterCard-"
-    },
-    {
-      "action": "activate",
-      "family": "Emby",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
           "line": 1592,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
@@ -939,19 +896,6 @@
         }
       ],
       "template": "Emby-SignOut"
-    },
-    {
-      "action": "activate",
-      "family": "Emby",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "line": 715,
-          "path": "Modules/Emby/EmbyScreens.swift"
-        }
-      ],
-      "template": "Emby-StillCard-"
     },
     {
       "action": "activate",
@@ -3731,44 +3675,6 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:Emby-Detail-PlayFromBeginning",
-      "identifierTemplate": "Emby-Detail-PlayFromBeginning",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 368,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Emby-Detail-Resume",
-      "identifierTemplate": "Emby-Detail-Resume",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 368,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
       "debugEquivalent": {
         "families": [
           "version"
@@ -3856,25 +3762,6 @@
     {
       "id": "accessibility:Emby-Navigation-Tab",
       "identifierTemplate": "Emby-Navigation-Tab",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 368,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Emby-PosterCard-",
-      "identifierTemplate": "Emby-PosterCard-",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
@@ -4007,25 +3894,6 @@
     {
       "id": "accessibility:Emby-SignOut",
       "identifierTemplate": "Emby-SignOut",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "line": 368,
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Emby-StillCard-",
-      "identifierTemplate": "Emby-StillCard-",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",

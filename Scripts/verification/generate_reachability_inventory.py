@@ -1301,6 +1301,25 @@ def proof_context_contract(
     return domain, contexts, derivation
 
 
+# Literals shaped like identifiers that no view ever carries, and why. The scan
+# below reads every string in every source file, which is what catches an
+# identifier assembled somewhere other than the modifier that applies it. The
+# same breadth picks up strings that only ever describe a control to the
+# evidence journal. A cell derived from one of those can never be driven,
+# because there is nothing on screen to drive.
+NON_VIEW_IDENTIFIER_LITERALS: dict[str, str] = {
+    "Emby-PosterCard-": "A prefix the DEBUG home-activation record concatenates "
+    "with an item id. The card itself carries Emby-PosterCard-{metadata.id.rawValue}.",
+    "Emby-StillCard-": "The Continue Watching half of the same prefix. The card "
+    "itself carries Emby-StillCard-{metadata.id.rawValue}.",
+    "Emby-Detail-Resume": "An entry in the playbackActionIDs the detail evidence "
+    "declares. The button carries "
+    "Emby-Detail-\\(action == .resume ? \"Resume\" : \"PlayFromBeginning\").",
+    "Emby-Detail-PlayFromBeginning": "The other entry in the same declared list, "
+    "named by the same button.",
+}
+
+
 def build_inventory() -> dict[str, object]:
     identifiers: dict[str, list[SourceLocation]] = {}
     documents: dict[str, str] = {}
@@ -1311,6 +1330,8 @@ def build_inventory() -> dict[str, object]:
             documents[relative] = text
             for template, line in source_strings(text):
                 if family(template) is None:
+                    continue
+                if template in NON_VIEW_IDENTIFIER_LITERALS:
                     continue
                 identifiers.setdefault(template, []).append(
                     SourceLocation(relative, line)

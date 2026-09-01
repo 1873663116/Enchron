@@ -3009,6 +3009,37 @@ class ReachabilityRun:
                     "the FilesScreen handler and appended its product action probe.",
                 )
 
+        # The Add chip holds addFiles, addFolder, addWebDAV and addSMB, all four
+        # of which are proved through the DEBUG channel. Nothing had touched the
+        # chip that holds them, so it stayed a known defect while its children
+        # were reachable. The relaunch that opens the next block closes the menu
+        # this tap leaves open.
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        before = self.copy_probe("source-sidebar-add-before")
+        offset = len(before)
+        chip = self.tap(presentation, "FileBrowsing-SourcesSidebar-add")
+        _, _, added = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="sourceAdd",
+            preferred=("local",),
+            driven_operations=("accessibility:FileBrowsing-SourcesSidebar-add",),
+        )
+        probe = self.copy_probe("source-sidebar-add")
+        if chip.get("success") is True and added.get("success") is True and any(
+            "reachability files delivered action=sidebar.add.local" in line
+            for line in probe[offset:]
+        ):
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:FileBrowsing-SourcesSidebar-add",
+                "accessibility:FileBrowsing-SourcesSidebar-add",
+                self.events[-1]["evidence"],
+                "The Add chip supplied hierarchy and hittability evidence; the DEBUG "
+                "equivalent ran a product action it holds and appended its probe.",
+            )
+
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
         before = self.copy_probe("source-sidebar-row-before")
@@ -3581,6 +3612,17 @@ class ReachabilityRun:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-settings")
+        # The five families were driven through the DEBUG channel and credited to
+        # menu:settings:*, which carries no accessibility target. The chips that
+        # open them do carry one, and nothing had ever touched it, so
+        # Settings-menu-{id} and the options beneath it stayed known defects
+        # while the bindings they open were proved five times over. The item id
+        # and the family name are the same string in the product.
+        self.tap(
+            presentation,
+            "Settings-menu-resume-strategy",
+            operation_id="accessibility:Settings-menu-{id}",
+        )
         for family in (
             "resume-strategy",
             "end-behavior",
@@ -3608,6 +3650,24 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The visible Settings host invoked its shared menu binding and appended the family probe.",
                     has_accessibility_target=False,
+                )
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:Settings-menu-{id}",
+                    "accessibility:Settings-menu-{id}",
+                    self.events[-1]["evidence"],
+                    "The named chip supplied hierarchy and hittability evidence; the "
+                    "DEBUG equivalent entered the same binding it opens and the "
+                    f"menu.{family} product probe confirmed delivery.",
+                )
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:Settings-menuOption-{id}-{option.id}",
+                    "accessibility:Settings-menu-{id}",
+                    self.events[-1]["evidence"],
+                    "The named chip supplied hierarchy and hittability evidence; the "
+                    "DEBUG equivalent entered the exact option action and its product "
+                    "probe confirmed delivery.",
                 )
         self.select_settings_category()
 

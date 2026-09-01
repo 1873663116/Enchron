@@ -1084,26 +1084,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Emby-Detail-PlayFromBeginning",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:Emby-Detail-Resume",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:Emby-PosterCard-",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:Emby-StillCard-",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-CleartextExposure-cancel",
       "verdict": "known-defect"
     },
