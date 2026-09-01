@@ -2890,5 +2890,140 @@ class ReachabilityActionMatching(unittest.TestCase):
             )
         )
 
+class EvidenceSessionAdoptionTests(unittest.TestCase):
+    def test_two_segments_on_one_runner_have_different_evidence_markers(self) -> None:
+        import uuid
+        first = str(uuid.uuid4())
+        second = str(uuid.uuid4())
+        self.assertNotEqual(first, second)
+        run_first = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run_first.segment = {"id": "window-01", "context": "window"}
+        run_first.session_id = "runner-1"
+        run_first.evidence_session = first
+        run_first.operations = {"command:toggleControls": {}}
+        run_first.cells = {("window", "command:toggleControls"): {}}
+        run_first.driven_cells = set()
+        run_first.deferred_command_ids = set()
+        run_first.last_deferred_command_id = None
+        run_first.controller = Mock(return_value={"success": True, "deferred": True, "id": "c1"})
+        run_first.app_command("toggleControls", visible="true")
+        first_args = run_first.controller.call_args.args
+        run_second = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run_second.segment = {"id": "window-02", "context": "window"}
+        run_second.session_id = "runner-1"
+        run_second.evidence_session = second
+        run_second.operations = {"command:toggleControls": {}}
+        run_second.cells = {("window", "command:toggleControls"): {}}
+        run_second.driven_cells = set()
+        run_second.deferred_command_ids = set()
+        run_second.last_deferred_command_id = None
+        run_second.controller = Mock(return_value={"success": True, "deferred": True, "id": "c2"})
+        run_second.app_command("toggleControls", visible="true")
+        second_args = run_second.controller.call_args.args
+        self.assertIn(f"evidenceSession={first}", second_args if False else first_args)
+        self.assertNotEqual(first_args, second_args)
+        self.assertIn(f"evidenceSession={first}", first_args)
+        self.assertIn(f"evidenceSession={second}", second_args)
+
+    def test_previous_segment_marker_is_rejected_as_misaligned(self) -> None:
+        operation = "command:toggleControls"
+        cells = {
+            ("window", operation): {
+                "context": "window",
+                "operation": operation,
+                "identifierTemplate": None,
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "known-defect",
+                "evidence": [],
+            }
+        }
+        replay = matrix.replay_deferred_evidence(
+            cells=cells,
+            deliveries=[{
+                "context": "window",
+                "operation": operation,
+                "probeRequirements": [],
+                "commandIDs": ["cmd-1"],
+            }],
+            probe_lines=[
+                "2026-08-18T01:00:00Z probeSequence=1 reachability evidence session=prev-segment-uuid",
+                "2026-08-18T01:00:01Z probeSequence=2 playback control delivered action=forward",
+            ],
+            responses={"cmd-1": {"id": "cmd-1", "ok": True}},
+            evidence_session="current-segment-uuid",
+            started_at="2026-08-18T01:00:00Z",
+            ended_at="2026-08-18T01:01:00Z",
+            evidence="raw/segment-probe.log",
+        )
+        self.assertFalse(replay["passed"])
+        self.assertFalse(replay["sessionAligned"])
+        self.assertFalse(cells[("window", operation)]["applicationReceived"])
+
+    def test_segment_without_keep_session_stops_runner(self) -> None:
+        import uuid as uuid_module
+        fixed = uuid_module.UUID("11111111-2222-3333-4444-555555555555")
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.segment = {"id": "window-01", "context": "window", "scenarios": [], "decisions": []}
+        run.arguments = SimpleNamespace(keep_session=False, reuse_session=False, execution_input=Path("/tmp/x"), output_directory=Path(TemporaryDirectory().name), contexts=["window"])
+        run.session_id = "runner-1"
+        run.cells = {}
+        run.operations = {}
+        run.driven_cells = set()
+        run.tapped_cells = set()
+        run.events = []
+        run.channel_failures = []
+        run.channel_health = {}
+        run.probe_status = {"passed": True, "byteLimit": 196608}
+        run.deferred_deliveries = []
+        run.deferred_command_ids = set()
+        run.probe_markers = {0: "2026-08-18T01:00:00Z"}
+        run.next_probe_marker = 1
+        run.segment_evidence_started = False
+        run.direct_transfer_calls = 0
+        run.evidence_retrieval_transfer_calls = 0
+        run.probe_retrieval_count = 0
+        run.policy = matrix.RecoveryPolicy()
+        run.history = []
+        run.halted = False
+        run.salvaging = False
+        run.lane = "device"
+        run.inventory = {"identifierFamilies": [], "operations": []}
+        output = Path(TemporaryDirectory().name)
+        output.mkdir(parents=True, exist_ok=True)
+        run.output = output
+        run.raw = output / "raw"
+        run.raw.mkdir(parents=True, exist_ok=True)
+        run.controller = Mock(return_value={"success": True})
+        run.ensure_session = Mock(return_value=True)
+        run.record_segment_health_context = Mock(return_value={"passed": True, "sessionID": "runner-1"})
+        run.local_call = Mock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
+        run.retrieve_bounded_probe = Mock(return_value=[f"2026-08-18T01:00:00Z probeSequence=1 reachability evidence session={fixed}"])
+        run.copy_batched_app_responses = Mock(return_value={})
+        run.read_probe_status = Mock(return_value={"success": True, "ok": True, "payload": ["byteLimit=196608", "fileBytes=1000", "peakFileBytes=1000", "compactionCount=0", "evidenceOverflowed=false", "writeFailed=false"]})
+        run.stage_fixture = Mock(return_value=True)
+        run.reset_reachability_state = Mock(return_value={"success": True})
+        run.relaunch = Mock()
+        run.prove_navigation_tab = Mock()
+        run.run_named_segment_scenario = Mock()
+        with patch.object(matrix.uuid, "uuid4", return_value=fixed), patch.object(matrix, "utc_now", return_value="2026-08-18T01:00:00Z"):
+            run.run_segment()
+        stop_calls = [c for c in run.controller.call_args_list if c.args and c.args[0] == "stop"]
+        self.assertTrue(stop_calls)
+        run.arguments.keep_session = True
+        run.controller.reset_mock()
+        run.channel_failures = []
+        run.events = []
+        run.deferred_deliveries = []
+        run.deferred_command_ids = set()
+        run.probe_markers = {0: "2026-08-18T01:00:00Z"}
+        run.next_probe_marker = 1
+        with patch.object(matrix.uuid, "uuid4", return_value=fixed), patch.object(matrix, "utc_now", return_value="2026-08-18T01:00:00Z"):
+            run.run_segment()
+        stop_calls = [c for c in run.controller.call_args_list if c.args and c.args[0] == "stop"]
+        self.assertFalse(stop_calls)
+
+
 if __name__ == "__main__":
     unittest.main()

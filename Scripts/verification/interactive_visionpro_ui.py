@@ -1141,6 +1141,32 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     single continuous run: the caller asked for a ready session, and everything
     here executes that one intent."""
     started_at = time.monotonic()
+    try:
+        ready = read_ready_state(arguments, fresh=True)
+        session_id = ready.get("sessionID")
+        if isinstance(session_id, str) and session_id:
+            probe = argparse.Namespace(**vars(arguments))
+            probe.action = "snapshot"
+            probe.no_screenshot = True
+            response = None
+            try:
+                response = send_command(probe)
+            except Exception:
+                response = None
+            if isinstance(response, dict) and response.get("success") is True:
+                try:
+                    fresh = read_ready_state(arguments, fresh=True)
+                except Exception:
+                    fresh = None
+                if isinstance(fresh, dict) and fresh.get("sessionID") == session_id:
+                    return {
+                        "success": True,
+                        "stage": "adopted",
+                        "sessionID": session_id,
+                        "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                    }
+    except Exception:
+        pass
     halt = halt_session(arguments)
     if halt["remaining"]:
         return {
@@ -1149,8 +1175,6 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
             "message": "A previous automation process survived halt.",
             "halt": halt,
         }
-    # ready.json outlives the runner that wrote it, so a stale identity would
-    # otherwise read as success the moment halt finishes.
     stale_session_id = current_session_id(arguments)
 
     output_directory = Path(arguments.output_directory)

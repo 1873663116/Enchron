@@ -649,5 +649,114 @@ class AssertAbsentFlagTests(unittest.TestCase):
         )
 
 
+class EnsureSessionAdoptionTests(unittest.TestCase):
+    def test_adoption_skips_launch_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(
+                device="SIM-UDID",
+                output_directory=directory,
+                ready_timeout=30.0,
+                runner_bundle_id="runner",
+                result_bundle_path="/tmp/not.xcresult",
+            )
+            with patch.object(
+                controller, "read_ready_state", side_effect=[
+                    {"sessionID": "s-adopted"},
+                    {"sessionID": "s-adopted"},
+                ]
+            ) as mock_read, patch.object(
+                controller, "send_command", return_value={"success": True}
+            ) as mock_send, patch.object(
+                controller, "halt_session"
+            ) as mock_halt, patch.object(
+                controller, "launch_runner"
+            ) as mock_launch:
+                mock_halt.side_effect = AssertionError("halt must not be called on adoption")
+                mock_launch.side_effect = AssertionError("launch must not be called on adoption")
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["stage"], "adopted")
+            self.assertEqual(response["sessionID"], "s-adopted")
+            self.assertTrue(response["success"])
+            self.assertEqual(mock_read.call_count, 2)
+            self.assertTrue(all(call.kwargs.get("fresh") is True for call in mock_read.call_args_list))
+            mock_send.assert_called_once()
+            probe = mock_send.call_args.args[0]
+            self.assertEqual(probe.action, "snapshot")
+            self.assertTrue(probe.no_screenshot)
+
+    def test_dead_runner_still_launches(self) -> None:
+        provenance = {
+            "lane": "simulator",
+            "targetId": "SIM-UDID",
+            "xctestrunDigest": "sha256:xctestrun",
+            "processId": 4102,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(
+                device="SIM-UDID",
+                output_directory=directory,
+                ready_timeout=30.0,
+                runner_bundle_id="runner",
+                result_bundle_path="/tmp/not.xcresult",
+            )
+            with patch.object(
+                controller, "read_ready_state", return_value={"sessionID": "s-old"}
+            ), patch.object(
+                controller, "send_command", side_effect=[
+                    {"success": False},
+                    {"success": True, "appState": "runningForeground"},
+                ]
+            ) as mock_send, patch.object(
+                controller, "halt_session", return_value={"remaining": [], "terminated": []}
+            ) as mock_halt, patch.object(
+                controller, "current_session_id", side_effect=("s-old", "s-new")
+            ), patch.object(
+                controller, "launch_runner", return_value=provenance
+            ) as mock_launch:
+                response = controller.ensure_session(arguments)
+            self.assertEqual(response["stage"], "ready")
+            self.assertEqual(mock_launch.call_count, 1)
+            self.assertEqual(mock_halt.call_count, 1)
+            self.assertEqual(mock_send.call_count, 2)
+
+    def test_adoption_never_returns_session_whose_ready_disappeared(self) -> None:
+        provenance = {
+            "lane": "simulator",
+            "targetId": "SIM-UDID",
+            "xctestrunDigest": "sha256:xctestrun",
+            "processId": 4102,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = argparse.Namespace(
+                device="SIM-UDID",
+                output_directory=directory,
+                ready_timeout=30.0,
+                runner_bundle_id="runner",
+                result_bundle_path="/tmp/not.xcresult",
+            )
+            with patch.object(
+                controller, "read_ready_state", side_effect=[
+                    {"sessionID": "s-vanish"},
+                    RuntimeError("ready.json disappeared"),
+                ]
+            ), patch.object(
+                controller, "send_command", side_effect=[
+                    {"success": True},
+                    {"success": True, "appState": "runningForeground"},
+                ]
+            ), patch.object(
+                controller, "halt_session", return_value={"remaining": [], "terminated": []}
+            ) as mock_halt, patch.object(
+                controller, "launch_runner", return_value=provenance
+            ) as mock_launch, patch.object(
+                controller, "current_session_id", side_effect=("s-vanish", "s-new")
+            ):
+                response = controller.ensure_session(arguments)
+            self.assertNotEqual(response.get("stage"), "adopted")
+            self.assertEqual(mock_launch.call_count, 1)
+            self.assertEqual(response["stage"], "ready")
+            self.assertEqual(response["sessionID"], "s-new")
+
+
 if __name__ == "__main__":
     unittest.main()
