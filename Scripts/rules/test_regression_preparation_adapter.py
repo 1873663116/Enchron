@@ -222,7 +222,7 @@ class PreparationRegistryTests(unittest.TestCase):
             self.assertEqual(binding.digest, "sha256:" + expected[identifier]["sha256"])
         self.assertEqual(
             preparations.FIXTURE_SOURCE_ROOT,
-            str((REPOSITORY_ROOT.parent / "TestMedia").resolve()),
+            "workspace://TestMedia",
         )
         for plan in self.plans().values():
             fixture_calls = [
@@ -621,12 +621,10 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "system.permission",
             ),
         )
-        expected_runtime = str(
-            (
-                preparations.SYSTEM_IMPORT_RUNTIME_ROOT
-                / plan.target
-                / "runtime.json"
-            ).resolve()
+        expected_runtime = (
+            "repo://.build/regression-system-import/"
+            + plan.target
+            + "/runtime.json"
         )
         self.assertTrue(
             any(
@@ -733,7 +731,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         lowered = serialized.casefold()
         self.assertNotIn('"authorization"', lowered)
         self.assertIsNone(re.search(r"(?i)\b(?:basic|bearer)\s+\S+", serialized))
-        self.assertIsNone(re.search(r"[a-z][a-z0-9+.-]*://[^/@:]+:[^/@]+@", serialized))
+        self.assertIsNone(re.search(r"[a-z][a-z0-9+.-]*://[^/@:\"]+:[^/@\"]+@", serialized))
         environment_path = REPOSITORY_ROOT / ".env"
         if environment_path.is_file():
             secrets = []
@@ -780,7 +778,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                     self.assertEqual(prerequisites.get(key), binding["digest"])
                 else:
                     self.assertNotIn(key, prerequisites)
-            runtime_key = ("runtime-identity", str(operations.REMOTE_RUNTIME_FILE))
+            runtime_key = ("runtime-identity", "repo://.build/regression-remote-source/runtime.json")
             if identifier in affected:
                 self.assertIn(runtime_key, prerequisites)
             else:
@@ -825,7 +823,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertTrue(
             all(
-                call.arguments["textFile"] == str(preparations.EMBY_RUNTIME_FILE)
+                call.arguments["textFile"] == "repo://Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"
                 for call in typed
             )
         )
@@ -872,7 +870,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         for kind, binding in preparations.EMBY_IMPLEMENTATION_IDENTITIES.items():
             self.assertEqual(prerequisites[(kind, binding["path"])], binding["digest"])
         self.assertIn(
-            ("runtime-identity", str(preparations.EMBY_RUNTIME_FILE)),
+            ("runtime-identity", "repo://Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"),
             prerequisites,
         )
 
@@ -1009,7 +1007,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             ["address", "user", "password"],
         )
         self.assertTrue(
-            all(call.arguments["textFile"] == str(operations.REMOTE_RUNTIME_FILE) for call in typed[1:])
+            all(call.arguments["textFile"] == "repo://.build/regression-remote-source/runtime.json" for call in typed[1:])
         )
         self.assertEqual([call.arguments["secret"] for call in typed], [False, False, False, True])
         self.assertNotIn("text", typed[-1].arguments)
@@ -1061,7 +1059,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertTrue(
             all(
-                call.arguments["textFile"] == str(operations.SMB_RUNTIME_FILE)
+                call.arguments["textFile"] == "repo://.build/regression-smb-source/runtime.json"
                 for call in typed[1:]
             )
         )
@@ -1128,7 +1126,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 prerequisites[(kind, binding["path"])], binding["digest"]
             )
         self.assertIn(
-            ("runtime-identity", str(operations.SMB_RUNTIME_FILE)), prerequisites
+            ("runtime-identity", "repo://.build/regression-smb-source/runtime.json"), prerequisites
         )
 
     def test_webdav_connection_tail_is_identical_on_device_and_simulator(self) -> None:

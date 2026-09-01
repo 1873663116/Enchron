@@ -953,11 +953,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         edge["before"], edge["after"] = edge["after"], edge["before"]
         cases["reversed"] = reversed_edge
 
-
-
-
-
-
         cross_journey = copy.deepcopy(self.blueprint)
         local = next(
             item for item in cross_journey["journeys"] if item["id"] == local_id
@@ -1026,11 +1021,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(
             set(operations["operation:issue.present@1"]["invalidatesTags"]),
             {
-
-
-
-
-
                 "certificate.trust",
                 "fixture.corpus",
                 "source.connection",
@@ -1099,9 +1089,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             current_tags,
             {
                 "cache.state",
-
-
-
                 "ui.navigation",
                 "ui.state",
                 "viewing.progress",
@@ -1915,9 +1902,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 if call["operation"] == "operation:accessibility.activate@2"
             ],
             [
-
-
-
                 [
                     "PlayerUI-TopAction-more",
                     "PlayerUI-menu-audio",
@@ -2449,13 +2433,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "FileBrowsing-SourceConnection-webDAV-error",
             )
 
-
-
-
-
-
-
-
         self.assertNotIn(
             "operation:harness.reset-product-state@2",
             {call["operation"] for call in calls},
@@ -2514,8 +2491,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             == ["PlayerUI-InfoBar-button-back"]
         ]
 
-
-
         self.assertEqual(len(exits), 2)
         self.assertEqual(len(captures), 4)
         self.assertTrue(all(call["arguments"]["summonControls"] for call in exits))
@@ -2529,8 +2504,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         producer = scenario["obligations"][0]["producedByCall"]
         self.assertEqual(producer, captures[-1]["callId"])
         capture = captures[-1]
-
-
 
         first_key = f"result://{captures[0]['callId']}/artworkKey"
         self.assertEqual(

@@ -143,6 +143,14 @@
     "expires": "2026-10-01",
     "seconds": 60
   },
+  "remote-preflight": {
+    "expires": "2026-10-01",
+    "seconds": 180
+  },
+  "remote-preflight-faults": {
+    "expires": "2026-10-01",
+    "seconds": 420
+  },
   "replaceText": {
     "expires": "2026-10-01",
     "seconds": 20

@@ -22,8 +22,13 @@ class LocalToolRunner:
         self.budgets = budgets if budgets is not None else BudgetProvider()
         self.clock = clock
 
-    def call(self, verb: str, action: Callable[[Budget], Outcome]) -> Outcome:
-        budget = self.budgets.budget(self.lane, verb)
+    def call(
+        self,
+        verb: str,
+        action: Callable[[Budget], Outcome],
+        budget: Budget | None = None,
+    ) -> Outcome:
+        budget = budget if budget is not None else self.budgets.budget(self.lane, verb)
         started = self.clock()
         try:
             outcome = action(budget)
@@ -52,6 +57,7 @@ class LocalToolRunner:
         verb: str,
         command: Sequence[str],
         env: Mapping[str, str] | None = None,
+        budget: Budget | None = None,
     ) -> CompletedInvocation:
         def action(budget: Budget) -> CompletedInvocation:
             completed = subprocess.run(
@@ -68,4 +74,4 @@ class LocalToolRunner:
                 stderr=completed.stderr,
             )
 
-        return self.call(verb, action)
+        return self.call(verb, action, budget=budget)

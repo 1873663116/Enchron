@@ -1456,8 +1456,8 @@ class OperationAllowlistTests(unittest.TestCase):
             )
         self.assertTrue(result["succeeded"])
         run_json.assert_called_once()
-        self.assertEqual(run_json.call_args[0][0][:5], [sys.executable, "Scripts/verification/device_hub_canvas.py", "--device", self.simulator.target, "system-control"])
-        self.assertIn("budget_seconds", run_json.call_args[1])
+        self.assertEqual(run_json.call_args[0][1][:5], [sys.executable, "Scripts/verification/device_hub_canvas.py", "--device", self.simulator.target, "system-control"])
+        self.assertEqual(run_json.call_args[0][2], "device-hub-pinch")
         controller.assert_called_once_with(
             self.simulator, "snapshot", "--no-screenshot"
         )
@@ -2137,10 +2137,10 @@ class OperationAllowlistTests(unittest.TestCase):
                 {"check": "emby-aggregate"}, self.device
             )
         self.assertIs(result["report"], direct)
-        self.assertNotIn("emby_probe.py", " ".join(run_json.call_args.args[0]))
+        self.assertNotIn("emby_probe.py", " ".join(run_json.call_args.args[1]))
         self.assertIn(
             "regression_environment_preflight.py",
-            " ".join(run_json.call_args.args[0]),
+            " ".join(run_json.call_args.args[1]),
         )
         validate.assert_called_once()
 
@@ -2242,9 +2242,9 @@ class OperationAllowlistTests(unittest.TestCase):
             set(adapter.SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES),
         )
         self.assertEqual(run_json.call_count, 2)
-        self.assertIn(target, run_json.call_args_list[0].args[0])
-        self.assertEqual(run_json.call_args_list[1].args[0][-1], "enlarge")
-        self.assertIn(target, run_json.call_args_list[1].args[0])
+        self.assertIn(target, run_json.call_args_list[0].args[1])
+        self.assertEqual(run_json.call_args_list[1].args[1][-1], "enlarge")
+        self.assertIn(target, run_json.call_args_list[1].args[1])
         validate.assert_called_once_with(
             report,
             device_identifier=target,
@@ -2349,7 +2349,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 result = backend._host_preflight_1(
                     {"check": "smb-aggregate"}, self.device
                 )
-            command = run_json.call_args.args[0]
+            command = run_json.call_args.args[1]
             self.assertIn("regression_smb_source.py", " ".join(command))
             self.assertEqual(
                 command[command.index("--address") + 1], "192.168.64.1"
@@ -2419,7 +2419,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 result = backend._host_preflight_1(
                     {"check": "webdav-regression"}, self.device
                 )
-        command = run_json.call_args.args[0]
+        command = run_json.call_args.args[1]
         self.assertIn("regression_environment_preflight.py", " ".join(command))
         self.assertIn("--bind-host", command)
         self.assertEqual(command[command.index("--bind-host") + 1], "192.168.64.1")
@@ -6792,8 +6792,13 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "payload": ["generation=5"],
             "transitionTraceSnapshot": {"generation": 5, "isArmed": False},
         }
-        with mock.patch.object(
-            backend, "_app_command", side_effect=[disarm, inactive]
+        with (
+            mock.patch.object(
+                backend, "_app_command", side_effect=[disarm, inactive]
+            ),
+            mock.patch.object(
+                backend, "_read_control_plane", return_value=(None, {})
+            ),
         ):
             cleanup = backend._transition_trace_disarm_1(
                 {"generationToken": "5"}, self.device

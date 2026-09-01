@@ -41,7 +41,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-hlg-hevc10-avsync-10s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -58,7 +58,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-pq-hevc10-avsync-10s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -75,7 +75,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p5-hd-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -92,7 +92,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p7-fel-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -109,7 +109,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p81-hdr10-hd-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -126,7 +126,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p84-hlg-hd-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -143,7 +143,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p100-av1-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -160,7 +160,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p101-av1-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -177,7 +177,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-dolby-vision-p104-av1-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -194,7 +194,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-dolby-vision-p20-3d-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },

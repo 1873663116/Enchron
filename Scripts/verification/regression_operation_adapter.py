@@ -37,6 +37,7 @@ if str(RULES_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(RULES_DIRECTORY))
 
 import enchron_target
+import regression_paths as portable
 from harness import Budget, BudgetProvider, ControllerClient, FaultRecord, Halt, InstrumentFault, LocalToolRunner, RecoveryPolicy, wait_for
 
 import regression_environment_preflight as _remote_preflight
@@ -810,9 +811,9 @@ def _accessibility_type(arguments: Mapping[str, object]) -> None:
                 raise OperationAdapterError(
                     "textFile result reference must select /runtimePath"
                 )
-        elif not Path(text_file).is_absolute():
+        elif not portable.is_reference(text_file) and not Path(text_file).is_absolute():
             raise OperationAdapterError(
-                "textFile must be one absolute runtime artifact path"
+                "textFile must be one absolute runtime artifact path or a repo:// or workspace:// reference"
             )
 
 
@@ -2248,9 +2249,9 @@ def _cursor(arguments: Mapping[str, object]) -> None:
 
 
 def _stage_fixture(arguments: Mapping[str, object]) -> None:
-    root = Path(str(arguments["sourceRoot"]))
-    if not root.is_absolute():
-        raise OperationAdapterError("sourceRoot must be absolute")
+    text = str(arguments["sourceRoot"])
+    if not portable.is_reference(text) and not Path(text).is_absolute():
+        raise OperationAdapterError("sourceRoot must be absolute or a repo:// or workspace:// reference")
 
 
 def _direct_child_name(value: object, location: str) -> str:
@@ -4608,7 +4609,10 @@ class ResidentOperationBackend:
             typed_text = str(arguments["text"])
             command.extend(("--text", typed_text))
         else:
-            text_file = Path(str(arguments.get("textFile", "")))
+            try:
+                text_file = portable.resolve(str(arguments.get("textFile", "")))
+            except portable.PortableReferenceError as error:
+                raise OperationAdapterError("credential reference is unreadable") from error
             try:
                 information = text_file.lstat()
                 document = json.loads(text_file.read_text(encoding="utf-8"))
@@ -5098,7 +5102,7 @@ class ResidentOperationBackend:
                 "--bind-host",
                 _literal_lan_address(),
             ]
-            envelope = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
+            envelope = self._run_json(context, command, "local-tool")
             checks = envelope.get("checks")
             if (
                 envelope.get("schema")
@@ -5142,7 +5146,7 @@ class ResidentOperationBackend:
                 "--device",
                 context.target,
             ]
-            result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
+            result = self._run_json(context, command, "local-tool")
             runtime_file = _system_import.SystemImportConfiguration(
                 context.target
             ).runtime_file
@@ -5155,6 +5159,7 @@ class ResidentOperationBackend:
                     "system import preflight did not return its exact typed runtime identity"
                 )
             device_hub = self._run_json(
+                context,
                 [
                     sys.executable,
                     str(DEVICE_HUB_CANVAS_PATH),
@@ -5162,7 +5167,7 @@ class ResidentOperationBackend:
                     context.target,
                     "enlarge",
                 ],
-                budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds,
+                "local-tool",
             )
             self._require_device_hub_binding(device_hub, context)
             canvas = device_hub.get("canvas")
@@ -5208,7 +5213,7 @@ class ResidentOperationBackend:
                 "--environment-file",
                 str(_smb_source.DEFAULT_ENVIRONMENT_FILE),
             ]
-            result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
+            result = self._run_json(context, command, "local-tool")
             validate_smb_preflight_report(result, SMB_RUNTIME_FILE)
             identity = result["runtimeIdentity"]
             assert isinstance(identity, dict)
@@ -5249,7 +5254,9 @@ class ResidentOperationBackend:
                 "8443",
             ]
             result = self._run_json(
-                command, budget_seconds=420 if check == "remote-faults" else 180
+                context,
+                command,
+                "remote-preflight-faults" if check == "remote-faults" else "remote-preflight",
             )
             validate_remote_preflight_report(check, result)
             runtime, metadata = _runtime_identity(REMOTE_RUNTIME_FILE)
@@ -5320,7 +5327,7 @@ class ResidentOperationBackend:
                     for identity, binding in REMOTE_IMPLEMENTATION_IDENTITIES.items()
                 },
             }
-        result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
+        result = self._run_json(context, command, "local-tool")
         return {"succeeded": True, "check": check, "report": result}
 
     def _diagnostics_surface_probe_1(self, arguments, context):
@@ -6336,7 +6343,7 @@ class ResidentOperationBackend:
         receipt = staging.stage_registered_fixture(
             registry=staging.FixtureRegistry.load(staging.DEFAULT_REGISTRY),
             fixture_id=str(arguments["fixtureID"]),
-            source_root=Path(str(arguments["sourceRoot"])),
+            source_root=portable.resolve(str(arguments["sourceRoot"])),
             transport=lane_bound_transport,
         )
         return {"succeeded": True, "receipt": receipt}
@@ -6965,10 +6972,7 @@ class ResidentOperationBackend:
         }
 
     def _window_control_plane_observation(self, context, *, required=True):
-        try:
-            plane, response = self._read_control_plane(context)
-        except InstrumentFault:
-            plane, response = None, {}
+        plane, response = self._read_control_plane(context)
         if plane is None:
             if required:
                 raise OperationAdapterError("window control plane is unavailable")
@@ -7015,12 +7019,9 @@ class ResidentOperationBackend:
             raise
 
     def _optional_playback_state(self, context: OperationContext) -> dict[str, object]:
-        try:
-            plane, response = self._read_control_plane(
-                context, "PlayerUI-playback-state"
-            )
-        except InstrumentFault:
-            plane, response = None, {}
+        plane, response = self._read_control_plane(
+            context, "PlayerUI-playback-state"
+        )
         if plane is None:
             return {
                 "succeeded": False,
@@ -8348,10 +8349,7 @@ class ResidentOperationBackend:
         analysis = response.get("transitionTraceAnalysis")
         if analysis is not None and not isinstance(analysis, dict):
             raise OperationAdapterError("transition response returned a malformed analysis")
-        try:
-            terminal, terminal_response = self._read_control_plane(context)
-        except InstrumentFault:
-            terminal, terminal_response = None, {}
+        terminal, terminal_response = self._read_control_plane(context)
         return {
             "succeeded": True,
             "response": response,
@@ -8381,10 +8379,7 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "transition trace remained armed after generation-bound disarm"
             )
-        try:
-            terminal, terminal_response = self._read_control_plane(context)
-        except InstrumentFault:
-            terminal, terminal_response = None, {}
+        terminal, terminal_response = self._read_control_plane(context)
         return {
             "succeeded": True,
             "response": post_response,
@@ -8421,6 +8416,7 @@ class ResidentOperationBackend:
         }
         wav = self._resolve_attempt_path(context, str(arguments["wavPath"]))
         measured = self._run_json(
+            context,
             [
                 sys.executable,
                 "Scripts/verification/journey_audio_probe.py",
@@ -8431,7 +8427,11 @@ class ResidentOperationBackend:
                 "--output",
                 str(wav),
             ],
-            budget_seconds=int(arguments["durationMillis"]) / 1000 + 60,
+            "journey-audio-probe",
+            budget=Budget(
+                seconds=int(arguments["durationMillis"]) / 1000 + 60,
+                provenance=f"durationMillis {arguments['durationMillis']}ms plus 60s margin",
+            ),
         )
         after = self._diagnostics_playback_state_1({}, context)
         after_identity = {
@@ -8459,6 +8459,7 @@ class ResidentOperationBackend:
 
     def _input_device_hub_prepare_1(self, arguments, context):
         result = self._run_json(
+            context,
             [
                 sys.executable,
                 "Scripts/verification/device_hub_canvas.py",
@@ -8466,7 +8467,7 @@ class ResidentOperationBackend:
                 context.target,
                 "enlarge",
             ],
-            budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "device-hub-prepare").seconds,
+            "device-hub-prepare",
         )
         self._require_device_hub_binding(result, context)
         canvas = result.get("canvas")
@@ -8504,7 +8505,7 @@ class ResidentOperationBackend:
                 "--control",
                 str(arguments.get("systemControl", "home")),
             ]
-            result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "device-hub-pinch").seconds)
+            result = self._run_json(context, command, "device-hub-pinch")
             self._require_device_hub_binding(result, context)
             return bind_product_state(result)
         command = [
@@ -8529,7 +8530,7 @@ class ResidentOperationBackend:
             command.extend((flag, str(arguments.get(source, shot_defaults[source]))))
         if arguments.get("allowSmall") is True:
             command.append("--allow-small")
-        result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
+        result = self._run_json(context, command, "local-tool")
         self._require_device_hub_binding(result, context)
         return bind_product_state(result)
 
@@ -8578,12 +8579,10 @@ class ResidentOperationBackend:
             "toolchain": self._developer_dir(),
         }
 
-    def _run_json(self, command: list[str], *args, **kwargs) -> dict[str, object]:
-        budget_seconds = kwargs.get("budget_seconds", kwargs.get("timeout", 120.0))
-        instruments = self._harness_instruments(OperationContext("simulator", "local-tool", Path("/tmp"), Path("/tmp")))
-
+    def _run_json(self, context: OperationContext, command: list[str], verb: str, budget: Budget | None = None) -> dict[str, object]:
+        instruments = self._harness_instruments(context)
         try:
-            completed = instruments.tools.run("local-tool", command)
+            completed = instruments.tools.run(verb, command, budget=budget)
         except InstrumentFault as fault:
             raise OperationAdapterError(f"command failed: {fault.kind}") from fault
         if completed.returncode != 0:

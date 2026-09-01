@@ -41,7 +41,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -50,7 +50,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-aggregate-30s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -59,7 +59,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-aggregate-external-subrip-zh-cn-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -68,7 +68,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-aggregate-external-ass-styled-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -77,7 +77,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -86,7 +86,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -95,7 +95,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-duplicate-label-audio-30s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -104,7 +104,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-viewing-storage-h264-16m01s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     }
