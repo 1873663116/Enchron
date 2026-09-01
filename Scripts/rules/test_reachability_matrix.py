@@ -2720,6 +2720,162 @@ class CompletionHonestyTests(unittest.TestCase):
 
 
 
+class WaitExpiryVerdictTests(unittest.TestCase):
+    def waiting_run(self, directory: Path) -> matrix.ReachabilityRun:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.raw = directory
+        run.sequence = 0
+        run.segment = None
+        run.events = []
+        run.channel_failures = []
+        run.last_controller_document = {}
+        run.lane = "device"
+        run.budgets = SimpleNamespace(
+            budget=lambda lane, verb: matrix.Budget(0.05, "test wait budget"),
+            record_sample=Mock(),
+        )
+        arm_recovery(run)
+        return run
+
+    def cell_under_judgment(
+        self, run: matrix.ReachabilityRun, context: str, operation: str
+    ) -> dict:
+        run.operations = {operation: {}}
+        run.driven_cells = set()
+        run.cells = {
+            (context, operation): {
+                "context": context,
+                "operation": operation,
+                "identifierTemplate": operation.removeprefix("accessibility:"),
+                "existsInHierarchy": False,
+                "reportsHittable": False,
+                "applicationReceived": False,
+                "verdict": "unmeasured",
+                "reason": matrix.UNMEASURED_REASON,
+                "evidence": [],
+            }
+        }
+        return run.cells[(context, operation)]
+
+    def test_expiry_over_healthy_snapshots_is_evidence_backed_absence(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self.waiting_run(Path(directory))
+            snapshot = {
+                "success": True,
+                "hierarchy": (
+                    "identifier: 'PlayerUI-play'\n"
+                    "identifier: 'PlayerPanel-controls'"
+                ),
+            }
+            run.controller = Mock(return_value=snapshot)
+            run.last_controller_document = snapshot
+
+            outcome = run.wait_for_identifier("Missing-target")
+
+            self.assertTrue(outcome["waitExpired"])
+            self.assertTrue(outcome["evidenceBackedExpiry"])
+            self.assertNotIn("instrumentFault", outcome)
+            self.assertNotIn("matchedElement", outcome)
+            self.assertIn(
+                ["PlayerPanel-controls", "PlayerUI-play"],
+                outcome["observations"],
+            )
+            self.assertEqual(run.history, [])
+            self.assertEqual(run.channel_failures, [])
+            self.assertEqual(run.events[-1]["action"], "waitExpired")
+            self.assertEqual(run.events[-1]["evidence"], outcome["evidence"])
+
+            operation = "accessibility:Missing-target"
+            cell = self.cell_under_judgment(run, "window", operation)
+            run.mark_observation(
+                "window",
+                operation,
+                exists=False,
+                evidence=run.events[-1]["evidence"],
+                reason="The control never appeared before the wait expired.",
+            )
+
+            self.assertEqual(cell["verdict"], "known-defect")
+            self.assertEqual(cell["evidence"], [outcome["evidence"]])
+            written = json.loads(
+                (Path(directory) / Path(outcome["evidence"]).name).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertTrue(written["evidenceBackedExpiry"])
+            self.assertIn(
+                ["PlayerPanel-controls", "PlayerUI-play"],
+                written["observations"],
+            )
+            self.assertEqual(
+                written["polls"][-1]["identifiers"],
+                ["PlayerPanel-controls", "PlayerUI-play"],
+            )
+
+    def test_a_controller_fault_during_a_wait_never_becomes_known_defect(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self.waiting_run(Path(directory))
+            run.segment = {"id": "panorama", "context": "panorama"}
+            faulted = {
+                "success": False,
+                "error": "instrument fault transport-timeout",
+                "failure": {
+                    "class": "instrument",
+                    "kind": "transport-timeout",
+                    "evidence": {},
+                },
+            }
+            run.controller = Mock(return_value=faulted)
+            run.last_controller_document = faulted
+
+            outcome = run.wait_for_identifier("PlayerPanel-controls")
+
+            self.assertTrue(outcome["waitExpired"])
+            self.assertTrue(outcome["instrumentFault"])
+            self.assertNotIn("evidenceBackedExpiry", outcome)
+            self.assertEqual(run.history[-1].kind, "wait-expired")
+            self.assertEqual(
+                run.channel_failures[-1]["kind"], "wait-expired"
+            )
+
+            operation = "accessibility:PlayerPanel-menu-more"
+            cell = self.cell_under_judgment(run, "panorama", operation)
+            run.mark_observation(
+                "panorama",
+                operation,
+                exists=False,
+                evidence=run.events[-1]["evidence"],
+                reason="The wait ended in an instrument fault.",
+            )
+
+            self.assertEqual(cell["verdict"], "unmeasured")
+            self.assertIn("instrument silence", cell["reason"])
+
+    def test_a_quarantined_wait_is_an_instrument_marker_not_absence(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self.waiting_run(Path(directory))
+            run.halted = True
+            run.controller = Mock()
+
+            outcome = run.wait_for_identifier("PlayerPanel-controls")
+
+            self.assertTrue(outcome["instrumentFault"])
+            self.assertTrue(outcome["quarantined"])
+            run.controller.assert_not_called()
+
+            operation = "accessibility:PlayerPanel-controls"
+            cell = self.cell_under_judgment(run, "panorama", operation)
+            run.mark_observation(
+                "panorama",
+                operation,
+                exists=False,
+                evidence="raw/quarantined.json",
+                reason="The channel was quarantined before the wait ran.",
+            )
+
+            self.assertEqual(cell["verdict"], "unmeasured")
+
+
 class ReachabilityActionMatching(unittest.TestCase):
     def test_a_longer_action_does_not_answer_for_a_shorter_one(self) -> None:
         probe = ["reachability top actions delivered action=dock.openMenu"]

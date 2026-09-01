@@ -1191,8 +1191,26 @@ class ReachabilityRun:
             self.record_instrument_fault(verb, fault)
             return None
 
+    @staticmethod
+    def snapshot_poll(document: dict[str, Any]) -> dict[str, Any]:
+        failure = document.get("failure")
+        healthy = document.get("success") is True or (
+            isinstance(failure, dict) and failure.get("class") == "product"
+        )
+        return {
+            "healthy": healthy,
+            "identifiers": sorted(
+                ReachabilityRun.hierarchy_identifiers(document)
+            ),
+        }
+
     def wait_observation(
-        self, verb: str, label: str, probe: Any, observe: Any
+        self,
+        verb: str,
+        label: str,
+        probe: Any,
+        observe: Any,
+        polls: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         try:
             evidence = wait_for(
@@ -1203,16 +1221,53 @@ class ReachabilityRun:
                 record=self.record_wait_sample,
             )
         except InstrumentFault as fault:
+            recorded = list(polls) if polls is not None else None
+            evidence_backed = recorded is None or (
+                bool(recorded)
+                and all(poll.get("healthy") is True for poll in recorded)
+            )
+            outcome: dict[str, Any] = {
+                "waitExpired": True,
+                "label": label,
+                "observations": list(fault.evidence.get("observations", [])),
+                "budget": fault.budget.provenance if fault.budget else None,
+            }
+            self.sequence += 1
+            name = f"{self.sequence:03d}-wait-{verb}.json"
+            (self.raw / name).write_text(
+                json.dumps({
+                    **outcome,
+                    "verb": verb,
+                    "evidenceBackedExpiry": evidence_backed,
+                    "polls": recorded,
+                    "diagnosis": str(fault),
+                }, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            outcome["evidence"] = f"raw/{name}"
+            if evidence_backed:
+                outcome["evidenceBackedExpiry"] = True
+            else:
+                outcome["instrumentFault"] = True
             self.events.append({
                 "at": utc_now(),
                 "action": "waitExpired",
                 "label": label,
                 "kind": fault.kind,
                 "success": False,
-                "budget": fault.budget.provenance if fault.budget else None,
-                "detail": str(fault),
+                "evidenceBackedExpiry": evidence_backed,
+                "budget": outcome["budget"],
+                "evidence": f"raw/{name}",
             })
-            return {}
+            if not evidence_backed:
+                self.record_instrument_fault(verb, fault, evidence=f"raw/{name}")
+            return outcome
+        if isinstance(evidence, dict) and evidence.get("quarantined"):
+            return {
+                "instrumentFault": True,
+                "quarantined": True,
+                "label": label,
+            }
         return evidence if isinstance(evidence, dict) else {}
 
     def device_copy_from(
@@ -2007,8 +2062,22 @@ class ReachabilityRun:
         if reachability_evidence_is_complete(cell):
             cell["verdict"] = "reachable"
             self.mark_driven(presentation, operation_id)
+        elif self.observation_channel_untrusted():
+            cell["verdict"] = "unmeasured"
+            cell["reason"] = (
+                "The instrument channel was quarantined while this cell was "
+                "being judged; missing delivery evidence here is instrument "
+                "silence, never a product verdict."
+            )
         else:
             cell["verdict"] = "known-defect"
+
+    def observation_channel_untrusted(self) -> bool:
+        if getattr(self, "halted", False):
+            return True
+        return getattr(self, "segment", None) is not None and bool(
+            getattr(self, "channel_failures", None)
+        )
 
     @staticmethod
     def hierarchy_identifiers(document: dict[str, Any]) -> set[str]:
@@ -2299,12 +2368,15 @@ class ReachabilityRun:
     def wait_for_identifier(
         self, identifier: str, *, verb: str = "identifier-appearance"
     ) -> dict[str, Any]:
+        polls: list[dict[str, Any]] = []
+
         def probe() -> dict[str, Any] | None:
             if self.channel_refuses("snapshot"):
                 return {"quarantined": True}
             document = self.controller(
                 "snapshot", "--identifier", identifier, "--no-screenshot"
             )
+            polls.append(self.snapshot_poll(document))
             if isinstance(document.get("matchedElement"), dict):
                 return document
             return None
@@ -2315,8 +2387,7 @@ class ReachabilityRun:
                 sorted(self.hierarchy_identifiers(self.last_controller_document)),
             ]
 
-        evidence = self.wait_observation(verb, identifier, probe, observe)
-        return {} if evidence.get("quarantined") else evidence
+        return self.wait_observation(verb, identifier, probe, observe, polls)
 
     def wait_for_identifier_value(
         self,
@@ -2325,12 +2396,15 @@ class ReachabilityRun:
         *,
         verb: str = "identifier-value",
     ) -> dict[str, Any]:
+        polls: list[dict[str, Any]] = []
+
         def probe() -> dict[str, Any] | None:
             if self.channel_refuses("snapshot"):
                 return {"quarantined": True}
             latest = self.controller(
                 "snapshot", "--identifier", identifier, "--no-screenshot"
             )
+            polls.append(self.snapshot_poll(latest))
             matched = latest.get("matchedElement")
             value = str(matched.get("value", "")) if isinstance(matched, dict) else ""
             if all(fact in value for fact in required_facts):
@@ -2345,8 +2419,7 @@ class ReachabilityRun:
                 matched if isinstance(matched, dict) else None,
             ]
 
-        evidence = self.wait_observation(verb, identifier, probe, observe)
-        return {} if evidence.get("quarantined") else evidence
+        return self.wait_observation(verb, identifier, probe, observe, polls)
 
     def wait_for_any_identifier(
         self,
@@ -2354,10 +2427,13 @@ class ReachabilityRun:
         *,
         verb: str = "any-identifier-appearance",
     ) -> tuple[str | None, dict[str, Any]]:
+        polls: list[dict[str, Any]] = []
+
         def probe() -> dict[str, Any] | None:
             if self.channel_refuses("snapshot"):
                 return {"quarantined": True}
             latest = self.controller("snapshot", "--no-screenshot")
+            polls.append(self.snapshot_poll(latest))
             visible = self.hierarchy_identifiers(latest)
             for identifier in identifiers:
                 if identifier in visible:
@@ -2371,19 +2447,22 @@ class ReachabilityRun:
             ]
 
         evidence = self.wait_observation(
-            verb, "|".join(identifiers), probe, observe
+            verb, "|".join(identifiers), probe, observe, polls
         )
-        if not evidence or evidence.get("quarantined"):
-            return None, {}
+        if "identifier" not in evidence:
+            return None, evidence
         return str(evidence["identifier"]), dict(evidence["document"])
 
     def wait_for_identifier_absent(
         self, identifier: str, *, verb: str = "identifier-absence"
     ) -> bool:
+        polls: list[dict[str, Any]] = []
+
         def probe() -> dict[str, Any] | None:
             if self.channel_refuses("snapshot"):
                 return {"quarantined": True}
             latest = self.controller("snapshot", "--no-screenshot")
+            polls.append(self.snapshot_poll(latest))
             if identifier not in self.hierarchy_identifiers(latest):
                 return {"identifier": identifier, "absent": True}
             return None
@@ -2391,7 +2470,7 @@ class ReachabilityRun:
         def observe() -> list[Any]:
             return [identifier]
 
-        evidence = self.wait_observation(verb, identifier, probe, observe)
+        evidence = self.wait_observation(verb, identifier, probe, observe, polls)
         return bool(evidence.get("absent"))
 
     def relaunch(self) -> None:
