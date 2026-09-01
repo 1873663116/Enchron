@@ -1252,16 +1252,16 @@ class ReachabilityRun:
             self.consecutive_timeouts += 1
         else:
             self.consecutive_timeouts = 0
-        if self.consecutive_timeouts >= CONSECUTIVE_CONTROLLER_TIMEOUTS:
-            raise ControllerStopped(
-                action, effective_timeout, self.consecutive_timeouts
-            )
+        stopped = self.consecutive_timeouts >= CONSECUTIVE_CONTROLLER_TIMEOUTS
         self.sequence += 1
         name = f"{self.sequence:03d}-{action}.json"
         (self.raw / name).write_text(
             json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        # The event is written before the run ends, so the call that ended it is
+        # in the evidence. Raising first left every stopped run one short, and
+        # the record showed two silences where the counter had seen three.
         self.events.append(
             {
                 "at": utc_now(),
@@ -1288,6 +1288,10 @@ class ReachabilityRun:
                 "evidence": f"raw/{name}",
             })
         self.last_controller_document = document
+        if stopped:
+            raise ControllerStopped(
+                action, effective_timeout, self.consecutive_timeouts
+            )
         return document
 
     def app_command(

@@ -1188,6 +1188,10 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                     run.controller("tap", "--identifier", "x")
 
         self.assertIn("3 times running", str(raised.exception))
+        # The call that ended the run is in the evidence. Raising before the
+        # event was written left every stopped run one short, and the record
+        # showed two silences where the counter had counted three.
+        self.assertEqual(len(run.events), matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS)
 
     def test_a_runner_that_stopped_answering_ends_the_run(self) -> None:
         # The controller exits normally and reports the runner's silence, which
