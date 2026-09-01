@@ -3785,6 +3785,7 @@ class ReachabilityRun:
     def settings_menu_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.reset_to_tab("Navigation-Ornament-tab-settings")
+        self.tap(presentation, "Settings-category-playback", index=2)
         self.tap(
             presentation,
             "Settings-menu-resume-strategy",
@@ -3836,6 +3837,7 @@ class ReachabilityRun:
                     "DEBUG equivalent entered the exact option action and its product "
                     "probe confirmed delivery.",
                 )
+        self.reset_to_tab("Navigation-Ornament-tab-settings")
         self.select_settings_category()
         before = self.copy_probe("settings-action-before")
         offset = len(before)
