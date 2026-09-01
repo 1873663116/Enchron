@@ -71,6 +71,54 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
     return Path(result.stdout.strip())
 
 
+def copy_to_container(
+    *,
+    target: str,
+    bundle_id: str,
+    source: Path,
+    destination: str,
+    developer_dir: str,
+    core_device_identifier: str | None = None,
+    timeout: float = 120.0,
+) -> subprocess.CompletedProcess[str]:
+    """Put one file into the app container, whichever lane the target is on.
+
+    Every write went through `devicectl --device <CoreDevice>` while every read
+    was already routed. On a simulator the CoreDevice names a headset that is
+    not there, and devicectl answers "RemoteServiceDiscovery connectivity is not
+    available to the device" - which reads as a broken headset rather than as a
+    write aimed at the wrong lane.
+    """
+    if not target:
+        raise ValueError("container target must not be empty")
+    if is_simulator(target):
+        container = simulator_container(target, bundle_id)
+        if container is None:
+            return subprocess.CompletedProcess(
+                ["simctl", "get_app_container", target, bundle_id],
+                returncode=1, stdout="", stderr="container is not readable.",
+            )
+        into = container / destination
+        into.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_dir():
+            shutil.copytree(source, into, dirs_exist_ok=True)
+        else:
+            shutil.copyfile(source, into)
+        return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+    return subprocess.run(
+        [
+            "xcrun", "devicectl", "device", "copy", "to",
+            "--device", str(core_device_identifier),
+            "--domain-type", "appDataContainer",
+            "--domain-identifier", bundle_id,
+            "--source", str(source),
+            "--destination", destination,
+        ],
+        env={"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"},
+        capture_output=True, text=True, timeout=timeout, check=False,
+    )
+
+
 def truncate_in_container(
     *,
     target: str,

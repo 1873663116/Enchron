@@ -792,13 +792,13 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             cleared = Mock(returncode=0, stderr="", stdout="File Size: Zero KB")
 
             with patch.object(
-                matrix.subprocess,
-                "run",
+                matrix.enchron_target,
+                "truncate_in_container",
                 side_effect=(destination_exists, cleared),
-            ) as subprocess_run:
+            ) as truncate:
                 self.assertTrue(run.clear_probe_after_archive())
 
-            self.assertEqual(subprocess_run.call_count, 2)
+            self.assertEqual(truncate.call_count, 2)
             self.assertEqual(run.events[-1]["attemptCount"], 2)
             self.assertTrue(run.events[-1]["success"])
 

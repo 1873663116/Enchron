@@ -16,6 +16,59 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 import enchron_target as target
 
 
+class ContainerWriteRoutesByLane(unittest.TestCase):
+    """Every read was routed and every write was not.
+
+    The channel health probe writes a nonce, reads it back and empties the file.
+    The first two steps went through the routed helpers and the third did not,
+    so on the simulator the probe failed with "RemoteServiceDiscovery
+    connectivity is not available to the device" naming the headset's
+    CoreDevice - a message about a headset that was not involved. The segment
+    stopped at its third step with nothing driven.
+    """
+
+    def test_the_simulator_branch_writes_into_the_container(self) -> None:
+        with tempfile.TemporaryDirectory() as container, \
+                tempfile.TemporaryDirectory() as staging:
+            payload = Path(staging) / "fixture.mp4"
+            payload.write_text("bytes")
+
+            with patch.object(target, "is_simulator", return_value=True), \
+                 patch.object(
+                     target, "simulator_container", return_value=Path(container)
+                 ):
+                done = target.copy_to_container(
+                    target="simulator-udid",
+                    bundle_id="com.example.app",
+                    source=payload,
+                    destination="Documents/TestMediaInbox/fixture.mp4",
+                    developer_dir="/dev/null",
+                )
+
+            self.assertEqual(done.returncode, 0)
+            landed = Path(container) / "Documents/TestMediaInbox/fixture.mp4"
+            self.assertEqual(landed.read_text(), "bytes")
+
+    def test_the_device_branch_still_goes_through_devicectl(self) -> None:
+        with tempfile.TemporaryDirectory() as staging:
+            payload = Path(staging) / "fixture.mp4"
+            payload.write_text("bytes")
+            with patch.object(target, "is_simulator", return_value=False), \
+                 patch.object(target.subprocess, "run") as run:
+                run.return_value = subprocess.CompletedProcess([], 0, "", "")
+                target.copy_to_container(
+                    target="physical-udid",
+                    bundle_id="com.example.app",
+                    source=payload,
+                    destination="Documents/x",
+                    developer_dir="/dev/null",
+                    core_device_identifier="CORE-DEVICE",
+                )
+        command = run.call_args.args[0]
+        self.assertIn("devicectl", command)
+        self.assertIn("CORE-DEVICE", command)
+
+
 class ContainerTruncateRoutesByLane(unittest.TestCase):
     """Reads were routed and writes were not.
 

@@ -1476,22 +1476,27 @@ class ReachabilityRun:
         for direction, *copy_arguments in commands:
             started = time.monotonic()
             self.direct_devicectl_calls += 1
+            arguments = dict(zip(copy_arguments[::2], copy_arguments[1::2]))
             try:
-                completed = subprocess.run(
-                    [
-                        "xcrun", "devicectl", "device", "copy", direction,
-                        "--device", CORE_DEVICE,
-                        "--domain-type", "appDataContainer",
-                        "--domain-identifier", APP_BUNDLE,
-                        *copy_arguments,
-                    ],
-                    cwd=ROOT,
-                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    check=False,
-                )
+                if direction == "to":
+                    completed = enchron_target.copy_to_container(
+                        target=DEVICE,
+                        bundle_id=APP_BUNDLE,
+                        source=Path(arguments["--source"]),
+                        destination=arguments["--destination"],
+                        developer_dir=DEVELOPER_DIR,
+                        core_device_identifier=CORE_DEVICE,
+                        timeout=READ_TIMEOUT,
+                    )
+                else:
+                    completed = enchron_target.copy_from_container(
+                        target=DEVICE,
+                        bundle_id=APP_BUNDLE,
+                        source=arguments["--source"],
+                        destination=Path(arguments["--destination"]),
+                        developer_dir=DEVELOPER_DIR,
+                        core_device_identifier=CORE_DEVICE,
+                    )
                 transfers.append({
                     "direction": direction,
                     "passed": completed.returncode == 0,
@@ -1820,22 +1825,13 @@ class ReachabilityRun:
             self.direct_devicectl_calls += 1
             if getattr(self, "segment_evidence_started", False):
                 self.evidence_retrieval_devicectl_calls += 1
-            copied = subprocess.run(
-                [
-                    "xcrun", "devicectl", "device", "copy", "from",
-                    "--device", CORE_DEVICE,
-                    "--domain-type", "appDataContainer",
-                    "--domain-identifier", APP_BUNDLE,
-                    "--source", PROBE_REMOTE_PATH,
-                    "--destination", str(destination),
-                    "--timeout", str(int(remaining)),
-                ],
-                cwd=ROOT,
-                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                capture_output=True,
-                text=True,
-                timeout=remaining,
-                check=False,
+            copied = enchron_target.copy_from_container(
+                target=DEVICE,
+                bundle_id=APP_BUNDLE,
+                source=PROBE_REMOTE_PATH,
+                destination=destination,
+                developer_dir=DEVELOPER_DIR,
+                core_device_identifier=CORE_DEVICE,
             )
         except subprocess.TimeoutExpired:
             copied = None
@@ -1958,22 +1954,13 @@ class ReachabilityRun:
             remaining = max(1.0, deadline - time.monotonic())
             self.direct_devicectl_calls += 1
             try:
-                completed = subprocess.run(
-                    [
-                        "xcrun", "devicectl", "device", "copy", "to",
-                        "--device", CORE_DEVICE,
-                        "--domain-type", "appDataContainer",
-                        "--domain-identifier", APP_BUNDLE,
-                        "--source", str(empty),
-                        "--destination", PROBE_REMOTE_PATH,
-                        "--timeout", str(int(remaining)),
-                    ],
-                    cwd=ROOT,
-                    env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                    capture_output=True,
-                    text=True,
+                completed = enchron_target.truncate_in_container(
+                    target=DEVICE,
+                    bundle_id=APP_BUNDLE,
+                    source=PROBE_REMOTE_PATH,
+                    developer_dir=DEVELOPER_DIR,
+                    core_device_identifier=CORE_DEVICE,
                     timeout=remaining,
-                    check=False,
                 )
             except subprocess.TimeoutExpired:
                 completed = None
@@ -2049,21 +2036,14 @@ class ReachabilityRun:
             return False
         try:
             self.direct_devicectl_calls += 1
-            completed = subprocess.run(
-                [
-                    "xcrun", "devicectl", "device", "copy", "to",
-                    "--device", CORE_DEVICE,
-                    "--domain-type", "appDataContainer",
-                    "--domain-identifier", APP_BUNDLE,
-                    "--source", str(source),
-                    "--destination", f"Documents/TestMediaInbox/{file_name}",
-                ],
-                cwd=ROOT,
-                env={"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"},
-                capture_output=True,
-                text=True,
+            completed = enchron_target.copy_to_container(
+                target=DEVICE,
+                bundle_id=APP_BUNDLE,
+                source=source,
+                destination=f"Documents/TestMediaInbox/{file_name}",
+                developer_dir=DEVELOPER_DIR,
+                core_device_identifier=CORE_DEVICE,
                 timeout=300,
-                check=False,
             )
         except subprocess.TimeoutExpired:
             self.events.append({
