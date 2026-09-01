@@ -198,6 +198,7 @@ STRUCTURE_CHECKS = (
         "bootstrap-freeze",
         "verify_bootstrap_freeze.py",
     ),
+    StructureCheck("harness-primitives-gate", "harness_primitives_gate.py"),
 )
 
 
