@@ -88,6 +88,26 @@ class BudgetDerivationTests(unittest.TestCase):
         budget = provider(self.directory).budget("simulator", "press")
         self.assertEqual(budget.seconds, 5.0)
 
+    def test_declared_floor_raises_a_low_measured_budget(self) -> None:
+        samples = [measured(2.0) for _ in range(6)]
+        write_timings(self.directory, "simulator", "tap", samples)
+        budget = provider(
+            self.directory,
+            provisional={"tap": {"seconds": 75, "expires": "2026-10-01", "floorSeconds": 75}},
+        ).budget("simulator", "tap")
+        self.assertEqual(budget.seconds, 75.0)
+        self.assertIn("raised to the declared floor 75s", budget.provenance)
+
+    def test_a_measured_budget_above_the_floor_is_untouched(self) -> None:
+        samples = [measured(80.0) for _ in range(6)]
+        write_timings(self.directory, "simulator", "tap", samples)
+        budget = provider(
+            self.directory,
+            provisional={"tap": {"seconds": 75, "expires": "2026-10-01", "floorSeconds": 75}},
+        ).budget("simulator", "tap")
+        self.assertEqual(budget.seconds, 120.0)
+        self.assertNotIn("floor", budget.provenance)
+
     def test_ceiling_clamp(self) -> None:
         samples = [measured(500.0) for _ in range(6)]
         write_timings(self.directory, "device", "probe-copy", samples)

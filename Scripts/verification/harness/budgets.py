@@ -83,7 +83,20 @@ class BudgetProvider:
             f"p95 {p95:.2f}s × {BUDGET_MULTIPLIER}, lane={lane}, "
             f"n={len(recorded)}, censored={censored_count}"
         )
+        floor = self.declared_floor(verb)
+        if floor is not None and derived < floor:
+            derived = min(floor, BUDGET_CEILING_SECONDS)
+            provenance += f", raised to the declared floor {floor:g}s"
         return Budget(seconds=derived, provenance=provenance)
+
+    def declared_floor(self, verb: str) -> float | None:
+        if not self.provisional_path.exists():
+            return None
+        table = json.loads(self.provisional_path.read_text(encoding="utf-8"))
+        entry = table.get(verb)
+        if isinstance(entry, dict) and "floorSeconds" in entry:
+            return float(entry["floorSeconds"])
+        return None
 
     def provisional_budget(self, lane: str, verb: str, sample_count: int) -> Budget:
         table: dict[str, object] = {}
