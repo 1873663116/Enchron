@@ -5363,6 +5363,9 @@ class ReachabilityRun:
                 return
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")
+            available = self.wait_for_identifier(resume_media)
+            if not isinstance(available.get("matchedElement"), dict):
+                return
         started = self.tap(
             presentation, resume_media,
             operation_id="accessibility:MediaLibrary-grid-video-{reference.name}",
