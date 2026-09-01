@@ -7270,6 +7270,8 @@ def configure_segment(arguments: argparse.Namespace) -> None:
 def main() -> int:
     refuse_when_detached()
     arguments = parse_arguments()
+    if arguments.execution_input is not None:
+        os.environ["ENCHRON_EXECUTION_INPUT"] = str(arguments.execution_input)
     if arguments.merge_segments:
         if arguments.segment_plan is not None or arguments.segment is not None:
             raise SystemExit("--merge-segments cannot be combined with --segment")

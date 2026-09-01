@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -129,6 +130,8 @@ class BudgetProvider:
     def record_sample(
         self, lane: str, verb: str, seconds: float, censored: bool
     ) -> None:
+        if os.environ.get("ENCHRON_EXECUTION_INPUT"):
+            return
         document = self.load(lane)
         verbs = document.setdefault("verbs", {})
         entry = verbs.setdefault(verb, {"samples": []})
