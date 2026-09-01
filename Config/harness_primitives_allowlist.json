@@ -22,7 +22,6 @@
   "Scripts/verification/probe_remote_media_reads.py",
   "Scripts/verification/regression_emby_source.py",
   "Scripts/verification/regression_environment_preflight.py",
-  "Scripts/verification/regression_operation_adapter.py",
   "Scripts/verification/regression_remote_source.py",
   "Scripts/verification/regression_smb_source.py",
   "Scripts/verification/regression_system_import.py",

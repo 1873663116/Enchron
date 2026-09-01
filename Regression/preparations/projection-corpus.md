@@ -41,7 +41,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-dolby-vision-p20-3d-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -58,7 +58,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-spatial-180-sbs-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -75,7 +75,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-spatial-180-tb-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -92,7 +92,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-spatial-360-mono-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -109,7 +109,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-mvhevc-short-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -126,7 +126,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-apmp-180-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -143,7 +143,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-apmp-360-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -160,7 +160,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-immersive-video-beach-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -177,7 +177,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },

@@ -1,37 +1,234 @@
 {
-  "halt": {"seconds": 60, "expires": "2026-10-01"},
-  "ensure-session": {"seconds": 300, "expires": "2026-10-01"},
-  "probe-copy": {"seconds": 120, "expires": "2026-10-01"},
-  "tap": {"seconds": 60, "expires": "2026-10-01"},
-  "tapSequence": {"seconds": 60, "expires": "2026-10-01"},
-  "snapshot": {"seconds": 60, "expires": "2026-10-01"},
-  "app-command": {"seconds": 60, "expires": "2026-10-01"},
-  "relaunch": {"seconds": 60, "expires": "2026-10-01"},
-  "presentation": {"seconds": 60, "expires": "2026-10-01"},
-  "immersive-settlement": {"seconds": 60, "expires": "2026-10-01"},
-  "clean-open": {"seconds": 60, "expires": "2026-10-01"},
-  "wedge": {"seconds": 60, "expires": "2026-10-01"},
-  "media-push": {"seconds": 600, "expires": "2026-10-01"},
-  "ffmpeg-luma": {"seconds": 60, "expires": "2026-10-01"},
-  "ffmpeg-ssim": {"seconds": 60, "expires": "2026-10-01"},
-  "stop": {"seconds": 60, "expires": "2026-10-01"},
-  "panorama-settle": {"seconds": 60, "expires": "2026-10-01"},
-  "result-bundle": {"seconds": 60, "expires": "2026-10-01"},
-  "xcresult-summary": {"seconds": 60, "expires": "2026-10-01"},
-  "recording-extraction": {"seconds": 600, "expires": "2026-10-01"},
-  "luma-analysis": {"seconds": 600, "expires": "2026-10-01"},
-  "activate": {"seconds": 20, "expires": "2026-10-01"},
-  "press": {"seconds": 20, "expires": "2026-10-01"},
-  "swipeUp": {"seconds": 20, "expires": "2026-10-01"},
-  "typeText": {"seconds": 20, "expires": "2026-10-01"},
-  "replaceText": {"seconds": 20, "expires": "2026-10-01"},
-  "identifier-appearance": {"seconds": 8, "expires": "2026-10-01"},
-  "identifier-value": {"seconds": 15, "expires": "2026-10-01"},
-  "identifier-absence": {"seconds": 8, "expires": "2026-10-01"},
-  "any-identifier-appearance": {"seconds": 20, "expires": "2026-10-01"},
-  "presentation-settle": {"seconds": 45, "expires": "2026-10-01"},
-  "probe-needle": {"seconds": 20, "expires": "2026-10-01"},
-  "fixture-copy": {"seconds": 300, "expires": "2026-10-01"},
-  "retire-runner": {"seconds": 300, "expires": "2026-10-01"},
-  "probe-size": {"seconds": 120, "expires": "2026-10-01"}
+  "accessibility-inspect": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "activate": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "any-identifier-appearance": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "app-command": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "clean-open": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "device-hub": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "device-hub-pinch": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "device-hub-prepare": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "diagnostics-surface-probe": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "emby-aggregate": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "ensure-session": {
+    "expires": "2026-10-01",
+    "seconds": 300
+  },
+  "expected-issue": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "ffmpeg-luma": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "ffmpeg-ssim": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "fixture-copy": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "frame-pace": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "halt": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "identifier-absence": {
+    "expires": "2026-10-01",
+    "seconds": 8
+  },
+  "identifier-appearance": {
+    "expires": "2026-10-01",
+    "seconds": 8
+  },
+  "identifier-value": {
+    "expires": "2026-10-01",
+    "seconds": 15
+  },
+  "immersive-settlement": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "issue-slot": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "journey-audio-probe": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "local-tool": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "luma-analysis": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "media-push": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "panorama-settle": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "presentation": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "presentation-settle": {
+    "expires": "2026-10-01",
+    "seconds": 45
+  },
+  "press": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "probe-copy": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "probe-needle": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "probe-size": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "progress-seek": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "recording-extraction": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
+  "relaunch": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "remote-preflight": {
+    "expires": "2026-10-01",
+    "seconds": 180
+  },
+  "remote-preflight-faults": {
+    "expires": "2026-10-01",
+    "seconds": 420
+  },
+  "replaceText": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "result-bundle": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "retire-runner": {
+    "expires": "2026-10-01",
+    "seconds": 300
+  },
+  "rollback-settlement": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "smb-aggregate": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "snapshot": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "spatial-settlement": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "spatial-state": {
+    "expires": "2026-10-01",
+    "seconds": 30
+  },
+  "stop": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "structural-test": {
+    "expires": "2026-10-01",
+    "seconds": 1800
+  },
+  "subtitle-window": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "swipeUp": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "system-import-fixtures": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "tap": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "tapSequence": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "typeText": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "viewing-storage": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "wedge": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "window-wait": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "xcresult-summary": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  }
 }

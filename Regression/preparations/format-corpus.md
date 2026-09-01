@@ -41,7 +41,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -58,7 +58,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-video-only-15s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -75,7 +75,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-audio-codec-matrix-15s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -92,7 +92,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-duplicate-label-audio-30s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -109,7 +109,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-av1-flac-avsync-10s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -126,7 +126,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-external-subrip-zh-cn-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -135,7 +135,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-external-ass-styled-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -144,7 +144,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-mpeg4-part2-packed-bframes-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -161,7 +161,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-dts-es-matroska-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -178,7 +178,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-truehd-atmos-matroska-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -195,7 +195,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-vorbis-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -212,7 +212,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-mvhevc-short-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -229,7 +229,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-apple-apmp-180-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -246,7 +246,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },

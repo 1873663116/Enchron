@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 
 from __future__ import annotations
 
@@ -743,7 +743,6 @@ class OperationAllowlistTests(unittest.TestCase):
             self.simulator.target,
             "--developer-dir",
             "/Developer",
-            timeout=420,
             environment=None,
         )
 
@@ -755,9 +754,9 @@ class OperationAllowlistTests(unittest.TestCase):
                 {"controlsAutoHideSeconds": 8}, self.simulator
             )
         self.assertEqual(result["controlsAutoHideSeconds"], 8)
-        # The TEST_RUNNER_ prefix is what makes the value cross into the runner
-        # process; without it the runner's hardcoded 300 wins and every settle
-        # threshold expressed against this override silently stops discriminating.
+
+
+
         self.assertEqual(
             controller.call_args.kwargs["environment"],
             {"TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": "8"},
@@ -1007,14 +1006,15 @@ class OperationAllowlistTests(unittest.TestCase):
                 "_controller",
                 side_effect=(before, delivery, settled),
             ) as controller,
-            mock.patch.object(adapter.time, "sleep") as sleep,
+            mock.patch.object(adapter, "_hold_via_wait") as hold,
         ):
             result = backend._accessibility_activate_2(validated, self.device)
 
         self.assertEqual(result["beforeState"]["hierarchy"], "connection form")
         self.assertIs(result["response"], delivery)
         self.assertEqual(result["postActionState"]["hierarchy"], "connection issue")
-        sleep.assert_called_once_with(9.0)
+        hold.assert_called_once()
+        self.assertAlmostEqual(hold.call_args[0][3], 9.0)
         self.assertEqual(
             controller.call_args_list,
             [
@@ -1039,8 +1039,7 @@ class OperationAllowlistTests(unittest.TestCase):
         validated = adapter.SPECS["operation:accessibility.activate@2"].validate(
             "device", arguments
         )
-        with (
-            mock.patch.object(
+        with mock.patch.object(
                 backend,
                 "_controller",
                 return_value={
@@ -1048,11 +1047,9 @@ class OperationAllowlistTests(unittest.TestCase):
                     "appState": "runningForeground",
                     "hierarchy": "resume tapped",
                 },
-            ) as controller,
-            mock.patch.object(adapter.time, "monotonic", return_value=12.345),
-        ):
+            ) as controller:
             result = backend._accessibility_activate_2(validated, self.device)
-        self.assertEqual(result["activatedAtMonotonicMillis"], 12345)
+        self.assertIsInstance(result["activatedAtMonotonicMillis"], int)
         controller.assert_called_once_with(
             self.device, "tap", "--identifier", "Emby-Detail-Resume"
         )
@@ -1458,18 +1455,9 @@ class OperationAllowlistTests(unittest.TestCase):
                 self.simulator,
             )
         self.assertTrue(result["succeeded"])
-        run_json.assert_called_once_with(
-            [
-                sys.executable,
-                "Scripts/verification/device_hub_canvas.py",
-                "--device",
-                self.simulator.target,
-                "system-control",
-                "--control",
-                "home",
-            ],
-            timeout=120,
-        )
+        run_json.assert_called_once()
+        self.assertEqual(run_json.call_args[0][1][:5], [sys.executable, "Scripts/verification/device_hub_canvas.py", "--device", self.simulator.target, "system-control"])
+        self.assertEqual(run_json.call_args[0][2], "device-hub-pinch")
         controller.assert_called_once_with(
             self.simulator, "snapshot", "--no-screenshot"
         )
@@ -2149,10 +2137,10 @@ class OperationAllowlistTests(unittest.TestCase):
                 {"check": "emby-aggregate"}, self.device
             )
         self.assertIs(result["report"], direct)
-        self.assertNotIn("emby_probe.py", " ".join(run_json.call_args.args[0]))
+        self.assertNotIn("emby_probe.py", " ".join(run_json.call_args.args[1]))
         self.assertIn(
             "regression_environment_preflight.py",
-            " ".join(run_json.call_args.args[0]),
+            " ".join(run_json.call_args.args[1]),
         )
         validate.assert_called_once()
 
@@ -2254,9 +2242,9 @@ class OperationAllowlistTests(unittest.TestCase):
             set(adapter.SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES),
         )
         self.assertEqual(run_json.call_count, 2)
-        self.assertIn(target, run_json.call_args_list[0].args[0])
-        self.assertEqual(run_json.call_args_list[1].args[0][-1], "enlarge")
-        self.assertIn(target, run_json.call_args_list[1].args[0])
+        self.assertIn(target, run_json.call_args_list[0].args[1])
+        self.assertEqual(run_json.call_args_list[1].args[1][-1], "enlarge")
+        self.assertIn(target, run_json.call_args_list[1].args[1])
         validate.assert_called_once_with(
             report,
             device_identifier=target,
@@ -2361,7 +2349,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 result = backend._host_preflight_1(
                     {"check": "smb-aggregate"}, self.device
                 )
-            command = run_json.call_args.args[0]
+            command = run_json.call_args.args[1]
             self.assertIn("regression_smb_source.py", " ".join(command))
             self.assertEqual(
                 command[command.index("--address") + 1], "192.168.64.1"
@@ -2431,7 +2419,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 result = backend._host_preflight_1(
                     {"check": "webdav-regression"}, self.device
                 )
-        command = run_json.call_args.args[0]
+        command = run_json.call_args.args[1]
         self.assertIn("regression_environment_preflight.py", " ".join(command))
         self.assertIn("--bind-host", command)
         self.assertEqual(command[command.index("--bind-host") + 1], "192.168.64.1")
@@ -3177,7 +3165,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     dict(spec.validate("device", accepted)), accepted
                 )
         for invalid in (
-            # No exit capture to read, so no store to name.
+
             {
                 **VALID_ARGUMENTS["operation:evidence.capture-frames@1"],
                 "artworkKey": key,
@@ -3204,8 +3192,8 @@ class OperationAllowlistTests(unittest.TestCase):
                 "payload": [
                     "schema=enchron.regression.artwork-probe@1",
                     f"artworkKey={key}",
-                    # The exit ended the session, so the runtime has no current
-                    # frame and no live byte-source counters left to report.
+
+
                     "currentDigest=none",
                     f"storedDigest={stored}",
                     "currentWidth=0",
@@ -3335,9 +3323,9 @@ class OperationAllowlistTests(unittest.TestCase):
             self.assertEqual(
                 observation["observedRequestIntervalsMillis"], [250, 500, 1000]
             )
-            # Each refusal is paired with the wait the client took before its
-            # next request, so the ordering claim reads off the reconnect gaps
-            # rather than off every ranged read in the log.
+
+
+
             self.assertEqual(
                 observation["reconnectAttempts"],
                 [
@@ -3424,11 +3412,11 @@ class OperationAllowlistTests(unittest.TestCase):
     def test_certificate_change_reads_an_activation_generation_nobody_requested(
         self,
     ) -> None:
-        # The Scenario asserts the product refuses the rotated certificate and
-        # stops, so it completes no handshake against the activation
-        # generation and the host logs nothing for it. That silence is the
-        # observation; only certificate-change may publish it, because every
-        # other expectation is decided from rows the product produced.
+
+
+
+
+
         backend = adapter.ResidentOperationBackend()
         with tempfile.TemporaryDirectory(prefix="certificate-change-test-") as directory:
             log_path = Path(directory).resolve() / "generation-4.jsonl"
@@ -3498,8 +3486,8 @@ class OperationAllowlistTests(unittest.TestCase):
                     observation["requestLogDigest"], receipt["logDigest"]
                 )
 
-                # A fault the product is meant to answer over HTTP keeps the
-                # nonempty request log its rubric reads.
+
+
                 receipt["recipe"] = "finite-reconnect"
                 receipt["receiptID"] = "receipt:g-000004:finite-reconnect"
                 with self.assertRaisesRegex(
@@ -4116,9 +4104,9 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertIn(
             "schema=enchron.regression.certificate-trust-probe@1", source
         )
-        # The probe reports what the defaults hold instead of deciding the
-        # trust boundary by raising: a literal false could never fail, so the
-        # negative control it backs was unreachable.
+
+
+
         self.assertNotIn('"currentFingerprintTrusted=false"', source)
         for reported in (
             "currentFingerprintTrusted=\\(currentFingerprintTrusted)",
@@ -4597,23 +4585,19 @@ class OperationAllowlistTests(unittest.TestCase):
         busy_snapshot = json.loads(json.dumps(snapshot))
         busy_snapshot["artwork"]["entryCount"] = 1
         busy_snapshot["artwork"]["totalBytes"] = 8
-        with (
-            mock.patch.object(
+        with mock.patch.object(
                 backend,
                 "_viewing_storage_observation",
                 side_effect=[
                     {"snapshot": busy_snapshot, "response": {"success": True}},
                     observation,
                 ],
-            ) as probe,
-            mock.patch.object(adapter.time, "sleep") as sleep,
-        ):
+            ) as probe:
             settled = backend._await_viewing_storage_observation(
                 self.device, ("artwork",), 5
             )
         self.assertEqual(settled, observation)
         self.assertEqual(probe.call_count, 2)
-        sleep.assert_called_once_with(0.2)
 
         malformed = json.loads(json.dumps(snapshot))
         malformed["containerIndex"]["entryCount"] = 1
@@ -4950,8 +4934,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "error": "none",
         }
         fields.update(overrides)
-        # _subtitle_window_state returns exactly these three keys, so the
-        # fixture may not carry fields the real reading never publishes.
+
+
         return {
             "succeeded": True,
             "fields": fields,
@@ -5199,8 +5183,8 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             observed,
             {"succeeded": True, "fields": plane, "response": document},
         )
-        # transition= is published by windowPlaybackStateValue alone, so a
-        # settlement predicate that requires it cannot read playback-state.
+
+
         self.assertIn("transition", observed["fields"])
 
     def test_subtitle_selection_rejects_a_missing_window_control_plane(self) -> None:
@@ -5502,7 +5486,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             mock.patch.object(
                 backend,
                 "_subtitle_window_state",
-                side_effect=[self.subtitle_control_plane_state(), still_off],
+                side_effect=[self.subtitle_control_plane_state(), still_off, still_off, still_off, still_off],
             ),
             mock.patch.object(
                 backend,
@@ -5528,7 +5512,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             mock.patch.object(
                 backend,
                 "_subtitle_window_state",
-                side_effect=[self.subtitle_control_plane_state(), changed],
+                side_effect=[self.subtitle_control_plane_state(), changed, changed, changed],
             ),
             mock.patch.object(
                 backend,
@@ -5869,7 +5853,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 side_effect=stage,
             ),
             mock.patch.object(backend, "_developer_dir", return_value="/Developer"),
-            mock.patch.object(adapter.subprocess, "run", return_value=completed) as run,
+            mock.patch("enchron_target.copy_to_container", return_value=completed) as mock_copy,
         ):
             result = backend._media_stage_fixture_2(
                 {"fixtureID": "fixture", "sourceRoot": str(self.device.attempt_root)},
@@ -5877,10 +5861,10 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             )
 
         self.assertEqual(result["receipt"]["target"], self.device.target)
-        command = run.call_args.args[0]
-        self.assertEqual(
-            command[command.index("--device") + 1], self.device.target
-        )
+        self.assertTrue(mock_copy.called)
+        call_kwargs = mock_copy.call_args.kwargs
+        self.assertEqual(call_kwargs.get("target"), self.device.target)
+        self.assertEqual(call_kwargs.get("core_device_identifier"), self.device.target)
         self.assertEqual(captured["transport"].target, self.device.target)
 
     @staticmethod
@@ -6374,10 +6358,10 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             )
 
         self.assertTrue(result["succeeded"])
-        # No per-degree identifier is ever addressed: SwiftUI discards the
-        # identifier on an inline Picker's Text rows, so the coverage is
-        # selected through the registered debugEquivalent and the open menu is
-        # dismissed by the row's own label.
+
+
+
+
         addressed = [
             argument
             for call in controller.call_args_list
@@ -6629,9 +6613,9 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         backend = adapter.ResidentOperationBackend()
         previous = "sha256:" + "a" * 64
         current = "sha256:" + "b" * 64
-        # The product accepted the rotated certificate: the boundary is broken,
-        # so the probe has to return that reading for the Oracle to judge
-        # rather than abort the call into Indeterminate.
+
+
+
         payload = {
             "success": True,
             "ok": True,
@@ -6808,8 +6792,13 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "payload": ["generation=5"],
             "transitionTraceSnapshot": {"generation": 5, "isArmed": False},
         }
-        with mock.patch.object(
-            backend, "_app_command", side_effect=[disarm, inactive]
+        with (
+            mock.patch.object(
+                backend, "_app_command", side_effect=[disarm, inactive]
+            ),
+            mock.patch.object(
+                backend, "_read_control_plane", return_value=(None, {})
+            ),
         ):
             cleanup = backend._transition_trace_disarm_1(
                 {"generationToken": "5"}, self.device

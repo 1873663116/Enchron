@@ -84,7 +84,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-smb-address",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-smb-source/runtime.json",
+        "textFile": "repo://.build/regression-smb-source/runtime.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -97,7 +97,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-smb-username",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-smb-source/runtime.json",
+        "textFile": "repo://.build/regression-smb-source/runtime.json",
         "textJSONKey": "user",
         "secret": false
       },
@@ -110,7 +110,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-smb-password",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-smb-source/runtime.json",
+        "textFile": "repo://.build/regression-smb-source/runtime.json",
         "textJSONKey": "password",
         "secret": true
       },

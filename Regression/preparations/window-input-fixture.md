@@ -49,7 +49,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },

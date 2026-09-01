@@ -49,7 +49,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -66,7 +66,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-spatial-180-sbs-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -83,7 +83,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-spatial-360-mono-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -147,7 +147,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "repo://.build/regression-remote-source/runtime.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -160,7 +160,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "repo://.build/regression-remote-source/runtime.json",
         "textJSONKey": "user",
         "secret": false
       },
@@ -173,7 +173,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
-        "textFile": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.build/regression-remote-source/runtime.json",
+        "textFile": "repo://.build/regression-remote-source/runtime.json",
         "textJSONKey": "password",
         "secret": true
       },

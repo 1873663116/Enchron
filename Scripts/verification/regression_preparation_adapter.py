@@ -15,6 +15,7 @@ import regression_remote_source as remote
 import regression_smb_source as smb
 import regression_emby_source as emby
 import regression_system_import as system_import
+import regression_paths as portable
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -360,7 +361,7 @@ def _load_fixtures() -> tuple[Mapping[str, FixtureBinding], str]:
         bindings[identifier] = FixtureBinding(identifier, path, SHA256 + digest)
     if not bindings:
         raise RuntimeError("fixture registry has no stageable fixtures")
-    return MappingProxyType(bindings), str((REPOSITORY_ROOT.parent / "TestMedia").resolve())
+    return MappingProxyType(bindings), portable.reference(REPOSITORY_ROOT.parent / "TestMedia")
 
 
 STAGEABLE_FIXTURES, FIXTURE_SOURCE_ROOT = _load_fixtures()
@@ -678,19 +679,19 @@ def _implementation_document(spec: PreparationSpec) -> dict[str, object]:
             identity: dict(binding)
             for identity, binding in REMOTE_IMPLEMENTATION_IDENTITIES.items()
         }
-        document["runtimeIdentityPath"] = str(REMOTE_RUNTIME_FILE)
+        document["runtimeIdentityPath"] = portable.reference(REMOTE_RUNTIME_FILE)
     if _uses_smb_source(spec):
         document["smbImplementations"] = {
             identity: dict(binding)
             for identity, binding in SMB_IMPLEMENTATION_IDENTITIES.items()
         }
-        document["smbRuntimeIdentityPath"] = str(SMB_RUNTIME_FILE)
+        document["smbRuntimeIdentityPath"] = portable.reference(SMB_RUNTIME_FILE)
     if _uses_emby_source(spec):
         document["embyImplementations"] = {
             identity: dict(binding)
             for identity, binding in EMBY_IMPLEMENTATION_IDENTITIES.items()
         }
-        document["embyRuntimeIdentityPath"] = str(EMBY_RUNTIME_FILE)
+        document["embyRuntimeIdentityPath"] = portable.reference(EMBY_RUNTIME_FILE)
     if _uses_system_import(spec):
         document["systemImportImplementations"] = {
             identity: dict(binding)
@@ -856,7 +857,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                 )
             )
     if spec.connect_webdav:
-        runtime_file = str(REMOTE_RUNTIME_FILE)
+        runtime_file = portable.reference(REMOTE_RUNTIME_FILE)
         webdav_runtime_already_written = spec.preflight in (
             "webdav-regression",
             "remote-faults",
@@ -990,7 +991,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
             )
         calls.extend(connect_calls)
     if spec.connect_smb:
-        runtime_file = str(SMB_RUNTIME_FILE)
+        runtime_file = portable.reference(SMB_RUNTIME_FILE)
         calls.extend(
             (
                 _call(
@@ -1136,7 +1137,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
             )
         )
     if spec.connect_emby:
-        runtime_file = str(EMBY_RUNTIME_FILE)
+        runtime_file = portable.reference(EMBY_RUNTIME_FILE)
         calls.extend(
             (
                 _call(
@@ -1276,20 +1277,20 @@ def _prerequisites(
                 Prerequisite(identity, binding["path"], binding["digest"])
             )
         prerequisites.append(
-            Prerequisite("runtime-identity", str(REMOTE_RUNTIME_FILE))
+            Prerequisite("runtime-identity", portable.reference(REMOTE_RUNTIME_FILE))
         )
     if _uses_smb_source(spec):
         for identity, binding in SMB_IMPLEMENTATION_IDENTITIES.items():
             prerequisites.append(
                 Prerequisite(identity, binding["path"], binding["digest"])
             )
-        prerequisites.append(Prerequisite("runtime-identity", str(SMB_RUNTIME_FILE)))
+        prerequisites.append(Prerequisite("runtime-identity", portable.reference(SMB_RUNTIME_FILE)))
     if _uses_emby_source(spec):
         for identity, binding in EMBY_IMPLEMENTATION_IDENTITIES.items():
             prerequisites.append(
                 Prerequisite(identity, binding["path"], binding["digest"])
             )
-        prerequisites.append(Prerequisite("runtime-identity", str(EMBY_RUNTIME_FILE)))
+        prerequisites.append(Prerequisite("runtime-identity", portable.reference(EMBY_RUNTIME_FILE)))
     if _uses_system_import(spec):
         for identity, binding in SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES.items():
             prerequisites.append(
@@ -1298,7 +1299,7 @@ def _prerequisites(
         prerequisites.append(
             Prerequisite(
                 "runtime-identity",
-                str((SYSTEM_IMPORT_RUNTIME_ROOT / target / "runtime.json").resolve()),
+                portable.reference(SYSTEM_IMPORT_RUNTIME_ROOT / target / "runtime.json"),
             )
         )
     return tuple(prerequisites)
@@ -1417,7 +1418,7 @@ def validate_plan(plan: PreparationPlan) -> None:
                 )
         if not any(
             item.kind == "runtime-identity"
-            and item.identity == str(REMOTE_RUNTIME_FILE)
+            and item.identity == portable.reference(REMOTE_RUNTIME_FILE)
             and item.digest is None
             for item in plan.prerequisites
         ):
@@ -1435,7 +1436,7 @@ def validate_plan(plan: PreparationPlan) -> None:
                 )
         if not any(
             item.kind == "runtime-identity"
-            and item.identity == str(SMB_RUNTIME_FILE)
+            and item.identity == portable.reference(SMB_RUNTIME_FILE)
             and item.digest is None
             for item in plan.prerequisites
         ):
@@ -1453,7 +1454,7 @@ def validate_plan(plan: PreparationPlan) -> None:
                 )
         if not any(
             item.kind == "runtime-identity"
-            and item.identity == str(EMBY_RUNTIME_FILE)
+            and item.identity == portable.reference(EMBY_RUNTIME_FILE)
             and item.digest is None
             for item in plan.prerequisites
         ):
@@ -1469,8 +1470,8 @@ def validate_plan(plan: PreparationPlan) -> None:
                 raise PreparationAdapterError(
                     f"system import implementation prerequisite is missing: {identity}"
                 )
-        expected_runtime = str(
-            (SYSTEM_IMPORT_RUNTIME_ROOT / plan.target / "runtime.json").resolve()
+        expected_runtime = portable.reference(
+            SYSTEM_IMPORT_RUNTIME_ROOT / plan.target / "runtime.json"
         )
         if not any(
             item.kind == "runtime-identity"

@@ -51,7 +51,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-alac-cover-art-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -68,7 +68,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-dts-es-matroska-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -85,7 +85,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-truehd-atmos-matroska-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -102,7 +102,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "internal-fate-vorbis-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
@@ -119,7 +119,7 @@
       "operation": "operation:media.stage-fixture@2",
       "arguments": {
         "fixtureID": "generated-audio-only-aac-stereo-181s-v1",
-        "sourceRoot": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
+        "sourceRoot": "workspace://TestMedia"
       },
       "maxInvocations": 1
     },
