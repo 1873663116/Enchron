@@ -7737,30 +7737,12 @@ class ResidentOperationBackend:
                         "isSelectedBefore": selected_before["isSelected"],
                         "isSelectedAfter": True,
                     }
-                    result_holder["result"] = {
-                        "succeeded": True,
-                        "fields": current_fields,
-                        "response": current["response"],
-                        "frames": list(frames),
-                        "semanticOutcome": "selected",
-                        "selectionSettled": True,
-                        "host": host,
-                        "sourceKind": actual_source_kind,
-                        "deadlineSeconds": deadline_seconds,
-                        "discoveryResponse": selection_response,
-                        "discoveredTracks": discovered_tracks,
-                        "selectedTrack": selected_track,
-                        "selectionResponse": selection_response,
-                        "beforeState": before,
-                        "postActionState": current,
-                        "postActionMenu": selection_response,
-                        "identityObservation": preserved_identity,
-                        "settlement": {
-                            "outcome": "selected",
-                            "observations": list(observations),
-                            "terminalTrackID": target_id,
-                        },
-                    }
+                    result_holder["fields"] = current_fields
+                    result_holder["response"] = current["response"]
+                    result_holder["frames"] = list(frames)
+                    result_holder["selectedTrack"] = selected_track
+                    result_holder["postActionState"] = current
+                    result_holder["observations"] = list(observations)
                     return {"settled": True}
                 return None
             except InstrumentFault as fault:
@@ -7770,7 +7752,30 @@ class ResidentOperationBackend:
             return list(observations)
         try:
             wait_for("subtitle-window", probe, budget, observe, record=instruments.record_wait_sample)
-            return result_holder["result"]
+            return {
+                "succeeded": True,
+                "fields": result_holder["fields"],
+                "response": result_holder["response"],
+                "frames": result_holder["frames"],
+                "semanticOutcome": "selected",
+                "selectionSettled": True,
+                "host": host,
+                "sourceKind": actual_source_kind,
+                "deadlineSeconds": deadline_seconds,
+                "discoveryResponse": selection_response,
+                "discoveredTracks": discovered_tracks,
+                "selectedTrack": result_holder["selectedTrack"],
+                "selectionResponse": selection_response,
+                "beforeState": before,
+                "postActionState": result_holder["postActionState"],
+                "postActionMenu": selection_response,
+                "identityObservation": preserved_identity,
+                "settlement": {
+                    "outcome": "selected",
+                    "observations": result_holder["observations"],
+                    "terminalTrackID": target_id,
+                },
+            }
         except InstrumentFault as fault:
             if fault.kind == "wait-expired":
                 evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)

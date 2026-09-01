@@ -1,6 +1,25 @@
 {
-  "updatedAt": "2026-09-01T11:46:11+00:00",
+  "updatedAt": "2026-09-01T15:05:24.400686+00:00",
   "verbs": {
+    "accessibility-inspect": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:55.980857+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:43.198275+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:17.975666+00:00",
+          "censored": false,
+          "seconds": 0.0
+        }
+      ]
+    },
     "activate": {
       "samples": [
         {
@@ -363,6 +382,248 @@
           "at": "2026-08-26T12:09:03+00:00",
           "censored": false,
           "seconds": 76.47
+        }
+      ]
+    },
+    "expected-issue": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:59:01.165500+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:48.317124+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:23.118308+00:00",
+          "censored": false,
+          "seconds": 0.0
+        }
+      ]
+    },
+    "fixture-copy": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:59:01.324420+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:48.591959+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:23.369744+00:00",
+          "censored": false,
+          "seconds": 0.0
+        }
+      ]
+    },
+    "frame-pace": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:46.790984+00:00",
+          "censored": false,
+          "seconds": 1.001
+        },
+        {
+          "at": "2026-09-01T14:58:47.802321+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T14:58:48.815806+00:00",
+          "censored": false,
+          "seconds": 1.009
+        },
+        {
+          "at": "2026-09-01T14:58:49.827010+00:00",
+          "censored": false,
+          "seconds": 1.008
+        },
+        {
+          "at": "2026-09-01T14:58:50.857088+00:00",
+          "censored": false,
+          "seconds": 1.009
+        },
+        {
+          "at": "2026-09-01T14:58:51.869410+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T14:58:52.906584+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T14:58:53.917887+00:00",
+          "censored": false,
+          "seconds": 1.009
+        },
+        {
+          "at": "2026-09-01T14:58:54.940015+00:00",
+          "censored": false,
+          "seconds": 1.005
+        },
+        {
+          "at": "2026-09-01T14:58:55.953232+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T14:59:00.124571+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T14:59:01.137666+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:32.061615+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:33.073833+00:00",
+          "censored": false,
+          "seconds": 1.008
+        },
+        {
+          "at": "2026-09-01T15:02:34.089510+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:35.102015+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:36.113925+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:37.125085+00:00",
+          "censored": false,
+          "seconds": 1.008
+        },
+        {
+          "at": "2026-09-01T15:02:38.132956+00:00",
+          "censored": false,
+          "seconds": 1.001
+        },
+        {
+          "at": "2026-09-01T15:02:39.136481+00:00",
+          "censored": false,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-01T15:02:40.154382+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:41.164651+00:00",
+          "censored": false,
+          "seconds": 1.008
+        },
+        {
+          "at": "2026-09-01T15:02:42.177588+00:00",
+          "censored": false,
+          "seconds": 1.007
+        },
+        {
+          "at": "2026-09-01T15:02:43.188724+00:00",
+          "censored": false,
+          "seconds": 1.008
+        },
+        {
+          "at": "2026-09-01T15:02:47.292699+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:02:48.304678+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:06.766694+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:07.780413+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:08.813851+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:09.826850+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:10.833660+00:00",
+          "censored": false,
+          "seconds": 1.002
+        },
+        {
+          "at": "2026-09-01T15:05:11.845500+00:00",
+          "censored": false,
+          "seconds": 1.008
+        },
+        {
+          "at": "2026-09-01T15:05:12.870849+00:00",
+          "censored": false,
+          "seconds": 1.001
+        },
+        {
+          "at": "2026-09-01T15:05:13.882814+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:14.918847+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:15.931575+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:16.963747+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:17.966917+00:00",
+          "censored": false,
+          "seconds": 1.001
+        },
+        {
+          "at": "2026-09-01T15:05:22.073403+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:23.084344+00:00",
+          "censored": false,
+          "seconds": 1.007
         }
       ]
     },
@@ -737,6 +998,25 @@
         }
       ]
     },
+    "rollback-settlement": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:55.996658+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:43.213635+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:17.987041+00:00",
+          "censored": false,
+          "seconds": 0.0
+        }
+      ]
+    },
     "snapshot": {
       "samples": [
         {
@@ -841,6 +1121,44 @@
         }
       ]
     },
+    "spatial-settlement": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:43.739828+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:31.046438+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:05.741846+00:00",
+          "censored": false,
+          "seconds": 0.0
+        }
+      ]
+    },
+    "spatial-state": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:59:01.154747+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:48.311761+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:23.106163+00:00",
+          "censored": false,
+          "seconds": 0.0
+        }
+      ]
+    },
     "stop": {
       "samples": [
         {
@@ -942,6 +1260,80 @@
           "at": "2026-08-22T16:54:44+00:00",
           "censored": false,
           "seconds": 4.48
+        }
+      ]
+    },
+    "subtitle-window": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:59:01.334866+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T14:59:01.340366+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T14:59:01.341295+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T14:59:02.358673+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-01T14:59:09.649154+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-01T15:02:19.878578+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-01T15:02:48.596086+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:48.596792+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:48.597462+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:49.610984+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-01T15:05:23.378260+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:23.383769+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:23.384646+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:24.400681+00:00",
+          "censored": true,
+          "seconds": 1.0
         }
       ]
     },
@@ -1382,6 +1774,44 @@
           "at": "2026-08-26T12:10:10+00:00",
           "censored": false,
           "seconds": 4.93
+        }
+      ]
+    },
+    "viewing-storage": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:57.032767+00:00",
+          "censored": false,
+          "seconds": 1.011
+        },
+        {
+          "at": "2026-09-01T15:02:44.239153+00:00",
+          "censored": false,
+          "seconds": 1.01
+        },
+        {
+          "at": "2026-09-01T15:05:19.019599+00:00",
+          "censored": false,
+          "seconds": 1.01
+        }
+      ]
+    },
+    "window-wait": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:59.084406+00:00",
+          "censored": false,
+          "seconds": 2.02
+        },
+        {
+          "at": "2026-09-01T15:02:46.266995+00:00",
+          "censored": false,
+          "seconds": 2.018
+        },
+        {
+          "at": "2026-09-01T15:05:21.050478+00:00",
+          "censored": false,
+          "seconds": 2.005
         }
       ]
     }

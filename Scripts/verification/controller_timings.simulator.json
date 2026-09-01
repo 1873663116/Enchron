@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-01T11:46:11+00:00",
+  "updatedAt": "2026-09-01T15:05:18.000899+00:00",
   "verbs": {
     "app-command": {
       "samples": [
@@ -621,6 +621,25 @@
           "at": "2026-08-29T00:05:42+00:00",
           "censored": false,
           "seconds": 1.46
+        }
+      ]
+    },
+    "structural-test": {
+      "samples": [
+        {
+          "at": "2026-09-01T14:58:56.012684+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:02:43.225985+00:00",
+          "censored": false,
+          "seconds": 0.0
+        },
+        {
+          "at": "2026-09-01T15:05:18.000894+00:00",
+          "censored": false,
+          "seconds": 0.0
         }
       ]
     },
