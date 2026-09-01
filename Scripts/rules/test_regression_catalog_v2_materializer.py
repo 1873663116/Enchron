@@ -953,11 +953,11 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         edge["before"], edge["after"] = edge["after"], edge["before"]
         cases["reversed"] = reversed_edge
 
-        # Move one of local-media's own edges onto the webdav Journey, whose
-        # scenarios do not contain either endpoint. The mutation used to hand
-        # webdav's edge to local-media, but round sixteen removed that edge as a
-        # schedule preference and an empty list moves nothing, so the case
-        # silently stopped testing the rule it names.
+
+
+
+
+
         cross_journey = copy.deepcopy(self.blueprint)
         local = next(
             item for item in cross_journey["journeys"] if item["id"] == local_id
@@ -1026,11 +1026,11 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(
             set(operations["operation:issue.present@1"]["invalidatesTags"]),
             {
-                # _activate_issue_recipe and its restore leg both call
-                # operation:host.preflight@1 with check=remote-faults, and
-                # _ensure_issue_fixture_playing opens the issue-fixture WebDAV
-                # media first. The first four tags are exactly the set
-                # host.preflight@1 declares for that same work.
+
+
+
+
+
                 "certificate.trust",
                 "fixture.corpus",
                 "source.connection",
@@ -1099,9 +1099,9 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             current_tags,
             {
                 "cache.state",
-                # The handler taps Navigation-Ornament-tab-settings ->
-                # Settings-category-storagePrivacy -> the target action, so the
-                # call leaves the ornament on Settings inside one category.
+
+
+
                 "ui.navigation",
                 "ui.state",
                 "viewing.progress",
@@ -1538,6 +1538,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertFalse(missing["selectionSettled"])
 
         selection_response = {"success": True}
+        arguments["deadlineSeconds"] = 1
         with (
             mock.patch.object(
                 backend,
@@ -1548,13 +1549,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 backend,
                 "_select_public_subtitle_item",
                 return_value=(selection_response, candidate),
-            ),
-            mock.patch(
-                "Scripts.verification.regression_operation_adapter.time.monotonic",
-                side_effect=(0.0, 1.0, 31.0),
-            ),
-            mock.patch(
-                "Scripts.verification.regression_operation_adapter.time.sleep"
             ),
         ):
             unsettled = backend._playback_select_subtitle_1(arguments, context)
@@ -1921,9 +1915,9 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 if call["operation"] == "operation:accessibility.activate@2"
             ],
             [
-                # No surface tap: summonControls now brings the chrome back through
-                # the toggleControls channel product.md:35 names, so the sequence
-                # holds only the menu path it actually walks.
+
+
+
                 [
                     "PlayerUI-TopAction-more",
                     "PlayerUI-menu-audio",
@@ -2454,14 +2448,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 calls[offset + 9]["arguments"]["identifier"],
                 "FileBrowsing-SourceConnection-webDAV-error",
             )
-        # No case may reset product state. resetState deletes every
-        # server-certificate-fingerprint. key (TestCommandChannel.swift:199-205),
-        # which is why the Operation honestly declares certificate.trust — and
-        # this Scenario's own prerequisite, issue-fixtures-ready, is what
-        # established that trust. Without it the self-signed endpoint raises the
-        # trust alert, and answering that alert dismisses the connection sheet
-        # (FilesScreen.swift:213) that carries the -error element every
-        # obligation binds, so the case has nothing left to read.
+
+
+
+
+
+
+
+
         self.assertNotIn(
             "operation:harness.reset-product-state@2",
             {call["operation"] for call in calls},
@@ -2502,8 +2496,8 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             for call in scenario["operations"]
             if call["operation"] == "operation:evidence.capture-frames@1"
         ]
-        # The byte bound is the four-frame zero-interval window variant; every
-        # artwork capture in the Scenario must stay on it.
+
+
         for call in captures:
             arguments = call["arguments"]
             self.assertEqual(
@@ -2519,9 +2513,9 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             and call["arguments"].get("identifiers")
             == ["PlayerUI-InfoBar-button-back"]
         ]
-        # Two exits at two different positions, each one bracketed by a
-        # pre-exit reading of the displayed frame and a post-exit reading of
-        # the store the exit wrote.
+
+
+
         self.assertEqual(len(exits), 2)
         self.assertEqual(len(captures), 4)
         self.assertTrue(all(call["arguments"]["summonControls"] for call in exits))
@@ -2535,9 +2529,9 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         producer = scenario["obligations"][0]["producedByCall"]
         self.assertEqual(producer, captures[-1]["callId"])
         capture = captures[-1]
-        # artworkProbe refuses to answer once the runtime has no current launch
-        # request, so every post-exit reading names the key the first capture
-        # published.
+
+
+
         first_key = f"result://{captures[0]['callId']}/artworkKey"
         self.assertEqual(
             [call["arguments"].get("artworkKey") for call in captures],
@@ -2601,8 +2595,8 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             probes[2]["arguments"]["expectedBaselineDigest"],
             f"result://{baseline}/containerIndexDigest",
         )
-        # relatedResults may inline the earlier observations the rubric needs; the
-        # closed part is the expectation and the three digests it compares.
+
+
         self.assertLessEqual(
             {
                 key: value

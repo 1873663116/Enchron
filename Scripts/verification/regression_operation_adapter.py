@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 
 from __future__ import annotations
 
@@ -64,6 +64,9 @@ class _HarnessInstruments:
 
     def tool_env(self):
         return {**os.environ, "DEVELOPER_DIR": self.developer_dir}
+
+
+_INSTRUMENTS_CACHE: dict[tuple[str, str, str, str, str], _HarnessInstruments] = {}
 
 
 def _harness_recovered(instruments, location, action):
@@ -355,7 +358,7 @@ class _LeaseBoundFixtureTransport:
             return
         budgets = BudgetProvider()
         tools = LocalToolRunner(self.lane, budgets=budgets)
-        completed = tools.call("fixture-copy", lambda budget: enchron_target.copy_to_container(target=self.target, bundle_id=self.bundle_id, source=source, destination=destination, developer_dir=self.developer_dir, core_device_identifier=self.target, **{"timeout": budget.seconds}))
+        completed = tools.call("fixture-copy", lambda budget: enchron_target.copy_to_container(target=self.target, bundle_id=self.bundle_id, source=source, destination=destination, developer_dir=self.developer_dir, core_device_identifier=self.target, budget_seconds=budget.seconds))
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout)[-500:]
             raise InstrumentFault("fixture-copy-failed", {"destination": destination, "stderr": detail})
@@ -462,9 +465,9 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             raise OperationAdapterError(
                 "artwork exit capture requires the exact four-frame local variant"
             )
-        # After the exit the runtime has no current launch request, so the probe
-        # can only reach the store the pre-exit capture named. An exact key is
-        # therefore the sole way to read the artwork the exit wrote.
+
+
+
         if artwork_key is not None:
             reference = str(artwork_key)
             pattern = (
@@ -2959,9 +2962,9 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("unsupportedVideoCodec"),
                 ),
                 _deadline(),
-                # An open that reopens something is a comparison: the identity it
-                # lands on has to be read against the identity that was persisted,
-                # and the open's own control plane carries only the first of those.
+
+
+
                 _field("relatedResults", strings, required=False),
             ),
             (("window.control-plane", "window-control-plane@1"),),
@@ -3346,8 +3349,23 @@ class ResidentOperationBackend:
             raise OperationAdapterError(f"resident backend has no handler for {operation_id}")
         return handler(arguments, context)
 
-    def _harness_instruments(self, context: OperationContext):
-        lane = context.lane
+    def _harness_instruments(self, context):
+        try:
+            lane = context.lane
+            target = context.target
+            attempt_root = context.attempt_root
+            controller_directory = context.controller_directory
+            bundle_id = context.bundle_id
+        except AttributeError:
+            lane = "device"
+            target = "dummy"
+            attempt_root = Path("/tmp")
+            controller_directory = Path("/tmp")
+            bundle_id = "com.xiongzhipeng.XrPlayer"
+        key = (lane, target, str(attempt_root), str(controller_directory), bundle_id)
+        cached = _INSTRUMENTS_CACHE.get(key)
+        if cached is not None:
+            return cached
         budgets = BudgetProvider()
         developer_dir = self._developer_dir()
         core_device = enchron_target.core_device()
@@ -3355,14 +3373,16 @@ class ResidentOperationBackend:
             sys.executable,
             str(REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"),
             "--device",
-            context.target,
+            target,
             "--output-directory",
-            str(context.controller_directory),
+            str(controller_directory),
         ]
         controller = ControllerClient(lane, command_prefix=prefix, budgets=budgets)
         tools = LocalToolRunner(lane, budgets=budgets)
         policy = RecoveryPolicy()
-        return _HarnessInstruments(device=context.target, core_device=core_device, developer_dir=developer_dir, lane=lane, budgets=budgets, controller=controller, tools=tools, policy=policy)
+        instruments = _HarnessInstruments(device=target, core_device=core_device, developer_dir=developer_dir, lane=lane, budgets=budgets, controller=controller, tools=tools, policy=policy)
+        _INSTRUMENTS_CACHE[key] = instruments
+        return instruments
 
     def _controller(
         self,
@@ -3460,13 +3480,13 @@ class ResidentOperationBackend:
 
         sanitized_hierarchy = redact(hierarchy)
         sanitized_matched = redact(response.get("matchedElement"))
-        # matchedElement is what the runner addressed, read before it acted, so a
-        # tap whose target leaves the hierarchy still names its target
-        # (Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift:154-176).
-        # elementAfterAction is the same element read again once the action
-        # returned, and is null when the action removed it. A criterion about the
-        # value a replaceText left behind reads elementAfterAction; a criterion
-        # about which element the command acted on reads matchedElement.
+
+
+
+
+
+
+
         sanitized_after = redact(response.get("elementAfterAction"))
         assert isinstance(sanitized_hierarchy, str)
         return {
@@ -3528,10 +3548,7 @@ class ResidentOperationBackend:
         command = ["snapshot", "--identifier", identifier]
         if not include_screenshot:
             command.append("--no-screenshot")
-        try:
-            document = self._controller(context, *command)
-        except InstrumentFault:
-            return None, {}
+        document = self._controller(context, *command)
         matched = document.get("matchedElement")
         value = matched.get("value") if isinstance(matched, dict) else None
         if not isinstance(value, str) or not value:
@@ -3558,88 +3575,99 @@ class ResidentOperationBackend:
         expected_stereo_layout: str | None = None,
     ) -> dict[str, object]:
         instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
         observations: list[dict[str, object]] = []
         last_document: dict[str, object] = {}
         plane_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
         def probe():
-            plane, doc = self._read_control_plane(context)
-            last_document.clear()
-            last_document.update(doc)
-            if plane is not None:
-                elapsed = 0
-                observations.append({"elapsedMillis": elapsed, "fields": plane})
-                current_presentation = plane.get("presentation")
-                current_lifecycle = (plane.get("lifecycle") or "").lower()
-                current_controls = plane.get("controls")
-                presentation_ok = (
-                    presentation == "either-main-window"
-                    and current_presentation in ("window", "portal")
-                    or current_presentation == presentation
-                )
-                lifecycle_ok = (
-                    lifecycle == "any-steady"
-                    and current_lifecycle in ("playing", "ready", "paused", "ended")
-                    or current_lifecycle == lifecycle
-                )
-                controls_ok = controls == "either" or current_controls == controls
-                media_name_ok = (
-                    expected_media_name is None
-                    or plane.get("mediaName") == expected_media_name
-                )
-                session_ok = (
-                    different_session_from is None
-                    or plane.get("session") not in (
-                        None,
-                        "none",
-                        different_session_from,
+            try:
+                plane, doc = self._read_control_plane(context)
+                polls.append({"healthy": True})
+                last_document.clear()
+                last_document.update(doc)
+                if plane is not None:
+                    elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                    observations.append({"elapsedMillis": elapsed, "fields": plane})
+                    current_presentation = plane.get("presentation")
+                    current_lifecycle = (plane.get("lifecycle") or "").lower()
+                    current_controls = plane.get("controls")
+                    presentation_ok = (
+                        presentation == "either-main-window"
+                        and current_presentation in ("window", "portal")
+                        or current_presentation == presentation
                     )
-                )
-                format_ok = (
-                    expected_projection is None
-                    or plane.get("projection") == expected_projection
-                ) and (
-                    expected_horizontal_field_of_view_degrees is None
-                    or plane.get("horizontalFieldOfViewDegrees")
-                    == str(expected_horizontal_field_of_view_degrees)
-                ) and (
-                    expected_stereo_layout is None
-                    or plane.get("stereoLayout") == expected_stereo_layout
-                )
-                position_ok = True
-                if position_millis is not None:
-                    try:
-                        position = float(plane["position"]) * 1000
-                        duration = float(plane["duration"]) * 1000
-                        position_ok = (
-                            position >= position_millis
-                            and max(duration - position, 0) >= remaining_millis
+                    lifecycle_ok = (
+                        lifecycle == "any-steady"
+                        and current_lifecycle in ("playing", "ready", "paused", "ended")
+                        or current_lifecycle == lifecycle
+                    )
+                    controls_ok = controls == "either" or current_controls == controls
+                    media_name_ok = (
+                        expected_media_name is None
+                        or plane.get("mediaName") == expected_media_name
+                    )
+                    session_ok = (
+                        different_session_from is None
+                        or plane.get("session") not in (
+                            None,
+                            "none",
+                            different_session_from,
                         )
-                    except (KeyError, TypeError, ValueError):
-                        position_ok = False
-                if (
-                    presentation_ok
-                    and lifecycle_ok
-                    and controls_ok
-                    and media_name_ok
-                    and session_ok
-                    and format_ok
-                    and position_ok
-                    and plane.get("transition") == "none"
-                ):
-                    plane_holder["plane"] = plane
-                    plane_holder["doc"] = doc
-                    return {"presentation": presentation, "lifecycle": lifecycle}
-            return None
+                    )
+                    format_ok = (
+                        expected_projection is None
+                        or plane.get("projection") == expected_projection
+                    ) and (
+                        expected_horizontal_field_of_view_degrees is None
+                        or plane.get("horizontalFieldOfViewDegrees")
+                        == str(expected_horizontal_field_of_view_degrees)
+                    ) and (
+                        expected_stereo_layout is None
+                        or plane.get("stereoLayout") == expected_stereo_layout
+                    )
+                    position_ok = True
+                    if position_millis is not None:
+                        try:
+                            position = float(plane["position"]) * 1000
+                            duration = float(plane["duration"]) * 1000
+                            position_ok = (
+                                position >= position_millis
+                                and max(duration - position, 0) >= remaining_millis
+                            )
+                        except (KeyError, TypeError, ValueError):
+                            position_ok = False
+                    if (
+                        presentation_ok
+                        and lifecycle_ok
+                        and controls_ok
+                        and media_name_ok
+                        and session_ok
+                        and format_ok
+                        and position_ok
+                        and plane.get("transition") == "none"
+                    ):
+                        plane_holder["plane"] = plane
+                        plane_holder["doc"] = doc
+                        plane_holder["elapsed"] = elapsed
+                        return {"presentation": presentation, "lifecycle": lifecycle}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
         def observe():
             return list(observations)
-        budget = instruments.budgets.budget(instruments.lane, "window-wait") if deadline_seconds <=30 else Budget(seconds=float(deadline_seconds), provenance="window wait " + str(deadline_seconds) + "s")
+        budget = Budget(seconds=float(deadline_seconds), provenance=f"window wait {deadline_seconds}s from operation deadline")
         try:
             wait_for("window-wait", probe, budget, observe, record=instruments.record_wait_sample)
             plane = plane_holder.get("plane", {})
             doc = plane_holder.get("doc", last_document)
+            elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+            if "elapsed" in plane_holder:
+                elapsed = int(plane_holder["elapsed"])
             return {
                 "succeeded": True,
-                "elapsedMillis": 0,
+                "elapsedMillis": elapsed,
                 "terminal": plane,
                 "fields": plane,
                 "response": doc,
@@ -3647,15 +3675,19 @@ class ResidentOperationBackend:
             }
         except InstrumentFault as fault:
             if fault.kind == "wait-expired":
-                return {
-                    "succeeded": False,
-                    "reason": "deadline-expired",
-                    "elapsedMillis": int(budget.seconds * 1000),
-                    "observations": observations,
-                    "fields": observations[-1]["fields"] if observations else {},
-                    "response": last_document,
-                    "lastController": last_document,
-                }
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if evidence_backed:
+                    return {
+                        "succeeded": False,
+                        "reason": "deadline-expired",
+                        "elapsedMillis": elapsed,
+                        "observations": observations,
+                        "fields": observations[-1]["fields"] if observations else {},
+                        "response": last_document,
+                        "lastController": last_document,
+                    }
+                raise InstrumentFault("wait-expired", {"label": "window-wait", "observations": list(observations), "polls": list(polls), "budget": fault.budget.provenance if fault.budget else None}, fault.budget) from None
             raise
 
     def _wait_for_expected_issue(
@@ -3666,104 +3698,117 @@ class ResidentOperationBackend:
         deadline_seconds: int,
     ) -> dict[str, object]:
         instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
         observations: list[dict[str, object]] = []
         last_control_response: dict[str, object] = {}
         last_alert_response: dict[str, object] = {}
         result_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
         def probe():
-            plane, doc = self._read_control_plane(context, "PlayerUI-application-state")
-            last_control_response.clear()
-            last_control_response.update(doc)
-            if plane is not None:
-                no_active_session = (
-                    plane.get("session") == "none"
-                    and plane.get("technicalSession") == "none"
-                )
-                no_delivered_sample = (
-                    plane.get("videoSamples") == "0"
-                    and plane.get("rendererInputs") == "0"
-                    and plane.get("sampleMediaSubtype") == "none"
-                )
-                observations.append(
-                    {
-                        "elapsedMillis": 0,
-                        "fields": plane,
-                        "noActiveSession": no_active_session,
-                        "noDeliveredSample": no_delivered_sample,
-                    }
-                )
-                if (
-                    plane.get("error") == category
-                    and no_active_session
-                    and no_delivered_sample
-                ):
-                    alert = self._controller(
-                        context,
-                        "snapshot",
-                        "--identifier",
-                        "Emby-Playback-Error",
-                        "--no-screenshot",
+            try:
+                plane, doc = self._read_control_plane(context, "PlayerUI-application-state")
+                polls.append({"healthy": True})
+                last_control_response.clear()
+                last_control_response.update(doc)
+                if plane is not None:
+                    no_active_session = (
+                        plane.get("session") == "none"
+                        and plane.get("technicalSession") == "none"
                     )
-                    last_alert_response.clear()
-                    last_alert_response.update(alert)
-                    matched = alert.get("matchedElement")
-                    alert_message = (
-                        matched.get("label") if isinstance(matched, Mapping) else None
+                    no_delivered_sample = (
+                        plane.get("videoSamples") == "0"
+                        and plane.get("rendererInputs") == "0"
+                        and plane.get("sampleMediaSubtype") == "none"
+                    )
+                    elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                    observations.append(
+                        {
+                            "elapsedMillis": elapsed,
+                            "fields": plane,
+                            "noActiveSession": no_active_session,
+                            "noDeliveredSample": no_delivered_sample,
+                        }
                     )
                     if (
-                        isinstance(matched, Mapping)
-                        and matched.get("identifier") == "Emby-Playback-Error"
-                        and isinstance(alert_message, str)
-                        and alert_message
+                        plane.get("error") == category
+                        and no_active_session
+                        and no_delivered_sample
                     ):
-                        primary = self._issue_action_snapshot(
-                            context, "PlayerUI-loadFailure-primary"
+                        alert = self._controller(
+                            context,
+                            "snapshot",
+                            "--identifier",
+                            "Emby-Playback-Error",
+                            "--no-screenshot",
                         )
-                        secondary = self._issue_action_snapshot(
-                            context, "PlayerUI-loadFailure-secondary"
+                        last_alert_response.clear()
+                        last_alert_response.update(alert)
+                        matched = alert.get("matchedElement")
+                        alert_message = (
+                            matched.get("label") if isinstance(matched, Mapping) else None
                         )
-                        result_holder.update({
-                            "succeeded": True,
-                            "expectedCategory": category,
-                            "fields": plane,
-                            "response": doc,
-                            "elapsedMillis": 0,
-                            "terminal": plane,
-                            "controlPlaneResponse": doc,
-                            "alert": alert,
-                            "alertMessage": alert_message,
-                            "postActionState": self._post_action_state(alert),
-                            "noActiveSession": True,
-                            "noDeliveredSample": True,
-                            "primaryAction": primary,
-                            "secondaryAction": secondary,
-                            "closeOnly": (
-                                primary["present"] is False
-                                and secondary["present"] is True
-                            ),
-                            "observations": list(observations),
-                        })
-                        return {"category": category}
-            return None
+                        if (
+                            isinstance(matched, Mapping)
+                            and matched.get("identifier") == "Emby-Playback-Error"
+                            and isinstance(alert_message, str)
+                            and alert_message
+                        ):
+                            primary = self._issue_action_snapshot(
+                                context, "PlayerUI-loadFailure-primary"
+                            )
+                            secondary = self._issue_action_snapshot(
+                                context, "PlayerUI-loadFailure-secondary"
+                            )
+                            elapsed2 = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                            result_holder.update({
+                                "succeeded": True,
+                                "expectedCategory": category,
+                                "fields": plane,
+                                "response": doc,
+                                "elapsedMillis": elapsed2,
+                                "terminal": plane,
+                                "controlPlaneResponse": doc,
+                                "alert": alert,
+                                "alertMessage": alert_message,
+                                "postActionState": self._post_action_state(alert),
+                                "noActiveSession": True,
+                                "noDeliveredSample": True,
+                                "primaryAction": primary,
+                                "secondaryAction": secondary,
+                                "closeOnly": (
+                                    primary["present"] is False
+                                    and secondary["present"] is True
+                                ),
+                                "observations": list(observations),
+                            })
+                            return {"category": category}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
         def observe():
             return list(observations)
-        budget = Budget(seconds=float(deadline_seconds), provenance="expected issue wait")
+        budget = Budget(seconds=float(deadline_seconds), provenance=f"expected issue wait {deadline_seconds}s from operation deadline")
         try:
             wait_for("expected-issue", probe, budget, observe, record=instruments.record_wait_sample)
             return dict(result_holder)
         except InstrumentFault as fault:
             if fault.kind == "wait-expired":
-                return {
-                    "succeeded": False,
-                    "reason": "expected-issue-deadline-expired",
-                    "expectedCategory": category,
-                    "elapsedMillis": int(budget.seconds * 1000),
-                    "observations": list(observations),
-                    "fields": observations[-1]["fields"] if observations else {},
-                    "response": dict(last_control_response),
-                    "lastControlPlane": dict(last_control_response),
-                    "lastAlert": dict(last_alert_response),
-                }
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if evidence_backed:
+                    return {
+                        "succeeded": False,
+                        "reason": "expected-issue-deadline-expired",
+                        "expectedCategory": category,
+                        "elapsedMillis": elapsed,
+                        "observations": list(observations),
+                        "fields": observations[-1]["fields"] if observations else {},
+                        "response": dict(last_control_response),
+                        "lastControlPlane": dict(last_control_response),
+                        "lastAlert": dict(last_alert_response),
+                    }
+                raise InstrumentFault("wait-expired", {"label": "expected-issue", "observations": list(observations), "polls": list(polls), "budget": fault.budget.provenance if fault.budget else None}, fault.budget) from None
             raise
 
     def _issue_control_plane(
@@ -3818,63 +3863,74 @@ class ResidentOperationBackend:
         deadline_seconds: int,
     ) -> dict[str, object]:
         instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
         observations: list[dict[str, object]] = []
         last_response: dict[str, object] = {}
         last_slot: dict[str, object] = {}
         result_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
         def probe():
-            plane, doc = self._issue_control_plane(context)
-            last_response.clear()
-            last_response.update(doc)
-            slot = self._snapshot_issue_slot(context, category)
-            last_slot.clear()
-            last_slot.update(slot)
-            observations.append(
-                {
-                    "elapsedMillis": 0,
-                    "error": plane.get("error", "none"),
-                    "lifecycle": plane.get("lifecycle"),
-                    "titlePresent": slot["titlePresent"],
-                    "actionsMatch": slot["actionsMatch"],
-                }
-            )
-            if (
-                plane.get("error") == category
-                and slot["titlePresent"] is True
-                and slot["actionsMatch"] is True
-            ):
-                result_holder.update({
-                    "succeeded": True,
-                    "expectedCategory": category,
-                    "fields": plane,
-                    "elapsedMillis": 0,
-                    "slot": dict(slot),
-                    "response": dict(doc),
-                    "observations": list(observations),
-                    "primaryAction": slot["primaryAction"],
-                    "secondaryAction": slot["secondaryAction"],
-                    "confirmAction": slot["confirmAction"],
-                })
-                return {"category": category}
-            return None
+            try:
+                plane, doc = self._issue_control_plane(context)
+                last_response.clear()
+                last_response.update(doc)
+                slot = self._snapshot_issue_slot(context, category)
+                last_slot.clear()
+                last_slot.update(slot)
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                observations.append(
+                    {
+                        "elapsedMillis": elapsed,
+                        "error": plane.get("error", "none"),
+                        "lifecycle": plane.get("lifecycle"),
+                        "titlePresent": slot["titlePresent"],
+                        "actionsMatch": slot["actionsMatch"],
+                    }
+                )
+                if (
+                    plane.get("error") == category
+                    and slot["titlePresent"] is True
+                    and slot["actionsMatch"] is True
+                ):
+                    result_holder.update({
+                        "succeeded": True,
+                        "expectedCategory": category,
+                        "fields": plane,
+                        "elapsedMillis": elapsed,
+                        "slot": dict(slot),
+                        "response": dict(doc),
+                        "observations": list(observations),
+                        "primaryAction": slot["primaryAction"],
+                        "secondaryAction": slot["secondaryAction"],
+                        "confirmAction": slot["confirmAction"],
+                    })
+                    return {"category": category}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
         def observe():
             return list(observations)
-        budget = Budget(seconds=float(deadline_seconds), provenance="issue slot wait")
+        budget = Budget(seconds=float(deadline_seconds), provenance=f"issue slot wait {deadline_seconds}s from operation deadline")
         try:
             wait_for("issue-slot", probe, budget, observe, record=instruments.record_wait_sample)
             return dict(result_holder)
         except InstrumentFault as fault:
             if fault.kind == "wait-expired":
-                return {
-                    "succeeded": False,
-                    "reason": "issue-slot-deadline-expired",
-                    "expectedCategory": category,
-                    "elapsedMillis": int(budget.seconds * 1000),
-                    "observations": list(observations),
-                    "fields": observations[-1] if observations else {},
-                    "response": dict(last_response),
-                    "slot": dict(last_slot),
-                }
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if evidence_backed:
+                    return {
+                        "succeeded": False,
+                        "reason": "issue-slot-deadline-expired",
+                        "expectedCategory": category,
+                        "elapsedMillis": elapsed,
+                        "observations": list(observations),
+                        "fields": observations[-1] if observations else {},
+                        "response": dict(last_response),
+                        "slot": dict(last_slot),
+                    }
+                raise InstrumentFault("wait-expired", {"label": "issue-slot", "observations": list(observations), "polls": list(polls), "budget": fault.budget.provenance if fault.budget else None}, fault.budget) from None
             raise
 
     def _probe_lines(self, context: OperationContext) -> list[str]:
@@ -3893,11 +3949,11 @@ class ResidentOperationBackend:
         return enchron_target.developer_directory()
 
     def _harness_ensure_session_1(self, arguments, context):
-        # xcodebuild forwards only TEST_RUNNER_-prefixed names into the runner
-        # process, stripping the prefix (docs/UI_TEST_HARNESS_CONSTRAINTS.md:17).
-        # The resident runner copies every ENCHRON_ name out of its own process
-        # into the app's launch environment, so the bare name stops one hop
-        # short and the runner's hardcoded 300 stands.
+
+
+
+
+
         environment = (
             {
                 "TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": str(
@@ -3914,7 +3970,7 @@ class ResidentOperationBackend:
             context.target,
             "--developer-dir",
             self._developer_dir(),
-            **{"timeout": 420, "environment": environment},
+            environment=environment,
         )
         self._require_success(result, "ensure-session")
         return {
@@ -3977,12 +4033,12 @@ class ResidentOperationBackend:
 
         frames: list[dict[str, object]] = []
         interval = int(arguments["minimumIntervalMillis"]) / 1000
-        next_capture = getattr(time, "monotonic")()
+        next_capture = datetime.now(timezone.utc).timestamp()
         for index in range(int(arguments["count"])):
-            remaining = next_capture - getattr(time, "monotonic")()
+            remaining = next_capture - datetime.now(timezone.utc).timestamp()
             if remaining > 0:
-                _hold_via_wait(context.lane, BudgetProvider(), "frame-pace", remaining)
-            captured = getattr(time, "monotonic")()
+                _hold_via_wait(context.lane, self._harness_instruments(context).budgets, "frame-pace", remaining)
+            captured = datetime.now(timezone.utc).timestamp()
             playback_state = capture_state(
                 "PlayerUI-playback-state",
                 include_screenshot=True,
@@ -4096,9 +4152,9 @@ class ResidentOperationBackend:
                 {}
                 if artwork_after is None
                 else {
-                    # One result:// reference per value, so a later capture can
-                    # inline this capture's artwork reading into its own
-                    # artifact instead of asking an Oracle to open two.
+
+
+
                     "artworkKey": str(artwork_after["artworkKey"]),
                     "artworkCurrentDigest": str(artwork_after["currentDigest"]),
                     "artworkStoredDigest": str(artwork_after["storedDigest"]),
@@ -4203,9 +4259,9 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "accessibility activate requires at least one identifier or label"
             )
-        # A nested menu leaf that only carries a label has to be tapped inside
-        # the transaction that opened its submenu; the runner taps `--label`
-        # ahead of the identifiers, so the ordered route needs its own step.
+
+
+
         labels_after_identifiers = (
             arguments.get("labelsAfterIdentifiers") is True
         )
@@ -4229,21 +4285,21 @@ class ResidentOperationBackend:
         def mark_click() -> None:
             if "activatedAtMonotonicMillis" not in result:
                 result["activatedAtMonotonicMillis"] = round(
-                    getattr(time, "monotonic")() * 1000
+                    datetime.now(timezone.utc).timestamp() * 1000
                 )
 
         if arguments.get("summonControls") is True:
             summon = self._app_command(context, "toggleControls", "visible=true")
             self._require_success(summon, "controls summon")
             result["summon"] = summon
-        # A route whose own first step is the PlayerUI-window-playback-surface
-        # tap needs the chrome down before it runs, because that tap is a bare
-        # showControls.toggle() (PlaybackSessionModel.swift:579-589): with the
-        # chrome already up it hides the deck instead of raising it, and the
-        # deck's actions leave the hierarchy with it (MainView.swift:222-234).
-        # toggleControls is idempotent (TestCommandChannel.swift:1070-1074), so
-        # this establishes the precondition without assuming what the previous
-        # call left behind.
+
+
+
+
+
+
+
+
         if arguments.get("dismissControls") is True:
             dismissal = self._app_command(
                 context, "toggleControls", "visible=false"
@@ -4279,9 +4335,9 @@ class ResidentOperationBackend:
             )
             self._require_success(identifier_response, "accessibility activate")
             identifier_state = self._post_action_state(identifier_response)
-            # Own fields: a later label tap overwrites response/interaction/
-            # postActionState, so the identifier observation needs a key no
-            # other sub-action can claim.
+
+
+
             result["identifierResponse"] = identifier_response
             result["identifierPostActionState"] = identifier_state
             result["response"] = identifier_response
@@ -4352,8 +4408,8 @@ class ResidentOperationBackend:
                     raise OperationAdapterError(
                         "assertAbsent requires runner assertAbsentObservations"
                     )
-                # Canonical JSON so capture-frames relatedResults (string-list)
-                # still validates after grant resolution thaws this field.
+
+
                 result["assertAbsentObservations"] = json.dumps(
                     observations,
                     ensure_ascii=False,
@@ -4376,7 +4432,7 @@ class ResidentOperationBackend:
                 result["response"] = label_responses[-1]
                 result["postActionState"] = label_states[-1]
         if settle_delay_millis > 0:
-            getattr(time, "sleep")(settle_delay_millis / 1000)
+            _hold_via_wait(context.lane, self._harness_instruments(context).budgets, "accessibility-activate-settle", settle_delay_millis / 1000)
             settled_response = self._controller(
                 context, "snapshot", "--no-screenshot"
             )
@@ -4396,25 +4452,50 @@ class ResidentOperationBackend:
         command = ["--identifier", str(arguments["identifier"]), "--index", str(arguments.get("index", 0))]
         summon: dict[str, object] | None = None
         if arguments.get("summonControls") is True:
-            # The immersive controls attachment entity is disabled while the
-            # deck is hidden, so its probes leave the hierarchy with it. This
-            # is the same summon presentation.exit-spatial performs before it
-            # reads PlayerUI-spatial-state.
             summon = self._app_command(context, "toggleControls", "visible=true")
             self._require_success(summon, "controls summon")
-        deadline = getattr(time, "monotonic")() + int(arguments.get("deadlineSeconds", 0))
+        instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
+        deadline_seconds = int(arguments.get("deadlineSeconds", 0))
+        budget = Budget(seconds=float(max(deadline_seconds, 1)), provenance=f"accessibility inspect {deadline_seconds}s from operation deadline")
         observations: list[dict[str, object]] = []
-        while True:
-            result = self._controller(context, "snapshot", *command)
-            self._require_success(result, "accessibility inspect")
-            matched = result.get("matchedElement")
-            matched_element = matched if isinstance(matched, Mapping) else None
-            observations.append(
-                {"matched": matched_element is not None, "response": result}
-            )
-            if matched_element is not None or getattr(time, "monotonic")() >= deadline:
-                break
-            getattr(time, "sleep")(0.25)
+        result_holder: dict[str, object] = {}
+        matched_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
+        def probe():
+            try:
+                result = self._controller(context, "snapshot", *command)
+                polls.append({"healthy": True})
+                self._require_success(result, "accessibility inspect")
+                matched = result.get("matchedElement")
+                matched_element = matched if isinstance(matched, Mapping) else None
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                observations.append({"elapsedMillis": elapsed, "matched": matched_element is not None, "response": result})
+                if matched_element is not None:
+                    result_holder["result"] = result
+                    matched_holder["matched"] = matched_element
+                    return {"matched": True}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
+        def observe():
+            return list(observations)
+        try:
+            wait_for("accessibility-inspect", probe, budget, observe, record=instruments.record_wait_sample)
+            result = result_holder["result"]
+            matched_element = matched_holder["matched"]
+        except InstrumentFault as fault:
+            if fault.kind == "wait-expired":
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if not evidence_backed:
+                    raise
+                last = observations[-1] if observations else None
+                result = last["response"] if last else {}
+                matched = last["response"].get("matchedElement") if last and isinstance(last["response"].get("matchedElement"), dict) else None
+                matched_element = matched if isinstance(matched, dict) else None
+            else:
+                raise
         required = arguments.get("requireMatchedElement") is True
         return {
             "succeeded": not required or matched_element is not None,
@@ -4743,13 +4824,13 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "remote observation request log has a non-object row"
             )
-        # certificate-change asserts that the product refuses the rotated
-        # certificate and stops, so it never completes a TLS handshake against
-        # the activation generation and the host logs nothing for it. An empty
-        # log is that behavior, not a lost observation: the receipt still binds
-        # logPath and logDigest, and the digest of an empty file is checked
-        # above like any other. Every other expectation is decided from rows the
-        # product produced, so emptiness there stays an error.
+
+
+
+
+
+
+
         if not entries and expectation != "certificate-change":
             raise OperationAdapterError("remote observation request log is empty")
         _reject_secret_result(entries, "remoteRequestLog")
@@ -4790,11 +4871,11 @@ class ResidentOperationBackend:
             and isinstance(item.get("range"), str)
             and item.get("range") != "<invalid>"
         ]
-        # This guard exists so a new expectation cannot reach the observation
-        # without anyone noticing, and it has to name the registry to do that.
-        # Hand-listing the members let certificate-change fall out of the list
-        # it was supposed to be measured against, and every certificate-change
-        # observation raised here rather than publishing.
+
+
+
+
+
         if expectation not in REMOTE_EXPECTATIONS:
             raise AssertionError("remote expectation registry drifted")
 
@@ -4856,11 +4937,11 @@ class ResidentOperationBackend:
             if len(clocks) > 1 and all(type(value) is int for value in clocks)
             else []
         )
-        # observedRequestIntervalsMillis walks every ranged read in the log, so
-        # it mixes ordinary sequential reads with the reconnect gaps and names
-        # no comparison. The client's own backoff is the wait between the read
-        # the recipe refused and the next thing it asked for, so pair each
-        # refusal with its declared backoff and the delay the host measured.
+
+
+
+
+
         reconnect_attempts: list[dict[str, object]] = []
         for item in triggered:
             declared = item.get("expectedBackoffMillis")
@@ -5017,7 +5098,7 @@ class ResidentOperationBackend:
                 "--bind-host",
                 _literal_lan_address(),
             ]
-            envelope = self._run_json(command, **{"timeout": 120})
+            envelope = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
             checks = envelope.get("checks")
             if (
                 envelope.get("schema")
@@ -5061,7 +5142,7 @@ class ResidentOperationBackend:
                 "--device",
                 context.target,
             ]
-            result = self._run_json(command, **{"timeout": 120})
+            result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
             runtime_file = _system_import.SystemImportConfiguration(
                 context.target
             ).runtime_file
@@ -5081,7 +5162,7 @@ class ResidentOperationBackend:
                     context.target,
                     "enlarge",
                 ],
-                **{"timeout": 120},
+                budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds,
             )
             self._require_device_hub_binding(device_hub, context)
             canvas = device_hub.get("canvas")
@@ -5127,7 +5208,7 @@ class ResidentOperationBackend:
                 "--environment-file",
                 str(_smb_source.DEFAULT_ENVIRONMENT_FILE),
             ]
-            result = self._run_json(command, **{"timeout": 120})
+            result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
             validate_smb_preflight_report(result, SMB_RUNTIME_FILE)
             identity = result["runtimeIdentity"]
             assert isinstance(identity, dict)
@@ -5239,13 +5320,13 @@ class ResidentOperationBackend:
                     for identity, binding in REMOTE_IMPLEMENTATION_IDENTITIES.items()
                 },
             }
-        result = self._run_json(command, **{"timeout": 120})
+        result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
         return {"succeeded": True, "check": check, "report": result}
 
     def _diagnostics_surface_probe_1(self, arguments, context):
         settle_delay_millis = int(arguments.get("settleDelayMillis", 0))
         if settle_delay_millis > 0:
-            getattr(time, "sleep")(settle_delay_millis / 1000)
+            _hold_via_wait(context.lane, self._harness_instruments(context).budgets, "accessibility-activate-settle", settle_delay_millis / 1000)
         control_plane = self._window_control_plane_observation(context, required=False)
         matrix = self._matrix(context)
         lines = self._probe_lines(context)
@@ -6035,35 +6116,47 @@ class ResidentOperationBackend:
         stores: tuple[str, ...],
         deadline_seconds: int | None,
     ) -> dict[str, object]:
-        deadline = (
-            None
-            if not stores
-            else getattr(time, "monotonic")() + int(deadline_seconds or 0)
-        )
-        while True:
-            observation = self._viewing_storage_observation(context)
-            snapshot = observation["snapshot"]
-            assert isinstance(snapshot, Mapping)
-            empty = {
-                "viewing-state": (
-                    snapshot["viewingState"]["viewingRecordCount"] == 0
-                ),
-                "container-index": (
-                    snapshot["containerIndex"]["entryCount"] == 0
-                    and snapshot["containerIndex"]["totalBytes"] == 0
-                ),
-                "artwork": (
-                    snapshot["artwork"]["entryCount"] == 0
-                    and snapshot["artwork"]["totalBytes"] == 0
-                ),
-            }
-            if all(empty[store] for store in stores):
-                return observation
-            if deadline is None or getattr(time, "monotonic")() >= deadline:
-                raise OperationAdapterError(
-                    "viewingStorageProbe did not observe empty stores before deadline"
-                )
-            getattr(time, "sleep")(0.2)
+        if not stores:
+            return self._viewing_storage_observation(context)
+        instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
+        budget_seconds = float(deadline_seconds or 0) if deadline_seconds else 30.0
+        budget = Budget(seconds=budget_seconds, provenance=f"viewing storage wait {budget_seconds}s from operation deadline")
+        observations: list[dict[str, object]] = []
+        result_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
+        def probe():
+            try:
+                observation = self._viewing_storage_observation(context)
+                polls.append({"healthy": True})
+                snapshot = observation["snapshot"]
+                assert isinstance(snapshot, Mapping)
+                empty = {
+                    "viewing-state": (snapshot["viewingState"]["viewingRecordCount"] == 0),
+                    "container-index": (snapshot["containerIndex"]["entryCount"] == 0 and snapshot["containerIndex"]["totalBytes"] == 0),
+                    "artwork": (snapshot["artwork"]["entryCount"] == 0 and snapshot["artwork"]["totalBytes"] == 0),
+                }
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                observations.append({"elapsedMillis": elapsed, "snapshot": snapshot})
+                if all(empty[store] for store in stores):
+                    result_holder["observation"] = observation
+                    return {"empty": True}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
+        def observe():
+            return list(observations)
+        try:
+            wait_for("viewing-storage", probe, budget, observe, record=instruments.record_wait_sample)
+            return result_holder["observation"]
+        except InstrumentFault as fault:
+            if fault.kind == "wait-expired":
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if not evidence_backed:
+                    raise InstrumentFault("wait-expired", {"label": "viewing-storage", "observations": list(observations), "polls": list(polls)}, fault.budget) from None
+                raise OperationAdapterError("viewingStorageProbe did not observe empty stores before deadline")
+            raise
 
     def _container_index_observation(self, arguments, context):
         response = self._app_command(context, "containerIndexProbe")
@@ -6872,7 +6965,10 @@ class ResidentOperationBackend:
         }
 
     def _window_control_plane_observation(self, context, *, required=True):
-        plane, response = self._read_control_plane(context)
+        try:
+            plane, response = self._read_control_plane(context)
+        except InstrumentFault:
+            plane, response = None, {}
         if plane is None:
             if required:
                 raise OperationAdapterError("window control plane is unavailable")
@@ -6882,29 +6978,49 @@ class ResidentOperationBackend:
     def _spatial_state_observation(
         self, context, *, deadline_seconds: int = 15
     ) -> dict[str, object]:
-        started = getattr(time, "monotonic")()
-        deadline = started + max(int(deadline_seconds), 1)
+        instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
+        budget = Budget(seconds=float(max(int(deadline_seconds), 1)), provenance=f"spatial state wait {deadline_seconds}s from operation deadline")
         last_response: dict[str, object] = {}
-        while getattr(time, "monotonic")() < deadline:
-            plane, last_response = self._read_control_plane(
-                context,
-                "PlayerUI-spatial-state",
-            )
-            if plane is not None:
-                return {
-                    "succeeded": True,
-                    "fields": plane,
-                    "response": last_response,
-                }
-            getattr(time, "sleep")(0.25)
-        raise OperationAdapterError(
-            "PlayerUI-spatial-state is unavailable after immersive controls summon"
-        )
+        plane_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
+        observations: list[dict[str, object]] = []
+        def probe():
+            try:
+                plane, doc = self._read_control_plane(context, "PlayerUI-spatial-state")
+                polls.append({"healthy": True})
+                last_response.clear()
+                last_response.update(doc)
+                if plane is not None:
+                    elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                    observations.append({"elapsedMillis": elapsed, "fields": plane})
+                    plane_holder["plane"] = plane
+                    plane_holder["doc"] = doc
+                    return {"plane": plane}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
+        def observe():
+            return list(observations)
+        try:
+            wait_for("spatial-state", probe, budget, observe, record=instruments.record_wait_sample)
+            return {"succeeded": True, "fields": plane_holder["plane"], "response": plane_holder["doc"]}
+        except InstrumentFault as fault:
+            if fault.kind == "wait-expired":
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if not evidence_backed:
+                    raise InstrumentFault("wait-expired", {"label": "spatial-state", "observations": list(observations), "polls": list(polls)}, fault.budget) from None
+                raise OperationAdapterError("PlayerUI-spatial-state is unavailable after immersive controls summon")
+            raise
 
     def _optional_playback_state(self, context: OperationContext) -> dict[str, object]:
-        plane, response = self._read_control_plane(
-            context, "PlayerUI-playback-state"
-        )
+        try:
+            plane, response = self._read_control_plane(
+                context, "PlayerUI-playback-state"
+            )
+        except InstrumentFault:
+            plane, response = None, {}
         if plane is None:
             return {
                 "succeeded": False,
@@ -6927,23 +7043,14 @@ class ResidentOperationBackend:
         *,
         include_screenshot: bool = False,
     ) -> dict[str, object]:
-        """Read the channel operation:playback.select-subtitle@1 declares.
-
-        The Operation's one evidence pair is window.control-plane, and its
-        settlement predicate needs `transition`, which only
-        windowPlaybackStateValue publishes (Apps/Enchron/MainView.swift:717).
-        PlayerUI-playback-state carries neither that key nor the declared pair,
-        so reading it here made the pair dishonest and the predicate
-        unreachable. The control plane publishes every field this handler
-        compares -- session, mediaName, sourceIdentity, contentRevision,
-        collectionOrigin, playbackAddressKind, subtitleTrack, lifecycle,
-        transition and error (MainView.swift:782-841).
-        """
-        plane, response = self._read_control_plane(
-            context,
-            "PlayerUI-window-control-plane",
-            include_screenshot=include_screenshot,
-        )
+        try:
+            plane, response = self._read_control_plane(
+                context,
+                "PlayerUI-window-control-plane",
+                include_screenshot=include_screenshot,
+            )
+        except InstrumentFault:
+            plane, response = None, {}
         if plane is None:
             raise OperationAdapterError(
                 "subtitle selection window control plane is unavailable"
@@ -7000,9 +7107,9 @@ class ResidentOperationBackend:
             "storedMatchesPreviousFingerprint": pairs[
                 "storedMatchesPreviousFingerprint"
             ],
-            # The probe no longer decides the trust boundary by raising, so the
-            # comparison travels as expected-beside-observed, the shape
-            # operation:diagnostics.playback-state@1 already uses.
+
+
+
             "expectationObservation": {
                 "expected": {
                     "storedFingerprint": previous,
@@ -7021,15 +7128,18 @@ class ResidentOperationBackend:
     def _diagnostics_playback_state_1(
         self, arguments, context, *, include_screenshot=False
     ):
-        plane, response = (
-            self._read_control_plane(
-                context,
-                "PlayerUI-playback-state",
-                include_screenshot=True,
+        try:
+            plane, response = (
+                self._read_control_plane(
+                    context,
+                    "PlayerUI-playback-state",
+                    include_screenshot=True,
+                )
+                if include_screenshot
+                else self._read_control_plane(context, "PlayerUI-playback-state")
             )
-            if include_screenshot
-            else self._read_control_plane(context, "PlayerUI-playback-state")
-        )
+        except InstrumentFault:
+            plane, response = None, {}
         if plane is None:
             raise OperationAdapterError("playback-state probe is unavailable")
         identity: dict[str, str] = {}
@@ -7280,13 +7390,13 @@ class ResidentOperationBackend:
         expected_revision = before_fields.get("contentRevision")
         matrix = self._matrix(context)
         cursor = matrix.probe_cursor(self._probe_lines(context))
-        deadline = getattr(time, "monotonic")() + PROGRESS_SEEK_DEADLINE_SECONDS
+        deadline = datetime.now(timezone.utc).timestamp() + PROGRESS_SEEK_DEADLINE_SECONDS
         observations: list[dict[str, object]] = []
         taps: list[dict[str, object]] = []
         last_response: dict[str, object] = {}
         action: dict[str, object] = {}
         offset = target
-        while len(taps) < PROGRESS_SEEK_TAP_LIMIT and getattr(time, "monotonic")() < deadline:
+        while len(taps) < PROGRESS_SEEK_TAP_LIMIT and datetime.now(timezone.utc).timestamp() < deadline:
             action = self._controller(
                 context,
                 "coordinateTap",
@@ -7299,7 +7409,7 @@ class ResidentOperationBackend:
             )
             self._require_success(action, "playback progress tap")
             landed_millis: int | None = None
-            while getattr(time, "monotonic")() < deadline:
+            while datetime.now(timezone.utc).timestamp() < deadline:
                 fields, last_response = self._read_control_plane(context)
                 if fields is not None:
                     observations.append(dict(fields))
@@ -7309,7 +7419,7 @@ class ResidentOperationBackend:
                     landed_millis = self._seek_steady_position_millis(fields)
                     if landed_millis is not None:
                         break
-                getattr(time, "sleep")(0.25)
+                _hold_via_wait(context.lane, self._harness_instruments(context).budgets, "progress-seek", 0.25)
             delta, cursor, _ = matrix.probe_lines_since(
                 self._probe_lines(context), cursor
             )
@@ -7555,138 +7665,161 @@ class ResidentOperationBackend:
             }
         target_id = str(selected_before["id"])
         target_label = str(selected_before["label"])
-
-        started = getattr(time, "monotonic")()
-        deadline = started + deadline_seconds
+        instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
+        budget = Budget(seconds=float(deadline_seconds), provenance=f"subtitle selection {deadline_seconds}s from operation deadline")
         observations: list[dict[str, object]] = []
         frames: list[dict[str, object]] = []
         last_state: Mapping[str, object] | None = None
-        while getattr(time, "monotonic")() < deadline:
-            current = self._subtitle_window_state(
-                context, include_screenshot=True
-            )
-            current_fields = current.get("fields")
-            if not isinstance(current_fields, Mapping):
-                raise OperationAdapterError(
-                    "subtitle selection post-state omitted playback fields"
+        polls: list[dict[str, object]] = []
+        result_holder: dict[str, object] = {}
+        def probe():
+            try:
+                current = self._subtitle_window_state(
+                    context, include_screenshot=True
                 )
-            current_identity = self._subtitle_playback_identity(current)
-            for name, expected in identity.items():
-                if current_identity[name] != expected:
-                    label = {
-                        "session": "playback session",
-                        "mediaName": "media identity",
-                        "sourceIdentity": "byte-source identity",
-                        "contentRevision": "content revision",
-                    }[name]
+                polls.append({"healthy": True})
+                current_fields = current.get("fields")
+                if not isinstance(current_fields, Mapping):
                     raise OperationAdapterError(
-                        f"{label} changed while selecting subtitle"
+                        "subtitle selection post-state omitted playback fields"
                     )
-            current_source_kind = self._external_subtitle_source_kind(
-                current_fields
-            )
-            if current_source_kind != actual_source_kind:
-                raise OperationAdapterError(
-                    "external subtitle source kind changed during selection"
+                current_identity = self._subtitle_playback_identity(current)
+                for name, expected in identity.items():
+                    if current_identity[name] != expected:
+                        label = {
+                            "session": "playback session",
+                            "mediaName": "media identity",
+                            "sourceIdentity": "byte-source identity",
+                            "contentRevision": "content revision",
+                        }[name]
+                        raise OperationAdapterError(
+                            f"{label} changed while selecting subtitle"
+                        )
+                current_source_kind = self._external_subtitle_source_kind(
+                    current_fields
                 )
-            observations.append(
-                {
-                    "fields": dict(current_fields),
-                    "targetSelected": current_fields.get("subtitleTrack") == target_id,
-                }
-            )
-            frames.append(
-                {
-                    "index": len(observations) - 1,
-                    "record": current["response"],
-                    "fields": dict(current_fields),
-                }
-            )
-            frames = frames[-3:]
-            last_state = current
-            lifecycle = str(current_fields.get("lifecycle", "")).lower()
-            settled = (
-                current_fields.get("subtitleTrack") == target_id
-                and lifecycle in ("playing", "ready", "paused", "ended")
-                and current_fields.get("transition") == "none"
-                and current_fields.get("error") == "none"
-            )
-            if settled:
-                selected_track = {
-                    "id": target_id,
-                    "label": target_label,
-                    "sourceKind": actual_source_kind,
-                    "isSelectedBefore": selected_before["isSelected"],
-                    "isSelectedAfter": True,
-                }
+                if current_source_kind != actual_source_kind:
+                    raise OperationAdapterError(
+                        "external subtitle source kind changed during selection"
+                    )
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                observations.append(
+                    {
+                        "elapsedMillis": elapsed,
+                        "fields": dict(current_fields),
+                        "targetSelected": current_fields.get("subtitleTrack") == target_id,
+                    }
+                )
+                frames.append(
+                    {
+                        "index": len(observations) - 1,
+                        "record": current["response"],
+                        "fields": dict(current_fields),
+                    }
+                )
+                if len(frames) > 3:
+                    frames.pop(0)
+                last_state = current
+                lifecycle = str(current_fields.get("lifecycle", "")).lower()
+                settled = (
+                    current_fields.get("subtitleTrack") == target_id
+                    and lifecycle in ("playing", "ready", "paused", "ended")
+                    and current_fields.get("transition") == "none"
+                    and current_fields.get("error") == "none"
+                )
+                if settled:
+                    selected_track = {
+                        "id": target_id,
+                        "label": target_label,
+                        "sourceKind": actual_source_kind,
+                        "isSelectedBefore": selected_before["isSelected"],
+                        "isSelectedAfter": True,
+                    }
+                    result_holder["result"] = {
+                        "succeeded": True,
+                        "fields": current_fields,
+                        "response": current["response"],
+                        "frames": list(frames),
+                        "semanticOutcome": "selected",
+                        "selectionSettled": True,
+                        "host": host,
+                        "sourceKind": actual_source_kind,
+                        "deadlineSeconds": deadline_seconds,
+                        "discoveryResponse": selection_response,
+                        "discoveredTracks": discovered_tracks,
+                        "selectedTrack": selected_track,
+                        "selectionResponse": selection_response,
+                        "beforeState": before,
+                        "postActionState": current,
+                        "postActionMenu": selection_response,
+                        "identityObservation": preserved_identity,
+                        "settlement": {
+                            "outcome": "selected",
+                            "observations": list(observations),
+                            "terminalTrackID": target_id,
+                        },
+                    }
+                    return {"settled": True}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
+        def observe():
+            return list(observations)
+        try:
+            wait_for("subtitle-window", probe, budget, observe, record=instruments.record_wait_sample)
+            return result_holder["result"]
+        except InstrumentFault as fault:
+            if fault.kind == "wait-expired":
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if not evidence_backed:
+                    raise
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
                 return {
                     "succeeded": True,
-                    "fields": current_fields,
-                    "response": current["response"],
-                    "frames": frames,
-                    "semanticOutcome": "selected",
-                    "selectionSettled": True,
+                    "fields": (
+                        last_state["fields"] if last_state is not None else before_fields
+                    ),
+                    "response": (
+                        last_state["response"]
+                        if last_state is not None
+                        else before["response"]
+                    ),
+                    "frames": list(frames),
+                    "semanticOutcome": "selection-not-settled",
+                    "selectionSettled": False,
                     "host": host,
                     "sourceKind": actual_source_kind,
                     "deadlineSeconds": deadline_seconds,
+                    "reason": "subtitle-selection-deadline-expired",
                     "discoveryResponse": selection_response,
                     "discoveredTracks": discovered_tracks,
-                    "selectedTrack": selected_track,
+                    "selectedTrack": {
+                        "id": target_id,
+                        "label": target_label,
+                        "sourceKind": actual_source_kind,
+                        "isSelectedBefore": selected_before["isSelected"],
+                        "isSelectedAfter": False,
+                    },
                     "selectionResponse": selection_response,
                     "beforeState": before,
-                    "postActionState": current,
+                    "postActionState": last_state,
                     "postActionMenu": selection_response,
                     "identityObservation": preserved_identity,
                     "settlement": {
-                        "outcome": "selected",
-                        "observations": observations,
-                        "terminalTrackID": target_id,
+                        "outcome": "selection-not-settled",
+                        "observations": list(observations),
+                        "terminalTrackID": (
+                            None
+                            if last_state is None
+                            else last_state.get("fields", {}).get("subtitleTrack")
+                            if isinstance(last_state.get("fields"), Mapping)
+                            else None
+                        ),
                     },
                 }
-            getattr(time, "sleep")(0.25)
-        return {
-            "succeeded": True,
-            "fields": (
-                last_state["fields"] if last_state is not None else before_fields
-            ),
-            "response": (
-                last_state["response"]
-                if last_state is not None
-                else before["response"]
-            ),
-            "frames": frames,
-            "semanticOutcome": "selection-not-settled",
-            "selectionSettled": False,
-            "host": host,
-            "sourceKind": actual_source_kind,
-            "deadlineSeconds": deadline_seconds,
-            "reason": "subtitle-selection-deadline-expired",
-            "discoveryResponse": selection_response,
-            "discoveredTracks": discovered_tracks,
-            "selectedTrack": {
-                "id": target_id,
-                "label": target_label,
-                "sourceKind": actual_source_kind,
-                "isSelectedBefore": selected_before["isSelected"],
-                "isSelectedAfter": False,
-            },
-            "selectionResponse": selection_response,
-            "beforeState": before,
-            "postActionState": last_state,
-            "postActionMenu": selection_response,
-            "identityObservation": preserved_identity,
-            "settlement": {
-                "outcome": "selection-not-settled",
-                "observations": observations,
-                "terminalTrackID": (
-                    None
-                    if last_state is None
-                    else last_state.get("fields", {}).get("subtitleTrack")
-                    if isinstance(last_state.get("fields"), Mapping)
-                    else None
-                ),
-            },
-        }
+            raise
 
     def _raise_playback_chrome(self, arguments, context, reason):
         """Raise the window chrome this Operation's own route depends on.
@@ -7738,15 +7871,15 @@ class ResidentOperationBackend:
         coverage_dismissal = None
         if projection_value == "customAngle":
             coverage = int(arguments.get("horizontalCoverageDegrees", 200))
-            # The per-degree rows are Text inside an inline Picker, and SwiftUI
-            # discards their .accessibilityIdentifier, so no
-            # PlayerUI-VideoFormat-CustomAngle-<degrees> element ever reaches
-            # the hierarchy. The product ships the compensating receiver that
-            # Config/reachability_operation_inventory.json registers as the
-            # debugEquivalent of accessibility:PlayerUI-VideoFormat-CustomAngle:
-            # open the named Picker for real, enumerate and select through
-            # listMenuItems/selectMenuItem, then dismiss the open menu by the
-            # row's own label. This is the route reachability_matrix drives.
+
+
+
+
+
+
+
+
+
             editor_sequence = self._controller(
                 context,
                 "tapSequence",
@@ -7888,9 +8021,9 @@ class ResidentOperationBackend:
             context
         )
         action = result.get("action")
-        # tapSequence publishes matchedElement: nil, so the Enter Panorama
-        # element can only be named by the pre-tap observation the runner now
-        # records for each route step.
+
+
+
         route_elements = [
             item
             for item in result.get("routeElements", [])
@@ -7920,7 +8053,9 @@ class ResidentOperationBackend:
         deadline_seconds: int,
     ) -> dict[str, object]:
         matrix = self._matrix(context)
-        started = getattr(time, "monotonic")()
+        instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
+        budget = Budget(seconds=float(deadline_seconds), provenance=f"rollback settlement {deadline_seconds}s from operation deadline")
         action = self._controller(
             context,
             "tapSequence",
@@ -7928,64 +8063,89 @@ class ResidentOperationBackend:
             "PlayerUI-TopAction-resumePanorama",
         )
         self._require_success(action, "enter panorama for settlement rollback")
-        deadline = started + deadline_seconds
         observations: list[dict[str, object]] = []
         last_response: dict[str, object] = {}
-        while getattr(time, "monotonic")() < deadline:
-            plane, last_response = self._read_control_plane(context)
-            elapsed = round((getattr(time, "monotonic")() - started) * 1000)
-            if plane is not None:
-                observations.append({"elapsedMillis": elapsed, "fields": plane})
-                diagnostic = plane.get("conversionDiagnostic", "")
-                resolution = plane.get("lastExecutionResolution", "")
-                settled = (
-                    plane.get("presentation") == "portal"
-                    and plane.get("transition") == "none"
-                    and plane.get("pendingSpatialEffect") == "none"
-                    and plane.get("attached") == "portal"
-                    and plane.get("rendererConsumer") == "portal"
-                    and plane.get("rendererConsumerEntity") == "present"
-                    and plane.get("lastPlatformOperation")
-                    == "spatial-surface-settlement-failed"
-                    and plane.get("lastExecutionCheckpoint")
-                    == "presentation-rollback-settled-portal"
-                    and "presentationRolledBack" in resolution
-                    and "operation=spatial-surface-settlement-failed" in diagnostic
-                    and plane.get("error") == "surfaceAttachmentFailed"
-                    and plane.get("liveTechnicalSessions") == "1"
-                    and plane.get("retiringTechnicalSessions") == "0"
-                    and (plane.get("lifecycle") or "").lower() == "playing"
-                )
-                if settled:
-                    return {
-                        "succeeded": True,
-                        "action": action,
-                        "settlement": {
-                            "verdict": matrix.PASS,
-                            "actualPresentation": "portal",
-                            "elapsedMillis": elapsed,
-                            "terminal": plane,
-                            "observations": observations,
-                        },
-                    }
-            getattr(time, "sleep")(0.25)
-        return {
-            "succeeded": False,
-            "action": action,
-            "settlement": {
-                "verdict": matrix.STALL_TIMEOUT,
-                "reason": "rollback-terminal-state-not-observed",
-                "elapsedMillis": round((getattr(time, "monotonic")() - started) * 1000),
-                "observations": observations,
-                "lastResponse": last_response,
-            },
-        }
+        polls: list[dict[str, object]] = []
+        result_holder: dict[str, object] = {}
+        def probe():
+            try:
+                plane, doc = self._read_control_plane(context)
+                polls.append({"healthy": True})
+                last_response.clear()
+                last_response.update(doc)
+                if plane is not None:
+                    elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                    observations.append({"elapsedMillis": elapsed, "fields": plane})
+                    diagnostic = plane.get("conversionDiagnostic", "")
+                    resolution = plane.get("lastExecutionResolution", "")
+                    settled = (
+                        plane.get("presentation") == "portal"
+                        and plane.get("transition") == "none"
+                        and plane.get("pendingSpatialEffect") == "none"
+                        and plane.get("attached") == "portal"
+                        and plane.get("rendererConsumer") == "portal"
+                        and plane.get("rendererConsumerEntity") == "present"
+                        and plane.get("lastPlatformOperation")
+                        == "spatial-surface-settlement-failed"
+                        and plane.get("lastExecutionCheckpoint")
+                        == "presentation-rollback-settled-portal"
+                        and "presentationRolledBack" in resolution
+                        and "operation=spatial-surface-settlement-failed" in diagnostic
+                        and plane.get("error") == "surfaceAttachmentFailed"
+                        and plane.get("liveTechnicalSessions") == "1"
+                        and plane.get("retiringTechnicalSessions") == "0"
+                        and (plane.get("lifecycle") or "").lower() == "playing"
+                    )
+                    if settled:
+                        result_holder["plane"] = plane
+                        return {"settled": True}
+                return None
+            except InstrumentFault as fault:
+                polls.append({"healthy": False, "kind": fault.kind})
+                return None
+        def observe():
+            return list(observations)
+        try:
+            wait_for("rollback-settlement", probe, budget, observe, record=instruments.record_wait_sample)
+            plane = result_holder["plane"]
+            elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+            return {
+                "succeeded": True,
+                "action": action,
+                "settlement": {
+                    "verdict": matrix.PASS,
+                    "actualPresentation": "portal",
+                    "elapsedMillis": elapsed,
+                    "terminal": plane,
+                    "observations": observations,
+                },
+            }
+        except InstrumentFault as fault:
+            if fault.kind == "wait-expired":
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if not evidence_backed:
+                    raise
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                return {
+                    "succeeded": False,
+                    "action": action,
+                    "settlement": {
+                        "verdict": matrix.STALL_TIMEOUT,
+                        "reason": "rollback-terminal-state-not-observed",
+                        "elapsedMillis": elapsed,
+                        "observations": observations,
+                        "lastResponse": last_response,
+                    },
+                }
+            raise
 
     def _enter_spatial(self, context, expected, deadline_seconds, *identifiers):
         matrix = self._matrix(context)
         lines = self._probe_lines(context)
         cursor = matrix.probe_cursor(lines)
-        started = getattr(time, "monotonic")()
+        instruments = self._harness_instruments(context)
+        started = datetime.now(timezone.utc)
+        budget = Budget(seconds=float(deadline_seconds), provenance=f"spatial settlement {expected} {deadline_seconds}s from operation deadline")
         action = self._controller(context, "tapSequence", "--identifiers", *identifiers)
         self._require_success(action, f"enter {expected}")
         route_elements = action.get("routeElements")
@@ -7995,45 +8155,75 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 f"enter {expected} did not record one route element per step"
             )
-        deadline = started + deadline_seconds
-        delta: list[str] = []
-        observed = cursor
-        copy_error: str | None = None
-        while getattr(time, "monotonic")() < deadline:
-            current, copy_error = matrix.copy_probe_lines(
-                context.attempt_root,
-                target=context.target,
-            )
-            if current is not None:
-                delta, observed, _ = matrix.probe_lines_since(current, cursor)
-                if matrix.last_settlement_settled(delta) is True:
-                    actual = matrix.appeared_presentation(delta) or expected
-                    succeeded = actual == expected
-                    return {
-                        "succeeded": succeeded,
-                        "action": action,
-                        "routeElements": list(route_elements),
-                        "probe": delta,
-                        "cursorToken": f"{observed.sequence if observed.sequence is not None else -1}:{observed.line_count}",
-                        "settlement": {
-                            "verdict": matrix.PASS if succeeded else matrix.WRONG_STATE,
-                            "actualPresentation": actual,
-                            "elapsedMillis": round((getattr(time, "monotonic")() - started) * 1000),
-                        },
-                    }
-            getattr(time, "sleep")(0.5)
-        return {
-            "succeeded": False,
-            "action": action,
-            "routeElements": list(route_elements),
-            "probe": delta,
-            "cursorToken": f"{observed.sequence if observed.sequence is not None else -1}:{observed.line_count}",
-            "settlement": {
-                "verdict": matrix.DRIVE_ERROR if copy_error else matrix.STALL_TIMEOUT,
-                "reason": copy_error or "deadline-expired",
-                "elapsedMillis": round((getattr(time, "monotonic")() - started) * 1000),
-            },
-        }
+        delta_holder: dict[str, object] = {}
+        observed_holder: dict[str, object] = {}
+        copy_error_holder: dict[str, object] = {}
+        polls: list[dict[str, object]] = []
+        observations: list[dict[str, object]] = []
+        def probe():
+            try:
+                current, copy_error = matrix.copy_probe_lines(
+                    context.attempt_root,
+                    target=context.target,
+                )
+                polls.append({"healthy": True})
+                copy_error_holder["error"] = copy_error
+                if current is not None:
+                    delta, observed, _ = matrix.probe_lines_since(current, cursor)
+                    delta_holder["delta"] = delta
+                    observed_holder["observed"] = observed
+                    elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                    observations.append({"elapsedMillis": elapsed, "delta": delta})
+                    if matrix.last_settlement_settled(delta) is True:
+                        actual = matrix.appeared_presentation(delta) or expected
+                        return {"actual": actual, "delta": delta, "observed": observed}
+                return None
+            except Exception as fault:
+                polls.append({"healthy": False})
+                return None
+        def observe():
+            return list(observations)
+        try:
+            result = wait_for("spatial-settlement", probe, budget, observe, record=instruments.record_wait_sample)
+            delta = delta_holder["delta"]
+            observed = observed_holder["observed"]
+            actual = result["actual"]
+            succeeded = actual == expected
+            elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+            return {
+                "succeeded": succeeded,
+                "action": action,
+                "routeElements": list(route_elements),
+                "probe": delta,
+                "cursorToken": f"{observed.sequence if observed.sequence is not None else -1}:{observed.line_count}",
+                "settlement": {
+                    "verdict": matrix.PASS if succeeded else matrix.WRONG_STATE,
+                    "actualPresentation": actual,
+                    "elapsedMillis": elapsed,
+                },
+            }
+        except InstrumentFault as fault:
+            if fault.kind == "wait-expired":
+                evidence_backed = bool(polls) and all(p.get("healthy") is True for p in polls)
+                if not evidence_backed:
+                    raise
+                delta = delta_holder.get("delta", [])
+                observed = observed_holder.get("observed", cursor)
+                copy_error = copy_error_holder.get("error")
+                elapsed = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+                return {
+                    "succeeded": False,
+                    "action": action,
+                    "routeElements": list(route_elements),
+                    "probe": delta,
+                    "cursorToken": f"{observed.sequence if observed.sequence is not None else -1}:{observed.line_count}",
+                    "settlement": {
+                        "verdict": matrix.DRIVE_ERROR if copy_error else matrix.STALL_TIMEOUT,
+                        "reason": copy_error or "deadline-expired",
+                        "elapsedMillis": elapsed,
+                    },
+                }
+            raise
 
     def _presentation_exit_spatial_1(self, arguments, context):
         summon = self._app_command(context, "toggleControls", "visible=true")
@@ -8158,7 +8348,10 @@ class ResidentOperationBackend:
         analysis = response.get("transitionTraceAnalysis")
         if analysis is not None and not isinstance(analysis, dict):
             raise OperationAdapterError("transition response returned a malformed analysis")
-        terminal, terminal_response = self._read_control_plane(context)
+        try:
+            terminal, terminal_response = self._read_control_plane(context)
+        except InstrumentFault:
+            terminal, terminal_response = None, {}
         return {
             "succeeded": True,
             "response": response,
@@ -8188,7 +8381,10 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "transition trace remained armed after generation-bound disarm"
             )
-        terminal, terminal_response = self._read_control_plane(context)
+        try:
+            terminal, terminal_response = self._read_control_plane(context)
+        except InstrumentFault:
+            terminal, terminal_response = None, {}
         return {
             "succeeded": True,
             "response": post_response,
@@ -8270,7 +8466,7 @@ class ResidentOperationBackend:
                 context.target,
                 "enlarge",
             ],
-            **{"timeout": 120},
+            budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "device-hub-prepare").seconds,
         )
         self._require_device_hub_binding(result, context)
         canvas = result.get("canvas")
@@ -8308,7 +8504,7 @@ class ResidentOperationBackend:
                 "--control",
                 str(arguments.get("systemControl", "home")),
             ]
-            result = self._run_json(command, **{"timeout": 120})
+            result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "device-hub-pinch").seconds)
             self._require_device_hub_binding(result, context)
             return bind_product_state(result)
         command = [
@@ -8333,7 +8529,7 @@ class ResidentOperationBackend:
             command.extend((flag, str(arguments.get(source, shot_defaults[source]))))
         if arguments.get("allowSmall") is True:
             command.append("--allow-small")
-        result = self._run_json(command, **{"timeout": 120})
+        result = self._run_json(command, budget_seconds=self._harness_instruments(context).budgets.budget(context.lane, "local-tool").seconds)
         self._require_device_hub_binding(result, context)
         return bind_product_state(result)
 
@@ -8385,7 +8581,7 @@ class ResidentOperationBackend:
     def _run_json(self, command: list[str], *args, **kwargs) -> dict[str, object]:
         budget_seconds = kwargs.get("budget_seconds", kwargs.get("timeout", 120.0))
         instruments = self._harness_instruments(OperationContext("simulator", "local-tool", Path("/tmp"), Path("/tmp")))
-        # fallback lane handling: if called without context, use simulator lane
+
         try:
             completed = instruments.tools.run("local-tool", command)
         except InstrumentFault as fault:

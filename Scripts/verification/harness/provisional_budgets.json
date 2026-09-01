@@ -1,5 +1,41 @@
 {
+  "accessibility-inspect": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "activate": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "any-identifier-appearance": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "app-command": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "clean-open": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
   "device-hub": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "device-hub-pinch": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "device-hub-prepare": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "diagnostics-surface-probe": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "emby-aggregate": {
     "expires": "2026-10-01",
     "seconds": 120
   },
@@ -11,17 +47,49 @@
     "expires": "2026-10-01",
     "seconds": 60
   },
+  "ffmpeg-luma": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "ffmpeg-ssim": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
   "fixture-copy": {
     "expires": "2026-10-01",
     "seconds": 600
   },
+  "frame-pace": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
   "halt": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "identifier-absence": {
+    "expires": "2026-10-01",
+    "seconds": 8
+  },
+  "identifier-appearance": {
+    "expires": "2026-10-01",
+    "seconds": 8
+  },
+  "identifier-value": {
+    "expires": "2026-10-01",
+    "seconds": 15
+  },
+  "immersive-settlement": {
     "expires": "2026-10-01",
     "seconds": 60
   },
   "issue-slot": {
     "expires": "2026-10-01",
     "seconds": 60
+  },
+  "journey-audio-probe": {
+    "expires": "2026-10-01",
+    "seconds": 600
   },
   "local-tool": {
     "expires": "2026-10-01",
@@ -31,21 +99,81 @@
     "expires": "2026-10-01",
     "seconds": 600
   },
+  "media-push": {
+    "expires": "2026-10-01",
+    "seconds": 600
+  },
   "panorama-settle": {
     "expires": "2026-10-01",
     "seconds": 60
+  },
+  "presentation": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "presentation-settle": {
+    "expires": "2026-10-01",
+    "seconds": 45
+  },
+  "press": {
+    "expires": "2026-10-01",
+    "seconds": 20
   },
   "probe-copy": {
     "expires": "2026-10-01",
     "seconds": 120
   },
+  "probe-needle": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "probe-size": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "progress-seek": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
   "recording-extraction": {
     "expires": "2026-10-01",
     "seconds": 600
   },
+  "relaunch": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "replaceText": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
   "result-bundle": {
     "expires": "2026-10-01",
     "seconds": 60
+  },
+  "retire-runner": {
+    "expires": "2026-10-01",
+    "seconds": 300
+  },
+  "rollback-settlement": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "smb-aggregate": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "snapshot": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "spatial-settlement": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "spatial-state": {
+    "expires": "2026-10-01",
+    "seconds": 30
   },
   "stop": {
     "expires": "2026-10-01",
@@ -54,6 +182,38 @@
   "structural-test": {
     "expires": "2026-10-01",
     "seconds": 1800
+  },
+  "subtitle-window": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "swipeUp": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "system-import-fixtures": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
+  "tap": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "tapSequence": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "typeText": {
+    "expires": "2026-10-01",
+    "seconds": 20
+  },
+  "viewing-storage": {
+    "expires": "2026-10-01",
+    "seconds": 60
+  },
+  "wedge": {
+    "expires": "2026-10-01",
+    "seconds": 60
   },
   "window-wait": {
     "expires": "2026-10-01",

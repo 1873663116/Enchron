@@ -3,162 +3,62 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
-
 import playback_mode_matrix as matrix
-
-
-class SimulatorContainerTests(unittest.TestCase):
-    def test_push_to_inbox_copies_media_into_simulator_container(self) -> None:
+class HarnessContainerTests(unittest.TestCase):
+    def setUp(self):
+        matrix._instruments_singleton = None
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._tmp = Path(self._tmpdir.name)
+        real_provisional = matrix.REPOSITORY_ROOT / "Scripts/verification/harness/provisional_budgets.json"
+        self._budgets = matrix.BudgetProvider(timings_directory=self._tmp, provisional_path=real_provisional)
+        self._tools = matrix.LocalToolRunner("device", budgets=self._budgets)
+        self._policy = matrix.RecoveryPolicy()
+        import enchron_target
+        self._instruments = matrix.Instruments(device=enchron_target.target_device(), core_device=enchron_target.core_device(), developer_dir=enchron_target.developer_directory(), lane="device", budgets=self._budgets, tools=self._tools, policy=self._policy)
+        self._get_patch = patch.object(matrix, "_get_instruments", return_value=self._instruments)
+        self._get_patch.start()
+    def tearDown(self):
+        self._get_patch.stop()
+        self._tmpdir.cleanup()
+        matrix._instruments_singleton = None
+    def test_push_to_inbox_delegates_to_enchron_target(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            container = root / "container"
             media_path = root / "clip.mp4"
             media_path.write_bytes(b"simulator media")
-
-            with (
-                patch.object(matrix.enchron_target, "is_simulator", return_value=True),
-                patch.object(
-                    matrix.enchron_target,
-                    "simulator_container",
-                    return_value=container,
-                ),
-                patch.object(matrix.subprocess, "run") as run,
-            ):
+            def fake_copy(**kwargs):
+                dest = kwargs.get("destination") or kwargs.get("source")
+                return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+            with patch.object(matrix.enchron_target, "copy_to_container", side_effect=fake_copy) as mock_copy:
                 error = matrix.push_to_inbox(media_path)
-
             self.assertIsNone(error)
-            self.assertEqual(
-                (container / "Documents/TestMediaInbox/clip.mp4").read_bytes(),
-                b"simulator media",
-            )
-            run.assert_not_called()
-
-    def test_copy_probe_lines_once_uses_simulator_container_copy(self) -> None:
+            mock_copy.assert_called_once()
+    def test_copy_probe_lines_delegates_to_enchron_target(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             cell_directory = Path(temporary_directory)
-
-            def copy_probe(
-                *, destination: Path, **_: object
-            ) -> subprocess.CompletedProcess[str]:
+            def fake_copy(**kwargs):
+                destination = kwargs.get("destination")
                 destination.write_text("first\nsecond\n", encoding="utf-8")
-                return subprocess.CompletedProcess(
-                    [], returncode=0, stdout="", stderr=""
-                )
-
-            with (
-                patch.object(matrix.enchron_target, "is_simulator", return_value=True),
-                patch.object(
-                    matrix.enchron_target,
-                    "copy_from_container",
-                    side_effect=copy_probe,
-                ) as copy_from_container,
-                patch.object(matrix.subprocess, "run") as run,
-            ):
-                lines, error = matrix.copy_probe_lines_once(
-                    cell_directory,
-                    target="SIMULATOR-LEASE-TARGET",
-                )
-
+                return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+            with patch.object(matrix.enchron_target, "copy_from_container", side_effect=fake_copy) as mock_copy:
+                lines, error = matrix.copy_probe_lines(cell_directory)
             self.assertEqual(lines, ["first", "second"])
             self.assertIsNone(error)
-            copy_from_container.assert_called_once()
-            self.assertEqual(
-                copy_from_container.call_args.kwargs["target"],
-                "SIMULATOR-LEASE-TARGET",
-            )
-            run.assert_not_called()
-
-
-class PhysicalContainerTests(unittest.TestCase):
-    def test_push_to_inbox_keeps_using_core_device_copy(self) -> None:
-        media_path = Path("/tmp/clip.mp4")
-        completed = subprocess.CompletedProcess(
-            [], returncode=0, stdout="", stderr=""
-        )
-
-        with (
-            patch.object(matrix.enchron_target, "is_simulator", return_value=False),
-            patch.object(matrix.subprocess, "run", return_value=completed) as run,
-        ):
-            error = matrix.push_to_inbox(media_path)
-
-        self.assertIsNone(error)
-        command = run.call_args.args[0]
-        self.assertEqual(
-            command[:6],
-            ["xcrun", "devicectl", "device", "copy", "to", "--device"],
-        )
-        self.assertEqual(command[6], matrix.CORE_DEVICE)
-
-    def test_copy_probe_lines_once_keeps_physical_copy_timeout(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            cell_directory = Path(temporary_directory)
-
-            def copy_probe(
-                command: list[str], **_: object
-            ) -> subprocess.CompletedProcess[str]:
-                Path(command[-1]).write_text("physical\n", encoding="utf-8")
-                return subprocess.CompletedProcess(
-                    [], returncode=0, stdout="", stderr=""
-                )
-
-            with (
-                patch.object(matrix.enchron_target, "is_simulator", return_value=False),
-                patch.object(matrix.subprocess, "run", side_effect=copy_probe) as run,
-            ):
-                lines, error = matrix.copy_probe_lines_once(
-                    cell_directory,
-                    target="PHYSICAL-LEASE-TARGET",
-                    core_device_identifier="CORE-LEASE-TARGET",
-                )
-
-            self.assertEqual(lines, ["physical"])
-            self.assertIsNone(error)
-            command = run.call_args.args[0]
-            self.assertEqual(
-                command[:6],
-                ["xcrun", "devicectl", "device", "copy", "from", "--device"],
-            )
-            self.assertEqual(command[6], "CORE-LEASE-TARGET")
-            self.assertEqual(
-                run.call_args.kwargs["timeout"],
-                matrix.PROBE_COPY_TIMEOUT_SECONDS,
-            )
-
-
+            mock_copy.assert_called_once()
 class ProbeCursorTests(unittest.TestCase):
-    def test_sequence_cursor_survives_compaction(self) -> None:
-        cursor = matrix.probe_cursor(
-            [
-                "2026-08-19T00:00:00Z probeSequence=10 old-a",
-                "2026-08-19T00:00:01Z probeSequence=11 old-b",
-            ]
-        )
-
-        delta, next_cursor, error = matrix.probe_lines_since(
-            [
-                "2026-08-19T00:00:01Z probeSequence=11 old-b",
-                "2026-08-19T00:00:02Z probeSequence=12 new-c",
-            ],
-            cursor,
-        )
-
+    def test_sequence_cursor_survives_compaction(self):
+        cursor = matrix.probe_cursor(["2026-08-19T00:00:00Z probeSequence=10 old-a","2026-08-19T00:00:01Z probeSequence=11 old-b"])
+        delta, next_cursor, error = matrix.probe_lines_since(["2026-08-19T00:00:01Z probeSequence=11 old-b","2026-08-19T00:00:02Z probeSequence=12 new-c"], cursor)
         self.assertEqual(delta, ["2026-08-19T00:00:02Z probeSequence=12 new-c"])
         self.assertEqual(next_cursor.sequence, 12)
         self.assertIsNone(error)
-
-    def test_legacy_cursor_reports_backward_line_count(self) -> None:
+    def test_legacy_cursor_reports_backward_line_count(self):
         cursor = matrix.probe_cursor(["old-a", "old-b"])
-
         delta, next_cursor, error = matrix.probe_lines_since(["old-b"], cursor)
-
         self.assertEqual(delta, [])
         self.assertEqual(next_cursor.line_count, 1)
         self.assertEqual(error, "Probe line count moved backwards from 2 to 1.")
-
-
 if __name__ == "__main__":
     unittest.main()

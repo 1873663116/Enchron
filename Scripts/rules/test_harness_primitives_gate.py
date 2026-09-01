@@ -102,6 +102,45 @@ class HarnessPrimitivesGateTests(unittest.TestCase):
         self.allowlist(["Scripts/verification/other.py"])
         self.assertEqual(checker.failures(), [])
 
+    def test_getattr_on_time_module_fails(self) -> None:
+        self.write("Scripts/verification/evade1.py", "import time\nclock = getattr(time, 'monotonic')\n")
+        found = " ".join(checker.failures())
+        self.assertIn("getattr", found)
+
+    def test_getattr_fetching_sleep_by_name_fails(self) -> None:
+        self.write("Scripts/verification/evade2.py", "import time as _t\npause = getattr(_t, 'sleep')\n")
+        found = " ".join(checker.failures())
+        self.assertIn("sleep", found)
+
+    def test_time_import_alias_fails(self) -> None:
+        self.write("Scripts/verification/evade3.py", "import time as clock\n")
+        found = " ".join(checker.failures())
+        self.assertIn("alias", found)
+
+    def test_from_time_import_sleep_fails(self) -> None:
+        self.write("Scripts/verification/evade4.py", "from time import sleep\n")
+        found = " ".join(checker.failures())
+        self.assertIn("time.sleep", found)
+
+    def test_timeout_key_through_dict_unpacking_fails(self) -> None:
+        self.write("Scripts/verification/evade5.py", "run(**{'timeout': 120})\n")
+        found = " ".join(checker.failures())
+        self.assertIn("timeout", found)
+
+    def test_timeout_keyword_with_spacing_fails(self) -> None:
+        self.write("Scripts/verification/evade6.py", "run(timeout = 5)\n")
+        found = " ".join(checker.failures())
+        self.assertIn("timeout", found)
+
+    def test_unparseable_file_fails(self) -> None:
+        self.write("Scripts/verification/broken.py", "def half(:\n")
+        found = " ".join(checker.failures())
+        self.assertIn("does not parse", found)
+
+    def test_timeout_string_in_failure_kind_passes(self) -> None:
+        self.write("Scripts/verification/kinds.py", "KIND = 'transport-timeout'\n")
+        self.assertEqual(checker.failures(), [])
+
 
 class RepositoryTests(unittest.TestCase):
     def test_real_repository_with_allowlist_has_no_unallowlisted_violations(self) -> None:
