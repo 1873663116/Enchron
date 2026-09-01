@@ -3168,6 +3168,15 @@ class ReachabilityRun:
                 "The named sort parent was hittable; the DEBUG equivalent selected "
                 f"target={target} through the Picker binding and its product onChange probe.",
             )
+            self.delivered_by_debug_menu_selection(
+                presentation,
+                "accessibility:FileBrowsing-FilesScreen-sort-{id}",
+                "accessibility:FileBrowsing-FilesScreen-sort",
+                self.events[-1]["evidence"],
+                "The named sort parent was hittable; the DEBUG equivalent entered the "
+                f"target={target} option itself, which the system Menu leaves without "
+                "an identifier of its own.",
+            )
         if target is not None:
             self.controller("tap", "--label", "Size", "--no-screenshot")
 
