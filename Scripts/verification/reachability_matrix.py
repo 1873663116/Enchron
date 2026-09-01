@@ -84,6 +84,18 @@ HALT_TIMEOUT = 30.0
 SESSION_TIMEOUT = 150.0
 """ensure-session, whose working range tops out at eighty-eight seconds."""
 
+APPEARANCE_TIMEOUT = 8.0
+"""How long a control gets to appear before its absence is the answer.
+
+Measured over forty polling loops: every one of the thirteen that found what it
+was waiting for found it on the first snapshot, and not one needed a second.
+The long waits all name the same few media library cards - ten and eleven
+rounds each - and the same card is found on the first round elsewhere, so what
+they record is an import that did not happen rather than a card that arrived
+late. Waiting longer buys nothing that the first snapshot did not already have,
+and eight seconds is two rounds on either lane.
+"""
+
 PROBE_COPY_TIMEOUT = 120.0
 """Not measured yet. The copies now record how long they took, so a run's worth
 of samples is what will replace this the way the others were replaced."""
@@ -2464,7 +2476,7 @@ class ReachabilityRun:
         return response, probe
 
     def wait_for_identifier(
-        self, identifier: str, *, timeout: float = 40.0
+        self, identifier: str, *, timeout: float = APPEARANCE_TIMEOUT
     ) -> dict[str, Any]:
         deadline = time.monotonic() + timeout
         latest: dict[str, Any] = {}
@@ -2482,7 +2494,7 @@ class ReachabilityRun:
         identifier: str,
         required_facts: tuple[str, ...],
         *,
-        timeout: float = 40.0,
+        timeout: float = APPEARANCE_TIMEOUT,
     ) -> dict[str, Any]:
         deadline = time.monotonic() + timeout
         latest: dict[str, Any] = {}
@@ -2498,7 +2510,7 @@ class ReachabilityRun:
         return latest
 
     def wait_for_any_identifier(
-        self, identifiers: tuple[str, ...], *, timeout: float = 40.0
+        self, identifiers: tuple[str, ...], *, timeout: float = APPEARANCE_TIMEOUT
     ) -> tuple[str | None, dict[str, Any]]:
         deadline = time.monotonic() + timeout
         latest: dict[str, Any] = {}
@@ -2930,7 +2942,7 @@ class ReachabilityRun:
             return
         if not isinstance(
             self.wait_for_identifier(
-                f"FileBrowsing-SourceConnection-{source}-address", timeout=10
+                f"FileBrowsing-SourceConnection-{source}-address", timeout=8
             ).get("matchedElement"),
             dict,
         ):
@@ -3129,7 +3141,7 @@ class ReachabilityRun:
             if shown.get("success") is not True:
                 return
             identifier = f"FileBrowsing-error-{action}"
-            visible = self.wait_for_identifier(identifier, timeout=10)
+            visible = self.wait_for_identifier(identifier, timeout=8)
             if not isinstance(visible.get("matchedElement"), dict):
                 return
             tapped = self.tap(presentation, identifier)
@@ -3929,7 +3941,7 @@ class ReachabilityRun:
         ):
             return
         visible = self.wait_for_identifier(
-            "FileBrowsing-Breadcrumb-current", timeout=10
+            "FileBrowsing-Breadcrumb-current", timeout=8
         )
         if not isinstance(visible.get("matchedElement"), dict):
             return
@@ -4328,7 +4340,7 @@ class ReachabilityRun:
                     "product delivery is judged separately."
                 ),
             )
-        connection = self.wait_for_identifier("Emby-Connection-Address", timeout=20)
+        connection = self.wait_for_identifier("Emby-Connection-Address", timeout=8)
         probe = self.copy_probe("emby-signout")
         if (
             signed_out.get("success") is True
@@ -4379,7 +4391,7 @@ class ReachabilityRun:
         self.controller(
             "tap", "--label", "以后", "--no-screenshot", timeout=INTERACTION_TIMEOUT
         )
-        authenticated = self.wait_for_identifier("Emby-SignOut", timeout=35)
+        authenticated = self.wait_for_identifier("Emby-SignOut", timeout=8)
         probe = self.copy_probe("emby-reconnected")
         reconnected_identity = self.controller(
             "app-command",
@@ -4435,7 +4447,7 @@ class ReachabilityRun:
             opened = self.tap(
                 presentation, identifier, operation_id=operation_id
             )
-            detail = self.wait_for_identifier("Emby-Detail-list", timeout=20)
+            detail = self.wait_for_identifier("Emby-Detail-list", timeout=8)
             probe = self.copy_probe(f"round11-{prefix}-opened")
             needle = (
                 "reachability emby delivered action=posterCard.select."
@@ -4505,7 +4517,7 @@ class ReachabilityRun:
                 ),
             )
             control = self.wait_for_identifier(
-                "PlayerUI-window-control-plane", timeout=30
+                "PlayerUI-window-control-plane", timeout=8
             )
             probe = self.copy_probe("round11-emby-play")
             if (
@@ -4556,7 +4568,7 @@ class ReachabilityRun:
                 operation_id="accessibility:Emby-Episode-{metadata.id.rawValue}",
             )
             control = self.wait_for_identifier(
-                "PlayerUI-window-control-plane", timeout=30
+                "PlayerUI-window-control-plane", timeout=8
             )
             probe = self.copy_probe("round11-emby-episode")
             if (
@@ -4578,7 +4590,7 @@ class ReachabilityRun:
         self.relaunch()
         self.tap(presentation, "Emby-Navigation-Tab")
         self.controller("tap", "--label", "Search", "--no-screenshot")
-        search = self.wait_for_identifier("Emby-Search-Field", timeout=15)
+        search = self.wait_for_identifier("Emby-Search-Field", timeout=8)
         if isinstance(search.get("matchedElement"), dict):
             before = self.copy_probe("round11-emby-search-before")
             offset = len(before)
@@ -4613,7 +4625,7 @@ class ReachabilityRun:
                 "tap", "--identifier", library_identifier,
                 "--index", "2", "--no-screenshot", timeout=INTERACTION_TIMEOUT,
             )
-            sort = self.wait_for_identifier("Emby-Library-Sort", timeout=20)
+            sort = self.wait_for_identifier("Emby-Library-Sort", timeout=8)
             matched = sort.get("matchedElement")
             self.mark_driven(presentation, "accessibility:Emby-Library-Sort")
             if isinstance(matched, dict):
@@ -4650,7 +4662,7 @@ class ReachabilityRun:
         if not self.ensure_window_projection("180°"):
             return
         portal = self.wait_for_identifier(
-            "PlayerUI-window-control-plane", timeout=45
+            "PlayerUI-window-control-plane", timeout=8
         )
         value = str((portal.get("matchedElement") or {}).get("value", ""))
         if "presentation=portal" not in value:
@@ -4701,7 +4713,7 @@ class ReachabilityRun:
                 self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
 
         self.controller("activate", "--no-screenshot")
-        card = self.wait_for_identifier(identifier, timeout=20)
+        card = self.wait_for_identifier(identifier, timeout=8)
         if not isinstance(card.get("matchedElement"), dict):
             return {
                 "success": False,
@@ -4780,7 +4792,7 @@ class ReachabilityRun:
                 return False
             offset = len(before)
             visible = self.wait_for_identifier(
-                f"{identifier_prefix}-cancel", timeout=10
+                f"{identifier_prefix}-cancel", timeout=8
             )
             probe = self.copy_probe(f"{identifier_prefix}-opened")
             delivered = opened.get("success") is True and isinstance(
@@ -4977,7 +4989,7 @@ class ReachabilityRun:
         )
         if conversion.get("success") is not True:
             return False
-        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=30)
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=8)
         value = str((settled.get("matchedElement") or {}).get("value", ""))
         delivered = expected in value and "transition=none" in value
         if delivered:
@@ -4999,7 +5011,7 @@ class ReachabilityRun:
         if not self.ensure_window_projection("Flat"):
             return
         controls = self.show_controls()
-        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=8)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
                 presentation, "command:toggleControls", self.events[-1]["evidence"],
@@ -5063,7 +5075,7 @@ class ReachabilityRun:
         )
         offset = len(before)
         fallback = self.wait_for_identifier(
-            "PlayerUI-VideoFormat-HDRFallback", timeout=10
+            "PlayerUI-VideoFormat-HDRFallback", timeout=8
         )
         probe = self.copy_probe("window-hdr-opened")
         if (
@@ -5128,7 +5140,7 @@ class ReachabilityRun:
             MAIN_WINDOW_BROWSER_CONTEXT,
             "Navigation-Ornament-tab-environment",
         )
-        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=20)
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=8)
         identifiers = self.hierarchy_identifiers(volume)
         environment_identifier = next(
             (
@@ -5210,7 +5222,7 @@ class ReachabilityRun:
         if not self.ensure_window_projection("Flat"):
             return
         controls = self.show_controls()
-        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=8)
         if controls.get("success") is True and isinstance(
             visible.get("matchedElement"), dict
         ):
@@ -5418,7 +5430,7 @@ class ReachabilityRun:
         if isinstance(active.get("matchedElement"), dict):
             if not self.stop_playback(playback_context):
                 return
-            self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
+            self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=8)
 
         self.tap(presentation, "Navigation-Ornament-tab-settings")
         settings = self.controller("snapshot", "--no-screenshot")
@@ -5469,7 +5481,7 @@ class ReachabilityRun:
             return
         if not isinstance(
             self.wait_for_identifier(
-                "PlayerUI-window-control-plane", timeout=20
+                "PlayerUI-window-control-plane", timeout=8
             ).get("matchedElement"),
             dict,
         ):
@@ -5484,7 +5496,7 @@ class ReachabilityRun:
             return
         if not self.stop_playback(playback_context):
             return
-        self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
+        self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=8)
 
         for identifier, fact in (
             ("PlayerUI-resumeDecision-primary", "resume"),
@@ -5496,7 +5508,7 @@ class ReachabilityRun:
             )
             if opened.get("success") is not True:
                 return
-            decision = self.wait_for_identifier(identifier, timeout=15)
+            decision = self.wait_for_identifier(identifier, timeout=8)
             if not isinstance(decision.get("matchedElement"), dict):
                 return
             before = self.copy_probe(f"resume-{fact}-before")
@@ -5516,10 +5528,10 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The visible resume decision ran its product-owned playback choice and appended an action probe.",
                 )
-            self.wait_for_identifier("PlayerUI-window-control-plane", timeout=15)
+            self.wait_for_identifier("PlayerUI-window-control-plane", timeout=8)
             if not self.stop_playback(playback_context):
                 return
-            self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=15)
+            self.wait_for_identifier("FileBrowsing-FilesScreen-list", timeout=8)
 
     def playback_failure_scenario(self) -> None:
         presentation = "window"
@@ -5600,7 +5612,7 @@ class ReachabilityRun:
                 )
         else:
             self.show_controls()
-            observed = self.wait_for_identifier("PlayerPanel-menu-more", timeout=10)
+            observed = self.wait_for_identifier("PlayerPanel-menu-more", timeout=8)
             matched = observed.get("matchedElement")
             if isinstance(matched, dict):
                 self.mark_observation(
@@ -5737,7 +5749,7 @@ class ReachabilityRun:
         )
         if entered.get("success") is not True:
             return False
-        spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
+        spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=8)
         if not isinstance(spatial.get("matchedElement"), dict):
             return False
         probe = self.copy_probe("panorama-transition-settled")
@@ -5759,7 +5771,7 @@ class ReachabilityRun:
         if not self.enter_panorama_playback():
             return False
         controls = self.show_controls()
-        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=8)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
                 presentation, "command:toggleControls", self.events[-1]["evidence"],
@@ -5786,7 +5798,7 @@ class ReachabilityRun:
             return
         if not self.ensure_window_projection("180°"):
             return
-        portal = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        portal = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=8)
         value = str((portal.get("matchedElement") or {}).get("value", ""))
         if "presentation=portal" not in value:
             return
@@ -5803,7 +5815,7 @@ class ReachabilityRun:
                 has_accessibility_target=False,
             )
         controls = self.show_controls()
-        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=8)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
                 presentation, "command:toggleControls", self.events[-1]["evidence"],
@@ -5822,7 +5834,7 @@ class ReachabilityRun:
         if not self.ensure_window_projection("180°"):
             return False
         control_plane = self.wait_for_identifier(
-            "PlayerUI-window-control-plane", timeout=45
+            "PlayerUI-window-control-plane", timeout=8
         )
         value = str((control_plane.get("matchedElement") or {}).get("value", ""))
         return "presentation=portal" in value and "transition=none" in value
@@ -5914,7 +5926,7 @@ class ReachabilityRun:
             str(int(INTERACTION_TIMEOUT)),
             timeout=INTERACTION_TIMEOUT,
         )
-        spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
+        spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=8)
         value = str((spatial.get("matchedElement") or {}).get("value", ""))
         probe = self.copy_probe(f"docked-{dock_choice}-settled")
         settled = all(
@@ -5991,7 +6003,7 @@ class ReachabilityRun:
         offset = len(before)
         opened = self.app_command("openEnvironmentCard")
         self.controller("activate", "--no-screenshot")
-        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=25)
+        volume = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=8)
         identifiers = self.hierarchy_identifiers(volume)
         effect_identifier = next(
             (value for value in sorted(identifiers)
@@ -6069,7 +6081,7 @@ class ReachabilityRun:
                 )
 
         dismissed = self.app_command("dismissEnvironmentCard")
-        closed = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=10)
+        closed = self.wait_for_identifier("SenseZone-VolumeRoot", timeout=8)
         if (
             effect_delivered
             and dismissed.get("success") is True
@@ -6089,7 +6101,7 @@ class ReachabilityRun:
         offset = len(before)
         opened = self.tap(presentation, "PlayerPanel-media-information")
         close = self.wait_for_identifier(
-            "PlayerPanel-media-information-close", timeout=10
+            "PlayerPanel-media-information-close", timeout=8
         )
         if opened.get("success") is not True or not isinstance(
             close.get("matchedElement"), dict
@@ -6141,7 +6153,7 @@ class ReachabilityRun:
         before = self.copy_probe(f"{presentation}-{identifier}-before")
         offset = len(before)
         shown = self.app_command("showPlaybackIssue", category=category)
-        visible = self.wait_for_identifier(identifier, timeout=10)
+        visible = self.wait_for_identifier(identifier, timeout=8)
         tapped = self.tap(presentation, identifier)
         probe = self.wait_for_probe(
             f"{presentation}-{identifier}",
@@ -6227,7 +6239,7 @@ class ReachabilityRun:
         ):
             return
         visible = self.wait_for_identifier(
-            "PlayerPanel-button-exit-spatial", timeout=15
+            "PlayerPanel-button-exit-spatial", timeout=8
         )
         matched = visible.get("matchedElement")
         self.mark_driven(presentation, operation_id)
@@ -6308,7 +6320,7 @@ class ReachabilityRun:
         before = self.copy_probe("docked-exit-before")
         offset = len(before)
         exited = self.tap(presentation, "PlayerPanel-button-exit-spatial")
-        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=8)
         value = str((settled.get("matchedElement") or {}).get("value", ""))
         probe = self.copy_probe("docked-exit-settled")
         if (
@@ -6378,7 +6390,7 @@ class ReachabilityRun:
                     "The DEBUG verb reached the same setter used by the placement slider.",
                 )
         controls = self.show_controls()
-        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=8)
         if controls.get("success") is True and isinstance(
             visible.get("matchedElement"), dict
         ):
@@ -6482,7 +6494,7 @@ class ReachabilityRun:
         before = self.copy_probe("panorama-exit-before")
         offset = len(before)
         exited = self.tap(presentation, "PlayerPanel-button-exit-spatial")
-        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=8)
         value = str((settled.get("matchedElement") or {}).get("value", ""))
         probe = self.copy_probe("panorama-exit-settled")
         if (
@@ -6556,7 +6568,7 @@ class ReachabilityRun:
                     "The DEBUG verb reached the same setter used by the placement slider.",
                 )
         controls = self.show_controls()
-        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
+        visible = self.wait_for_identifier("PlayerPanel-controls", timeout=8)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
                 presentation, "command:toggleControls", self.events[-1]["evidence"],

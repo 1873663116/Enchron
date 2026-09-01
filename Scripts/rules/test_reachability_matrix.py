@@ -506,7 +506,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             ],
         )
         run.wait_for_identifier.assert_called_once_with(
-            "PlayerPanel-button-exit-spatial", timeout=15
+            "PlayerPanel-button-exit-spatial", timeout=matrix.APPEARANCE_TIMEOUT
         )
         self.assertTrue(
             any(
