@@ -79,27 +79,30 @@ RELAUNCH_TIMEOUT = 30.0
 """relaunch, whose simulator p95 of 19.0s is the widest of the fast verbs."""
 
 HALT_TIMEOUT = 60.0
-"""halt, once it stopped waiting three minutes for a bundle nobody reads.
+"""Not measured under the current code. Loose on purpose until it is.
 
-Its long tail was that wait: three simulator halts at a hundred and eighty-two
-seconds are the old deadline plus the kill after it. What remains is the
-graceful stop's own thirty seconds plus the signalling, so sixty covers it with
-room. Setting this to thirty before the wait was removed refused halts that
-would have completed."""
+Every halt sample in controller_timings.json was taken while halt still waited
+three minutes for a result bundle, so its median of seven seconds and its
+hundred and eighty-two second tail describe code that no longer exists. What
+remains is a thirty second graceful stop, two seconds for an ordinary exit and
+five for the signalling. Sixty is above that sum and below nothing in
+particular; a run's worth of samples is what should replace it."""
 
 SESSION_TIMEOUT = 300.0
-"""ensure-session, which halts, launches a runner and waits for it to answer.
+"""Not measured under the current code either, and its old samples are worse.
 
-Twenty samples on each lane run from twenty-three to ninety-nine seconds, with
-four simulator outliers between two hundred and thirty-eight and two hundred and
-sixty-three and one headset outlier at two hundred and sixty-eight. Cutting at a
-hundred and fifty landed in the gap between the two groups: it looked safe and
-refused every run in the upper group, which killed two lanes and four segments
-before the mistake was visible. This covers every sample observed.
+ensure-session halts, launches the runner and waits for it to answer, so every
+one of its twenty-three to ninety-nine second samples contains a halt that was
+carrying the three minute wait. The parts that can be read off a runner log are
+small: xcodebuild reaches "Running tests" about four seconds after launch, the
+app opens at t=0.33s and the automation session is set up by t=5.70s - twelve
+seconds from nothing to a session that answers.
 
-The outliers are not understood yet. They are worth understanding rather than
-waiting out, and until they are, refusing a run that would have succeeded is the
-worse of the two errors."""
+Three hundred covers every sample ever observed, which is the safe direction to
+be wrong in while the number is unknown. Cutting to a hundred and fifty on the
+old data landed in the gap between the working range and the outliers: safe by
+inspection, and it refused the entire upper group, killing two lanes and four
+segments."""
 
 APPEARANCE_TIMEOUT = 8.0
 """How long a control gets to appear before its absence is the answer.
