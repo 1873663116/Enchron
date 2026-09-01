@@ -125,6 +125,27 @@ class CurrentRepositoryFiles(unittest.TestCase):
         errors, _ = checker.unresolved_references()
         self.assertEqual(errors, ["docs/untracked.md: docs/missing.md does not exist"])
 
+    def test_missing_gitignored_reference_is_provisioned_not_stale(self) -> None:
+        self.write(".gitignore", "*.local.json\n")
+        self.track(".gitignore")
+        self.write("docs/setup.md", "Read `docs/Credentials.local.json` first.\n")
+        self.track("docs/setup.md")
+
+        errors, _ = checker.unresolved_references()
+        self.assertEqual(errors, [])
+
+    def test_missing_tracked_style_reference_still_fails_beside_ignored_one(self) -> None:
+        self.write(".gitignore", "*.local.json\n")
+        self.track(".gitignore")
+        self.write(
+            "docs/setup.md",
+            "Read `docs/Credentials.local.json` then `docs/absent.md`.\n",
+        )
+        self.track("docs/setup.md")
+
+        errors, _ = checker.unresolved_references()
+        self.assertEqual(errors, ["docs/setup.md: docs/absent.md does not exist"])
+
     def test_sibling_file_link_resolves_from_containing_document(self) -> None:
         document = self.write("docs/journeys/index.md", "[J13](J13.md)\n")
         self.write("docs/journeys/J13.md", "# J13\n")

@@ -180,6 +180,14 @@ def retired_replacement(candidate: str, retired: dict[str, str]) -> str | None:
     return None
 
 
+def is_gitignored(candidate: str) -> bool:
+    completed = subprocess.run(
+        ["git", "-C", str(REPOSITORY_ROOT), "check-ignore", "--quiet", "--", candidate],
+        capture_output=True,
+    )
+    return completed.returncode == 0
+
+
 def unresolved_references() -> tuple[list[str], list[str]]:
     errors: list[str] = []
     notes: list[str] = []
@@ -198,6 +206,11 @@ def unresolved_references() -> tuple[list[str], list[str]]:
             # .scratch holds what a check regenerates, so an absent path there
             # means nobody has run the generator yet, not that the doc is stale.
             if candidate == ".scratch" or candidate.startswith(".scratch/"):
+                continue
+            # A gitignored path is provisioned per machine (credentials, local
+            # runtime state); its absence means this clone is unprovisioned,
+            # not that the doc names something that no longer exists.
+            if is_gitignored(candidate):
                 continue
             replacement = retired_replacement(candidate, retired)
             if replacement is None:
