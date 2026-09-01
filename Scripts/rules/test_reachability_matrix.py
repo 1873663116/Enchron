@@ -1437,7 +1437,6 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             ])
 
             run.controller("tap", "--identifier", "x")
-            run.controller("tap", "--identifier", "x")
             refused = run.controller("tap", "--identifier", "x")
 
         self.assertTrue(run.halted)
@@ -1446,7 +1445,10 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         halt = run.channel_failures[0]["halt"]
         self.assertIn("twice in a row", halt["reason"])
         self.assertEqual(halt["faultReport"]["instrumentFaults"], 2)
-        self.assertEqual(len(run.events), 3)
+        self.assertEqual(
+            [event["action"] for event in run.events],
+            ["retryAfterInstrumentFault", "tap", "tap"],
+        )
 
     def test_a_runner_that_stopped_answering_ends_the_run(self) -> None:
         with TemporaryDirectory() as directory:
@@ -1455,7 +1457,6 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 self._silence(), self._silence(),
             ])
 
-            run.controller("tap", "--identifier", "x")
             run.controller("tap", "--identifier", "x")
 
         self.assertTrue(run.halted)
@@ -1471,13 +1472,14 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 self._silence(),
                 {"success": True},
                 self._silence(),
+                {"success": True},
             ])
 
-            for _ in range(5):
+            for _ in range(3):
                 run.controller("tap", "--identifier", "x")
 
         self.assertFalse(run.halted)
-        self.assertEqual(len(run.history), 1)
+        self.assertEqual(run.history, [])
         self.assertEqual(run.policy.fault_count, 3)
 
     def test_a_recovery_that_goes_unanswered_is_not_a_second_fault(self) -> None:
@@ -1485,19 +1487,17 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             run = self._timing_out_run(Path(directory))
             run.client = self._scripted_client([
                 self._silence(),
-                matrix.InstrumentFault(
-                    "response-timeout",
-                    {"diagnosis": "The runner did not answer relaunch."},
-                ),
+                {"success": True},
+                self._silence(),
+                {"success": True},
             ])
 
             run.controller("tap", "--identifier", "x")
             run.controller("relaunch", "--no-screenshot")
 
         self.assertFalse(run.halted)
-        self.assertEqual(
-            [record.location for record in run.history], ["tap", "relaunch"]
-        )
+        self.assertEqual(run.history, [])
+        self.assertEqual(run.policy.fault_count, 2)
 
     def test_a_product_refusal_does_not_end_the_run(self) -> None:
         refused = {
@@ -1528,10 +1528,10 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 {"success": True},
             ])
 
-            run.controller("tap", "--identifier", "x")
-            run.controller("tap", "--identifier", "y")
+            document = run.controller("tap", "--identifier", "x")
 
         self.assertFalse(run.halted)
+        self.assertTrue(document["success"])
         self.assertEqual(run.history, [])
 
     def test_observe_ignores_an_operation_this_context_cannot_prove(self) -> None:

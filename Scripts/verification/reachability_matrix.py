@@ -1163,7 +1163,8 @@ class ReachabilityRun:
         fault: InstrumentFault,
         *,
         evidence: str | None = None,
-    ) -> None:
+        continuity: bool = True,
+    ) -> object:
         self.history.append(FaultRecord(
             location=location,
             kind=fault.kind,
@@ -1185,8 +1186,9 @@ class ReachabilityRun:
             }
             self.halted = True
             self.channel_failures.append(entry)
-        elif self.segment is not None:
+        elif continuity and self.segment is not None:
             self.channel_failures.append(entry)
+        return decision
 
     def local_call(self, verb: str, action: Any) -> Any:
         self.policy.record_action()
@@ -1351,20 +1353,40 @@ class ReachabilityRun:
         self.policy.record_action()
         started = datetime.now(timezone.utc)
         fault: InstrumentFault | None = None
-        try:
-            response = self.client.invoke(action, list(extra))
-            document = dict(response.document)
-        except InstrumentFault as caught:
-            fault = caught
-            document = {
-                "success": False,
-                "error": str(caught),
-                "failure": {
-                    "class": "instrument",
-                    "kind": caught.kind,
-                    "evidence": caught.evidence,
-                },
-            }
+        document: dict[str, Any] = {}
+        for attempt in range(2):
+            try:
+                response = self.client.invoke(action, list(extra))
+                document = dict(response.document)
+                fault = None
+                break
+            except InstrumentFault as caught:
+                fault = caught
+                document = {
+                    "success": False,
+                    "error": str(caught),
+                    "failure": {
+                        "class": "instrument",
+                        "kind": caught.kind,
+                        "evidence": caught.evidence,
+                    },
+                }
+                if attempt == 0:
+                    decision = self.record_instrument_fault(action, caught, continuity=False)
+                    if isinstance(decision, Halt):
+                        break
+                    self.events.append({
+                        "at": utc_now(),
+                        "action": "retryAfterInstrumentFault",
+                        "arguments": [action],
+                        "success": True,
+                        "detail": (
+                            f"{action} raised {caught.kind}; the recovery policy "
+                            "chose one retry before the fault counts against "
+                            "channel continuity."
+                        ),
+                    })
+                    self.policy.record_action()
         document = redact_sensitive_values(
             document, getattr(self, "sensitive_values", ())
         )
@@ -1390,7 +1412,7 @@ class ReachabilityRun:
         self.last_controller_document = document
         if fault is None:
             self.history.clear()
-        else:
+        elif not self.halted:
             self.record_instrument_fault(action, fault, evidence=f"raw/{name}")
         return document
 
