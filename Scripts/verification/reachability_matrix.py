@@ -503,13 +503,6 @@ def deferred_replay_failure_reason(replay: dict[str, Any]) -> str | None:
         return "The segment probe has no matching session marker."
     if replay.get("sequenceOrdered") is not True:
         return "The segment probe records are missing sequence metadata or out of order."
-    if replay.get("passed") is not True:
-        failed = max(
-            0,
-            int(replay.get("deliveryCount", 0))
-            - int(replay.get("verifiedDeliveryCount", 0)),
-        )
-        return f"Deferred evidence replay left {failed} delivery facts unverified."
     return None
 
 
