@@ -4598,12 +4598,23 @@ class ReachabilityRun:
             return "sdr-bframe-multiaudio-subtitles-30s.mkv"
         return "furyroad-stripped.mkv"
 
+    def lane_video_file(self, file_name: str) -> str:
+        if (
+            getattr(self, "lane", "device") == "simulator"
+            and file_name.startswith("furyroad")
+        ):
+            return "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        return file_name
+
     def primary_video_identifier(self) -> str:
         return "MediaLibrary-grid-video-" + self.primary_video_file()
 
     def open_media(self, identifier: str) -> dict[str, Any]:
-        if identifier == "MediaLibrary-grid-video-furyroad-stripped.mkv":
-            identifier = self.primary_video_identifier()
+        prefix = "MediaLibrary-grid-video-"
+        if identifier.startswith(prefix):
+            identifier = prefix + self.lane_video_file(
+                identifier.removeprefix(prefix)
+            )
         self.relaunch()
         self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
         before = self.copy_probe("open-media-before")
@@ -4679,6 +4690,7 @@ class ReachabilityRun:
     def open_local_media(self, file_name: str | None = None) -> dict[str, Any]:
         if file_name is None:
             file_name = self.primary_video_file()
+        file_name = self.lane_video_file(file_name)
         return self.open_media(f"MediaLibrary-grid-video-{file_name}")
 
     def video_format_editor_scenario(
@@ -5753,7 +5765,7 @@ class ReachabilityRun:
         return "presentation=portal" in value and "transition=none" in value
 
     def portal_dv_scenario(self) -> None:
-        if not self.enter_portal_playback("furyroad-with-dv.mkv"):
+        if not self.enter_portal_playback(self.lane_video_file("furyroad-with-dv.mkv")):
             return
         self.video_format_editor_scenario(
             "portal",
@@ -6712,7 +6724,10 @@ class ReachabilityRun:
                 else "furyroad-stripped.mkv"
             )
         for scenario in planned_scenarios:
-            fixture_files.update(SCENARIO_FIXTURES.get(scenario, ()))
+            fixture_files.update(
+                self.lane_video_file(name)
+                for name in SCENARIO_FIXTURES.get(scenario, ())
+            )
         for fixture_file in sorted(fixture_files):
             if self.stage_fixture(fixture_file):
                 continue
