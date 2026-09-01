@@ -462,6 +462,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             }
         }
         run.events = [{"evidence": "raw/indexed-tap.json"}]
+        run.silent_taps = []
         run.controller = Mock(return_value={"success": False})
 
         run.tap(
@@ -482,6 +483,92 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "90",
             timeout=120,
         )
+
+    def test_a_target_xctest_cannot_find_is_named_not_counted(self) -> None:
+        """A tap that matched nothing has to leave the identifier behind.
+
+        Neither branch of mark_observation fires without a matched element, so
+        the cell keeps the first-run reason and the only trace is
+        summary["unmeasured"] going up by one. Nine taps failed that way in one
+        segment and the evidence files record the answer, never the request.
+        """
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.operations = {}
+        run.driven_cells = set()
+        run.tapped_cells = set()
+        run.cells = {}
+        run.events = [{"evidence": "raw/107-tap.json"}]
+        run.silent_taps = []
+        run.controller = Mock(return_value={
+            "success": False,
+            "message": "No current element matches the requested identifier and index.",
+        })
+
+        run.tap("main-window-browser", "MediaLibrary-grid-folder-Reachability Round 2")
+
+        self.assertEqual(len(run.silent_taps), 1)
+        silent = run.silent_taps[0]
+        self.assertEqual(silent["why"], "absent")
+        self.assertEqual(
+            silent["identifier"], "MediaLibrary-grid-folder-Reachability Round 2"
+        )
+        self.assertEqual(silent["evidence"], "raw/107-tap.json")
+        self.assertIn("No current element matches", silent["message"])
+
+    def test_a_tap_on_a_disabled_control_is_named_not_read_as_hittable(self) -> None:
+        """A disabled button answers "Element tapped." and runs no action.
+
+        XCTest reports isHittable true for it, so mark_observation records a
+        hittable control that never delivered - indistinguishable from a button
+        whose handler is broken. isEnabled is already in the response and was
+        being dropped.
+        """
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.operations = {}
+        run.driven_cells = set()
+        run.tapped_cells = set()
+        run.cells = {}
+        run.events = [{"evidence": "raw/108-tap.json"}]
+        run.silent_taps = []
+        run.controller = Mock(return_value={
+            "success": True,
+            "message": "Element tapped.",
+            "matchedElement": {
+                "identifier": "FileBrowsing-FilesScreen-navBackForward-back",
+                "isHittable": True,
+                "isEnabled": False,
+            },
+        })
+
+        run.tap("main-window-browser", "FileBrowsing-FilesScreen-navBackForward-back")
+
+        self.assertEqual(len(run.silent_taps), 1)
+        self.assertEqual(run.silent_taps[0]["why"], "disabled")
+        self.assertEqual(
+            run.silent_taps[0]["identifier"],
+            "FileBrowsing-FilesScreen-navBackForward-back",
+        )
+
+    def test_a_tap_that_reached_an_enabled_control_is_not_recorded_as_silent(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.operations = {}
+        run.driven_cells = set()
+        run.tapped_cells = set()
+        run.cells = {}
+        run.events = [{"evidence": "raw/064-tap.json"}]
+        run.silent_taps = []
+        run.controller = Mock(return_value={
+            "success": True,
+            "matchedElement": {
+                "identifier": "x",
+                "isHittable": True,
+                "isEnabled": True,
+            },
+        })
+
+        run.tap("main-window-browser", "x")
+
+        self.assertEqual(run.silent_taps, [])
 
     def test_probe_precedes_control_reveal_and_immediate_tap(self) -> None:
         actions: list[str] = []
@@ -1783,6 +1870,58 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         )
 
 
+class MissingProbeJournalTests(unittest.TestCase):
+    """A journal that was never read is not evidence of anything.
+
+    Two of three segments in one run lost every deferred delivery this way:
+    probeStatus went unanswered, so byteLimit was null, so the retrieval was
+    skipped without a word, and the replay ran against an empty journal and
+    reported 81 and 53 delivery facts as unverified. Read from the results that
+    is indistinguishable from the product refusing all of them.
+    """
+
+    def test_a_journal_that_was_never_retrieved_says_so(self) -> None:
+        reason = matrix.deferred_replay_failure_reason({
+            "journalRetrieved": False,
+            "sessionAligned": False,
+            "sequenceOrdered": False,
+            "passed": False,
+            "deliveryCount": 81,
+            "verifiedDeliveryCount": 0,
+        })
+
+        self.assertIsNotNone(reason)
+        self.assertIn("never retrieved", reason)
+        self.assertNotIn("session marker", reason)
+
+    def test_a_journal_that_was_read_still_reports_the_missing_marker(self) -> None:
+        reason = matrix.deferred_replay_failure_reason({
+            "journalRetrieved": True,
+            "sessionAligned": False,
+            "sequenceOrdered": True,
+            "passed": False,
+            "deliveryCount": 4,
+            "verifiedDeliveryCount": 0,
+        })
+
+        self.assertEqual(reason, "The segment probe has no matching session marker.")
+
+    def test_the_replay_records_whether_it_had_a_journal(self) -> None:
+        replay = matrix.replay_deferred_evidence(
+            cells={},
+            deliveries=[],
+            probe_lines=[],
+            responses={},
+            session_id="A68360F6-0B5E-441B-A5E7-5AA007D2D4FA",
+            started_at="2026-09-01T01:00:00+00:00",
+            ended_at="2026-09-01T02:00:00+00:00",
+            evidence="raw/segment-after-surface-probe.log",
+            journal_retrieved=False,
+        )
+
+        self.assertIs(replay["journalRetrieved"], False)
+
+
 class PartialBaselineAcceptanceTests(unittest.TestCase):
     def test_unselected_contexts_keep_their_accepted_verdicts(self) -> None:
         baseline = [
@@ -2277,6 +2416,7 @@ class CompletionHonestyTests(unittest.TestCase):
         run.output = Path(self.enterDirectory())
         run.arguments = Mock(contexts=list(matrix.PROOF_CONTEXTS))
         run.events = []
+        run.silent_taps = []
         run.cells = {
             ("main-window-browser", "accessibility:measured"): {
                 "context": "main-window-browser",

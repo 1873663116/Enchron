@@ -448,6 +448,7 @@ def replay_deferred_evidence(
     started_at: str,
     ended_at: str,
     evidence: str,
+    journal_retrieved: bool = True,
 ) -> dict[str, Any]:
     start = datetime.fromisoformat(
         started_at.replace("Z", "+00:00")
@@ -470,6 +471,9 @@ def replay_deferred_evidence(
     )
     session_marker = f"reachability evidence session={session_id}"
     session_aligned = any(session_marker in detail for _, detail in records)
+    # Told apart because they read the same in the result and mean opposite
+    # things: no marker in a journal that was read is evidence about the run,
+    # while a journal that was never read is evidence about nothing at all.
     failures: list[dict[str, Any]] = []
 
     for delivery in deliveries:
@@ -533,6 +537,7 @@ def replay_deferred_evidence(
 
     return {
         "passed": session_aligned and sequence_ordered and not failures,
+        "journalRetrieved": journal_retrieved,
         "sessionAligned": session_aligned,
         "sequenceOrdered": sequence_ordered,
         "deliveryCount": len(deliveries),
@@ -542,6 +547,11 @@ def replay_deferred_evidence(
 
 
 def deferred_replay_failure_reason(replay: dict[str, Any]) -> str | None:
+    if replay.get("journalRetrieved") is False:
+        return (
+            "The segment probe journal was never retrieved, so no delivery could "
+            "be verified. The failures below are missing evidence, not refusals."
+        )
     if replay.get("sessionAligned") is not True:
         return "The segment probe has no matching session marker."
     if replay.get("sequenceOrdered") is not True:
@@ -1097,6 +1107,7 @@ class ReachabilityRun:
         self.events: list[dict[str, Any]] = []
         self.driven_cells: set[tuple[str, str]] = set()
         self.tapped_cells: set[tuple[str, str]] = set()
+        self.silent_taps: list[dict[str, Any]] = []
         self.session_id: str | None = None
         self.channel_health: dict[str, dict[str, Any]] = {}
         self.channel_failures: list[dict[str, Any]] = []
@@ -2112,6 +2123,41 @@ class ReachabilityRun:
                 )
         return document
 
+    def record_silent_tap(
+        self,
+        presentation: str,
+        operation_id: str,
+        identifier: str,
+        document: dict[str, Any],
+        why: str,
+    ) -> None:
+        """Name a tap that reached no handler, instead of counting it.
+
+        Two shapes reach no handler and neither leaves a trace today.
+
+        XCTest can find nothing, and answers "No current element matches the
+        requested identifier and index." Neither branch of mark_observation
+        fires without a matched element, so the cell keeps the first-run reason
+        and the failure becomes one more in summary["unmeasured"].
+
+        XCTest can also find a disabled control. It reports isHittable true,
+        answers "Element tapped.", and SwiftUI runs no action. mark_observation
+        reads isHittable and drops isEnabled, so the cell records a hittable
+        control that never delivered - the same evidence a broken button leaves.
+        The Media Library back and forward buttons did exactly this: the folder
+        the scenario meant to open was absent, so canGoBack stayed false, and
+        the two taps that followed landed on disabled buttons three steps away
+        from the cause.
+        """
+        self.silent_taps.append({
+            "context": presentation,
+            "operation": operation_id,
+            "identifier": identifier,
+            "why": why,
+            "message": str(document.get("message") or document.get("error") or ""),
+            "evidence": self.events[-1]["evidence"] if self.events else None,
+        })
+
     def tap(
         self,
         presentation: str,
@@ -2131,14 +2177,23 @@ class ReachabilityRun:
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
         )
         matched = document.get("matchedElement")
-        if operation_id in self.operations and isinstance(matched, dict):
-            self.mark_observation(
-                presentation,
-                operation_id,
-                exists=True,
-                hittable=matched.get("isHittable") is True,
-                evidence=self.events[-1]["evidence"],
-                reason="XCTest located the target; product delivery is judged separately.",
+        if isinstance(matched, dict):
+            if operation_id in self.operations:
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="XCTest located the target; product delivery is judged separately.",
+                )
+            if matched.get("isEnabled") is False:
+                self.record_silent_tap(
+                    presentation, str(operation_id), identifier, document, "disabled"
+                )
+        else:
+            self.record_silent_tap(
+                presentation, str(operation_id), identifier, document, "absent"
             )
         return document
 
@@ -2156,14 +2211,23 @@ class ReachabilityRun:
             "--no-screenshot", "--timeout-seconds", "90", timeout=120,
         )
         matched = document.get("matchedElement")
-        if operation_id in self.operations and isinstance(matched, dict):
-            self.mark_observation(
-                presentation,
-                operation_id,
-                exists=True,
-                hittable=matched.get("isHittable") is True,
-                evidence=self.events[-1]["evidence"],
-                reason="XCTest located the target; product delivery is judged separately.",
+        if isinstance(matched, dict):
+            if operation_id in self.operations:
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="XCTest located the target; product delivery is judged separately.",
+                )
+            if matched.get("isEnabled") is False:
+                self.record_silent_tap(
+                    presentation, str(operation_id), label, document, "disabled"
+                )
+        else:
+            self.record_silent_tap(
+                presentation, str(operation_id), label, document, "absent"
             )
         return document
 
@@ -6455,20 +6519,42 @@ class ReachabilityRun:
             "evidence": f"raw/{status_path.name}",
         })
         if self.probe_status["passed"] is not True:
+            # Two different faults used to share one sentence. A journal that
+            # answers and reports writeFailed or an overflow is a product fact.
+            # A probeStatus that never answers leaves every field null, and the
+            # sentence about the journal describes a journal nobody read.
             self.channel_failures.append({
                 "at": utc_now(),
                 "action": "probeStatus",
-                "error": "The product DEBUG probe journal reported an unhealthy state.",
+                "error": (
+                    "The product DEBUG probe journal reported an unhealthy state."
+                    if status_document.get("success") is True
+                    else "The probeStatus command did not answer, so the journal "
+                    "was never read."
+                ),
                 "evidence": f"raw/{status_path.name}",
             })
         byte_limit = self.probe_status.get("byteLimit")
-        final_probe = (
-            self.retrieve_bounded_probe(
+        journal_retrieved = isinstance(byte_limit, int) and byte_limit > 0
+        if journal_retrieved:
+            final_probe = self.retrieve_bounded_probe(
                 "segment-after-surface",
                 byte_limit=int(byte_limit),
             )
-            if isinstance(byte_limit, int) and byte_limit > 0 else []
-        )
+        else:
+            # Skipping the copy here used to be silent. The replay then ran
+            # against an empty journal and reported every deferred delivery as
+            # unverified, which reads exactly like the product refusing them.
+            final_probe = []
+            self.channel_failures.append({
+                "at": utc_now(),
+                "action": "retrieveBoundedProbe",
+                "error": (
+                    "probeStatus named no byte limit, so the segment probe "
+                    "journal was never retrieved."
+                ),
+                "evidence": f"raw/{status_path.name}",
+            })
         final_copied = (
             self.events[-1].get("action") == "retrieveBoundedProbe"
             and self.events[-1].get("success") is True
@@ -6485,6 +6571,7 @@ class ReachabilityRun:
             started_at=segment_started_at,
             ended_at=segment_ended_at,
             evidence="raw/segment-after-surface-probe.log",
+            journal_retrieved=journal_retrieved,
         )
         replay_path = self.raw / "deferred-evidence-replay.json"
         replay_path.write_text(
@@ -6740,6 +6827,7 @@ class ReachabilityRun:
             "inventory": str(INVENTORY.relative_to(ROOT)),
             "proofContexts": list(PROOF_CONTEXTS),
             "summary": summary,
+            "silentTaps": self.silent_taps,
             "cells": ordered_cells,
             "events": prior_events + self.events,
         }
@@ -6824,6 +6912,15 @@ class ReachabilityRun:
         print(json.dumps({
             "results": str(results_path),
             "summary": summary,
+            "silentTaps": [
+                {
+                    "why": entry["why"],
+                    "context": entry["context"],
+                    "identifier": entry["identifier"],
+                    "evidence": entry["evidence"],
+                }
+                for entry in self.silent_taps
+            ],
             "regressionFailures": regression_failures,
         }, ensure_ascii=False, indent=2, sort_keys=True))
         if regression_failures:
