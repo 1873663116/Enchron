@@ -7,5 +7,19 @@
   "result-bundle": {"seconds": 60, "expires": "2026-10-01"},
   "xcresult-summary": {"seconds": 60, "expires": "2026-10-01"},
   "recording-extraction": {"seconds": 600, "expires": "2026-10-01"},
-  "luma-analysis": {"seconds": 600, "expires": "2026-10-01"}
+  "luma-analysis": {"seconds": 600, "expires": "2026-10-01"},
+  "activate": {"seconds": 20, "expires": "2026-10-01"},
+  "press": {"seconds": 20, "expires": "2026-10-01"},
+  "swipeUp": {"seconds": 20, "expires": "2026-10-01"},
+  "typeText": {"seconds": 20, "expires": "2026-10-01"},
+  "replaceText": {"seconds": 20, "expires": "2026-10-01"},
+  "identifier-appearance": {"seconds": 8, "expires": "2026-10-01"},
+  "identifier-value": {"seconds": 15, "expires": "2026-10-01"},
+  "identifier-absence": {"seconds": 8, "expires": "2026-10-01"},
+  "any-identifier-appearance": {"seconds": 20, "expires": "2026-10-01"},
+  "presentation-settle": {"seconds": 45, "expires": "2026-10-01"},
+  "probe-needle": {"seconds": 20, "expires": "2026-10-01"},
+  "fixture-copy": {"seconds": 300, "expires": "2026-10-01"},
+  "retire-runner": {"seconds": 300, "expires": "2026-10-01"},
+  "probe-size": {"seconds": 120, "expires": "2026-10-01"}
 }

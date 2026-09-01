@@ -5,8 +5,6 @@ from __future__ import annotations
 import unittest
 import json
 from pathlib import Path
-from subprocess import TimeoutExpired
-import subprocess
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -15,6 +13,18 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 
 import reachability_matrix as matrix
+
+
+def immediate_tools(seconds: float = 120.0) -> SimpleNamespace:
+    return SimpleNamespace(
+        call=lambda verb, action: action(matrix.Budget(seconds, "test budget"))
+    )
+
+
+def arm_recovery(run: matrix.ReachabilityRun) -> None:
+    run.policy = matrix.RecoveryPolicy()
+    run.history = []
+    run.halted = False
 
 
 class SensitiveEvidenceTests(unittest.TestCase):
@@ -432,7 +442,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "--index",
             "1",
             "--no-screenshot",
-            timeout=matrix.INTERACTION_TIMEOUT,
         )
 
     def test_docked_content_collects_menu_facts_before_removing_expanded_media(self) -> None:
@@ -506,7 +515,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             ],
         )
         run.wait_for_identifier.assert_called_once_with(
-            "PlayerPanel-button-exit-spatial", timeout=matrix.APPEARANCE_TIMEOUT
+            "PlayerPanel-button-exit-spatial"
         )
         self.assertTrue(
             any(
@@ -587,9 +596,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "--index",
             "2",
             "--no-screenshot",
-            "--timeout-seconds",
-            str(int(matrix.INTERACTION_TIMEOUT)),
-            timeout=matrix.INTERACTION_TIMEOUT,
         )
 
     def test_a_target_xctest_cannot_find_is_named_not_counted(self) -> None:
@@ -746,7 +752,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             libraryFolder=matrix.REACHABILITY_LIBRARY_FOLDER,
         )
 
-    def test_segment_probe_archive_waits_only_as_long_as_a_copy_has_taken(self) -> None:
+    def test_segment_probe_archive_turns_a_hung_listing_into_a_typed_fault(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
             run.segment = {"id": "panorama"}
@@ -754,26 +760,29 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             run.events = []
             run.raw = Path(directory)
             run.sequence = 0
-            run.direct_devicectl_calls = 0
+            run.direct_transfer_calls = 0
+            run.evidence_retrieval_transfer_calls = 0
+            run.segment_evidence_started = False
             run.copy_timings = []
+            arm_recovery(run)
 
-            with patch.object(
-                matrix.subprocess,
-                "run",
-                side_effect=TimeoutExpired("devicectl", 120),
-            ) as subprocess_run:
-                self.assertEqual(
-                    run.archive_probe_chunk("segment-after-surface"), []
+            def hung(verb: str, action: object) -> None:
+                raise matrix.InstrumentFault(
+                    "transport-timeout",
+                    {"verb": verb},
+                    matrix.Budget(120.0, "provisional 120s"),
                 )
 
+            run.tools = SimpleNamespace(call=hung)
+
             self.assertEqual(
-                subprocess_run.call_args.kwargs["timeout"], matrix.PROBE_COPY_TIMEOUT
+                run.archive_probe_chunk("segment-after-surface"), []
             )
-            self.assertEqual(run.channel_failures[0]["action"], "copyProbe")
-            self.assertIn(
-                f"{matrix.PROBE_COPY_TIMEOUT} seconds",
-                run.channel_failures[0]["error"],
-            )
+
+            self.assertEqual(run.channel_failures[0]["action"], "probe-size")
+            self.assertEqual(run.channel_failures[0]["kind"], "transport-timeout")
+            self.assertIn("provisional 120s", run.channel_failures[0]["error"])
+            self.assertFalse(run.events[-1]["success"])
 
     def test_probe_clear_retries_a_transient_destination_exists_error(self) -> None:
         with TemporaryDirectory() as directory:
@@ -782,8 +791,10 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             run.events = []
             run.channel_failures = []
             run.raw = Path(directory)
-            run.direct_devicectl_calls = 0
+            run.direct_transfer_calls = 0
             run.copy_timings = []
+            run.tools = immediate_tools()
+            arm_recovery(run)
             destination_exists = Mock(
                 returncode=1,
                 stderr="NSPOSIXErrorDomain error 17",
@@ -802,7 +813,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             self.assertEqual(run.events[-1]["attemptCount"], 2)
             self.assertTrue(run.events[-1]["success"])
 
-    def test_controller_waits_only_as_long_as_an_answer_has_ever_taken(self) -> None:
+    def test_a_controller_transport_timeout_is_a_typed_instrument_fault(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
             run.segment = {"id": "panorama"}
@@ -810,25 +821,26 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             run.events = []
             run.raw = Path(directory)
             run.sequence = 0
-            run.controller_output = Path(directory)
-            run.arguments = Mock(derived_data_path=Path(directory))
+            run.sensitive_values = ()
+            run.last_controller_document = {}
+            arm_recovery(run)
 
-            with patch.object(
-                matrix.subprocess,
-                "run",
-                side_effect=TimeoutExpired("controller", 120),
-            ) as subprocess_run:
-                result = run.controller("snapshot", "--no-screenshot")
+            def invoke(action: str, arguments: list[str]) -> None:
+                raise matrix.InstrumentFault(
+                    "transport-timeout",
+                    {"verb": action},
+                    matrix.Budget(20.0, "p95 13.50s × 1.5, lane=simulator, n=20"),
+                )
 
-            self.assertEqual(
-            subprocess_run.call_args.kwargs["timeout"], matrix.INTERACTION_TIMEOUT
-        )
+            run.client = SimpleNamespace(invoke=invoke)
+
+            result = run.controller("snapshot", "--no-screenshot")
+
             self.assertFalse(result["success"])
+            self.assertEqual(result["failure"]["kind"], "transport-timeout")
             self.assertEqual(run.channel_failures[0]["action"], "snapshot")
-            self.assertIn(
-                f"{matrix.INTERACTION_TIMEOUT} seconds",
-                run.channel_failures[0]["error"],
-            )
+            self.assertEqual(run.channel_failures[0]["kind"], "transport-timeout")
+            self.assertIn("lane=simulator", run.channel_failures[0]["error"])
 
     def test_window_seek_precedes_transport_controls(self) -> None:
         actions: list[str] = []
@@ -915,11 +927,11 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             return_value=["reachability files delivered action=library.video"]
         )
         run.delivered = Mock()
+        run.hold = Mock()
 
-        with patch.object(matrix.time, "sleep"):
-            result = run.open_media(
-                "MediaLibrary-grid-video-furyroad-stripped.mkv"
-            )
+        result = run.open_media(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+        )
 
         self.assertTrue(result["success"])
         self.assertEqual(
@@ -953,11 +965,11 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "reachability files delivered action=library.video"
         ])
         run.delivered = Mock()
+        run.hold = Mock()
 
-        with patch.object(matrix.time, "sleep"):
-            result = run.open_media(
-                "MediaLibrary-grid-video-furyroad-stripped.mkv"
-            )
+        result = run.open_media(
+            "MediaLibrary-grid-video-furyroad-stripped.mkv"
+        )
 
         self.assertTrue(result["success"])
         run.app_command.assert_called_once_with(
@@ -1095,13 +1107,16 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             run.raw = Path(directory)
             run.events = []
             run.channel_failures = []
-            run.direct_devicectl_calls = 0
+            run.direct_transfer_calls = 0
             run.copy_timings = []
-            run.evidence_retrieval_devicectl_calls = 0
+            run.evidence_retrieval_transfer_calls = 0
             run.probe_retrieval_count = 0
+            run.tools = immediate_tools()
+            run.hold = Mock()
+            arm_recovery(run)
 
-            def copy_probe(command: list[str], **_kwargs: object) -> Mock:
-                destination = Path(command[command.index("--destination") + 1])
+            def copy_probe(**kwargs: object) -> Mock:
+                destination = Path(str(kwargs["destination"]))
                 destination.write_text(
                     "2026-08-19T00:00:00Z probeSequence=1 "
                     "probeRetention=evidence proof\n",
@@ -1110,10 +1125,10 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 return Mock(returncode=0, stderr="", stdout="")
 
             with patch.object(
-                matrix.subprocess,
-                "run",
+                matrix.enchron_target,
+                "copy_from_container",
                 side_effect=copy_probe,
-            ) as subprocess_run:
+            ) as device_read:
                 lines = run.retrieve_bounded_probe(
                     "segment-after-surface",
                     byte_limit=196_608,
@@ -1123,9 +1138,9 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 "2026-08-19T00:00:00Z probeSequence=1 "
                 "probeRetention=evidence proof"
             ])
-            self.assertEqual(subprocess_run.call_count, 1)
+            self.assertEqual(device_read.call_count, 1)
             self.assertEqual(run.probe_retrieval_count, 1)
-            self.assertEqual(run.evidence_retrieval_devicectl_calls, 1)
+            self.assertEqual(run.evidence_retrieval_transfer_calls, 1)
             self.assertTrue(run.events[-1]["success"])
 
     def test_replay_gate_rejects_aligned_but_unverified_deliveries(self) -> None:
@@ -1178,7 +1193,9 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run.operations = {operation: {}}
         run.driven_cells = set()
 
-        with patch.object(matrix.subprocess, "run") as subprocess_run, patch.object(
+        with patch.object(
+            matrix.enchron_target, "copy_from_container"
+        ) as device_read, patch.object(
             matrix, "utc_now", return_value="2026-08-18T01:00:02Z"
         ):
             probe = run.copy_probe("after-forward")
@@ -1194,7 +1211,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                     "Deferred product delivery.",
                 )
 
-        subprocess_run.assert_not_called()
+        device_read.assert_not_called()
         self.assertEqual(
             run.events[-1]["evidence"],
             "raw/deferred-evidence-replay.json",
@@ -1295,42 +1312,51 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run.events = []
         run.session_id = None
         run.channel_failures = [{"action": "ensure-session", "error": "timed out"}]
+        run.tools = immediate_tools()
+        arm_recovery(run)
         run.controller = Mock(side_effect=[
-            {"success": False, "error": "controller ensure-session exceeded 120.0 seconds"},
+            {"success": False, "error": "instrument fault transport-timeout"},
             {"success": True, "sessionID": "session-2"},
         ])
         removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="App uninstalled.", stderr=""))
 
-        with patch.object(matrix.subprocess, "run", removal):
+        with patch.object(matrix.enchron_target, "uninstall_app", removal):
             self.assertTrue(run.ensure_session())
 
         self.assertEqual(run.session_id, "session-2")
         self.assertEqual(run.controller.call_count, 2)
-        self.assertIn(
+        self.assertEqual(
+            removal.call_args.kwargs["bundle_id"],
             matrix.ReachabilityRun.UI_TEST_RUNNER_BUNDLE,
-            removal.call_args.args[0],
         )
 
     def test_retiring_the_runner_clears_what_blocks_the_retry(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = []
         run.channel_failures = [{"action": "ensure-session", "error": "timed out"}]
+        run.tools = immediate_tools()
+        arm_recovery(run)
+        run.halted = True
         removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
 
-        with patch.object(matrix.subprocess, "run", removal):
+        with patch.object(matrix.enchron_target, "uninstall_app", removal):
             run.retire_stale_test_runner()
 
         self.assertEqual(run.channel_failures, [])
+        self.assertFalse(run.halted)
+        self.assertEqual(run.history, [])
 
     def test_ensure_session_gives_up_when_the_clean_device_also_fails(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = []
         run.session_id = None
         run.channel_failures = []
+        run.tools = immediate_tools()
+        arm_recovery(run)
         run.controller = Mock(return_value={"success": False, "error": "timed out"})
         removal = Mock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
 
-        with patch.object(matrix.subprocess, "run", removal):
+        with patch.object(matrix.enchron_target, "uninstall_app", removal):
             self.assertFalse(run.ensure_session())
 
         self.assertEqual(run.controller.call_count, 2)
@@ -1380,127 +1406,133 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run.events = []
         run.channel_failures = []
         run.raw = raw
-        run.controller_output = raw / "controller"
-        run.arguments = SimpleNamespace(
-            contexts=[], reuse_session=False,
-            execution_input=raw / "execution-input.json",
-        )
         run.last_controller_document = {}
+        arm_recovery(run)
         return run
 
-    def test_three_controller_timeouts_in_a_row_end_the_run(self) -> None:
+    @staticmethod
+    def _scripted_client(answers: list[object]) -> SimpleNamespace:
+        remaining = list(answers)
+
+        def invoke(action: str, arguments: list[str]) -> SimpleNamespace:
+            answer = remaining.pop(0)
+            if isinstance(answer, matrix.InstrumentFault):
+                raise answer
+            return SimpleNamespace(document=answer, failure=None)
+
+        return SimpleNamespace(invoke=invoke)
+
+    @staticmethod
+    def _silence() -> matrix.InstrumentFault:
+        return matrix.InstrumentFault(
+            "response-timeout",
+            {"diagnosis": "The runner did not answer tap within its budget."},
+        )
+
+    def test_two_identical_faults_in_a_row_quarantine_the_channel(self) -> None:
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
-            timeout = subprocess.TimeoutExpired(cmd="controller", timeout=120.0)
+            run.client = self._scripted_client([
+                self._silence(), self._silence(),
+            ])
 
-            with patch.object(matrix.subprocess, "run", side_effect=timeout), \
-                 self.assertRaises(matrix.ControllerStopped) as raised:
-                for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS):
-                    run.controller("tap", "--identifier", "x")
+            run.controller("tap", "--identifier", "x")
+            run.controller("tap", "--identifier", "x")
+            refused = run.controller("tap", "--identifier", "x")
 
-        self.assertIn("3 times running", str(raised.exception))
-        # The call that ended the run is in the evidence. Raising before the
-        # event was written left every stopped run one short, and the record
-        # showed two silences where the counter had counted three.
-        self.assertEqual(len(run.events), matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS)
+        self.assertTrue(run.halted)
+        self.assertFalse(refused["success"])
+        self.assertEqual(len(run.channel_failures), 1)
+        halt = run.channel_failures[0]["halt"]
+        self.assertIn("twice in a row", halt["reason"])
+        self.assertEqual(halt["faultReport"]["instrumentFaults"], 2)
+        self.assertEqual(len(run.events), 3)
 
     def test_a_runner_that_stopped_answering_ends_the_run(self) -> None:
-        # The controller exits normally and reports the runner's silence, which
-        # is what a dead app looks like from here. One window segment took this
-        # shape for four calls and still reported eighty-one deliveries.
-        dead = SimpleNamespace(
-            stdout=json.dumps({
-                "success": False,
-                "message": "The runner did not answer tap within 90 seconds.",
-            }),
-            stderr="", returncode=0,
-        )
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
-            with patch.object(matrix.subprocess, "run", return_value=dead), \
-                 self.assertRaises(matrix.ControllerStopped):
-                for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS):
-                    run.controller("tap", "--identifier", "x")
+            run.client = self._scripted_client([
+                self._silence(), self._silence(),
+            ])
+
+            run.controller("tap", "--identifier", "x")
+            run.controller("tap", "--identifier", "x")
+
+        self.assertTrue(run.halted)
+        self.assertTrue(run.channel_refuses("tap"))
+        self.assertFalse(run.channel_refuses("halt"))
 
     def test_scattered_silences_are_not_a_run_of_silence(self) -> None:
-        # Three unanswered calls with ordinary work between them is not the app
-        # having stopped talking, and a docked segment was ended as though it
-        # were: one lost tap at step 215, two more at 219 and 220.
-        silent = SimpleNamespace(
-            stdout=json.dumps({
-                "success": False,
-                "message": "The runner did not answer tap within 90 seconds.",
-            }),
-            stderr="", returncode=0,
-        )
-        # Neither silent nor a success: this is the shape deferProbeRead has,
-        # and it is what let the old counter carry a silence across it.
-        neither = SimpleNamespace(
-            stdout=json.dumps({"deferred": True}), stderr="", returncode=0,
-        )
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
-            with patch.object(matrix.subprocess, "run",
-                              side_effect=[silent, neither, silent, neither, silent]):
-                for _ in range(5):
-                    run.controller("tap", "--identifier", "x")
+            run.client = self._scripted_client([
+                self._silence(),
+                {"success": True},
+                self._silence(),
+                {"success": True},
+                self._silence(),
+            ])
 
-            self.assertEqual(run.consecutive_timeouts, 1)
+            for _ in range(5):
+                run.controller("tap", "--identifier", "x")
+
+        self.assertFalse(run.halted)
+        self.assertEqual(len(run.history), 1)
+        self.assertEqual(run.policy.fault_count, 3)
 
     def test_a_recovery_that_goes_unanswered_is_not_a_second_fault(self) -> None:
-        silent = SimpleNamespace(
-            stdout=json.dumps({
-                "success": False,
-                "message": "The runner did not answer tap within 90 seconds.",
-            }),
-            stderr="", returncode=0,
-        )
-        silent_recovery = SimpleNamespace(
-            stdout=json.dumps({
-                "success": False,
-                "message": "The runner did not answer relaunch within 30 seconds.",
-            }),
-            stderr="", returncode=0,
-        )
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
-            with patch.object(matrix.subprocess, "run",
-                              side_effect=[silent, silent_recovery, silent_recovery]):
-                run.controller("tap", "--identifier", "x")
-                run.controller("relaunch", "--no-screenshot")
-                run.controller("relaunch", "--no-screenshot")
+            run.client = self._scripted_client([
+                self._silence(),
+                matrix.InstrumentFault(
+                    "response-timeout",
+                    {"diagnosis": "The runner did not answer relaunch."},
+                ),
+            ])
 
-            self.assertEqual(run.consecutive_timeouts, 1)
+            run.controller("tap", "--identifier", "x")
+            run.controller("relaunch", "--no-screenshot")
+
+        self.assertFalse(run.halted)
+        self.assertEqual(
+            [record.location for record in run.history], ["tap", "relaunch"]
+        )
 
     def test_a_product_refusal_does_not_end_the_run(self) -> None:
-        refused = SimpleNamespace(
-            stdout=json.dumps({
-                "success": False,
-                "message": "settings.end-behavior has no target=Stop; available=stop.",
-            }),
-            stderr="", returncode=0,
-        )
+        refused = {
+            "success": False,
+            "message": "settings.end-behavior has no target=Stop; available=stop.",
+            "failure": {
+                "class": "product",
+                "kind": "assertion-mismatch",
+                "evidence": {},
+            },
+        }
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
-            with patch.object(matrix.subprocess, "run", return_value=refused):
-                for _ in range(matrix.CONSECUTIVE_CONTROLLER_TIMEOUTS + 2):
-                    run.controller("app-command", "--verb", "selectMenuItem")
+            run.client = self._scripted_client([refused] * 5)
 
-            self.assertEqual(run.consecutive_timeouts, 0)
+            for _ in range(5):
+                run.controller("app-command", "--verb", "selectMenuItem")
+
+        self.assertFalse(run.halted)
+        self.assertEqual(run.policy.fault_count, 0)
+        self.assertEqual(run.history, [])
 
     def test_one_timeout_is_a_bad_step_not_a_dead_run(self) -> None:
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
-            answers = [
-                subprocess.TimeoutExpired(cmd="controller", timeout=120.0),
-                SimpleNamespace(stdout='{"success": true}', stderr="", returncode=0),
-            ]
+            run.client = self._scripted_client([
+                matrix.InstrumentFault("transport-timeout", {"verb": "tap"}),
+                {"success": True},
+            ])
 
-            with patch.object(matrix.subprocess, "run", side_effect=answers):
-                run.controller("tap", "--identifier", "x")
-                run.controller("tap", "--identifier", "y")
+            run.controller("tap", "--identifier", "x")
+            run.controller("tap", "--identifier", "y")
 
-            self.assertEqual(run.consecutive_timeouts, 0)
+        self.assertFalse(run.halted)
+        self.assertEqual(run.history, [])
 
     def test_observe_ignores_an_operation_this_context_cannot_prove(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
@@ -1594,29 +1626,30 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
     def _copying_run(self):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.events = []
-        run.direct_devicectl_calls = 0
+        run.direct_transfer_calls = 0
         run.copy_timings = []
+        run.tools = immediate_tools()
+        run.hold = Mock()
+        arm_recovery(run)
         return run
 
     def test_every_copy_records_what_it_cost(self) -> None:
-        """PROBE_COPY_TIMEOUT is the one limit nobody measured.
+        run = self._copying_run()
+        completed = SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        Every other verb has twenty samples in controller_timings.json and a
-        limit derived from them. The copies recorded nothing, so their limit is
-        the number the run inherited. Recording the elapsed time is what lets it
-        be earned the way the others were.
-        """
-        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
-        run.events = []
-        run.direct_devicectl_calls = 0
-        run.copy_timings = []
-        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-        with patch.object(matrix.subprocess, "run", return_value=completed):
-            run.device_copy("device", "copy", "from", timeout=1, label="probeChunk")
+        with TemporaryDirectory() as directory, patch.object(
+            matrix.enchron_target, "copy_from_container", return_value=completed
+        ) as copy_call:
+            run.device_copy_from(
+                matrix.PROBE_REMOTE_PATH,
+                Path(directory) / "probe.log",
+                label="probeChunk",
+            )
 
         self.assertEqual(len(run.copy_timings), 1)
         self.assertEqual(run.copy_timings[0]["label"], "probeChunk")
         self.assertIsInstance(run.copy_timings[0]["elapsedSeconds"], float)
+        self.assertEqual(copy_call.call_args.kwargs["budget_seconds"], 120.0)
 
     def test_a_transient_transfer_error_is_retried(self) -> None:
         run = self._copying_run()
@@ -1627,12 +1660,17 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         )
         answers = [flaky, SimpleNamespace(returncode=0, stdout="", stderr="")]
 
-        with patch.object(matrix.subprocess, "run", side_effect=answers), \
-             patch.object(matrix.time, "sleep"):
-            result = run.device_copy("device", "copy", "from", timeout=30, label="probe")
+        with TemporaryDirectory() as directory, patch.object(
+            matrix.enchron_target, "copy_from_container", side_effect=answers
+        ):
+            result = run.device_copy_from(
+                matrix.PROBE_REMOTE_PATH,
+                Path(directory) / "probe.log",
+                label="probe",
+            )
 
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(run.direct_devicectl_calls, 2)
+        self.assertEqual(run.direct_transfer_calls, 2)
         self.assertEqual(run.events[0]["action"], "retryDeviceCopy")
 
     def test_a_real_transfer_error_is_not_retried(self) -> None:
@@ -1641,12 +1679,17 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             returncode=1, stdout="", stderr="ERROR: No such application on the device.",
         )
 
-        with patch.object(matrix.subprocess, "run", return_value=refused), \
-             patch.object(matrix.time, "sleep"):
-            result = run.device_copy("device", "copy", "from", timeout=30, label="probe")
+        with TemporaryDirectory() as directory, patch.object(
+            matrix.enchron_target, "copy_from_container", return_value=refused
+        ):
+            result = run.device_copy_from(
+                matrix.PROBE_REMOTE_PATH,
+                Path(directory) / "probe.log",
+                label="probe",
+            )
 
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(run.direct_devicectl_calls, 1)
+        self.assertEqual(run.direct_transfer_calls, 1)
 
     def test_the_transfer_gives_up_after_the_backoff(self) -> None:
         run = self._copying_run()
@@ -1655,12 +1698,17 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             stderr="com.apple.dt.CoreDeviceError error -1 (0xFFFFFFFF)",
         )
 
-        with patch.object(matrix.subprocess, "run", return_value=flaky), \
-             patch.object(matrix.time, "sleep"):
-            result = run.device_copy("device", "copy", "from", timeout=30, label="probe")
+        with TemporaryDirectory() as directory, patch.object(
+            matrix.enchron_target, "copy_from_container", return_value=flaky
+        ):
+            result = run.device_copy_from(
+                matrix.PROBE_REMOTE_PATH,
+                Path(directory) / "probe.log",
+                label="probe",
+            )
 
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(run.direct_devicectl_calls, len(matrix.TRANSFER_ATTEMPTS))
+        self.assertEqual(run.direct_transfer_calls, len(matrix.TRANSFER_ATTEMPTS))
 
     def test_a_summon_waits_for_the_panel_to_reach_the_hierarchy(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
@@ -1728,9 +1776,9 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                      "Documents/test-command.json (com.apple.dt.CoreDeviceError error 7000)",
         }
         run.controller = Mock(side_effect=[lost, lost, {"success": True}])
+        run.hold = Mock()
 
-        with patch.object(matrix.time, "sleep"):
-            result = run.app_command("resetState", track_reachability=False)
+        result = run.app_command("resetState", track_reachability=False)
 
         self.assertTrue(result["success"])
         self.assertEqual(run.controller.call_count, 3)
@@ -1751,9 +1799,9 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                      "Documents/test-command.json (com.apple.dt.CoreDeviceError error 7000)",
         }
         run.controller = Mock(return_value=lost)
+        run.hold = Mock()
 
-        with patch.object(matrix.time, "sleep"):
-            result = run.app_command("resetState", track_reachability=False)
+        result = run.app_command("resetState", track_reachability=False)
 
         self.assertFalse(result["success"])
         self.assertEqual(run.controller.call_count, 4)
@@ -2637,6 +2685,8 @@ class CompletionHonestyTests(unittest.TestCase):
         run.events = []
         run.silent_taps = []
         run.copy_timings = []
+        run.channel_failures = []
+        arm_recovery(run)
         run.cells = {
             ("main-window-browser", "accessibility:measured"): {
                 "context": "main-window-browser",
@@ -2647,7 +2697,7 @@ class CompletionHonestyTests(unittest.TestCase):
             ("docked", "accessibility:never-visited"): {
                 "context": "docked",
                 "operation": "accessibility:never-visited",
-                "verdict": "known-defect",
+                "verdict": "unmeasured",
                 "reason": matrix.UNMEASURED_REASON,
             },
         }
@@ -2661,6 +2711,7 @@ class CompletionHonestyTests(unittest.TestCase):
         written = json.loads((run.output / "results.json").read_text(encoding="utf-8"))
         self.assertEqual(written["status"], "incomplete")
         self.assertEqual(written["summary"]["unmeasured"], 1)
+        self.assertEqual(written["summary"]["known-defect"], 0)
 
     def enterDirectory(self) -> str:
         directory = TemporaryDirectory()

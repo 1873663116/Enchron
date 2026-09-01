@@ -21,7 +21,6 @@
   "Scripts/verification/playback_transition_stress.py",
   "Scripts/verification/probe_emby_direct_play.py",
   "Scripts/verification/probe_remote_media_reads.py",
-  "Scripts/verification/reachability_matrix.py",
   "Scripts/verification/regression_emby_source.py",
   "Scripts/verification/regression_environment_preflight.py",
   "Scripts/verification/regression_operation_adapter.py",
