@@ -13,6 +13,7 @@ from harness.budgets import Budget, BudgetProvider
 from harness.controller import CompletedInvocation, ControllerClient
 from harness.evidence import EvidenceScope
 from harness.failures import InstrumentFault, ProductFailure
+from harness.local import LocalToolRunner
 from harness.recovery import FaultRecord, Halt, RecoveryPolicy, Retry
 from harness.waits import wait_for
 
@@ -297,6 +298,60 @@ class ControllerReconciliationTests(unittest.TestCase):
     def test_invoke_accepts_no_caller_timeout(self) -> None:
         with self.assertRaises(TypeError):
             self.client(FakeRun()).invoke("press", timeout=5)
+
+
+class LocalToolRunnerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+
+    def runner(self, provisional: dict[str, object]) -> LocalToolRunner:
+        return LocalToolRunner(
+            "device", budgets=provider(self.directory, provisional)
+        )
+
+    def test_run_returns_invocation_and_records_sample(self) -> None:
+        runner = self.runner(
+            {"quick-tool": {"seconds": 30, "expires": "2026-10-01"}}
+        )
+        completed = runner.run(
+            "quick-tool", [sys.executable, "-c", "print('measured')"]
+        )
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout.strip(), "measured")
+        samples = runner.budgets.samples("device", "quick-tool")
+        self.assertEqual(len(samples), 1)
+        self.assertFalse(samples[0]["censored"])
+
+    def test_run_timeout_records_censored_and_raises(self) -> None:
+        runner = self.runner(
+            {"slow-tool": {"seconds": 0.2, "expires": "2026-10-01"}}
+        )
+        with self.assertRaises(InstrumentFault) as caught:
+            runner.run(
+                "slow-tool",
+                [sys.executable, "-c", "import time; time.sleep(5)"],
+            )
+        self.assertEqual(caught.exception.kind, "transport-timeout")
+        samples = runner.budgets.samples("device", "slow-tool")
+        self.assertEqual(len(samples), 1)
+        self.assertTrue(samples[0]["censored"])
+        self.assertEqual(samples[0]["seconds"], 0.2)
+
+    def test_call_hands_the_budget_to_the_action(self) -> None:
+        runner = self.runner(
+            {"handed": {"seconds": 42, "expires": "2026-10-01"}}
+        )
+        outcome = runner.call("handed", lambda budget: budget.seconds)
+        self.assertEqual(outcome, 42.0)
+        self.assertEqual(len(runner.budgets.samples("device", "handed")), 1)
+
+    def test_missing_budget_entry_faults_before_running(self) -> None:
+        runner = self.runner({})
+        with self.assertRaises(InstrumentFault) as caught:
+            runner.run("unbudgeted", [sys.executable, "-c", "pass"])
+        self.assertEqual(caught.exception.kind, "provisional-budget-expired")
 
 
 class FakeClock:

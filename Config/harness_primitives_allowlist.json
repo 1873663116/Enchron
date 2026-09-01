@@ -15,7 +15,6 @@
   "Scripts/verification/journey_audio_probe.py",
   "Scripts/verification/journey_preflight.py",
   "Scripts/verification/measure-remote-media-open.py",
-  "Scripts/verification/measure_controls_flash.py",
   "Scripts/verification/playback_mode_matrix.py",
   "Scripts/verification/playback_open_sweep.py",
   "Scripts/verification/playback_source_sweep.py",

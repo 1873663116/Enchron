@@ -1,5 +1,11 @@
 {
   "halt": {"seconds": 60, "expires": "2026-10-01"},
   "ensure-session": {"seconds": 300, "expires": "2026-10-01"},
-  "probe-copy": {"seconds": 120, "expires": "2026-10-01"}
+  "probe-copy": {"seconds": 120, "expires": "2026-10-01"},
+  "stop": {"seconds": 60, "expires": "2026-10-01"},
+  "panorama-settle": {"seconds": 60, "expires": "2026-10-01"},
+  "result-bundle": {"seconds": 60, "expires": "2026-10-01"},
+  "xcresult-summary": {"seconds": 60, "expires": "2026-10-01"},
+  "recording-extraction": {"seconds": 600, "expires": "2026-10-01"},
+  "luma-analysis": {"seconds": 600, "expires": "2026-10-01"}
 }

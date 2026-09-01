@@ -8,6 +8,7 @@ from harness.failures import (
     InstrumentFault,
     ProductFailure,
 )
+from harness.local import LocalToolRunner
 from harness.recovery import Decision, FaultRecord, Halt, RecoveryPolicy, Retry
 from harness.waits import Evidence, wait_for
 
@@ -24,6 +25,7 @@ __all__ = [
     "Halt",
     "INSTRUMENT_KINDS",
     "InstrumentFault",
+    "LocalToolRunner",
     "PRODUCT_KINDS",
     "ProductFailure",
     "RecoveryPolicy",

@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
-"""Record physical Vision Pro control toggles and report correlated black frames."""
-
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 import json
 import os
-from pathlib import Path
 import re
 import statistics
-import subprocess
 import sys
 import tempfile
-import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, TypeVar
 
+import enchron_target
+from harness import (
+    Budget,
+    BudgetProvider,
+    ControllerClient,
+    FaultRecord,
+    Halt,
+    InstrumentFault,
+    LocalToolRunner,
+    ProductFailure,
+    RecoveryPolicy,
+    wait_for,
+)
 
 APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
@@ -22,143 +33,118 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 EXTRACTOR = REPOSITORY_ROOT / "Scripts/verification/extract_visionpro_ui_recording.py"
 PROBE_TIMESTAMP = re.compile(r"^(\S+)\s+(.*)$")
+PANORAMA_SETTLE_PATTERN = "presentation portal -> panorama"
+PACING_POLL_SLACK_SECONDS = 5.0
+
+Outcome = TypeVar("Outcome")
 
 
-def active_developer_directory() -> str:
-    completed = subprocess.run(
-        ["xcode-select", "-p"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return completed.stdout.strip()
+class ProductHalt(Exception):
+    def __init__(self, action: str, failure: ProductFailure) -> None:
+        self.action = action
+        self.failure = failure
+        super().__init__(f"{action} failed with product failure {failure.kind}")
 
 
-class RecordingSession:
-    def __init__(
-        self,
-        *,
-        device: str,
-        developer_dir: str,
-        execution_input: Path,
-        output_directory: Path,
-    ) -> None:
-        self.device = device
-        self.developer_dir = developer_dir
-        self.execution_input = execution_input
-        self.output_directory = output_directory
-        self.started = False
-        self.stopped = False
+@dataclass
+class Instruments:
+    device: str
+    core_device: str
+    developer_dir: str
+    lane: str
+    budgets: BudgetProvider
+    controller: ControllerClient
+    tools: LocalToolRunner
+    policy: RecoveryPolicy
+    history: list[FaultRecord] = field(default_factory=list)
 
-    def controller(self, *arguments: str) -> dict[str, object]:
-        # CoreDevice error 7000 surfaces before the command file lands in the
-        # app container, so the app never saw the command and one retry cannot
-        # double-execute it.
-        document = self.controller_once(*arguments)
-        if (
-            document.get("success") is False
-            and "error 7000" in str(document.get("error", ""))
-        ):
-            time.sleep(3)
-            document = self.controller_once(*arguments)
-        return document
+    def record_wait_sample(self, label: str, seconds: float, censored: bool) -> None:
+        self.budgets.record_sample(self.lane, label, seconds, censored)
 
-    def controller_once(self, *arguments: str) -> dict[str, object]:
-        command = [
-            sys.executable,
-            str(CONTROLLER),
-            "--device",
-            self.device,
-            "--developer-dir",
-            self.developer_dir,
-            "--execution-input",
-            str(self.execution_input),
-            "--output-directory",
-            str(self.output_directory),
-        ]
-        command.extend(arguments)
-        completed = subprocess.run(
-            command,
-            cwd=REPOSITORY_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=900,
-        )
+    def tool_env(self) -> dict[str, str]:
+        return {**os.environ, "DEVELOPER_DIR": self.developer_dir}
+
+
+def recovered(
+    instruments: Instruments, location: str, action: Callable[[], Outcome]
+) -> Outcome:
+    while True:
+        instruments.policy.record_action()
         try:
-            document = json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            document = {
-                "success": False,
-                "error": (completed.stderr or completed.stdout)[-2_000:],
-            }
-        if completed.returncode != 0 and document.get("success") is not False:
-            document["success"] = False
-            document["error"] = (completed.stderr or completed.stdout)[-2_000:]
-        return document
-
-    def ensure(self) -> dict[str, object]:
-        result = self.controller("ensure-session")
-        self.started = result.get("stage") == "ready"
-        return result
-
-    def stop(self) -> dict[str, object] | None:
-        if self.started is False or self.stopped:
-            return None
-        self.stopped = True
-        return self.controller("stop")
+            return action()
+        except InstrumentFault as fault:
+            instruments.history.append(
+                FaultRecord(
+                    location=location,
+                    kind=fault.kind,
+                    censored=fault.kind in ("transport-timeout", "wait-expired"),
+                )
+            )
+            decision = instruments.policy.on_fault(fault, instruments.history)
+            if isinstance(decision, Halt):
+                fault.evidence["halt"] = {
+                    "reason": decision.reason,
+                    "faultReport": decision.report,
+                }
+                raise
 
 
-def reset_probe_log(
-    *,
-    device: str,
-    developer_dir: str,
-) -> str | None:
-    # The app appends fat settlement lines at frame rate; container copies of a
-    # grown file fail (CoreDevice 7000 / timeouts), so each run starts empty.
-    with tempfile.NamedTemporaryFile(
-        prefix="enchron-controls-probe-reset-",
-        suffix=".log",
-        delete=False,
-    ) as handle:
-        source = Path(handle.name)
-    try:
-        completed = subprocess.run(
-            [
-                "xcrun",
-                "devicectl",
-                "device",
-                "copy",
-                "to",
-                "--device",
-                device,
-                "--domain-type",
-                "appDataContainer",
-                "--domain-identifier",
-                APP_BUNDLE_ID,
-                "--source",
-                str(source),
-                "--destination",
-                PROBE_REMOTE_PATH,
-            ],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "DEVELOPER_DIR": developer_dir},
-            timeout=120,
+def invoke(
+    instruments: Instruments, action: str, verb: str, *arguments: str
+) -> dict[str, object]:
+    response = recovered(
+        instruments,
+        f"{action}:{verb}",
+        lambda: instruments.controller.invoke(verb, list(arguments)),
+    )
+    if response.failure is not None:
+        raise ProductHalt(action, response.failure)
+    return response.document
+
+
+def invoke_stop(instruments: Instruments) -> dict[str, object]:
+    response = recovered(
+        instruments,
+        "teardown:stop",
+        lambda: instruments.controller.invoke("stop"),
+    )
+    return response.document
+
+
+def reset_probe_log(instruments: Instruments) -> None:
+    def attempt() -> None:
+        completed = instruments.tools.call(
+            "probe-copy",
+            lambda budget: enchron_target.truncate_in_container(
+                target=instruments.device,
+                bundle_id=APP_BUNDLE_ID,
+                source=PROBE_REMOTE_PATH,
+                developer_dir=instruments.developer_dir,
+                core_device_identifier=instruments.core_device,
+                budget_seconds=budget.seconds,
+            ),
         )
-    finally:
-        source.unlink(missing_ok=True)
-    if completed.returncode != 0:
-        return (completed.stderr or completed.stdout)[-2_000:]
-    return None
+        if completed.returncode != 0:
+            raise InstrumentFault(
+                "probe-copy-failed",
+                {
+                    "operation": "reset",
+                    "stderr": (completed.stderr or completed.stdout)[-2_000:],
+                    "diagnosis": (
+                        "the probe log could not be emptied before the run; a "
+                        "grown log left by a previous run makes container "
+                        "copies fail and contaminates event attribution"
+                    ),
+                },
+            )
+
+    recovered(instruments, "probe-reset", attempt)
 
 
 def copy_probe_lines(
-    *,
-    device: str,
-    developer_dir: str,
-    output_directory: Path,
-) -> tuple[list[str] | None, str | None]:
-    for attempt in range(2):
+    instruments: Instruments, evidence_dir: Path, location: str
+) -> list[str]:
+    def attempt() -> list[str]:
         with tempfile.NamedTemporaryFile(
             prefix="enchron-controls-probe-",
             suffix=".log",
@@ -166,43 +152,214 @@ def copy_probe_lines(
         ) as handle:
             destination = Path(handle.name)
         destination.unlink(missing_ok=True)
-        completed = subprocess.run(
+        completed = instruments.tools.call(
+            "probe-copy",
+            lambda budget: enchron_target.copy_from_container(
+                target=instruments.device,
+                bundle_id=APP_BUNDLE_ID,
+                source=PROBE_REMOTE_PATH,
+                destination=destination,
+                developer_dir=instruments.developer_dir,
+                core_device_identifier=instruments.core_device,
+                budget_seconds=budget.seconds,
+            ),
+        )
+        if completed.returncode != 0 or not destination.is_file():
+            destination.unlink(missing_ok=True)
+            raise InstrumentFault(
+                "probe-copy-failed",
+                {
+                    "operation": "read",
+                    "stderr": (completed.stderr or completed.stdout)[-2_000:],
+                    "diagnosis": (
+                        "the probe log did not come back from the app "
+                        "container; without it no event can be correlated "
+                        "with the recording"
+                    ),
+                },
+            )
+        lines = destination.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        destination.unlink(missing_ok=True)
+        (evidence_dir / "surface-tap-probe.log").write_text(
+            "\n".join(lines) + "\n",
+            encoding="utf-8",
+        )
+        return lines
+
+    return recovered(instruments, location, attempt)
+
+
+def wait_for_panorama_settle(
+    instruments: Instruments, evidence_dir: Path, after: datetime
+) -> list[str]:
+    latest: list[str] = []
+
+    def probe() -> dict[str, object] | None:
+        lines = copy_probe_lines(
+            instruments, evidence_dir, "panorama-settle:probe-copy"
+        )
+        latest[:] = lines
+        if any(
+            PANORAMA_SETTLE_PATTERN in message
+            for _, message in probe_events(lines, after=after)
+        ):
+            return {"pattern": PANORAMA_SETTLE_PATTERN, "lineCount": len(lines)}
+        return None
+
+    def observe() -> list[object]:
+        return [message for _, message in probe_events(latest, after=after)][-20:]
+
+    wait_for(
+        "panorama-settle",
+        probe,
+        instruments.budgets.budget(instruments.lane, "panorama-settle"),
+        observe,
+        record=instruments.record_wait_sample,
+    )
+    return list(latest)
+
+
+def hold(instruments: Instruments, label: str, seconds: float) -> None:
+    if seconds <= 0:
+        return
+    started = datetime.now(timezone.utc)
+
+    def probe() -> dict[str, object] | None:
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+        if elapsed >= seconds:
+            return {"heldSeconds": round(elapsed, 3)}
+        return None
+
+    wait_for(
+        label,
+        probe,
+        Budget(
+            seconds=seconds + PACING_POLL_SLACK_SECONDS,
+            provenance=(
+                f"pacing hold {seconds:g}s from --toggle-interval-seconds "
+                f"+ {PACING_POLL_SLACK_SECONDS:g}s poll slack"
+            ),
+        ),
+        observe=lambda: [],
+        record=instruments.record_wait_sample,
+    )
+
+
+def wait_for_result_bundle(
+    instruments: Instruments, evidence_dir: Path
+) -> list[Path]:
+    found: list[Path] = []
+
+    def probe() -> dict[str, object] | None:
+        bundles = sorted(
+            evidence_dir.glob("*.xcresult"),
+            key=lambda path: path.stat().st_mtime,
+        )
+        if not bundles:
+            return None
+        summary = instruments.tools.run(
+            "xcresult-summary",
             [
                 "xcrun",
-                "devicectl",
-                "device",
-                "copy",
-                "from",
-                "--device",
-                device,
-                "--domain-type",
-                "appDataContainer",
-                "--domain-identifier",
-                APP_BUNDLE_ID,
-                "--source",
-                PROBE_REMOTE_PATH,
-                "--destination",
-                str(destination),
+                "xcresulttool",
+                "get",
+                "test-results",
+                "summary",
+                "--path",
+                str(bundles[-1]),
             ],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "DEVELOPER_DIR": developer_dir},
-            timeout=120,
+            env=instruments.tool_env(),
         )
-        if completed.returncode == 0 and destination.is_file():
-            lines = destination.read_text(
-                encoding="utf-8", errors="replace"
-            ).splitlines()
-            (output_directory / "surface-tap-probe.log").write_text(
-                "\n".join(lines) + "\n",
-                encoding="utf-8",
-            )
-            destination.unlink(missing_ok=True)
-            return lines, None
-        destination.unlink(missing_ok=True)
-        if attempt == 0:
-            time.sleep(1.5)
-    return None, (completed.stderr or completed.stdout)[-2_000:]
+        if summary.returncode != 0:
+            return None
+        found[:] = bundles
+        return {"bundle": str(bundles[-1]), "bundleCount": len(bundles)}
+
+    def observe() -> list[object]:
+        return [str(path) for path in sorted(evidence_dir.glob("*.xcresult"))]
+
+    wait_for(
+        "result-bundle",
+        probe,
+        instruments.budgets.budget(instruments.lane, "result-bundle"),
+        observe,
+        record=instruments.record_wait_sample,
+    )
+    return list(found)
+
+
+def extract_recording(
+    instruments: Instruments, bundle: Path, frames: Path
+) -> None:
+    completed = instruments.tools.run(
+        "recording-extraction",
+        [sys.executable, str(EXTRACTOR), str(bundle), str(frames)],
+        env=instruments.tool_env(),
+    )
+    if completed.returncode != 0:
+        raise InstrumentFault(
+            "recording-extraction-failed",
+            {
+                "bundle": str(bundle),
+                "exitCode": completed.returncode,
+                "stderr": (completed.stderr or completed.stdout)[-2_000:],
+                "diagnosis": (
+                    "the recording extractor could not read the result "
+                    "bundle, so no frames exist to analyze"
+                ),
+            },
+        )
+
+
+def luma_timeline(
+    instruments: Instruments, video: Path
+) -> list[tuple[float, float]]:
+    completed = instruments.tools.run(
+        "luma-analysis",
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            str(video),
+            "-vf",
+            "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
+            "-f",
+            "null",
+            "-",
+        ],
+        env=instruments.tool_env(),
+    )
+    samples: list[tuple[float, float]] = []
+    seconds: float | None = None
+    for line in (completed.stdout + "\n" + completed.stderr).splitlines():
+        timestamp = re.search(r"pts_time:([0-9.]+)", line)
+        if timestamp is not None:
+            seconds = float(timestamp.group(1))
+            continue
+        if "lavfi.signalstats.YAVG=" in line and seconds is not None:
+            samples.append((seconds, float(line.rsplit("=", 1)[1])))
+    if completed.returncode != 0:
+        raise InstrumentFault(
+            "luma-analysis-failed",
+            {
+                "video": str(video),
+                "exitCode": completed.returncode,
+                "stderr": completed.stderr[-2_000:],
+                "diagnosis": "ffmpeg could not decode the recording",
+            },
+        )
+    if not samples:
+        raise InstrumentFault(
+            "luma-analysis-failed",
+            {
+                "video": str(video),
+                "diagnosis": "ffmpeg produced no luma samples",
+            },
+        )
+    return samples
 
 
 def probe_events(
@@ -224,62 +381,6 @@ def probe_events(
         if timestamp >= after:
             events.append((timestamp, match.group(2)))
     return events
-
-
-def wait_for_probe(
-    *,
-    device: str,
-    developer_dir: str,
-    output_directory: Path,
-    after: datetime,
-    pattern: str,
-    timeout_seconds: float,
-) -> list[str] | None:
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        lines, _ = copy_probe_lines(
-            device=device,
-            developer_dir=developer_dir,
-            output_directory=output_directory,
-        )
-        if lines is not None and any(
-            pattern in message
-            for _, message in probe_events(lines, after=after)
-        ):
-            return lines
-        time.sleep(1)
-    return None
-
-
-def luma_timeline(video: Path) -> list[tuple[float, float]]:
-    completed = subprocess.run(
-        [
-            "ffmpeg",
-            "-v",
-            "error",
-            "-i",
-            str(video),
-            "-vf",
-            "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
-            "-f",
-            "null",
-            "-",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    samples: list[tuple[float, float]] = []
-    seconds: float | None = None
-    for line in (completed.stdout + "\n" + completed.stderr).splitlines():
-        timestamp = re.search(r"pts_time:([0-9.]+)", line)
-        if timestamp is not None:
-            seconds = float(timestamp.group(1))
-            continue
-        if "lavfi.signalstats.YAVG=" in line and seconds is not None:
-            samples.append((seconds, float(line.rsplit("=", 1)[1])))
-    if completed.returncode != 0:
-        raise RuntimeError(completed.stderr[-2_000:])
-    return samples
 
 
 def black_spans(
@@ -381,9 +482,6 @@ def spans_for_events(
     spans: list[dict[str, float | int]],
     marks: list[float],
 ) -> list[dict[str, float | int]]:
-    # Probe timestamps have one-second precision. The original measured
-    # control flashes lasted at most 0.43 seconds, so one timestamp bucket
-    # covers the observed disturbance plus timestamp quantization.
     return [
         span
         for span in spans
@@ -419,49 +517,39 @@ def spans_during_phases(
     ]
 
 
-def require_success(result: dict[str, object], action: str) -> None:
-    if result.get("success") is not True:
-        raise RuntimeError(f"{action} failed: {json.dumps(result, ensure_ascii=False)}")
-
-
-def wait_for_result_bundle(
-    output_directory: Path,
-    *,
-    developer_dir: str,
-    timeout_seconds: float,
-) -> list[Path]:
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        bundles = sorted(
-            output_directory.glob("*.xcresult"),
-            key=lambda path: path.stat().st_mtime,
-        )
-        if bundles:
-            completed = subprocess.run(
-                [
-                    "xcrun",
-                    "xcresulttool",
-                    "get",
-                    "test-results",
-                    "summary",
-                    "--path",
-                    str(bundles[-1]),
-                ],
-                capture_output=True,
-                text=True,
-                env={**os.environ, "DEVELOPER_DIR": developer_dir},
-            )
-            if completed.returncode == 0:
-                return bundles
-        time.sleep(1)
-    return []
+def report_instrument_fault(
+    evidence_dir: Path,
+    instruments: Instruments,
+    fault: InstrumentFault,
+    phase_durations: dict[str, float],
+) -> int:
+    report = {
+        "instrumentFault": {
+            "kind": fault.kind,
+            "evidence": fault.evidence,
+            "budget": fault.budget.provenance if fault.budget else None,
+        },
+        "faultReport": instruments.policy.fault_report(),
+        "phaseDurationsSeconds": phase_durations,
+    }
+    (evidence_dir / "instrument-fault.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    return 1
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Record physical Vision Pro control toggles and report "
+            "correlated black frames."
+        )
+    )
     parser.add_argument("--device", required=True)
     parser.add_argument("--execution-input", type=Path, required=True)
-    parser.add_argument("--developer-dir", default=active_developer_directory())
+    parser.add_argument("--developer-dir", default=None)
     parser.add_argument(
         "--output-directory",
         "--evidence-dir",
@@ -472,150 +560,177 @@ def main() -> int:
     parser.add_argument("--clip-label", default="180_3D")
     parser.add_argument("--toggles", type=int, default=4)
     parser.add_argument("--toggle-interval-seconds", type=float, default=8)
-    parser.add_argument("--transition-timeout-seconds", type=float, default=20)
     parser.add_argument("--black-yavg", type=float, default=18)
     parser.add_argument("--fail-fast", action="store_true")
     arguments = parser.parse_args()
 
+    developer_dir = (
+        arguments.developer_dir or enchron_target.developer_directory()
+    )
     evidence = arguments.output_directory.expanduser().resolve()
     evidence.mkdir(parents=True, exist_ok=True)
-    session = RecordingSession(
+    lane = "simulator" if enchron_target.is_simulator(arguments.device) else "device"
+    budgets = BudgetProvider()
+    instruments = Instruments(
         device=arguments.device,
-        developer_dir=arguments.developer_dir,
-        execution_input=arguments.execution_input,
-        output_directory=evidence,
+        core_device=enchron_target.core_device(),
+        developer_dir=developer_dir,
+        lane=lane,
+        budgets=budgets,
+        controller=ControllerClient(
+            lane,
+            command_prefix=[
+                sys.executable,
+                str(CONTROLLER),
+                "--device",
+                arguments.device,
+                "--developer-dir",
+                developer_dir,
+                "--execution-input",
+                str(arguments.execution_input),
+                "--output-directory",
+                str(evidence),
+            ],
+            budgets=budgets,
+        ),
+        tools=LocalToolRunner(lane, budgets=budgets),
+        policy=RecoveryPolicy(),
     )
+
     run_started_at = datetime.now().astimezone()
     run_error: str | None = None
     probe_lines: list[str] | None = None
     probe_error: str | None = None
     stop_result: dict[str, object] | None = None
+    session_started = False
+    fault_in_flight: InstrumentFault | None = None
     phase_durations: dict[str, float] = {}
-    phase_started_at = time.monotonic()
+    phase_started_at = datetime.now(timezone.utc)
 
     def mark_phase(phase: str) -> None:
         nonlocal phase_started_at
-        now = time.monotonic()
-        phase_durations[phase] = round(now - phase_started_at, 3)
+        now = datetime.now(timezone.utc)
+        phase_durations[phase] = round(
+            (now - phase_started_at).total_seconds(), 3
+        )
         phase_started_at = now
 
     try:
-        reset_error = reset_probe_log(
-            device=arguments.device,
-            developer_dir=arguments.developer_dir,
-        )
-        if reset_error is not None:
-            raise RuntimeError(f"probe log reset failed: {reset_error}")
+        reset_probe_log(instruments)
         mark_phase("probeReset")
-        ready = session.ensure()
-        if ready.get("stage") != "ready":
-            raise RuntimeError(
-                f"session not ready: {json.dumps(ready, ensure_ascii=False)}"
+        ready = invoke(instruments, "ensure session", "ensure-session")
+        session_started = ready.get("stage") == "ready"
+        if not session_started:
+            raise InstrumentFault(
+                "session-lost",
+                {
+                    "document": ready,
+                    "diagnosis": (
+                        "ensure-session succeeded without reaching stage=ready"
+                    ),
+                },
             )
         mark_phase("ensureSession")
-        require_success(
-            session.controller(
-                "tap",
-                "--label",
-                arguments.clip_label,
-                "--no-screenshot",
-            ),
+        invoke(
+            instruments,
             f"open {arguments.clip_label}",
+            "tap",
+            "--label",
+            arguments.clip_label,
+            "--no-screenshot",
         )
         mark_phase("openMedia")
-        require_success(
-            session.controller(
+        invoke(
+            instruments,
+            "show controls for Panorama entry",
+            "app-command",
+            "--verb",
+            "toggleControls",
+            "--arg",
+            "visible=true",
+            "--no-screenshot",
+        )
+        invoke(
+            instruments,
+            "enter Panorama",
+            "tapSequence",
+            "--identifiers",
+            "PlayerUI-TopAction-resumePanorama",
+            "--no-screenshot",
+        )
+        mark_phase("enterPanorama")
+        probe_lines = wait_for_panorama_settle(
+            instruments, evidence, run_started_at
+        )
+        mark_phase("panoramaSettleWait")
+        for _ in range(arguments.toggles):
+            invoke(
+                instruments,
+                "toggle controls",
                 "app-command",
                 "--verb",
                 "toggleControls",
-                "--arg",
-                "visible=true",
                 "--no-screenshot",
-            ),
-            "show controls for Panorama entry",
-        )
-        require_success(
-            session.controller(
-                "tapSequence",
-                "--identifiers",
-                "PlayerUI-TopAction-resumePanorama",
-                "--no-screenshot",
-            ),
-            "enter Panorama",
-        )
-        mark_phase("enterPanorama")
-        probe_lines = wait_for_probe(
-            device=arguments.device,
-            developer_dir=arguments.developer_dir,
-            output_directory=evidence,
-            after=run_started_at,
-            pattern="presentation portal -> panorama",
-            timeout_seconds=arguments.transition_timeout_seconds,
-        )
-        if probe_lines is None:
-            raise RuntimeError("Panorama did not settle before the transition timeout")
-        mark_phase("panoramaSettleWait")
-        for _ in range(arguments.toggles):
-            require_success(
-                session.controller(
-                    "app-command",
-                    "--verb",
-                    "toggleControls",
-                    "--no-screenshot",
-                ),
-                "toggle controls",
             )
-            time.sleep(arguments.toggle_interval_seconds)
-        latest_probe_lines, probe_error = copy_probe_lines(
-            device=arguments.device,
-            developer_dir=arguments.developer_dir,
-            output_directory=evidence,
+            hold(
+                instruments,
+                "toggle-interval",
+                arguments.toggle_interval_seconds,
+            )
+        probe_lines = copy_probe_lines(
+            instruments, evidence, "post-toggle:probe-copy"
         )
-        if latest_probe_lines is not None:
-            probe_lines = latest_probe_lines
-        if probe_lines is not None:
-            visible_events = [
-                message
-                for _, message in probe_events(probe_lines, after=run_started_at)
-                if "immersiveControlsAttachment visible=" in message
-            ]
-            if visible_events and "visible=false" in visible_events[-1]:
-                require_success(
-                    session.controller(
-                        "app-command",
-                        "--verb",
-                        "toggleControls",
-                        "--no-screenshot",
-                    ),
-                    "show controls for Panorama exit",
-                )
-        mark_phase("controlToggles")
-        require_success(
-            session.controller(
-                "tapSequence",
-                "--identifiers",
-                "PlayerPanel-button-exit-spatial",
+        visible_events = [
+            message
+            for _, message in probe_events(probe_lines, after=run_started_at)
+            if "immersiveControlsAttachment visible=" in message
+        ]
+        if visible_events and "visible=false" in visible_events[-1]:
+            invoke(
+                instruments,
+                "show controls for Panorama exit",
+                "app-command",
+                "--verb",
+                "toggleControls",
                 "--no-screenshot",
-            ),
+            )
+        mark_phase("controlToggles")
+        invoke(
+            instruments,
             "exit spatial playback",
+            "tapSequence",
+            "--identifiers",
+            "PlayerPanel-button-exit-spatial",
+            "--no-screenshot",
         )
         mark_phase("exitSequence")
-    except Exception as error:
-        run_error = str(error)
-        mark_phase("failedPhase")
-    finally:
-        latest_probe_lines, latest_probe_error = copy_probe_lines(
-            device=arguments.device,
-            developer_dir=arguments.developer_dir,
-            output_directory=evidence,
+    except ProductHalt as halt:
+        run_error = f"{halt.action} failed: " + json.dumps(
+            {"kind": halt.failure.kind, "evidence": halt.failure.evidence},
+            ensure_ascii=False,
         )
-        if latest_probe_lines is not None:
-            probe_lines = latest_probe_lines
-            probe_error = None
-        elif probe_lines is None:
-            probe_error = latest_probe_error
-        stop_result = session.stop()
-        mark_phase("teardown")
+        mark_phase("failedPhase")
+    except InstrumentFault as fault:
+        fault_in_flight = fault
+        mark_phase("failedPhase")
+
+    try:
+        probe_lines = copy_probe_lines(
+            instruments, evidence, "teardown:probe-copy"
+        )
+    except InstrumentFault as fault:
+        fault_in_flight = fault_in_flight or fault
+    if session_started:
+        try:
+            stop_result = invoke_stop(instruments)
+        except InstrumentFault as fault:
+            fault_in_flight = fault_in_flight or fault
+    mark_phase("teardown")
+
+    if fault_in_flight is not None:
+        return report_instrument_fault(
+            evidence, instruments, fault_in_flight, phase_durations
+        )
 
     if arguments.fail_fast and run_error is not None:
         report = {
@@ -632,35 +747,24 @@ def main() -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 1
 
-    bundles = wait_for_result_bundle(
-        evidence,
-        developer_dir=arguments.developer_dir,
-        timeout_seconds=arguments.transition_timeout_seconds,
-    )
-    if not bundles:
-        print(run_error or "no result bundle recovered", file=sys.stderr)
-        return 1
-    mark_phase("resultBundleWait")
-    frames = evidence / "frames"
-    completed = subprocess.run(
-        [sys.executable, str(EXTRACTOR), str(bundles[-1]), str(frames)],
-        cwd=REPOSITORY_ROOT,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "DEVELOPER_DIR": arguments.developer_dir},
-    )
-    if completed.returncode != 0:
-        print(completed.stderr or completed.stdout, file=sys.stderr)
-        return 1
-    mark_phase("recordingExtraction")
-    index = json.loads((frames / "recording-index.json").read_text(encoding="utf-8"))
-    recording = index["recordings"][-1]
-    video = frames / recording["video"]
-    samples = luma_timeline(video)
-    mark_phase("lumaAnalysis")
-    if not samples:
-        print("ffmpeg produced no luma samples", file=sys.stderr)
-        return 1
+    try:
+        bundles = wait_for_result_bundle(instruments, evidence)
+        mark_phase("resultBundleWait")
+        frames = evidence / "frames"
+        extract_recording(instruments, bundles[-1], frames)
+        mark_phase("recordingExtraction")
+        index = json.loads(
+            (frames / "recording-index.json").read_text(encoding="utf-8")
+        )
+        recording = index["recordings"][-1]
+        video = frames / recording["video"]
+        samples = luma_timeline(instruments, video)
+        mark_phase("lumaAnalysis")
+    except InstrumentFault as fault:
+        return report_instrument_fault(
+            evidence, instruments, fault, phase_durations
+        )
+
     spans = black_spans(samples, arguments.black_yavg)
     events = probe_events(probe_lines or [], after=run_started_at)
     recording_started_at = float(recording["startedAt"])
@@ -695,7 +799,7 @@ def main() -> int:
         entry_marks = event_seconds(
             events,
             recording_started_at=recording_started_at,
-            contains="presentation portal -> panorama",
+            contains=PANORAMA_SETTLE_PATTERN,
         )
     toggle_blackouts = spans_for_events(spans, toggle_marks)
     visibility_blackouts = spans_for_events(spans, visibility_marks)

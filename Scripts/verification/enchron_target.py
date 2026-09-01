@@ -43,6 +43,18 @@ def core_device() -> str:
     return os.environ.get("ENCHRON_CORE_DEVICE") or PHYSICAL_CORE_DEVICE
 
 
+def developer_directory() -> str:
+    """The active developer directory, honoring an explicit DEVELOPER_DIR."""
+    explicit = os.environ.get("DEVELOPER_DIR")
+    if explicit:
+        return explicit
+    completed = subprocess.run(
+        ["xcode-select", "-p"],
+        check=True, text=True, capture_output=True,
+    )
+    return completed.stdout.strip()
+
+
 def is_simulator(device: str) -> bool:
     global _SIMULATOR_UDIDS
     if _SIMULATOR_UDIDS is None:
@@ -127,6 +139,7 @@ def truncate_in_container(
     developer_dir: str,
     core_device_identifier: str | None = None,
     timeout: float = 120.0,
+    budget_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Empty one file inside the app container, whichever lane the target is on.
 
@@ -136,7 +149,12 @@ def truncate_in_container(
     whatever the previous run had written. That is how a panorama segment came
     back with four hundred and sixty-two journal lines carrying a session id
     from an earlier run, and a replay that could verify nothing.
+
+    `budget_seconds` overrides the fixed timeout; the harness passes a derived
+    budget through it because drivers may not spell timeout keywords.
     """
+    if budget_seconds is not None:
+        timeout = budget_seconds
     if not target:
         raise ValueError("container target must not be empty")
     if is_simulator(target):
@@ -175,13 +193,16 @@ def copy_from_container(
     destination: Path,
     developer_dir: str,
     core_device_identifier: str | None = None,
+    budget_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Fetch one file out of the app container, whichever lane the target is on.
 
     The simulator branch is a plain filesystem read, so it cannot reproduce the
     `devicectl` behaviour of hanging instead of failing when the app is not
     running. Callers that treat a timeout as a signal should read the returned
-    code, not the elapsed time.
+    code, not the elapsed time. `budget_seconds` bounds the devicectl copy so a
+    hang surfaces as `subprocess.TimeoutExpired` instead of blocking forever;
+    None preserves the historical unbounded read.
     """
     if not target:
         raise ValueError("container target must not be empty")
@@ -214,5 +235,5 @@ def copy_from_container(
             "--destination", str(destination),
         ],
         env={"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"},
-        check=False, text=True, capture_output=True,
+        check=False, text=True, capture_output=True, timeout=budget_seconds,
     )
