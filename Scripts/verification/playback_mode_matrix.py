@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -11,7 +12,7 @@ import sys
 import tempfile
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, NamedTuple, Sequence, TypeVar
+from typing import Any, Callable, NamedTuple, Sequence, TypeVar, cast
 if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 import enchron_target
@@ -43,20 +44,33 @@ SETTLEMENT_TIMEOUT_SECONDS = 40.0
 POLL_INTERVAL_SECONDS = 2.0
 STALL_RECOVERY_SECONDS = 8.0
 Outcome = TypeVar("Outcome")
+
+
 class Step(NamedTuple):
     name: str
     actions: tuple[str, ...]
     expect_presentation: str
+
+
 class ProbeCursor(NamedTuple):
     sequence: int | None
     line_count: int
 PROBE_SEQUENCE_PATTERN = re.compile(r"(?:^| )probeSequence=(\d+)(?: |$)")
+
+
 def probe_sequence(line: str) -> int | None:
     match = PROBE_SEQUENCE_PATTERN.search(line)
     return int(match.group(1)) if match is not None else None
+
+
 def probe_cursor(lines: Sequence[str]) -> ProbeCursor:
     sequences = [sequence for line in lines if (sequence := probe_sequence(line)) is not None]
     return ProbeCursor(sequence=max(sequences) if sequences else None, line_count=len(lines))
+
+
+_probe_cursor = probe_cursor
+
+
 def probe_lines_since(lines: Sequence[str], cursor: ProbeCursor) -> tuple[list[str], ProbeCursor, str | None]:
     sequenced = [(sequence, line) for line in lines if (sequence := probe_sequence(line)) is not None]
     if sequenced:
@@ -89,6 +103,8 @@ PATHS: dict[str, tuple[Step, ...]] = {
     "clean-dock-cycle": (Step("open", OPEN_CLIP, "window"), Step("enter-docked-1", ("summon:PlayerUI-TopAction-dock","PlayerUI-DockMenu-skybox"), "docked"), Step("exit-to-window-1", ("summon:PlayerPanel-button-exit-spatial",), FLAT_WINDOW), Step("enter-docked-2", ("summon:PlayerUI-TopAction-dock","PlayerUI-DockMenu-skybox"), "docked"), Step("exit-to-window-2", ("summon:PlayerPanel-button-exit-spatial",), FLAT_WINDOW)),
     "clean-360-cycle": (Step("open", OPEN_CLIP, "window"), Step("apply-360-mono", ("summon:" + APPLY_360_MONO[0], *APPLY_360_MONO[1:]), PANORAMIC_WINDOW), Step("enter-panorama", ("summon:PlayerUI-TopAction-resumePanorama",), PANORAMIC_IMMERSIVE), Step("exit-to-portal", ("summon:PlayerPanel-button-exit-spatial",), PANORAMIC_WINDOW)),
 }
+
+
 @dataclass
 class Instruments:
     device: str
@@ -103,6 +119,8 @@ class Instruments:
         self.budgets.record_sample(self.lane, label, seconds, censored)
     def tool_env(self) -> dict[str, str]:
         return {**os.environ, "DEVELOPER_DIR": self.developer_dir}
+
+
 def recovered(instruments: Instruments, location: str, action: Callable[[], Outcome]) -> Outcome:
     while True:
         instruments.policy.record_action()
@@ -115,6 +133,8 @@ def recovered(instruments: Instruments, location: str, action: Callable[[], Outc
                 fault.evidence["halt"] = {"reason": decision.reason, "faultReport": decision.report}
                 raise
 _instruments_singleton: Instruments | None = None
+
+
 def _get_instruments() -> Instruments:
     global _instruments_singleton
     if _instruments_singleton is None:
@@ -123,8 +143,12 @@ def _get_instruments() -> Instruments:
         budgets = BudgetProvider()
         _instruments_singleton = Instruments(device=device, core_device=enchron_target.core_device(), developer_dir=enchron_target.developer_directory(), lane=lane, budgets=budgets, tools=LocalToolRunner(lane, budgets=budgets), policy=RecoveryPolicy())
     return _instruments_singleton
+
+
 def _controller_client(instruments: Instruments, output_directory: Path) -> ControllerClient:
     return ControllerClient(instruments.lane, command_prefix=[sys.executable, str(CONTROLLER), "--device", instruments.device, "--developer-dir", instruments.developer_dir, "--output-directory", str(output_directory)], budgets=instruments.budgets)
+
+
 def _parse_args_for_invoke(arguments: Sequence[str]) -> tuple[str, list[str]]:
     args = list(arguments)
     filtered: list[str] = []
@@ -146,6 +170,8 @@ def _parse_args_for_invoke(arguments: Sequence[str]) -> tuple[str, list[str]]:
         return "", []
     verb = filtered[0]
     return verb, filtered[1:]
+
+
 def controller(output_directory: Path, *arguments: str) -> dict[str, object]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(output_directory))
@@ -161,12 +187,16 @@ def controller(output_directory: Path, *arguments: str) -> dict[str, object]:
         return doc
     except InstrumentFault as fault:
         return {"success": False, "error": fault.kind, "failure": {"class": "instrument", "kind": fault.kind, "evidence": fault.evidence}, "_returncode": 2, "instrumentFault": {"kind": fault.kind, "evidence": fault.evidence, "budget": fault.budget.provenance if fault.budget else None}}
+
+
 def controller_summary(document: dict[str, object]) -> dict[str, object]:
     summary = {key: document[key] for key in ("success","stage","message","error","detail","appState","sessionID","_returncode") if key in document}
     matched = document.get("matchedElement")
     if isinstance(matched, dict):
         summary["matchedElement"] = {key: matched[key] for key in ("identifier","value","isEnabled","isHittable") if key in matched}
     return summary
+
+
 def parse_control_plane(document: dict[str, object]) -> dict[str, str] | None:
     matched = document.get("matchedElement")
     if not isinstance(matched, dict):
@@ -175,12 +205,16 @@ def parse_control_plane(document: dict[str, object]) -> dict[str, str] | None:
     if not isinstance(value, str) or not value:
         return None
     return dict(part.split("=", 1) for part in value.split(";") if "=" in part)
+
+
 def _invoke_controller(instruments: Instruments, client: ControllerClient, location: str, verb: str, *args: str) -> dict[str, object]:
     response = recovered(instruments, location, lambda: client.invoke(verb, list(args)))
     if response.failure is not None:
         raise InstrumentFault(response.failure.kind, response.failure.evidence)
     return response.document
-def read_control_plane(output_directory: Path, *, timeout: float = CONTROLLER_TIMEOUT_SECONDS) -> tuple[dict[str, str] | None, dict[str, object]]:  # type: ignore
+
+
+def read_control_plane(output_directory: Path, *, timeout: float = CONTROLLER_TIMEOUT_SECONDS) -> tuple[dict[str, str] | None, dict[str, object]]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(output_directory))
     try:
@@ -188,9 +222,13 @@ def read_control_plane(output_directory: Path, *, timeout: float = CONTROLLER_TI
         return parse_control_plane(document), document
     except InstrumentFault as fault:
         return None, {"success": False, "error": fault.kind, "failure": {"class": "instrument", "kind": fault.kind, "evidence": fault.evidence}}
+
+
 def _read_control_plane_harness(instruments: Instruments, client: ControllerClient) -> tuple[dict[str, str] | None, dict[str, object]]:
     document = _invoke_controller(instruments, client, "harness:snapshot", "snapshot", "--identifier", CONTROL_PLANE_IDENTIFIER, "--no-screenshot")
     return parse_control_plane(document), document
+
+
 def copy_probe_lines(cell_directory: Path, *, target: str = DEVICE, core_device_identifier: str = CORE_DEVICE) -> tuple[list[str] | None, str | None]:
     instruments = _get_instruments()
     try:
@@ -198,6 +236,8 @@ def copy_probe_lines(cell_directory: Path, *, target: str = DEVICE, core_device_
         return lines, None
     except InstrumentFault as fault:
         return None, str(fault.evidence.get("diagnosis") or fault.kind)
+
+
 def _copy_probe_lines_harness(instruments: Instruments, cell_directory: Path, location: str) -> list[str]:
     def attempt() -> list[str]:
         with tempfile.NamedTemporaryFile(prefix="enchron-probe-", suffix=".log", delete=False) as handle:
@@ -211,8 +251,12 @@ def _copy_probe_lines_harness(instruments: Instruments, cell_directory: Path, lo
         destination.unlink(missing_ok=True)
         return lines
     return recovered(instruments, location, attempt)
+
+
 def copy_probe_lines_once(cell_directory: Path, *, target: str = DEVICE, core_device_identifier: str = CORE_DEVICE) -> tuple[list[str] | None, str | None]:
     return copy_probe_lines(Path(cell_directory), target=target, core_device_identifier=core_device_identifier)
+
+
 def _write_probe_excerpt_harness(instruments: Instruments, cell_directory: Path, step_index: int, step_name: str, cursor: ProbeCursor, lines: list[str] | None, error: str | None) -> tuple[str, list[str], ProbeCursor, str | None]:
     excerpt_path = Path(cell_directory) / ("step-" + f"{step_index:02d}" + "-" + safe_component(step_name) + "-probe.log")
     if lines is None:
@@ -222,6 +266,8 @@ def _write_probe_excerpt_harness(instruments: Instruments, cell_directory: Path,
     text = "\n".join(excerpt)
     excerpt_path.write_text(text + ("\n" if text else ""), encoding="utf-8")
     return str(excerpt_path), excerpt, next_cursor, cursor_error
+
+
 def write_probe_excerpt(*, cell_directory: Path, step_index: int, step_name: str, cursor: ProbeCursor) -> tuple[str, list[str], ProbeCursor, str | None]:
     instruments = _get_instruments()
     try:
@@ -231,18 +277,28 @@ def write_probe_excerpt(*, cell_directory: Path, step_index: int, step_name: str
         lines = None
         error = str(fault.evidence.get("diagnosis") or fault.kind)
     return _write_probe_excerpt_harness(instruments, Path(cell_directory), step_index, step_name, cursor, lines, error)
+
+
 def safe_component(value: str) -> str:
     component = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-.")
     return component or "value"
+
+
 def resolve_actions(step: Step, clip: str) -> tuple[str, ...]:
     values = {"clip": clip, "stereo_label": STEREO_LABELS.get(clip, "{stereo_label}")}
     return tuple(action.format_map(values) for action in step.actions)
+
+
 def format_facts(plane: dict[str, str] | None) -> dict[str, str | None] | None:
     if plane is None:
         return None
     return {field: plane.get(field) for field in FORMAT_FIELDS}
+
+
 def observed_state(plane: dict[str, str], elapsed_seconds: float) -> dict[str, object]:
     return {"elapsed_seconds": round(elapsed_seconds, 3), "presentation": plane.get("presentation"), "transition": plane.get("transition"), "lifecycle": plane.get("lifecycle"), "projection": plane.get("projection")}
+
+
 def append_observed_state(observations: list[dict[str, object]], plane: dict[str, str], elapsed_seconds: float) -> None:
     state = observed_state(plane, elapsed_seconds)
     if observations:
@@ -251,10 +307,14 @@ def append_observed_state(observations: list[dict[str, object]], plane: dict[str
             return
     observations.append(state)
 FORMAT_CHANGE_FIELDS = ("projection","stereoLayout","formatProvenance")
+
+
 def format_changed(baseline: dict[str, str] | None, plane: dict[str, str]) -> bool:
     if baseline is None:
         return True
     return any(plane.get(field) != baseline.get(field) for field in FORMAT_CHANGE_FIELDS)
+
+
 def hold(instruments: Instruments, label: str, seconds: float) -> None:
     if seconds <= 0:
         return
@@ -265,7 +325,9 @@ def hold(instruments: Instruments, label: str, seconds: float) -> None:
             return {"heldSeconds": round(elapsed, 3)}
         return None
     wait_for(label, probe, Budget(seconds=seconds + 5.0, provenance="pacing hold " + str(seconds) + "s + 5s slack"), observe=lambda: [], record=instruments.record_wait_sample)
-def wait_for_presentation(*, output_directory: Path, expected: str, target_started_at: float, baseline_plane: dict[str, str] | None = None) -> dict[str, object]:  # type: ignore
+
+
+def wait_for_presentation(*, output_directory: Path, expected: str, target_started_at: float, baseline_plane: dict[str, str] | None = None) -> dict[str, object]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(output_directory))
     started_dt = datetime.now(timezone.utc)
@@ -301,6 +363,8 @@ def wait_for_presentation(*, output_directory: Path, expected: str, target_start
                 return {**common, "verdict": WRONG_STATE}
             return {**common, "verdict": STALL_TIMEOUT}
         raise
+
+
 def parse_probe_timestamp(line: str) -> datetime | None:
     token = line.split(maxsplit=1)[0] if line else ""
     if not token:
@@ -309,6 +373,8 @@ def parse_probe_timestamp(line: str) -> datetime | None:
         return datetime.fromisoformat(token.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
 def parse_settlement_fields(line: str) -> dict[str, str] | None:
     marker = " settlement "
     if marker not in line:
@@ -317,6 +383,8 @@ def parse_settlement_fields(line: str) -> dict[str, str] | None:
     fields = dict(part.split("=", 1) for part in payload.split(",") if "=" in part)
     return fields or None
 IMMERSIVE_PRESENTATIONS = frozenset(("panorama","docked"))
+
+
 def last_settlement_settled(lines: Sequence[str]) -> bool | None:
     settled: bool | None = None
     for line in lines:
@@ -325,11 +393,15 @@ def last_settlement_settled(lines: Sequence[str]) -> bool | None:
             settled = fields["settled"] == "true"
     return settled
 SETTLEMENT_CONJUNCTS: tuple[tuple[str, tuple[str, ...]], ...] = (("ready", ("ready",)), ("immersiveMode", ("immersiveMode",)), ("contentTypeOrOverride", ("contentTypeMatches","overrideAdopted")), ("viewingMode", ("viewingMode",)), ("spatialMode", ("spatialMode",)), ("pixels", ("pixels",)))
+
+
 def settlement_blocker(fields: dict[str, str]) -> str | None:
     for name, alternatives in SETTLEMENT_CONJUNCTS:
         if not any(fields.get(field) == "true" for field in alternatives):
             return name
     return None
+
+
 def settlement_trace(lines: Sequence[str]) -> dict[str, object] | None:
     samples = [fields for fields in (parse_settlement_fields(line) for line in lines) if fields is not None and "settled" in fields]
     if not samples:
@@ -337,6 +409,8 @@ def settlement_trace(lines: Sequence[str]) -> dict[str, object] | None:
     settled_flags = [fields["settled"] == "true" for fields in samples]
     terminal = samples[-1]
     return {"samples": len(samples), "settled_samples": sum(settled_flags), "reached_settled": any(settled_flags), "regressed_after_settled": any(settled_flags[index] and not settled_flags[index + 1] for index in range(len(settled_flags) - 1)), "terminal_settled": settled_flags[-1], "terminal_blocker": settlement_blocker(terminal), "terminal_fields": {field: terminal.get(field) for field in ("ready","immersiveMode","contentTypeMatches","overrideAdopted","viewingMode","spatialMode","pixels","gotImmersive","gotViewing","status","provenance")}}
+
+
 def appeared_presentation(lines: Sequence[str]) -> str | None:
     presentation: str | None = None
     for line in lines:
@@ -349,6 +423,8 @@ def appeared_presentation(lines: Sequence[str]) -> str | None:
         else:
             presentation = fields.get("presentation", presentation)
     return presentation
+
+
 def _wait_for_immersive_settlement_harness(*, instruments: Instruments, cell_directory: Path, expected: str, probe_cursor: ProbeCursor, client: ControllerClient, target_started_at: datetime) -> tuple[dict[str, object], list[str], ProbeCursor]:
     latest_delta: list[str] = []
     observed_cursor = probe_cursor
@@ -366,7 +442,7 @@ def _wait_for_immersive_settlement_harness(*, instruments: Instruments, cell_dir
             return {"verdict": PASS, "time_to_target_seconds": round(elapsed, 3), "actual_presentation": appeared or expected, "elapsed_seconds": round(elapsed, 3)}
         return None
     def observe() -> list[object]:
-        return latest_delta[-20:]
+        return cast(list[object], latest_delta[-20:])
     try:
         evidence = wait_for("immersive-settlement", probe, instruments.budgets.budget(instruments.lane, "immersive-settlement"), observe, record=instruments.record_wait_sample)
         return evidence, latest_delta, observed_cursor
@@ -383,11 +459,15 @@ def _wait_for_immersive_settlement_harness(*, instruments: Instruments, cell_dir
                 return {"verdict": WRONG_STATE, "actual_presentation": plane.get("presentation"), "control_plane": format_facts(plane), "elapsed_seconds": round(elapsed, 3)}, latest_delta, observed_cursor
             raise InstrumentFault("probe-unavailable", {"elapsed_seconds": round(elapsed, 3), "waitFault": fault.evidence}, fault.budget) from None
         raise
-def wait_for_immersive_settlement(*, cell_directory: Path, expected: str, target_started_at: float, probe_cursor: ProbeCursor, controller_directory: Path) -> tuple[dict[str, object], list[str], ProbeCursor]:  # type: ignore
+
+
+def wait_for_immersive_settlement(*, cell_directory: Path, expected: str, target_started_at: float, probe_cursor: ProbeCursor, controller_directory: Path) -> tuple[dict[str, object], list[str], ProbeCursor]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     dt = datetime.now(timezone.utc)
     return _wait_for_immersive_settlement_harness(instruments=instruments, cell_directory=Path(cell_directory), expected=expected, probe_cursor=probe_cursor, client=client, target_started_at=dt)
+
+
 def probe_shows_recovered_stall(lines: Sequence[str]) -> bool:
     none_since: datetime | None = None
     for line in lines:
@@ -405,6 +485,8 @@ def probe_shows_recovered_stall(lines: Sequence[str]) -> bool:
         else:
             none_since = None
     return False
+
+
 def drive_error_step(*, step: Step, actions: Sequence[str], phase: str, started_at: float, controller_document: dict[str, object] | None = None, message: str | None = None) -> dict[str, object]:
     result: dict[str, object] = {"name": step.name, "actions": list(actions), "expect_presentation": step.expect_presentation, "verdict": DRIVE_ERROR, "phase": phase, "elapsed_seconds": round((datetime.now(timezone.utc) - datetime.fromtimestamp(started_at, tz=timezone.utc)).total_seconds(), 3) if isinstance(started_at, (int,float)) else 0}
     if controller_document is not None:
@@ -412,8 +494,12 @@ def drive_error_step(*, step: Step, actions: Sequence[str], phase: str, started_
     if message is not None:
         result["message"] = message
     return result
+
+
 def _drive_error_from_fault(*, step: Step, actions: Sequence[str], phase: str, started: datetime, fault: InstrumentFault) -> dict[str, object]:
     return {"name": step.name, "actions": list(actions), "expect_presentation": step.expect_presentation, "verdict": DRIVE_ERROR, "phase": phase, "elapsed_seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 3), "instrumentFault": {"kind": fault.kind, "evidence": fault.evidence, "budget": fault.budget.provenance if fault.budget else None}}
+
+
 def _run_step_harness(*, instruments: Instruments, client: ControllerClient, step: Step, step_index: int, clip: str, cell_directory: Path, probe_cursor: ProbeCursor) -> tuple[dict[str, object], ProbeCursor]:
     actions = resolve_actions(step, clip)
     started_dt = datetime.now(timezone.utc)
@@ -514,6 +600,8 @@ def _run_step_harness(*, instruments: Instruments, client: ControllerClient, ste
         result["stall_recovered"] = False
         result["settlement_trace"] = None
         return result, probe_cursor
+
+
 def _wait_for_presentation_harness(*, instruments: Instruments, client: ControllerClient, expected: str, baseline_plane: dict[str, str] | None, started_dt: datetime) -> dict[str, object]:
     require_format_change = baseline_plane is not None and baseline_plane.get("presentation") == expected and baseline_plane.get("transition") == "none"
     observations: list[dict[str, object]] = []
@@ -542,19 +630,27 @@ def _wait_for_presentation_harness(*, instruments: Instruments, client: Controll
                 return {**common, "verdict": WRONG_STATE}
             return {**common, "verdict": STALL_TIMEOUT}
         raise
-def run_step(*, step: Step, step_index: int, clip: str, cell_directory: Path, controller_directory: Path, probe_cursor: ProbeCursor) -> tuple[dict[str, object], ProbeCursor]:  # type: ignore
+
+
+def run_step(*, step: Step, step_index: int, clip: str, cell_directory: Path, controller_directory: Path, probe_cursor: ProbeCursor) -> tuple[dict[str, object], ProbeCursor]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     return _run_step_harness(instruments=instruments, client=client, step=step, step_index=step_index, clip=clip, cell_directory=Path(cell_directory), probe_cursor=probe_cursor)
+
+
 def control_signature(plane: dict[str, str] | None) -> tuple[str | None, str | None] | None:
     if plane is None:
         return None
     return plane.get("lifecycle"), plane.get("presentation")
+
+
 def choose_wedge_clip(current_clip: str, selected_clips: Sequence[str]) -> str:
     for candidate in (*selected_clips, *DEFAULT_CLIPS):
         if candidate != current_clip and "hnvr" not in candidate.casefold():
             return candidate
     raise ValueError("No alternate allowed clip is available for the wedge check.")
+
+
 def _run_wedge_check_harness(*, instruments: Instruments, client: ControllerClient, current_clip: str, selected_clips: Sequence[str]) -> tuple[str, dict[str, object]]:
     alternate_clip = choose_wedge_clip(current_clip, selected_clips)
     baseline_plane, baseline_document = _read_control_plane_harness(instruments, client)
@@ -591,27 +687,37 @@ def _run_wedge_check_harness(*, instruments: Instruments, client: ControllerClie
         evidence["observed_states"] = observations
         evidence["last_controller"] = controller_summary(tap_document)
         return "blocked", evidence
-def run_wedge_check(*, current_clip: str, selected_clips: Sequence[str], controller_directory: Path) -> tuple[str, dict[str, object]]:  # type: ignore
+
+
+def run_wedge_check(*, current_clip: str, selected_clips: Sequence[str], controller_directory: Path) -> tuple[str, dict[str, object]]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     return _run_wedge_check_harness(instruments=instruments, client=client, current_clip=current_clip, selected_clips=selected_clips)
-def app_command(controller_directory: Path, verb: str, *arguments: str) -> dict[str, object]:  # type: ignore
+
+
+def app_command(controller_directory: Path, verb: str, *arguments: str) -> dict[str, object]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     try:
         return app_command_harness(instruments, client, verb, *arguments)
     except InstrumentFault as fault:
         return {"ok": False, "error": fault.kind, "instrumentFault": {"kind": fault.kind, "evidence": fault.evidence}}
+
+
 def app_command_harness(instruments: Instruments, client: ControllerClient, verb_name: str, *args: str) -> dict[str, object]:
     parts: list[str] = ["--verb", verb_name]
     for a in args:
         parts.extend(["--arg", a])
     document = _invoke_controller(instruments, client, "app-command:" + verb_name, "app-command", *parts)
     return document
-def summon_and_tap(controller_directory: Path, identifier: str) -> dict[str, object]:  # type: ignore
+
+
+def summon_and_tap(controller_directory: Path, identifier: str) -> dict[str, object]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     return summon_and_tap_harness(instruments, client, identifier)
+
+
 def summon_and_tap_harness(instruments: Instruments, client: ControllerClient, identifier: str) -> dict[str, object]:
     try:
         doc = _invoke_controller(instruments, client, "summon-tap:" + identifier, "tap", "--identifier", identifier, "--no-screenshot")
@@ -630,23 +736,31 @@ def summon_and_tap_harness(instruments: Instruments, client: ControllerClient, i
         if doc.get("success") is True:
             return doc
     return doc
-def push_to_inbox(media_path: Path) -> str | None:  # type: ignore
+
+
+def push_to_inbox(media_path: Path) -> str | None:
     instruments = _get_instruments()
     try:
         push_to_inbox_harness(instruments, Path(media_path))
         return None
     except InstrumentFault as fault:
         return str(fault.evidence.get("diagnosis") or fault.kind)[:300]
+
+
 def push_to_inbox_harness(instruments: Instruments, media_path: Path) -> None:
     def attempt() -> None:
         completed = instruments.tools.call("media-push", lambda budget: enchron_target.copy_to_container(target=instruments.device, bundle_id=BUNDLE, source=Path(media_path), destination="Documents/TestMediaInbox/" + Path(media_path).name, developer_dir=instruments.developer_dir, core_device_identifier=instruments.core_device, budget_seconds=budget.seconds))
         if completed.returncode != 0:
             raise InstrumentFault("media-push-failed", {"source": str(media_path), "stderr": (completed.stderr or completed.stdout)[-500:]})
     recovered(instruments, "push-to-inbox:media-push", attempt)
-def clean_state_preamble(*, clip: str, media_root: Path, controller_directory: Path) -> dict[str, object] | None:  # type: ignore
+
+
+def clean_state_preamble(*, clip: str, media_root: Path, controller_directory: Path) -> dict[str, object] | None:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     return _clean_state_preamble_harness(instruments=instruments, client=client, clip=clip, media_root=Path(media_root))
+
+
 def _clean_state_preamble_harness(*, instruments: Instruments, client: ControllerClient, clip: str, media_root: Path) -> dict[str, object] | None:
     media_path = Path(media_root) / clip
     if not Path(media_path).is_file():
@@ -701,9 +815,13 @@ WINDOWED_STEADY_LIFECYCLES = frozenset(("playing","ready","paused","ended"))
 VISUAL_BLACK_YAVG = 18.0
 VISUAL_BLACK_YMAX = 40.0
 VISUAL_FROZEN_SSIM = 0.995
-def ffmpeg_luma_stats(image_path: str) -> tuple[float, float] | None:  # type: ignore
+
+
+def ffmpeg_luma_stats(image_path: str) -> tuple[float, float] | None:
     instruments = _get_instruments()
     return _ffmpeg_luma_stats_harness(instruments, image_path)
+
+
 def _ffmpeg_luma_stats_harness(instruments: Instruments, image_path: str) -> tuple[float, float] | None:
     completed = instruments.tools.run("ffmpeg-luma", ["ffmpeg", "-hide_banner", "-i", image_path, "-vf", "signalstats,metadata=mode=print", "-frames:v", "1", "-f", "null", "-"], env=instruments.tool_env())
     yavg = ymax = None
@@ -721,17 +839,25 @@ def _ffmpeg_luma_stats_harness(instruments: Instruments, image_path: str) -> tup
     if yavg is None or ymax is None:
         return None
     return yavg, ymax
-def ffmpeg_ssim(first_path: str, second_path: str) -> float | None:  # type: ignore
+
+
+def ffmpeg_ssim(first_path: str, second_path: str) -> float | None:
     instruments = _get_instruments()
     return _ffmpeg_ssim_harness(instruments, first_path, second_path)
+
+
 def _ffmpeg_ssim_harness(instruments: Instruments, first_path: str, second_path: str) -> float | None:
     completed = instruments.tools.run("ffmpeg-ssim", ["ffmpeg", "-hide_banner", "-i", first_path, "-i", second_path, "-filter_complex", "ssim", "-f", "null", "-"], env=instruments.tool_env())
     match = re.search(r"All:([0-9.]+)", completed.stderr + completed.stdout)
     return float(match.group(1)) if match else None
-def capture_visual_evidence(*, controller_directory: Path, lifecycle: str | None) -> dict[str, object]:  # type: ignore
+
+
+def capture_visual_evidence(*, controller_directory: Path, lifecycle: str | None) -> dict[str, object]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     return _capture_visual_evidence_harness(instruments=instruments, client=client, lifecycle=lifecycle)
+
+
 def _capture_visual_evidence_harness(*, instruments: Instruments, client: ControllerClient, lifecycle: str | None) -> dict[str, object]:
     shots: list[str] = []
     for index in (1, 2):
@@ -767,10 +893,14 @@ def _capture_visual_evidence_harness(*, instruments: Instruments, client: Contro
     else:
         evidence["verdict"] = "unavailable"
     return evidence
-def apply_visual_gate(step_result: dict[str, object], controller_directory: Path) -> None:  # type: ignore
+
+
+def apply_visual_gate(step_result: dict[str, object], controller_directory: Path) -> None:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     apply_visual_gate_harness(instruments, client, step_result)
+
+
 def apply_visual_gate_harness(instruments: Instruments, client: ControllerClient, step_result: dict[str, object]) -> None:
     if step_result.get("verdict") != PASS:
         return
@@ -781,6 +911,8 @@ def apply_visual_gate_harness(instruments: Instruments, client: ControllerClient
     if visual.get("verdict") in ("black","frozen"):
         step_result["verdict"] = WRONG_STATE
         step_result["message"] = "visual evidence: " + str(visual["verdict"])
+
+
 def _wait_for_clean_open_harness(*, instruments: Instruments, cell_directory: Path, client: ControllerClient, target_started_at: datetime) -> tuple[dict[str, object], list[str], ProbeCursor]:
     latest_delta: list[str] = []
     observed_cursor: ProbeCursor = ProbeCursor(None, 0)
@@ -837,7 +969,9 @@ def _wait_for_clean_open_harness(*, instruments: Instruments, cell_directory: Pa
             elapsed = (datetime.now(timezone.utc) - started).total_seconds()
             return {"verdict": STALL_TIMEOUT, "landed": None, "elapsed_seconds": round(elapsed, 3), "control_plane": format_facts(latest_plane)}, latest_delta, observed_cursor
         raise
-def wait_for_clean_open(*, cell_directory: Path, controller_directory: Path, target_started_at: float, probe_cursor: ProbeCursor | None = None, probe_offset: int | None = None) -> tuple[dict[str, object], list[str], ProbeCursor]:  # type: ignore
+
+
+def wait_for_clean_open(*, cell_directory: Path, controller_directory: Path, target_started_at: float, probe_cursor: ProbeCursor | None = None, probe_offset: int | None = None) -> tuple[dict[str, object], list[str], ProbeCursor]:
     instruments = _get_instruments()
     client = _controller_client(instruments, Path(controller_directory))
     if isinstance(probe_cursor, ProbeCursor):
@@ -848,12 +982,14 @@ def wait_for_clean_open(*, cell_directory: Path, controller_directory: Path, tar
         cursor = ProbeCursor(None, 0)
         try:
             lines = _copy_probe_lines_harness(instruments, Path(cell_directory), "clean-open:compat-probe")
-            cursor = probe_cursor(lines)
+            cursor = _probe_cursor(lines)
         except InstrumentFault:
             cursor = ProbeCursor(None, 0)
     started_dt = datetime.now(timezone.utc)
     result, delta, new_cursor = _wait_for_clean_open_harness(instruments=instruments, cell_directory=Path(cell_directory), client=client, target_started_at=started_dt)
     return result, delta, new_cursor
+
+
 def run_cell(*, clip: str, clip_index: int, path_name: str, path_index: int, rep: int, selected_clips: Sequence[str], evidence_directory: Path, clean: bool = False, media_root: Path | None = None) -> dict[str, object]:
     instruments = _get_instruments()
     cell_directory = Path(evidence_directory) / ("clip-" + f"{clip_index:02d}" + "-" + safe_component(Path(clip).name)) / ("path-" + f"{path_index:02d}" + "-" + path_name) / ("rep-" + f"{rep:02d}")
@@ -984,19 +1120,23 @@ def run_cell(*, clip: str, clip_index: int, path_name: str, path_index: int, rep
                 wedge_check = "blocked"
                 wedge_evidence = {"error": str(error)}
     return {"clip": clip, "path": path_name, "rep": rep, "verdict": verdict, "passed": verdict in PASSING_VERDICTS, "elapsed_seconds": round((datetime.now(timezone.utc) - cell_started_dt).total_seconds(), 3), "session": controller_summary(session), "steps": steps, "wedge_check": wedge_check, "wedge_evidence": wedge_evidence, "evidence_directory": str(cell_directory)}
+
+
 def append_result(results_path: Path, result: dict[str, object]) -> None:
     with Path(results_path).open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n")
+
+
 def print_summary(*, clips: Sequence[str], paths: Sequence[str], reps: int, results: Sequence[dict[str, object]]) -> None:
-    result_by_cell = {(str(result["clip"]), str(result["path"]), int(result["rep"])): result for result in results}
+    result_by_cell = {(str(result["clip"]), str(result["path"]), int(cast(int, result["rep"]))): result for result in results}
     headers = ["clip","path",*(f"rep-{rep}" for rep in range(1, reps + 1)),"PASS_COUNT","RECOVERED","MEDIAN_STEP_TARGET_S"]
     rows: list[list[str]] = []
     for clip in clips:
         for path_name in paths:
             row_results = [result for rep in range(1, reps + 1) if (result := result_by_cell.get((clip, path_name, rep))) is not None]
-            target_times = [float(step["time_to_target_seconds"]) for result in row_results if result["verdict"] in PASSING_VERDICTS for step in result["steps"] if step.get("verdict") == PASS and "time_to_target_seconds" in step]
+            target_times = [float(cast(Any, cast(dict[str, object], step)["time_to_target_seconds"])) for result in row_results if cast(str, result["verdict"]) in PASSING_VERDICTS for step in cast(Sequence[dict[str, object]], result["steps"]) if cast(dict[str, object], step).get("verdict") == PASS and "time_to_target_seconds" in cast(dict[str, object], step)]
             median_target = f"{statistics.median(target_times):.3f}" if target_times else "-"
-            rows.append([clip, path_name, *(str(result["verdict"]) if (result := result_by_cell.get((clip, path_name, rep))) is not None else "SKIPPED" for rep in range(1, reps + 1)), str(sum(result["verdict"] in PASSING_VERDICTS for result in row_results)), str(sum(result["verdict"] == STALL_RECOVERED for result in row_results)), median_target])
+            rows.append([clip, path_name, *(str(cast(str, result["verdict"])) if (result := result_by_cell.get((clip, path_name, rep))) is not None else "SKIPPED" for rep in range(1, reps + 1)), str(sum(cast(str, result["verdict"]) in PASSING_VERDICTS for result in row_results)), str(sum(cast(str, result["verdict"]) == STALL_RECOVERED for result in row_results)), median_target])
     widths = [max(len(headers[index]), *(len(row[index]) for row in rows)) for index in range(len(headers))]
     def render(values: Sequence[str]) -> str:
         return "  ".join(value.ljust(widths[index]) for index, value in enumerate(values)).rstrip()
@@ -1004,8 +1144,12 @@ def print_summary(*, clips: Sequence[str], paths: Sequence[str], reps: int, resu
     print(render(tuple("-" * width for width in widths)))
     for row in rows:
         print(render(row))
+
+
 def display_action_template(action: str) -> str:
     return action.replace("{clip}", "<clip>").replace("{stereo_label}", "<stereo_label>")
+
+
 def print_path_table() -> None:
     print("clip parameters")
     for clip in DEFAULT_CLIPS:
@@ -1017,6 +1161,8 @@ def print_path_table() -> None:
             for action in step.actions:
                 print("      tap " + display_action_template(action))
             print("      expect presentation=" + step.expect_presentation + ";transition=none")
+
+
 def positive_reps(value: str) -> int:
     try:
         reps = int(value)
@@ -1025,9 +1171,13 @@ def positive_reps(value: str) -> int:
     if reps < 1:
         raise argparse.ArgumentTypeError("reps must be at least 1")
     return reps
+
+
 def default_evidence_directory() -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return DEFAULT_EVIDENCE_ROOT / ("run-" + timestamp)
+
+
 def parse_arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser = argparse.ArgumentParser(description="Run the physical Vision Pro playback presentation path matrix.")
     parser.add_argument("--clips", nargs="+", default=list(DEFAULT_CLIPS))
@@ -1039,6 +1189,8 @@ def parse_arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser.add_argument("--evidence-dir", type=Path)
     parser.add_argument("--list-paths", action="store_true")
     return parser, parser.parse_args()
+
+
 def configuration_error(arguments: argparse.Namespace) -> str | None:
     banned = [clip for clip in arguments.clips if "hnvr" in clip.casefold()]
     if banned:
@@ -1049,6 +1201,8 @@ def configuration_error(arguments: argparse.Namespace) -> str | None:
         if unknown:
             return "No SPEC stereo_label is defined for clip: " + ", ".join(unknown)
     return None
+
+
 def main() -> int:
     parser, arguments = parse_arguments()
     print(REGRESSION_BANNER, file=sys.stderr, flush=True)

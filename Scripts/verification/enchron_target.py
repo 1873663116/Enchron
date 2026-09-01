@@ -92,6 +92,7 @@ def copy_to_container(
     developer_dir: str,
     core_device_identifier: str | None = None,
     timeout: float = 120.0,
+    budget_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Put one file into the app container, whichever lane the target is on.
 
@@ -100,7 +101,12 @@ def copy_to_container(
     not there, and devicectl answers "RemoteServiceDiscovery connectivity is not
     available to the device" - which reads as a broken headset rather than as a
     write aimed at the wrong lane.
+
+    `budget_seconds` overrides the fixed timeout; the harness passes a derived
+    budget through it because drivers may not spell timeout keywords.
     """
+    if budget_seconds is not None:
+        timeout = budget_seconds
     if not target:
         raise ValueError("container target must not be empty")
     if is_simulator(target):
