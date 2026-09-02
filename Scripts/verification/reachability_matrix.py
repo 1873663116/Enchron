@@ -183,6 +183,37 @@ def redact_sensitive_values(value: object, values: tuple[str, ...]) -> object:
     return value
 
 
+def _resolved_emby_address_from_receipt(fallback: str) -> str:
+    try:
+        import ensure_test_services as ets
+        spec = ets.emby_spec()
+        receipt = ets._read_object(spec.receipt_file)
+        if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
+            return str(receipt["address"]).strip()
+        receipts, _ = ets.ensure_all((spec,))
+        if receipts and isinstance(receipts[0].get("address"), str) and receipts[0].get("address"):
+            return str(receipts[0]["address"]).strip()
+    except Exception:
+        pass
+    return fallback
+
+
+def _resolved_service_hosts() -> tuple[dict[str, str], dict[str, dict[str, object]]]:
+    import ensure_test_services as ets
+    specs = (ets.emby_spec(), ets.webdav_spec(), ets.smb_spec())
+    receipts, _ = ets.ensure_all(specs)
+    hosts: dict[str, str] = {}
+    by_service: dict[str, dict[str, object]] = {}
+    for receipt in receipts:
+        service = str(receipt.get("service", ""))
+        by_service[service] = receipt
+        addr = receipt.get("address")
+        if isinstance(addr, str) and addr:
+            host = ets.endpoint_host(addr) if "://" in addr else addr
+            hosts[service] = host
+    return hosts, by_service
+
+
 def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "checkedAt": utc_now(),
@@ -195,7 +226,8 @@ def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
     }
     try:
         credentials = json.loads(path.read_text(encoding="utf-8"))
-        address = str(credentials.get("address", "")).strip()
+        fallback = str(credentials.get("address", "")).strip()
+        address = _resolved_emby_address_from_receipt(fallback)
         username = str(credentials.get("username", ""))
         password = str(credentials.get("password", ""))
         result["credentialFieldsNonempty"] = all((address, username, password))
@@ -204,11 +236,12 @@ def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
             return result
 
         base = address.rstrip("/") + "/"
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         public_request = urllib.request.Request(
             urllib.parse.urljoin(base, "System/Info/Public"),
             headers={"Accept": "application/json"},
         )
-        with urllib.request.urlopen(public_request, None, 15) as response:
+        with opener.open(public_request, None, 15) as response:
             result["publicStatus"] = response.status
             public_info = json.load(response)
 
@@ -226,7 +259,7 @@ def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
             },
             method="POST",
         )
-        with urllib.request.urlopen(auth_request, None, 15) as response:
+        with opener.open(auth_request, None, 15) as response:
             result["authenticationStatus"] = response.status
             authentication = json.load(response)
 
@@ -1089,6 +1122,15 @@ class ReachabilityRun:
         self.policy = RecoveryPolicy()
         self.history: list[FaultRecord] = []
         self.halted = False
+        self.service_hosts: dict[str, str] = {}
+        self.service_receipts: dict[str, dict[str, object]] = {}
+        try:
+            hosts, receipts = _resolved_service_hosts()
+            self.service_hosts = hosts
+            self.service_receipts = receipts
+        except Exception:
+            self.service_hosts = {}
+            self.service_receipts = {}
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
             (self.output / "segment-plan.json").write_text(
@@ -2912,9 +2954,12 @@ class ReachabilityRun:
         ):
             return
 
+        hosts = getattr(self, "service_hosts", {})
+        resolved_host = hosts.get("smb" if source.lower() == "smb" else "webdav", "")
+        host_value = resolved_host if resolved_host else "127.0.0.1"
         for field, value in (
             ("name", f"Reachability {source}"),
-            ("address", "127.0.0.1"),
+            ("address", host_value),
             ("username", "reachability"),
             ("password", "not-a-secret"),
         ):
@@ -6684,8 +6729,21 @@ class ReachabilityRun:
         self.channel_health[phase] = health
         return health
 
+    def _service_preflight_failed(self) -> bool:
+        receipts = getattr(self, "service_receipts", {})
+        unavailable = [service for service, receipt in receipts.items() if receipt.get("action") == "unavailable"]
+        if unavailable:
+            self.events.append({"at": utc_now(), "action": "servicePreflightFailed", "unavailable": unavailable, "receipts": receipts})
+            for service, receipt in receipts.items():
+                path = self.raw / f"service-{service}-receipt.json"
+                path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            return True
+        return False
+
     def run_segment(self) -> int:
         assert self.segment is not None
+        if self._service_preflight_failed():
+            return self.finish_segment("service-unavailable")
         if not self.ensure_session():
             self.controller("halt", "--no-screenshot")
             return self.finish_segment("session-failed")
@@ -7012,6 +7070,8 @@ class ReachabilityRun:
                 if (cell["context"], cell["operation"]) not in planned
             ],
             "stepCount": len(self.events),
+            "serviceHosts": getattr(self, "service_hosts", {}),
+            "serviceReceipts": getattr(self, "service_receipts", {}),
             "cells": ordered_cells,
             "events": self.events,
         }
@@ -7031,6 +7091,8 @@ class ReachabilityRun:
         return 0 if status == "complete" else 2
 
     def run(self) -> int:
+        if self._service_preflight_failed():
+            return self.finish("service-unavailable")
         if self.segment is not None:
             return self.run_segment()
         selected = set(self.arguments.contexts)
@@ -7143,6 +7205,8 @@ class ReachabilityRun:
             "channelFailures": self.channel_failures,
             "silentTaps": self.silent_taps,
             "copyTimings": self.copy_timings,
+            "serviceHosts": getattr(self, "service_hosts", {}),
+            "serviceReceipts": getattr(self, "service_receipts", {}),
             "cells": ordered_cells,
             "events": prior_events + self.events,
         }

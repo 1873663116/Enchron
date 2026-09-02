@@ -17,10 +17,10 @@ import run_verification as verification
 
 IDENTITY = "wanted-server"
 OTHER = "other-server"
-RECORDED = "http://mac-mini.local:8096"
+RECORDED = "http://Mac-mini.local:8096"
 RECORDED_IP = "http://192.168.5.20:8096"
 LAN = "http://192.168.5.28:8096"
-MDNS = "http://mac-mini.local:8096"
+MDNS = "http://Mac-mini.local:8096"
 LOOPBACK = "http://127.0.0.1:8096"
 
 IDENTITY_MISMATCH_SOURCE = (
@@ -280,15 +280,15 @@ class EnsureTestServicesTests(unittest.TestCase):
         )
 
     def test_service_endpoint_shape_and_host_kind(self) -> None:
-        endpoint = services.ServiceEndpoint("http", "mac-mini.local", 8096, "", "mdns")
+        endpoint = services.ServiceEndpoint("http", "Mac-mini.local", 8096, "", "mdns")
         self.assertEqual(endpoint.scheme, "http")
-        self.assertEqual(endpoint.host, "mac-mini.local")
+        self.assertEqual(endpoint.host, "Mac-mini.local")
         self.assertEqual(endpoint.port, 8096)
         self.assertEqual(endpoint.path, "")
         self.assertEqual(endpoint.hostKind, "mdns")
         self.assertIn(endpoint.hostKind, {"mdns", "lan-ip", "loopback"})
         address = services._endpoint_address(endpoint)
-        self.assertEqual(address, "http://mac-mini.local:8096")
+        self.assertEqual(address, "http://Mac-mini.local:8096")
         self.assertEqual(services._host_kind("Mac-mini.local"), "mdns")
         self.assertEqual(services._host_kind("mac-mini.local"), "mdns")
         self.assertEqual(services._host_kind("192.168.5.28"), "lan-ip")
@@ -299,7 +299,7 @@ class EnsureTestServicesTests(unittest.TestCase):
         world = World(
             {RECORDED: None, MDNS: IDENTITY, LAN: OTHER},
             lan=("192.168.5.28",),
-            mdns=("mac-mini.local",),
+            mdns=("Mac-mini.local",),
         )
         receipt = _resolve(services, world, self.root / "order-mdns-first")
         self.assertEqual(receipt["address"], MDNS)
@@ -307,7 +307,7 @@ class EnsureTestServicesTests(unittest.TestCase):
         world2 = World(
             {RECORDED: None, MDNS: None, LAN: IDENTITY},
             lan=("192.168.5.28",),
-            mdns=("mac-mini.local",),
+            mdns=("Mac-mini.local",),
         )
         receipt2 = _resolve(services, world2, self.root / "order-lan-fallback")
         self.assertEqual(receipt2["address"], LAN)
@@ -318,7 +318,7 @@ class EnsureTestServicesTests(unittest.TestCase):
         world = World(
             {RECORDED_IP: IDENTITY, MDNS: IDENTITY},
             lan=(),
-            mdns=("mac-mini.local",),
+            mdns=("Mac-mini.local",),
             recorded=RECORDED_IP,
         )
         spec = world.spec(services, self.root / "ignored-ip" / "ensure-receipt.json")
@@ -339,13 +339,13 @@ class EnsureTestServicesTests(unittest.TestCase):
         self.assertIsNone(services.resolve_lan_host("localhost"))
 
     def test_receipt_contains_resolved_evidence_and_host_kind(self) -> None:
-        world = World({MDNS: IDENTITY}, mdns=("mac-mini.local",), recorded=None)
+        world = World({MDNS: IDENTITY}, mdns=("Mac-mini.local",), recorded=None)
         receipt = _resolve(services, world, self.root / "resolved-evidence")
         self.assertIn("hostKind", receipt)
         self.assertEqual(receipt["hostKind"], "mdns")
         self.assertIn("endpoint", receipt)
         self.assertEqual(receipt["endpoint"]["hostKind"], "mdns")
-        self.assertEqual(receipt["endpoint"]["host"], "mac-mini.local")
+        self.assertEqual(receipt["endpoint"]["host"], "Mac-mini.local")
         candidate = receipt["evidence"]["candidates"][0]
         self.assertIn("hostKind", candidate)
         self.assertEqual(candidate["hostKind"], "mdns")

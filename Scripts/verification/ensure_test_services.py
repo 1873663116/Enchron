@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from typing import Callable, Mapping
 from urllib.error import URLError
 from urllib.parse import urlsplit
@@ -179,6 +180,14 @@ def _is_name_address(address: str) -> bool:
     return _is_name_host(endpoint_host(address))
 
 
+def _endpoint_host_preserve(address: str) -> str:
+    if "://" in address:
+        without = address.split("://", 1)[1]
+        host_port = without.split("/", 1)[0]
+        return host_port.split(":", 1)[0].split("%", 1)[0]
+    return address.split("%", 1)[0]
+
+
 def _write_json(path: Path, value: Mapping[str, object], *, mode: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(dict(value), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
@@ -296,8 +305,9 @@ def resolve_lan_host(host: str) -> str | None:
 def probe_emby(address: str, timeout: float = 1.5) -> str | None:
     url = address.rstrip("/") + "/System/Info/Public"
     request = Request(url, headers={"Accept": "application/json"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with opener.open(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (OSError, URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
         return None
@@ -577,16 +587,13 @@ def make_receipt(
         "evidence": evidence,
     }
     if address is not None:
-        host = endpoint_host(address)
-        kind = _host_kind(host)
+        host_preserve = _endpoint_host_preserve(address)
+        kind = _host_kind(host_preserve)
         payload["hostKind"] = kind
-        endpoint = ServiceEndpoint(
-            urlsplit(address).scheme if "://" in address else spec.scheme,
-            host,
-            urlsplit(address).port if "://" in address and urlsplit(address).port else spec.port,
-            urlsplit(address).path if "://" in address else spec.path,
-            kind,
-        )
+        scheme = address.split("://", 1)[0] if "://" in address else spec.scheme
+        port = urlsplit(address).port if "://" in address and urlsplit(address).port else spec.port
+        path = urlsplit(address).path if "://" in address else spec.path
+        endpoint = ServiceEndpoint(scheme, host_preserve, port, path, kind)
         payload["endpoint"] = {
             "scheme": endpoint.scheme,
             "host": endpoint.host,
