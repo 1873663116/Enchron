@@ -1239,6 +1239,7 @@ class ReachabilityRun:
     def _recover_emby_playback_timeout(
         self, presentation: str, operation_id: str, identifier: str
     ) -> bool:
+        self.provable(presentation, operation_id)
         self.salvaging = True
         snapshot = self.controller("snapshot", "--no-screenshot")
         evidence = self.events[-1]["evidence"] if self.events else "raw/snapshot.json"
@@ -4534,6 +4535,8 @@ class ReachabilityRun:
         if not self.ensure_emby_sign_in():
             return
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.provable(presentation, "accessibility:Emby-Season-Picker")
+        self.provable(presentation, "accessibility:Emby-Season-{season.metadata.id.rawValue}")
         found_families: set[str] = set()
         self.relaunch()
         self.tap(presentation, "Emby-Navigation-Tab")
@@ -4792,6 +4795,8 @@ class ReachabilityRun:
         if not self.ensure_emby_sign_in():
             return
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.provable(presentation, "accessibility:Emby-Detail-Overview-Expand")
+        self.provable(presentation, "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}")
 
         def emby_home_snapshot() -> dict[str, Any]:
             self.relaunch()
