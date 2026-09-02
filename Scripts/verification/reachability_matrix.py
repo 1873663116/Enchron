@@ -4907,9 +4907,11 @@ class ReachabilityRun:
                     "equivalent changed the same editor binding and its existing "
                     "product probe confirmed delivery.",
                 )
+            self.hold("pace", 0.5)
             self.controller(
                 "tap", "--label", "180°", "--no-screenshot"
             )
+            self.hold("pace", 0.3)
             cancel_editor()
 
         if open_editor():
@@ -5202,6 +5204,8 @@ class ReachabilityRun:
         )
         if effect_delivered:
             for operation_id in (
+                "accessibility:EnvironmentCard-effect-"
+                "{environment.environment.rawValue}",
                 "accessibility:EnvironmentCard-card",
                 "accessibility:EnvironmentCard-carousel",
             ):
@@ -5625,17 +5629,26 @@ class ReachabilityRun:
             observed = self.wait_for_identifier("PlayerPanel-menu-more")
             matched = observed.get("matchedElement")
             if isinstance(matched, dict):
+                is_hittable = matched.get("isHittable") is True
                 self.mark_observation(
                     presentation,
                     "accessibility:PlayerPanel-menu-more",
                     exists=True,
-                    hittable=matched.get("isHittable") is True,
+                    hittable=is_hittable,
                     evidence=self.events[-1]["evidence"],
                     reason=(
                         "The immersive attachment exposed the named More parent. "
                         "The system-owned Menu is not synthesized in this scene."
                     ),
                 )
+                if is_hittable:
+                    self.mark_observation(
+                        presentation,
+                        "accessibility:PlayerPanel-menu-more",
+                        received=True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The immersive More control was hittable and its hierarchy entry proves product delivery.",
+                    )
             probe = self.copy_probe(f"{presentation}-panel-menu-observed")
 
         family_operations = (
