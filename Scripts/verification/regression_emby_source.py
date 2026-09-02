@@ -656,7 +656,9 @@ class EmbySourceController:
             raise
         except Exception as error:
             self._rollback(session, catalog, original_user_data, mutated)
-            raise EmbySeedError(f"Emby test-library seed failed: {error}") from error
+            secrets = _secrets_from_identity_and_session(identity if "identity" in locals() else None, session if "session" in locals() else None)
+            scrubbed = _redact_sensitive_text(str(error), secrets)
+            raise EmbySeedError(f"Emby test-library seed failed: {scrubbed}") from error
 
     def _verify_active(
         self,
@@ -1092,6 +1094,37 @@ def _is_sha256(value: object) -> bool:
     return len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)
 
 
+def _redact_sensitive_text(text: str, secrets: tuple[str, ...]) -> str:
+    ordered = tuple(sorted((s for s in secrets if isinstance(s, str) and s), key=len, reverse=True))
+    for secret in ordered:
+        text = text.replace(secret, "<redacted>")
+    return text
+
+
+def _secrets_from_file(path: Path) -> tuple[str, ...]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return ()
+    if not isinstance(document, dict):
+        return ()
+    values: list[str] = []
+    for key in ("address", "username", "password", "serverID", "userID"):
+        value = document.get(key)
+        if isinstance(value, str) and value:
+            values.append(value)
+    return tuple(values)
+
+
+def _secrets_from_identity_and_session(identity: RuntimeIdentity | None, session: AuthenticatedSession | None) -> tuple[str, ...]:
+    values: list[str] = []
+    if identity is not None:
+        values.extend([identity.address, identity.username, identity.password, identity.server_id, identity.user_id])
+    if session is not None:
+        values.append(session.access_token)
+    return tuple(values)
+
+
 def validate_preflight_report(report: object, *, runtime_file: Path) -> bool:
     return (
         isinstance(report, Mapping)
@@ -1105,7 +1138,7 @@ def validate_preflight_report(report: object, *, runtime_file: Path) -> bool:
     )
 
 
-def _safe_failure_reason(error: BaseException) -> str:
+def _safe_failure_reason(error: BaseException, *, configuration: EmbySourceConfiguration | None = None) -> str:
     if isinstance(error, EmbyIdentityError):
         base = "Emby runtime identity or authentication did not match"
     elif isinstance(error, EmbyFixtureError):
@@ -1114,14 +1147,22 @@ def _safe_failure_reason(error: BaseException) -> str:
         base = "Emby test-library restore failed"
     else:
         base = "Emby test-library seed failed"
+    if configuration is None:
+        secrets = _secrets_from_file(DEFAULT_CONFIGURATION.identity_file)
+    else:
+        secrets = _secrets_from_file(configuration.identity_file)
     text = str(error).strip()
     if text and text != base:
-        return f"{base}: {text}"
+        scrubbed = _redact_sensitive_text(text, secrets)
+        if scrubbed.strip() and scrubbed.strip() != base:
+            return f"{base}: {scrubbed.strip()}"
     cause = error.__cause__
     if isinstance(cause, BaseException):
         cause_text = str(cause).strip()
         if cause_text and cause_text not in base:
-            return f"{base}: {cause_text}"
+            scrubbed_cause = _redact_sensitive_text(cause_text, secrets)
+            if scrubbed_cause.strip() and scrubbed_cause.strip() not in base:
+                return f"{base}: {scrubbed_cause.strip()}"
     return base
 
 
@@ -1137,7 +1178,7 @@ def run_preflight(
             "schema": PREFLIGHT_REPORT_SCHEMA,
             "check": "emby-aggregate",
             "ready": False,
-            "reason": _safe_failure_reason(error),
+            "reason": _safe_failure_reason(error, configuration=configuration),
         }
 
 
@@ -1645,7 +1686,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise EmbyRestoreError("restore requires --receipt-id")
             report = EmbySourceController(configuration).restore(arguments.receipt_id)
     except EmbySourceError as error:
-        report = {"ready": False, "reason": _safe_failure_reason(error)}
+        report = {"ready": False, "reason": _safe_failure_reason(error, configuration=configuration)}
     print(render_report(report), end="")
     return 0 if report.get("ready", arguments.action != "ensure") is True else 1
 

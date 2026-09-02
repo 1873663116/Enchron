@@ -344,6 +344,27 @@ class RegressionEmbySourceTests(unittest.TestCase):
         self.assertFalse(failed["ready"])
         self.assertNotIn("runtime-password-that-must-never-leak", rendered_failure)
 
+    def test_cause_containing_each_sensitive_value_is_redacted(self) -> None:
+        secrets = (
+            "http://127.0.0.1:8096",
+            "regression-user",
+            "runtime-password-that-must-never-leak",
+            "boundary-token-that-must-never-leak",
+        )
+        for secret in secrets:
+            with self.subTest(secret=secret):
+                self.boundary.seed_failure = None
+                report = self.controller.ensure()
+                self.boundary.seed_failure = RuntimeError(f"boom {secret} boom")
+                self.controller.restore(report["receipt"]["receiptID"])
+                failed = emby.run_preflight(self.configuration, boundary=self.boundary)
+                rendered = emby.render_report(failed)
+                self.assertFalse(failed["ready"])
+                self.assertNotIn(secret, rendered)
+                self.assertNotIn(secret, json.dumps(failed))
+                self.assertIn("<redacted>", rendered)
+                self.boundary.seed_failure = None
+
     def test_receipt_validator_rejects_noncanonical_or_credentialed_facts(self) -> None:
         report = self.controller.ensure()
         receipt = json.loads(json.dumps(report["receipt"]))
