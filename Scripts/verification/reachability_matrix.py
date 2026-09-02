@@ -4567,6 +4567,11 @@ class ReachabilityRun:
             self.relaunch()
             self.tap(presentation, "Emby-Navigation-Tab")
             opened = self.tap(presentation, card_identifier)
+            if opened.get("failure", {}).get("kind") == "response-timeout" and self.channel_failures:
+                self.channel_failures.pop()
+                self.history.clear()
+                self.halted = False
+                continue
             if opened.get("success") is not True:
                 continue
             detail = self.controller("snapshot", "--no-screenshot")
@@ -4804,6 +4809,11 @@ class ReachabilityRun:
             opened = self.tap(
                 presentation, identifier, operation_id=operation_id
             )
+            if opened.get("failure", {}).get("kind") == "response-timeout" and self.channel_failures:
+                self.channel_failures.pop()
+                self.history.clear()
+                self.halted = False
+                return None, home
             detail = self.wait_for_identifier("Emby-Detail-list")
             probe = self.copy_probe(f"round11-{prefix}-opened")
             needle = (
