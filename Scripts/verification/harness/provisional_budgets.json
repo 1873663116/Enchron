@@ -41,6 +41,10 @@
     "expires": "2026-10-01",
     "seconds": 120
   },
+  "emby-stage": {
+    "expires": "2026-10-01",
+    "seconds": 120
+  },
   "ensure-session": {
     "expires": "2026-10-01",
     "seconds": 300
