@@ -172,6 +172,17 @@ class FakeHTTPBoundary(emby.HTTPEmbyBoundary):
         authorization=None,
         allow_empty=False,
     ):
+        if query is not None and query.get("IncludeItemTypes") == "Season":
+            self.playback_body = body
+            return {
+                "Items": [
+                    {
+                        "Id": "season-regression",
+                        "Name": "第 1 季",
+                        "IndexNumber": 1,
+                    }
+                ]
+            }
         self.playback_body = body
         return {
             "MediaSources": [{
@@ -182,10 +193,7 @@ class FakeHTTPBoundary(emby.HTTPEmbyBoundary):
                     "IsExternal": True,
                     "Index": self.stream_index,
                     "Codec": "subrip",
-                    "DeliveryUrl": (
-                        "http://127.0.0.1:8096/Videos/episode-regression/"
-                        f"Subtitles/{self.stream_index}/Stream.srt?api_key=secret&format=srt"
-                    ),
+                    "DeliveryUrl": None,
                 }],
             }]
         }
@@ -669,6 +677,14 @@ class RegressionEmbySourceTests(unittest.TestCase):
         self.assertEqual(catalog.external_subtitle_codec, "subrip")
         self.assertEqual(
             catalog.external_subtitle_delivery_path,
+            "/Videos/episode-regression/Subtitles/23/Stream.srt",
+        )
+        self.assertNotIn("secret", catalog.external_subtitle_delivery_path)
+        self.assertNotIn("api_key", catalog.external_subtitle_delivery_path)
+        self.assertEqual(
+            boundary._sanitized_delivery_path(
+                "http://127.0.0.1:8096/Videos/episode-regression/Subtitles/23/Stream.srt?api_key=secret&format=srt"
+            ),
             "/Videos/episode-regression/Subtitles/23/Stream.srt?format=srt",
         )
         self.assertEqual(
