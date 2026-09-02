@@ -471,5 +471,73 @@ class RemoteSourceRecipeTests(RemoteSourceTestCase):
         self.assertEqual(restarted_runtime["password"], prior_runtime["password"])
 
 
+class RemoteSourceCertificateSanTests(unittest.TestCase):
+    def test_san_contains_dns_and_ip_for_lan_bind_and_served_address_is_name(self) -> None:
+        import subprocess
+        import re
+        import ensure_test_services as services
+        host_ip = services.primary_lan_ipv4()
+        if host_ip is None:
+            self.skipTest("no LAN IP")
+        mdns = remote._primary_mdns_name()
+        if not mdns:
+            self.skipTest("no mdns name")
+        temporary = tempfile.TemporaryDirectory(prefix="remote-san-test-")
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        source_root = root / "TestMedia"
+        source_root.mkdir()
+        entries: list[dict[str, object]] = []
+        for identifier, name, content in FIXTURES:
+            relative = Path("TestVectors/Enchron/PlaybackBehavior") / name
+            source = source_root / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_bytes(content)
+            entries.append(
+                {
+                    "id": identifier,
+                    "deviceImportPath": relative.as_posix(),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+            )
+        registry = root / "fixture-registry.json"
+        registry.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "deviceMediaRoot": "$WORKSPACE/TestMedia",
+                    "fixtures": entries,
+                }
+            ),
+            encoding="utf-8",
+        )
+        configuration = remote.ServiceConfiguration(
+            runtime_root=root / "runtime",
+            registry_path=registry,
+            source_root=source_root,
+            bind_host=host_ip,
+            port=0,
+        )
+        controller = remote.RemoteSourceController(configuration)
+        identity = controller.ensure()
+        self.addCleanup(controller.stop)
+        runtime = json.loads(configuration.runtime_file.read_text(encoding="utf-8"))
+        address = str(runtime["address"])
+        self.assertIn(mdns.lower(), address.lower())
+        self.assertNotIn(host_ip, address)
+        certificates = sorted((configuration.runtime_root / "certificates").glob("certificate-*.pem"))
+        self.assertTrue(certificates)
+        text = subprocess.run(
+            ["openssl", "x509", "-noout", "-text", "-in", str(certificates[-1])],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertRegex(text, re.escape(f"DNS:{mdns}"))
+        self.assertRegex(text, re.escape(f"IP Address:{host_ip}"))
+        endpoint_host = urlsplit(address).hostname or ""
+        self.assertEqual(endpoint_host.lower(), mdns.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

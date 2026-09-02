@@ -158,6 +158,36 @@ def _read_object(path: Path) -> dict[str, object]:
     return value
 
 
+def _primary_mdns_name() -> str | None:
+    try:
+        completed = subprocess.run(
+            ["/usr/sbin/scutil", "--get", "LocalHostName"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        local_host = completed.stdout.strip()
+        if completed.returncode == 0 and local_host:
+            return f"{local_host}.local"
+    except Exception:
+        pass
+    host = socket.gethostname()
+    if host:
+        return host if host.endswith(".local") else f"{host}.local"
+    return None
+
+
+def _served_host(configuration: ServiceConfiguration) -> str:
+    try:
+        address = ipaddress.ip_address(configuration.bind_host)
+        if address.is_loopback:
+            return configuration.bind_host
+    except ValueError:
+        return configuration.bind_host
+    name = _primary_mdns_name()
+    return name if name else configuration.bind_host
+
+
 @dataclass(frozen=True)
 class ServiceConfiguration:
     runtime_root: Path
@@ -996,6 +1026,11 @@ class RemoteSourceService:
         nonce = f"{os.getpid()}-{time.time_ns()}-{self._certificate_sequence}"
         certificate = directory / f"certificate-{nonce}.pem"
         private_key = directory / f"private-key-{nonce}.pem"
+        served = _served_host(self.configuration)
+        if served != self.configuration.bind_host:
+            san = f"subjectAltName=DNS:{served},IP:{self.configuration.bind_host}"
+        else:
+            san = f"subjectAltName=IP:{self.configuration.bind_host}"
         command = [
             openssl,
             "req",
@@ -1013,7 +1048,7 @@ class RemoteSourceService:
             "-subj",
             "/CN=Enchron Regression Remote Source",
             "-addext",
-            f"subjectAltName=IP:{self.configuration.bind_host}",
+            san,
         ]
         result = subprocess.run(command, capture_output=True, text=True, timeout=15)
         if result.returncode != 0:
@@ -1053,7 +1088,7 @@ class RemoteSourceService:
         self._endpoint_digest = _digest(
             {
                 "serviceID": self._service_id,
-                "host": self.configuration.bind_host,
+                "host": _served_host(self.configuration),
                 "port": self._actual_port_locked(),
                 "path": self._base_path,
                 "certificateFingerprint": self._certificate_fingerprint,
@@ -1072,7 +1107,7 @@ class RemoteSourceService:
             "serviceID": self._service_id,
             "configDigest": self.configuration.digest,
             "pid": os.getpid(),
-            "address": f"https://{self.configuration.bind_host}:{self._actual_port_locked()}{self._base_path}",
+            "address": f"https://{_served_host(self.configuration)}:{self._actual_port_locked()}{self._base_path}",
             "generation": self._generation,
             "recipe": self._recipe,
             "endpointDigest": self._endpoint_digest,
@@ -1096,7 +1131,7 @@ class RemoteSourceService:
 
     def _write_runtime_locked(self) -> None:
         runtime = {
-            "address": f"https://{self.configuration.bind_host}:{self._actual_port_locked()}{self._base_path}",
+            "address": f"https://{_served_host(self.configuration)}:{self._actual_port_locked()}{self._base_path}",
             "user": self._user,
             "password": self._password,
             "serviceID": self._service_id,
