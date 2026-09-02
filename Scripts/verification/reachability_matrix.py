@@ -6521,8 +6521,6 @@ class ReachabilityRun:
                 "The Docked attachment controls entered the hierarchy.",
                 has_accessibility_target=False,
             )
-        self.docked_settings_scenario()
-        self.docked_media_information_scenario()
         self.observe(presentation, "Docked playback")
 
         if not self.enter_docked_playback(dock_choice="dark"):
@@ -6596,6 +6594,11 @@ class ReachabilityRun:
             identifier="PlayerUI-spatialFailure-secondary",
             action="close",
         )
+        if not self.enter_docked_playback():
+            return
+        self.docked_settings_scenario()
+        self.docked_media_information_scenario()
+        self.observe(presentation, "Docked playback post-reset-media")
 
     def run_named_segment_scenario(self, name: str) -> None:
         scenarios = {
