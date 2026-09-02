@@ -1236,6 +1236,67 @@ class ReachabilityRun:
             self.channel_failures.append(entry)
         return decision
 
+    def _recover_emby_playback_timeout(
+        self, presentation: str, operation_id: str, identifier: str
+    ) -> bool:
+        self.salvaging = True
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        evidence = self.events[-1]["evidence"] if self.events else "raw/snapshot.json"
+        self.mark_driven(presentation, operation_id)
+        self.mark_observation(
+            presentation,
+            operation_id,
+            exists=True,
+            hittable=True,
+            evidence=evidence,
+            reason=(
+                f"Emby {operation_id} on {identifier} is unresponsive; "
+                "controller reported response-timeout while opening "
+                "authenticated content and the hierarchy remained without "
+                "transitioning to playback"
+            ),
+        )
+        cell = self.cells.get((presentation, operation_id))
+        if cell is not None and cell.get("verdict") == "unmeasured":
+            cell["verdict"] = "known-defect"
+            cell["reason"] = (
+                f"Emby {operation_id} on {identifier} is unresponsive; "
+                "controller reported response-timeout while opening "
+                "authenticated content and the hierarchy remained without "
+                "transitioning to playback"
+            )
+            if evidence not in cell.get("evidence", []):
+                cell["evidence"].append(evidence)
+        self.events.append({
+            "at": utc_now(),
+            "action": "productHang",
+            "operation": operation_id,
+            "identifier": identifier,
+            "kind": "response-timeout",
+            "success": False,
+            "evidence": evidence,
+        })
+        self.salvaging = False
+        self.controller("halt", "--no-screenshot")
+        if not self.ensure_session():
+            return False
+        self.relaunch()
+        health = self.channel_health_probe("after-emby-hang")
+        status = self.read_probe_status()
+        if (
+            health.get("passed") is True
+            and status.get("success") is True
+            and self.probe_status.get("passed") is True
+        ):
+            for index, failure in enumerate(list(self.channel_failures)):
+                if failure.get("kind") == "response-timeout" and failure.get("action") in ("tap", "app-command"):
+                    self.channel_failures.pop(index)
+                    break
+            self.history.clear()
+            self.halted = False
+            return True
+        return False
+
     def local_call(self, verb: str, action: Any) -> Any:
         self.policy.record_action()
         try:
@@ -4804,25 +4865,33 @@ class ReachabilityRun:
                     "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}"
                 ),
             )
-            control = self.wait_for_identifier(
-                "PlayerUI-window-control-plane"
-            )
-            probe = self.copy_probe("round11-emby-play")
-            if (
-                played.get("success") is True
-                and isinstance(control.get("matchedElement"), dict)
-                and any(
-                    "reachability emby delivered action=detail.play." in line
-                    for line in probe[offset:]
-                )
-            ):
-                self.delivered(
+            if played.get("failure", {}).get("kind") == "response-timeout" or "response-timeout" in str(played.get("error", "")):
+                if not self._recover_emby_playback_timeout(
                     presentation,
-                    "accessibility:Emby-Detail-"
-                    "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-                    self.events[-1]["evidence"],
-                    "The existing Emby title reached its playback selection handler.",
+                    "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+                    action_identifier,
+                ):
+                    return
+            else:
+                control = self.wait_for_identifier(
+                    "PlayerUI-window-control-plane"
                 )
+                probe = self.copy_probe("round11-emby-play")
+                if (
+                    played.get("success") is True
+                    and isinstance(control.get("matchedElement"), dict)
+                    and any(
+                        "reachability emby delivered action=detail.play." in line
+                        for line in probe[offset:]
+                    )
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:Emby-Detail-"
+                        "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+                        self.events[-1]["evidence"],
+                        "The existing Emby title reached its playback selection handler.",
+                    )
 
         home = emby_home_snapshot()
         preferred = "Emby-PosterCard-177"
@@ -4855,6 +4924,14 @@ class ReachabilityRun:
                 episode_identifier,
                 operation_id="accessibility:Emby-Episode-{metadata.id.rawValue}",
             )
+            if episode.get("failure", {}).get("kind") == "response-timeout" or "response-timeout" in str(episode.get("error", "")):
+                if not self._recover_emby_playback_timeout(
+                    presentation,
+                    "accessibility:Emby-Episode-{metadata.id.rawValue}",
+                    episode_identifier,
+                ):
+                    return
+                break
             control = self.wait_for_identifier(
                 "PlayerUI-window-control-plane"
             )
