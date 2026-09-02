@@ -281,89 +281,86 @@ struct EmbyViewModelTests {
     }
 
 #if DEBUG
-    @Test("automation account preparation verifies the real fixture before persistence")
-    func automationAccountPreparation() async throws {
-        let item = movie(id: "episode-regression", mediaSourceID: "source-regression")
-        let streamIndex = 9
-        let source = playableSource(
-            id: "source-regression",
-            itemID: item.metadata.id.rawValue,
-            streams: [externalSubtitleStream(index: streamIndex)]
-        )
-        let client = ViewModelFakeEmbyClient(
-            authenticatedServer: authenticatedServer,
-            itemByID: [item.metadata.id: item],
-            playbackByID: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "fixture-play-session"),
-                mediaSources: [source]
-            )]
-        )
+    @Test("emby sign-in authenticates and persists when digest matches")
+    func embySignInVerifiesAndPersists() async throws {
+        let client = ViewModelFakeEmbyClient(authenticatedServer: authenticatedServer)
         let store = RecordingServerStore()
         let session = EmbySessionViewModel(client: client, store: store)
         let identityData = try automationIdentityData()
         let digest = "sha256:" + SHA256.hash(data: identityData)
             .map { String(format: "%02x", $0) }
             .joined()
-
-        let receipt = try await session.prepareAutomationAccount(
+        let receipt = try await session.embySignIn(
             identityData: identityData,
-            expectedIdentityDigest: digest,
-            fixture: EmbyAutomationFixtureExpectation(
-                itemID: item.metadata.id,
-                mediaSourceID: source.id,
-                externalSubtitleStreamIndex: streamIndex
-            )
+            expectedIdentityDigest: digest
         )
-
-        #expect(receipt.schema == "enchron.regression.emby-account-preparation@1")
+        #expect(receipt.schema == EmbySignInReceipt.schemaValue)
         #expect(receipt.identityDigest == digest)
         #expect(receipt.serverID == authenticatedServer.id.rawValue)
         #expect(receipt.userID == authenticatedServer.userID.rawValue)
-        #expect(receipt.itemID == item.metadata.id.rawValue)
-        #expect(receipt.mediaSourceID == source.id.rawValue)
-        #expect(receipt.externalSubtitleStreamIndex == streamIndex)
-        #expect(receipt.externalSubtitleSourceID == "emby.subtitle.\(streamIndex)")
         #expect(receipt.persisted)
         #expect(store.savedServer == authenticatedServer)
         #expect(session.server == authenticatedServer)
     }
-
-    @Test("automation account preparation rejects fixture drift before persistence")
-    func automationAccountPreparationRejectsFixtureDrift() async throws {
-        let item = movie(id: "episode-regression", mediaSourceID: "source-regression")
-        let source = playableSource(
-            id: "source-regression",
-            itemID: item.metadata.id.rawValue,
-            streams: [externalSubtitleStream(index: 9)]
-        )
-        let client = ViewModelFakeEmbyClient(
-            authenticatedServer: authenticatedServer,
-            itemByID: [item.metadata.id: item],
-            playbackByID: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "fixture-play-session"),
-                mediaSources: [source]
-            )]
-        )
+    @Test("emby sign-in rejects digest mismatch before authentication")
+    func embySignInRejectsDigestMismatch() async throws {
+        let client = ViewModelFakeEmbyClient(authenticatedServer: authenticatedServer)
+        let store = RecordingServerStore()
+        let session = EmbySessionViewModel(client: client, store: store)
+        let identityData = try automationIdentityData()
+        let wrongDigest = "sha256:" + String(repeating: "0", count: 64)
+        await #expect(throws: EmbySignInError.self) {
+            try await session.embySignIn(
+                identityData: identityData,
+                expectedIdentityDigest: wrongDigest
+            )
+        }
+        #expect(store.savedServer == nil)
+        #expect(session.server == nil)
+    }
+    @Test("sign-in receipt has no fixture fields")
+    func signInReceiptHasNoFixtureFields() async throws {
+        let client = ViewModelFakeEmbyClient(authenticatedServer: authenticatedServer)
         let store = RecordingServerStore()
         let session = EmbySessionViewModel(client: client, store: store)
         let identityData = try automationIdentityData()
         let digest = "sha256:" + SHA256.hash(data: identityData)
             .map { String(format: "%02x", $0) }
             .joined()
-
-        await #expect(throws: EmbyAutomationAccountPreparationError.self) {
-            try await session.prepareAutomationAccount(
-                identityData: identityData,
-                expectedIdentityDigest: digest,
-                fixture: EmbyAutomationFixtureExpectation(
-                    itemID: item.metadata.id,
-                    mediaSourceID: source.id,
-                    externalSubtitleStreamIndex: 10
-                )
-            )
-        }
-        #expect(store.savedServer == nil)
-        #expect(session.server == nil)
+        let receipt = try await session.embySignIn(
+            identityData: identityData,
+            expectedIdentityDigest: digest
+        )
+        let data = try JSONEncoder().encode(receipt)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let json = object as? [String: Any]
+        #expect(json != nil)
+        guard let json else { return }
+        #expect(json["schema"] as? String == EmbySignInReceipt.schemaValue)
+        #expect(json["serverID"] as? String == authenticatedServer.id.rawValue)
+        #expect(json["userID"] as? String == authenticatedServer.userID.rawValue)
+        #expect(json["identityDigest"] as? String == digest)
+        #expect(json["persisted"] as? Bool == true)
+        #expect(json["itemID"] == nil)
+        #expect(json["mediaSourceID"] == nil)
+        #expect(json["externalSubtitleStreamIndex"] == nil)
+        #expect(json["externalSubtitleSourceID"] == nil)
+    }
+    @Test("sign-in ignores fixture drift and still persists")
+    func signInIgnoresFixtureDrift() async throws {
+        let client = ViewModelFakeEmbyClient(authenticatedServer: authenticatedServer)
+        let store = RecordingServerStore()
+        let session = EmbySessionViewModel(client: client, store: store)
+        let identityData = try automationIdentityData()
+        let digest = "sha256:" + SHA256.hash(data: identityData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let receipt = try await session.embySignIn(
+            identityData: identityData,
+            expectedIdentityDigest: digest
+        )
+        #expect(receipt.schema == EmbySignInReceipt.schemaValue)
+        #expect(store.savedServer == authenticatedServer)
     }
 #endif
 }
