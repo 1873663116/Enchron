@@ -47,6 +47,15 @@ INET_LINE = re.compile(r"\binet (\d+\.\d+\.\d+\.\d+)\b")
 
 
 @dataclass(frozen=True)
+class ServiceEndpoint:
+    scheme: str
+    host: str
+    port: int
+    path: str
+    hostKind: str
+
+
+@dataclass(frozen=True)
 class Started:
     address: str
     identity: str
@@ -118,6 +127,56 @@ def format_address(scheme: str, host: str, port: int, path: str) -> str:
     if not path.startswith("/"):
         path = "/" + path
     return origin + path
+
+
+def _host_kind(host: str) -> str:
+    if host in {"localhost", "localhost.localdomain"}:
+        return "loopback"
+    try:
+        parsed = ipaddress.ip_address(host)
+        return "loopback" if parsed.is_loopback else "lan-ip"
+    except ValueError:
+        return "mdns"
+
+
+def _endpoint_address(endpoint: ServiceEndpoint) -> str:
+    return format_address(endpoint.scheme, endpoint.host, endpoint.port, endpoint.path)
+
+
+def _resolved_ips(host: str) -> tuple[str, ...]:
+    try:
+        ipaddress.ip_address(host)
+        return (host,)
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+    except socket.gaierror:
+        return ()
+    out: list[str] = []
+    seen: set[str] = set()
+    for info in infos:
+        address = info[4][0]
+        if address not in seen and not host_is_loopback(address):
+            seen.add(address)
+            out.append(address)
+    return tuple(out)
+
+
+def _is_name_host(host: str) -> bool:
+    if not host:
+        return False
+    if host in {"localhost", "localhost.localdomain"}:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        return True
+
+
+def _is_name_address(address: str) -> bool:
+    return _is_name_host(endpoint_host(address))
 
 
 def _write_json(path: Path, value: Mapping[str, object], *, mode: int) -> None:
@@ -230,7 +289,7 @@ def resolve_lan_host(host: str) -> str | None:
     for info in infos:
         candidate = info[4][0]
         if not host_is_loopback(candidate):
-            return candidate
+            return host
     return None
 
 
@@ -464,18 +523,20 @@ def candidate_addresses(spec: ServiceSpec) -> tuple[tuple[str, str], ...]:
         seen.add(address)
         ordered.append((address, source))
 
-    if spec.recorded_address:
+    if spec.recorded_address and _is_name_address(spec.recorded_address):
         add(spec.recorded_address, "recorded")
-    for host in spec.hooks.lan_hosts():
-        resolved = resolve_lan_host(host)
-        if resolved is None:
-            continue
-        add(format_address(spec.scheme, resolved, spec.port, spec.path), "lan")
     for name in spec.hooks.mdns_hosts():
         resolved = resolve_lan_host(name)
         if resolved is None:
             continue
-        add(format_address(spec.scheme, resolved, spec.port, spec.path), "mdns")
+        endpoint = ServiceEndpoint(spec.scheme, resolved, spec.port, spec.path, _host_kind(resolved))
+        add(_endpoint_address(endpoint), "mdns")
+    for host in spec.hooks.lan_hosts():
+        resolved = resolve_lan_host(host)
+        if resolved is None:
+            continue
+        endpoint = ServiceEndpoint(spec.scheme, resolved, spec.port, spec.path, _host_kind(resolved))
+        add(_endpoint_address(endpoint), "lan")
     return tuple(ordered)
 
 
@@ -505,7 +566,7 @@ def make_receipt(
     evidence: dict[str, object] = {"candidates": candidates, "closedPorts": closed_ports}
     if reason:
         evidence["reason"] = reason
-    return {
+    payload: dict[str, object] = {
         "schema": RECEIPT_SCHEMA,
         "service": spec.name,
         "identity": spec.identity if identity is None else identity,
@@ -515,11 +576,32 @@ def make_receipt(
         "previousAddress": previous,
         "evidence": evidence,
     }
+    if address is not None:
+        host = endpoint_host(address)
+        kind = _host_kind(host)
+        payload["hostKind"] = kind
+        endpoint = ServiceEndpoint(
+            urlsplit(address).scheme if "://" in address else spec.scheme,
+            host,
+            urlsplit(address).port if "://" in address and urlsplit(address).port else spec.port,
+            urlsplit(address).path if "://" in address else spec.path,
+            kind,
+        )
+        payload["endpoint"] = {
+            "scheme": endpoint.scheme,
+            "host": endpoint.host,
+            "port": endpoint.port,
+            "path": endpoint.path,
+            "hostKind": endpoint.hostKind,
+        }
+        payload["address"] = _endpoint_address(endpoint)
+    return payload
 
 
 def resolve(spec: ServiceSpec) -> dict[str, object]:
     candidates: list[dict[str, object]] = []
     match: str | None = None
+    match_source: str | None = None
     ordered = candidate_addresses(spec)
     open_ports = _lan_ports(spec, ordered)
     closed_ports = 0
@@ -529,12 +611,15 @@ def resolve(spec: ServiceSpec) -> dict[str, object]:
             continue
         observed = spec.hooks.probe(address)
         result = classify(address, observed, spec.expected)
+        host = endpoint_host(address)
         candidates.append(
             {
                 "address": address,
                 "source": source,
                 "result": result,
                 "observedIdentity": observed,
+                "hostKind": _host_kind(host),
+                "resolvedAddresses": list(_resolved_ips(host)),
             }
         )
         if result == "identity-mismatch" and source == "recorded":
@@ -550,6 +635,7 @@ def resolve(spec: ServiceSpec) -> dict[str, object]:
             return payload
         if result == "identity-match":
             match = address
+            match_source = source
             break
     if match is not None:
         previous = spec.recorded_address
@@ -559,6 +645,9 @@ def resolve(spec: ServiceSpec) -> dict[str, object]:
         else:
             action = "moved"
             spec.hooks.rewrite(match)
+        reason: str | None = None
+        if match_source == "lan":
+            reason = "lan-fallback"
         payload = make_receipt(
             spec,
             action=action,
@@ -566,6 +655,7 @@ def resolve(spec: ServiceSpec) -> dict[str, object]:
             candidates=candidates,
             closed_ports=closed_ports,
             previous=previous,
+            reason=reason,
         )
         _write_json(spec.receipt_file, payload, mode=0o644)
         return payload
@@ -597,12 +687,15 @@ def resolve(spec: ServiceSpec) -> dict[str, object]:
         return payload
     observed = spec.hooks.probe(started_address)
     result = classify(started_address, observed, started_observed)
+    host = endpoint_host(str(started_address))
     candidates.append(
         {
             "address": started_address,
             "source": "started",
             "result": result,
             "observedIdentity": observed,
+            "hostKind": _host_kind(host),
+            "resolvedAddresses": list(_resolved_ips(host)),
         }
     )
     if result != "identity-match":

@@ -17,8 +17,10 @@ import run_verification as verification
 
 IDENTITY = "wanted-server"
 OTHER = "other-server"
-RECORDED = "http://192.168.5.20:8096"
+RECORDED = "http://mac-mini.local:8096"
+RECORDED_IP = "http://192.168.5.20:8096"
 LAN = "http://192.168.5.28:8096"
+MDNS = "http://mac-mini.local:8096"
 LOOPBACK = "http://127.0.0.1:8096"
 
 IDENTITY_MISMATCH_SOURCE = (
@@ -135,7 +137,7 @@ def run_started(module, directory: Path) -> dict[str, object]:
 
 
 def run_identity_mismatch(module, directory: Path) -> dict[str, object]:
-    world = World({RECORDED: OTHER}, lan=("192.168.5.28",), start=services.Started(LAN, IDENTITY, IDENTITY))
+    world = World({RECORDED: OTHER}, start=services.Started(LAN, IDENTITY, IDENTITY))
     receipt = _resolve(module, world, directory)
     assert receipt["action"] == "unavailable", receipt
     assert receipt["address"] is None, receipt
@@ -276,6 +278,90 @@ class EnsureTestServicesTests(unittest.TestCase):
                 "start-failed": "start-failed",
             },
         )
+
+    def test_service_endpoint_shape_and_host_kind(self) -> None:
+        endpoint = services.ServiceEndpoint("http", "mac-mini.local", 8096, "", "mdns")
+        self.assertEqual(endpoint.scheme, "http")
+        self.assertEqual(endpoint.host, "mac-mini.local")
+        self.assertEqual(endpoint.port, 8096)
+        self.assertEqual(endpoint.path, "")
+        self.assertEqual(endpoint.hostKind, "mdns")
+        self.assertIn(endpoint.hostKind, {"mdns", "lan-ip", "loopback"})
+        address = services._endpoint_address(endpoint)
+        self.assertEqual(address, "http://mac-mini.local:8096")
+        self.assertEqual(services._host_kind("Mac-mini.local"), "mdns")
+        self.assertEqual(services._host_kind("mac-mini.local"), "mdns")
+        self.assertEqual(services._host_kind("192.168.5.28"), "lan-ip")
+        self.assertEqual(services._host_kind("127.0.0.1"), "loopback")
+        self.assertEqual(services._host_kind("localhost"), "loopback")
+
+    def test_candidate_order_recorded_mdns_lan(self) -> None:
+        world = World(
+            {RECORDED: None, MDNS: IDENTITY, LAN: OTHER},
+            lan=("192.168.5.28",),
+            mdns=("mac-mini.local",),
+        )
+        receipt = _resolve(services, world, self.root / "order-mdns-first")
+        self.assertEqual(receipt["address"], MDNS)
+        self.assertEqual(receipt["hostKind"], "mdns")
+        world2 = World(
+            {RECORDED: None, MDNS: None, LAN: IDENTITY},
+            lan=("192.168.5.28",),
+            mdns=("mac-mini.local",),
+        )
+        receipt2 = _resolve(services, world2, self.root / "order-lan-fallback")
+        self.assertEqual(receipt2["address"], LAN)
+        self.assertEqual(receipt2["evidence"]["reason"], "lan-fallback")
+        self.assertEqual(receipt2["hostKind"], "lan-ip")
+
+    def test_recorded_ip_is_ignored(self) -> None:
+        world = World(
+            {RECORDED_IP: IDENTITY, MDNS: IDENTITY},
+            lan=(),
+            mdns=("mac-mini.local",),
+            recorded=RECORDED_IP,
+        )
+        spec = world.spec(services, self.root / "ignored-ip" / "ensure-receipt.json")
+        ordered = services.candidate_addresses(spec)
+        addresses = [a for a, s in ordered]
+        self.assertNotIn(RECORDED_IP, addresses)
+        self.assertIn(MDNS, addresses)
+
+    def test_resolve_lan_host_does_not_replace_name_with_ip(self) -> None:
+        result = services.resolve_lan_host("Mac-mini.local")
+        if result is not None:
+            self.assertEqual(result, "Mac-mini.local")
+        result2 = services.resolve_lan_host("mac-mini.local")
+        if result2 is not None:
+            self.assertEqual(result2, "mac-mini.local")
+        self.assertEqual(services.resolve_lan_host("192.168.5.28"), "192.168.5.28")
+        self.assertIsNone(services.resolve_lan_host("127.0.0.1"))
+        self.assertIsNone(services.resolve_lan_host("localhost"))
+
+    def test_receipt_contains_resolved_evidence_and_host_kind(self) -> None:
+        world = World({MDNS: IDENTITY}, mdns=("mac-mini.local",), recorded=None)
+        receipt = _resolve(services, world, self.root / "resolved-evidence")
+        self.assertIn("hostKind", receipt)
+        self.assertEqual(receipt["hostKind"], "mdns")
+        self.assertIn("endpoint", receipt)
+        self.assertEqual(receipt["endpoint"]["hostKind"], "mdns")
+        self.assertEqual(receipt["endpoint"]["host"], "mac-mini.local")
+        candidate = receipt["evidence"]["candidates"][0]
+        self.assertIn("hostKind", candidate)
+        self.assertEqual(candidate["hostKind"], "mdns")
+        self.assertIn("resolvedAddresses", candidate)
+        self.assertIsInstance(candidate["resolvedAddresses"], list)
+
+    def test_lan_fallback_is_reported_with_reason(self) -> None:
+        world = World(
+            {LAN: IDENTITY},
+            lan=("192.168.5.28",),
+            recorded=None,
+        )
+        receipt = _resolve(services, world, self.root / "lan-fallback-reason")
+        self.assertEqual(receipt["address"], LAN)
+        self.assertEqual(receipt["hostKind"], "lan-ip")
+        self.assertEqual(receipt["evidence"]["reason"], "lan-fallback")
 
 
 def _neuter(fragment: str) -> str:
