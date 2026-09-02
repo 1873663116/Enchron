@@ -61,5 +61,35 @@ class MergeSharedRunnerSessionTests(unittest.TestCase):
         self.assertTrue(len(probe["segments"]) >= 1)
         self.assertTrue(all("decisions" in s for s in probe["segments"]))
 
+    def test_docked_reset_media_step_belongs_to_exactly_one_segment(self) -> None:
+        probe = plan.probe_plan()
+        ids = [s["id"] for s in probe["segments"]]
+        self.assertIn("probe-docked-reset-media-information", ids)
+        self.assertIn("probe-docked", ids)
+        self.assertLess(ids.index("probe-docked"), ids.index("probe-docked-reset-media-information"))
+        fault_ops = {
+            ("docked", "accessibility:PlayerPanel-DockedPlacement-reset"),
+            ("docked", "accessibility:PlayerPanel-media-information"),
+        }
+        owners = {op: [] for op in fault_ops}
+        for seg in probe["segments"]:
+            for dec in seg["decisions"]:
+                key = (dec["context"], dec["operation"])
+                if key in owners:
+                    owners[key].append(seg["id"])
+        for op, segs in owners.items():
+            self.assertEqual(segs, ["probe-docked-reset-media-information"], f"{op} must belong to exactly one segment")
+
+    def test_probe_docked_does_not_claim_fault_step(self) -> None:
+        probe = plan.probe_plan()
+        docked = next(s for s in probe["segments"] if s["id"] == "probe-docked")
+        fault = next(s for s in probe["segments"] if s["id"] == "probe-docked-reset-media-information")
+        docked_keys = {(d["context"], d["operation"]) for d in docked["decisions"]}
+        fault_keys = {(d["context"], d["operation"]) for d in fault["decisions"]}
+        self.assertTrue(fault_keys)
+        self.assertEqual(docked_keys & fault_keys, set())
+        self.assertIn("docked-reset-media-information", fault["scenarios"])
+        self.assertNotIn("docked-reset-media-information", docked["scenarios"])
+
 if __name__ == "__main__":
     unittest.main()
