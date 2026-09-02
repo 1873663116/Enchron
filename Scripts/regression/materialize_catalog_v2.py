@@ -1481,8 +1481,8 @@ def _validate_blueprint(
                 _require(scenario["blockers"], f"{scenario['id']} needs typed blockers")
 
     _require(
-        len(obligation_ids) == 119,
-        "Catalog must contain exactly 119 globally unique obligations",
+        len(obligation_ids) == 149,
+        "Catalog must contain exactly 149 globally unique obligations",
     )
 
     _validate_transition_trace_sequences(blueprint["scenarios"])

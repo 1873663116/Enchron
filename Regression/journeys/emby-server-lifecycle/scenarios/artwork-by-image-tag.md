@@ -82,6 +82,16 @@
       "callId": "call:emby-server-lifecycle:artwork-by-image-tag:06",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "Emby-Home",
+        "requireMatchedElement": true
+      },
+      "callId": "call:emby-server-lifecycle:artwork-by-image-tag:07",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -94,10 +104,27 @@
       "oracle": "oracle:agent-structured-emby-evidence@1",
       "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:06",
       "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:emby-server-lifecycle:artwork-by-image-tag:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:07",
+      "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default"
+    "all": [
+      {
+        "observation": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default"
+      },
+      {
+        "observation": "obligation:emby-server-lifecycle:artwork-by-image-tag:o02:default"
+      }
+    ]
   }
 }
 ---

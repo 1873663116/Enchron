@@ -229,7 +229,7 @@ def apply(document: dict[str, Any]) -> None:
     timeout = by_id(scenarios, "scenario:presentation-tour:transition-timeout-rolls-back")
     timeout["obligations"][0]["producedByCall"] = call(timeout, "09")["callId"]
 
-    if sum(len(value["obligations"]) for value in scenarios) != 119:
+    if sum(len(value["obligations"]) for value in scenarios) != 149:
         raise ValueError("round-four migration changed the pinned obligation count")
     if document["expectedCounts"] != EXPECTED_COUNTS:
         raise ValueError("round-four migration changed expectedCounts")

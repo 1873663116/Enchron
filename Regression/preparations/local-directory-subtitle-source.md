@@ -186,16 +186,6 @@
     },
     {
       "callId": "call:preparation:local-directory-subtitle-source:19",
-      "operation": "operation:accessibility.inspect@2",
-      "arguments": {
-        "context": "main-window-browser",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:local-directory-subtitle-source:20",
       "operation": "operation:navigation.select-tab@1",
       "arguments": {
         "tab": "emby"
@@ -203,7 +193,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:21",
+      "callId": "call:preparation:local-directory-subtitle-source:20",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -216,7 +206,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:22",
+      "callId": "call:preparation:local-directory-subtitle-source:21",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -229,7 +219,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:23",
+      "callId": "call:preparation:local-directory-subtitle-source:22",
       "operation": "operation:accessibility.type@2",
       "arguments": {
         "context": "main-window-browser",
@@ -242,19 +232,18 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:24",
+      "callId": "call:preparation:local-directory-subtitle-source:23",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
         "identifiers": [
           "Emby-Connection-Connect"
-        ],
-        "settleDelayMillis": 30000
+        ]
       },
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:25",
+      "callId": "call:preparation:local-directory-subtitle-source:24",
       "operation": "operation:accessibility.activate@2",
       "arguments": {
         "context": "main-window-browser",
@@ -265,17 +254,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:26",
-      "operation": "operation:accessibility.inspect@2",
-      "arguments": {
-        "context": "main-window-browser",
-        "identifier": "Emby-Home",
-        "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:local-directory-subtitle-source:27",
+      "callId": "call:preparation:local-directory-subtitle-source:25",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "emby-aggregate"
@@ -283,7 +262,7 @@
       "maxInvocations": 1
     },
     {
-      "callId": "call:preparation:local-directory-subtitle-source:28",
+      "callId": "call:preparation:local-directory-subtitle-source:26",
       "operation": "operation:preparation.local-directory-subtitle-source@1",
       "arguments": {
         "directoryName": "sdr-bframe-aggregate-30s-sidecars",
@@ -301,7 +280,7 @@
     {
       "key": "local-directory-subtitle-source-ready",
       "schema": "media-source.local-directory-sidecars@1",
-      "producedByCall": "call:preparation:local-directory-subtitle-source:28",
+      "producedByCall": "call:preparation:local-directory-subtitle-source:26",
       "dependsOnTags": [
         "app.session",
         "certificate.trust",

@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:a659db3f16b0b81246be3deff5fbaf0eb4b2b7efa2308db9fa7e99afc3b48d8c",
+  "contentDigest": "sha256:c84c38aa1c3205c7bacd1b1919c099a0fda7079a64a5805d2cb0df63a9288f85",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -132,7 +132,7 @@
     "oracles": 11,
     "preparations": 18,
     "promises": 65,
-    "rubrics": 67,
+    "rubrics": 97,
     "scenarios": 65,
     "staticCases": 115
   },
@@ -2011,6 +2011,336 @@
         "A duplicate import, toggleControls command, XCUITest-only tap return, missing or extra spatialTap, wrong visibility parity, an auto-hide record interleaved between the three toggles, a toggle span of 25000 ms or more, an auto-hide record whose scheduledAtMillis predates the third toggle, non-Playing lifecycle, or controls still visible after 30000 ms fails the rubric."
       ],
       "title": "Window Surface Controls Toggle And Autohide"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-webdav-source-lifecycle-webdav-add-source-o02.md",
+      "id": "rubric:webdav-source-lifecycle.webdav-add-source.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "webdav-source-lifecycle:webdav-add-source preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-webdav-source-lifecycle-webdav-open-through-loopback-o02.md",
+      "id": "rubric:webdav-source-lifecycle.webdav-open-through-loopback.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "webdav-source-lifecycle:webdav-open-through-loopback preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-webdav-source-lifecycle-certificate-trust-boundary-o02.md",
+      "id": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "webdav-source-lifecycle:certificate-trust-boundary preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-smb-source-lifecycle-smb-browse-shares-and-directories-o02.md",
+      "id": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "smb-source-lifecycle:smb-browse-shares-and-directories preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-home-poster-and-next-up-o02.md",
+      "id": "rubric:emby-server-lifecycle.home-poster-and-next-up.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:home-poster-and-next-up preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-series-season-episode-navigation-o02.md",
+      "id": "rubric:emby-server-lifecycle.series-season-episode-navigation.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:series-season-episode-navigation preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-episode-resume-and-start-actions-o02.md",
+      "id": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:episode-resume-and-start-actions preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-progress-authority-server-o02.md",
+      "id": "rubric:emby-server-lifecycle.progress-authority-server.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:progress-authority-server preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-artwork-by-image-tag-o02.md",
+      "id": "rubric:emby-server-lifecycle.artwork-by-image-tag.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:artwork-by-image-tag preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-emby-resume-entry-semantics-o02.md",
+      "id": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:emby-resume-entry-semantics preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains Emby-Home with requireMatchedElement true, proving the preparation's Emby connection state is present."
+      ],
+      "filename": "rubric-emby-server-lifecycle-emby-artwork-bypasses-loopback-o02.md",
+      "id": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o02@1",
+      "negativeControls": [
+        "A missing Emby-Home or requireMatchedElement false fails the bound case."
+      ],
+      "title": "emby-server-lifecycle:emby-artwork-bypasses-loopback preparation Emby-Home"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-window-to-portal-format-route-o02.md",
+      "id": "rubric:presentation-tour.window-to-portal-format-route.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:window-to-portal-format-route preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-portal-to-panorama-explicit-entry-o02.md",
+      "id": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:portal-to-panorama-explicit-entry preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-panorama-to-portal-exit-o02.md",
+      "id": "rubric:presentation-tour.panorama-to-portal-exit.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:panorama-to-portal-exit preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-window-docked-round-trip-o02.md",
+      "id": "rubric:presentation-tour.window-docked-round-trip.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:window-docked-round-trip preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-transition-timeout-rolls-back-o02.md",
+      "id": "rubric:presentation-tour.transition-timeout-rolls-back.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:transition-timeout-rolls-back preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-portal-format-and-panorama-actions-coexist-o02.md",
+      "id": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:portal-format-and-panorama-actions-coexist preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-presentation-tour-automatic-source-provenance-o02.md",
+      "id": "rubric:presentation-tour.automatic-source-provenance.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "presentation-tour:automatic-source-provenance preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-network-resilience-prefetch-without-waiting-consumer-o02.md",
+      "id": "rubric:network-resilience.prefetch-without-waiting-consumer.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "network-resilience:prefetch-without-waiting-consumer preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-network-resilience-recoverable-read-resumes-from-checkpoint-o02.md",
+      "id": "rubric:network-resilience.recoverable-read-resumes-from-checkpoint.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "network-resilience:recoverable-read-resumes-from-checkpoint preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-network-resilience-finite-backoff-reconnect-o02.md",
+      "id": "rubric:network-resilience.finite-backoff-reconnect.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "network-resilience:finite-backoff-reconnect preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-network-resilience-certificate-change-stops-without-trust-o02.md",
+      "id": "rubric:network-resilience.certificate-change-stops-without-trust.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "network-resilience:certificate-change-stops-without-trust preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-exit-saves-position-o02.md",
+      "id": "rubric:viewing-state-and-storage.exit-saves-position.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:exit-saves-position preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-reopen-resumes-near-position-o02.md",
+      "id": "rubric:viewing-state-and-storage.reopen-resumes-near-position.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:reopen-resumes-near-position preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-completed-media-starts-from-beginning-o02.md",
+      "id": "rubric:viewing-state-and-storage.completed-media-starts-from-beginning.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:completed-media-starts-from-beginning preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-clear-all-local-progress-o02.md",
+      "id": "rubric:viewing-state-and-storage.clear-all-local-progress.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:clear-all-local-progress preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-remote-index-reused-on-second-open-o02.md",
+      "id": "rubric:viewing-state-and-storage.remote-index-reused-on-second-open.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:remote-index-reused-on-second-open preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-local-playback-does-not-write-index-o02.md",
+      "id": "rubric:viewing-state-and-storage.local-playback-does-not-write-index.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:local-playback-does-not-write-index preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-viewing-state-and-storage-storage-rows-report-and-clear-o02.md",
+      "id": "rubric:viewing-state-and-storage.storage-rows-report-and-clear.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "viewing-state-and-storage:storage-rows-report-and-clear preparation file grid"
+    },
+    {
+      "criteria": [
+        "The bound accessibility tree contains FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv with requireMatchedElement true, proving the preparation's file browsing state is present."
+      ],
+      "filename": "rubric-issue-surface-behavior-typed-single-slot-contract-o02.md",
+      "id": "rubric:issue-surface-behavior.typed-single-slot-contract.o02@1",
+      "negativeControls": [
+        "A missing FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv or requireMatchedElement false fails the bound case."
+      ],
+      "title": "issue-surface-behavior:typed-single-slot-contract preparation file grid"
     }
   ],
   "scenarios": [
@@ -4203,6 +4533,16 @@
           "oracle": "oracle:agent-structured-accessibility-tree@1",
           "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:14",
           "rubric": "rubric:webdav-source-lifecycle.webdav-add-source.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:webdav-source-lifecycle:webdav-add-source:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:15",
+          "rubric": "rubric:webdav-source-lifecycle.webdav-add-source.o02@1"
         }
       ],
       "operations": [
@@ -4367,6 +4707,16 @@
           "callId": "call:webdav-source-lifecycle:webdav-add-source:14",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:webdav-source-lifecycle:webdav-add-source:15",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -4383,7 +4733,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:webdav-source-lifecycle:webdav-add-source:o01:default"
+        "all": [
+          {
+            "observation": "obligation:webdav-source-lifecycle:webdav-add-source:o01:default"
+          },
+          {
+            "observation": "obligation:webdav-source-lifecycle:webdav-add-source:o02:default"
+          }
+        ]
       },
       "title": "通过产品表单添加 WebDAV 来源"
     },
@@ -4411,6 +4768,16 @@
           "oracle": "oracle:agent-visual@2",
           "producedByCall": "call:webdav-source-lifecycle:webdav-open-through-loopback:09",
           "rubric": "rubric:webdav-source-lifecycle.webdav-open-through-loopback.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:webdav-source-lifecycle:webdav-open-through-loopback:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:webdav-source-lifecycle:webdav-open-through-loopback:10",
+          "rubric": "rubric:webdav-source-lifecycle.webdav-open-through-loopback.o02@1"
         }
       ],
       "operations": [
@@ -4504,6 +4871,16 @@
           "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:09",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:webdav-source-lifecycle:webdav-open-through-loopback:10",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -4520,7 +4897,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:webdav-source-lifecycle:webdav-open-through-loopback:o01:default"
+        "all": [
+          {
+            "observation": "obligation:webdav-source-lifecycle:webdav-open-through-loopback:o01:default"
+          },
+          {
+            "observation": "obligation:webdav-source-lifecycle:webdav-open-through-loopback:o02:default"
+          }
+        ]
       },
       "title": "WebDAV 卡片经回环端点进入播放"
     },
@@ -4558,6 +4942,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:22",
           "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:webdav-source-lifecycle:certificate-trust-boundary:23",
+          "rubric": "rubric:webdav-source-lifecycle.certificate-trust-boundary.o02@1"
         }
       ],
       "operations": [
@@ -4815,6 +5209,16 @@
           "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:22",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:23",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -4837,6 +5241,9 @@
           },
           {
             "observation": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o01:connected-trace"
+          },
+          {
+            "observation": "obligation:webdav-source-lifecycle:certificate-trust-boundary:o02:default"
           }
         ]
       },
@@ -4866,6 +5273,16 @@
           "oracle": "oracle:agent-structured-accessibility-tree@1",
           "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
           "rubric": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:05",
+          "rubric": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o02@1"
         }
       ],
       "operations": [
@@ -4908,6 +5325,16 @@
           "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.browse-hierarchy@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:05",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -4924,7 +5351,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o01:default"
+        "all": [
+          {
+            "observation": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o01:default"
+          },
+          {
+            "observation": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o02:default"
+          }
+        ]
       },
       "title": "SMB 共享与目录逐层浏览"
     },
@@ -4952,6 +5386,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:10",
           "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:home-poster-and-next-up:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:11",
+          "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o02@1"
         }
       ],
       "operations": [
@@ -5044,6 +5488,16 @@
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:10",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:home-poster-and-next-up:11",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5060,7 +5514,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:home-poster-and-next-up:o02:default"
+          }
+        ]
       },
       "title": "Emby 首页海报墙与接下来看横条"
     },
@@ -5088,6 +5549,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:11",
           "rubric": "rubric:emby-server-lifecycle.series-season-episode-navigation.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:series-season-episode-navigation:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:series-season-episode-navigation:12",
+          "rubric": "rubric:emby-server-lifecycle.series-season-episode-navigation.o02@1"
         }
       ],
       "operations": [
@@ -5201,6 +5672,16 @@
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:11",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:series-season-episode-navigation:12",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5217,7 +5698,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:series-season-episode-navigation:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:series-season-episode-navigation:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:series-season-episode-navigation:o02:default"
+          }
+        ]
       },
       "title": "系列详情、季选择与剧集列表"
     },
@@ -5245,6 +5733,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
           "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
+          "rubric": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o02@1"
         }
       ],
       "operations": [
@@ -5397,6 +5895,16 @@
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:15",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:16",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5413,7 +5921,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:episode-resume-and-start-actions:o02:default"
+          }
+        ]
       },
       "title": "单集 Resume 与 Play from Beginning 入口"
     },
@@ -5441,6 +5956,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:progress-authority-server:14",
           "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:progress-authority-server:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:progress-authority-server:15",
+          "rubric": "rubric:emby-server-lifecycle.progress-authority-server.o02@1"
         }
       ],
       "operations": [
@@ -5584,6 +6109,16 @@
           "callId": "call:emby-server-lifecycle:progress-authority-server:14",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:progress-authority-server:15",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5600,7 +6135,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:progress-authority-server:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:progress-authority-server:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:progress-authority-server:o02:default"
+          }
+        ]
       },
       "title": "Emby 播放进度写回服务器"
     },
@@ -5628,6 +6170,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:06",
           "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:artwork-by-image-tag:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:artwork-by-image-tag:07",
+          "rubric": "rubric:emby-server-lifecycle.artwork-by-image-tag.o02@1"
         }
       ],
       "operations": [
@@ -5685,6 +6237,16 @@
           "callId": "call:emby-server-lifecycle:artwork-by-image-tag:06",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:artwork-by-image-tag:07",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5701,7 +6263,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:artwork-by-image-tag:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:artwork-by-image-tag:o02:default"
+          }
+        ]
       },
       "title": "Emby 封面按 image tag 落盘"
     },
@@ -5729,6 +6298,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:emby-resume-entry-semantics:13",
           "rubric": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:emby-resume-entry-semantics:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:emby-resume-entry-semantics:14",
+          "rubric": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o02@1"
         }
       ],
       "operations": [
@@ -5856,6 +6435,16 @@
           "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:13",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:14",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5872,7 +6461,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:emby-resume-entry-semantics:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:emby-resume-entry-semantics:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:emby-resume-entry-semantics:o02:default"
+          }
+        ]
       },
       "title": "Emby Resume 尊重服务器位置而从头播放忽略它"
     },
@@ -5900,6 +6496,16 @@
           "oracle": "oracle:agent-structured-emby-evidence@1",
           "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:06",
           "rubric": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:07",
+          "rubric": "rubric:emby-server-lifecycle.emby-artwork-bypasses-loopback.o02@1"
         }
       ],
       "operations": [
@@ -5959,6 +6565,16 @@
           "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:06",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "Emby-Home",
+            "requireMatchedElement": true
+          },
+          "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:07",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -5975,7 +6591,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o01:default"
+        "all": [
+          {
+            "observation": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o01:default"
+          },
+          {
+            "observation": "obligation:emby-server-lifecycle:emby-artwork-bypasses-loopback:o02:default"
+          }
+        ]
       },
       "title": "Emby Artwork 使用图片接口而非回环端点"
     },
@@ -8315,6 +8938,16 @@
           "oracle": "oracle:agent-structured-transition@1",
           "producedByCall": "call:presentation-tour:window-to-portal-format-route:07",
           "rubric": "rubric:presentation-tour.window-to-portal-format-route.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:window-to-portal-format-route:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:window-to-portal-format-route:09",
+          "rubric": "rubric:presentation-tour.window-to-portal-format-route.o02@1"
         }
       ],
       "operations": [
@@ -8384,6 +9017,16 @@
           "callId": "call:presentation-tour:window-to-portal-format-route:08",
           "maxInvocations": 1,
           "operation": "operation:transition-trace.disarm@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:window-to-portal-format-route:09",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -8400,7 +9043,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:window-to-portal-format-route:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:window-to-portal-format-route:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:window-to-portal-format-route:o02:default"
+          }
+        ]
       },
       "title": "应用全景格式从 window 路由到 portal"
     },
@@ -8428,6 +9078,16 @@
           "oracle": "oracle:agent-structured-transition@1",
           "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:07",
           "rubric": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:10",
+          "rubric": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o02@1"
         }
       ],
       "operations": [
@@ -8507,6 +9167,16 @@
           "callId": "call:presentation-tour:portal-to-panorama-explicit-entry:09",
           "maxInvocations": 1,
           "operation": "operation:transition-trace.disarm@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:portal-to-panorama-explicit-entry:10",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -8523,7 +9193,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o02:default"
+          }
+        ]
       },
       "title": "Portal 通过 Enter Panorama 显式进入 panorama"
     },
@@ -8551,6 +9228,16 @@
           "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:presentation-tour:panorama-to-portal-exit:08",
           "rubric": "rubric:presentation-tour.panorama-to-portal-exit.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:panorama-to-portal-exit:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:panorama-to-portal-exit:11",
+          "rubric": "rubric:presentation-tour.panorama-to-portal-exit.o02@1"
         }
       ],
       "operations": [
@@ -8639,6 +9326,16 @@
           "callId": "call:presentation-tour:panorama-to-portal-exit:10",
           "maxInvocations": 1,
           "operation": "operation:transition-trace.disarm@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:panorama-to-portal-exit:11",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -8655,7 +9352,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:panorama-to-portal-exit:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:panorama-to-portal-exit:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:panorama-to-portal-exit:o02:default"
+          }
+        ]
       },
       "title": "Panorama 控件退出到 portal"
     },
@@ -8683,6 +9387,16 @@
           "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:presentation-tour:window-docked-round-trip:07",
           "rubric": "rubric:presentation-tour.window-docked-round-trip.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:window-docked-round-trip:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:window-docked-round-trip:10",
+          "rubric": "rubric:presentation-tour.window-docked-round-trip.o02@1"
         }
       ],
       "operations": [
@@ -8759,6 +9473,16 @@
           "callId": "call:presentation-tour:window-docked-round-trip:09",
           "maxInvocations": 1,
           "operation": "operation:transition-trace.disarm@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:window-docked-round-trip:10",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -8775,7 +9499,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:window-docked-round-trip:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:window-docked-round-trip:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:window-docked-round-trip:o02:default"
+          }
+        ]
       },
       "title": "Window 与 Docked 双向切换"
     },
@@ -8803,6 +9534,16 @@
           "oracle": "oracle:agent-structured-transition@1",
           "producedByCall": "call:presentation-tour:transition-timeout-rolls-back:09",
           "rubric": "rubric:presentation-tour.transition-timeout-rolls-back.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:transition-timeout-rolls-back:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:transition-timeout-rolls-back:10",
+          "rubric": "rubric:presentation-tour.transition-timeout-rolls-back.o02@1"
         }
       ],
       "operations": [
@@ -8885,6 +9626,16 @@
           "callId": "call:presentation-tour:transition-timeout-rolls-back:09",
           "maxInvocations": 1,
           "operation": "operation:transition-trace.disarm@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:transition-timeout-rolls-back:10",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -8901,7 +9652,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:transition-timeout-rolls-back:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:transition-timeout-rolls-back:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:transition-timeout-rolls-back:o02:default"
+          }
+        ]
       },
       "title": "转场 settle 超时后干净回滚"
     },
@@ -9164,6 +9922,16 @@
           "oracle": "oracle:agent-structured-accessibility-tree@1",
           "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:09",
           "rubric": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
+          "rubric": "rubric:presentation-tour.portal-format-and-panorama-actions-coexist.o02@1"
         }
       ],
       "operations": [
@@ -9265,6 +10033,16 @@
           "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:09",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:10",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -9281,7 +10059,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:portal-format-and-panorama-actions-coexist:o02:default"
+          }
+        ]
       },
       "title": "Portal 同时提供格式编辑与 Enter Panorama"
     },
@@ -9309,6 +10094,16 @@
           "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:presentation-tour:automatic-source-provenance:07",
           "rubric": "rubric:presentation-tour.automatic-source-provenance.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:presentation-tour:automatic-source-provenance:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:presentation-tour:automatic-source-provenance:08",
+          "rubric": "rubric:presentation-tour.automatic-source-provenance.o02@1"
         }
       ],
       "operations": [
@@ -9385,6 +10180,16 @@
           "callId": "call:presentation-tour:automatic-source-provenance:07",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:presentation-tour:automatic-source-provenance:08",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -9401,7 +10206,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:presentation-tour:automatic-source-provenance:o01:default"
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:automatic-source-provenance:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:automatic-source-provenance:o02:default"
+          }
+        ]
       },
       "title": "Automatic 在来源格式时禁用并显示选中"
     },
@@ -10263,6 +11075,16 @@
           "oracle": "oracle:agent-structured-structural-test@2",
           "producedByCall": "call:network-resilience:prefetch-without-waiting-consumer:01",
           "rubric": "rubric:network-resilience.prefetch-without-waiting-consumer.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:network-resilience:prefetch-without-waiting-consumer:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:network-resilience:prefetch-without-waiting-consumer:02",
+          "rubric": "rubric:network-resilience.prefetch-without-waiting-consumer.o02@1"
         }
       ],
       "operations": [
@@ -10273,6 +11095,16 @@
           "callId": "call:network-resilience:prefetch-without-waiting-consumer:01",
           "maxInvocations": 1,
           "operation": "operation:evidence.structural-test@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:network-resilience:prefetch-without-waiting-consumer:02",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -10289,7 +11121,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:network-resilience:prefetch-without-waiting-consumer:o01:default"
+        "all": [
+          {
+            "observation": "obligation:network-resilience:prefetch-without-waiting-consumer:o01:default"
+          },
+          {
+            "observation": "obligation:network-resilience:prefetch-without-waiting-consumer:o02:default"
+          }
+        ]
       },
       "title": "无阻塞消费者时仍预取至水位线"
     },
@@ -10317,6 +11156,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:network-resilience:recoverable-read-resumes-from-checkpoint:11",
           "rubric": "rubric:network-resilience.recoverable-read-resumes-from-checkpoint.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "single-read-failure",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o02:single-read-failure",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:network-resilience:recoverable-read-resumes-from-checkpoint:13",
+          "rubric": "rubric:network-resilience.recoverable-read-resumes-from-checkpoint.o02@1"
         }
       ],
       "operations": [
@@ -10447,6 +11296,16 @@
           "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:12",
           "maxInvocations": 1,
           "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:13",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -10463,7 +11322,14 @@
         "single-read-failure"
       ],
       "success": {
-        "observation": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o01:single-read-failure"
+        "all": [
+          {
+            "observation": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o01:single-read-failure"
+          },
+          {
+            "observation": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o02:single-read-failure"
+          }
+        ]
       },
       "title": "可恢复读失败与流结束分离"
     },
@@ -10491,6 +11357,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:network-resilience:finite-backoff-reconnect:12",
           "rubric": "rubric:network-resilience.finite-backoff-reconnect.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:network-resilience:finite-backoff-reconnect:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:network-resilience:finite-backoff-reconnect:13",
+          "rubric": "rubric:network-resilience.finite-backoff-reconnect.o02@1"
         }
       ],
       "operations": [
@@ -10620,6 +11496,16 @@
           "callId": "call:network-resilience:finite-backoff-reconnect:12",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:network-resilience:finite-backoff-reconnect:13",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -10636,7 +11522,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:network-resilience:finite-backoff-reconnect:o01:default"
+        "all": [
+          {
+            "observation": "obligation:network-resilience:finite-backoff-reconnect:o01:default"
+          },
+          {
+            "observation": "obligation:network-resilience:finite-backoff-reconnect:o02:default"
+          }
+        ]
       },
       "title": "断线后执行有限退避且引擎不主动断开"
     },
@@ -11675,6 +12568,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:network-resilience:certificate-change-stops-without-trust:12",
           "rubric": "rubric:network-resilience.certificate-change-stops-without-trust.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:network-resilience:certificate-change-stops-without-trust:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:network-resilience:certificate-change-stops-without-trust:13",
+          "rubric": "rubric:network-resilience.certificate-change-stops-without-trust.o02@1"
         }
       ],
       "operations": [
@@ -11798,6 +12701,16 @@
           "callId": "call:network-resilience:certificate-change-stops-without-trust:12",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:network-resilience:certificate-change-stops-without-trust:13",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -11814,7 +12727,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:network-resilience:certificate-change-stops-without-trust:o01:default"
+        "all": [
+          {
+            "observation": "obligation:network-resilience:certificate-change-stops-without-trust:o01:default"
+          },
+          {
+            "observation": "obligation:network-resilience:certificate-change-stops-without-trust:o02:default"
+          }
+        ]
       },
       "title": "播放中证书变化单列且不现场接受"
     },
@@ -11842,6 +12762,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:exit-saves-position:10",
           "rubric": "rubric:viewing-state-and-storage.exit-saves-position.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:exit-saves-position:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:exit-saves-position:11",
+          "rubric": "rubric:viewing-state-and-storage.exit-saves-position.o02@1"
         }
       ],
       "operations": [
@@ -11954,6 +12884,16 @@
           "callId": "call:viewing-state-and-storage:exit-saves-position:10",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:exit-saves-position:11",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -11970,7 +12910,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:exit-saves-position:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:exit-saves-position:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:exit-saves-position:o02:default"
+          }
+        ]
       },
       "title": "退出播放提交并保存当前位置"
     },
@@ -11998,6 +12945,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:reopen-resumes-near-position:15",
           "rubric": "rubric:viewing-state-and-storage.reopen-resumes-near-position.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:reopen-resumes-near-position:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:reopen-resumes-near-position:16",
+          "rubric": "rubric:viewing-state-and-storage.reopen-resumes-near-position.o02@1"
         }
       ],
       "operations": [
@@ -12169,6 +13126,16 @@
           "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:15",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:16",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -12185,7 +13152,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:reopen-resumes-near-position:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:reopen-resumes-near-position:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:reopen-resumes-near-position:o02:default"
+          }
+        ]
       },
       "title": "重新打开从保存位置续播"
     },
@@ -12213,6 +13187,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:completed-media-starts-from-beginning:15",
           "rubric": "rubric:viewing-state-and-storage.completed-media-starts-from-beginning.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:completed-media-starts-from-beginning:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:completed-media-starts-from-beginning:16",
+          "rubric": "rubric:viewing-state-and-storage.completed-media-starts-from-beginning.o02@1"
         }
       ],
       "operations": [
@@ -12379,6 +13363,16 @@
           "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:15",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:16",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -12395,7 +13389,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:completed-media-starts-from-beginning:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:completed-media-starts-from-beginning:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:completed-media-starts-from-beginning:o02:default"
+          }
+        ]
       },
       "title": "看完标记与之后从头播放"
     },
@@ -12423,6 +13424,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:clear-all-local-progress:19",
           "rubric": "rubric:viewing-state-and-storage.clear-all-local-progress.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:clear-all-local-progress:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:clear-all-local-progress:20",
+          "rubric": "rubric:viewing-state-and-storage.clear-all-local-progress.o02@1"
         }
       ],
       "operations": [
@@ -12637,6 +13648,16 @@
           "callId": "call:viewing-state-and-storage:clear-all-local-progress:19",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:clear-all-local-progress:20",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -12653,7 +13674,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:clear-all-local-progress:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:clear-all-local-progress:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:clear-all-local-progress:o02:default"
+          }
+        ]
       },
       "title": "Playback Progress 清除全部本地观看状态"
     },
@@ -12681,6 +13709,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",
           "rubric": "rubric:viewing-state-and-storage.remote-index-reused-on-second-open.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:remote-index-reused-on-second-open:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:remote-index-reused-on-second-open:18",
+          "rubric": "rubric:viewing-state-and-storage.remote-index-reused-on-second-open.o02@1"
         }
       ],
       "operations": [
@@ -12870,6 +13908,16 @@
           "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:17",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:remote-index-reused-on-second-open:18",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -12886,7 +13934,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:remote-index-reused-on-second-open:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:remote-index-reused-on-second-open:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:remote-index-reused-on-second-open:o02:default"
+          }
+        ]
       },
       "title": "远程文件第二次打开复用容器索引"
     },
@@ -12914,6 +13969,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:local-playback-does-not-write-index:18",
           "rubric": "rubric:viewing-state-and-storage.local-playback-does-not-write-index.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:local-playback-does-not-write-index:19",
+          "rubric": "rubric:viewing-state-and-storage.local-playback-does-not-write-index.o02@1"
         }
       ],
       "operations": [
@@ -13121,6 +14186,16 @@
           "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:18",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:19",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -13137,7 +14212,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o02:default"
+          }
+        ]
       },
       "title": "本地播放不写容器索引缓存"
     },
@@ -13165,6 +14247,16 @@
           "oracle": "oracle:agent-structured-interaction-trace@1",
           "producedByCall": "call:viewing-state-and-storage:storage-rows-report-and-clear:27",
           "rubric": "rubric:viewing-state-and-storage.storage-rows-report-and-clear.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:viewing-state-and-storage:storage-rows-report-and-clear:28",
+          "rubric": "rubric:viewing-state-and-storage.storage-rows-report-and-clear.o02@1"
         }
       ],
       "operations": [
@@ -13468,6 +14560,16 @@
           "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:27",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.surface-probe@1"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:28",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -13484,7 +14586,14 @@
         "default"
       ],
       "success": {
-        "observation": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o01:default"
+        "all": [
+          {
+            "observation": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o01:default"
+          },
+          {
+            "observation": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o02:default"
+          }
+        ]
       },
       "title": "两条存储行分别报数并清除"
     },
@@ -14532,6 +15641,16 @@
           "oracle": "oracle:agent-structured-accessibility-tree@1",
           "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:06",
           "rubric": "rubric:issue-surface-behavior.typed-single-slot-contract.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "accessibility-tree@1",
+          "evidenceType": "accessibility.tree",
+          "id": "obligation:issue-surface-behavior:typed-single-slot-contract:o02:default",
+          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "producedByCall": "call:issue-surface-behavior:typed-single-slot-contract:07",
+          "rubric": "rubric:issue-surface-behavior.typed-single-slot-contract.o02@1"
         }
       ],
       "operations": [
@@ -14594,6 +15713,16 @@
           "callId": "call:issue-surface-behavior:typed-single-slot-contract:06",
           "maxInvocations": 1,
           "operation": "operation:accessibility.inspect@2"
+        },
+        {
+          "arguments": {
+            "context": "main-window-browser",
+            "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+            "requireMatchedElement": true
+          },
+          "callId": "call:issue-surface-behavior:typed-single-slot-contract:07",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.inspect@2"
         }
       ],
       "prerequisites": [
@@ -14616,6 +15745,9 @@
           },
           {
             "observation": "obligation:issue-surface-behavior:typed-single-slot-contract:o01:replacement-post-state"
+          },
+          {
+            "observation": "obligation:issue-surface-behavior:typed-single-slot-contract:o02:default"
           }
         ]
       },

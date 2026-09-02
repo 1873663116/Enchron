@@ -21,9 +21,7 @@
     {
       "callId": "call:preparation:audio-only-fixtures:02",
       "operation": "operation:harness.ensure-session@1",
-      "arguments": {
-        "controlsAutoHideSeconds": 8
-      },
+      "arguments": {},
       "maxInvocations": 1
     },
     {

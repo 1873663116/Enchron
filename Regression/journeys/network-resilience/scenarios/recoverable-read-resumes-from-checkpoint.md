@@ -155,6 +155,16 @@
       "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:12",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:recoverable-read-resumes-from-checkpoint:13",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -167,10 +177,27 @@
       "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:network-resilience:recoverable-read-resumes-from-checkpoint:11",
       "rubric": "rubric:network-resilience.recoverable-read-resumes-from-checkpoint.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "single-read-failure",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o02:single-read-failure",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:network-resilience:recoverable-read-resumes-from-checkpoint:13",
+      "rubric": "rubric:network-resilience.recoverable-read-resumes-from-checkpoint.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o01:single-read-failure"
+    "all": [
+      {
+        "observation": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o01:single-read-failure"
+      },
+      {
+        "observation": "obligation:network-resilience:recoverable-read-resumes-from-checkpoint:o02:single-read-failure"
+      }
+    ]
   }
 }
 ---

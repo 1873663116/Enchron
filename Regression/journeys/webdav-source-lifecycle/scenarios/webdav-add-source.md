@@ -189,6 +189,16 @@
       "callId": "call:webdav-source-lifecycle:webdav-add-source:14",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:15",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -201,10 +211,27 @@
       "oracle": "oracle:agent-structured-accessibility-tree@1",
       "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:14",
       "rubric": "rubric:webdav-source-lifecycle.webdav-add-source.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:webdav-source-lifecycle:webdav-add-source:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:webdav-source-lifecycle:webdav-add-source:15",
+      "rubric": "rubric:webdav-source-lifecycle.webdav-add-source.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:webdav-source-lifecycle:webdav-add-source:o01:default"
+    "all": [
+      {
+        "observation": "obligation:webdav-source-lifecycle:webdav-add-source:o01:default"
+      },
+      {
+        "observation": "obligation:webdav-source-lifecycle:webdav-add-source:o02:default"
+      }
+    ]
   }
 }
 ---

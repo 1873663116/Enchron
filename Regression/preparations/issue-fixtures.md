@@ -151,16 +151,6 @@
     },
     {
       "callId": "call:preparation:issue-fixtures:15",
-      "operation": "operation:accessibility.inspect@2",
-      "arguments": {
-        "context": "main-window-browser",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:issue-fixtures:16",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "webdav-regression"
@@ -172,7 +162,7 @@
     {
       "key": "issue-fixtures-ready",
       "schema": "fixture-set.issue-surfaces@2",
-      "producedByCall": "call:preparation:issue-fixtures:16",
+      "producedByCall": "call:preparation:issue-fixtures:15",
       "dependsOnTags": [
         "app.session",
         "certificate.trust",

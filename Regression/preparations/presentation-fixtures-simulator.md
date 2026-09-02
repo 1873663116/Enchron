@@ -214,16 +214,6 @@
     },
     {
       "callId": "call:preparation:presentation-fixtures-simulator:23",
-      "operation": "operation:accessibility.inspect@2",
-      "arguments": {
-        "context": "main-window-browser",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:presentation-fixtures-simulator:24",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "webdav-regression"
@@ -235,7 +225,7 @@
     {
       "key": "presentation-fixtures-ready",
       "schema": "fixture-set.presentation-tour@2",
-      "producedByCall": "call:preparation:presentation-fixtures-simulator:24",
+      "producedByCall": "call:preparation:presentation-fixtures-simulator:23",
       "dependsOnTags": [
         "app.session",
         "certificate.trust",

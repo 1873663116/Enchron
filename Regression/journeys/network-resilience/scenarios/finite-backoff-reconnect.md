@@ -154,6 +154,16 @@
       "callId": "call:network-resilience:finite-backoff-reconnect:12",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:network-resilience:finite-backoff-reconnect:13",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -166,10 +176,27 @@
       "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:network-resilience:finite-backoff-reconnect:12",
       "rubric": "rubric:network-resilience.finite-backoff-reconnect.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:network-resilience:finite-backoff-reconnect:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:network-resilience:finite-backoff-reconnect:13",
+      "rubric": "rubric:network-resilience.finite-backoff-reconnect.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:network-resilience:finite-backoff-reconnect:o01:default"
+    "all": [
+      {
+        "observation": "obligation:network-resilience:finite-backoff-reconnect:o01:default"
+      },
+      {
+        "observation": "obligation:network-resilience:finite-backoff-reconnect:o02:default"
+      }
+    ]
   }
 }
 ---

@@ -212,16 +212,6 @@
     },
     {
       "callId": "call:preparation:viewing-storage-fixtures-simulator:22",
-      "operation": "operation:accessibility.inspect@2",
-      "arguments": {
-        "context": "main-window-browser",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:viewing-storage-fixtures-simulator:23",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "webdav-regression"
@@ -233,7 +223,7 @@
     {
       "key": "viewing-storage-fixtures-ready",
       "schema": "fixture-set.viewing-storage@2",
-      "producedByCall": "call:preparation:viewing-storage-fixtures-simulator:23",
+      "producedByCall": "call:preparation:viewing-storage-fixtures-simulator:22",
       "dependsOnTags": [
         "app.session",
         "cache.state",

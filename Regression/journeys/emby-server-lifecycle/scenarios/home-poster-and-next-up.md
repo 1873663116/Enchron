@@ -117,6 +117,16 @@
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:10",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "Emby-Home",
+        "requireMatchedElement": true
+      },
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:11",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -129,10 +139,27 @@
       "oracle": "oracle:agent-structured-emby-evidence@1",
       "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:10",
       "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:emby-server-lifecycle:home-poster-and-next-up:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:emby-server-lifecycle:home-poster-and-next-up:11",
+      "rubric": "rubric:emby-server-lifecycle.home-poster-and-next-up.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default"
+    "all": [
+      {
+        "observation": "obligation:emby-server-lifecycle:home-poster-and-next-up:o01:default"
+      },
+      {
+        "observation": "obligation:emby-server-lifecycle:home-poster-and-next-up:o02:default"
+      }
+    ]
   }
 }
 ---

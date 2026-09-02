@@ -277,7 +277,7 @@ def main() -> None:
                 call["arguments"].setdefault("targetDomain", "canvas")
 
     assert catalog["expectedCounts"] == expected_counts
-    assert sum(len(value["obligations"]) for value in catalog["scenarios"]) == obligation_count == 119
+    assert sum(len(value["obligations"]) for value in catalog["scenarios"]) == obligation_count == 149
     payload = dict(catalog)
     payload.pop("contentDigest", None)
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()

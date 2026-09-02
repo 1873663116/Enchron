@@ -344,14 +344,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "promises": 65,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 67,
+                "rubrics": 97,
                 "preparations": 18,
                 "journeys": 14,
                 "scenarios": 65,
                 "staticCases": 115,
             },
         )
-        self.assertEqual(report["obligationCount"], 119)
+        self.assertEqual(report["obligationCount"], 149)
         expected_call_count = sum(
             len(
                 preparation_adapter.build_plan(
@@ -452,7 +452,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             blueprint_path = self._write_blueprint(root, tampered)
             with self.assertRaisesRegex(
                 MaterializationError,
-                "Catalog must contain exactly 119 globally unique obligations",
+                "Catalog must contain exactly 149 globally unique obligations",
             ):
                 materialize(
                     blueprint_path,
