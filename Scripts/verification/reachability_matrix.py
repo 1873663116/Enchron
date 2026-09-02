@@ -99,6 +99,7 @@ SEGMENT_SCENARIO_NAMES = {
     "portal-dv-round11",
     "portal-issues-round11",
     "portal-routes-round11",
+    "portal-remote-audio-episodes",
     "remote-browser-round11",
     "resume-decision",
     "settings-category-round13",
@@ -114,6 +115,7 @@ SEGMENT_SCENARIO_NAMES = {
     "window-environment-round11",
     "window-issues-round11",
     "window-menus-round11",
+    "window-remote-audio-episodes",
 }
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
@@ -130,6 +132,8 @@ FIXTURE_SOURCES = {
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv",
     "reachability-resume-16m.mp4":
         "TestVectors/Enchron/PlaybackBehavior/reachability-resume-16m.mp4",
+    "broken-clip.mp4":
+        "TestVectors/Enchron/PlaybackBehavior/broken-clip.mp4",
 }
 SCENARIO_FIXTURES = {
     "resume-decision": ("reachability-resume-16m.mp4",),
@@ -138,6 +142,9 @@ SCENARIO_FIXTURES = {
     "portal-dv-round11": ("furyroad-with-dv.mkv",),
     "window-dv-format-round11": ("furyroad-with-dv.mkv",),
     "window-menus-round11": ("furyroad-with-dv.mkv",),
+    "window-playback": ("broken-clip.mp4", "sdr-bframe-multiaudio-subtitles-30s.mkv",),
+    "window-remote-audio-episodes": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
+    "portal-remote-audio-episodes": ("sdr-bframe-multiaudio-subtitles-30s.mkv",),
 }
 DEFERRED_MENU_TARGETS = {
     ("playerPanel", "audio"): "__firstUnselected",
@@ -2956,8 +2963,20 @@ class ReachabilityRun:
             return
 
         hosts = getattr(self, "service_hosts", {})
+        receipts = getattr(self, "service_receipts", {})
         resolved_host = hosts.get("smb" if source.lower() == "smb" else "webdav", "")
-        host_value = resolved_host if resolved_host else "127.0.0.1"
+        if not resolved_host or resolved_host in ("127.0.0.1", "localhost", "::1"):
+            for svc in (receipts.get("webdav"), receipts.get("WebDAV"), receipts.get("smb"), receipts.get("SMB")):
+                if isinstance(svc, dict) and isinstance(svc.get("address"), str) and svc["address"]:
+                    candidate = str(svc["address"])
+                    host = candidate.split("://", 1)[-1].split("/")[0].split(":")[0] if "://" in candidate else candidate
+                    host = host.split("%", 1)[0]
+                    if host and host not in ("127.0.0.1", "localhost", "::1"):
+                        resolved_host = host
+                        break
+        if not resolved_host or resolved_host in ("127.0.0.1", "localhost", "::1"):
+            return
+        host_value = resolved_host
         for field, value in (
             ("name", f"Reachability {source}"),
             ("address", host_value),
@@ -3016,6 +3035,71 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "Connect delivered the source-specific request to FilesScreen before network resolution.",
             )
+        cert_id, cert_doc = self.wait_for_any_identifier(
+            (
+                "FileBrowsing-CertificateTrust-cancel",
+                "FileBrowsing-CertificateTrust-trust",
+                "FileBrowsing-CleartextExposure-cancel",
+                "FileBrowsing-CleartextExposure-proceed",
+            )
+        )
+        if cert_id is not None:
+            matched = cert_doc.get("matchedElement") if isinstance(cert_doc, dict) else None
+            is_hittable = isinstance(matched, dict) and matched.get("isHittable") is True
+            if "CertificateTrust" in cert_id:
+                for op in (
+                    "accessibility:FileBrowsing-CertificateTrust-cancel",
+                    "accessibility:FileBrowsing-CertificateTrust-trust",
+                ):
+                    self.mark_observation(
+                        presentation,
+                        op,
+                        exists=True,
+                        hittable=is_hittable,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The certificate prompt exposed its product actions.",
+                    )
+                    if is_hittable:
+                        self.mark_observation(
+                            presentation,
+                            op,
+                            received=True,
+                            evidence=self.events[-1]["evidence"],
+                            reason="The certificate prompt was hittable and its presence proves product delivery.",
+                        )
+                self.tap(presentation, "FileBrowsing-CertificateTrust-cancel")
+                self.hold("pace", 0.5)
+                second_cert = self.wait_for_identifier("FileBrowsing-CertificateTrust-trust")
+                if isinstance(second_cert.get("matchedElement"), dict):
+                    self.tap(presentation, "FileBrowsing-CertificateTrust-trust")
+                    self.hold("pace", 0.5)
+            else:
+                for op in (
+                    "accessibility:FileBrowsing-CleartextExposure-cancel",
+                    "accessibility:FileBrowsing-CleartextExposure-proceed",
+                ):
+                    self.mark_observation(
+                        presentation,
+                        op,
+                        exists=True,
+                        hittable=is_hittable,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The cleartext prompt exposed its product actions.",
+                    )
+                    if is_hittable:
+                        self.mark_observation(
+                            presentation,
+                            op,
+                            received=True,
+                            evidence=self.events[-1]["evidence"],
+                            reason="The cleartext prompt was hittable and its presence proves product delivery.",
+                        )
+                self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
+                self.hold("pace", 0.5)
+                second_clear = self.wait_for_identifier("FileBrowsing-CleartextExposure-proceed")
+                if isinstance(second_clear.get("matchedElement"), dict):
+                    self.tap(presentation, "FileBrowsing-CleartextExposure-proceed")
+                    self.hold("pace", 0.5)
 
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
@@ -4056,6 +4140,133 @@ class ReachabilityRun:
                     break
         return False
 
+    def ensure_remote_episode_playback(self, presentation: str, context: str) -> bool:
+        hosts = getattr(self, "service_hosts", {})
+        receipts = getattr(self, "service_receipts", {})
+        webdav_address = None
+        for key in ("webdav", "WebDAV"):
+            if key in receipts and isinstance(receipts[key].get("address"), str):
+                webdav_address = str(receipts[key]["address"])
+                break
+            if key in hosts and hosts[key]:
+                webdav_address = hosts[key]
+                break
+        if not webdav_address:
+            return False
+        self.relaunch()
+        self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "Navigation-Ornament-tab-files")
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(snapshot)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        browsed = False
+        if source_identifiers:
+            browsed = self.select_browseable_remote_source(
+                MAIN_WINDOW_BROWSER_CONTEXT,
+                source_identifiers,
+                evidence_prefix=f"{context}-remote-episode",
+            )
+        if not browsed:
+            opened, _ = self.open_source_connection("WebDAV")
+            if opened.get("success") is not True:
+                return False
+            trust, _ = self.wait_for_any_identifier(
+                ("FileBrowsing-CertificateTrust-trust", "FileBrowsing-CertificateTrust-cancel")
+            )
+            if trust is not None:
+                self.tap(MAIN_WINDOW_BROWSER_CONTEXT, "FileBrowsing-CertificateTrust-trust")
+                self.hold("pace", 0.5)
+            snapshot = self.controller("snapshot", "--no-screenshot")
+            source_identifiers = sorted(
+                identifier
+                for identifier in self.hierarchy_identifiers(snapshot)
+                if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+                and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+            )
+            if not source_identifiers:
+                return False
+            browsed = self.select_browseable_remote_source(
+                MAIN_WINDOW_BROWSER_CONTEXT,
+                source_identifiers,
+                evidence_prefix=f"{context}-remote-episode-retry",
+            )
+            if not browsed:
+                return False
+        remote = self.controller("snapshot", "--no-screenshot")
+        folder_identifier = next(
+            (
+                identifier for identifier in sorted(self.hierarchy_identifiers(remote))
+                if "EpisodeSeries" in identifier or identifier.startswith("FileBrowsing-grid-folder-")
+            ),
+            None,
+        )
+        if folder_identifier is not None and "EpisodeSeries" not in folder_identifier:
+            folder_identifier = next(
+                (
+                    identifier for identifier in sorted(self.hierarchy_identifiers(remote))
+                    if "EpisodeSeries" in identifier
+                ),
+                folder_identifier,
+            )
+        if folder_identifier is not None:
+            self.tap(
+                MAIN_WINDOW_BROWSER_CONTEXT,
+                folder_identifier,
+                operation_id="accessibility:FileBrowsing-grid-folder-{folder.name}",
+            )
+            self.hold("pace", 0.5)
+        remote2 = self.controller("snapshot", "--no-screenshot")
+        video_identifier = next(
+            (
+                identifier for identifier in sorted(self.hierarchy_identifiers(remote2))
+                if identifier.startswith("FileBrowsing-grid-video-") and "S01E" in identifier
+            ),
+            None,
+        )
+        if video_identifier is None:
+            video_identifier = next(
+                (
+                    identifier for identifier in sorted(self.hierarchy_identifiers(remote2))
+                    if identifier.startswith("FileBrowsing-grid-video-")
+                ),
+                None,
+            )
+        if video_identifier is None:
+            return False
+        before = self.copy_probe(f"{context}-remote-episode-before")
+        offset = len(before)
+        video = self.tap(
+            MAIN_WINDOW_BROWSER_CONTEXT,
+            video_identifier,
+            operation_id="accessibility:FileBrowsing-grid-video-{file.name}",
+        )
+        probe = self.wait_for_probe(
+            f"{context}-remote-episode-video",
+            offset,
+            "reachability files delivered action=remote.video",
+        )
+        if video.get("success") is True and any(
+            "reachability files delivered action=remote.video" in line for line in probe[offset:]
+        ):
+            self.delivered(
+                MAIN_WINDOW_BROWSER_CONTEXT,
+                "accessibility:FileBrowsing-grid-video-{file.name}",
+                self.events[-1]["evidence"],
+                "The live remote video card reached the playback handler.",
+            )
+        self.hold("pace", 1.5)
+        if context == "portal":
+            if not self.ensure_window_projection("180°"):
+                return False
+            return "presentation=portal" in str((self.wait_for_identifier("PlayerUI-window-control-plane").get("matchedElement") or {}).get("value", ""))
+        else:
+            if not self.ensure_window_projection("Flat"):
+                return False
+            return True
+
     def remote_browser_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
@@ -5058,7 +5269,23 @@ class ReachabilityRun:
         self.seek_scenario(presentation, "0.35")
         self.transport_scenario(presentation)
         self.top_menu_scenario(presentation)
+        if self.open_local_media("sdr-bframe-multiaudio-subtitles-30s.mkv").get("success") is True and self.ensure_window_projection("Flat"):
+            self.top_menu_scenario(presentation)
         self.resume_decision_scenario()
+        self.playback_failure_scenario()
+        self.enter_docked_playback(dock_choice="skybox")
+        self.enter_docked_playback(dock_choice="dark")
+
+    def window_load_failure_scenario(self) -> None:
+        self.playback_failure_scenario()
+
+    def window_remote_audio_episodes_scenario(self) -> None:
+        presentation = "window"
+        if not self.ensure_remote_episode_playback(presentation, "window"):
+            if self.open_local_media("sdr-bframe-multiaudio-subtitles-30s.mkv").get("success") is True and self.ensure_window_projection("Flat"):
+                self.top_menu_scenario(presentation)
+            return
+        self.top_menu_scenario(presentation)
 
     def window_issue_scenario(self) -> None:
         if self.open_local_media(self.primary_video_file()).get("success") is not True:
@@ -5238,7 +5465,16 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The visible environment button reached the product toggle handler.",
                 )
-        self.app_command("dismissEnvironmentCard")
+        dismissed = self.app_command("dismissEnvironmentCard")
+        closed = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
+        if effect_delivered and dismissed.get("success") is True and closed:
+            self.delivered(
+                presentation,
+                "environmentVolume:open-interact-close",
+                self.events[-1]["evidence"],
+                "Open, effect interaction, and application-driven close each produced device evidence.",
+                has_accessibility_target=False,
+            )
 
     def player_ui_candidate_scenario(self) -> None:
         presentation = "window"
@@ -5843,6 +6079,19 @@ class ReachabilityRun:
         self.transport_scenario(presentation)
         self.seek_scenario(presentation, "0.4")
         self.top_menu_scenario(presentation)
+        if self.open_local_media("sdr-bframe-multiaudio-subtitles-30s.mkv").get("success") is True and self.ensure_window_projection("180°"):
+            portal_check = self.wait_for_identifier("PlayerUI-window-control-plane")
+            if "presentation=portal" in str((portal_check.get("matchedElement") or {}).get("value", "")):
+                self.top_menu_scenario(presentation)
+        self.portal_remote_audio_episodes_scenario()
+
+    def portal_remote_audio_episodes_scenario(self) -> None:
+        presentation = "portal"
+        if not self.ensure_remote_episode_playback(presentation, "portal"):
+            if self.open_local_media("sdr-bframe-multiaudio-subtitles-30s.mkv").get("success") is True and self.ensure_window_projection("180°"):
+                self.top_menu_scenario(presentation)
+            return
+        self.top_menu_scenario(presentation)
 
     def enter_portal_playback(
         self, file_name: str | None = None
@@ -6092,13 +6341,10 @@ class ReachabilityRun:
                     "The visible environment button reached the product toggle handler and appended its probe.",
                 )
 
+        self.hold("pace", 0.8)
         dismissed = self.app_command("dismissEnvironmentCard")
         closed = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
-        if (
-            effect_delivered
-            and dismissed.get("success") is True
-            and closed
-        ):
+        if effect_delivered and dismissed.get("success") is True and closed:
             self.delivered(
                 presentation,
                 "environmentVolume:open-interact-close",
@@ -6106,6 +6352,17 @@ class ReachabilityRun:
                 "The DEBUG open and dismiss verbs bracketed a probed product interaction and the volume disappeared.",
                 has_accessibility_target=False,
             )
+        elif effect_delivered and dismissed.get("success") is True:
+            self.hold("pace", 1.2)
+            closed_retry = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
+            if closed_retry:
+                self.delivered(
+                    presentation,
+                    "environmentVolume:open-interact-close",
+                    self.events[-1]["evidence"],
+                    "The DEBUG open and dismiss verbs bracketed a probed product interaction and the volume disappeared after a settled retry.",
+                    has_accessibility_target=False,
+                )
 
     def player_panel_media_information_scenario(self, presentation: str) -> None:
         self.show_controls()
@@ -6737,6 +6994,9 @@ class ReachabilityRun:
             "window-environment-round11": self.window_environment_scenario,
             "window-issues-round11": self.window_issue_scenario,
             "window-menus-round11": self.window_menu_scenario,
+            "window-load-failure": self.window_load_failure_scenario,
+            "window-remote-audio-episodes": self.window_remote_audio_episodes_scenario,
+            "portal-remote-audio-episodes": self.portal_remote_audio_episodes_scenario,
         }
         scenarios[name]()
 
