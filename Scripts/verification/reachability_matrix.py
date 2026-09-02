@@ -49,6 +49,67 @@ UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
 
 PACING_POLL_SLACK_SECONDS = 5.0
 
+SOFT_RESET_RESIDUE_EXEMPT_IDENTIFIERS = frozenset({"PlayerUI-application-state"})
+
+SOFT_RESET_RESIDUE_IDENTIFIER_PREFIXES = frozenset((
+    "PlayerUI-",
+    "PlayerPanel-",
+    "FileBrowsing-CertificateTrust-",
+    "FileBrowsing-CleartextExposure-",
+    "FileBrowsing-SourceConnection-",
+    "FileBrowsing-error-",
+    "MediaLibrary-NewFolder-",
+    "MediaLibrary-RenameFolder-",
+    "MediaLibrary-MultiSelect-",
+    "MediaLibrary-error-",
+    "PlayerUI-VideoFormat-",
+    "PlayerPanel-VideoFormat-",
+    "PlayerUI-loadFailure-",
+    "PlayerUI-playbackIssue-",
+    "PlayerUI-spatialFailure-",
+    "PlayerUI-unmetCapability-",
+    "PlayerUI-presentation-conversion-",
+    "PlayerUI-resumeDecision-",
+    "PlayerUI-menu-",
+    "PlayerPanel-menu-",
+    "PlayerUI-DockMenu-",
+    "Settings-menuOption-",
+))
+
+SOFT_RESET_RESIDUE_ELEMENT_TYPES = frozenset((
+    "Alert",
+    "Sheet",
+    "Popover",
+))
+
+
+def _soft_reset_identifier_is_residue(identifier: str) -> bool:
+    if identifier in SOFT_RESET_RESIDUE_EXEMPT_IDENTIFIERS:
+        return False
+    for prefix in SOFT_RESET_RESIDUE_IDENTIFIER_PREFIXES:
+        if identifier.startswith(prefix):
+            return True
+    return False
+
+
+def _soft_reset_residue_identifiers(document: dict[str, Any]) -> list[str]:
+    hierarchy = document.get("hierarchy")
+    if not isinstance(hierarchy, str):
+        return []
+    identifiers = re.findall(r"identifier: '([^']+)'", hierarchy)
+    residue: list[str] = []
+    prefix_system = f"{APP_BUNDLE}:SFBSystemService-"
+    for identifier in identifiers:
+        if identifier.startswith(prefix_system):
+            continue
+        if _soft_reset_identifier_is_residue(identifier):
+            residue.append(identifier)
+    types = re.findall(r"^\s*(\w+),", hierarchy, flags=re.MULTILINE)
+    for element_type in types:
+        if element_type in SOFT_RESET_RESIDUE_ELEMENT_TYPES:
+            residue.append(element_type)
+    return sorted(set(residue))
+
 RECOVERY_VERBS = frozenset({"halt", "ensure-session"})
 
 CENSORED_FAULT_KINDS = frozenset(
@@ -394,11 +455,12 @@ def replay_deferred_evidence(
     deliveries: list[dict[str, Any]],
     probe_lines: list[str],
     responses: dict[str, dict[str, Any]],
-    session_id: str,
     started_at: str,
     ended_at: str,
     evidence: str,
     journal_retrieved: bool = True,
+    session_id: str | None = None,
+    evidence_session: str | None = None,
 ) -> dict[str, Any]:
     start = datetime.fromisoformat(
         started_at.replace("Z", "+00:00")
@@ -419,7 +481,8 @@ def replay_deferred_evidence(
             if previous is not None and current is not None
         )
     )
-    session_marker = f"reachability evidence session={session_id}"
+    effective_session = evidence_session if evidence_session is not None else session_id
+    session_marker = f"reachability evidence session={effective_session}"
     session_aligned = any(session_marker in detail for _, detail in records)
     failures: list[dict[str, Any]] = []
 
@@ -1045,6 +1108,7 @@ class ReachabilityRun:
         self.silent_taps: list[dict[str, Any]] = []
         self.copy_timings: list[dict[str, Any]] = []
         self.session_id: str | None = None
+        self.evidence_session: str | None = None
         self.channel_health: dict[str, dict[str, Any]] = {}
         self.channel_failures: list[dict[str, Any]] = []
         self.segment: dict[str, Any] | None = getattr(arguments, "segment_spec", None)
@@ -1430,8 +1494,11 @@ class ReachabilityRun:
         if getattr(self, "segment", None) is not None and defer_response:
             extra.append("--defer-response")
         if getattr(self, "segment", None) is not None:
-            if self.session_id is not None:
-                extra.extend(("--arg", f"evidenceSession={self.session_id}"))
+            marker = self.evidence_session
+            if marker is None:
+                marker = self.session_id
+            if marker is not None:
+                extra.extend(("--arg", f"evidenceSession={marker}"))
         for key, value in arguments.items():
             extra.extend(("--arg", f"{key}={value}"))
         response = self.controller("app-command", *extra)
@@ -2513,6 +2580,42 @@ class ReachabilityRun:
         self.controller("relaunch", "--no-screenshot")
         self.hold("relaunch-settle", 1)
 
+    def reset_to_tab(self, tab_identifier: str) -> None:
+        started = datetime.now(timezone.utc)
+        self.controller("activate", "--no-screenshot")
+        document = self.controller("snapshot", "--no-screenshot")
+        app_state = document.get("appState") if isinstance(document, dict) else None
+        residue = _soft_reset_residue_identifiers(document if isinstance(document, dict) else {})
+        needs_fallback = app_state != "runningForeground" or bool(residue)
+        if needs_fallback:
+            offending = sorted(set(residue))
+            if app_state != "runningForeground" and app_state not in offending:
+                offending = sorted(set(offending + [str(app_state)])) if isinstance(app_state, str) else offending
+            evidence = self.events[-1]["evidence"] if self.events else "raw/snapshot.json"
+            self.events.append({
+                "at": utc_now(),
+                "action": "softResetRejected",
+                "tab": tab_identifier,
+                "success": False,
+                "appState": app_state,
+                "offendingIdentifiers": offending,
+                "evidence": evidence,
+            })
+            self.relaunch()
+            self.tap(MAIN_WINDOW_BROWSER_CONTEXT, tab_identifier)
+        else:
+            self.tap(MAIN_WINDOW_BROWSER_CONTEXT, tab_identifier)
+            elapsed = round((datetime.now(timezone.utc) - started).total_seconds(), 3)
+            evidence = self.events[-1]["evidence"] if self.events else "raw/snapshot.json"
+            self.events.append({
+                "at": utc_now(),
+                "action": "softReset",
+                "tab": tab_identifier,
+                "success": True,
+                "elapsedSeconds": elapsed,
+                "evidence": evidence,
+            })
+
     UI_TEST_RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 
     out_of_context_observations: dict[tuple[str, str], int] = {}
@@ -2891,8 +2994,7 @@ class ReachabilityRun:
 
     def source_connection_scenario(self, source: str) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         opened, probe = self.open_source_connection(
             "SMB" if source == "smb" else "WebDAV"
         )
@@ -2962,8 +3064,7 @@ class ReachabilityRun:
                 "Connect delivered the source-specific request to FilesScreen before network resolution.",
             )
 
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         opened, probe = self.open_source_connection(
             "SMB" if source == "smb" else "WebDAV"
         )
@@ -2998,8 +3099,7 @@ class ReachabilityRun:
             ("refresh", "sourceAction", "refresh", "sidebar.refresh"),
             ("delete", "sourceAction", "delete", "sourceSidebar.delete"),
         ):
-            self.relaunch()
-            self.tap(presentation, "Navigation-Ornament-tab-files")
+            self.reset_to_tab("Navigation-Ornament-tab-files")
             before = self.copy_probe(f"source-sidebar-{identifier}-before")
             offset = len(before)
             parent = self.tap(
@@ -3028,8 +3128,7 @@ class ReachabilityRun:
                     "the FilesScreen handler and appended its product action probe.",
                 )
 
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         before = self.copy_probe("source-sidebar-add-before")
         offset = len(before)
         chip = self.tap(presentation, "FileBrowsing-SourcesSidebar-add")
@@ -3054,8 +3153,7 @@ class ReachabilityRun:
                 "equivalent ran a product action it holds and appended its probe.",
             )
 
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         before = self.copy_probe("source-sidebar-row-before")
         offset = len(before)
         selected = self.tap(
@@ -3079,8 +3177,7 @@ class ReachabilityRun:
 
     def file_browser_error_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
 
         for action in ("primary", "secondary"):
             before = self.copy_probe(f"file-browser-error-{action}-before")
@@ -3121,8 +3218,7 @@ class ReachabilityRun:
             self.source_connection_scenario("webDAV")
             self.source_sidebar_scenario()
             self.file_browser_error_scenario()
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         reference = self.wait_for_identifier(
             self.primary_video_identifier()
         )
@@ -3211,8 +3307,7 @@ class ReachabilityRun:
                 "Typing changed the browser search binding and appended a probe.",
             )
 
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         before = self.copy_probe("browser-new-folder-before")
         offset = len(before)
         parent = self.tap(presentation, "FileBrowsing-Manage-button")
@@ -3486,8 +3581,7 @@ class ReachabilityRun:
             ("addFiles", "manage.addFiles"),
             ("addFolder", "manage.addFolder"),
         ):
-            self.relaunch()
-            self.tap(presentation, "Navigation-Ornament-tab-files")
+            self.reset_to_tab("Navigation-Ornament-tab-files")
             before = self.copy_probe(f"manage-{target}-before")
             offset = len(before)
             parent = self.tap(presentation, "FileBrowsing-Manage-button")
@@ -3530,8 +3624,7 @@ class ReachabilityRun:
 
     def library_editing_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         if self.app_command(
             "importMedia", file=self.primary_video_file()
         ).get("success") is not True:
@@ -3672,8 +3765,7 @@ class ReachabilityRun:
 
     def settings_menu_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        self.reset_to_tab("Navigation-Ornament-tab-settings")
         self.tap(
             presentation,
             "Settings-menu-resume-strategy",
@@ -3747,8 +3839,7 @@ class ReachabilityRun:
 
     def settings_category_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-settings")
+        self.reset_to_tab("Navigation-Ornament-tab-settings")
         self.select_settings_category()
 
     def select_settings_category(self) -> None:
@@ -3775,8 +3866,7 @@ class ReachabilityRun:
 
     def library_reference_move_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         imported = self.app_command("importMedia", file=self.primary_video_file())
         if imported.get("success") is True:
             self.relaunch()
@@ -3803,8 +3893,7 @@ class ReachabilityRun:
 
     def breadcrumb_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         folder_before = self.copy_probe("media-library-folder-before")
         folder_offset = len(folder_before)
         folder = self.tap(
@@ -3857,8 +3946,7 @@ class ReachabilityRun:
                     "The named Media Library breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
                 )
 
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         sources = self.controller("snapshot", "--no-screenshot")
         source_identifiers = sorted(
             identifier
@@ -3979,8 +4067,7 @@ class ReachabilityRun:
 
     def remote_browser_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.reset_to_tab("Navigation-Ornament-tab-files")
         snapshot = self.controller("snapshot", "--no-screenshot")
         source_identifiers = sorted(
             identifier
@@ -6652,11 +6739,10 @@ class ReachabilityRun:
 
     def run_segment(self) -> int:
         assert self.segment is not None
-        if getattr(self.arguments, "reuse_session", False):
-            raise ValueError("Segmented runs require an independent XCTest session.")
         if not self.ensure_session():
             self.controller("halt", "--no-screenshot")
             return self.finish_segment("session-failed")
+        self.evidence_session = str(uuid.uuid4())
 
         before_health = self.record_segment_health_context("before")
         if before_health["passed"] is not True:
@@ -6811,7 +6897,7 @@ class ReachabilityRun:
             deliveries=self.deferred_deliveries,
             probe_lines=final_probe,
             responses=responses,
-            session_id=str(self.session_id),
+            evidence_session=str(self.evidence_session or self.session_id),
             started_at=segment_started_at,
             ended_at=segment_ended_at,
             evidence="raw/segment-after-surface-probe.log",
@@ -6866,6 +6952,11 @@ class ReachabilityRun:
         if after_health["passed"] is not True:
             self.controller("halt", "--no-screenshot")
             return self.finish_segment("channel-health-failed")
+        keep = getattr(self.arguments, "keep_session", None)
+        if keep is None:
+            keep = self.segment is not None
+        if keep:
+            return self.finish_segment("complete")
         stopped = self.controller("stop", "--no-screenshot")
         if stopped.get("success") is not True:
             self.controller("halt", "--no-screenshot")
@@ -6916,6 +7007,7 @@ class ReachabilityRun:
             "segment": str(self.segment["id"]),
             "segmentPlan": self.segment,
             "sessionID": self.session_id,
+            "evidenceSession": self.evidence_session,
             "outOfContextObservations": [
                 {"context": context, "operation": operation, "count": count}
                 for (context, operation), count in sorted(
@@ -7221,6 +7313,7 @@ def parse_arguments() -> argparse.Namespace:
         help="frozen execution input the controller launches from",
     )
     parser.add_argument("--reuse-session", action="store_true")
+    parser.add_argument("--keep-session", dest="keep_session", action="store_true", default=None)
     parser.add_argument("--accept-baseline", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--require-baseline-coverage", action="store_true")
