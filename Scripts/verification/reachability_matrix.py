@@ -1290,10 +1290,7 @@ class ReachabilityRun:
             and status_document.get("success") is True
             and parsed.get("passed") is True
         ):
-            for index, failure in enumerate(list(self.channel_failures)):
-                if failure.get("kind") == "response-timeout" and failure.get("action") in ("tap", "app-command"):
-                    self.channel_failures.pop(index)
-                    break
+            self.channel_failures.clear()
             self.history.clear()
             self.halted = False
             return True
