@@ -20,7 +20,33 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from probe_emby_direct_play import authenticate, request
 
-EMBY_ADDRESS = "http://192.168.5.2:8096"
+def _default_emby_address() -> str:
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        import json as _json
+        _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+        import ensure_test_services as _ets
+        receipt = _ets._read_object(_ets.emby_spec().receipt_file)
+        if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
+            return str(receipt["address"])
+        spec = _ets.emby_spec()
+        if spec.recorded_address:
+            return spec.recorded_address
+    except Exception:
+        pass
+    try:
+        from pathlib import Path as _Path2
+        import json as _json2
+        p = _Path2(__file__).resolve().parents[2] / "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"
+        if p.is_file():
+            d = _json2.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d.get("address"), str) and d.get("address"):
+                return str(d["address"])
+    except Exception:
+        pass
+    return "http://Mac-mini.local:8096"
+EMBY_ADDRESS = _default_emby_address()
 
 
 def library_video_streams(address, token, user_id):

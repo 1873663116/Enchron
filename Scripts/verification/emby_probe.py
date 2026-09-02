@@ -20,7 +20,29 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 CREDENTIALS = REPOSITORY / ".env"
 FIXTURE = REPOSITORY.parent / "TestMedia" / "TestVectors" / "Enchron" / "PlaybackBehavior" / "sdr-bframe-aggregate-30s.mkv"
-DEFAULT_SERVER = "http://192.168.5.20:8096"
+def _default_server() -> str:
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import ensure_test_services as _ets
+        receipt = _ets._read_object(_ets.emby_spec().receipt_file)
+        if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
+            return str(receipt["address"])
+        spec = _ets.emby_spec()
+        if spec.recorded_address:
+            return spec.recorded_address
+    except Exception:
+        pass
+    try:
+        p = REPOSITORY / "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"
+        if p.is_file():
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d.get("address"), str) and d.get("address"):
+                return str(d["address"])
+    except Exception:
+        pass
+    return "http://Mac-mini.local:8096"
+DEFAULT_SERVER = _default_server()
 AUTHORIZATION = 'MediaBrowser Client="EnchronVerify", Device="Mac", DeviceId="enchron-verify", Version="1.0"'
 TIMEOUT_SECONDS = 10
 

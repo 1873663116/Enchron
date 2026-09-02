@@ -45,10 +45,56 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-WEBDAV_HOST = "192.168.5.2"
+def _default_webdav_host() -> str:
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        import json as _json
+        _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+        import ensure_test_services as _ets
+        receipt = _ets._read_object(_ets.webdav_spec().receipt_file)
+        if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
+            host = _ets.endpoint_host(str(receipt["address"]))
+            if host:
+                return host
+        spec = _ets.webdav_spec()
+        if spec.recorded_address:
+            host = _ets.endpoint_host(spec.recorded_address)
+            if host:
+                return host
+    except Exception:
+        pass
+    return "Mac-mini.local"
+def _default_emby_address() -> str:
+    try:
+        import sys as _sys2
+        from pathlib import Path as _Path2
+        import json as _json2
+        _sys2.path.insert(0, str(_Path2(__file__).resolve().parent))
+        import ensure_test_services as _ets2
+        receipt = _ets2._read_object(_ets2.emby_spec().receipt_file)
+        if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
+            return str(receipt["address"])
+        spec = _ets2.emby_spec()
+        if spec.recorded_address:
+            return spec.recorded_address
+    except Exception:
+        pass
+    try:
+        from pathlib import Path as _Path3
+        import json as _json3
+        p = _Path3(__file__).resolve().parents[2] / "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"
+        if p.is_file():
+            d = _json3.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d.get("address"), str) and d.get("address"):
+                return str(d["address"])
+    except Exception:
+        pass
+    return "http://Mac-mini.local:8096"
+WEBDAV_HOST = _default_webdav_host()
 WEBDAV_PORT = 5244
 WEBDAV_PATH = "/dav/夸克/影音库/电影/Blade Runner 2049 (2017)/Blade Runner 2049 (2017).mp4"
-EMBY_ADDRESS = "http://192.168.5.2:8096"
+EMBY_ADDRESS = _default_emby_address()
 EMBY_ITEM_NAME = "Blade Runner 2049"
 
 CLIENT = "Enchron"

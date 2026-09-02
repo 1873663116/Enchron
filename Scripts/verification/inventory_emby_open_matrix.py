@@ -25,7 +25,29 @@ from probe_emby_direct_play import authenticate, request
 from verify_source_parity_matrix import probe_binary
 
 
-EMBY_ADDRESS = "http://192.168.5.2:8096"
+def _default_emby_address() -> str:
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import ensure_test_services as _ets
+        receipt = _ets._read_object(_ets.emby_spec().receipt_file)
+        if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
+            return str(receipt["address"])
+        spec = _ets.emby_spec()
+        if spec.recorded_address:
+            return spec.recorded_address
+    except Exception:
+        pass
+    try:
+        p = Path(__file__).resolve().parents[2] / "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"
+        if p.is_file():
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d.get("address"), str) and d.get("address"):
+                return str(d["address"])
+    except Exception:
+        pass
+    return "http://Mac-mini.local:8096"
+EMBY_ADDRESS = _default_emby_address()
 if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import artifact_root, evidence_root
