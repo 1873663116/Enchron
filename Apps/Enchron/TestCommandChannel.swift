@@ -924,6 +924,11 @@ final class TestCommandChannel {
             )
         case "fetchTransitionTraceSnapshot":
             let snapshot = playbackSwitchStateRing.snapshot()
+            if let generationToken = request.args["generationToken"], generationToken.isEmpty == false {
+                guard String(snapshot.generation) == generationToken else {
+                    throw CommandError(message: "transition snapshot generation does not match arm token.")
+                }
+            }
             return Response(
                 id: request.id,
                 ok: true,
@@ -1117,8 +1122,6 @@ final class TestCommandChannel {
             return try setFileBrowserAlertField(request)
         case "seekNormalized":
             return try seekNormalized(request)
-        case "stepFrame":
-            return try stepFrame(request)
         case "setDockedPlacement":
             return try setDockedPlacement(request)
         case "listMenuItems":
@@ -1486,28 +1489,6 @@ final class TestCommandChannel {
         )
     }
 
-    private func stepFrame(_ request: Request) throws -> Response {
-        guard let direction = request.args["direction"],
-              ["forward", "backward"].contains(direction) else {
-            throw CommandError(
-                message: "stepFrame requires direction=forward|backward."
-            )
-        }
-        guard playbackRuntime.playbackPosition.duration > 0 else {
-            throw CommandError(message: "stepFrame requires active playback.")
-        }
-        if direction == "forward" {
-            playbackRuntime.frameStepForward()
-        } else {
-            playbackRuntime.frameStepBackward()
-        }
-        SurfaceInputProbes.record(
-            "testcmd stepFrame delivered direction=\(direction)",
-            retention: .evidence
-        )
-        return Response(id: request.id, ok: true, detail: nil, payload: [direction])
-    }
-
     private func seekNormalized(_ request: Request) throws -> Response {
         guard let positionText = request.args["position"],
               let position = Double(positionText),
@@ -1611,7 +1592,6 @@ final class TestCommandChannel {
             issue = switch category {
             case "mediaOpeningFailed": .mediaOpeningFailed
             case "playbackControlFailed": .playbackControlFailed
-            case "mediaFormatChangeFailed": .mediaFormatChangeFailed
             case "presentationConversionFailed": .presentationConversionFailed
             case "surfaceAttachmentFailed": .surfaceAttachmentFailed
             case "environmentLoadingFailed": .environmentLoadingFailed

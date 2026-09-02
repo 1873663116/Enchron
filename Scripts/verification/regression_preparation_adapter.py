@@ -762,11 +762,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
     if spec.preflight is not None:
         calls.append(_call(spec.identifier, len(calls) + 1, "operation:host.preflight@1", {"check": spec.preflight}))
     if spec.fixture_ids or spec.connect_webdav or spec.connect_smb or spec.connect_emby:
-        session_arguments = (
-            {"controlsAutoHideSeconds": spec.controls_auto_hide_seconds}
-            if spec.controls_auto_hide_seconds is not None
-            else {}
-        )
+        session_arguments = {}
         calls.extend(
             (
                 _call(
@@ -969,22 +965,12 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     "labels": ["以后"],
                 },
             ),
-            _call(
-                spec.identifier,
-                len(calls) + 10,
-                "operation:accessibility.inspect@2",
-                {
-                    "context": "main-window-browser",
-                    "identifier": f"FileBrowsing-grid-video-{REMOTE_PRIMARY_FILE_NAME}",
-                    "requireMatchedElement": True,
-                },
-            ),
         ]
         if webdav_runtime_already_written:
             connect_calls.append(
                 _call(
                     spec.identifier,
-                    len(calls) + 11,
+                    len(calls) + 10,
                     "operation:host.preflight@1",
                     {"check": "webdav-regression"},
                 )
@@ -1121,16 +1107,6 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                 _call(
                     spec.identifier,
                     len(calls) + 13,
-                    "operation:accessibility.inspect@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": f"FileBrowsing-grid-video-{REMOTE_PRIMARY_FILE_NAME}",
-                        "requireMatchedElement": True,
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 14,
                     "operation:host.preflight@1",
                     {"check": "smb-aggregate"},
                 ),
@@ -1192,7 +1168,6 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     {
                         "context": "main-window-browser",
                         "identifiers": ["Emby-Connection-Connect"],
-                        "settleDelayMillis": 30_000,
                     },
                 ),
                 # The Emby form declares textContentType(.username)/(.password),
@@ -1213,16 +1188,6 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                 _call(
                     spec.identifier,
                     len(calls) + 7,
-                    "operation:accessibility.inspect@2",
-                    {
-                        "context": "main-window-browser",
-                        "identifier": "Emby-Home",
-                        "requireMatchedElement": True,
-                    },
-                ),
-                _call(
-                    spec.identifier,
-                    len(calls) + 8,
                     "operation:host.preflight@1",
                     {"check": "emby-aggregate"},
                 ),

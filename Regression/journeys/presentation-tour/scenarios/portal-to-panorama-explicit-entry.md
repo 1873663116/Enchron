@@ -104,6 +104,16 @@
       "callId": "call:presentation-tour:portal-to-panorama-explicit-entry:09",
       "maxInvocations": 1,
       "operation": "operation:transition-trace.disarm@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:presentation-tour:portal-to-panorama-explicit-entry:10",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -116,10 +126,27 @@
       "oracle": "oracle:agent-structured-transition@1",
       "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:07",
       "rubric": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:presentation-tour:portal-to-panorama-explicit-entry:10",
+      "rubric": "rubric:presentation-tour.portal-to-panorama-explicit-entry.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o01:default"
+    "all": [
+      {
+        "observation": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o01:default"
+      },
+      {
+        "observation": "obligation:presentation-tour:portal-to-panorama-explicit-entry:o02:default"
+      }
+    ]
   }
 }
 ---

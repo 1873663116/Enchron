@@ -74,7 +74,7 @@ EXPECTED_COUNTS = {
     "scenarios": 65,
     "operations": 35,
     "oracles": 11,
-    "rubrics": 67,
+    "rubrics": 97,
     "preparations": 18,
 }
 

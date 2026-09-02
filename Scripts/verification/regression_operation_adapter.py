@@ -3975,20 +3975,17 @@ class ResidentOperationBackend:
         return enchron_target.developer_directory()
 
     def _harness_ensure_session_1(self, arguments, context):
-
-
-
-
-
-        environment = (
-            {
-                "TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": str(
-                    arguments["controlsAutoHideSeconds"]
-                )
+        if "controlsAutoHideSeconds" in arguments:
+            controls_value = int(arguments["controlsAutoHideSeconds"])
+            environment = {
+                "TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": str(controls_value)
             }
-            if "controlsAutoHideSeconds" in arguments
-            else None
-        )
+        else:
+            budget = BudgetProvider().budget(context.lane, "ensure-session")
+            controls_value = int(budget.seconds)
+            environment = {
+                "TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": str(controls_value)
+            }
         result = self._controller(
             context,
             "ensure-session",
@@ -4002,9 +3999,7 @@ class ResidentOperationBackend:
         return {
             "succeeded": True,
             "session": result,
-            "controlsAutoHideSeconds": arguments.get(
-                "controlsAutoHideSeconds", 300
-            ),
+            "controlsAutoHideSeconds": controls_value,
         }
 
     def _app_relaunch_1(self, arguments, context):
@@ -8369,7 +8364,7 @@ class ResidentOperationBackend:
     def _transition_trace_fetch_1(self, arguments, context):
         if str(arguments["generationToken"]).startswith("result://"):
             raise OperationAdapterError("result references must be resolved before backend invocation")
-        response = self._app_command(context, "fetchTransitionTraceSnapshot")
+        response = self._app_command(context, "fetchTransitionTraceSnapshot", f"generationToken={arguments['generationToken']}")
         self._require_success(response, "fetchTransitionTraceSnapshot")
         snapshot = response.get("transitionTraceSnapshot")
         if not isinstance(snapshot, dict):

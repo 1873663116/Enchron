@@ -42,10 +42,10 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:06733d4f3fc59b242183989211ccf4287b078265d302639a7c93077ae6df81ac"
+    "digest": "sha256:7a9623efa963e819ae7843e17425c7d16ab3368af04ecc302334b1d160f95240"
   }
 }
 ---
 # Prepare Local Directory Subtitle Source
 
-The runtime Operation adapter imports one registered media directory, preserves its bookmark root and nonempty media relative path, and returns the typed directory import receipt required by its Preparation.
+The operation imports one registered media directory, preserves its bookmark root and nonempty media relative path, and returns the typed directory import receipt required by its Preparation. It requires that importMediaDirectory requires directory, media, and a files JSON array; The media directory name must be one direct TestMediaInbox child; The media file name must be one direct TestMediaInbox child; The directory member is not one direct TestMediaInbox file; The media directory contains a duplicate member name; The media directory members must include the requested media file; The media directory name conflicts with one of its member files; TestMediaInbox is unavailable; TestMediaInbox does not contain the regular staged file; The requested TestMediaInbox directory name is occupied by a file; The imported media reference does not identify the requested directory media; The production directory import pipeline did not add exactly one requested media reference; and it validates uniqueness, direct-child, member contains media, disjoint directory, atomic staging, and bookmark root verification. It materializes the staging directory atomically, moves it into place, and validates the receipt's bookmark root is a directory and its members exist.

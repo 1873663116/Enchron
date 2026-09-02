@@ -344,14 +344,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "promises": 65,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 67,
+                "rubrics": 97,
                 "preparations": 18,
                 "journeys": 14,
                 "scenarios": 65,
                 "staticCases": 115,
             },
         )
-        self.assertEqual(report["obligationCount"], 119)
+        self.assertEqual(report["obligationCount"], 149)
         expected_call_count = sum(
             len(
                 preparation_adapter.build_plan(
@@ -440,7 +440,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(len(item["obligations"]) for item in tampered["scenarios"]),
-            118,
+            148,
         )
         self.assertEqual(
             {term["observation"] for term in scenario["success"]["all"]},
@@ -452,7 +452,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             blueprint_path = self._write_blueprint(root, tampered)
             with self.assertRaisesRegex(
                 MaterializationError,
-                "Catalog must contain exactly 119 globally unique obligations",
+                "Catalog must contain exactly 149 globally unique obligations",
             ):
                 materialize(
                     blueprint_path,
@@ -1266,7 +1266,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(
             presented, ["source-file-missing", "server-certificate-changed"]
         )
-        self.assertEqual(len(typed["obligations"]), 2)
+        self.assertEqual(len(typed["obligations"]), 3)
         self.assertEqual(typed["success"].keys(), {"all"})
 
         unsupported = scenarios[
@@ -1683,6 +1683,38 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         )
 
     def test_each_static_case_has_one_semantic_artifact_per_obligation_family(self) -> None:
+        extra_preparation_obligation_scenarios = {
+            "scenario:webdav-source-lifecycle:webdav-add-source",
+            "scenario:webdav-source-lifecycle:webdav-open-through-loopback",
+            "scenario:webdav-source-lifecycle:certificate-trust-boundary",
+            "scenario:smb-source-lifecycle:smb-browse-shares-and-directories",
+            "scenario:emby-server-lifecycle:home-poster-and-next-up",
+            "scenario:emby-server-lifecycle:series-season-episode-navigation",
+            "scenario:emby-server-lifecycle:episode-resume-and-start-actions",
+            "scenario:emby-server-lifecycle:progress-authority-server",
+            "scenario:emby-server-lifecycle:artwork-by-image-tag",
+            "scenario:emby-server-lifecycle:emby-resume-entry-semantics",
+            "scenario:emby-server-lifecycle:emby-artwork-bypasses-loopback",
+            "scenario:network-resilience:prefetch-without-waiting-consumer",
+            "scenario:network-resilience:recoverable-read-resumes-from-checkpoint",
+            "scenario:network-resilience:finite-backoff-reconnect",
+            "scenario:network-resilience:certificate-change-stops-without-trust",
+            "scenario:issue-surface-behavior:typed-single-slot-contract",
+            "scenario:presentation-tour:window-to-portal-format-route",
+            "scenario:presentation-tour:portal-to-panorama-explicit-entry",
+            "scenario:presentation-tour:panorama-to-portal-exit",
+            "scenario:presentation-tour:window-docked-round-trip",
+            "scenario:presentation-tour:transition-timeout-rolls-back",
+            "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
+            "scenario:presentation-tour:automatic-source-provenance",
+            "scenario:viewing-state-and-storage:exit-saves-position",
+            "scenario:viewing-state-and-storage:reopen-resumes-near-position",
+            "scenario:viewing-state-and-storage:completed-media-starts-from-beginning",
+            "scenario:viewing-state-and-storage:clear-all-local-progress",
+            "scenario:viewing-state-and-storage:remote-index-reused-on-second-open",
+            "scenario:viewing-state-and-storage:local-playback-does-not-write-index",
+            "scenario:viewing-state-and-storage:storage-rows-report-and-clear",
+        }
         for scenario in self.blueprint["scenarios"]:
             cases = scenario["staticCases"]
             obligations = scenario["obligations"]
@@ -1698,8 +1730,11 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 }
                 else 1
             )
-            self.assertEqual(len(obligations), len(cases) * multiplier, scenario["id"])
-            self.assertEqual(set(bound_cases), set(cases), scenario["id"])
+            expected = len(cases) * multiplier
+            if scenario["id"] in extra_preparation_obligation_scenarios:
+                expected += 1
+            self.assertEqual(len(obligations), expected, scenario["id"])
+            self.assertTrue(set(cases).issubset(set(bound_cases)), scenario["id"])
             if scenario["readiness"] == "ready":
                 self.assertTrue(
                     all(item["producedByCall"] is not None for item in obligations)

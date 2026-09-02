@@ -232,6 +232,16 @@
       "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:18",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:viewing-state-and-storage:local-playback-does-not-write-index:19",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -244,10 +254,27 @@
       "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:viewing-state-and-storage:local-playback-does-not-write-index:18",
       "rubric": "rubric:viewing-state-and-storage.local-playback-does-not-write-index.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:viewing-state-and-storage:local-playback-does-not-write-index:19",
+      "rubric": "rubric:viewing-state-and-storage.local-playback-does-not-write-index.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o01:default"
+    "all": [
+      {
+        "observation": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o01:default"
+      },
+      {
+        "observation": "obligation:viewing-state-and-storage:local-playback-does-not-write-index:o02:default"
+      }
+    ]
   }
 }
 ---

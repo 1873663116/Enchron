@@ -67,6 +67,16 @@
       "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.browse-hierarchy@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:05",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -79,10 +89,27 @@
       "oracle": "oracle:agent-structured-accessibility-tree@1",
       "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:04",
       "rubric": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:smb-source-lifecycle:smb-browse-shares-and-directories:05",
+      "rubric": "rubric:smb-source-lifecycle.smb-browse-shares-and-directories.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o01:default"
+    "all": [
+      {
+        "observation": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o01:default"
+      },
+      {
+        "observation": "obligation:smb-source-lifecycle:smb-browse-shares-and-directories:o02:default"
+      }
+    ]
   }
 }
 ---

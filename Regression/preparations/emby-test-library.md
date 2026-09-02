@@ -98,8 +98,7 @@
         "context": "main-window-browser",
         "identifiers": [
           "Emby-Connection-Connect"
-        ],
-        "settleDelayMillis": 30000
+        ]
       },
       "maxInvocations": 1
     },
@@ -116,16 +115,6 @@
     },
     {
       "callId": "call:preparation:emby-test-library:12",
-      "operation": "operation:accessibility.inspect@2",
-      "arguments": {
-        "context": "main-window-browser",
-        "identifier": "Emby-Home",
-        "requireMatchedElement": true
-      },
-      "maxInvocations": 1
-    },
-    {
-      "callId": "call:preparation:emby-test-library:13",
       "operation": "operation:host.preflight@1",
       "arguments": {
         "check": "emby-aggregate"
@@ -137,7 +126,7 @@
     {
       "key": "emby-test-library-ready",
       "schema": "remote-source.emby-library@2",
-      "producedByCall": "call:preparation:emby-test-library:13",
+      "producedByCall": "call:preparation:emby-test-library:12",
       "dependsOnTags": [
         "app.session",
         "emby.account",

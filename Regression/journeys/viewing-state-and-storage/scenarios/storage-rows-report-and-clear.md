@@ -328,6 +328,16 @@
       "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:27",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.surface-probe@1"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "requireMatchedElement": true
+      },
+      "callId": "call:viewing-state-and-storage:storage-rows-report-and-clear:28",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.inspect@2"
     }
   ],
   "obligations": [
@@ -340,10 +350,27 @@
       "oracle": "oracle:agent-structured-interaction-trace@1",
       "producedByCall": "call:viewing-state-and-storage:storage-rows-report-and-clear:27",
       "rubric": "rubric:viewing-state-and-storage.storage-rows-report-and-clear.o01@1"
+    },
+    {
+      "artifactClass": "coverage",
+      "caseKey": "default",
+      "evidenceSchema": "accessibility-tree@1",
+      "evidenceType": "accessibility.tree",
+      "id": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o02:default",
+      "oracle": "oracle:agent-structured-accessibility-tree@1",
+      "producedByCall": "call:viewing-state-and-storage:storage-rows-report-and-clear:28",
+      "rubric": "rubric:viewing-state-and-storage.storage-rows-report-and-clear.o02@1"
     }
   ],
   "success": {
-    "observation": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o01:default"
+    "all": [
+      {
+        "observation": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o01:default"
+      },
+      {
+        "observation": "obligation:viewing-state-and-storage:storage-rows-report-and-clear:o02:default"
+      }
+    ]
   }
 }
 ---

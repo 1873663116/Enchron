@@ -589,7 +589,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertEqual(
             dict(plan.calls[0].arguments),
-            {"controlsAutoHideSeconds": 25},
+            {},
         )
         self.assertIn(
             "operation:input.device-hub-prepare@1",
@@ -802,7 +802,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "operation:accessibility.type@2",
                 "operation:accessibility.activate@2",
                 "operation:accessibility.activate@2",
-                "operation:accessibility.inspect@2",
                 "operation:host.preflight@1",
             ],
         )
@@ -838,18 +837,9 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 {
                     "context": "main-window-browser",
                     "identifiers": ["Emby-Connection-Connect"],
-                    "settleDelayMillis": 30_000,
                 },
                 {"context": "main-window-browser", "labels": ["以后"]},
             ],
-        )
-        self.assertEqual(
-            dict(plan.calls[-2].arguments),
-            {
-                "context": "main-window-browser",
-                "identifier": "Emby-Home",
-                "requireMatchedElement": True,
-            },
         )
         self.assertEqual(plan.calls[-1].arguments, {"check": "emby-aggregate"})
         self.assertEqual(plan.state.produced_by_call, plan.calls[-1].call_id)
@@ -964,7 +954,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "operation:accessibility.activate@2",
                 "operation:accessibility.activate@2",
                 "operation:accessibility.activate@2",
-                "operation:accessibility.inspect@2",
                 "operation:host.preflight@1",
             ],
         )
@@ -1011,11 +1000,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertEqual([call.arguments["secret"] for call in typed], [False, False, False, True])
         self.assertNotIn("text", typed[-1].arguments)
-        self.assertEqual(
-            plan.calls[-2].arguments["identifier"],
-            "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        )
-        self.assertTrue(plan.calls[-2].arguments["requireMatchedElement"])
         self.assertEqual(plan.calls[-1].arguments["check"], "webdav-regression")
         self.assertEqual(plan.state.produced_by_call, plan.calls[-1].call_id)
 
@@ -1043,7 +1027,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 "operation:accessibility.activate@2",
                 "operation:accessibility.activate@2",
                 "operation:accessibility.activate@2",
-                "operation:accessibility.inspect@2",
                 "operation:host.preflight@1",
             ],
         )
@@ -1099,22 +1082,17 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             ],
         )
         self.assertEqual(
-            plan.calls[-6].arguments["identifiers"],
+            plan.calls[-5].arguments["identifiers"],
             ["FileBrowsing-grid-folder-TestMedia"],
         )
         self.assertEqual(
-            [call.arguments["identifiers"] for call in plan.calls[-5:-2]],
+            [call.arguments["identifiers"] for call in plan.calls[-4:-1]],
             [
                 ["FileBrowsing-grid-folder-TestVectors"],
                 ["FileBrowsing-grid-folder-Enchron"],
                 ["FileBrowsing-grid-folder-PlaybackBehavior"],
             ],
         )
-        self.assertEqual(
-            plan.calls[-2].arguments["identifier"],
-            "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        )
-        self.assertTrue(plan.calls[-2].arguments["requireMatchedElement"])
         self.assertEqual(plan.calls[-1].arguments["check"], "smb-aggregate")
         self.assertEqual(plan.state.produced_by_call, plan.calls[-1].call_id)
 

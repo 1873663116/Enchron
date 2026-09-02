@@ -31,10 +31,10 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:06733d4f3fc59b242183989211ccf4287b078265d302639a7c93077ae6df81ac"
+    "digest": "sha256:7a9623efa963e819ae7843e17425c7d16ab3368af04ecc302334b1d160f95240"
   }
 }
 ---
 # Media Import Staged
 
-The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.
+The operation stages and imports one direct TestMediaInbox file. It requires that importMedia requires a direct TestMediaInbox file name, that TestMediaInbox does contain the file and it is not a directory, and that the production media import pipeline did add the file as exactly one new library reference. It validates that the file name is one direct child, checks inbox existence, invokes the production addFiles pipeline, and reports TestMediaInbox does not contain the file or The production media import pipeline did not add the file when those preconditions fail.

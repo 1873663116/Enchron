@@ -50,7 +50,7 @@ EXPECTED_COUNTS = {
     "facts": 10,
     "operations": 35,
     "oracles": 11,
-    "rubrics": 67,
+    "rubrics": 97,
     "preparations": 18,
     "journeys": 14,
     "scenarios": 65,
@@ -230,7 +230,7 @@ class MaterializedCatalogTests(unittest.TestCase):
                 "promises": 65,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 67,
+                "rubrics": 97,
                 "preparations": 18,
                 "journeys": 14,
                 "scenarios": 65,
@@ -257,7 +257,7 @@ class MaterializedCatalogTests(unittest.TestCase):
         )
         self.assertEqual(
             sum(len(scenario.obligations) for scenario in catalog.scenarios),
-            119,
+            149,
         )
         self.assertTrue(
             all(

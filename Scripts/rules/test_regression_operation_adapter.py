@@ -733,7 +733,10 @@ class OperationAllowlistTests(unittest.TestCase):
         with (
             mock.patch.object(backend, "_developer_dir", return_value="/Developer"),
             mock.patch.object(backend, "_controller", return_value=response) as controller,
+            mock.patch("regression_operation_adapter.BudgetProvider") as mock_provider,
         ):
+            mock_provider.return_value.budget.return_value.seconds = 300
+            mock_provider.return_value.budget.return_value.provenance = "mock"
             result = backend._harness_ensure_session_1({}, self.simulator)
         self.assertTrue(result["succeeded"])
         controller.assert_called_once_with(
@@ -743,7 +746,7 @@ class OperationAllowlistTests(unittest.TestCase):
             self.simulator.target,
             "--developer-dir",
             "/Developer",
-            environment=None,
+            environment={"TEST_RUNNER_ENCHRON_CONTROLS_AUTO_HIDE_SECONDS": "300"},
         )
 
         with (
