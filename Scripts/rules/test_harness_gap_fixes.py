@@ -23,5 +23,30 @@ class WindowEffectDeliveryTests(unittest.TestCase):
         self.assertIn("accessibility:PlayerPanel-menu-more", snippet)
         self.assertIn("received=True", snippet)
 
+class WindowPlaybackControlsNoRegressionTests(unittest.TestCase):
+    def test_window_environment_still_delivers_effect_after_controls_fix(self) -> None:
+        text = (Path(__file__).resolve().parents[2] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
+        idx = text.find("def window_environment_scenario")
+        snippet = text[idx: idx + 8000]
+        self.assertIn("EnvironmentCard-effect-", snippet)
+        self.assertIn("if effect_delivered:", snippet)
+        self.assertIn("EnvironmentCard-effect", snippet[snippet.find("if effect_delivered"): snippet.find("if effect_delivered")+2000])
+
+    def test_video_format_custom_angle_has_pacing_before_cancel(self) -> None:
+        text = (Path(__file__).resolve().parents[2] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
+        idx = text.find("def video_format_editor_scenario")
+        snippet = text[idx: idx + 12000]
+        self.assertIn("CustomAngle", snippet)
+        self.assertIn("hold(\"pace\", 0.5)", snippet)
+        self.assertIn("hold(\"pace\", 0.3)", snippet)
+        self.assertIn("cancel_editor()", snippet)
+
+    def test_window_scenario_still_observes_playback_controls(self) -> None:
+        text = (Path(__file__).resolve().parents[2] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
+        idx = text.find("def window_scenario")
+        snippet = text[idx: idx + 6000]
+        self.assertIn("observe(presentation, \"Window playback controls\")", snippet)
+        self.assertIn("video_format_editor_scenario", snippet)
+
 if __name__ == "__main__":
     unittest.main()

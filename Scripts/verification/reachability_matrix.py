@@ -4862,9 +4862,11 @@ class ReachabilityRun:
                     "equivalent changed the same editor binding and its existing "
                     "product probe confirmed delivery.",
                 )
+            self.hold("pace", 0.5)
             self.controller(
                 "tap", "--label", "180°", "--no-screenshot"
             )
+            self.hold("pace", 0.3)
             cancel_editor()
 
         if open_editor():
