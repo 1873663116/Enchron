@@ -73,6 +73,7 @@ SEGMENT_SCENARIO_NAMES = {
     "docked-main-window-issues",
     "docked-menus",
     "docked-placement",
+    "docked-reset-media-information",
     "docked-resident-window",
     "docked-spatial-secondary-issue",
     "docked-transport-issues",
@@ -6347,6 +6348,10 @@ class ReachabilityRun:
                 "The Docked attachment controls entered the hierarchy.",
                 has_accessibility_target=False,
             )
+        seg = getattr(self, "segment", None)
+        if isinstance(seg, dict) and str(seg.get("id")) == "probe-docked":
+            self.observe(presentation, "Docked placement isolated")
+            return
         self.docked_settings_scenario()
         self.docked_media_information_scenario()
         self.observe(presentation, "Docked placement and panel")
@@ -6430,6 +6435,13 @@ class ReachabilityRun:
             identifier="PlayerUI-spatialFailure-secondary",
             action="close",
         )
+
+    def docked_reset_media_information_scenario(self) -> None:
+        if not self.enter_docked_playback():
+            return
+        self.docked_settings_scenario()
+        self.docked_media_information_scenario()
+        self.observe("docked", "Docked playback post-reset-media")
 
     def panorama_panel_exit_segment_scenario(self) -> None:
         presentation = "panorama"
@@ -6594,6 +6606,10 @@ class ReachabilityRun:
             identifier="PlayerUI-spatialFailure-secondary",
             action="close",
         )
+        seg = getattr(self, "segment", None)
+        if isinstance(seg, dict) and str(seg.get("id")) == "probe-docked":
+            self.observe(presentation, "Docked playback isolated")
+            return
         if not self.enter_docked_playback():
             return
         self.docked_settings_scenario()
@@ -6612,6 +6628,7 @@ class ReachabilityRun:
             "docked-main-window-issues": self.docked_main_window_issue_scenario,
             "docked-menus": self.docked_menu_segment_scenario,
             "docked-placement": self.docked_placement_segment_scenario,
+            "docked-reset-media-information": self.docked_reset_media_information_scenario,
             "docked-resident-window": self.docked_resident_window_segment_scenario,
             "docked-spatial-secondary-issue": (
                 self.docked_spatial_secondary_issue_segment_scenario

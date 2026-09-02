@@ -76,10 +76,45 @@ def scenarios_by_context() -> dict[str, list[str]]:
 
 def probe_plan() -> dict:
     cells = inventory_cells()
+    grouped = scenarios_by_context()
+    fault_ops = {
+        "accessibility:PlayerPanel-button-settings",
+        "accessibility:PlayerPanel-DockedPlacement-reset",
+        "accessibility:PlayerPanel-media-information",
+        "accessibility:PlayerPanel-media-information-close",
+    }
     segments = []
-    for context, scenarios in sorted(scenarios_by_context().items()):
+    for context, scenarios in sorted(grouped.items()):
         operations = sorted(cells.get(context, ()))
         if not operations or not scenarios:
+            continue
+        if context == "docked":
+            main_ops = [op for op in operations if op not in fault_ops]
+            fault_decisions = [op for op in operations if op in fault_ops]
+            docked_scenarios = [s for s in scenarios if s != "docked-reset-media-information"]
+            fault_scenarios = ["docked-reset-media-information"]
+            if main_ops and docked_scenarios:
+                segments.append({
+                    "id": "probe-docked",
+                    "context": context,
+                    "expectedMaximumSteps": 100,
+                    "scenarios": docked_scenarios,
+                    "decisions": [
+                        {"context": context, "operation": operation}
+                        for operation in main_ops
+                    ],
+                })
+            if fault_decisions and fault_scenarios:
+                segments.append({
+                    "id": "probe-docked-reset-media-information",
+                    "context": context,
+                    "expectedMaximumSteps": 100,
+                    "scenarios": fault_scenarios,
+                    "decisions": [
+                        {"context": context, "operation": operation}
+                        for operation in fault_decisions
+                    ],
+                })
             continue
         segments.append({
             "id": f"probe-{context}",
@@ -91,7 +126,16 @@ def probe_plan() -> dict:
                 for operation in operations
             ],
         })
-    return {"segments": segments}
+    ordered = []
+    for seg in segments:
+        if seg["id"] == "probe-docked-reset-media-information":
+            continue
+        ordered.append(seg)
+        if seg["id"] == "probe-docked":
+            for cand in segments:
+                if cand["id"] == "probe-docked-reset-media-information":
+                    ordered.append(cand)
+    return {"segments": ordered}
 
 
 def driven_by_segment(results: list[Path]) -> dict[str, set[tuple[str, str]]]:
