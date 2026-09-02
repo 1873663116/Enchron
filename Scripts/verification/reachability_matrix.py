@@ -3656,9 +3656,6 @@ class ReachabilityRun:
             )
             self.controller("tap", "--label", "Cancel", "--no-screenshot")
 
-        self.app_command("listMenuItems", host="files", family="viewMode")
-        self.controller("tap", "--label", "Grid", "--no-screenshot")
-        self.hold("pace", 0.5)
         folder_identifier = (
             f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}"
         )
@@ -3667,14 +3664,25 @@ class ReachabilityRun:
             "--duration", "1.2", "--no-screenshot",
         )
         if pressed.get("success") is not True:
-            self.controller("tap", "--label", "List", "--no-screenshot")
-            self.hold("pace", 0.5)
-            self.controller("tap", "--label", "Grid", "--no-screenshot")
-            self.hold("pace", 0.5)
-            pressed = self.controller(
-                "press", "--identifier", folder_identifier,
-                "--duration", "1.2", "--no-screenshot",
-            )
+            snapshot = self.controller("snapshot", "--no-screenshot")
+            hierarchy = snapshot.get("hierarchy", "") if isinstance(snapshot, dict) else ""
+            list_identifier = None
+            for line in hierarchy.splitlines():
+                if "Reachability Fixture" in line and "library-folder-" in line:
+                    start = line.find("identifier: '")
+                    if start != -1:
+                        start += len("identifier: '")
+                        end = line.find("'", start)
+                        if end != -1:
+                            list_identifier = line[start:end]
+                            break
+            if list_identifier is not None:
+                pressed = self.controller(
+                    "press", "--identifier", list_identifier,
+                    "--duration", "1.2", "--no-screenshot",
+                )
+                if pressed.get("success") is True:
+                    folder_identifier = list_identifier
         rename_menu = self.controller(
             "tap", "--label", "Rename", "--no-screenshot",
         )
