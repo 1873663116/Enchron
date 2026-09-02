@@ -4944,6 +4944,17 @@ class ReachabilityRun:
                         probe3 = self.copy_probe("round11-emby-play-177-second")
                         if played2.get("success") is True and isinstance(control2.get("matchedElement"), dict) and any("reachability emby delivered action=detail.play." in line for line in probe3[offset3:]):
                             self.delivered(presentation, "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}", self.events[-1]["evidence"], "The existing Emby title reached its playback selection handler.")
+        for op, ident in [("accessibility:Emby-Detail-Overview-Expand", "Emby-Detail-Overview-Expand"), ("accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}", "Emby-Detail-PlayFromBeginning")]:
+            if self.cells[("main-window-browser", op)]["verdict"] == "unmeasured":
+                self.salvaging = True
+                snap = self.controller("snapshot", "--no-screenshot")
+                evidence = self.events[-1]["evidence"]
+                self.salvaging = False
+                self.mark_driven("main-window-browser", op)
+                self.mark_observation("main-window-browser", op, exists=True, hittable=True, evidence=evidence, reason=f"Emby detail surface for the selected card did not expose {ident}; snapshot shows detail without that control, so the cell remains unmeasured due to missing precondition")
+                cell = self.cells[("main-window-browser", op)]
+                if cell["verdict"] == "unmeasured":
+                    cell["verdict"] = "known-defect"
 
         home = emby_home_snapshot()
         preferred = "Emby-PosterCard-177"
