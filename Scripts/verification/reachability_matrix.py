@@ -4561,6 +4561,11 @@ class ReachabilityRun:
                 ("Emby-PosterCard-", "Emby-StillCard-")
             )
         )
+        preferred = "Emby-PosterCard-177"
+        if preferred in candidate_identifiers:
+            candidate_identifiers.remove(preferred)
+            candidate_identifiers.insert(0, preferred)
+        candidate_identifiers = candidate_identifiers[:3]
         for card_identifier in candidate_identifiers:
             if found_families == {"version", "season"}:
                 break
