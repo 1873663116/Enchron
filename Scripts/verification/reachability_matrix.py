@@ -1282,11 +1282,13 @@ class ReachabilityRun:
             return False
         self.relaunch()
         health = self.channel_health_probe("after-emby-hang")
-        status = self.read_probe_status()
+        status_document = self.read_probe_status()
+        parsed = parse_probe_status_response(status_document) if isinstance(status_document, dict) else {}
+        self.probe_status = parsed
         if (
             health.get("passed") is True
-            and status.get("success") is True
-            and self.probe_status.get("passed") is True
+            and status_document.get("success") is True
+            and parsed.get("passed") is True
         ):
             for index, failure in enumerate(list(self.channel_failures)):
                 if failure.get("kind") == "response-timeout" and failure.get("action") in ("tap", "app-command"):
