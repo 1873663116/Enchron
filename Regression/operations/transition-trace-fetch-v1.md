@@ -34,10 +34,10 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:06733d4f3fc59b242183989211ccf4287b078265d302639a7c93077ae6df81ac"
+    "digest": "sha256:d71725e8567bc710b16a8c0ac9304c09571bc4df01df1a1799500c4d49dd04a5"
   }
 }
 ---
 # Transition Trace Fetch
 
-The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.
+The operation fetches the transition trace snapshot and derives analysis. It requires that fetchTransitionTraceSnapshot requires generationToken, validating that the generation token matches the armed trace generation, and reports when the transition snapshot generation does not match the arm token. It snapshots the ring and returns generation, record count, overwritten count, the typed snapshot and analysis, and the terminal control-plane state.

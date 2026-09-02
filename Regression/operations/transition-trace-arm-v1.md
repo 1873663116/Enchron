@@ -24,10 +24,10 @@
   "evidenceSchemas": [],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:06733d4f3fc59b242183989211ccf4287b078265d302639a7c93077ae6df81ac"
+    "digest": "sha256:d71725e8567bc710b16a8c0ac9304c09571bc4df01df1a1799500c4d49dd04a5"
   }
 }
 ---
 # Transition Trace Arm
 
-The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.
+The operation arms the playback transition trace for the active session and optionally arms a presentation settlement fault. It requires that armTransitionTrace requires active playback, throwing when playbackRuntime.activeSessionID is absent, and that armTransitionTrace received an unsupported fault when the fault argument is not settlement-timeout. It records the logical session, settled and target presentations, and byte stream counters, and returns the generation token and capacity.

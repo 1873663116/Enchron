@@ -44,10 +44,10 @@
   "evidenceSchemas": [],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:06733d4f3fc59b242183989211ccf4287b078265d302639a7c93077ae6df81ac"
+    "digest": "sha256:d71725e8567bc710b16a8c0ac9304c09571bc4df01df1a1799500c4d49dd04a5"
   }
 }
 ---
 # Harness Reset Product State
 
-The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.
+The operation resets product state by removing library references and folders and deleting managed defaults. It requires that the requested library folder can be created when rootFolderName is provided; harness.reset-product-state requires active handling of folder creation and reports the product's folder creation error when it cannot. The handler enforces that folder creation must succeed, throwing the detail from mediaLibrary.lastErrorMessage when it does not, and verifies that exactly the declared number of folders and references were removed. It invalidates the declared tags and emits the typed product-state-reset receipt.

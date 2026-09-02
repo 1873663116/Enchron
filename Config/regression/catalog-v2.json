@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:0e790240214d74e0bbb34aec7e03c5707d784b4d927de3574ab69c668a9c87cc",
+  "contentDigest": "sha256:a659db3f16b0b81246be3deff5fbaf0eb4b2b7efa2308db9fa7e99afc3b48d8c",
   "copyDocuments": [
     {
       "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
@@ -539,7 +539,7 @@
       "title": "Harness Assert Channels"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The operation resets product state by removing library references and folders and deleting managed defaults. It requires that the requested library folder can be created when rootFolderName is provided; harness.reset-product-state requires active handling of folder creation and reports the product's folder creation error when it cannot. The handler enforces that folder creation must succeed, throwing the detail from mediaLibrary.lastErrorMessage when it does not, and verifies that exactly the declared number of folders and references were removed. It invalidates the declared tags and emits the typed product-state-reset receipt.",
       "filename": "harness-reset-product-state-v2.md",
       "id": "operation:harness.reset-product-state@2",
       "invalidatesTags": [
@@ -599,7 +599,7 @@
       "title": "Library Snapshot"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The operation stages and imports one direct TestMediaInbox file. It requires that importMedia requires a direct TestMediaInbox file name, that TestMediaInbox does contain the file and it is not a directory, and that the production media import pipeline did add the file as exactly one new library reference. It validates that the file name is one direct child, checks inbox existence, invokes the production addFiles pipeline, and reports TestMediaInbox does not contain the file or The production media import pipeline did not add the file when those preconditions fail.",
       "filename": "media-import-staged-v2.md",
       "id": "operation:media.import-staged@2",
       "invalidatesTags": [
@@ -637,7 +637,7 @@
       "title": "Media Stage Fixture"
     },
     {
-      "contract": "The runtime Operation adapter imports one registered media directory, preserves its bookmark root and nonempty media relative path, and returns the typed directory import receipt required by its Preparation.",
+      "contract": "The operation imports one registered media directory, preserves its bookmark root and nonempty media relative path, and returns the typed directory import receipt required by its Preparation. It requires that importMediaDirectory requires directory, media, and a files JSON array; The media directory name must be one direct TestMediaInbox child; The media file name must be one direct TestMediaInbox child; The directory member is not one direct TestMediaInbox file; The media directory contains a duplicate member name; The media directory members must include the requested media file; The media directory name conflicts with one of its member files; TestMediaInbox is unavailable; TestMediaInbox does not contain the regular staged file; The requested TestMediaInbox directory name is occupied by a file; The imported media reference does not identify the requested directory media; The production directory import pipeline did not add exactly one requested media reference; and it validates uniqueness, direct-child, member contains media, disjoint directory, atomic staging, and bookmark root verification. It materializes the staging directory atomically, moves it into place, and validates the receipt's bookmark root is a directory and its members exist.",
       "filename": "preparation-local-directory-subtitle-source-v1.md",
       "id": "operation:preparation.local-directory-subtitle-source@1",
       "invalidatesTags": [
@@ -728,7 +728,7 @@
       "title": "Storage Clear"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The operation arms the playback transition trace for the active session and optionally arms a presentation settlement fault. It requires that armTransitionTrace requires active playback, throwing when playbackRuntime.activeSessionID is absent, and that armTransitionTrace received an unsupported fault when the fault argument is not settlement-timeout. It records the logical session, settled and target presentations, and byte stream counters, and returns the generation token and capacity.",
       "filename": "transition-trace-arm-v1.md",
       "id": "operation:transition-trace.arm@1",
       "invalidatesTags": [],
@@ -744,7 +744,7 @@
       "title": "Transition Trace Disarm"
     },
     {
-      "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
+      "contract": "The operation fetches the transition trace snapshot and derives analysis. It requires that fetchTransitionTraceSnapshot requires generationToken, validating that the generation token matches the armed trace generation, and reports when the transition snapshot generation does not match the arm token. It snapshots the ring and returns generation, record count, overwritten count, the typed snapshot and analysis, and the terminal control-plane state.",
       "filename": "transition-trace-fetch-v1.md",
       "id": "operation:transition-trace.fetch@1",
       "invalidatesTags": [],

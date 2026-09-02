@@ -8369,7 +8369,7 @@ class ResidentOperationBackend:
     def _transition_trace_fetch_1(self, arguments, context):
         if str(arguments["generationToken"]).startswith("result://"):
             raise OperationAdapterError("result references must be resolved before backend invocation")
-        response = self._app_command(context, "fetchTransitionTraceSnapshot")
+        response = self._app_command(context, "fetchTransitionTraceSnapshot", f"generationToken={arguments['generationToken']}")
         self._require_success(response, "fetchTransitionTraceSnapshot")
         snapshot = response.get("transitionTraceSnapshot")
         if not isinstance(snapshot, dict):

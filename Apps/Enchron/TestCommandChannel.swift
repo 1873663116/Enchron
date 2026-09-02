@@ -924,6 +924,11 @@ final class TestCommandChannel {
             )
         case "fetchTransitionTraceSnapshot":
             let snapshot = playbackSwitchStateRing.snapshot()
+            if let generationToken = request.args["generationToken"], generationToken.isEmpty == false {
+                guard String(snapshot.generation) == generationToken else {
+                    throw CommandError(message: "transition snapshot generation does not match arm token.")
+                }
+            }
             return Response(
                 id: request.id,
                 ok: true,
