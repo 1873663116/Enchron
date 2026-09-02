@@ -35,18 +35,11 @@ def failures() -> list[str]:
             if op.get("operation") == "operation:accessibility.inspect@2" and op.get("arguments", {}).get("requireMatchedElement") is True:
                 if op == last:
                     continue
-                # Only flag if the preparation's inspect is with requireMatchedElement true and it decides readiness
-                # For now, flag any preparation that contains such inspect as terminal or as readiness gate
-                # We already flagged terminal, now check if any inspect decides readiness: if readiness is ready and ops contains such inspect
                 pass
-        # Check if preparation decides readiness by inspect: if any inspect with requireMatchedElement true exists and readiness is ready
         has_inspect = any(op.get("operation") == "operation:accessibility.inspect@2" and op.get("arguments", {}).get("requireMatchedElement") is True for op in ops)
         readiness = data.get("readiness")
         if has_inspect and readiness == "ready":
-            # Check if the preparation's file still contains requireMatchedElement true (we already flagged terminal, but also flag any)
-            # For our final tree, no preparation should have such inspect at all, so flag any
             if has_inspect:
-                # To avoid double reporting, only report once per file if not already reported as terminal
                 if not any(f.startswith(str(path.relative_to(REPOSITORY_ROOT))) and "terminal" in f for f in found):
                     found.append(f"{path.relative_to(REPOSITORY_ROOT)}: preparation with readiness ready contains accessibility.inspect requireMatchedElement:true")
     return sorted(set(found))
