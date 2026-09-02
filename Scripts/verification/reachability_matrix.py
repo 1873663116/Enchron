@@ -1276,15 +1276,16 @@ class ReachabilityRun:
             "success": False,
             "evidence": evidence,
         })
-        self.salvaging = False
         self.controller("halt", "--no-screenshot")
         if not self.ensure_session():
+            self.salvaging = False
             return False
         self.relaunch()
         health = self.channel_health_probe("after-emby-hang")
         status_document = self.read_probe_status()
         parsed = parse_probe_status_response(status_document) if isinstance(status_document, dict) else {}
         self.probe_status = parsed
+        self.salvaging = False
         if health.get("passed") is True and status_document.get("success") is True:
             self.channel_failures.clear()
             self.history.clear()
