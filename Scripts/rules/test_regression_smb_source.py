@@ -294,9 +294,10 @@ class SMBSourceTests(unittest.TestCase):
         source = Path(journey_preflight.__file__).read_text(encoding="utf-8")
         self.assertNotIn("mount_smbfs", source)
         expected = {"schema": smb.REPORT_SCHEMA, "check": "smb-aggregate", "ready": True}
+        host_value = journey_preflight.HostAddress(host="192.168.64.1", hostKind="lan-ip")
         with (
             mock.patch.object(
-                journey_preflight, "host_address", return_value="192.168.64.1"
+                journey_preflight, "host_address", return_value=host_value
             ),
             mock.patch.object(
                 journey_preflight.smb_source,
@@ -308,6 +309,7 @@ class SMBSourceTests(unittest.TestCase):
         configuration = run.call_args.args[0]
         self.assertEqual(configuration.environment_file, smb.DEFAULT_ENVIRONMENT_FILE)
         self.assertEqual(configuration.share_name, "TestMedia")
+        self.assertEqual(configuration.address, "192.168.64.1")
 
 
 

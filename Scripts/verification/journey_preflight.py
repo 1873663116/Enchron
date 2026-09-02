@@ -17,10 +17,13 @@ command line that another process could read.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
+import ipaddress
 import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 
 if __package__:
@@ -37,23 +40,64 @@ AUDIO_SUFFIXES = (
     ".mka", ".mp3", ".oga", ".ogg", ".opus", ".thd", ".wav", ".wv",
 )
 
-def host_address() -> str:
-    for interface in ("en0", "en1"):
-        result = subprocess.run(
-            ["ipconfig", "getifaddr", interface], capture_output=True, text=True
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    return "127.0.0.1"
+@dataclass(frozen=True)
+class HostAddress:
+    host: str
+    hostKind: str
+
+
+def _mdns_hostnames() -> tuple[str, ...]:
+    names: list[str] = []
+    completed = subprocess.run(
+        ["/usr/sbin/scutil", "--get", "LocalHostName"],
+        capture_output=True,
+        text=True,
+    )
+    local_host = completed.stdout.strip()
+    if completed.returncode == 0 and local_host:
+        names.append(f"{local_host}.local")
+    host = socket.gethostname()
+    if host:
+        names.append(host if host.endswith(".local") else f"{host}.local")
+    return tuple(dict.fromkeys(names))
+
+
+def _host_resolves(host: str) -> bool:
+    try:
+        parsed = ipaddress.ip_address(host)
+        return not parsed.is_loopback
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        candidate = info[4][0]
+        try:
+            if not ipaddress.ip_address(candidate).is_loopback:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def host_address() -> HostAddress:
+    for name in _mdns_hostnames():
+        if _host_resolves(name):
+            return HostAddress(host=name, hostKind="mdns")
+    return HostAddress(host="127.0.0.1", hostKind="loopback")
 
 
 def check_smb() -> dict[str, object]:
+    resolved = host_address()
     try:
         configuration = smb_source.SMBSourceConfiguration(
             runtime_root=smb_source.DEFAULT_RUNTIME_ROOT,
             registry_path=smb_source.DEFAULT_REGISTRY,
             environment_file=ENVIRONMENT_FILE,
-            address=host_address(),
+            address=resolved.host,
+            allow_loopback=(resolved.hostKind == "loopback"),
         )
     except smb_source.SMBSourceError as error:
         return {

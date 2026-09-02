@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import socket
 import stat
 import subprocess
 import tempfile
@@ -80,10 +81,33 @@ class SMBSourceConfiguration:
         )
         try:
             parsed = ipaddress.ip_address(self.address)
-        except ValueError as error:
-            raise SMBSourceConfigurationError(
-                "SMB address must be one literal IPv4 address"
-            ) from error
+        except ValueError:
+            if self.address in {"localhost", "localhost.localdomain"}:
+                if not self.allow_loopback:
+                    raise SMBSourceConfigurationError("SMB address must be one literal LAN IPv4 address")
+            elif not self.address.endswith(".local"):
+                raise SMBSourceConfigurationError("SMB address must be one literal LAN IPv4 address or mDNS name")
+            else:
+                try:
+                    infos = socket.getaddrinfo(self.address, None, socket.AF_INET, socket.SOCK_STREAM)
+                except socket.gaierror as error:
+                    raise SMBSourceConfigurationError("SMB mDNS name does not resolve") from error
+                has_valid = False
+                for info in infos:
+                    candidate = info[4][0]
+                    try:
+                        ip = ipaddress.ip_address(candidate)
+                    except ValueError:
+                        continue
+                    if ip.version == 4 and not ip.is_unspecified and not ip.is_multicast and (ip.is_private or ip.is_link_local or (ip.is_loopback and self.allow_loopback)):
+                        if not ip.is_loopback or self.allow_loopback:
+                            has_valid = True
+                            break
+                if not has_valid:
+                    raise SMBSourceConfigurationError("SMB mDNS name must resolve to a LAN address")
+            if self.share_name != SHARE_NAME:
+                raise SMBSourceConfigurationError(f"SMB share must remain the fixed {SHARE_NAME} share")
+            return
         if (
             parsed.version != 4
             or parsed.is_unspecified
@@ -451,17 +475,40 @@ def _runtime(path: Path) -> Mapping[str, object]:
         )
     ):
         raise SMBSourceConfigurationError("SMB runtime identity is incomplete")
+    raw_address = str(runtime["address"])
     try:
-        address = ipaddress.ip_address(str(runtime["address"]))
-    except ValueError as error:
-        raise SMBSourceConfigurationError("SMB runtime address is invalid") from error
-    if (
-        address.version != 4
-        or address.is_unspecified
-        or address.is_multicast
-        or not (address.is_private or address.is_link_local or address.is_loopback)
-    ):
-        raise SMBSourceConfigurationError("SMB runtime address is invalid")
+        address = ipaddress.ip_address(raw_address)
+    except ValueError:
+        if raw_address in {"localhost", "localhost.localdomain"}:
+            address = None
+        elif not raw_address.endswith(".local"):
+            raise SMBSourceConfigurationError("SMB runtime address is invalid")
+        else:
+            try:
+                infos = socket.getaddrinfo(raw_address, None, socket.AF_INET, socket.SOCK_STREAM)
+            except socket.gaierror as error:
+                raise SMBSourceConfigurationError("SMB runtime address is invalid") from error
+            has_valid = False
+            for info in infos:
+                candidate = info[4][0]
+                try:
+                    ip = ipaddress.ip_address(candidate)
+                except ValueError:
+                    continue
+                if ip.version == 4 and not ip.is_unspecified and not ip.is_multicast and (ip.is_private or ip.is_link_local or ip.is_loopback):
+                    has_valid = True
+                    break
+            if not has_valid:
+                raise SMBSourceConfigurationError("SMB runtime address is invalid")
+            address = None
+    if address is not None:
+        if (
+            address.version != 4
+            or address.is_unspecified
+            or address.is_multicast
+            or not (address.is_private or address.is_link_local or address.is_loopback)
+        ):
+            raise SMBSourceConfigurationError("SMB runtime address is invalid")
     if runtime["shareName"] != SHARE_NAME:
         raise SMBSourceConfigurationError("SMB runtime share name drifted")
     source_identity = str(runtime["sourceIdentity"])

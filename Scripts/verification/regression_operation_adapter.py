@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import socket
 import stat
 import sys
 import time
@@ -2039,19 +2040,43 @@ def _literal_lan_address() -> str:
     from Scripts.verification import journey_preflight
 
     candidate = journey_preflight.host_address()
-    try:
-        address = ipaddress.ip_address(candidate)
-    except ValueError as error:
-        raise OperationAdapterError("remote preflight found no literal LAN address") from error
-    if (
-        address.version != 4
-        or address.is_loopback
-        or address.is_unspecified
-        or address.is_multicast
-        or not (address.is_private or address.is_link_local)
-    ):
-        raise OperationAdapterError("remote preflight requires one literal IPv4 LAN address")
-    return candidate
+    host = getattr(candidate, "host", candidate)
+    kind = getattr(candidate, "hostKind", None)
+    if kind == "loopback":
+        raise OperationAdapterError("remote preflight found no literal LAN address")
+    if isinstance(host, str) and host:
+        try:
+            address = ipaddress.ip_address(host)
+            if (
+                address.version != 4
+                or address.is_loopback
+                or address.is_unspecified
+                or address.is_multicast
+                or not (address.is_private or address.is_link_local)
+            ):
+                raise OperationAdapterError("remote preflight requires one literal IPv4 LAN address")
+            return host
+        except ValueError:
+            pass
+        try:
+            infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+        except socket.gaierror as error:
+            raise OperationAdapterError("remote preflight found no literal LAN address") from error
+        for info in infos:
+            ip_str = info[4][0]
+            try:
+                ip = ipaddress.ip_address(ip_str)
+            except ValueError:
+                continue
+            if (
+                ip.version == 4
+                and not ip.is_loopback
+                and not ip.is_unspecified
+                and not ip.is_multicast
+                and (ip.is_private or ip.is_link_local)
+            ):
+                return ip_str
+    raise OperationAdapterError("remote preflight found no literal LAN address")
 
 
 def _cursor(arguments: Mapping[str, object]) -> None:
