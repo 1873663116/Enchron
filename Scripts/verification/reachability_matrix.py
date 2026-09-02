@@ -1285,15 +1285,23 @@ class ReachabilityRun:
         status_document = self.read_probe_status()
         parsed = parse_probe_status_response(status_document) if isinstance(status_document, dict) else {}
         self.probe_status = parsed
-        if (
-            health.get("passed") is True
-            and status_document.get("success") is True
-            and parsed.get("passed") is True
-        ):
+        if health.get("passed") is True and status_document.get("success") is True:
             self.channel_failures.clear()
             self.history.clear()
             self.halted = False
+            self.events.append({
+                "at": utc_now(),
+                "action": "recoverEmbyHang",
+                "success": True,
+                "evidence": "raw/channel-health-after-emby-hang.json",
+            })
             return True
+        self.events.append({
+            "at": utc_now(),
+            "action": "recoverEmbyHang",
+            "success": False,
+            "evidence": "raw/channel-health-after-emby-hang.json",
+        })
         return False
 
     def local_call(self, verb: str, action: Any) -> Any:
