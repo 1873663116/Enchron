@@ -7,62 +7,25 @@ import Observation
 import Playback
 
 #if DEBUG
-public struct EmbyAutomationFixtureExpectation: Equatable, Sendable {
-    public let itemID: EmbyItemID
-    public let mediaSourceID: EmbyMediaSourceID
-    public let externalSubtitleStreamIndex: Int
-
-    public init(
-        itemID: EmbyItemID,
-        mediaSourceID: EmbyMediaSourceID,
-        externalSubtitleStreamIndex: Int
-    ) {
-        self.itemID = itemID
-        self.mediaSourceID = mediaSourceID
-        self.externalSubtitleStreamIndex = externalSubtitleStreamIndex
-    }
-}
-
-public struct EmbyAutomationAccountPreparationReceipt: Codable, Equatable, Sendable {
-    public static let schemaValue = "enchron.regression.emby-account-preparation@1"
-
+public struct EmbySignInReceipt: Codable, Equatable, Sendable {
+    public static let schemaValue = "enchron.regression.emby-sign-in@1"
     public let schema: String
     public let identityDigest: String
     public let serverID: String
     public let userID: String
-    public let itemID: String
-    public let mediaSourceID: String
-    public let externalSubtitleStreamIndex: Int
-    public let externalSubtitleSourceID: String
     public let persisted: Bool
-
-    init(
-        identityDigest: String,
-        server: EmbyAuthenticatedServer,
-        fixture: EmbyAutomationFixtureExpectation
-    ) {
+    init(identityDigest: String, server: EmbyAuthenticatedServer) {
         schema = Self.schemaValue
         self.identityDigest = identityDigest
         serverID = server.id.rawValue
         userID = server.userID.rawValue
-        itemID = fixture.itemID.rawValue
-        mediaSourceID = fixture.mediaSourceID.rawValue
-        externalSubtitleStreamIndex = fixture.externalSubtitleStreamIndex
-        externalSubtitleSourceID = EmbyPlaybackBridge.externalSubtitleSourceID(
-            for: fixture.externalSubtitleStreamIndex
-        )
         persisted = true
     }
 }
-
-public enum EmbyAutomationAccountPreparationError: Error, LocalizedError, Sendable {
+public enum EmbySignInError: Error, LocalizedError, Sendable {
     case identityDigestMismatch
     case invalidIdentity
     case authenticatedIdentityMismatch
-    case fixtureItemMismatch
-    case mediaSourceMismatch
-    case externalSubtitleMismatch
-
     public var errorDescription: String? {
         switch self {
         case .identityDigestMismatch:
@@ -71,12 +34,6 @@ public enum EmbyAutomationAccountPreparationError: Error, LocalizedError, Sendab
             "The Emby runtime identity document is invalid."
         case .authenticatedIdentityMismatch:
             "The authenticated Emby identity did not match the fixture authority."
-        case .fixtureItemMismatch:
-            "The authenticated Emby fixture item did not match."
-        case .mediaSourceMismatch:
-            "The authenticated Emby fixture media source did not match."
-        case .externalSubtitleMismatch:
-            "The authenticated Emby external subtitle stream did not match."
         }
     }
 }
@@ -596,26 +553,25 @@ public final class EmbySessionViewModel {
     }
 
 #if DEBUG
-    public func prepareAutomationAccount(
+    public func embySignIn(
         identityData: Data,
-        expectedIdentityDigest: String,
-        fixture: EmbyAutomationFixtureExpectation
-    ) async throws -> EmbyAutomationAccountPreparationReceipt {
+        expectedIdentityDigest: String
+    ) async throws -> EmbySignInReceipt {
         let actualDigest = "sha256:" + SHA256.hash(data: identityData)
             .map { String(format: "%02x", $0) }
             .joined()
         guard actualDigest == expectedIdentityDigest else {
-            throw EmbyAutomationAccountPreparationError.identityDigestMismatch
+            throw EmbySignInError.identityDigestMismatch
         }
         let rawDocument: Any
         do {
             rawDocument = try JSONSerialization.jsonObject(with: identityData)
         } catch {
-            throw EmbyAutomationAccountPreparationError.invalidIdentity
+            throw EmbySignInError.invalidIdentity
         }
         guard let rawIdentity = rawDocument as? [String: Any],
               Set(rawIdentity.keys) == EmbyAutomationRuntimeIdentity.keys else {
-            throw EmbyAutomationAccountPreparationError.invalidIdentity
+            throw EmbySignInError.invalidIdentity
         }
         let identity: EmbyAutomationRuntimeIdentity
         do {
@@ -624,7 +580,7 @@ public final class EmbySessionViewModel {
                 from: identityData
             )
         } catch {
-            throw EmbyAutomationAccountPreparationError.invalidIdentity
+            throw EmbySignInError.invalidIdentity
         }
         guard identity.schema == EmbyAutomationRuntimeIdentity.schemaValue,
               identity.address.isEmpty == false,
@@ -632,9 +588,6 @@ public final class EmbySessionViewModel {
               identity.password.isEmpty == false,
               identity.serverID.isEmpty == false,
               identity.userID.isEmpty == false,
-              fixture.itemID.rawValue.isEmpty == false,
-              fixture.mediaSourceID.rawValue.isEmpty == false,
-              fixture.externalSubtitleStreamIndex >= 0,
               let address = URL(string: identity.address),
               let addressComponents = URLComponents(
                 url: address,
@@ -646,7 +599,7 @@ public final class EmbySessionViewModel {
               addressComponents.user == nil,
               addressComponents.password == nil,
               addressComponents.fragment == nil else {
-            throw EmbyAutomationAccountPreparationError.invalidIdentity
+            throw EmbySignInError.invalidIdentity
         }
         let authenticated = try await client.authenticate(
             address: address,
@@ -655,34 +608,12 @@ public final class EmbySessionViewModel {
         )
         guard authenticated.id.rawValue == identity.serverID,
               authenticated.userID.rawValue == identity.userID else {
-            throw EmbyAutomationAccountPreparationError.authenticatedIdentityMismatch
-        }
-        let item = try await client.item(withID: fixture.itemID, on: authenticated)
-        guard item.metadata.id == fixture.itemID else {
-            throw EmbyAutomationAccountPreparationError.fixtureItemMismatch
-        }
-        let playback = try await client.playbackInfo(for: item, on: authenticated)
-        let matchingSources = playback.mediaSources.filter {
-            $0.id == fixture.mediaSourceID
-        }
-        guard matchingSources.count == 1, let source = matchingSources.first else {
-            throw EmbyAutomationAccountPreparationError.mediaSourceMismatch
-        }
-        let externalSubtitles = source.mediaStreams.filter {
-            $0.kind == .subtitle && $0.isExternal
-        }
-        guard externalSubtitles.count == 1,
-              let subtitle = externalSubtitles.first,
-              subtitle.index == fixture.externalSubtitleStreamIndex,
-              subtitle.codec?.isEmpty == false,
-              subtitle.deliveryURL?.isEmpty == false else {
-            throw EmbyAutomationAccountPreparationError.externalSubtitleMismatch
+            throw EmbySignInError.authenticatedIdentityMismatch
         }
         try await install(authenticated)
-        return EmbyAutomationAccountPreparationReceipt(
+        return EmbySignInReceipt(
             identityDigest: actualDigest,
-            server: authenticated,
-            fixture: fixture
+            server: authenticated
         )
     }
 #endif

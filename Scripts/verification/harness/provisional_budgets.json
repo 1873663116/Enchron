@@ -122,6 +122,11 @@
     "floorSeconds": 75,
     "seconds": 20
   },
+  "embySignIn": {
+    "expires": "2026-10-01",
+    "floorSeconds": 15,
+    "seconds": 30
+  },
   "probe-copy": {
     "expires": "2026-10-01",
     "seconds": 120

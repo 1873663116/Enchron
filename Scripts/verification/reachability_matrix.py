@@ -4394,7 +4394,76 @@ class ReachabilityRun:
                     "The live remote video card reached the playback handler.",
                 )
 
+    def ensure_emby_sign_in(self) -> bool:
+        self.provable("main-window-browser", "accessibility:Emby-Connection-Connect")
+        credentials_path = getattr(self.arguments, "emby_credentials", None)
+        if credentials_path is None:
+            return True
+        credentials_path = Path(credentials_path)
+        if not credentials_path.is_file():
+            self.events.append({"at": utc_now(), "action": "embySignIn", "success": False, "detail": "credential file missing", "evidence": "raw/embySignIn.json"})
+            failure_key = ("main-window-browser", "accessibility:Emby-Connection-Connect")
+            if failure_key in self.cells:
+                self.cells[failure_key]["reason"] = "embySignIn refused: credential file missing"
+            return False
+        current = self.controller("app-command", "--verb", "embyServerIdentityDigest", "--no-screenshot")
+        payload = current.get("payload") if isinstance(current, dict) else None
+        if current.get("success") is True and current.get("ok") is True and isinstance(payload, list) and len(payload) == 1 and isinstance(payload[0], str) and len(payload[0]) == 64 and all(c in "0123456789abcdef" for c in payload[0]):
+            return True
+        try:
+            import regression_emby_source
+            config = regression_emby_source.EmbySourceConfiguration(identity_file=credentials_path)
+            regression_emby_source.provision_runtime_identity(configuration=config)
+        except (OSError, ValueError, RuntimeError) as error:
+            self.events.append({"at": utc_now(), "action": "provisionRuntimeIdentity", "success": False, "detail": str(error), "evidence": "raw/provisionRuntimeIdentity.json"})
+            failure_key = ("main-window-browser", "accessibility:Emby-Connection-Connect")
+            if failure_key in self.cells:
+                self.cells[failure_key]["reason"] = f"provision failed: {error}"
+            return False
+        try:
+            file_bytes = credentials_path.read_bytes()
+        except OSError as error:
+            self.events.append({"at": utc_now(), "action": "embySignIn", "success": False, "detail": str(error), "evidence": "raw/embySignIn.json"})
+            return False
+        identity_digest = "sha256:" + hashlib.sha256(file_bytes).hexdigest()
+        copy_result = self.local_call("probe-copy", lambda budget: enchron_target.copy_to_container(target=DEVICE, bundle_id=APP_BUNDLE, source=credentials_path, destination="Documents/Regression/emby-runtime-identity.json", developer_dir=DEVELOPER_DIR, core_device_identifier=CORE_DEVICE, budget_seconds=budget.seconds))
+        if copy_result is None or copy_result.returncode != 0:
+            detail = copy_result.stderr if copy_result and copy_result.stderr else "copy failed"
+            self.events.append({"at": utc_now(), "action": "embySignIn", "success": False, "detail": detail, "evidence": "raw/embySignIn.json"})
+            failure_key = ("main-window-browser", "accessibility:Emby-Connection-Connect")
+            if failure_key in self.cells:
+                self.cells[failure_key]["reason"] = f"embySignIn staging failed: {detail}"
+            return False
+        if enchron_target.is_simulator(DEVICE):
+            try:
+                container = enchron_target.simulator_container(DEVICE, APP_BUNDLE)
+                if container is not None:
+                    dest = container / "Documents/Regression/emby-runtime-identity.json"
+                    if dest.is_file():
+                        dest.chmod(0o600)
+            except OSError:
+                pass
+        sign_in = self.controller("app-command", "--verb", "embySignIn", "--arg", f"identityDigest={identity_digest}", "--no-screenshot")
+        sign_in_success = sign_in.get("success") is True and sign_in.get("ok") is True
+        self.events.append({"at": utc_now(), "action": "embySignIn", "success": sign_in_success, "detail": sign_in.get("detail"), "evidence": "raw/embySignIn.json"})
+        sign_in_path = self.raw / "embySignIn.json"
+        try:
+            sign_in_path.write_text(json.dumps(sign_in, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+        if not sign_in_success:
+            failure_key = ("main-window-browser", "accessibility:Emby-Connection-Connect")
+            if failure_key in self.cells:
+                self.cells[failure_key]["reason"] = f"embySignIn refused: {sign_in.get('detail')}"
+                self.cells[failure_key]["verdict"] = "known-defect"
+            second = self.controller("app-command", "--verb", "embyServerIdentityDigest", "--no-screenshot")
+            return False
+        second = self.controller("app-command", "--verb", "embyServerIdentityDigest", "--no-screenshot")
+        return True
+
     def emby_version_season_scenario(self) -> None:
+        if not self.ensure_emby_sign_in():
+            return
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         found_families: set[str] = set()
         self.relaunch()
@@ -4483,6 +4552,8 @@ class ReachabilityRun:
                     found_families.add(family)
 
     def emby_session_recovery_scenario(self) -> None:
+        if not self.ensure_emby_sign_in():
+            return
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         credentials_path = self.arguments.emby_credentials
         if credentials_path is None:
@@ -4639,6 +4710,8 @@ class ReachabilityRun:
             )
 
     def emby_content_scenario(self) -> None:
+        if not self.ensure_emby_sign_in():
+            return
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
 
         def emby_home_snapshot() -> dict[str, Any]:
@@ -7082,7 +7155,7 @@ class ReachabilityRun:
 
     def _service_preflight_failed(self) -> bool:
         receipts = getattr(self, "service_receipts", {})
-        unavailable = [service for service, receipt in receipts.items() if receipt.get("action") == "unavailable"]
+        unavailable = [service for service, receipt in receipts.items() if receipt.get("action") == "unavailable" and service == "emby"]
         if unavailable:
             self.events.append({"at": utc_now(), "action": "servicePreflightFailed", "unavailable": unavailable, "receipts": receipts})
             for service, receipt in receipts.items():

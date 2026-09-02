@@ -509,7 +509,7 @@ final class TestCommandChannel {
             var viewingStorageSnapshot: ViewingStorageDiagnosticSnapshot?
             var transitionTraceSnapshot: PlaybackSwitchStateSnapshot?
             var transitionTraceAnalysis: PlaybackSwitchStateAnalysis?
-            var embyAccountPreparationReceipt: EmbyAutomationAccountPreparationReceipt?
+            var embySignInReceipt: EmbySignInReceipt?
         #endif
 
         #if DEBUG
@@ -526,7 +526,7 @@ final class TestCommandChannel {
             viewingStorageSnapshot: ViewingStorageDiagnosticSnapshot? = nil,
             transitionTraceSnapshot: PlaybackSwitchStateSnapshot? = nil,
             transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil,
-            embyAccountPreparationReceipt: EmbyAutomationAccountPreparationReceipt? = nil
+            embySignInReceipt: EmbySignInReceipt? = nil
         ) {
             self.id = id
             self.ok = ok
@@ -540,7 +540,7 @@ final class TestCommandChannel {
             self.viewingStorageSnapshot = viewingStorageSnapshot
             self.transitionTraceSnapshot = transitionTraceSnapshot
             self.transitionTraceAnalysis = transitionTraceAnalysis
-            self.embyAccountPreparationReceipt = embyAccountPreparationReceipt
+            self.embySignInReceipt = embySignInReceipt
         }
         #else
         init(
@@ -949,7 +949,7 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [digest]
             )
-        case "prepareEmbyAccount":
+        case "embySignIn":
             let cleanup = EmbyRuntimeIdentityCleanup(
                 fileURL: embyRuntimeIdentityURL,
                 fileManager: fileManager
@@ -960,16 +960,9 @@ final class TestCommandChannel {
                       identityDigest.count == "sha256:".count + 64,
                       identityDigest.dropFirst("sha256:".count).allSatisfy({
                           "0123456789abcdef".contains($0)
-                      }),
-                      let itemID = request.args["itemID"],
-                      itemID.isEmpty == false,
-                      let mediaSourceID = request.args["mediaSourceID"],
-                      mediaSourceID.isEmpty == false,
-                      let streamIndexValue = request.args["externalSubtitleStreamIndex"],
-                      let streamIndex = Int(streamIndexValue),
-                      streamIndex >= 0 else {
+                      }) else {
                     throw CommandError(
-                        message: "prepareEmbyAccount requires a canonical identity digest and fixture IDs."
+                        message: "embySignIn requires a canonical identity digest."
                     )
                 }
                 guard fileManager.fileExists(atPath: embyRuntimeIdentityURL.path) else {
@@ -987,21 +980,16 @@ final class TestCommandChannel {
                     )
                 }
                 let identityData = try Data(contentsOf: embyRuntimeIdentityURL)
-                let receipt = try await embySession.prepareAutomationAccount(
+                let receipt = try await embySession.embySignIn(
                     identityData: identityData,
-                    expectedIdentityDigest: identityDigest,
-                    fixture: EmbyAutomationFixtureExpectation(
-                        itemID: EmbyItemID(rawValue: itemID),
-                        mediaSourceID: EmbyMediaSourceID(rawValue: mediaSourceID),
-                        externalSubtitleStreamIndex: streamIndex
-                    )
+                    expectedIdentityDigest: identityDigest
                 )
                 return Response(
                     id: request.id,
                     ok: true,
                     detail: nil,
                     payload: nil,
-                    embyAccountPreparationReceipt: receipt
+                    embySignInReceipt: receipt
                 )
             }
         case "artworkProbe":
