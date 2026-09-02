@@ -5814,6 +5814,18 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The negative media exposed the product failure alert and Retry ran its application handler.",
                 )
+        else:
+            snapshot = self.controller("snapshot", "--no-screenshot")
+            hierarchy = str(snapshot.get("hierarchy", ""))
+            if "label: 'Retry'" in hierarchy:
+                self.mark_observation(
+                    presentation,
+                    "accessibility:PlayerUI-loadFailure-primary",
+                    evidence=self.events[-1]["evidence"],
+                    reason="The product raised its failure alert but the Retry button exposes only label 'Retry' and not identifier PlayerUI-loadFailure-primary assigned in MainView.swift; snapshot shows label without identifier, violating the identifier contract.",
+                )
+                self.controller("tap", "--label", "Retry", "--no-screenshot")
+                self.hold("pace", 0.5)
 
         secondary, _ = self.wait_for_any_identifier(
             (
@@ -5822,23 +5834,34 @@ class ReachabilityRun:
                 "PlayerUI-playbackIssue-confirm",
             ),
         )
-        if secondary is None:
-            return
-        before = self.copy_probe("playback-failure-secondary-before")
-        offset = len(before)
-        closed = self.tap(presentation, secondary)
-        probe = self.copy_probe("playback-failure-secondary")
-        expected_action = "confirm" if secondary.endswith("confirm") else "close"
-        if closed.get("success") is True and any(
-            "reachability playback issue delivered" in line
-            and f"action={expected_action}" in line
-            for line in probe[offset:]
-        ):
-            self.delivered(
-                presentation, f"accessibility:{secondary}",
-                self.events[-1]["evidence"],
-                "The visible product failure alert ran its terminal action and appended a probe.",
-            )
+        if secondary is not None:
+            before = self.copy_probe("playback-failure-secondary-before")
+            offset = len(before)
+            closed = self.tap(presentation, secondary)
+            probe = self.copy_probe("playback-failure-secondary")
+            expected_action = "confirm" if secondary.endswith("confirm") else "close"
+            if closed.get("success") is True and any(
+                "reachability playback issue delivered" in line
+                and f"action={expected_action}" in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation, f"accessibility:{secondary}",
+                    self.events[-1]["evidence"],
+                    "The visible product failure alert ran its terminal action and appended a probe.",
+                )
+        else:
+            snapshot = self.controller("snapshot", "--no-screenshot")
+            hierarchy = str(snapshot.get("hierarchy", ""))
+            if "label: 'Close'" in hierarchy:
+                self.mark_observation(
+                    presentation,
+                    "accessibility:PlayerUI-loadFailure-secondary",
+                    evidence=self.events[-1]["evidence"],
+                    reason="The product raised its failure alert but the Close button exposes only label 'Close' and not identifier PlayerUI-loadFailure-secondary assigned in MainView.swift; snapshot shows label without identifier, violating the identifier contract.",
+                )
+                self.controller("tap", "--label", "Close", "--no-screenshot")
+                self.hold("pace", 0.5)
 
     def player_panel_menu_scenario(self, presentation: str) -> None:
         opens_system_menu = should_open_player_panel_system_menu(presentation)
