@@ -5607,6 +5607,16 @@ class ReachabilityRun:
                 if (presentation, entry[1]) in planned
             )
         for family, operation_id, preferred in family_operations:
+            if family in ("audio", "episodes"):
+                snapshot = self.controller("snapshot", "--no-screenshot")
+                identifiers = self.hierarchy_identifiers(snapshot)
+                expected = operation_id.split(":", 1)[1]
+                if expected not in identifiers:
+                    cell = self.cells.get((presentation, operation_id))
+                    if cell is not None and cell["verdict"] == "unmeasured":
+                        cell["evidence"].append(self.events[-1]["evidence"])
+                        cell["reason"] = f"The More menu did not expose {expected} after opening; snapshot shows menu content without that identifier, so the precondition for {operation_id} is missing and the cell remains unmeasured."
+                    continue
             item_offset = len(probe)
             target, _, selected = self.select_debug_menu_item(
                 presentation=presentation,
