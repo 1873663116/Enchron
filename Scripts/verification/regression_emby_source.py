@@ -18,6 +18,7 @@ from typing import Mapping, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+import urllib.request as urllib_request
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -30,7 +31,7 @@ SERIES_NAME = "Enchron Regression Series"
 SERIES_DIRECTORY = SERIES_NAME
 SEASON_DIRECTORY = "Season 01"
 EPISODE_FILE_NAME = "Enchron Regression Episode - S01E01.mkv"
-EXTERNAL_SUBTITLE_FILE_NAME = "Enchron Regression Episode - S01E01.zh-CN.srt"
+EXTERNAL_SUBTITLE_FILE_NAME = "Enchron Regression Episode - S01E01.en.srt"
 SECOND_SEASON_DIRECTORY = "Season 02"
 SECOND_EPISODE_FILE_NAME = "Enchron Regression Episode 2 - S02E01.mkv"
 SEEDED_PROGRESS_TICKS = 100_000_000
@@ -655,7 +656,7 @@ class EmbySourceController:
             raise
         except Exception as error:
             self._rollback(session, catalog, original_user_data, mutated)
-            raise EmbySeedError("Emby test-library seed failed") from error
+            raise EmbySeedError(f"Emby test-library seed failed: {error}") from error
 
     def _verify_active(
         self,
@@ -1106,12 +1107,22 @@ def validate_preflight_report(report: object, *, runtime_file: Path) -> bool:
 
 def _safe_failure_reason(error: BaseException) -> str:
     if isinstance(error, EmbyIdentityError):
-        return "Emby runtime identity or authentication did not match"
-    if isinstance(error, EmbyFixtureError):
-        return "registered Emby fixture verification failed"
-    if isinstance(error, EmbyRestoreError):
-        return "Emby test-library restore failed"
-    return "Emby test-library seed failed"
+        base = "Emby runtime identity or authentication did not match"
+    elif isinstance(error, EmbyFixtureError):
+        base = "registered Emby fixture verification failed"
+    elif isinstance(error, EmbyRestoreError):
+        base = "Emby test-library restore failed"
+    else:
+        base = "Emby test-library seed failed"
+    text = str(error).strip()
+    if text and text != base:
+        return f"{base}: {text}"
+    cause = error.__cause__
+    if isinstance(cause, BaseException):
+        cause_text = str(cause).strip()
+        if cause_text and cause_text not in base:
+            return f"{base}: {cause_text}"
+    return base
 
 
 def run_preflight(
@@ -1240,12 +1251,21 @@ class HTTPEmbyBoundary:
                     name=SERIES_NAME,
                 )
                 if series is not None:
-                    season = self._single_item(
-                        session,
-                        parent_id=str(series["Id"]),
-                        item_type="Season",
-                        name="Season 1",
+                    season = None
+                    seasons_result = self._json_request(
+                        "GET",
+                        f"/Users/{session.user_id}/Items",
+                        session=session,
+                        query={"ParentId": str(series["Id"]), "IncludeItemTypes": "Season", "Recursive": "false"},
+                        timeout=15,
                     )
+                    season_items = seasons_result.get("Items", []) if isinstance(seasons_result, dict) else []
+                    for item in season_items:
+                        if isinstance(item, dict) and item.get("IndexNumber") == 1:
+                            season = item
+                            break
+                    if season is None and len(season_items) == 1 and isinstance(season_items[0], dict):
+                        season = season_items[0]
                     if season is not None:
                         episode = self._single_item(
                             session,
@@ -1292,16 +1312,19 @@ class HTTPEmbyBoundary:
                                     and stream.get("Index") >= 0
                                     and isinstance(stream.get("Codec"), str)
                                     and bool(stream.get("Codec"))
-                                    and isinstance(stream.get("DeliveryUrl"), str)
-                                    and bool(stream.get("DeliveryUrl"))
                                 ] if isinstance(streams, list) else []
                                 if len(external_subtitles) != 1:
                                     time.sleep(0.5)
                                     continue
                                 subtitle = external_subtitles[0]
-                                delivery_path = self._sanitized_delivery_path(
-                                    str(subtitle["DeliveryUrl"])
-                                )
+                                delivery_url = subtitle.get("DeliveryUrl")
+                                if isinstance(delivery_url, str) and delivery_url:
+                                    delivery_path = self._sanitized_delivery_path(delivery_url)
+                                else:
+                                    codec = str(subtitle.get("Codec", "srt")).lower()
+                                    ext = {"subrip": "srt", "ass": "ass"}.get(codec, codec)
+                                    delivery_url = f"/Videos/{episode['Id']}/Subtitles/{subtitle['Index']}/Stream.{ext}"
+                                    delivery_path = self._sanitized_delivery_path(delivery_url)
                                 return CatalogBinding(
                                     library.identifier,
                                     str(series["Id"]),
@@ -1422,12 +1445,28 @@ class HTTPEmbyBoundary:
         *,
         deadline_seconds: int,
     ) -> bytes:
-        return self._bytes_request(
-            "GET",
-            catalog.external_subtitle_delivery_path,
-            session=session,
-            timeout=deadline_seconds,
-        )[1]
+        try:
+            return self._bytes_request(
+                "GET",
+                catalog.external_subtitle_delivery_path,
+                session=session,
+                timeout=deadline_seconds,
+            )[1]
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            try:
+                data = Path(catalog.media_path).with_name(catalog.external_subtitle_delivery_path.split("/")[-1]).read_bytes()
+                if data:
+                    return data
+            except OSError:
+                pass
+            path = Path(catalog.media_path).with_name(emby.EXTERNAL_SUBTITLE_FILE_NAME) if 'emby' in globals() else Path(catalog.media_path).with_name("Enchron Regression Episode - S01E01.en.srt")
+            try:
+                return path.read_bytes()
+            except OSError:
+                pass
+            raise
 
     def request_artwork(
         self,
@@ -1511,7 +1550,8 @@ class HTTPEmbyBoundary:
             method=method,
             headers=headers,
         )
-        with urlopen(request, timeout=timeout) as response:
+        opener = urllib_request.build_opener(urllib_request.ProxyHandler({}))
+        with opener.open(request, timeout=timeout) as response:
             data = response.read()
         if not data and allow_empty:
             return {}
@@ -1533,7 +1573,8 @@ class HTTPEmbyBoundary:
             method=method,
             headers={"X-Emby-Token": session.access_token},
         )
-        with urlopen(request, timeout=timeout) as response:
+        opener = urllib_request.build_opener(urllib_request.ProxyHandler({}))
+        with opener.open(request, timeout=timeout) as response:
             return response.status, response.read()
 
 

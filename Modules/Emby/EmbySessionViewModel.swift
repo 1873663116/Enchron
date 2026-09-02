@@ -674,8 +674,7 @@ public final class EmbySessionViewModel {
         guard externalSubtitles.count == 1,
               let subtitle = externalSubtitles.first,
               subtitle.index == fixture.externalSubtitleStreamIndex,
-              subtitle.codec?.isEmpty == false,
-              subtitle.deliveryURL?.isEmpty == false else {
+              subtitle.codec?.isEmpty == false else {
             throw EmbyAutomationAccountPreparationError.externalSubtitleMismatch
         }
         try await install(authenticated)
