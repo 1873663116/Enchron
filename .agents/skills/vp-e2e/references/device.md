@@ -4,6 +4,16 @@
 
 设备标识最后核对于 2026-08-09：CoreDevice ID 为 `59E3D57A-0288-53DC-9A7D-B657B6939558`，Xcode destination ID 为 `00008142-001871A11491401C`。设备更换后以 `xcrun devicectl list devices` 的输出为准。
 
+## 唤醒隧道（设备不在 `list devices` 里就自己重连，不要当作阻塞）
+
+Vision Pro 通过网络隧道（CoreDevice）连接。头显一段时间不活动后隧道会掉，此时 `xcrun devicectl list devices` 里看不到它——这不是设备离线，也不需要人去戴上或输密码（头显常插电、无密码）。直接按 CoreDevice 查询一次即可重新建立隧道：
+
+```sh
+xcrun devicectl device info details --device 59E3D57A-0288-53DC-9A7D-B657B6939558 --timeout 30
+```
+
+返回里出现 `Device State: connected`、`Boot State: booted`、`Developer Mode Status: Enabled` 即已连上；隧道地址形如 `Tunnel IP Address: fde0:...`。此后 `xcrun devicectl list devices` 会把 `00008142-001871A11491401C` 列为 `connected`。2026-09-03 实测这条命令把掉线的头显在数秒内拉回 `connected`。设备缺席时先跑这一条，连不上是重连没做，不是设备的问题。
+
 ## 建立会话
 
 ```sh
