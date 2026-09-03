@@ -432,8 +432,10 @@ def working_directory(pid: int) -> str | None:
 
 
 def scoped_processes() -> list[tuple[int, str]]:
-    """The frozen xctestrun path does not have to name the repository, so the
-    process working directory distinguishes another checkout or worktree."""
+    """A runner works in the worktree that launched it, so its working
+    directory is the scope. The frozen xctestrun path is not: it may live under
+    another worktree's artifact root, or name no repository at all, so it only
+    counts when the working directory cannot be read."""
     rows = process_table()
     lineage = own_lineage(rows)
     root = str(REPOSITORY_ROOT)
@@ -447,7 +449,11 @@ def scoped_processes() -> list[tuple[int, str]]:
         )
         if not is_controller and not is_interactive_runner:
             continue
-        if f"{root}/" in command or working_directory(pid) == root:
+        directory = working_directory(pid)
+        if directory is None:
+            if f"{root}/" in command:
+                scoped.append((pid, command))
+        elif directory == root:
             scoped.append((pid, command))
     return scoped
 

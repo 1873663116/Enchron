@@ -567,6 +567,37 @@ class RunnerCompletionScopeTests(unittest.TestCase):
 
         self.assertEqual(scoped, [(4102, interactive)])
 
+    def test_a_runner_working_in_another_worktree_is_out_of_scope(self) -> None:
+        interactive = (
+            "xcodebuild test-without-building -xctestrun "
+            f"{controller.REPOSITORY_ROOT}/.scratch/campaign/artifacts/lanes/simulator/"
+            "Enchron_InteractiveDeviceSession_xrsimulator27.0-arm64.xctestrun "
+            "-destination platform=visionOS Simulator,id=SIM-UDID"
+        )
+        with patch.object(
+            controller, "process_table", return_value=[(4102, 1, interactive)]
+        ), patch.object(
+            controller, "own_lineage", return_value=set()
+        ), patch.object(
+            controller, "working_directory", return_value="/other/worktree"
+        ):
+            self.assertEqual(controller.scoped_processes(), [])
+
+    def test_the_path_counts_only_when_the_working_directory_is_unreadable(self) -> None:
+        interactive = (
+            "xcodebuild test-without-building -xctestrun "
+            f"{controller.REPOSITORY_ROOT}/.scratch/campaign/artifacts/lanes/device/"
+            "Enchron_InteractiveDeviceSession_xros27.0-arm64.xctestrun"
+        )
+        with patch.object(
+            controller, "process_table", return_value=[(4102, 1, interactive)]
+        ), patch.object(
+            controller, "own_lineage", return_value=set()
+        ), patch.object(
+            controller, "working_directory", return_value=None
+        ):
+            self.assertEqual(controller.scoped_processes(), [(4102, interactive)])
+
 
 class ResponseWaitTests(unittest.TestCase):
     ARGUMENTS = SimpleNamespace(device="udid", runner_bundle_id="bundle")
