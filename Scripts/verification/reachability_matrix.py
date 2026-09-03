@@ -36,7 +36,7 @@ from harness import parallel
 from harness import pre_live
 from harness import scenario_lanes
 from harness.controller import run_runner
-from harness.replay import select_run
+from harness.replay import redact_secret_marker, select_run
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
@@ -200,7 +200,7 @@ def redact_sensitive_values(value: object, values: tuple[str, ...]) -> object:
     secrets = tuple(sorted((item for item in values if item), key=len, reverse=True))
     if isinstance(value, str):
         for secret in secrets:
-            value = value.replace(secret, "<redacted-credential>")
+            value = value.replace(secret, redact_secret_marker(secret))
         return value
     if isinstance(value, list):
         return [redact_sensitive_values(item, secrets) for item in value]
@@ -218,6 +218,20 @@ def emby_identity_file(arguments: argparse.Namespace) -> Path:
         return Path(credentials)
     import regression_emby_source
     return regression_emby_source.DEFAULT_IDENTITY_FILE
+
+
+WEBDAV_ENVIRONMENT_FILE = ROOT / ".env"
+
+
+def read_webdav_credentials(environment_file: Path) -> tuple[str, str]:
+    import regression_smb_source as smb
+
+    credentials = smb.read_environment_credentials(
+        Path(environment_file),
+        user_key="WEBDAV_USER",
+        password_key="WEBDAV_PASSWORD",
+    )
+    return credentials.user, credentials.password
 
 
 def _resolved_emby_address_from_receipt(fallback: str, identity_file: Path) -> str:
@@ -1160,14 +1174,22 @@ class ReachabilityRun:
         self.probe_retrieval_count = 0
         self.probe_status: dict[str, Any] = {}
         self.sensitive_values: tuple[str, ...] = ()
+        self.transcript_secrets: list[str] = []
+        self.last_connected_webdav_source: str | None = None
+        self.last_removed_remote_sources: list[str] = []
         self.out_of_context_observations = {}
         self.lane = "simulator" if enchron_target.is_simulator(DEVICE) else "device"
         self.budgets = BudgetProvider()
+        try:
+            self._remember_secrets(*read_webdav_credentials(WEBDAV_ENVIRONMENT_FILE))
+        except Exception:
+            pass
         controller_run, self.controller_run_mode = select_run(
             run_runner,
             record=os.environ.get("ENCHRON_RECORD", ""),
             replay=os.environ.get("ENCHRON_REPLAY", ""),
             default_transcript=self.controller_output / "controller-transcript.jsonl",
+            redact=self.transcript_secrets,
         )
         self.client = ControllerClient(
             self.lane,
@@ -1499,6 +1521,16 @@ class ReachabilityRun:
             self.hold("transfer-backoff", delay)
         return completed
 
+    def _remember_secrets(self, *values: str) -> None:
+        known = list(getattr(self, "sensitive_values", ()))
+        live = getattr(self, "transcript_secrets", None)
+        for value in values:
+            if value and value not in known:
+                known.append(value)
+            if isinstance(live, list) and value and value not in live:
+                live.append(value)
+        self.sensitive_values = tuple(known)
+
     def controller(self, action: str, *extra: str) -> dict[str, Any]:
         refuse_when_detached()
         if self.channel_refuses(action):
@@ -1520,7 +1552,9 @@ class ReachabilityRun:
             self.events.append({
                 "at": utc_now(),
                 "action": action,
-                "arguments": list(extra),
+                "arguments": redact_sensitive_values(
+                    list(extra), getattr(self, "sensitive_values", ())
+                ),
                 "success": False,
                 "evidence": f"raw/{name}",
                 "elapsedSeconds": 0.0,
@@ -1577,7 +1611,9 @@ class ReachabilityRun:
             {
                 "at": utc_now(),
                 "action": action,
-                "arguments": list(extra),
+                "arguments": redact_sensitive_values(
+                    list(extra), getattr(self, "sensitive_values", ())
+                ),
                 "success": document.get("success"),
                 "evidence": f"raw/{name}",
                 "elapsedSeconds": round(
@@ -3094,6 +3130,253 @@ class ReachabilityRun:
             )
         return updated
 
+    def replace_source_connection_secret(
+        self,
+        source: str,
+        field: str,
+        text_file: Path,
+        json_key: str,
+        probe: list[str] | DeferredProbeView,
+    ) -> list[str] | DeferredProbeView:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        self.mark_driven(
+            presentation,
+            f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
+        )
+        offset = len(probe)
+        replaced = self.controller(
+            "replaceText",
+            "--identifier",
+            f"FileBrowsing-SourceConnection-{source}-{field}",
+            "--text-file",
+            str(text_file),
+            "--text-json-key",
+            json_key,
+            "--redact-response-text",
+            "--no-screenshot",
+        )
+        updated = self.wait_for_probe(
+            f"source-connection-{source}-{field}",
+            offset,
+            f"reachability files delivered action=sourceConnection.{source}.{field}",
+        )
+        if replaced.get("success") is True and any(
+            f"reachability files delivered action=sourceConnection.{source}.{field}"
+            in line for line in updated[offset:]
+        ):
+            self.delivered(
+                presentation,
+                f"accessibility:FileBrowsing-SourceConnection-{source}-{field}",
+                self.events[-1]["evidence"],
+                "Typing changed the source-specific form binding and appended its field probe.",
+            )
+        return updated
+
+    def webdav_service_address(self) -> str | None:
+        receipts = getattr(self, "service_receipts", {})
+        for key in ("webdav", "WebDAV"):
+            receipt = receipts.get(key)
+            if isinstance(receipt, dict):
+                address = receipt.get("address")
+                if isinstance(address, str) and "://" in address:
+                    return address
+        return None
+
+    def connect_webdav_with_environment_identity(
+        self, probe: list[str] | DeferredProbeView
+    ) -> list[str] | DeferredProbeView | None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        try:
+            import regression_smb_source as smb
+            environment_file = (
+                getattr(self, "webdav_environment_file", None)
+                or WEBDAV_ENVIRONMENT_FILE
+            )
+            webdav_user, webdav_password = read_webdav_credentials(
+                Path(environment_file)
+            )
+        except smb.SMBSourceError as error:
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavCredentialsMissing",
+                "success": False,
+                "detail": str(error),
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return None
+        self._remember_secrets(webdav_user, webdav_password)
+        import regression_remote_source as remote
+        runtime_file = (
+            getattr(self, "webdav_runtime_file", None)
+            or remote.DEFAULT_RUNTIME_ROOT / "runtime.json"
+        )
+        try:
+            runtime = json.loads(Path(runtime_file).read_text(encoding="utf-8"))
+            runtime_user = runtime["user"]
+            runtime_password = runtime["password"]
+            runtime_address = runtime["address"]
+            if not all(
+                isinstance(value, str) and value
+                for value in (runtime_user, runtime_password, runtime_address)
+            ):
+                raise ValueError("webdav runtime identity has empty credential fields")
+        except (OSError, ValueError, KeyError) as error:
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavRuntimeIdentityUnreadable",
+                "success": False,
+                "detail": f"{runtime_file}: {error}",
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return None
+        self._remember_secrets(runtime_user, runtime_password)
+        if (runtime_user, runtime_password) != (webdav_user, webdav_password):
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavCredentialsMismatch",
+                "success": False,
+                "detail": (
+                    "The running WebDAV daemon does not serve the environment identity."
+                ),
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return None
+        service_address = self.webdav_service_address()
+        if service_address is None:
+            service_address = runtime_address
+        if not isinstance(service_address, str) or "://" not in service_address:
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavServiceAddressMissing",
+                "success": False,
+                "detail": "The WebDAV service receipt names no URL.",
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return None
+        probe = self.type_source_connection_field(
+            "webDAV", "name", "Reachability webDAV", probe
+        )
+        probe = self.type_source_connection_field(
+            "webDAV", "address", service_address, probe
+        )
+        probe = self.replace_source_connection_secret(
+            "webDAV", "username", Path(runtime_file), "user", probe
+        )
+        probe = self.replace_source_connection_secret(
+            "webDAV", "password", Path(runtime_file), "password", probe
+        )
+        offset = len(probe)
+        connected = self.tap(
+            presentation,
+            "FileBrowsing-SourceConnection-webDAV-connect",
+        )
+        probe = self.wait_for_probe(
+            "source-connection-webDAV-connect",
+            offset,
+            "reachability files delivered action=sourceConnection.webDAV.connect",
+        )
+        if connected.get("success") is True and any(
+            "reachability files delivered action=sourceConnection.webDAV.connect"
+            in line for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+                self.events[-1]["evidence"],
+                "Connect delivered the source-specific request to FilesScreen before network resolution.",
+            )
+        cert_id, cert_doc = self.wait_for_any_identifier(
+            (
+                "FileBrowsing-CertificateTrust-cancel",
+                "FileBrowsing-CertificateTrust-trust",
+                "FileBrowsing-CleartextExposure-cancel",
+                "FileBrowsing-CleartextExposure-proceed",
+            )
+        )
+        if cert_id is None:
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavCertificateTrustMissing",
+                "success": False,
+                "detail": (
+                    "Connect answered but neither a certificate nor a cleartext "
+                    "prompt appeared."
+                ),
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return None
+        matched = cert_doc.get("matchedElement") if isinstance(cert_doc, dict) else None
+        is_hittable = isinstance(matched, dict) and matched.get("isHittable") is True
+        if "CertificateTrust" in cert_id:
+            for op in (
+                "accessibility:FileBrowsing-CertificateTrust-cancel",
+                "accessibility:FileBrowsing-CertificateTrust-trust",
+            ):
+                self.mark_observation(
+                    presentation,
+                    op,
+                    exists=True,
+                    hittable=is_hittable,
+                    evidence=self.events[-1]["evidence"],
+                    reason="The certificate prompt exposed its product actions.",
+                )
+                if is_hittable:
+                    self.mark_observation(
+                        presentation,
+                        op,
+                        received=True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The certificate prompt was hittable and its presence proves product delivery.",
+                    )
+            self.tap(presentation, "FileBrowsing-CertificateTrust-trust")
+            self.hold("pace", 0.5)
+        else:
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavCleartextExposureUnexpected",
+                "success": False,
+                "detail": (
+                    "The HTTPS service address asked for cleartext approval."
+                ),
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
+            self.hold("pace", 0.5)
+            return None
+        for label in ("以后", "Not Now"):
+            dismissed = self.controller(
+                "tap", "--label", label, "--no-screenshot"
+            )
+            if dismissed.get("success") is True:
+                break
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        source_identifiers = sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(snapshot)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+        if not source_identifiers:
+            self.events.append({
+                "at": utc_now(),
+                "action": "webdavSourceNotPersisted",
+                "success": False,
+                "detail": "The sidebar names no connected remote source.",
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return None
+        self.last_connected_webdav_source = source_identifiers[0].removeprefix(
+            "FileBrowsing-SourcesSidebar-source-"
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "webdavSourcePersisted",
+            "success": True,
+            "source": self.last_connected_webdav_source,
+            "evidence": self.events[-1]["evidence"] if self.events else "",
+        })
+        return probe
+
     def source_connection_scenario(self, source: str) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
@@ -3113,142 +3396,148 @@ class ReachabilityRun:
 
         hosts = getattr(self, "service_hosts", {})
         receipts = getattr(self, "service_receipts", {})
-        resolved_host = hosts.get("smb" if source.lower() == "smb" else "webdav", "")
-        if not resolved_host or resolved_host in ("127.0.0.1", "localhost", "::1"):
-            for svc in (receipts.get("webdav"), receipts.get("WebDAV"), receipts.get("smb"), receipts.get("SMB")):
-                if isinstance(svc, dict) and isinstance(svc.get("address"), str) and svc["address"]:
-                    candidate = str(svc["address"])
-                    host = candidate.split("://", 1)[-1].split("/")[0].split(":")[0] if "://" in candidate else candidate
-                    host = host.split("%", 1)[0]
-                    if host and host not in ("127.0.0.1", "localhost", "::1"):
-                        resolved_host = host
-                        break
-        if not resolved_host or resolved_host in ("127.0.0.1", "localhost", "::1"):
-            return
-        host_value = resolved_host
-        for field, value in (
-            ("name", f"Reachability {source}"),
-            ("address", host_value),
-            ("username", "reachability"),
-            ("password", "not-a-secret"),
-        ):
-            probe = self.type_source_connection_field(
-                source, field, value, probe
-            )
+        if source == "webDAV":
+            connected_probe = self.connect_webdav_with_environment_identity(probe)
+            if connected_probe is None:
+                return
+            probe = connected_probe
+        else:
+            resolved_host = hosts.get("smb" if source.lower() == "smb" else "webdav", "")
+            if not resolved_host or resolved_host in ("127.0.0.1", "localhost", "::1"):
+                for svc in (receipts.get("webdav"), receipts.get("WebDAV"), receipts.get("smb"), receipts.get("SMB")):
+                    if isinstance(svc, dict) and isinstance(svc.get("address"), str) and svc["address"]:
+                        candidate = str(svc["address"])
+                        host = candidate.split("://", 1)[-1].split("/")[0].split(":")[0] if "://" in candidate else candidate
+                        host = host.split("%", 1)[0]
+                        if host and host not in ("127.0.0.1", "localhost", "::1"):
+                            resolved_host = host
+                            break
+            if not resolved_host or resolved_host in ("127.0.0.1", "localhost", "::1"):
+                return
+            host_value = resolved_host
+            for field, value in (
+                ("name", f"Reachability {source}"),
+                ("address", host_value),
+                ("username", "reachability"),
+                ("password", "not-a-secret"),
+            ):
+                probe = self.type_source_connection_field(
+                    source, field, value, probe
+                )
 
-        if source == "smb":
+            if source == "smb":
+                offset = len(probe)
+                guest = self.tap(
+                    presentation, "FileBrowsing-SourceConnection-smb-guest"
+                )
+                probe = self.wait_for_probe(
+                    "source-connection-smb-guest",
+                    offset,
+                    "reachability files delivered action=sourceConnection.smb.guest",
+                )
+                if guest.get("success") is True and any(
+                    "reachability files delivered action=sourceConnection.smb.guest"
+                    in line for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        "accessibility:FileBrowsing-SourceConnection-smb-guest",
+                        self.events[-1]["evidence"],
+                        "The guest toggle changed the SMB form binding and appended its probe.",
+                    )
+
+                for label in ("以后", "Not Now", "Save", "以后"):
+                    result = self.controller(
+                        "tap", "--label", label, "--no-screenshot"
+                    )
+                    if result.get("success") is True:
+                        break
+
             offset = len(probe)
-            guest = self.tap(
-                presentation, "FileBrowsing-SourceConnection-smb-guest"
+            connected = self.tap(
+                presentation,
+                f"FileBrowsing-SourceConnection-{source}-connect",
             )
             probe = self.wait_for_probe(
-                "source-connection-smb-guest",
+                f"source-connection-{source}-connect",
                 offset,
-                "reachability files delivered action=sourceConnection.smb.guest",
+                f"reachability files delivered action=sourceConnection.{source}.connect",
             )
-            if guest.get("success") is True and any(
-                "reachability files delivered action=sourceConnection.smb.guest"
+            if connected.get("success") is True and any(
+                f"reachability files delivered action=sourceConnection.{source}.connect"
                 in line for line in probe[offset:]
             ):
                 self.delivered(
                     presentation,
-                    "accessibility:FileBrowsing-SourceConnection-smb-guest",
+                    f"accessibility:FileBrowsing-SourceConnection-{source}-connect",
                     self.events[-1]["evidence"],
-                    "The guest toggle changed the SMB form binding and appended its probe.",
+                    "Connect delivered the source-specific request to FilesScreen before network resolution.",
                 )
-
-            for label in ("以后", "Not Now", "Save", "以后"):
-                result = self.controller(
-                    "tap", "--label", label, "--no-screenshot"
+            cert_id, cert_doc = self.wait_for_any_identifier(
+                (
+                    "FileBrowsing-CertificateTrust-cancel",
+                    "FileBrowsing-CertificateTrust-trust",
+                    "FileBrowsing-CleartextExposure-cancel",
+                    "FileBrowsing-CleartextExposure-proceed",
                 )
-                if result.get("success") is True:
-                    break
-
-        offset = len(probe)
-        connected = self.tap(
-            presentation,
-            f"FileBrowsing-SourceConnection-{source}-connect",
-        )
-        probe = self.wait_for_probe(
-            f"source-connection-{source}-connect",
-            offset,
-            f"reachability files delivered action=sourceConnection.{source}.connect",
-        )
-        if connected.get("success") is True and any(
-            f"reachability files delivered action=sourceConnection.{source}.connect"
-            in line for line in probe[offset:]
-        ):
-            self.delivered(
-                presentation,
-                f"accessibility:FileBrowsing-SourceConnection-{source}-connect",
-                self.events[-1]["evidence"],
-                "Connect delivered the source-specific request to FilesScreen before network resolution.",
             )
-        cert_id, cert_doc = self.wait_for_any_identifier(
-            (
-                "FileBrowsing-CertificateTrust-cancel",
-                "FileBrowsing-CertificateTrust-trust",
-                "FileBrowsing-CleartextExposure-cancel",
-                "FileBrowsing-CleartextExposure-proceed",
-            )
-        )
-        if cert_id is not None:
-            matched = cert_doc.get("matchedElement") if isinstance(cert_doc, dict) else None
-            is_hittable = isinstance(matched, dict) and matched.get("isHittable") is True
-            if "CertificateTrust" in cert_id:
-                for op in (
-                    "accessibility:FileBrowsing-CertificateTrust-cancel",
-                    "accessibility:FileBrowsing-CertificateTrust-trust",
-                ):
-                    self.mark_observation(
-                        presentation,
-                        op,
-                        exists=True,
-                        hittable=is_hittable,
-                        evidence=self.events[-1]["evidence"],
-                        reason="The certificate prompt exposed its product actions.",
-                    )
-                    if is_hittable:
+            if cert_id is not None:
+                matched = cert_doc.get("matchedElement") if isinstance(cert_doc, dict) else None
+                is_hittable = isinstance(matched, dict) and matched.get("isHittable") is True
+                if "CertificateTrust" in cert_id:
+                    for op in (
+                        "accessibility:FileBrowsing-CertificateTrust-cancel",
+                        "accessibility:FileBrowsing-CertificateTrust-trust",
+                    ):
                         self.mark_observation(
                             presentation,
                             op,
-                            received=True,
+                            exists=True,
+                            hittable=is_hittable,
                             evidence=self.events[-1]["evidence"],
-                            reason="The certificate prompt was hittable and its presence proves product delivery.",
+                            reason="The certificate prompt exposed its product actions.",
                         )
-                self.tap(presentation, "FileBrowsing-CertificateTrust-cancel")
-                self.hold("pace", 0.5)
-                second_cert = self.wait_for_identifier("FileBrowsing-CertificateTrust-trust")
-                if isinstance(second_cert.get("matchedElement"), dict):
-                    self.tap(presentation, "FileBrowsing-CertificateTrust-trust")
+                        if is_hittable:
+                            self.mark_observation(
+                                presentation,
+                                op,
+                                received=True,
+                                evidence=self.events[-1]["evidence"],
+                                reason="The certificate prompt was hittable and its presence proves product delivery.",
+                            )
+                    self.tap(presentation, "FileBrowsing-CertificateTrust-cancel")
                     self.hold("pace", 0.5)
-            else:
-                for op in (
-                    "accessibility:FileBrowsing-CleartextExposure-cancel",
-                    "accessibility:FileBrowsing-CleartextExposure-proceed",
-                ):
-                    self.mark_observation(
-                        presentation,
-                        op,
-                        exists=True,
-                        hittable=is_hittable,
-                        evidence=self.events[-1]["evidence"],
-                        reason="The cleartext prompt exposed its product actions.",
-                    )
-                    if is_hittable:
+                    second_cert = self.wait_for_identifier("FileBrowsing-CertificateTrust-trust")
+                    if isinstance(second_cert.get("matchedElement"), dict):
+                        self.tap(presentation, "FileBrowsing-CertificateTrust-trust")
+                        self.hold("pace", 0.5)
+                else:
+                    for op in (
+                        "accessibility:FileBrowsing-CleartextExposure-cancel",
+                        "accessibility:FileBrowsing-CleartextExposure-proceed",
+                    ):
                         self.mark_observation(
                             presentation,
                             op,
-                            received=True,
+                            exists=True,
+                            hittable=is_hittable,
                             evidence=self.events[-1]["evidence"],
-                            reason="The cleartext prompt was hittable and its presence proves product delivery.",
+                            reason="The cleartext prompt exposed its product actions.",
                         )
-                self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
-                self.hold("pace", 0.5)
-                second_clear = self.wait_for_identifier("FileBrowsing-CleartextExposure-proceed")
-                if isinstance(second_clear.get("matchedElement"), dict):
-                    self.tap(presentation, "FileBrowsing-CleartextExposure-proceed")
+                        if is_hittable:
+                            self.mark_observation(
+                                presentation,
+                                op,
+                                received=True,
+                                evidence=self.events[-1]["evidence"],
+                                reason="The cleartext prompt was hittable and its presence proves product delivery.",
+                            )
+                    self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
                     self.hold("pace", 0.5)
+                    second_clear = self.wait_for_identifier("FileBrowsing-CleartextExposure-proceed")
+                    if isinstance(second_clear.get("matchedElement"), dict):
+                        self.tap(presentation, "FileBrowsing-CleartextExposure-proceed")
+                        self.hold("pace", 0.5)
 
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
@@ -3367,6 +3656,192 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "The source row ran the product source-selection handler and appended its item probe.",
             )
+        self.drive_connected_remote_source(presentation)
+        self.remove_connected_remote_sources(presentation)
+
+    def connected_remote_source_identifiers(self) -> list[str]:
+        snapshot = self.controller("snapshot", "--no-screenshot")
+        return sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(snapshot)
+            if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
+            and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
+        )
+
+    def drive_connected_remote_source(self, presentation: str) -> None:
+        operation_id = "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
+        source_identifiers = self.connected_remote_source_identifiers()
+        if not source_identifiers:
+            return
+        for source_identifier in source_identifiers:
+            for index in (1, 2):
+                before = self.copy_probe("source-sidebar-remote-before")
+                offset = len(before)
+                self.mark_driven(presentation, operation_id)
+                selected = self.controller(
+                    "tap",
+                    "--identifier", source_identifier,
+                    "--index", str(index),
+                    "--no-screenshot",
+                )
+                matched = selected.get("matchedElement")
+                if isinstance(matched, dict):
+                    self.mark_observation(
+                        presentation,
+                        operation_id,
+                        exists=True,
+                        hittable=matched.get("isHittable") is True,
+                        evidence=self.events[-1]["evidence"],
+                        reason="The non-delete child of the connected source row was addressable.",
+                    )
+                probe = self.copy_probe("source-sidebar-remote-selected")
+                if selected.get("success") is True and any(
+                    "reachability files delivered action=sidebar.select." in line
+                    for line in probe[offset:]
+                ):
+                    self.delivered(
+                        presentation,
+                        operation_id,
+                        self.events[-1]["evidence"],
+                        "The connected source row reached FilesScreen.select without activating its delete control.",
+                    )
+                    break
+        visible = self.wait_for_identifier(
+            "FileBrowsing-Breadcrumb-current"
+        )
+        if isinstance(visible.get("matchedElement"), dict):
+            before = self.copy_probe("source-sidebar-breadcrumb-before")
+            offset = len(before)
+            parent = self.tap(presentation, "FileBrowsing-Breadcrumb-current")
+            self.mark_driven(
+                presentation, "accessibility:FileBrowsing-Breadcrumb-current"
+            )
+            _, _, selected = self.select_debug_menu_item(
+                presentation=presentation,
+                host="files",
+                family="breadcrumb",
+                preferred=("0",),
+            )
+            probe = self.copy_probe("source-sidebar-breadcrumb-selected")
+            if (
+                parent.get("success") is True
+                and selected.get("success") is True
+                and any(
+                    "reachability files delivered action=breadcrumb.files"
+                    in line for line in probe[offset:]
+                )
+            ):
+                self.delivered_by_debug_menu_selection(
+                    presentation,
+                    "accessibility:FileBrowsing-Breadcrumb-current",
+                    "accessibility:FileBrowsing-Breadcrumb-current",
+                    self.events[-1]["evidence"],
+                    "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
+                )
+        scrolled = self.controller(
+            "swipeUp", "--identifier", "FileBrowsing-FilesScreen-list",
+            "--no-screenshot",
+        )
+        if scrolled.get("success") is not True:
+            listing = self.controller("snapshot", "--no-screenshot")
+            card = next(
+                (
+                    identifier
+                    for identifier in sorted(self.hierarchy_identifiers(listing))
+                    if identifier.startswith("FileBrowsing-grid-folder-")
+                ),
+                None,
+            )
+            if card is None:
+                return
+            scrolled = self.controller(
+                "swipeUp", "--identifier", card,
+                "--no-screenshot",
+            )
+        self.hold("pace", 0.5)
+        probe = self.copy_probe("source-sidebar-remote-scroll")
+        if scrolled.get("success") is True and any(
+            "reachability fileScroll" in line for line in probe
+        ):
+            self.delivered(
+                presentation, "scroll:file-list", self.events[-1]["evidence"],
+                "The connected remote file surface appended a scroll geometry probe.",
+                has_accessibility_target=False,
+            )
+
+    def remove_connected_remote_sources(self, presentation: str) -> None:
+        removed: list[str] = []
+        self.last_removed_remote_sources = removed
+        before = self.connected_remote_source_identifiers()
+        if not before:
+            return
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        _, _, entered = self.select_debug_menu_item(
+            presentation=presentation,
+            host="files",
+            family="sourceAction",
+            preferred=("delete",),
+            driven_operations=(
+                "accessibility:FileBrowsing-SourcesSidebar-delete",
+            ),
+        )
+        if entered.get("success") is not True:
+            return
+        for identifier in self.connected_remote_source_identifiers():
+            checked = self.controller(
+                "tap",
+                "--identifier", identifier,
+                "--index", "1",
+                "--no-screenshot",
+            )
+            if not isinstance(checked.get("matchedElement"), dict):
+                self.controller(
+                    "tap",
+                    "--identifier", identifier,
+                    "--index", "2",
+                    "--no-screenshot",
+                )
+        trashed = self.controller(
+            "tap", "--label", "Delete selected sources", "--no-screenshot"
+        )
+        if trashed.get("success") is not True:
+            return
+        self.hold("pace", 0.5)
+        remaining = set(self.connected_remote_source_identifiers())
+        removed.extend(
+            identifier.removeprefix("FileBrowsing-SourcesSidebar-source-")
+            for identifier in before
+            if identifier not in remaining
+        )
+        self.last_removed_remote_sources = removed
+        if remaining:
+            reset = self.reset_reachability_state()
+            if reset.get("success") is not True:
+                self.events.append({
+                    "at": utc_now(),
+                    "action": "remoteSourceCleanupFailed",
+                    "success": False,
+                    "detail": "The connected remote sources survived deletion.",
+                    "evidence": self.events[-1]["evidence"] if self.events else "",
+                })
+                return
+            still_there = set(self.connected_remote_source_identifiers())
+            removed.extend(
+                identifier.removeprefix("FileBrowsing-SourcesSidebar-source-")
+                for identifier in remaining
+                if identifier not in still_there
+            )
+            self.last_removed_remote_sources = removed
+            self.events.append({
+                "at": utc_now(),
+                "action": "remoteSourceCleanupReset",
+                "success": not still_there,
+                "detail": (
+                    "resetState removed the remote sources the sidebar delete left behind."
+                ),
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
 
     def file_browser_error_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
@@ -4720,10 +5195,10 @@ class ReachabilityRun:
         if credentials_path is None:
             return
         credential_document = json.loads(credentials_path.read_text(encoding="utf-8"))
-        self.sensitive_values = tuple(
+        self._remember_secrets(*(
             str(credential_document.get(key, ""))
             for key in ("address", "username", "password")
-        )
+        ))
 
         self.relaunch()
         self.tap(presentation, "Emby-Navigation-Tab")

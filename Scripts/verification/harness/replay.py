@@ -20,6 +20,17 @@ class ReplayDrift(RuntimeError):
     pass
 
 
+def redact_secret_marker(secret: str) -> str:
+    return f"<redacted secret, {len(secret)} chars>"
+
+
+def redact_secrets_in_text(text: str, secrets: Sequence[str]) -> str:
+    redacted = text
+    for secret in sorted((item for item in secrets if item), key=len, reverse=True):
+        redacted = redacted.replace(secret, redact_secret_marker(secret))
+    return redacted
+
+
 def normalize_command(command: Sequence[str]) -> list[str]:
     normalized: list[str] = []
     skip_next = False
@@ -35,21 +46,28 @@ def normalize_command(command: Sequence[str]) -> list[str]:
 
 
 class RecordingTap:
-    def __init__(self, inner: RunCallable, transcript_path: Path | str) -> None:
+    def __init__(
+        self,
+        inner: RunCallable,
+        transcript_path: Path | str,
+        redact: Sequence[str] = (),
+    ) -> None:
         self.inner = inner
         self.transcript_path = Path(transcript_path)
         self.transcript_path.parent.mkdir(parents=True, exist_ok=True)
         self.transcript_path.write_text("", encoding="utf-8")
+        self.redact = redact
 
     def __call__(
         self, command: Sequence[str], timeout_seconds: float
     ) -> CompletedInvocation:
+        secrets = tuple(item for item in self.redact if item)
         try:
             completed = self.inner(command, timeout_seconds)
         except (subprocess.TimeoutExpired, TimeoutError):
             self._append(
                 {
-                    "command": normalize_command(command),
+                    "command": [redact_secrets_in_text(str(token), secrets) for token in normalize_command(command)],
                     "timeout": True,
                     "timeoutSeconds": timeout_seconds,
                 }
@@ -57,10 +75,10 @@ class RecordingTap:
             raise
         self._append(
             {
-                "command": normalize_command(command),
+                "command": [redact_secrets_in_text(str(token), secrets) for token in normalize_command(command)],
                 "returncode": completed.returncode,
-                "stdout": completed.stdout,
-                "stderr": completed.stderr,
+                "stdout": redact_secrets_in_text(completed.stdout, secrets),
+                "stderr": redact_secrets_in_text(completed.stderr, secrets),
             }
         )
         return completed
@@ -118,6 +136,7 @@ def select_run(
     record: str,
     replay: str,
     default_transcript: Path | str,
+    redact: Sequence[str] = (),
 ) -> tuple[RunCallable, str]:
     if replay:
         return ReplayRun(replay), "replay"
@@ -125,5 +144,5 @@ def select_run(
         transcript = (
             str(default_transcript) if record.lower() in _ENABLED else record
         )
-        return RecordingTap(default_run, transcript), "record"
+        return RecordingTap(default_run, transcript, redact=redact), "record"
     return default_run, "live"

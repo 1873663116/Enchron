@@ -213,7 +213,9 @@ def host_shares(address: str, user: str, password: str) -> list[str]:
     return sorted(shares)
 
 
-def _read_credentials(path: Path) -> _Credentials:
+def read_environment_credentials(
+    path: Path, *, user_key: str, password_key: str
+) -> _Credentials:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
@@ -227,7 +229,7 @@ def _read_credentials(path: Path) -> _Credentials:
             line = line.removeprefix("export ").lstrip()
         key, separator, raw_value = line.partition("=")
         key = key.strip()
-        if not separator or key not in {"SMB_USER", "SMB_PASSWORD"}:
+        if not separator or key not in {user_key, password_key}:
             continue
         if key in selected:
             raise SMBSourceConfigurationError(f"duplicate {key} in .env")
@@ -241,13 +243,19 @@ def _read_credentials(path: Path) -> _Credentials:
         if "\x00" in value or "\r" in value or "\n" in value:
             raise SMBSourceConfigurationError(f"invalid {key} in .env")
         selected[key] = value
-    user = selected.get("SMB_USER", "")
-    password = selected.get("SMB_PASSWORD", "")
+    user = selected.get(user_key, "")
+    password = selected.get(password_key, "")
     if not user or not password:
         raise SMBSourceConfigurationError(
-            "SMB_USER or SMB_PASSWORD is missing from .env"
+            f"{user_key} or {password_key} is missing from .env"
         )
     return _Credentials(user, password)
+
+
+def _read_credentials(path: Path) -> _Credentials:
+    return read_environment_credentials(
+        path, user_key="SMB_USER", password_key="SMB_PASSWORD"
+    )
 
 
 def _load_aggregate(registry_path: Path) -> tuple[_AggregateObject, ...]:

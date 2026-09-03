@@ -18,7 +18,6 @@ import mimetypes
 import os
 from pathlib import Path, PurePosixPath
 import re
-import secrets
 import shutil
 import signal
 import socket
@@ -39,6 +38,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY = REPOSITORY_ROOT / "Tests/Fixtures/fixture-registry.json"
 DEFAULT_SOURCE_ROOT = REPOSITORY_ROOT.parent / "TestMedia"
 DEFAULT_RUNTIME_ROOT = REPOSITORY_ROOT / ".build/regression-remote-source"
+DEFAULT_ENVIRONMENT_FILE = REPOSITORY_ROOT / ".env"
+WEBDAV_ENVIRONMENT_USER_KEY = "WEBDAV_USER"
+WEBDAV_ENVIRONMENT_PASSWORD_KEY = "WEBDAV_PASSWORD"
 SHA256_PREFIX = "sha256:"
 MAX_PROPFIND_BODY = 16 * 1024
 
@@ -158,6 +160,26 @@ def _read_object(path: Path) -> dict[str, object]:
     return value
 
 
+def read_environment_credentials(path: Path) -> tuple[str, str]:
+    import regression_smb_source as smb
+
+    try:
+        credentials = smb.read_environment_credentials(
+            Path(path),
+            user_key=WEBDAV_ENVIRONMENT_USER_KEY,
+            password_key=WEBDAV_ENVIRONMENT_PASSWORD_KEY,
+        )
+    except smb.SMBSourceError as error:
+        raise RemoteSourceConfigurationError(str(error)) from error
+    return credentials.user, credentials.password
+
+
+def runtime_credentials_match(
+    runtime: Mapping[str, object], user: str, password: str
+) -> bool:
+    return runtime.get("user") == user and runtime.get("password") == password
+
+
 def _primary_mdns_name() -> str | None:
     try:
         completed = subprocess.run(
@@ -196,11 +218,15 @@ class ServiceConfiguration:
     bind_host: str
     port: int
     allow_loopback: bool = False
+    environment_file: Path = DEFAULT_ENVIRONMENT_FILE
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "runtime_root", Path(self.runtime_root).resolve())
         object.__setattr__(self, "registry_path", Path(self.registry_path).resolve())
         object.__setattr__(self, "source_root", Path(self.source_root).resolve())
+        object.__setattr__(
+            self, "environment_file", Path(self.environment_file).resolve()
+        )
 
     @property
     def runtime_file(self) -> Path:
@@ -1283,6 +1309,7 @@ class RemoteSourceController:
     def ensure(self) -> dict[str, object]:
         self.configuration.validate()
         FixtureManifest.load(self.configuration)
+        user, password = self._environment_credentials()
         try:
             existing = self.status()
         except RemoteSourceUnavailable:
@@ -1293,7 +1320,11 @@ class RemoteSourceController:
                     "running remote source has a different configuration digest"
                 )
             self._validate_runtime_file(existing)
-            return existing
+            running = self._running_credentials()
+            if running == (user, password):
+                return existing
+            self.stop()
+            existing = None
 
         if self.configuration.process_file.is_file():
             process = _read_object(self.configuration.process_file)
@@ -1304,7 +1335,6 @@ class RemoteSourceController:
         _unlink_owned_socket(self.configuration.control_socket)
         self.configuration.runtime_root.mkdir(parents=True, exist_ok=True)
         os.chmod(self.configuration.runtime_root, 0o700)
-        user, password = self._credentials()
         launch = {
             "configuration": self.configuration.canonical(),
             "user": user,
@@ -1462,29 +1492,22 @@ class RemoteSourceController:
             raise RemoteSourceUnavailable("remote source control result must be an object")
         return result
 
+    def _environment_credentials(self) -> tuple[str, str]:
+        return read_environment_credentials(self.configuration.environment_file)
+
     def _credentials(self) -> tuple[str, str]:
-        path = self.configuration.runtime_file
-        if path.is_file():
-            try:
-                runtime = _read_object(path)
-            except RemoteSourceConfigurationError:
-                runtime = {}
-            user = runtime.get("user")
-            password = runtime.get("password")
-            service_id = runtime.get("serviceID")
-            expected_id = "remote-source:" + self.configuration.digest.removeprefix(
-                SHA256_PREFIX
-            )[:24]
-            if (
-                set(runtime) == RUNTIME_DOCUMENT_KEYS
-                and isinstance(user, str)
-                and user
-                and isinstance(password, str)
-                and password
-                and service_id == expected_id
-            ):
-                return user, password
-        return "enchron-regression", secrets.token_urlsafe(32)
+        return self._environment_credentials()
+
+    def _running_credentials(self) -> tuple[str, str] | None:
+        try:
+            runtime = _read_object(self.configuration.runtime_file)
+        except RemoteSourceConfigurationError:
+            return None
+        user = runtime.get("user")
+        password = runtime.get("password")
+        if isinstance(user, str) and user and isinstance(password, str) and password:
+            return user, password
+        return None
 
     def _validate_runtime_file(self, identity: Mapping[str, object]) -> None:
         path = self.configuration.runtime_file

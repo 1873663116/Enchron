@@ -217,6 +217,29 @@ class DaemonEnvironmentCredentialTests(unittest.TestCase):
         with self.assertRaises(remote.RemoteSourceConfigurationError):
             remote.RemoteSourceController(missing)._credentials()
 
+    def test_rotating_environment_credentials_restarts_the_daemon(self) -> None:
+        live = remote.ServiceConfiguration(
+            runtime_root=self.root / "live-runtime",
+            registry_path=REPOSITORY_ROOT / "Tests/Fixtures/fixture-registry.json",
+            source_root=REPOSITORY_ROOT.parent / "TestMedia",
+            bind_host="127.0.0.1",
+            port=0,
+            allow_loopback=True,
+            environment_file=self.environment_file,
+        )
+        controller = remote.RemoteSourceController(live)
+        controller.ensure()
+        self.addCleanup(controller.stop)
+        first = json.loads(live.runtime_file.read_text(encoding="utf-8"))
+        self.assertEqual((first["user"], first["password"]), (FEATURE_USER, FEATURE_PASSWORD))
+        self.environment_file.write_text(
+            "WEBDAV_USER=rotated-user\nWEBDAV_PASSWORD=rotated-password\n",
+            encoding="utf-8",
+        )
+        controller.ensure()
+        second = json.loads(live.runtime_file.read_text(encoding="utf-8"))
+        self.assertEqual((second["user"], second["password"]), ("rotated-user", "rotated-password"))
+
 
 class FakeClient:
     def __init__(self, run: matrix.ReachabilityRun, runtime_file: Path) -> None:
@@ -231,6 +254,8 @@ class FakeClient:
         if verb == "tap":
             if "--identifier" in arguments:
                 identifier = arguments[arguments.index("--identifier") + 1]
+            elif "--label" in arguments:
+                identifier = arguments[arguments.index("--label") + 1]
             else:
                 identifier = " ".join(arguments)
             self.taps.append(identifier)
