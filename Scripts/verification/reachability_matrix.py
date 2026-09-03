@@ -5036,11 +5036,14 @@ class ReachabilityRun:
             if identifier.startswith("FileBrowsing-SourcesSidebar-source-")
             and identifier != "FileBrowsing-SourcesSidebar-source-media-library"
         )
+        if not source_identifiers:
+            source_identifiers = self.connect_remote_source_for_browsing(presentation)
         if not source_identifiers or not self.select_browseable_remote_source(
             presentation,
             source_identifiers,
             evidence_prefix="round11-remote",
         ):
+            self.remove_connected_remote_sources(presentation)
             return
 
         remote = self.controller("snapshot", "--no-screenshot")
@@ -5151,6 +5154,29 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The live remote video card reached the playback handler.",
                 )
+        self.remove_connected_remote_sources(presentation)
+
+    def connect_remote_source_for_browsing(self, presentation: str) -> list[str]:
+        opened, probe = self.open_source_connection("WebDAV")
+        address_field: dict[str, Any] = {}
+        if opened.get("success") is True:
+            address_field = self.wait_for_identifier(
+                "FileBrowsing-SourceConnection-webDAV-address"
+            )
+        if not isinstance(address_field.get("matchedElement"), dict):
+            self.events.append({
+                "at": utc_now(),
+                "action": "remoteBrowsingSourceFormUnavailable",
+                "success": False,
+                "detail": "The WebDAV connection form did not open on a fresh install, so no remote source can be browsed.",
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return []
+        if self.connect_webdav_with_environment_identity(probe) is None:
+            return []
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-files")
+        return self.connected_remote_source_identifiers()
 
     def ensure_emby_sign_in(self) -> bool:
         self.provable("main-window-browser", "accessibility:Emby-Connection-Connect")
