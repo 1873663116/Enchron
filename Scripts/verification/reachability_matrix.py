@@ -143,6 +143,9 @@ CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
 PROBE_COPY_LIMIT_BYTES = 600_000
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
+LIBRARY_GRID_CARD_PREFIX = "MediaLibrary-grid-"
+LIBRARY_LIST_CONTAINER_IDENTIFIER = "FileBrowsing-FilesScreen-list"
+LIBRARY_VIEW_MODE_IDENTIFIER = "FileBrowsing-FilesScreen-viewMode"
 TEST_MEDIA = ROOT.parent / "TestMedia"
 FIXTURE_SOURCES = {
     "furyroad-stripped.mkv":
@@ -2940,6 +2943,7 @@ class ReachabilityRun:
         self.tap(presentation, "Navigation-Ornament-tab-files")
         before = self.copy_probe("browser-folder-before")
         offset = len(before)
+        self.require_library_grid_mode(presentation, chain="browser-folder-open")
         folder = self.tap(
             presentation,
             f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER}",
@@ -3368,6 +3372,47 @@ class ReachabilityRun:
                 "The source row ran the product source-selection handler and appended its item probe.",
             )
 
+    def library_grid_cards(self, document: dict[str, Any]) -> list[str]:
+        return sorted(
+            identifier
+            for identifier in self.hierarchy_identifiers(document)
+            if identifier.startswith(LIBRARY_GRID_CARD_PREFIX)
+        )
+
+    def require_library_grid_mode(
+        self, presentation: str, *, chain: str
+    ) -> dict[str, Any]:
+        document = self.controller("snapshot", "--no-screenshot")
+        identifiers = self.hierarchy_identifiers(document)
+        grid_cards = sorted(
+            identifier for identifier in identifiers
+            if identifier.startswith(LIBRARY_GRID_CARD_PREFIX)
+        )
+        list_container = LIBRARY_LIST_CONTAINER_IDENTIFIER in identifiers
+        if list_container or not grid_cards:
+            last = self.events[-1] if self.events else None
+            evidence = (
+                last.get("evidence", "raw/snapshot.json")
+                if isinstance(last, dict) else "raw/snapshot.json"
+            )
+            raise InstrumentFault(
+                "library-view-mode-not-grid",
+                {
+                    "context": presentation,
+                    "chain": chain,
+                    "evidence": evidence,
+                    "listContainerPresent": list_container,
+                    "gridCardCount": len(grid_cards),
+                    "gridCards": grid_cards[:8],
+                    "diagnosis": (
+                        "the Files screen is not provably in grid mode for "
+                        f"{chain}: list container present={list_container}, "
+                        f"grid cards={len(grid_cards)}"
+                    ),
+                },
+            )
+        return document
+
     def file_browser_error_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
@@ -3450,6 +3495,15 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "The view-mode gesture changed the screen-local product binding.",
             )
+        self.controller(
+            "coordinateTap", "--identifier", LIBRARY_VIEW_MODE_IDENTIFIER,
+            "--normalized-x", "0.25", "--normalized-y", "0.5",
+            "--no-screenshot",
+        )
+        self.copy_probe("browser-view-mode-restored")
+        self.require_library_grid_mode(
+            presentation, chain="browser-view-mode-restore",
+        )
 
         before = self.copy_probe("browser-sort-before")
         offset = len(before)
@@ -3504,6 +3558,7 @@ class ReachabilityRun:
 
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.require_library_grid_mode(presentation, chain="browser-new-folder")
         before = self.copy_probe("browser-new-folder-before")
         offset = len(before)
         parent = self.tap(presentation, "FileBrowsing-Manage-button")
@@ -3597,6 +3652,9 @@ class ReachabilityRun:
                     "The failed folder creation exposed the product error panel, whose dismiss closure appended a probe.",
                 )
         else:
+            self.require_library_grid_mode(
+                presentation, chain="browser-library-folder-open",
+            )
             before = probe
             offset = len(before)
             folder = self.tap(
@@ -3617,6 +3675,9 @@ class ReachabilityRun:
             for direction in ("back", "forward"):
                 before = probe
                 offset = len(before)
+                self.require_library_grid_mode(
+                    presentation, chain="browser-navigation",
+                )
                 navigation = self.tap(
                     presentation,
                     f"FileBrowsing-FilesScreen-navBackForward-{direction}",
@@ -3673,6 +3734,7 @@ class ReachabilityRun:
 
         before = self.copy_probe("browser-multiselect-before")
         offset = len(before)
+        self.require_library_grid_mode(presentation, chain="browser-multiselect")
         parent = self.tap(presentation, "FileBrowsing-Manage-button")
         _, _, selection = self.select_debug_menu_item(
             presentation=presentation,
@@ -3944,6 +4006,9 @@ class ReachabilityRun:
         )
         if selection.get("success") is not True:
             return
+        self.require_library_grid_mode(
+            presentation, chain="round11-multiselect-delete",
+        )
         selected = self.tap(
             presentation,
             self.primary_video_identifier(),
@@ -4117,6 +4182,9 @@ class ReachabilityRun:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
+        self.require_library_grid_mode(
+            presentation, chain="media-library-folder-open",
+        )
         folder_before = self.copy_probe("media-library-folder-before")
         folder_offset = len(folder_before)
         folder = self.tap(

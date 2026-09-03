@@ -572,6 +572,7 @@ final class TestCommandChannel {
     }
 
     private let mediaLibrary: MediaLibraryViewModel
+    private let mediaLibraryUIState: MediaLibraryUIState
     private let playbackSession: PlaybackSessionModel
     private let playbackRuntime: PlaybackRuntime
     private let playbackLauncher: PlaybackLaunchCoordinator
@@ -594,6 +595,7 @@ final class TestCommandChannel {
 
     init(
         mediaLibrary: MediaLibraryViewModel,
+        mediaLibraryUIState: MediaLibraryUIState,
         playbackSession: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         playbackLauncher: PlaybackLaunchCoordinator,
@@ -603,6 +605,7 @@ final class TestCommandChannel {
         defaults: UserDefaults = .standard
     ) throws {
         self.mediaLibrary = mediaLibrary
+        self.mediaLibraryUIState = mediaLibraryUIState
         self.playbackSession = playbackSession
         self.playbackRuntime = playbackRuntime
         self.playbackLauncher = playbackLauncher
@@ -1160,6 +1163,7 @@ final class TestCommandChannel {
             for key in keys {
                 defaults.removeObject(forKey: key)
             }
+            mediaLibraryUIState.viewMode = .grid
             var createdFolderNames: [String] = []
             if let folderName = request.args["libraryFolder"],
                folderName.isEmpty == false {
@@ -1808,6 +1812,7 @@ private enum TestCommandChannelBootstrap {
         do {
             let channel = try TestCommandChannel(
                 mediaLibrary: application.mediaLibraryViewModel,
+                mediaLibraryUIState: application.mediaLibraryUIState,
                 playbackSession: application.playbackSessionModel,
                 playbackRuntime: application.playbackRuntime,
                 playbackLauncher: application.playbackLauncher,
