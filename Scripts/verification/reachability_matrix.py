@@ -145,7 +145,6 @@ PROBE_COPY_LIMIT_BYTES = 600_000
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 LIBRARY_GRID_CARD_PREFIX = "MediaLibrary-grid-"
 LIBRARY_LIST_CONTAINER_IDENTIFIER = "FileBrowsing-FilesScreen-list"
-LIBRARY_VIEW_MODE_IDENTIFIER = "FileBrowsing-FilesScreen-viewMode"
 TEST_MEDIA = ROOT.parent / "TestMedia"
 FIXTURE_SOURCES = {
     "furyroad-stripped.mkv":
@@ -3495,12 +3494,19 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "The view-mode gesture changed the screen-local product binding.",
             )
-        self.controller(
-            "coordinateTap", "--identifier", LIBRARY_VIEW_MODE_IDENTIFIER,
-            "--normalized-x", "0.25", "--normalized-y", "0.5",
-            "--no-screenshot",
-        )
-        self.copy_probe("browser-view-mode-restored")
+        restored = self.app_command("setViewMode", mode="grid")
+        if restored.get("success") is not True:
+            raise InstrumentFault(
+                "library-view-mode-restore-failed",
+                {
+                    "context": presentation,
+                    "response": str(restored.get("error", restored))[:500],
+                    "diagnosis": (
+                        "the DEBUG view-mode restore did not answer success; "
+                        "the scenario cannot prove grid mode for later chains"
+                    ),
+                },
+            )
         self.require_library_grid_mode(
             presentation, chain="browser-view-mode-restore",
         )
