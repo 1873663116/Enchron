@@ -340,16 +340,16 @@ def scenario_run(root: Path) -> matrix.ReachabilityRun:
     run.service_receipts = {
         "webdav": {"address": "https://Mac-mini.local:8443/dav/regression/"}
     }
-    run.copy_probe = lambda label: []  # noqa: E731
-    run.wait_for_probe = lambda label, offset, needle, **kwargs: []  # noqa: E731
-    run.wait_for_identifier = lambda identifier, **kwargs: {  # noqa: E731
+    run.copy_probe = lambda label: []
+    run.wait_for_probe = lambda label, offset, needle, **kwargs: []
+    run.wait_for_identifier = lambda identifier, **kwargs: {
         "matchedElement": {"isHittable": True, "isEnabled": True, "value": ""}
     }
-    run.wait_for_any_identifier = lambda identifiers, **kwargs: (  # noqa: E731
+    run.wait_for_any_identifier = lambda identifiers, **kwargs: (
         "FileBrowsing-CertificateTrust-trust",
         {"matchedElement": {"isHittable": True, "isEnabled": True, "value": ""}},
     )
-    run.hold = lambda *args, **kwargs: None  # noqa: E731
+    run.hold = lambda *args, **kwargs: None
     return run
 
 
