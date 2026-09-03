@@ -573,6 +573,7 @@ final class TestCommandChannel {
 
     private let mediaLibrary: MediaLibraryViewModel
     private let mediaLibraryUIState: MediaLibraryUIState
+    private let fileBrowser: FileBrowsingViewModel
     private let playbackSession: PlaybackSessionModel
     private let playbackRuntime: PlaybackRuntime
     private let playbackLauncher: PlaybackLaunchCoordinator
@@ -596,6 +597,7 @@ final class TestCommandChannel {
     init(
         mediaLibrary: MediaLibraryViewModel,
         mediaLibraryUIState: MediaLibraryUIState,
+        fileBrowser: FileBrowsingViewModel,
         playbackSession: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         playbackLauncher: PlaybackLaunchCoordinator,
@@ -606,6 +608,7 @@ final class TestCommandChannel {
     ) throws {
         self.mediaLibrary = mediaLibrary
         self.mediaLibraryUIState = mediaLibraryUIState
+        self.fileBrowser = fileBrowser
         self.playbackSession = playbackSession
         self.playbackRuntime = playbackRuntime
         self.playbackLauncher = playbackLauncher
@@ -1181,6 +1184,11 @@ final class TestCommandChannel {
             for folder in folders.reversed() {
                 mediaLibrary.remove(folder)
             }
+            let savedSourceCount = fileBrowser.savedDataSources.count
+            for id in fileBrowser.savedDataSources.map(\.id) {
+                fileBrowser.removeDataSource(id: id)
+            }
+            let removedSavedSourceCount = savedSourceCount - fileBrowser.savedDataSources.count
             let keys = ProductStateResetReceipt.managedDefaultKeys(in: defaults)
             for key in keys {
                 defaults.removeObject(forKey: key)
@@ -1202,7 +1210,8 @@ final class TestCommandChannel {
                 id: request.id,
                 ok: true,
                 detail: "Removed \(references.count) library references, "
-                    + "removed \(folders.count) library folders, and "
+                    + "removed \(folders.count) library folders, "
+                    + "removed \(removedSavedSourceCount) saved remote sources, and "
                     + "deleted \(keys.count) managed defaults keys.",
                 payload: libraryState,
                 productStateResetReceipt: ProductStateResetReceipt(
@@ -1835,6 +1844,7 @@ private enum TestCommandChannelBootstrap {
             let channel = try TestCommandChannel(
                 mediaLibrary: application.mediaLibraryViewModel,
                 mediaLibraryUIState: application.mediaLibraryUIState,
+                fileBrowser: application.fileBrowsingViewModel,
                 playbackSession: application.playbackSessionModel,
                 playbackRuntime: application.playbackRuntime,
                 playbackLauncher: application.playbackLauncher,
