@@ -31,6 +31,7 @@ from harness import (
     RecoveryPolicy,
     wait_for,
 )
+from harness import lane_partition
 from harness import parallel
 from harness import pre_live
 
@@ -48,6 +49,11 @@ PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
+
+DEFERRED_TO_DEVICE_REASON = (
+    "Opening media with a synthetic tap hangs the simulator's app main thread, "
+    "so this cell is measured on the device lane."
+)
 
 PACING_POLL_SLACK_SECONDS = 5.0
 
@@ -1088,6 +1094,7 @@ class ReachabilityRun:
         self.driven_cells: set[tuple[str, str]] = set()
         self.tapped_cells: set[tuple[str, str]] = set()
         self.silent_taps: list[dict[str, Any]] = []
+        self.deferred_opens: list[dict[str, Any]] = []
         self.copy_timings: list[dict[str, Any]] = []
         self.session_id: str | None = None
         self.evidence_session: str | None = None
@@ -2312,6 +2319,20 @@ class ReachabilityRun:
             "evidence": self.events[-1]["evidence"] if self.events else None,
         })
 
+    def defer_playback_open(
+        self, presentation: str, operation_id: str, identifier: str
+    ) -> dict[str, Any]:
+        cell = self.cells.get((presentation, operation_id))
+        if cell is not None:
+            cell["deferredToLane"] = "device"
+            cell["reason"] = DEFERRED_TO_DEVICE_REASON
+        self.deferred_opens.append({
+            "context": presentation,
+            "operation": operation_id,
+            "identifier": identifier,
+        })
+        return {"success": True, "deferredToLane": "device", "identifier": identifier}
+
     def tap(
         self,
         presentation: str,
@@ -2321,6 +2342,8 @@ class ReachabilityRun:
         index: int | None = None,
     ) -> dict[str, Any]:
         operation_id = operation_id or f"accessibility:{identifier}"
+        if lane_partition.tap_deferred_to_device(self.lane, identifier):
+            return self.defer_playback_open(presentation, operation_id, identifier)
         if operation_id in self.operations:
             self.tapped_cells.add((presentation, operation_id))
         target_arguments = ["--identifier", identifier]
@@ -7807,6 +7830,7 @@ class ReachabilityRun:
             "instrumentFaultReport": self.policy.fault_report(),
             "channelFailures": self.channel_failures,
             "silentTaps": self.silent_taps,
+            "deferredOpens": self.deferred_opens,
             "copyTimings": self.copy_timings,
             "serviceHosts": getattr(self, "service_hosts", {}),
             "serviceReceipts": getattr(self, "service_receipts", {}),

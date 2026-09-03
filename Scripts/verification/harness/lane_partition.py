@@ -39,3 +39,25 @@ def partition(operations: Iterable[Mapping[str, object]]) -> dict[str, list[str]
     for operation in operations:
         lanes[lane_for(operation)].append(str(operation["id"]))
     return lanes
+
+
+PLAYBACK_OPENING_IDENTIFIER_PREFIXES = (
+    "MediaLibrary-grid-video-",
+    "FileBrowsing-grid-video-",
+)
+PLAYBACK_OPENING_IDENTIFIERS = frozenset(
+    {"Emby-Detail-Resume", "Emby-Detail-PlayFromBeginning"}
+)
+
+
+def identifier_opens_playback(identifier: str) -> bool:
+    if identifier in PLAYBACK_OPENING_IDENTIFIERS:
+        return True
+    return any(
+        identifier.startswith(prefix)
+        for prefix in PLAYBACK_OPENING_IDENTIFIER_PREFIXES
+    )
+
+
+def tap_deferred_to_device(lane: str, identifier: str) -> bool:
+    return lane == SIMULATOR and identifier_opens_playback(identifier)

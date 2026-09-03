@@ -93,5 +93,28 @@ class RejectsMisclassification(unittest.TestCase):
         self.assertEqual(lp.lane_for(op), lp.DEVICE)
 
 
+
+HUNG_IDENTIFIER = "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
+
+
+class OpeningIdentifierDecision(unittest.TestCase):
+    def test_the_identifier_that_hung_the_simulator_is_recognised(self) -> None:
+        self.assertTrue(lp.identifier_opens_playback(HUNG_IDENTIFIER))
+
+    def test_file_browser_and_emby_openers_are_recognised(self) -> None:
+        self.assertTrue(lp.identifier_opens_playback("FileBrowsing-grid-video-clip.mkv"))
+        self.assertTrue(lp.identifier_opens_playback("Emby-Detail-Resume"))
+        self.assertTrue(lp.identifier_opens_playback("Emby-Detail-PlayFromBeginning"))
+
+    def test_browse_controls_do_not_open_playback(self) -> None:
+        for identifier in ("MediaLibrary-Manage-newFolder", "MediaLibrary-Breadcrumb-current", "Emby-Detail-Version"):
+            self.assertFalse(lp.identifier_opens_playback(identifier), identifier)
+
+    def test_only_the_simulator_defers_the_open(self) -> None:
+        self.assertTrue(lp.tap_deferred_to_device(lp.SIMULATOR, HUNG_IDENTIFIER))
+        self.assertFalse(lp.tap_deferred_to_device(lp.DEVICE, HUNG_IDENTIFIER))
+        self.assertFalse(lp.tap_deferred_to_device(lp.SIMULATOR, "MediaLibrary-Manage-newFolder"))
+
+
 if __name__ == "__main__":
     unittest.main()

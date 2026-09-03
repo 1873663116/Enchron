@@ -103,6 +103,7 @@ class DrivenCellRegistrationTests(unittest.TestCase):
     def test_complete_three_level_evidence_registers_the_cell_as_driven(self) -> None:
         operation = "accessibility:target"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.operations = {operation: {}}
         run.driven_cells = set()
         run.segment = None
@@ -131,6 +132,7 @@ class DrivenCellRegistrationTests(unittest.TestCase):
     def test_show_controls_uses_the_actual_playback_context(self) -> None:
         operation = "command:toggleControls"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "resume", "context": "main-window-browser"}
         run.cells = {("window", operation): {}}
         run.app_command = Mock(return_value={"success": True})
@@ -203,6 +205,7 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
     def test_immersive_menu_refreshes_controls_before_every_family(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/menu.json"}]
         run.show_controls = Mock()
         run.await_controls = Mock(return_value=True)
@@ -218,6 +221,7 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
     def test_segmented_menu_drives_only_its_planned_families(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {
             "context": "panorama",
             "decisions": [
@@ -310,6 +314,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         placements, with a probe journal that names the delivery twice.
         """
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/063-tap.json"}]
         run.show_controls = Mock()
         run.tap = Mock(return_value={"success": True})
@@ -329,6 +334,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_an_open_the_panel_never_reported_is_not_credited(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/063-tap.json"}]
         run.show_controls = Mock()
         run.tap = Mock(return_value={"success": True})
@@ -354,6 +360,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         equivalent through the identical parent, was reachable.
         """
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = None
         run.events = [{"evidence": "raw/top-menu.json"}]
         run.tap_with_fresh_controls = Mock(return_value=({"success": True}, []))
@@ -374,6 +381,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_a_segment_drives_only_the_top_menu_families_it_plans(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {
             "context": "portal",
             "decisions": [
@@ -410,6 +418,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_remote_source_selection_skips_the_delete_child(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/source.json"}]
         run.copy_probe = Mock(side_effect=[
             [],
@@ -446,6 +455,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_docked_content_collects_menu_facts_before_removing_expanded_media(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         events: list[str] = []
         run.enter_docked_playback = Mock(return_value=True)
         run.player_panel_menu_scenario = Mock(
@@ -463,6 +473,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         self,
     ) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/exit.json"}]
         run.show_controls = Mock(return_value={"success": True})
         run.wait_for_identifier_value = Mock(side_effect=[
@@ -527,6 +538,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_tap_without_delivery_evaluation_is_not_a_driven_defect(self) -> None:
         operation = "accessibility:Emby-Navigation-Tab"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.operations = {operation: {}}
         run.driven_cells = set()
         run.tapped_cells = set()
@@ -562,6 +574,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_tap_passes_an_explicit_index_to_the_controller(self) -> None:
         operation = "accessibility:Settings-category-{item.id}"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.operations = {operation: {}}
         run.driven_cells = set()
         run.tapped_cells = set()
@@ -579,6 +592,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         }
         run.events = [{"evidence": "raw/indexed-tap.json"}]
         run.silent_taps = []
+        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={"success": False})
 
@@ -607,12 +621,14 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         segment and the evidence files record the answer, never the request.
         """
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.operations = {}
         run.driven_cells = set()
         run.tapped_cells = set()
         run.cells = {}
         run.events = [{"evidence": "raw/107-tap.json"}]
         run.silent_taps = []
+        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={
             "success": False,
@@ -639,12 +655,14 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         being dropped.
         """
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.operations = {}
         run.driven_cells = set()
         run.tapped_cells = set()
         run.cells = {}
         run.events = [{"evidence": "raw/108-tap.json"}]
         run.silent_taps = []
+        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={
             "success": True,
@@ -667,12 +685,14 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_a_tap_that_reached_an_enabled_control_is_not_recorded_as_silent(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.operations = {}
         run.driven_cells = set()
         run.tapped_cells = set()
         run.cells = {}
         run.events = [{"evidence": "raw/064-tap.json"}]
         run.silent_taps = []
+        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={
             "success": True,
@@ -690,6 +710,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_probe_precedes_control_reveal_and_immediate_tap(self) -> None:
         actions: list[str] = []
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.copy_probe = Mock(
             side_effect=lambda _: actions.append("probe") or ["before"]
         )
@@ -742,6 +763,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_reset_requests_a_deterministic_library_folder_fixture(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.app_command = Mock(return_value={"success": True})
 
         result = run.reset_reachability_state()
@@ -755,6 +777,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_segment_probe_archive_turns_a_hung_listing_into_a_typed_fault(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.lane = "device"
             run.segment = {"id": "panorama"}
             run.channel_failures = []
             run.events = []
@@ -787,6 +810,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_probe_clear_retries_a_transient_destination_exists_error(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.lane = "device"
             run.segment = {"id": "window-dv-format"}
             run.events = []
             run.channel_failures = []
@@ -816,6 +840,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_a_controller_transport_timeout_is_a_typed_instrument_fault(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.lane = "device"
             run.segment = {"id": "panorama"}
             run.channel_failures = []
             run.events = []
@@ -845,6 +870,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_window_seek_precedes_transport_controls(self) -> None:
         actions: list[str] = []
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/controls.json"}]
         run.open_media = Mock(return_value={"success": True})
         run.ensure_window_projection = Mock(return_value=True)
@@ -870,6 +896,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_menu_listing_retries_one_file_node_transport_failure(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/menu-command.json"}]
         run.delivered = Mock()
         run.app_command = Mock(side_effect=[
@@ -896,6 +923,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
     def test_open_media_retries_import_and_waits_for_the_card_before_label_tap(self) -> None:
         actions: list[str] = []
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [{"evidence": "raw/open-media.json"}]
         run.relaunch = Mock(side_effect=lambda: actions.append("relaunch"))
         run.tap = Mock(side_effect=lambda *_: actions.append("files") or {"success": True})
@@ -948,6 +976,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_segment_open_media_queues_import_without_needing_its_payload(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "docked-01-panel", "context": "docked"}
         run.events = [{"evidence": "raw/deferred-evidence-replay.json"}]
         run.relaunch = Mock()
@@ -979,6 +1008,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
     def test_docked_route_records_window_owned_top_actions_in_window_context(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = [
             {"evidence": "raw/route-action.json"},
             {"evidence": "raw/spatial-state.json"},
@@ -1024,6 +1054,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 class DeferredSegmentEvidenceTests(unittest.TestCase):
     def test_system_alert_field_uses_debug_binding_without_claiming_a_target(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.mark_driven = Mock()
         run.app_command = Mock(return_value={"success": True})
         run.copy_probe = Mock(side_effect=[
@@ -1052,6 +1083,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_deferred_probe_markers_never_read_or_clear_the_device_file(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "portal-issues", "context": "portal"}
         run.events = []
         run.deferred_probe_requirements = []
@@ -1104,6 +1136,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
     def test_bounded_segment_probe_uses_one_device_copy(self) -> None:
         with TemporaryDirectory() as directory:
             run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+            run.lane = "device"
             run.raw = Path(directory)
             run.events = []
             run.channel_failures = []
@@ -1166,6 +1199,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
     def test_segment_probe_reads_are_deferred_without_devicectl(self) -> None:
         operation = "accessibility:PlayerPanel-button-forward"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "docked-transport", "context": "docked"}
         run.sequence = 4
         run.events = []
@@ -1221,6 +1255,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_segment_app_command_defers_its_response_and_tags_the_session(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "panorama", "context": "panorama"}
         run.session_id = "session-10"
         run.evidence_session = None
@@ -1253,6 +1288,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_setup_app_command_does_not_register_an_unrelated_context(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "resume", "context": "main-window-browser"}
         run.session_id = "session-11"
         run.evidence_session = None
@@ -1308,6 +1344,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_ensure_session_retires_a_stale_runner_before_giving_up(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = []
         run.session_id = None
         run.channel_failures = [{"action": "ensure-session", "error": "timed out"}]
@@ -1331,6 +1368,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_retiring_the_runner_clears_what_blocks_the_retry(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = []
         run.channel_failures = [{"action": "ensure-session", "error": "timed out"}]
         run.tools = immediate_tools()
@@ -1347,6 +1385,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_ensure_session_gives_up_when_the_clean_device_also_fails(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = []
         run.session_id = None
         run.channel_failures = []
@@ -1399,6 +1438,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def _timing_out_run(self, raw: Path):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.sequence = 0
         run.segment = None
         run.sensitive_values = ()
@@ -1535,6 +1575,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_observe_ignores_an_operation_this_context_cannot_prove(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "window-01", "context": "window"}
         run.operations = {
             "accessibility:Emby-Navigation-Tab": {
@@ -1569,6 +1610,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_marking_outside_a_derived_context_is_counted_not_raised(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.cells = {}
         run.out_of_context_observations = {}
 
@@ -1587,6 +1629,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_marking_inside_the_derived_context_still_records(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         cell = {
             "existsInHierarchy": False, "reportsHittable": False,
             "applicationReceived": False, "verdict": "known-defect",
@@ -1605,6 +1648,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_a_menu_whose_parent_is_out_of_context_delivers_nothing(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.cells = {}
         run.out_of_context_observations = {}
 
@@ -1624,6 +1668,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def _copying_run(self):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = []
         run.direct_transfer_calls = 0
         run.copy_timings = []
@@ -1711,6 +1756,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_a_summon_waits_for_the_panel_to_reach_the_hierarchy(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         absent = {"success": True, "hierarchy": "identifier: 'PlayerUI-play'"}
         present = {
             "success": True,
@@ -1723,6 +1769,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_a_summon_that_never_arrives_is_reported(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.controller = Mock(return_value={
             "success": True, "hierarchy": "identifier: 'PlayerUI-play'",
         })
@@ -1734,6 +1781,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_transport_accepts_the_panel_s_own_spelling_of_the_fact(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.copy_probe = Mock(side_effect=[
             [],
             ["reachability playerPanel delivered action=rewind"],
@@ -1761,6 +1809,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = None
         run.session_id = None
         run.operations = {}
@@ -1784,6 +1833,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_app_command_gives_up_after_the_backoff_is_spent(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = None
         run.session_id = None
         run.operations = {}
@@ -1807,6 +1857,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_app_command_does_not_retry_a_product_failure(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = None
         run.session_id = None
         run.operations = {}
@@ -1826,6 +1877,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
     def test_app_command_ignores_an_operation_owned_by_another_context(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "resume", "context": "main-window-browser"}
         run.session_id = "session-12"
         run.evidence_session = None
@@ -1845,6 +1897,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         operation = "accessibility:Navigation-Ornament-tab-files"
         hierarchy = "identifier: 'Navigation-Ornament-tab-files'"
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "browser", "context": "main-window-browser"}
         run.last_controller_document = {"success": True, "hierarchy": hierarchy}
         run.events = [{"evidence": "raw/004-tap.json"}]
@@ -2074,6 +2127,7 @@ class ProbeStatusRetryTests(unittest.TestCase):
 
     def run_with(self, answers: list[dict]) -> tuple[matrix.ReachabilityRun, Mock]:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.events = []
         run.app_command = Mock(side_effect=answers)
         run.ensure_session = Mock(return_value=True)
@@ -2680,10 +2734,12 @@ class DetachedRunTests(unittest.TestCase):
 class CompletionHonestyTests(unittest.TestCase):
     def test_a_cell_the_run_never_visited_denies_the_complete_status(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.output = Path(self.enterDirectory())
         run.arguments = Mock(contexts=list(matrix.PROOF_CONTEXTS))
         run.events = []
         run.silent_taps = []
+        run.deferred_opens = []
         run.copy_timings = []
         run.channel_failures = []
         arm_recovery(run)
@@ -2723,6 +2779,7 @@ class CompletionHonestyTests(unittest.TestCase):
 class WaitExpiryVerdictTests(unittest.TestCase):
     def waiting_run(self, directory: Path) -> matrix.ReachabilityRun:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.raw = directory
         run.sequence = 0
         run.segment = None
@@ -2879,6 +2936,7 @@ class WaitExpiryVerdictTests(unittest.TestCase):
 class SimulatorLaneFixesTests(unittest.TestCase):
     def test_smb_guest_dismisses_save_password_in_both_locales(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.tap = Mock(return_value={"success": True})
         run.copy_probe = Mock(return_value=[])
         run.wait_for_probe = Mock(return_value=["reachability files delivered action=sourceConnection.smb.guest"])
@@ -2933,6 +2991,7 @@ class SimulatorLaneFixesTests(unittest.TestCase):
 
     def test_settings_action_selects_storage_privacy_first(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         order = []
         run.relaunch = Mock(side_effect=lambda: order.append("relaunch"))
         run.tap = Mock(side_effect=lambda *a, **k: order.append(f"tap:{a[1] if len(a)>1 else k.get('identifier','')}") or {"success": True})
@@ -2954,6 +3013,7 @@ class SimulatorLaneFixesTests(unittest.TestCase):
 
     def test_rename_press_handles_list_mode_fallback(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.app_command = Mock(return_value={"success": True})
         run.tap = Mock(return_value={"success": True})
         run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
@@ -2971,6 +3031,7 @@ class SimulatorLaneFixesTests(unittest.TestCase):
 
     def test_emby_recovery_handles_unauthenticated_start(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.wait_for_identifier = Mock(return_value={"matchedElement": {"identifier": "Emby-Connection-Address"}})
         run.copy_probe = Mock(return_value=[])
         run.controller = Mock(return_value={"success": True, "payload": ["digest"]})
@@ -2982,6 +3043,7 @@ class SimulatorLaneFixesTests(unittest.TestCase):
 
     def test_source_sidebar_add_uses_debug_fallback(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.tap = Mock(side_effect=[{"success": False}, {"success": True}, {"success": True}])
         run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
         run.copy_probe = Mock(return_value=["reachability files delivered action=sidebar.add.local"])
@@ -3082,6 +3144,7 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
         import uuid as uuid_module
         fixed = uuid_module.UUID("11111111-2222-3333-4444-555555555555")
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
         run.segment = {"id": "window-01", "context": "window", "scenarios": [], "decisions": []}
         run.arguments = SimpleNamespace(keep_session=False, reuse_session=False, execution_input=Path("/tmp/x"), output_directory=Path(TemporaryDirectory().name), contexts=["window"])
         run.session_id = "runner-1"
