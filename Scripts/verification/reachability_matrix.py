@@ -31,6 +31,7 @@ from harness import (
     RecoveryPolicy,
     wait_for,
 )
+from harness import pre_live
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
@@ -7660,6 +7661,11 @@ class ReachabilityRun:
         return 0 if status == "complete" else 2
 
     def run(self) -> int:
+        if not pre_live.pre_live_disabled():
+            failed = pre_live.failing_pre_live_checks()
+            if failed:
+                sys.stderr.write(pre_live.refusal_reason(failed) + "\n")
+                return 2
         if self._service_preflight_failed():
             return self.finish("service-unavailable")
         if self.segment is not None:
