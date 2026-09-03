@@ -592,7 +592,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         }
         run.events = [{"evidence": "raw/indexed-tap.json"}]
         run.silent_taps = []
-        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={"success": False})
 
@@ -628,7 +627,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.cells = {}
         run.events = [{"evidence": "raw/107-tap.json"}]
         run.silent_taps = []
-        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={
             "success": False,
@@ -662,7 +660,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.cells = {}
         run.events = [{"evidence": "raw/108-tap.json"}]
         run.silent_taps = []
-        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={
             "success": True,
@@ -692,7 +689,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
         run.cells = {}
         run.events = [{"evidence": "raw/064-tap.json"}]
         run.silent_taps = []
-        run.deferred_opens = []
         run.copy_timings = []
         run.controller = Mock(return_value={
             "success": True,
@@ -2619,6 +2615,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 {
                     "id": "window-a",
                     "context": "main-window-browser",
+                    "lane": "device",
                     "expectedMaximumSteps": 100,
                     "scenarios": ["sources-smb"],
                     "decisions": [{
@@ -2629,6 +2626,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 {
                     "id": "window-a",
                     "context": "wrong",
+                    "lane": "device",
                     "expectedMaximumSteps": 100,
                     "scenarios": ["missing"],
                     "decisions": [{
@@ -2645,6 +2643,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 "accessibility:candidate": {"main-window-browser"},
             },
             scenario_names={"sources-smb"},
+            scenario_lanes={},
         )
 
         self.assertEqual(
@@ -2665,6 +2664,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 {
                     "id": "docked-too-large",
                     "context": "docked",
+                    "lane": "device",
                     "expectedMaximumSteps": 101,
                     "scenarios": ["docked-placement"],
                     "decisions": [{
@@ -2679,6 +2679,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
             plan,
             operation_contexts={"accessibility:candidate": {"docked"}},
             scenario_names={"docked-placement"},
+            scenario_lanes={},
         )
 
         self.assertEqual(
@@ -2692,6 +2693,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
             "segments": [{
                 "id": "wrong-host",
                 "context": "docked",
+                "lane": "device",
                 "expectedMaximumSteps": 20,
                 "scenarios": ["docked-placement"],
                 "decisions": [{
@@ -2707,6 +2709,7 @@ class SegmentedDeliveryTests(unittest.TestCase):
                 "accessibility:browser-only": {"main-window-browser"},
             },
             scenario_names={"docked-placement"},
+            scenario_lanes={},
         )
 
         self.assertEqual(
@@ -2739,7 +2742,6 @@ class CompletionHonestyTests(unittest.TestCase):
         run.arguments = Mock(contexts=list(matrix.PROOF_CONTEXTS))
         run.events = []
         run.silent_taps = []
-        run.deferred_opens = []
         run.copy_timings = []
         run.channel_failures = []
         arm_recovery(run)

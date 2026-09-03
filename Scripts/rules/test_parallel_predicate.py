@@ -84,49 +84,58 @@ class SerialRunRefusalTests(unittest.TestCase):
         self.execution_input = {
             "buildIdentity": {"laneArtifacts": [{"lane": "simulator"}, {"lane": "device"}]}
         }
-        self.campaign = {
-            "assignments": [
+        self.campaign = {"reachable": {"simulator": True, "device": True}}
+        self.assignments = [
+            {"segment": "probe-window", "target": "device"},
+            {"segment": "probe-main-window-browser", "target": "simulator"},
+        ]
+
+    def refused(self, campaign, token, this_segment):
+        return parallel.serial_run_refused(
+            self.execution_input, campaign, self.assignments, token, this_segment
+        )
+
+    def test_hand_run_of_a_parallelizable_segment_is_refused(self) -> None:
+        self.assertIsNotNone(self.refused(self.campaign, None, "probe-window"))
+
+    def test_launcher_token_is_allowed(self) -> None:
+        self.assertIsNone(self.refused(self.campaign, "abc", "probe-window"))
+
+    def test_no_campaign_declared_is_allowed(self) -> None:
+        self.assertIsNone(self.refused(None, None, "probe-window"))
+
+    def test_segment_outside_the_plan_is_allowed(self) -> None:
+        self.assertIsNone(self.refused(self.campaign, None, "probe-docked"))
+
+    def test_unreachable_second_lane_is_allowed(self) -> None:
+        campaign = {"reachable": {"simulator": True, "device": False}}
+        self.assertIsNone(self.refused(campaign, None, "probe-window"))
+
+    def test_a_campaign_carrying_assignments_is_rejected(self) -> None:
+        stale = dict(self.campaign, assignments=self.assignments)
+        with self.assertRaisesRegex(ValueError, "derived from the segment plan"):
+            self.refused(stale, None, "probe-window")
+
+
+class AssignmentsFromPlanTests(unittest.TestCase):
+    def test_each_segment_is_assigned_to_its_planned_lane(self) -> None:
+        plan = {
+            "segments": [
+                {"id": "probe-window", "lane": "device"},
+                {"id": "probe-main-window-browser", "lane": "simulator"},
+            ]
+        }
+        self.assertEqual(
+            parallel.assignments_from_plan(plan),
+            [
                 {"segment": "probe-window", "target": "device"},
                 {"segment": "probe-main-window-browser", "target": "simulator"},
             ],
-            "reachable": {"simulator": True, "device": True},
-        }
-
-    def test_hand_run_of_a_parallelizable_segment_is_refused(self) -> None:
-        reason = parallel.serial_run_refused(
-            self.execution_input, self.campaign, token=None, this_segment="probe-window"
-        )
-        self.assertIsNotNone(reason)
-
-    def test_launcher_token_is_allowed(self) -> None:
-        self.assertIsNone(
-            parallel.serial_run_refused(
-                self.execution_input, self.campaign, token="abc", this_segment="probe-window"
-            )
         )
 
-    def test_no_campaign_declared_is_allowed(self) -> None:
-        self.assertIsNone(
-            parallel.serial_run_refused(
-                self.execution_input, None, token=None, this_segment="probe-window"
-            )
-        )
-
-    def test_segment_outside_the_campaign_is_allowed(self) -> None:
-        self.assertIsNone(
-            parallel.serial_run_refused(
-                self.execution_input, self.campaign, token=None, this_segment="probe-docked"
-            )
-        )
-
-    def test_unreachable_second_lane_is_allowed(self) -> None:
-        campaign = dict(self.campaign)
-        campaign["reachable"] = {"simulator": True, "device": False}
-        self.assertIsNone(
-            parallel.serial_run_refused(
-                self.execution_input, campaign, token=None, this_segment="probe-window"
-            )
-        )
+    def test_a_segment_without_a_lane_cannot_be_assigned(self) -> None:
+        with self.assertRaises(KeyError):
+            parallel.assignments_from_plan({"segments": [{"id": "probe-window"}]})
 
 
 if __name__ == "__main__":

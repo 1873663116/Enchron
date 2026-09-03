@@ -82,6 +82,28 @@ class CampaignLauncherTests(unittest.TestCase):
             run_campaign.launch(TWO_LANE, one_lane, REACHABLE, lambda *a: 0)
 
 
+class ExtraArgsTests(unittest.TestCase):
+    def test_extra_args_follow_the_segment_context(self) -> None:
+        plan = {
+            "segments": [
+                {"id": "probe-main-window-browser", "context": "main-window-browser"},
+                {"id": "probe-main-window-browser-playback", "context": "main-window-browser"},
+                {"id": "probe-window", "context": "window"},
+            ]
+        }
+        by_segment = run_campaign.extra_args_by_segment(
+            plan, {"main-window-browser": ["--emby-credentials", "/creds.json"]}
+        )
+        self.assertEqual(
+            by_segment,
+            {
+                "probe-main-window-browser": ["--emby-credentials", "/creds.json"],
+                "probe-main-window-browser-playback": ["--emby-credentials", "/creds.json"],
+                "probe-window": [],
+            },
+        )
+
+
 class SegmentCommandTests(unittest.TestCase):
     def test_command_carries_execution_input_and_segment(self) -> None:
         from harness.campaign import segment_command

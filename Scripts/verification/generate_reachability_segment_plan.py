@@ -2,18 +2,26 @@
 
 """Generate the reachability matrix's segment plan from the inventory.
 
-A segment plan says which proof contexts each run drives, which scenarios it
-runs, and which cells it decides. Hand-writing it rots: the last one committed
-covered 78 of the 221 cells the inventory now derives and named five operations
-that have since been renamed, so the matrix could not be driven to completion at
-all. The inventory is generated from product source on every run, so the plan
-that partitions it should be generated too.
+A segment plan says which proof contexts each run drives, which lane drives
+it, which scenarios it runs, and which cells it decides. Hand-writing it rots:
+the last one committed covered 78 of the 221 cells the inventory now derives
+and named five operations that have since been renamed, so the matrix could
+not be driven to completion at all. The inventory is generated from product
+source on every run, so the plan that partitions it should be generated too.
+
+The lane follows the scenarios. Opening media with a synthetic tap starves the
+simulator's app main thread, so every scenario whose code reaches such a tap
+(`reachability_matrix.SCENARIO_LANES`, derived from the harness source) runs
+on the device lane; the browsing surface splits into a simulator segment for
+the rest and a device segment for the openers. Player presentations always
+need the device.
 
 Two modes, because only half the plan can be derived without driving anything:
 
-    probe   One segment per proof context, running every scenario mapped to that
-            context, declaring every cell the inventory derives for it. Its
-            purpose is to record what each scenario actually drives.
+    probe   One segment per proof context and lane, running every scenario
+            mapped to it, declaring every cell the inventory derives for it
+            that the lane can drive. Its purpose is to record what each
+            scenario actually drives.
 
     final   Reads the probe's segment results and emits a plan whose decisions
             are the cells that were driven, each assigned to exactly one
@@ -35,6 +43,7 @@ import sys
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts/verification"))
 
+from harness import lane_partition  # noqa: E402
 import reachability_matrix as matrix  # noqa: E402
 
 INVENTORY = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json"
@@ -49,6 +58,17 @@ CONTEXT_PREFIXES = (
 """Longest prefix wins; anything unmatched belongs to the browsing surface."""
 
 BROWSER_CONTEXT = "main-window-browser"
+BROWSER_SEGMENT = "probe-main-window-browser"
+BROWSER_PLAYBACK_SEGMENT = "probe-main-window-browser-playback"
+DOCKED_SEGMENT = "probe-docked"
+DOCKED_RESET_SEGMENT = "probe-docked-reset-media-information"
+DOCKED_RESET_SCENARIO = "docked-reset-media-information"
+DOCKED_RESET_OPERATIONS = {
+    "accessibility:PlayerPanel-button-settings",
+    "accessibility:PlayerPanel-DockedPlacement-reset",
+    "accessibility:PlayerPanel-media-information",
+    "accessibility:PlayerPanel-media-information-close",
+}
 
 
 def scenario_context(scenario: str) -> str:
@@ -58,12 +78,16 @@ def scenario_context(scenario: str) -> str:
     return BROWSER_CONTEXT
 
 
-def inventory_cells() -> dict[str, set[str]]:
+def inventory_operations() -> dict[str, dict]:
     document = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    return {str(operation["id"]): operation for operation in document["operations"]}
+
+
+def inventory_cells() -> dict[str, set[str]]:
     cells: dict[str, set[str]] = {}
-    for operation in document["operations"]:
+    for identifier, operation in inventory_operations().items():
         for context in matrix.product_proof_contexts(operation):
-            cells.setdefault(str(context), set()).add(str(operation["id"]))
+            cells.setdefault(str(context), set()).add(identifier)
     return cells
 
 
@@ -74,81 +98,108 @@ def scenarios_by_context() -> dict[str, list[str]]:
     return grouped
 
 
+def segment(
+    identifier: str,
+    context: str,
+    scenarios: list[str],
+    operations: list[str],
+    steps: int = 100,
+) -> dict:
+    return {
+        "id": identifier,
+        "context": context,
+        "lane": matrix.segment_lane(context, scenarios),
+        "expectedMaximumSteps": steps,
+        "scenarios": scenarios,
+        "decisions": [
+            {"context": context, "operation": operation}
+            for operation in operations
+        ],
+    }
+
+
+def browser_segments(
+    scenarios: list[str], operations: list[str], by_id: dict[str, dict]
+) -> list[dict]:
+    browse = [
+        name for name in scenarios
+        if matrix.SCENARIO_LANES[name] == lane_partition.SIMULATOR
+    ]
+    playback = [
+        name for name in scenarios
+        if matrix.SCENARIO_LANES[name] == lane_partition.DEVICE
+    ]
+    browse_operations = [
+        operation for operation in operations
+        if not lane_partition.opens_playback(by_id[operation])
+    ]
+    segments = []
+    if browse and browse_operations:
+        segments.append(
+            segment(BROWSER_SEGMENT, BROWSER_CONTEXT, browse, browse_operations)
+        )
+    if playback:
+        segments.append(
+            segment(BROWSER_PLAYBACK_SEGMENT, BROWSER_CONTEXT, playback, operations)
+        )
+    return segments
+
+
+def docked_segments(scenarios: list[str], operations: list[str]) -> list[dict]:
+    main_operations = [op for op in operations if op not in DOCKED_RESET_OPERATIONS]
+    reset_operations = [op for op in operations if op in DOCKED_RESET_OPERATIONS]
+    main_scenarios = [name for name in scenarios if name != DOCKED_RESET_SCENARIO]
+    segments = []
+    if main_operations and main_scenarios:
+        segments.append(
+            segment(DOCKED_SEGMENT, "docked", main_scenarios, main_operations)
+        )
+    if reset_operations and DOCKED_RESET_SCENARIO in scenarios:
+        segments.append(
+            segment(
+                DOCKED_RESET_SEGMENT,
+                "docked",
+                [DOCKED_RESET_SCENARIO],
+                reset_operations,
+            )
+        )
+    return segments
+
+
 def probe_plan() -> dict:
+    by_id = inventory_operations()
     cells = inventory_cells()
     grouped = scenarios_by_context()
-    fault_ops = {
-        "accessibility:PlayerPanel-button-settings",
-        "accessibility:PlayerPanel-DockedPlacement-reset",
-        "accessibility:PlayerPanel-media-information",
-        "accessibility:PlayerPanel-media-information-close",
-    }
-    segments = []
+    segments: list[dict] = []
     for context, scenarios in sorted(grouped.items()):
         operations = sorted(cells.get(context, ()))
         if not operations or not scenarios:
             continue
         if context == "docked":
-            main_ops = [op for op in operations if op not in fault_ops]
-            fault_decisions = [op for op in operations if op in fault_ops]
-            docked_scenarios = [s for s in scenarios if s != "docked-reset-media-information"]
-            fault_scenarios = ["docked-reset-media-information"]
-            if main_ops and docked_scenarios:
-                segments.append({
-                    "id": "probe-docked",
-                    "context": context,
-                    "expectedMaximumSteps": 100,
-                    "scenarios": docked_scenarios,
-                    "decisions": [
-                        {"context": context, "operation": operation}
-                        for operation in main_ops
-                    ],
-                })
-            if fault_decisions and fault_scenarios:
-                segments.append({
-                    "id": "probe-docked-reset-media-information",
-                    "context": context,
-                    "expectedMaximumSteps": 100,
-                    "scenarios": fault_scenarios,
-                    "decisions": [
-                        {"context": context, "operation": operation}
-                        for operation in fault_decisions
-                    ],
-                })
-            continue
-        segments.append({
-            "id": f"probe-{context}",
-            "context": context,
-            "expectedMaximumSteps": 100,
-            "scenarios": scenarios,
-            "decisions": [
-                {"context": context, "operation": operation}
-                for operation in operations
-            ],
-        })
-    ordered = []
-    for seg in segments:
-        if seg["id"] == "probe-docked-reset-media-information":
-            continue
-        ordered.append(seg)
-        if seg["id"] == "probe-docked":
-            for cand in segments:
-                if cand["id"] == "probe-docked-reset-media-information":
-                    ordered.append(cand)
-    return {"segments": ordered}
+            segments.extend(docked_segments(scenarios, operations))
+        elif context == BROWSER_CONTEXT:
+            segments.extend(browser_segments(scenarios, operations, by_id))
+        else:
+            segments.append(segment(f"probe-{context}", context, scenarios, operations))
+    return {"segments": segments}
 
 
-def driven_by_segment(results: list[Path]) -> dict[str, set[tuple[str, str]]]:
-    driven: dict[str, set[tuple[str, str]]] = {}
+def probe_results(results: list[Path]) -> dict[str, dict]:
+    probed: dict[str, dict] = {}
     for path in results:
         document = json.loads(path.read_text(encoding="utf-8"))
         name = str(document.get("segment") or path.stem)
-        driven[name] = {
-            (str(cell["context"]), str(cell["operation"]))
-            for cell in document.get("drivenCells", [])
-            if isinstance(cell, dict)
+        planned = document["segmentPlan"]
+        probed[name] = {
+            "context": str(planned["context"]),
+            "scenarios": [str(value) for value in planned["scenarios"]],
+            "driven": {
+                (str(cell["context"]), str(cell["operation"]))
+                for cell in document.get("drivenCells", [])
+                if isinstance(cell, dict)
+            },
         }
-    return driven
+    return probed
 
 
 def final_plan(results: list[Path], steps: int) -> tuple[dict, list[tuple[str, str]]]:
@@ -156,39 +207,40 @@ def final_plan(results: list[Path], steps: int) -> tuple[dict, list[tuple[str, s
     wanted = {(context, operation)
               for context, operations in cells.items()
               for operation in operations}
-    driven = driven_by_segment(results)
     claimed: set[tuple[str, str]] = set()
     segments = []
-    for name, keys in sorted(driven.items()):
-        context = name.removeprefix("probe-")
-        decisions = sorted((keys & wanted) - claimed)
+    for name, probed in sorted(probe_results(results).items()):
+        decisions = sorted((probed["driven"] & wanted) - claimed)
         if not decisions:
             continue
         claimed.update(decisions)
-        segments.append({
-            "id": name.removeprefix("probe-") + "-driven",
-            "context": context,
-            "expectedMaximumSteps": steps,
-            "scenarios": scenarios_by_context().get(context, []),
-            "decisions": [
-                {"context": cell_context, "operation": operation}
-                for cell_context, operation in decisions
-            ],
-        })
+        context = probed["context"]
+        entry = segment(
+            name.removeprefix("probe-") + "-driven",
+            context,
+            probed["scenarios"],
+            [],
+            steps,
+        )
+        entry["decisions"] = [
+            {"context": cell_context, "operation": operation}
+            for cell_context, operation in decisions
+        ]
+        segments.append(entry)
     return {"segments": segments}, sorted(wanted - claimed)
 
 
 def validate(plan: dict) -> list[str]:
-    document = json.loads(INVENTORY.read_text(encoding="utf-8"))
     return matrix.validate_segment_plan(
         plan,
         operation_contexts={
-            str(operation["id"]): {
+            identifier: {
                 str(context) for context in matrix.product_proof_contexts(operation)
             }
-            for operation in document["operations"]
+            for identifier, operation in inventory_operations().items()
         },
         scenario_names=matrix.SEGMENT_SCENARIO_NAMES,
+        scenario_lanes=matrix.SCENARIO_LANES,
     )
 
 
@@ -216,7 +268,10 @@ def main() -> int:
     summary = {
         "mode": arguments.mode,
         "segments": len(plan["segments"]),
-        "decisions": sum(len(segment["decisions"]) for segment in plan["segments"]),
+        "lanes": {
+            str(entry["id"]): str(entry["lane"]) for entry in plan["segments"]
+        },
+        "decisions": sum(len(entry["decisions"]) for entry in plan["segments"]),
         "inventoryCells": sum(len(operations) for operations in inventory_cells().values()),
         "uncovered": [
             {"context": context, "operation": operation}

@@ -24,7 +24,7 @@
 
 - **XCUITest 的 `tap()` 在合成事件前等待 app 静默，等待上限约 60 秒**。导入媒体后的缩略图与库落盘工作让 app 长时间不静默，所以任何由空闲期样本推出的 p95 预算都会结构性地卡在这个窗口里、把一次正常的慢 tap 杀成 transport-timeout。合成输入类动词的预算地板由 `provisional_budgets.json` 的 `floorSeconds` 承载（当前 75 秒），高于该上限。
 - **runner 的应答等待默认 30 秒**（`--timeout-seconds`），必须由调用方随预算下发，否则预算高于 30 秒的调用会先撞 runner 自己的死线，报出的 kind 是 `response-timeout` 而不是 `transport-timeout`。
-- **模拟器 lane 打开本地媒体的合成 tap 会吊死 app 主线程**，而不是无害失败；这是"打开本地媒体必须经真实点击"（vp-e2e simulator.md）的更强形式。播放类场景在模拟器 lane 必须换 lane 安全的 fixture 并接受入口不可驱动，判定归 device lane。
+- **模拟器 lane 打开本地媒体的合成 tap 会吊死 app 主线程**，而不是无害失败；这是"打开本地媒体必须经真实点击"（vp-e2e simulator.md）的更强形式。分段的 lane 跟随场景：`reachability_matrix.SCENARIO_LANES` 从 harness 源码静态推导出每个场景是否会经由 `MediaLibrary-grid-video-*`／`FileBrowsing-grid-video-*`／`Emby-Detail-Resume|PlayFromBeginning` 打开播放，会打开的场景与所有播放呈现上下文由 device lane 分段驱动，浏览面其余场景归 `probe-main-window-browser`（simulator）。分段计划中 lane 与场景不一致、进程 `ENCHRON_TARGET_DEVICE` 与分段 lane 不一致，都在启动前拒绝；模拟器 lane 上仍打到打开播放的 identifier 时，`tap()` 抛 instrument fault `playback-open-on-simulator-lane`，该段以 `channel-continuity-failed` 结束而不是等待 6 分钟超时。
 - **无人佩戴的真机上，场景 phase 事件跨场景销毁不触发**：主窗口在播放期间被撤销再重开后，其 `scenePhase` 直接继承 active 而没有 background→active 转换。任何"等到 active 再行动"的门槛必须以布防后的新转换为准，否则会立即放行。
 - **撤销一个窗口可能把整个 app 送进 background 并被系统挂起**（进程存活、命令通道与 AX 全部无响应），即便另一个窗口刚刚 appeared。播放→主窗交还因此把撤销延迟到主窗布防后的下一次 active 转换；等不到就保留双窗，绝不冒挂起风险。
 - **段间复用常驻 runner 省去每段 `ensure-session` 的 115–286 秒建会话与 30–56 秒 `halt`，四段合计 10–20 分钟（device lane 关键路径约 57 分钟的 20–35%）**，段证据对齐由 runner `sessionID`（`ready.json`）改为每段新建的 `evidenceSession`（`evidenceSession=<uuid>`，`reachability evidence session=<uuid>`）。

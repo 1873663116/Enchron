@@ -5,20 +5,34 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness.campaign import CampaignNotParallelizable, default_spawn, launch
-from harness.parallel import CAMPAIGN_TOKEN_ENV
+from harness.parallel import assignments_from_plan
 
 
 def _load(path: str) -> dict[str, object]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def extra_args_by_segment(
+    plan: Mapping[str, object], extra_args_by_context: Mapping[str, object]
+) -> dict[str, list[str]]:
+    return {
+        str(segment["id"]): [
+            str(argument)
+            for argument in extra_args_by_context.get(str(segment["context"]), [])
+        ]
+        for segment in plan.get("segments") or []
+        if isinstance(segment, Mapping)
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--campaign", required=True)
+    parser.add_argument("--campaign")
     parser.add_argument("--execution-input", required=True)
     parser.add_argument("--segment-plan", required=True)
     parser.add_argument("--output-root", required=True)
@@ -26,14 +40,17 @@ def main() -> int:
     parser.add_argument("--device-target", required=True)
     arguments = parser.parse_args()
 
-    campaign = _load(arguments.campaign)
+    campaign = _load(arguments.campaign) if arguments.campaign else {}
+    if "assignments" in campaign:
+        sys.stderr.write(
+            "campaign assignments are derived from the segment plan's lanes; "
+            f"remove the assignments array from {arguments.campaign}\n"
+        )
+        return 2
+    plan = _load(arguments.segment_plan)
     execution_input = _load(arguments.execution_input)
-    assignments = campaign["assignments"]
+    assignments = assignments_from_plan(plan)
     reachable = campaign.get("reachable", {"simulator": True, "device": True})
-    extra_args_by_segment = {
-        str(entry["segment"]): [str(argument) for argument in entry.get("extraArgs", [])]
-        for entry in assignments
-    }
     target_devices = {
         "simulator": arguments.simulator_target,
         "device": arguments.device_target,
@@ -44,7 +61,7 @@ def main() -> int:
         Path(arguments.segment_plan),
         Path(arguments.execution_input),
         Path(arguments.output_root),
-        extra_args_by_segment,
+        extra_args_by_segment(plan, campaign.get("extraArgs") or {}),
     )
     try:
         results = launch(assignments, execution_input, reachable, spawn)

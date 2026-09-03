@@ -16,6 +16,15 @@ def lane_targets(execution_input: Mapping[str, object]) -> set[str]:
     return targets
 
 
+def assignments_from_plan(plan: Mapping[str, object]) -> list[dict[str, str]]:
+    segments = plan.get("segments") or []
+    return [
+        {"segment": str(segment["id"]), "target": str(segment["lane"])}
+        for segment in segments
+        if isinstance(segment, Mapping)
+    ]
+
+
 def partition_by_target(
     assignments: Iterable[Mapping[str, object]]
 ) -> dict[str, list[str]]:
@@ -69,6 +78,7 @@ def parallelizable(
 def serial_run_refused(
     execution_input: Mapping[str, object],
     campaign: Mapping[str, object] | None,
+    assignments: Sequence[Mapping[str, object]],
     token: str | None,
     this_segment: str,
 ) -> str | None:
@@ -76,7 +86,11 @@ def serial_run_refused(
         return None
     if not campaign:
         return None
-    assignments = campaign.get("assignments") or []
+    if "assignments" in campaign:
+        raise ValueError(
+            "campaign assignments are derived from the segment plan's lanes; "
+            "remove the assignments array from the campaign"
+        )
     reachable = campaign.get("reachable") or {}
     worktrees = campaign.get("worktrees") or None
     frozen = lane_targets(execution_input)

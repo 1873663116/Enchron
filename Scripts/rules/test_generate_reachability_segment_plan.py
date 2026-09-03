@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import json
+import tempfile
 import unittest
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
+from harness import lane_partition
 import reachability_matrix as matrix
 import generate_reachability_segment_plan as plan
 
@@ -60,6 +62,103 @@ class MergeSharedRunnerSessionTests(unittest.TestCase):
         probe = plan.probe_plan()
         self.assertTrue(len(probe["segments"]) >= 1)
         self.assertTrue(all("decisions" in s for s in probe["segments"]))
+
+    def test_probe_plan_validates(self) -> None:
+        self.assertEqual(plan.validate(plan.probe_plan()), [])
+
+    def test_every_segment_declares_its_lane(self) -> None:
+        for seg in plan.probe_plan()["segments"]:
+            self.assertIn(seg["lane"], ("simulator", "device"), seg["id"])
+            if seg["context"] != "main-window-browser":
+                self.assertEqual(seg["lane"], "device", seg["id"])
+
+    def test_browser_scenarios_split_by_lane_without_loss(self) -> None:
+        probe = plan.probe_plan()
+        browse = next(s for s in probe["segments"] if s["id"] == plan.BROWSER_SEGMENT)
+        playback = next(s for s in probe["segments"] if s["id"] == plan.BROWSER_PLAYBACK_SEGMENT)
+        self.assertEqual(browse["lane"], "simulator")
+        self.assertEqual(playback["lane"], "device")
+        self.assertEqual(set(browse["scenarios"]) & set(playback["scenarios"]), set())
+        self.assertEqual(
+            sorted(browse["scenarios"] + playback["scenarios"]),
+            plan.scenarios_by_context()["main-window-browser"],
+        )
+        for name in browse["scenarios"]:
+            self.assertEqual(matrix.SCENARIO_LANES[name], "simulator", name)
+        for name in playback["scenarios"]:
+            self.assertEqual(matrix.SCENARIO_LANES[name], "device", name)
+
+    def test_simulator_browser_segment_never_decides_an_opener(self) -> None:
+        probe = plan.probe_plan()
+        by_id = plan.inventory_operations()
+        browse = next(s for s in probe["segments"] if s["id"] == plan.BROWSER_SEGMENT)
+        playback = next(s for s in probe["segments"] if s["id"] == plan.BROWSER_PLAYBACK_SEGMENT)
+        openers = {
+            op for op in plan.inventory_cells()["main-window-browser"]
+            if lane_partition.opens_playback(by_id[op])
+        }
+        self.assertTrue(openers)
+        self.assertEqual({d["operation"] for d in browse["decisions"]} & openers, set())
+        self.assertTrue(openers <= {d["operation"] for d in playback["decisions"]})
+
+    def test_final_plan_takes_context_and_scenarios_from_the_probe_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = Path(directory) / "results.json"
+            result.write_text(json.dumps({
+                "segment": plan.BROWSER_PLAYBACK_SEGMENT,
+                "segmentPlan": {
+                    "context": "main-window-browser",
+                    "scenarios": ["resume-decision"],
+                },
+                "drivenCells": [
+                    {"context": "main-window-browser", "operation": "accessibility:MediaLibrary-grid-video-{reference.name}"},
+                ],
+            }), encoding="utf-8")
+            final, uncovered = plan.final_plan([result], 60)
+        self.assertEqual(len(final["segments"]), 1)
+        segment = final["segments"][0]
+        self.assertEqual(segment["id"], "main-window-browser-playback-driven")
+        self.assertEqual(segment["context"], "main-window-browser")
+        self.assertEqual(segment["lane"], "device")
+        self.assertEqual(segment["scenarios"], ["resume-decision"])
+        self.assertEqual(len(segment["decisions"]), 1)
+        self.assertTrue(uncovered)
+
+
+class LaneValidationTests(unittest.TestCase):
+    def validate(self, lane, context="main-window-browser", scenarios=("browser-core",)):
+        segment = {
+            "id": "s",
+            "context": context,
+            "expectedMaximumSteps": 10,
+            "scenarios": list(scenarios),
+            "decisions": [{"context": context, "operation": "accessibility:x"}],
+        }
+        if lane is not None:
+            segment["lane"] = lane
+        return matrix.validate_segment_plan(
+            {"segments": [segment]},
+            operation_contexts={"accessibility:x": {context}},
+            scenario_names={"browser-core", "resume-decision", "window-playback"},
+            scenario_lanes={"browser-core": "simulator", "resume-decision": "device", "window-playback": "device"},
+        )
+
+    def test_a_segment_without_a_lane_is_rejected(self) -> None:
+        self.assertTrue(any("must declare lane" in e for e in self.validate(None)))
+
+    def test_a_simulator_segment_with_an_opening_scenario_is_rejected(self) -> None:
+        errors = self.validate("simulator", scenarios=("browser-core", "resume-decision"))
+        self.assertTrue(any("resume-decision opens playback" in e for e in errors), errors)
+
+    def test_a_simulator_segment_on_a_presentation_is_rejected(self) -> None:
+        errors = self.validate("simulator", context="window", scenarios=("window-playback",))
+        self.assertTrue(any("needs the device lane" in e for e in errors), errors)
+
+    def test_a_device_segment_may_run_anything(self) -> None:
+        self.assertEqual(self.validate("device", scenarios=("browser-core", "resume-decision")), [])
+
+    def test_a_simulator_segment_of_browse_scenarios_is_accepted(self) -> None:
+        self.assertEqual(self.validate("simulator"), [])
 
     def test_docked_reset_media_step_belongs_to_exactly_one_segment(self) -> None:
         probe = plan.probe_plan()

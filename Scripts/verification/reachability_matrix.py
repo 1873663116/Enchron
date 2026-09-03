@@ -34,6 +34,7 @@ from harness import (
 from harness import lane_partition
 from harness import parallel
 from harness import pre_live
+from harness import scenario_lanes
 from harness.controller import run_runner
 from harness.replay import select_run
 
@@ -51,11 +52,6 @@ PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
-
-DEFERRED_TO_DEVICE_REASON = (
-    "Opening media with a synthetic tap hangs the simulator's app main thread, "
-    "so this cell is measured on the device lane."
-)
 
 PACING_POLL_SLACK_SECONDS = 5.0
 
@@ -127,6 +123,21 @@ SEGMENT_SCENARIO_NAMES = {
     "window-menus-round11",
     "window-remote-audio-episodes",
 }
+SCENARIO_LANES = scenario_lanes.classify(
+    Path(__file__).read_text(encoding="utf-8")
+)
+
+
+def segment_lane(context: str, scenarios: list[str]) -> str:
+    if context != MAIN_WINDOW_BROWSER_CONTEXT:
+        return lane_partition.DEVICE
+    if any(
+        SCENARIO_LANES[str(name)] == lane_partition.DEVICE for name in scenarios
+    ):
+        return lane_partition.DEVICE
+    return lane_partition.SIMULATOR
+
+
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CHANNEL_HEALTH_REMOTE_PATH = "Documents/reachability-channel-health.txt"
 APP_RESPONSE_REMOTE_PATH = "Documents/test-responses"
@@ -981,6 +992,7 @@ def validate_segment_plan(
     *,
     operation_contexts: dict[str, set[str]],
     scenario_names: set[str],
+    scenario_lanes: dict[str, str],
 ) -> list[str]:
     errors: list[str] = []
     seen: set[str] = set()
@@ -1019,6 +1031,23 @@ def validate_segment_plan(
                 if str(scenario) not in scenario_names:
                     errors.append(
                         f"segment {name or '<missing>'} has unknown scenario {scenario}"
+                    )
+        lane = segment.get("lane")
+        if lane not in lane_partition.LANES:
+            errors.append(
+                f"segment {name or '<missing>'} must declare lane simulator or device"
+            )
+        elif lane == lane_partition.SIMULATOR:
+            if context != MAIN_WINDOW_BROWSER_CONTEXT:
+                errors.append(
+                    f"segment {name or '<missing>'} drives {context}, which needs "
+                    "the device lane"
+                )
+            for scenario in scenarios if isinstance(scenarios, list) else []:
+                if scenario_lanes.get(str(scenario)) == lane_partition.DEVICE:
+                    errors.append(
+                        f"segment {name or '<missing>'} runs on the simulator but "
+                        f"scenario {scenario} opens playback"
                     )
         decisions = segment.get("decisions")
         if not isinstance(decisions, list) or not decisions:
@@ -1096,7 +1125,6 @@ class ReachabilityRun:
         self.driven_cells: set[tuple[str, str]] = set()
         self.tapped_cells: set[tuple[str, str]] = set()
         self.silent_taps: list[dict[str, Any]] = []
-        self.deferred_opens: list[dict[str, Any]] = []
         self.copy_timings: list[dict[str, Any]] = []
         self.session_id: str | None = None
         self.evidence_session: str | None = None
@@ -2331,20 +2359,6 @@ class ReachabilityRun:
             "evidence": self.events[-1]["evidence"] if self.events else None,
         })
 
-    def defer_playback_open(
-        self, presentation: str, operation_id: str, identifier: str
-    ) -> dict[str, Any]:
-        cell = self.cells.get((presentation, operation_id))
-        if cell is not None:
-            cell["deferredToLane"] = "device"
-            cell["reason"] = DEFERRED_TO_DEVICE_REASON
-        self.deferred_opens.append({
-            "context": presentation,
-            "operation": operation_id,
-            "identifier": identifier,
-        })
-        return {"success": True, "deferredToLane": "device", "identifier": identifier}
-
     def tap(
         self,
         presentation: str,
@@ -2354,8 +2368,20 @@ class ReachabilityRun:
         index: int | None = None,
     ) -> dict[str, Any]:
         operation_id = operation_id or f"accessibility:{identifier}"
-        if lane_partition.tap_deferred_to_device(self.lane, identifier):
-            return self.defer_playback_open(presentation, operation_id, identifier)
+        if lane_partition.simulator_refuses_tap(self.lane, identifier):
+            raise InstrumentFault(
+                "playback-open-on-simulator-lane",
+                {
+                    "context": presentation,
+                    "operation": operation_id,
+                    "identifier": identifier,
+                    "diagnosis": (
+                        "a synthetic tap that opens media starves the "
+                        "simulator's app main thread; the scenario that issued "
+                        "it belongs to a device-lane segment"
+                    ),
+                },
+            )
         if operation_id in self.operations:
             self.tapped_cells.add((presentation, operation_id))
         target_arguments = ["--identifier", identifier]
@@ -7365,6 +7391,7 @@ class ReachabilityRun:
         return parallel.serial_run_refused(
             execution_input,
             campaign,
+            parallel.assignments_from_plan(self.arguments.segment_plan_document),
             os.environ.get(parallel.CAMPAIGN_TOKEN_ENV),
             str(self.arguments.segment),
         )
@@ -7470,7 +7497,11 @@ class ReachabilityRun:
         if "settings-menus" in planned_scenarios:
             self.prove_navigation_tab("settings")
         for scenario in self.segment["scenarios"]:
-            self.run_named_segment_scenario(str(scenario))
+            try:
+                self.run_named_segment_scenario(str(scenario))
+            except InstrumentFault as fault:
+                self.record_instrument_fault(f"scenario:{scenario}", fault)
+                break
             if self.channel_failures:
                 break
 
@@ -7842,7 +7873,6 @@ class ReachabilityRun:
             "instrumentFaultReport": self.policy.fault_report(),
             "channelFailures": self.channel_failures,
             "silentTaps": self.silent_taps,
-            "deferredOpens": self.deferred_opens,
             "copyTimings": self.copy_timings,
             "serviceHosts": getattr(self, "service_hosts", {}),
             "serviceReceipts": getattr(self, "service_receipts", {}),
@@ -8084,6 +8114,7 @@ def configure_segment(arguments: argparse.Namespace) -> None:
             for item in inventory["operations"]
         },
         scenario_names=SEGMENT_SCENARIO_NAMES,
+        scenario_lanes=SCENARIO_LANES,
     )
     if errors:
         raise SystemExit("Invalid segment plan:\n" + "\n".join(errors))
@@ -8093,6 +8124,17 @@ def configure_segment(arguments: argparse.Namespace) -> None:
     ]
     if not matching:
         raise SystemExit(f"Segment plan has no segment named {arguments.segment}")
+    process_lane = (
+        lane_partition.SIMULATOR
+        if enchron_target.is_simulator(DEVICE)
+        else lane_partition.DEVICE
+    )
+    planned_lane = str(matching[0]["lane"])
+    if planned_lane != process_lane:
+        raise SystemExit(
+            f"Segment {arguments.segment} is planned for the {planned_lane} lane "
+            f"but ENCHRON_TARGET_DEVICE selects the {process_lane} lane"
+        )
     arguments.segment_spec = matching[0]
     arguments.segment_plan_document = plan
     arguments.contexts = [str(matching[0]["context"])]
