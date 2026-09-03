@@ -65,7 +65,7 @@ def provider(
     }
     if output_directory is not None:
         keyword_arguments["output_directory"] = output_directory
-    return BudgetProvider(**keyword_arguments)  # type: ignore[arg-type]
+    return BudgetProvider(**keyword_arguments)
 
 
 def timings_document(samples: list[dict[str, object]]) -> dict[str, object]:

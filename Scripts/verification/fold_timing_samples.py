@@ -50,7 +50,7 @@ def _parse_sample(origin: Path, index: int, line: str) -> dict[str, object]:
             f"for lanes {LANES}"
         )
     try:
-        seconds_value = float(seconds)  # type: ignore[arg-type]
+        seconds_value = float(seconds)
     except (TypeError, ValueError):
         raise ValueError(
             f"{origin}:{index}: a TimingSample needs numeric seconds"
