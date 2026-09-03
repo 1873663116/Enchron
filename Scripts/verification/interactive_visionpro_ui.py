@@ -343,15 +343,27 @@ def read_ready_state(
         return ready
 
 
+RESPONSE_ARRIVED = "arrived"
+RESPONSE_TIMED_OUT = "timedOut"
+RESPONSE_RUNNER_GONE = "runnerGone"
+LIVENESS_INTERVAL_SECONDS = 5.0
+
+
+def runner_alive() -> bool:
+    return bool(scoped_processes())
+
+
 def wait_for_response(
     *,
     arguments: argparse.Namespace,
     command_id: str,
     response_path: Path,
     deadline_seconds: float | None = None,
-) -> bool:
+    liveness: Callable[[], bool] | None = None,
+) -> str:
     remote_path = f"{CHANNEL_ROOT}/responses/{command_id}.json"
     started_at = time.monotonic()
+    last_liveness_check: float | None = None
     while not copy_from_device(
         device=arguments.device,
         runner_bundle_id=arguments.runner_bundle_id,
@@ -359,15 +371,20 @@ def wait_for_response(
         local_path=response_path,
         quiet=True,
     ):
-        if (
-            deadline_seconds is not None
-            and time.monotonic() - started_at >= deadline_seconds
+        now = time.monotonic()
+        if liveness is not None and (
+            last_liveness_check is None
+            or now - last_liveness_check >= LIVENESS_INTERVAL_SECONDS
         ):
-            return False
+            last_liveness_check = now
+            if not liveness():
+                return RESPONSE_RUNNER_GONE
+        if deadline_seconds is not None and now - started_at >= deadline_seconds:
+            return RESPONSE_TIMED_OUT
         # This is a transport scheduling interval, not a test timeout or retry
         # limit. The caller remains in control and can interrupt at any time.
         time.sleep(0.1)
-    return True
+    return RESPONSE_ARRIVED
 
 
 def process_table() -> list[tuple[int, int, str]]:
@@ -471,7 +488,7 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
                     command_id=command_id,
                     response_path=Path(directory) / "response.json",
                     deadline_seconds=GRACEFUL_STOP_DEADLINE_SECONDS,
-                )
+                ) == RESPONSE_ARRIVED
                 else "timedOut"
             )
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError):
@@ -752,8 +769,22 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
             command_id=command_id,
             response_path=response_path,
             deadline_seconds=arguments.timeout_seconds,
+            liveness=runner_alive,
         )
-        if not arrived:
+        if arrived == RESPONSE_RUNNER_GONE:
+            forget_ready_state(arguments)
+            return {
+                "success": False,
+                "stage": "runnerGone",
+                "message": (
+                    f"The resident runner left this repository's automation "
+                    f"scope while {arguments.action} was pending, so no answer "
+                    "can arrive. The observations below were collected at "
+                    "that moment; they state what was seen, not why."
+                ),
+                "observations": timeout_observations(arguments),
+            }
+        if arrived != RESPONSE_ARRIVED:
             forget_ready_state(arguments)
             return {
                 "success": False,
@@ -1522,6 +1553,9 @@ def _attach_failure(arguments, response: dict) -> dict:
     diagnosis = ""
     if stage == "responseTimeout":
         kind = "response-timeout"
+        diagnosis = message
+    elif stage == "runnerGone":
+        kind = "runner-gone"
         diagnosis = message
     elif stage == "authorizationTimeout":
         kind = "authorization-required"

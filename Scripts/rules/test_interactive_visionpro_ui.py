@@ -568,6 +568,59 @@ class RunnerCompletionScopeTests(unittest.TestCase):
         self.assertEqual(scoped, [(4102, interactive)])
 
 
+class ResponseWaitTests(unittest.TestCase):
+    ARGUMENTS = SimpleNamespace(device="udid", runner_bundle_id="bundle")
+
+    def wait(self, *, copied, clock, liveness, deadline=60.0):
+        with patch.object(
+            controller, "copy_from_device", return_value=copied
+        ), patch.object(
+            controller.time, "sleep"
+        ), patch.object(
+            controller.time, "monotonic", side_effect=clock
+        ):
+            return controller.wait_for_response(
+                arguments=self.ARGUMENTS,
+                command_id="c1",
+                response_path=Path("/nowhere/response.json"),
+                deadline_seconds=deadline,
+                liveness=liveness,
+            )
+
+    def test_an_answer_arrives(self) -> None:
+        outcome = self.wait(copied=True, clock=[0.0], liveness=lambda: True)
+        self.assertEqual(outcome, controller.RESPONSE_ARRIVED)
+
+    def test_a_gone_runner_ends_the_wait_before_the_deadline(self) -> None:
+        outcome = self.wait(copied=False, clock=[0.0, 0.0], liveness=lambda: False)
+        self.assertEqual(outcome, controller.RESPONSE_RUNNER_GONE)
+
+    def test_a_live_runner_waits_out_the_deadline(self) -> None:
+        outcome = self.wait(copied=False, clock=[0.0, 100.0], liveness=lambda: True)
+        self.assertEqual(outcome, controller.RESPONSE_TIMED_OUT)
+
+    def test_the_liveness_probe_runs_at_most_every_interval(self) -> None:
+        probes: list[float] = []
+
+        def liveness() -> bool:
+            probes.append(1.0)
+            return True
+
+        outcome = self.wait(
+            copied=False, clock=[0.0, 0.0, 1.0, 2.0, 6.0, 100.0], liveness=liveness
+        )
+        self.assertEqual(outcome, controller.RESPONSE_TIMED_OUT)
+        self.assertEqual(len(probes), 3)
+
+    def test_runner_gone_is_an_instrument_fault_of_its_own_kind(self) -> None:
+        response = controller._attach_failure(
+            SimpleNamespace(action="tap"),
+            {"success": False, "stage": "runnerGone", "message": "gone"},
+        )
+        self.assertEqual(response["failure"]["class"], "instrument")
+        self.assertEqual(response["failure"]["kind"], "runner-gone")
+
+
 class RunnerArgumentTests(unittest.TestCase):
     def test_developer_directory_validation_never_mutates_process_environment(self) -> None:
         with patch.dict(
