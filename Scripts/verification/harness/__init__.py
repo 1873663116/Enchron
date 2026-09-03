@@ -10,6 +10,7 @@ from harness.failures import (
 )
 from harness.local import LocalToolRunner
 from harness.recovery import Decision, FaultRecord, Halt, RecoveryPolicy, Retry
+from harness.replay import RecordingTap, ReplayDrift, ReplayRun, normalize_command
 from harness.waits import Evidence, wait_for
 
 __all__ = [
@@ -28,8 +29,12 @@ __all__ = [
     "LocalToolRunner",
     "PRODUCT_KINDS",
     "ProductFailure",
+    "RecordingTap",
     "RecoveryPolicy",
+    "ReplayDrift",
+    "ReplayRun",
     "Retry",
     "RunnerResponse",
+    "normalize_command",
     "wait_for",
 ]
