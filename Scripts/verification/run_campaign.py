@@ -30,6 +30,10 @@ def main() -> int:
     execution_input = _load(arguments.execution_input)
     assignments = campaign["assignments"]
     reachable = campaign.get("reachable", {"simulator": True, "device": True})
+    extra_args_by_segment = {
+        str(entry["segment"]): [str(argument) for argument in entry.get("extraArgs", [])]
+        for entry in assignments
+    }
     target_devices = {
         "simulator": arguments.simulator_target,
         "device": arguments.device_target,
@@ -40,6 +44,7 @@ def main() -> int:
         Path(arguments.segment_plan),
         Path(arguments.execution_input),
         Path(arguments.output_root),
+        extra_args_by_segment,
     )
     try:
         results = launch(assignments, execution_input, reachable, spawn)

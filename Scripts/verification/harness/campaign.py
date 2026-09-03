@@ -24,6 +24,7 @@ def segment_command(
     execution_input: Path,
     output: Path,
     segment: str,
+    extra_args: Sequence[str] = (),
 ) -> list[str]:
     return [
         sys.executable,
@@ -36,6 +37,7 @@ def segment_command(
         segment,
         "--output-directory",
         str(output),
+        *[str(argument) for argument in extra_args],
     ]
 
 
@@ -45,7 +47,10 @@ def default_spawn(
     segment_plan: Path,
     execution_input: Path,
     output_root: Path,
+    extra_args_by_segment: Mapping[str, Sequence[str]] | None = None,
 ) -> Spawn:
+    extra = dict(extra_args_by_segment or {})
+
     def spawn(target: str, segment: str, token: str) -> int:
         environment = dict(os.environ)
         environment["ENCHRON_TARGET_DEVICE"] = target_devices[target]
@@ -56,6 +61,7 @@ def default_spawn(
             execution_input,
             output_root / f"{target}-{segment}",
             segment,
+            extra.get(segment, ()),
         )
         completed = subprocess.run(command, env=environment)
         return completed.returncode

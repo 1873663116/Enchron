@@ -61,6 +61,18 @@ class ParallelizableTests(unittest.TestCase):
     def test_false_when_the_freeze_lacks_a_lane_artifact(self) -> None:
         self.assertFalse(parallel.parallelizable({"simulator"}, self.pending, BOTH_REACHABLE))
 
+    def test_false_when_both_lanes_share_one_worktree(self) -> None:
+        shared = {"device": "/wt", "simulator": "/wt"}
+        self.assertFalse(
+            parallel.parallelizable(BOTH_LANES, self.pending, BOTH_REACHABLE, shared)
+        )
+
+    def test_true_when_each_lane_has_its_own_worktree(self) -> None:
+        distinct = {"device": "/wt-a", "simulator": "/wt-b"}
+        self.assertTrue(
+            parallel.parallelizable(BOTH_LANES, self.pending, BOTH_REACHABLE, distinct)
+        )
+
     def test_refusal_reason_names_the_targets(self) -> None:
         reason = parallel.serial_refusal_reason(["device", "simulator"])
         self.assertIn("device", reason)

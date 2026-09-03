@@ -99,6 +99,19 @@ class SegmentCommandTests(unittest.TestCase):
         self.assertEqual(command[command.index("--segment") + 1], "probe-window")
         self.assertIn("/o/device-probe-window", command)
 
+    def test_command_appends_extra_args(self) -> None:
+        from harness.campaign import segment_command
+
+        command = segment_command(
+            Path("/m/reachability_matrix.py"),
+            Path("/p/plan.json"),
+            Path("/a/execution-input.json"),
+            Path("/o/simulator-probe-main-window-browser"),
+            "probe-main-window-browser",
+            ["--emby-credentials", "/creds.json"],
+        )
+        self.assertEqual(command[command.index("--emby-credentials") + 1], "/creds.json")
+
 
 if __name__ == "__main__":
     unittest.main()

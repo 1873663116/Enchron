@@ -30,21 +30,39 @@ def parallelizable_targets(
     frozen_lanes: set[str],
     pending_by_target: Mapping[str, Sequence[str]],
     reachable: Mapping[str, bool],
+    worktrees: Mapping[str, str] | None = None,
 ) -> list[str]:
-    return sorted(
+    qualifying = sorted(
         target
         for target, segments in pending_by_target.items()
         if segments and target in frozen_lanes and reachable.get(target, False)
     )
+    if worktrees is None:
+        return qualifying
+    claimed: set[str] = set()
+    isolated: list[str] = []
+    for target in qualifying:
+        worktree = worktrees.get(target)
+        if worktree is None or worktree in claimed:
+            continue
+        claimed.add(worktree)
+        isolated.append(target)
+    return isolated
 
 
 def parallelizable(
     frozen_lanes: set[str],
     pending_by_target: Mapping[str, Sequence[str]],
     reachable: Mapping[str, bool],
+    worktrees: Mapping[str, str] | None = None,
 ) -> bool:
     return (
-        len(parallelizable_targets(frozen_lanes, pending_by_target, reachable)) >= 2
+        len(
+            parallelizable_targets(
+                frozen_lanes, pending_by_target, reachable, worktrees
+            )
+        )
+        >= 2
     )
 
 
@@ -60,9 +78,10 @@ def serial_run_refused(
         return None
     assignments = campaign.get("assignments") or []
     reachable = campaign.get("reachable") or {}
+    worktrees = campaign.get("worktrees") or None
     frozen = lane_targets(execution_input)
     partitioned = partition_by_target(assignments)
-    targets = parallelizable_targets(frozen, partitioned, reachable)
+    targets = parallelizable_targets(frozen, partitioned, reachable, worktrees)
     if len(targets) < 2:
         return None
     if not any(str(entry.get("segment")) == this_segment for entry in assignments):
