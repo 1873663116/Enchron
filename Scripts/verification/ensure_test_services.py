@@ -741,8 +741,11 @@ def _read_object(path: Path) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
-def emby_spec(hooks: ServiceHooks | None = None) -> ServiceSpec:
-    document = _read_object(emby.DEFAULT_IDENTITY_FILE) or {}
+def emby_spec(
+    hooks: ServiceHooks | None = None,
+    identity_file: Path = emby.DEFAULT_IDENTITY_FILE,
+) -> ServiceSpec:
+    document = _read_object(identity_file) or {}
     server_id = document.get("serverID")
     address = document.get("address")
     identity = server_id if isinstance(server_id, str) else ""

@@ -212,10 +212,18 @@ def redact_sensitive_values(value: object, values: tuple[str, ...]) -> object:
     return value
 
 
-def _resolved_emby_address_from_receipt(fallback: str) -> str:
+def emby_identity_file(arguments: argparse.Namespace) -> Path:
+    credentials = getattr(arguments, "emby_credentials", None)
+    if credentials:
+        return Path(credentials)
+    import regression_emby_source
+    return regression_emby_source.DEFAULT_IDENTITY_FILE
+
+
+def _resolved_emby_address_from_receipt(fallback: str, identity_file: Path) -> str:
     try:
         import ensure_test_services as ets
-        spec = ets.emby_spec()
+        spec = ets.emby_spec(identity_file=identity_file)
         receipt = ets._read_object(spec.receipt_file)
         if isinstance(receipt, dict) and isinstance(receipt.get("address"), str) and receipt.get("address"):
             return str(receipt["address"]).strip()
@@ -227,9 +235,15 @@ def _resolved_emby_address_from_receipt(fallback: str) -> str:
     return fallback
 
 
-def _resolved_service_hosts() -> tuple[dict[str, str], dict[str, dict[str, object]]]:
+def _resolved_service_hosts(
+    identity_file: Path,
+) -> tuple[dict[str, str], dict[str, dict[str, object]]]:
     import ensure_test_services as ets
-    specs = (ets.emby_spec(), ets.webdav_spec(), ets.smb_spec())
+    specs = (
+        ets.emby_spec(identity_file=identity_file),
+        ets.webdav_spec(),
+        ets.smb_spec(),
+    )
     receipts, _ = ets.ensure_all(specs)
     hosts: dict[str, str] = {}
     by_service: dict[str, dict[str, object]] = {}
@@ -256,7 +270,7 @@ def verify_emby_recovery_credentials(path: Path) -> dict[str, Any]:
     try:
         credentials = json.loads(path.read_text(encoding="utf-8"))
         fallback = str(credentials.get("address", "")).strip()
-        address = _resolved_emby_address_from_receipt(fallback)
+        address = _resolved_emby_address_from_receipt(fallback, path)
         username = str(credentials.get("username", ""))
         password = str(credentials.get("password", ""))
         result["credentialFieldsNonempty"] = all((address, username, password))
@@ -1179,7 +1193,7 @@ class ReachabilityRun:
         self.service_hosts: dict[str, str] = {}
         self.service_receipts: dict[str, dict[str, object]] = {}
         try:
-            hosts, receipts = _resolved_service_hosts()
+            hosts, receipts = _resolved_service_hosts(emby_identity_file(arguments))
             self.service_hosts = hosts
             self.service_receipts = receipts
         except Exception:
