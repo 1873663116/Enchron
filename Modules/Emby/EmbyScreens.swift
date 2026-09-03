@@ -927,6 +927,7 @@ private struct EmbyDetailScreen: View {
             }
 #endif
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
     }
 
