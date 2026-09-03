@@ -21,6 +21,7 @@ if str(Path(__file__).parent) not in sys.path:
 from enchron_artifact_paths import evidence_root
 import enchron_target
 from harness import (
+    TIMING_SAMPLES_FILENAME,
     Budget,
     BudgetProvider,
     ControllerClient,
@@ -182,6 +183,16 @@ DEFERRED_MENU_TARGETS = {
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def timing_samples_summary(output_directory: Path) -> dict[str, object]:
+    path = Path(output_directory) / TIMING_SAMPLES_FILENAME
+    if not path.is_file():
+        return {"path": TIMING_SAMPLES_FILENAME, "count": 0}
+    count = sum(
+        1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    )
+    return {"path": TIMING_SAMPLES_FILENAME, "count": count}
 
 
 def refuse_when_detached() -> None:
@@ -1162,7 +1173,7 @@ class ReachabilityRun:
         self.sensitive_values: tuple[str, ...] = ()
         self.out_of_context_observations = {}
         self.lane = "simulator" if enchron_target.is_simulator(DEVICE) else "device"
-        self.budgets = BudgetProvider()
+        self.budgets = BudgetProvider(output_directory=self.output)
         controller_run, self.controller_run_mode = select_run(
             run_runner,
             record=os.environ.get("ENCHRON_RECORD", ""),
@@ -7890,6 +7901,7 @@ class ReachabilityRun:
             "channelFailures": self.channel_failures,
             "silentTaps": self.silent_taps,
             "copyTimings": self.copy_timings,
+            "timingSamples": timing_samples_summary(self.output),
             "serviceHosts": getattr(self, "service_hosts", {}),
             "serviceReceipts": getattr(self, "service_receipts", {}),
             "cells": ordered_cells,
