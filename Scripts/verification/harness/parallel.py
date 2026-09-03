@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping, Sequence
 
+CAMPAIGN_TOKEN_ENV = "ENCHRON_CAMPAIGN_TOKEN"
+
 
 def lane_targets(execution_input: Mapping[str, object]) -> set[str]:
     build_identity = (execution_input or {}).get("buildIdentity") or {}
@@ -44,6 +46,28 @@ def parallelizable(
     return (
         len(parallelizable_targets(frozen_lanes, pending_by_target, reachable)) >= 2
     )
+
+
+def serial_run_refused(
+    execution_input: Mapping[str, object],
+    campaign: Mapping[str, object] | None,
+    token: str | None,
+    this_segment: str,
+) -> str | None:
+    if token:
+        return None
+    if not campaign:
+        return None
+    assignments = campaign.get("assignments") or []
+    reachable = campaign.get("reachable") or {}
+    frozen = lane_targets(execution_input)
+    partitioned = partition_by_target(assignments)
+    targets = parallelizable_targets(frozen, partitioned, reachable)
+    if len(targets) < 2:
+        return None
+    if not any(str(entry.get("segment")) == this_segment for entry in assignments):
+        return None
+    return serial_refusal_reason(targets)
 
 
 def serial_refusal_reason(targets: Sequence[str]) -> str:

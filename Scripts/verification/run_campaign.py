@@ -14,8 +14,7 @@ from typing import Callable, Mapping, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness import parallel
-
-CAMPAIGN_TOKEN_ENV = "ENCHRON_CAMPAIGN_TOKEN"
+from harness.parallel import CAMPAIGN_TOKEN_ENV
 
 Spawn = Callable[[str, str, str], int]
 

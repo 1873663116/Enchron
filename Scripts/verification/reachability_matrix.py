@@ -31,6 +31,7 @@ from harness import (
     RecoveryPolicy,
     wait_for,
 )
+from harness import parallel
 from harness import pre_live
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -7310,8 +7311,35 @@ class ReachabilityRun:
             return True
         return False
 
+    def _campaign_serial_refusal(self) -> str | None:
+        execution_path = getattr(self.arguments, "execution_input", None)
+        if execution_path is None:
+            return None
+        execution_path = Path(execution_path)
+        try:
+            execution_input = json.loads(execution_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        campaign: dict[str, Any] | None = None
+        campaign_path = execution_path.parent / "campaign.json"
+        if campaign_path.is_file():
+            try:
+                campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                campaign = None
+        return parallel.serial_run_refused(
+            execution_input,
+            campaign,
+            os.environ.get(parallel.CAMPAIGN_TOKEN_ENV),
+            str(self.arguments.segment),
+        )
+
     def run_segment(self) -> int:
         assert self.segment is not None
+        refusal = self._campaign_serial_refusal()
+        if refusal is not None:
+            sys.stderr.write(refusal + "\n")
+            return 2
         if self._service_preflight_failed():
             return self.finish_segment("service-unavailable")
         if not self.ensure_session():

@@ -67,5 +67,55 @@ class ParallelizableTests(unittest.TestCase):
         self.assertIn("simulator", reason)
 
 
+class SerialRunRefusalTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.execution_input = {
+            "buildIdentity": {"laneArtifacts": [{"lane": "simulator"}, {"lane": "device"}]}
+        }
+        self.campaign = {
+            "assignments": [
+                {"segment": "probe-window", "target": "device"},
+                {"segment": "probe-main-window-browser", "target": "simulator"},
+            ],
+            "reachable": {"simulator": True, "device": True},
+        }
+
+    def test_hand_run_of_a_parallelizable_segment_is_refused(self) -> None:
+        reason = parallel.serial_run_refused(
+            self.execution_input, self.campaign, token=None, this_segment="probe-window"
+        )
+        self.assertIsNotNone(reason)
+
+    def test_launcher_token_is_allowed(self) -> None:
+        self.assertIsNone(
+            parallel.serial_run_refused(
+                self.execution_input, self.campaign, token="abc", this_segment="probe-window"
+            )
+        )
+
+    def test_no_campaign_declared_is_allowed(self) -> None:
+        self.assertIsNone(
+            parallel.serial_run_refused(
+                self.execution_input, None, token=None, this_segment="probe-window"
+            )
+        )
+
+    def test_segment_outside_the_campaign_is_allowed(self) -> None:
+        self.assertIsNone(
+            parallel.serial_run_refused(
+                self.execution_input, self.campaign, token=None, this_segment="probe-docked"
+            )
+        )
+
+    def test_unreachable_second_lane_is_allowed(self) -> None:
+        campaign = dict(self.campaign)
+        campaign["reachable"] = {"simulator": True, "device": False}
+        self.assertIsNone(
+            parallel.serial_run_refused(
+                self.execution_input, campaign, token=None, this_segment="probe-window"
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
