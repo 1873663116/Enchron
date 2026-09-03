@@ -2831,6 +2831,8 @@ class ReachabilityRun:
             ("Navigation-Ornament-tab-files", "files"),
             ("Emby-Navigation-Tab", "emby"),
         ):
+            if tab == "emby":
+                self.ensure_emby_sign_in()
             response = self.tap(presentation, identifier)
             self.hold("pace", 0.5)
             probe = self.copy_probe(f"navigation-{tab}")
