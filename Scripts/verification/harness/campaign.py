@@ -18,27 +18,45 @@ class CampaignNotParallelizable(RuntimeError):
     pass
 
 
+def segment_command(
+    matrix_path: Path,
+    segment_plan: Path,
+    execution_input: Path,
+    output: Path,
+    segment: str,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(matrix_path),
+        "--execution-input",
+        str(execution_input),
+        "--segment-plan",
+        str(segment_plan),
+        "--segment",
+        segment,
+        "--output-directory",
+        str(output),
+    ]
+
+
 def default_spawn(
     target_devices: Mapping[str, str],
     matrix_path: Path,
     segment_plan: Path,
+    execution_input: Path,
     output_root: Path,
 ) -> Spawn:
     def spawn(target: str, segment: str, token: str) -> int:
         environment = dict(os.environ)
         environment["ENCHRON_TARGET_DEVICE"] = target_devices[target]
         environment[CAMPAIGN_TOKEN_ENV] = token
-        output = output_root / f"{target}-{segment}"
-        command = [
-            sys.executable,
-            str(matrix_path),
-            "--segment-plan",
-            str(segment_plan),
-            "--segment",
+        command = segment_command(
+            matrix_path,
+            segment_plan,
+            execution_input,
+            output_root / f"{target}-{segment}",
             segment,
-            "--output-directory",
-            str(output),
-        ]
+        )
         completed = subprocess.run(command, env=environment)
         return completed.returncode
 

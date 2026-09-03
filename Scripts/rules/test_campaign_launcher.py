@@ -82,5 +82,23 @@ class CampaignLauncherTests(unittest.TestCase):
             run_campaign.launch(TWO_LANE, one_lane, REACHABLE, lambda *a: 0)
 
 
+class SegmentCommandTests(unittest.TestCase):
+    def test_command_carries_execution_input_and_segment(self) -> None:
+        from harness.campaign import segment_command
+
+        command = segment_command(
+            Path("/m/reachability_matrix.py"),
+            Path("/p/plan.json"),
+            Path("/a/execution-input.json"),
+            Path("/o/device-probe-window"),
+            "probe-window",
+        )
+        self.assertEqual(
+            command[command.index("--execution-input") + 1], "/a/execution-input.json"
+        )
+        self.assertEqual(command[command.index("--segment") + 1], "probe-window")
+        self.assertIn("/o/device-probe-window", command)
+
+
 if __name__ == "__main__":
     unittest.main()

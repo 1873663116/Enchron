@@ -38,6 +38,7 @@ def main() -> int:
         target_devices,
         Path(__file__).resolve().parent / "reachability_matrix.py",
         Path(arguments.segment_plan),
+        Path(arguments.execution_input),
         Path(arguments.output_root),
     )
     try:
