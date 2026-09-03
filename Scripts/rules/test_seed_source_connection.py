@@ -389,16 +389,6 @@ class WebDAVConnectionScenarioTests(unittest.TestCase):
         self.run.client = self.client
         self.client.phase = "cert"
 
-        def scripted_cert_wait(identifiers: tuple[str, ...], **kwargs: object) -> object:
-            if "Not Now" in self.client.taps or "以后" in self.client.taps:
-                return (
-                    "FileBrowsing-CertificateTrust-trust",
-                    {"matchedElement": {"isHittable": True, "isEnabled": True, "value": ""}},
-                )
-            return None, {}
-
-        self.run.wait_for_any_identifier = scripted_cert_wait  # noqa: E731
-
     def test_connect_uses_the_environment_identity_without_fake_credentials(self) -> None:
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
@@ -436,6 +426,14 @@ class WebDAVConnectionScenarioTests(unittest.TestCase):
             taps.index("Not Now"),
             taps.index("FileBrowsing-CertificateTrust-trust"),
         )
+
+    def test_missing_prompt_fails_without_trust(self) -> None:
+        self.client.phase = "form"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.run.source_connection_scenario("webDAV")
+        actions = [event.get("action") for event in self.run.events]
+        self.assertIn("webdavCertificateTrustMissing", actions)
+        self.assertNotIn("FileBrowsing-CertificateTrust-trust", self.client.taps)
 
     def test_connected_source_is_required_and_recorded(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()):

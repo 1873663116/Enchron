@@ -3285,73 +3285,7 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "Connect delivered the source-specific request to FilesScreen before network resolution.",
             )
-        cert_id, cert_doc = None, None
-        password_prompt = self.controller("snapshot", "--no-screenshot")
-        if "Save Password?" in str(password_prompt.get("hierarchy", "")):
-            for label in ("Not Now", "以后"):
-                dismissed = self.controller(
-                    "tap", "--label", label, "--no-screenshot"
-                )
-                if dismissed.get("success") is True:
-                    self.hold("pace", 0.5)
-                    break
-        cert_id, cert_doc = self.wait_for_any_identifier(
-            (
-                "FileBrowsing-CertificateTrust-cancel",
-                "FileBrowsing-CertificateTrust-trust",
-                "FileBrowsing-CleartextExposure-cancel",
-                "FileBrowsing-CleartextExposure-proceed",
-            )
-        )
-        if cert_id is None:
-            self.events.append({
-                "at": utc_now(),
-                "action": "webdavCertificateTrustMissing",
-                "success": False,
-                "detail": (
-                    "Connect answered but neither a certificate nor a cleartext "
-                    "prompt appeared."
-                ),
-                "evidence": self.events[-1]["evidence"] if self.events else "",
-            })
-            return None
-        matched = cert_doc.get("matchedElement") if isinstance(cert_doc, dict) else None
-        is_hittable = isinstance(matched, dict) and matched.get("isHittable") is True
-        if "CertificateTrust" in cert_id:
-            for op in (
-                "accessibility:FileBrowsing-CertificateTrust-cancel",
-                "accessibility:FileBrowsing-CertificateTrust-trust",
-            ):
-                self.mark_observation(
-                    presentation,
-                    op,
-                    exists=True,
-                    hittable=is_hittable,
-                    evidence=self.events[-1]["evidence"],
-                    reason="The certificate prompt exposed its product actions.",
-                )
-                if is_hittable:
-                    self.mark_observation(
-                        presentation,
-                        op,
-                        received=True,
-                        evidence=self.events[-1]["evidence"],
-                        reason="The certificate prompt was hittable and its presence proves product delivery.",
-                    )
-            self.tap(presentation, "FileBrowsing-CertificateTrust-trust")
-            self.hold("pace", 0.5)
-        else:
-            self.events.append({
-                "at": utc_now(),
-                "action": "webdavCleartextExposureUnexpected",
-                "success": False,
-                "detail": (
-                    "The HTTPS service address asked for cleartext approval."
-                ),
-                "evidence": self.events[-1]["evidence"] if self.events else "",
-            })
-            self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
-            self.hold("pace", 0.5)
+        if self.approve_webdav_certificate_trust(presentation) is None:
             return None
         snapshot = self.controller("snapshot", "--no-screenshot")
         source_identifiers = sorted(
@@ -3380,6 +3314,86 @@ class ReachabilityRun:
             "evidence": self.events[-1]["evidence"] if self.events else "",
         })
         return probe
+
+    def approve_webdav_certificate_trust(
+        self, presentation: str
+    ) -> dict[str, Any] | None:
+        polls = 0
+        receipt: dict[str, Any] | None = None
+        dismissed_since_trust = True
+        while polls < 12:
+            polls += 1
+            latest = self.controller("snapshot", "--no-screenshot")
+            visible = self.hierarchy_identifiers(latest)
+            if "FileBrowsing-CertificateTrust-trust" in visible:
+                if receipt is None or dismissed_since_trust:
+                    receipt = self.tap(
+                        presentation, "FileBrowsing-CertificateTrust-trust"
+                    )
+                    dismissed_since_trust = False
+                    matched = receipt.get("matchedElement")
+                    is_hittable = (
+                        isinstance(matched, dict)
+                        and matched.get("isHittable") is True
+                    )
+                    for op in (
+                        "accessibility:FileBrowsing-CertificateTrust-cancel",
+                        "accessibility:FileBrowsing-CertificateTrust-trust",
+                    ):
+                        self.mark_observation(
+                            presentation,
+                            op,
+                            exists=True,
+                            hittable=is_hittable,
+                            evidence=self.events[-1]["evidence"],
+                            reason="The certificate prompt exposed its product actions.",
+                        )
+                        if is_hittable:
+                            self.mark_observation(
+                                presentation,
+                                op,
+                                received=True,
+                                evidence=self.events[-1]["evidence"],
+                                reason="The certificate prompt was hittable and its presence proves product delivery.",
+                            )
+                self.hold("pace", 1.0)
+                again = self.controller("snapshot", "--no-screenshot")
+                if "FileBrowsing-CertificateTrust-trust" not in self.hierarchy_identifiers(again):
+                    return receipt
+                continue
+            if "FileBrowsing-CleartextExposure-proceed" in visible:
+                self.events.append({
+                    "at": utc_now(),
+                    "action": "webdavCleartextExposureUnexpected",
+                    "success": False,
+                    "detail": "The HTTPS service address asked for cleartext approval.",
+                    "evidence": self.events[-1]["evidence"] if self.events else "",
+                })
+                self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
+                self.hold("pace", 0.5)
+                return None
+            if "Save Password?" in str(latest.get("hierarchy", "")):
+                for label in ("Not Now", "以后"):
+                    dismissed = self.controller(
+                        "tap", "--label", label, "--no-screenshot"
+                    )
+                    if dismissed.get("success") is True:
+                        dismissed_since_trust = True
+                        self.hold("pace", 0.5)
+                        break
+                continue
+            self.hold("pace", 1.0)
+        self.events.append({
+            "at": utc_now(),
+            "action": "webdavCertificateTrustMissing",
+            "success": False,
+            "detail": (
+                "Connect answered but neither a certificate nor a cleartext "
+                "prompt appeared."
+            ),
+            "evidence": self.events[-1]["evidence"] if self.events else "",
+        })
+        return None
 
     def source_connection_scenario(self, source: str) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
