@@ -68,8 +68,10 @@ class ViewModeRestoreTests(unittest.TestCase):
         create = body.find("MediaLibrary-NewFolder-create")
         self.assertNotEqual(create, -1)
         between = body[first_toggle:create]
-        self.assertIn("0.25", between)
+        self.assertIn('"setViewMode"', between)
+        self.assertIn("browser-view-mode-restore", between)
         self.assertIn("require_library_grid_mode", between)
+        self.assertNotIn('"coordinateTap"', body)
 
     def test_grid_precondition_guards_every_grid_dependent_chain(self) -> None:
         source = MATRIX_SOURCE.read_text(encoding="utf-8")
@@ -115,6 +117,15 @@ class ResetStateViewModeTests(unittest.TestCase):
         self.assertNotEqual(reset, -1)
         region = source[reset: reset + 4000]
         self.assertIn("viewMode = .grid", region)
+
+    def test_debug_channel_sets_view_mode_from_argument(self) -> None:
+        source = CHANNEL_SOURCE.read_text(encoding="utf-8")
+        verb = source.find('case "setViewMode"')
+        self.assertNotEqual(verb, -1)
+        region = source[verb: verb + 2000]
+        self.assertIn('request.args["mode"]', region)
+        self.assertIn("viewMode = .grid", region)
+        self.assertIn("viewMode = .list", region)
 
 
 if __name__ == "__main__":
