@@ -330,6 +330,7 @@ class FakeClient:
             "identifier: 'FileBrowsing-SourcesSidebar-source-media-library'\n"
             f"identifier: 'FileBrowsing-SourcesSidebar-source-{SOURCE_UUID}'\n"
             "identifier: 'FileBrowsing-Breadcrumb-current'\n"
+            "identifier: 'FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv'\n"
         )
 
 
@@ -479,6 +480,19 @@ class SidebarCleanupScenarioTests(unittest.TestCase):
             if verb == "app-command" and "resetState" in tokens
         ]
         self.assertEqual(resets, [])
+
+    def test_scroll_swipes_cards_without_opening_playback(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.run.source_sidebar_scenario()
+        swipes = [
+            tokens for verb, tokens in self.client.calls if verb == "swipeUp"
+        ]
+        self.assertTrue(swipes, "the connected listing must be scrolled")
+        tapped_cards = [
+            identifier for identifier in self.client.taps
+            if "FileBrowsing-grid-" in identifier
+        ]
+        self.assertEqual(tapped_cards, [])
 
 
 if __name__ == "__main__":

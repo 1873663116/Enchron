@@ -3733,6 +3733,7 @@ class ReachabilityRun:
                 "evidence": self.events[-1]["evidence"] if self.events else "",
             })
             return
+        self.scroll_connected_remote_listing(presentation)
         visible = self.wait_for_identifier(
             "FileBrowsing-Breadcrumb-current"
         )
@@ -3765,26 +3766,27 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The named Files breadcrumb was hittable; the DEBUG equivalent entered its navigation callback.",
                 )
-        scrolled = self.controller(
-            "swipeUp", "--identifier", "FileBrowsing-FilesScreen-list",
-            "--no-screenshot",
-        )
-        if scrolled.get("success") is not True:
-            listing = self.controller("snapshot", "--no-screenshot")
-            card = next(
+        self.dismiss_breadcrumb_menu(presentation)
+
+    def scroll_connected_remote_listing(self, presentation: str) -> None:
+        listing = self.controller("snapshot", "--no-screenshot")
+        identifiers = self.hierarchy_identifiers(listing)
+        anchor = "FileBrowsing-FilesScreen-list"
+        if anchor not in identifiers:
+            anchor = next(
                 (
                     identifier
-                    for identifier in sorted(self.hierarchy_identifiers(listing))
-                    if identifier.startswith("FileBrowsing-grid-folder-")
+                    for identifier in sorted(identifiers)
+                    if identifier.startswith("FileBrowsing-grid-")
                 ),
                 None,
             )
-            if card is None:
-                return
-            scrolled = self.controller(
-                "swipeUp", "--identifier", card,
-                "--no-screenshot",
-            )
+        if anchor is None:
+            return
+        scrolled = self.controller(
+            "swipeUp", "--identifier", anchor,
+            "--no-screenshot",
+        )
         self.hold("pace", 0.5)
         probe = self.copy_probe("source-sidebar-remote-scroll")
         if scrolled.get("success") is True and any(
@@ -3795,6 +3797,26 @@ class ReachabilityRun:
                 "The connected remote file surface appended a scroll geometry probe.",
                 has_accessibility_target=False,
             )
+
+    def dismiss_breadcrumb_menu(self, presentation: str) -> None:
+        menu = self.controller("snapshot", "--no-screenshot")
+        hierarchy = str(menu.get("hierarchy", ""))
+        if "FileBrowsing-Breadcrumb-current-level-" not in hierarchy:
+            return
+        match = re.search(
+            r"identifier: 'FileBrowsing-Breadcrumb-current-level-\d+', "
+            r"label: '([^']+)'",
+            hierarchy,
+        )
+        if match is not None:
+            self.tap_label(presentation, match.group(1))
+        else:
+            self.tap(presentation, "FileBrowsing-Breadcrumb-current")
+        self.hold("pace", 0.5)
+        restored = self.controller("snapshot", "--no-screenshot")
+        if "FileBrowsing-SourcesSidebar-sourceMore" not in self.hierarchy_identifiers(restored):
+            self.relaunch()
+            self.tap(presentation, "Navigation-Ornament-tab-files")
 
     def remove_connected_remote_sources(self, presentation: str) -> None:
         removed: list[str] = []
