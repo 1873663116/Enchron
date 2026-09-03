@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import types
 import unittest
 from pathlib import Path
 
@@ -80,6 +81,52 @@ class CampaignLauncherTests(unittest.TestCase):
         one_lane = {"buildIdentity": {"laneArtifacts": [{"lane": "simulator"}]}}
         with self.assertRaises(run_campaign.CampaignNotParallelizable):
             run_campaign.launch(TWO_LANE, one_lane, REACHABLE, lambda *a: 0)
+
+    def test_refuses_lanes_sharing_a_worktree(self) -> None:
+        shared = {"device": "/wt/one", "simulator": "/wt/one"}
+        with self.assertRaisesRegex(
+            run_campaign.CampaignNotParallelizable, "distinct worktrees"
+        ):
+            run_campaign.launch(
+                TWO_LANE, EXECUTION_INPUT, REACHABLE, lambda *a: 0, worktrees=shared
+            )
+
+    def test_distinct_worktrees_run_both_lanes(self) -> None:
+        distinct = {"device": "/wt/device", "simulator": "/wt/simulator"}
+        results = run_campaign.launch(
+            TWO_LANE, EXECUTION_INPUT, REACHABLE, lambda *a: 0, worktrees=distinct
+        )
+        self.assertEqual(sorted(results), ["device", "simulator"])
+
+
+class SpawnWorktreeTests(unittest.TestCase):
+    def test_each_lane_runs_its_own_worktree_copy_of_the_matrix(self) -> None:
+        from harness import campaign
+        from unittest.mock import patch
+
+        calls = []
+
+        def fake_run(command, env, cwd):
+            calls.append((list(command), cwd, env["ENCHRON_TARGET_DEVICE"]))
+            return types.SimpleNamespace(returncode=0)
+
+        spawn = campaign.default_spawn(
+            {"device": "dev-udid", "simulator": "sim-udid"},
+            {"device": Path("/wt/device"), "simulator": Path("/wt/simulator")},
+            Path("/p/plan.json"),
+            Path("/a/execution-input.json"),
+            Path("/o"),
+        )
+        with patch.object(campaign.subprocess, "run", fake_run):
+            spawn("simulator", "probe-main-window-browser", "tok")
+            spawn("device", "probe-window", "tok")
+        (sim_command, sim_cwd, sim_target), (dev_command, dev_cwd, dev_target) = calls
+        self.assertEqual(sim_cwd, Path("/wt/simulator"))
+        self.assertEqual(sim_command[1], "/wt/simulator/Scripts/verification/reachability_matrix.py")
+        self.assertEqual(sim_target, "sim-udid")
+        self.assertEqual(dev_cwd, Path("/wt/device"))
+        self.assertEqual(dev_command[1], "/wt/device/Scripts/verification/reachability_matrix.py")
+        self.assertEqual(dev_target, "dev-udid")
 
 
 class ExtraArgsTests(unittest.TestCase):

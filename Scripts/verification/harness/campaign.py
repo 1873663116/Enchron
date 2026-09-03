@@ -41,9 +41,12 @@ def segment_command(
     ]
 
 
+MATRIX_RELATIVE_PATH = Path("Scripts/verification/reachability_matrix.py")
+
+
 def default_spawn(
     target_devices: Mapping[str, str],
-    matrix_path: Path,
+    worktrees: Mapping[str, Path],
     segment_plan: Path,
     execution_input: Path,
     output_root: Path,
@@ -55,15 +58,16 @@ def default_spawn(
         environment = dict(os.environ)
         environment["ENCHRON_TARGET_DEVICE"] = target_devices[target]
         environment[CAMPAIGN_TOKEN_ENV] = token
+        worktree = Path(worktrees[target])
         command = segment_command(
-            matrix_path,
+            worktree / MATRIX_RELATIVE_PATH,
             segment_plan,
             execution_input,
             output_root / f"{target}-{segment}",
             segment,
             extra.get(segment, ()),
         )
-        completed = subprocess.run(command, env=environment)
+        completed = subprocess.run(command, env=environment, cwd=worktree)
         return completed.returncode
 
     return spawn
@@ -75,14 +79,19 @@ def launch(
     reachable: Mapping[str, bool],
     spawn: Spawn,
     token: str | None = None,
+    worktrees: Mapping[str, str] | None = None,
 ) -> dict[str, list[int]]:
     frozen = parallel.lane_targets(execution_input)
     partitioned = parallel.partition_by_target(assignments)
-    targets = parallel.parallelizable_targets(frozen, partitioned, reachable)
+    targets = parallel.parallelizable_targets(
+        frozen, partitioned, reachable, worktrees
+    )
     if len(targets) < 2:
         raise CampaignNotParallelizable(
-            "the campaign does not partition into two reachable frozen lanes; "
-            f"qualifying targets were {targets!r}"
+            "the campaign does not partition into two reachable frozen lanes "
+            "holding distinct worktrees; the controller scopes runner processes "
+            "by repository root, so lanes sharing a worktree kill each other's "
+            f"session. Qualifying targets were {targets!r}"
         )
     token = token or uuid.uuid4().hex
     results: dict[str, list[int]] = {}

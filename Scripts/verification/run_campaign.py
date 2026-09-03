@@ -55,16 +55,22 @@ def main() -> int:
         "simulator": arguments.simulator_target,
         "device": arguments.device_target,
     }
+    worktrees = {
+        str(target): str(Path(str(path)).resolve())
+        for target, path in (campaign.get("worktrees") or {}).items()
+    }
     spawn = default_spawn(
         target_devices,
-        Path(__file__).resolve().parent / "reachability_matrix.py",
+        {target: Path(path) for target, path in worktrees.items()},
         Path(arguments.segment_plan),
         Path(arguments.execution_input),
         Path(arguments.output_root),
         extra_args_by_segment(plan, campaign.get("extraArgs") or {}),
     )
     try:
-        results = launch(assignments, execution_input, reachable, spawn)
+        results = launch(
+            assignments, execution_input, reachable, spawn, worktrees=worktrees
+        )
     except CampaignNotParallelizable as refusal:
         sys.stderr.write(str(refusal) + "\n")
         return 2
