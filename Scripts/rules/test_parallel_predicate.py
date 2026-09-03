@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
+
+from harness import parallel
+
+BOTH_LANES = {"simulator", "device"}
+BOTH_REACHABLE = {"simulator": True, "device": True}
+
+
+class LaneTargetsTests(unittest.TestCase):
+    def test_reads_lanes_from_freeze(self) -> None:
+        execution_input = {
+            "buildIdentity": {
+                "laneArtifacts": [{"lane": "simulator"}, {"lane": "device"}]
+            }
+        }
+        self.assertEqual(parallel.lane_targets(execution_input), BOTH_LANES)
+
+    def test_missing_artifacts_yield_no_targets(self) -> None:
+        self.assertEqual(parallel.lane_targets({}), set())
+
+
+class PartitionTests(unittest.TestCase):
+    def test_groups_segments_by_target(self) -> None:
+        assignments = [
+            {"segment": "probe-window", "target": "device"},
+            {"segment": "probe-portal", "target": "device"},
+            {"segment": "probe-main-window-browser", "target": "simulator"},
+        ]
+        self.assertEqual(
+            parallel.partition_by_target(assignments),
+            {"device": ["probe-window", "probe-portal"], "simulator": ["probe-main-window-browser"]},
+        )
+
+
+class ParallelizableTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.pending = {"device": ["probe-window"], "simulator": ["probe-main-window-browser"]}
+
+    def test_true_when_two_targets_have_pending_reachable_frozen_work(self) -> None:
+        self.assertTrue(parallel.parallelizable(BOTH_LANES, self.pending, BOTH_REACHABLE))
+        self.assertEqual(
+            parallel.parallelizable_targets(BOTH_LANES, self.pending, BOTH_REACHABLE),
+            ["device", "simulator"],
+        )
+
+    def test_false_when_only_one_target_has_pending_work(self) -> None:
+        pending = {"device": ["probe-window"], "simulator": []}
+        self.assertFalse(parallel.parallelizable(BOTH_LANES, pending, BOTH_REACHABLE))
+
+    def test_false_when_a_target_hardware_is_unreachable(self) -> None:
+        reachable = {"simulator": True, "device": False}
+        self.assertFalse(parallel.parallelizable(BOTH_LANES, self.pending, reachable))
+
+    def test_false_when_the_freeze_lacks_a_lane_artifact(self) -> None:
+        self.assertFalse(parallel.parallelizable({"simulator"}, self.pending, BOTH_REACHABLE))
+
+    def test_refusal_reason_names_the_targets(self) -> None:
+        reason = parallel.serial_refusal_reason(["device", "simulator"])
+        self.assertIn("device", reason)
+        self.assertIn("simulator", reason)
+
+
+if __name__ == "__main__":
+    unittest.main()
