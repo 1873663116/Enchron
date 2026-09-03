@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 
+from harness.budgets import BudgetProvider
 from harness.controller import CompletedInvocation, ControllerClient
 from harness.failures import InstrumentFault
 from harness.replay import (
@@ -96,11 +97,13 @@ class FaithfulnessThroughControllerTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="replay-client-")
         self.addCleanup(self.temporary.cleanup)
         self.transcript = Path(self.temporary.name) / "transcript.jsonl"
+        self.budgets = BudgetProvider(timings_directory=Path(self.temporary.name))
 
     def record(self) -> None:
         inner = ScriptedInner()
         client = ControllerClient(
-            "simulator", command_prefix=["py", "runner"], run=RecordingTap(inner, self.transcript)
+            "simulator", command_prefix=["py", "runner"], run=RecordingTap(inner, self.transcript),
+            budgets=self.budgets,
         )
         response = client.invoke("snapshot", ["--no-screenshot"])
         self.assertEqual(response.document, snapshot_document())
@@ -111,7 +114,8 @@ class FaithfulnessThroughControllerTests(unittest.TestCase):
     def test_replay_drives_production_reconcile_and_fault_path(self) -> None:
         self.record()
         client = ControllerClient(
-            "simulator", command_prefix=["py", "runner"], run=ReplayRun(self.transcript)
+            "simulator", command_prefix=["py", "runner"], run=ReplayRun(self.transcript),
+            budgets=self.budgets,
         )
         response = client.invoke("snapshot", ["--no-screenshot"])
         self.assertEqual(response.document, snapshot_document())
