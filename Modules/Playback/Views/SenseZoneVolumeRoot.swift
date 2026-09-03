@@ -6,6 +6,7 @@ public struct SenseZoneVolumeRoot: View {
     @Environment(\.accessibilityPrefersCrossFadeTransitions)
     private var accessibilityPrefersCrossFadeTransitions
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismissWindow) private var dismissWindow
 
     @State private var revealCompleted = false
     @State private var sceneLifetimeIsOpen = false
@@ -54,6 +55,16 @@ public struct SenseZoneVolumeRoot: View {
                 break
             }
         }
+#if DEBUG
+        .onChange(of: appModel.environmentCardDismissalRequestRevision) { _, revision in
+            guard revision > 0 else { return }
+            dismissWindow(id: PlaybackSessionModel.senseZoneVolumeID)
+            appModel.recordSurfaceInputProbe(
+                "testcmd dismissEnvironmentCard delivered revision=\(revision)",
+                retention: .evidence
+            )
+        }
+#endif
     }
 
     private var revealInitialScale: CGFloat {

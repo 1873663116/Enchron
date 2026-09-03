@@ -2191,15 +2191,5 @@ public struct SpatialPlatformEffectExecutor: View {
             .onChange(of: appModel.pendingSpatialPlatformEffect?.id, initial: true) { _, _ in
                 coordinator.requestDrain()
             }
-#if DEBUG
-            .onChange(of: appModel.environmentCardDismissalRequestRevision) { _, revision in
-                guard windowIdentity == .main, revision > 0 else { return }
-                dismissWindow(id: PlaybackSessionModel.senseZoneVolumeID)
-                appModel.recordSurfaceInputProbe(
-                    "testcmd dismissEnvironmentCard delivered revision=\(revision)",
-                    retention: .evidence
-                )
-            }
-#endif
     }
 }
