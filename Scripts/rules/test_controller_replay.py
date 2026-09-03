@@ -175,5 +175,31 @@ class SelectRunTests(unittest.TestCase):
         self.assertEqual(recorded.returncode, replayed.returncode)
 
 
+
+class NormalizeCommandTests(unittest.TestCase):
+    def test_output_directory_is_volatile(self) -> None:
+        a = normalize_command(["runner", "--output-directory", "/a/x", "snapshot"])
+        b = normalize_command(["runner", "--output-directory", "/b/y", "snapshot"])
+        self.assertEqual(a, b)
+        self.assertNotIn("/a/x", a)
+
+    def test_uuids_are_replaced_with_a_placeholder(self) -> None:
+        one = normalize_command(["--arg", "evidenceSession=7d72ce74-c9f5-47e9-bf39-b02fcaecf66e"])
+        two = normalize_command(["--arg", "evidenceSession=083d6d24-012d-4f5b-847a-ff9b3f252070"])
+        self.assertEqual(one, two)
+        self.assertEqual(one, ["--arg", "evidenceSession=<uuid>"])
+
+    def test_a_transcript_recorded_before_a_normalization_change_still_replays(self) -> None:
+        directory = Path(tempfile.mkdtemp())
+        transcript = directory / "t.jsonl"
+        transcript.write_text(json.dumps({
+            "command": ["runner", "--output-directory", "/old/path", "snapshot"],
+            "returncode": 0, "stdout": "{}", "stderr": "",
+        }) + "\n", encoding="utf-8")
+        replay = ReplayRun(transcript)
+        result = replay(["runner", "--output-directory", "/new/path", "snapshot"], 30.0)
+        self.assertEqual(result.returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

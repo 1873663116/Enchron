@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Callable, Sequence
@@ -9,7 +10,10 @@ from harness.controller import CompletedInvocation
 
 RunCallable = Callable[[Sequence[str], float], CompletedInvocation]
 
-VOLATILE_FLAG_VALUES = frozenset({"--timeout-seconds"})
+VOLATILE_FLAG_VALUES = frozenset({"--timeout-seconds", "--output-directory"})
+_UUID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
 
 class ReplayDrift(RuntimeError):
@@ -26,7 +30,7 @@ def normalize_command(command: Sequence[str]) -> list[str]:
         if token in VOLATILE_FLAG_VALUES:
             skip_next = True
             continue
-        normalized.append(str(token))
+        normalized.append(_UUID.sub("<uuid>", str(token)))
     return normalized
 
 
@@ -85,7 +89,7 @@ class ReplayRun:
             )
         entry = self.entries[self.cursor]
         self.cursor += 1
-        recorded = list(entry["command"])
+        recorded = normalize_command(entry["command"])
         if recorded != actual:
             raise ReplayDrift(
                 f"replay call {self.cursor} diverged from the recording; "
