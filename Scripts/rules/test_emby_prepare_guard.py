@@ -1,10 +1,23 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import Mock, patch
 
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
 import Scripts.verification.reachability_matrix as matrix
+
+# matrix imports the real regression_emby_source at module load, which would
+# hit the network from this fixture. Replace it with a stub: the fixture
+# drives sign-in through the controller mock, not through provisioning.
+_stub_emby_source = ModuleType("regression_emby_source")
+_stub_emby_source.EmbySourceConfiguration = Mock()
+_stub_emby_source.provision_runtime_identity = Mock()
+sys.modules["regression_emby_source"] = _stub_emby_source
 
 
 class EmbyPrepareGuardTests(unittest.TestCase):
@@ -17,6 +30,8 @@ class EmbyPrepareGuardTests(unittest.TestCase):
         run.arguments.emby_credentials = Path(creds.name)
         run.raw = Path(tempfile.mkdtemp())
         run.events = []
+        run.cells = {}
+        run.out_of_context_observations = {}
         run.relaunch = Mock()
         run.tap = Mock(return_value={"success": True})
         run.segment = None
@@ -25,17 +40,24 @@ class EmbyPrepareGuardTests(unittest.TestCase):
         run.mark_observation = Mock()
         run.delivered = Mock()
         run.tapped_cells = set()
+        run.policy = Mock()
+        run.tools = Mock()
+        run.tools.call = Mock(return_value=Mock(returncode=0, stderr=""))
         run.controller = Mock()
         def controller_side_effect(verb, *args, **kwargs):
             if verb == "app-command" and "--verb" in args:
                 idx = list(args).index("--verb")
                 v = args[idx+1] if idx+1 < len(args) else ""
                 if v == "embyServerIdentityDigest":
+                    # "ok" takes the ensure_emby_sign_in early-True path so the
+                    # fixture exercises the digest comparison, not device I/O.
                     if device_digest is None:
-                        return {"success": True, "payload": []}
-                    return {"success": True, "payload": [device_digest]}
+                        return {"success": True, "ok": True, "payload": []}
+                    return {"success": True, "ok": True, "payload": [device_digest]}
                 if v == "prepareEmbyAccount":
                     return {"success": True}
+                if v == "embySignIn":
+                    return {"success": True, "ok": True}
             return {"success": True}
         run.controller.side_effect = controller_side_effect
         run.sensitive_values = ()
