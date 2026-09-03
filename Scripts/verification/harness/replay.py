@@ -101,3 +101,25 @@ class ReplayRun:
 
     def exhausted(self) -> bool:
         return self.cursor >= len(self.entries)
+
+
+RECORD_ENV = "ENCHRON_RECORD"
+REPLAY_ENV = "ENCHRON_REPLAY"
+_ENABLED = frozenset({"1", "true", "on", "yes"})
+
+
+def select_run(
+    default_run: RunCallable,
+    *,
+    record: str,
+    replay: str,
+    default_transcript: Path | str,
+) -> tuple[RunCallable, str]:
+    if replay:
+        return ReplayRun(replay), "replay"
+    if record:
+        transcript = (
+            str(default_transcript) if record.lower() in _ENABLED else record
+        )
+        return RecordingTap(default_run, transcript), "record"
+    return default_run, "live"

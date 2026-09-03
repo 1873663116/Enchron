@@ -12,7 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 
 from harness.controller import CompletedInvocation, ControllerClient
 from harness.failures import InstrumentFault
-from harness.replay import RecordingTap, ReplayDrift, ReplayRun, normalize_command
+from harness.replay import (
+    RecordingTap,
+    ReplayDrift,
+    ReplayRun,
+    normalize_command,
+    select_run,
+)
 
 
 def snapshot_document() -> dict[str, object]:
@@ -112,6 +118,61 @@ class FaithfulnessThroughControllerTests(unittest.TestCase):
         with self.assertRaises(InstrumentFault) as caught:
             client.invoke("tap", ["--identifier", "X"])
         self.assertEqual(caught.exception.kind, "transport-timeout")
+
+
+
+class SelectRunTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = Path(tempfile.mkdtemp())
+        self.default = ScriptedInner()
+
+    def test_no_env_uses_the_live_run_unwrapped(self) -> None:
+        run, mode = select_run(
+            self.default, record="", replay="",
+            default_transcript=self.directory / "t.jsonl",
+        )
+        self.assertIs(run, self.default)
+        self.assertEqual(mode, "live")
+
+    def test_record_flag_wraps_with_a_recording_tap_at_the_default_path(self) -> None:
+        transcript = self.directory / "t.jsonl"
+        run, mode = select_run(
+            self.default, record="1", replay="", default_transcript=transcript,
+        )
+        self.assertIsInstance(run, RecordingTap)
+        self.assertEqual(run.transcript_path, transcript)
+        self.assertEqual(mode, "record")
+
+    def test_record_path_records_to_that_path(self) -> None:
+        chosen = self.directory / "explicit.jsonl"
+        run, mode = select_run(
+            self.default, record=str(chosen), replay="",
+            default_transcript=self.directory / "t.jsonl",
+        )
+        self.assertEqual(run.transcript_path, chosen)
+
+    def test_replay_takes_priority_and_reads_the_transcript(self) -> None:
+        transcript = self.directory / "t.jsonl"
+        transcript.write_text("", encoding="utf-8")
+        run, mode = select_run(
+            self.default, record="1", replay=str(transcript),
+            default_transcript=self.directory / "other.jsonl",
+        )
+        self.assertIsInstance(run, ReplayRun)
+        self.assertEqual(mode, "replay")
+
+    def test_a_recorded_run_replays_identically(self) -> None:
+        transcript = self.directory / "t.jsonl"
+        prefix = ["python", "runner.py"]
+        recorder = ControllerClient(
+            "device", command_prefix=prefix,
+            run=RecordingTap(self.default, transcript),
+        )
+        recorded = recorder.run(["python", "runner.py", "snapshot"], 30.0)
+        replayer = ControllerClient("device", command_prefix=prefix, run=ReplayRun(transcript))
+        replayed = replayer.run(["python", "runner.py", "snapshot"], 30.0)
+        self.assertEqual(recorded.stdout, replayed.stdout)
+        self.assertEqual(recorded.returncode, replayed.returncode)
 
 
 if __name__ == "__main__":

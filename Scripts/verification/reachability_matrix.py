@@ -34,6 +34,8 @@ from harness import (
 from harness import lane_partition
 from harness import parallel
 from harness import pre_live
+from harness.controller import run_runner
+from harness.replay import select_run
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
@@ -1119,8 +1121,15 @@ class ReachabilityRun:
         self.out_of_context_observations = {}
         self.lane = "simulator" if enchron_target.is_simulator(DEVICE) else "device"
         self.budgets = BudgetProvider()
+        controller_run, self.controller_run_mode = select_run(
+            run_runner,
+            record=os.environ.get("ENCHRON_RECORD", ""),
+            replay=os.environ.get("ENCHRON_REPLAY", ""),
+            default_transcript=self.controller_output / "controller-transcript.jsonl",
+        )
         self.client = ControllerClient(
             self.lane,
+            run=controller_run,
             command_prefix=[
                 sys.executable,
                 str(CONTROLLER),
