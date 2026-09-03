@@ -8385,6 +8385,7 @@ class ReachabilityRun:
                 if (cell["context"], cell["operation"]) not in planned
             ],
             "stepCount": len(self.events),
+            "timingSamples": timing_samples_summary(self.output),
             "serviceHosts": getattr(self, "service_hosts", {}),
             "serviceReceipts": getattr(self, "service_receipts", {}),
             "cells": ordered_cells,

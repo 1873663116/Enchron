@@ -231,25 +231,33 @@ def copy_to_device(
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(local_path.read_bytes())
         return
-    result = run_devicectl(
-        [
-            "device",
-            "copy",
-            "to",
-            "--device",
-            device,
-            "--source",
-            str(local_path),
-            "--destination",
-            remote_path,
-            "--domain-type",
-            "appDataContainer",
-            "--domain-identifier",
-            runner_bundle_id,
-        ]
+    detail = "Unable to send UI command."
+    for attempt in range(DEVICE_TRANSFER_ATTEMPTS):
+        result = run_devicectl(
+            [
+                "device",
+                "copy",
+                "to",
+                "--device",
+                device,
+                "--source",
+                str(local_path),
+                "--destination",
+                remote_path,
+                "--domain-type",
+                "appDataContainer",
+                "--domain-identifier",
+                runner_bundle_id,
+            ]
+        )
+        if result.returncode == 0:
+            return
+        detail = result.stderr or result.stdout or detail
+        if attempt + 1 < DEVICE_TRANSFER_ATTEMPTS:
+            device_transfer_pause(DEVICE_TRANSFER_RETRY_SECONDS)
+    raise RuntimeError(
+        f"{detail.strip()} (after {DEVICE_TRANSFER_ATTEMPTS} devicectl transfer attempts)"
     )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr or result.stdout or "Unable to send UI command.")
 
 
 def wake_runner(arguments: argparse.Namespace) -> None:
@@ -347,6 +355,9 @@ RESPONSE_ARRIVED = "arrived"
 RESPONSE_TIMED_OUT = "timedOut"
 RESPONSE_RUNNER_GONE = "runnerGone"
 LIVENESS_INTERVAL_SECONDS = 5.0
+DEVICE_TRANSFER_ATTEMPTS = 3
+DEVICE_TRANSFER_RETRY_SECONDS = 1.5
+device_transfer_pause = time.sleep
 
 
 def runner_alive() -> bool:
