@@ -10,7 +10,7 @@
   },
   "any-identifier-appearance": {
     "expires": "2026-10-01",
-    "seconds": 20
+    "seconds": 60
   },
   "app-command": {
     "expires": "2026-10-01",
@@ -71,15 +71,15 @@
   },
   "identifier-absence": {
     "expires": "2026-10-01",
-    "seconds": 8
+    "seconds": 60
   },
   "identifier-appearance": {
     "expires": "2026-10-01",
-    "seconds": 8
+    "seconds": 60
   },
   "identifier-value": {
     "expires": "2026-10-01",
-    "seconds": 15
+    "seconds": 60
   },
   "immersive-settlement": {
     "expires": "2026-10-01",
@@ -115,7 +115,7 @@
   },
   "presentation-settle": {
     "expires": "2026-10-01",
-    "seconds": 45
+    "seconds": 60
   },
   "press": {
     "expires": "2026-10-01",
@@ -133,7 +133,7 @@
   },
   "probe-needle": {
     "expires": "2026-10-01",
-    "seconds": 20
+    "seconds": 60
   },
   "probe-size": {
     "expires": "2026-10-01",

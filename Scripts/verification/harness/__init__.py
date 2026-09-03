@@ -1,4 +1,4 @@
-from harness.budgets import Budget, BudgetProvider
+from harness.budgets import Budget, BudgetProvider, TIMING_SAMPLES_FILENAME
 from harness.controller import CompletedInvocation, ControllerClient, RunnerResponse
 from harness.evidence import EvidenceScope
 from harness.failures import (
@@ -35,6 +35,7 @@ __all__ = [
     "ReplayRun",
     "Retry",
     "RunnerResponse",
+    "TIMING_SAMPLES_FILENAME",
     "normalize_command",
     "wait_for",
 ]

@@ -11,6 +11,21 @@ from typing import Callable
 from harness.failures import InstrumentFault
 
 LANES = ("device", "simulator")
+TIMING_SAMPLES_FILENAME = "timing-samples.jsonl"
+PROVISIONAL_CEILING_VERBS = frozenset({
+    "identifier-appearance",
+    "any-identifier-appearance",
+    "identifier-absence",
+    "identifier-value",
+    "probe-needle",
+    "presentation-settle",
+    "presentation",
+    "immersive-settlement",
+    "wedge",
+    "clean-open",
+    "panorama-settle",
+    "result-bundle",
+})
 SAMPLE_LIMIT = 40
 MINIMUM_SAMPLE_COUNT = 5
 BUDGET_MULTIPLIER = 1.5
@@ -44,11 +59,15 @@ class BudgetProvider:
         now: Callable[[], datetime.datetime] = lambda: datetime.datetime.now(
             datetime.timezone.utc
         ),
+        output_directory: Path | None = None,
     ) -> None:
         self.timings_directory = Path(timings_directory)
         self.provisional_path = Path(provisional_path)
         self.today = today
         self.now = now
+        self.output_directory = (
+            Path(output_directory) if output_directory is not None else None
+        )
 
     def timings_path(self, lane: str) -> Path:
         assert lane in LANES, (
@@ -136,16 +155,40 @@ class BudgetProvider:
                 },
             )
         seconds = float(entry["seconds"])
-        provenance = (
-            f"provisional {seconds:g}s, expires {entry['expires']}, "
-            f"lane={lane}, n={sample_count}"
-        )
+        if verb in PROVISIONAL_CEILING_VERBS:
+            provenance = (
+                f"provisional ceiling {seconds:g}s, expires {entry['expires']}, "
+                f"lane={lane}, n={sample_count}"
+            )
+        else:
+            provenance = (
+                f"provisional {seconds:g}s, expires {entry['expires']}, "
+                f"lane={lane}, n={sample_count}"
+            )
         return Budget(seconds=seconds, provenance=provenance)
 
     def record_sample(
         self, lane: str, verb: str, seconds: float, censored: bool
     ) -> None:
         if os.environ.get("ENCHRON_EXECUTION_INPUT"):
+            if self.output_directory is not None:
+                self.output_directory.mkdir(parents=True, exist_ok=True)
+                with (
+                    self.output_directory / TIMING_SAMPLES_FILENAME
+                ).open("a", encoding="utf-8") as handle:
+                    handle.write(
+                        json.dumps(
+                            {
+                                "verb": verb,
+                                "lane": lane,
+                                "seconds": round(float(seconds), 3),
+                                "censored": bool(censored),
+                                "at": self.now().isoformat(),
+                            },
+                            sort_keys=True,
+                        )
+                        + "\n"
+                    )
             return
         document = self.load(lane)
         verbs = document.setdefault("verbs", {})
