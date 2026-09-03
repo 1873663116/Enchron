@@ -20,6 +20,7 @@ if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import evidence_root
 import enchron_target
+import regression_emby_source as emby_source
 from harness import (
     TIMING_SAMPLES_FILENAME,
     Budget,
@@ -5347,6 +5348,68 @@ class ReachabilityRun:
                         )
                     found_families.add(family)
 
+    def ensure_emby_staged_identity(self, credentials_path: Path, server_identity_digest: str | None) -> dict[str, Any]:
+        try:
+            emby_source.provision_runtime_identity(emby_source.EmbySourceConfiguration(identity_file=credentials_path))
+        except Exception as error:
+            return {"success": False, "detail": str(error)[:200]}
+        staged_source = credentials_path
+        staged_destination = "Documents/Regression/emby-runtime-identity.json"
+        staged = self.local_call(
+            "emby-stage",
+            lambda budget: enchron_target.copy_to_container(
+                target=DEVICE,
+                bundle_id=APP_BUNDLE,
+                source=staged_source,
+                destination=staged_destination,
+                developer_dir=DEVELOPER_DIR,
+                core_device_identifier=CORE_DEVICE,
+                budget_seconds=budget.seconds,
+            ),
+        )
+        if staged is None or staged.returncode != 0:
+            return {"success": False, "detail": staged.stderr[:200] if staged is not None else "instrument fault"}
+        if enchron_target.is_simulator(DEVICE):
+            container = enchron_target.simulator_container(DEVICE, APP_BUNDLE)
+            if container is not None:
+                staged_path = container / staged_destination
+                try:
+                    staged_path.chmod(0o600)
+                except OSError:
+                    pass
+        try:
+            controller = emby_source.EmbySourceController(emby_source.EmbySourceConfiguration(identity_file=credentials_path))
+            report = controller.ensure()
+            if report.get("ready") is not True:
+                return {"success": False, "detail": "Emby ensure not ready"}
+            receipt = report.get("receipt", {})
+            catalog = receipt.get("catalog", {}) if isinstance(receipt, dict) else {}
+            external = receipt.get("externalSubtitle", {}) if isinstance(receipt, dict) else {}
+            item_id = catalog.get("episodeID") if isinstance(catalog, dict) else None
+            media_source_id = catalog.get("mediaSourceID") if isinstance(catalog, dict) else None
+            stream_index = external.get("streamIndex") if isinstance(external, dict) else None
+            server_id = receipt.get("serverID") if isinstance(receipt, dict) else None
+            digest = server_identity_digest
+            if not isinstance(digest, str) or not digest:
+                if isinstance(server_id, str) and server_id:
+                    digest = hashlib.sha256(server_id.encode("utf-8")).hexdigest()
+            if not all(isinstance(v, str) and v for v in (item_id, media_source_id)) or not isinstance(stream_index, int) or not isinstance(digest, str) or not digest:
+                return {"success": False, "detail": "catalog identity incomplete"}
+            identity_digest = "sha256:" + digest
+            result = self.controller(
+                "app-command",
+                "--verb", "prepareEmbyAccount",
+                "--arg", f"identityDigest={identity_digest}",
+                "--arg", f"itemID={item_id}",
+                "--arg", f"mediaSourceID={media_source_id}",
+                "--arg", f"externalSubtitleStreamIndex={stream_index}",
+                "--no-screenshot",
+            )
+            self.events.append({"at": utc_now(), "action": "prepareEmbyAccount", "success": result.get("success") is True, "evidence": self.events[-1]["evidence"] if self.events else "raw/prepareEmbyAccount.json"})
+            return result
+        except Exception as error:
+            return {"success": False, "detail": str(error)[:200]}
+
     def emby_session_recovery_scenario(self) -> None:
         if not self.ensure_emby_sign_in():
             return
@@ -5382,8 +5445,9 @@ class ReachabilityRun:
             readiness.get("serverIdentityDigest") == device_digest
             and isinstance(device_digest, str)
         )
+        verify_passed = bool(readiness.get("passed") is True)
         readiness["passed"] = bool(
-            readiness.get("passed") is True
+            verify_passed
             and readiness["sameServer"] is True
             and current_identity.get("success") is True
         )
@@ -5398,7 +5462,44 @@ class ReachabilityRun:
             "evidence": f"raw/{readiness_path.name}",
         })
         if readiness["passed"] is not True:
-            return
+            if readiness.get("sameServer") is not True and isinstance(readiness.get("serverIdentityDigest"), str):
+                staged = self.ensure_emby_staged_identity(credentials_path, readiness.get("serverIdentityDigest"))
+                if staged.get("success") is True:
+                    current_identity = self.controller(
+                        "app-command",
+                        "--verb", "embyServerIdentityDigest",
+                        "--no-screenshot",
+                    )
+                    device_payload = current_identity.get("payload")
+                    device_digest = (
+                        device_payload[0]
+                        if isinstance(device_payload, list)
+                        and len(device_payload) == 1
+                        and isinstance(device_payload[0], str)
+                        else None
+                    )
+                    readiness["deviceIdentityDigest"] = device_digest
+                    readiness["sameServer"] = (
+                        readiness.get("serverIdentityDigest") == device_digest
+                        and isinstance(device_digest, str)
+                    )
+                    readiness["passed"] = bool(
+                        verify_passed
+                        and readiness["sameServer"] is True
+                        and current_identity.get("success") is True
+                    )
+                    readiness_path.write_text(
+                        json.dumps(readiness, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+                    self.events.append({
+                        "at": utc_now(),
+                        "action": "verifyEmbyRecoveryCredentials",
+                        "success": readiness["passed"],
+                        "evidence": f"raw/{readiness_path.name}",
+                    })
+            if readiness["passed"] is not True:
+                return
 
         before = self.copy_probe("emby-signout-before")
         offset = len(before)
