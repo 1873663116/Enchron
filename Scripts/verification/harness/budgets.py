@@ -25,6 +25,7 @@ DEFAULT_PROVISIONAL_PATH = Path(__file__).resolve().parent / "provisional_budget
 class Budget:
     seconds: float
     provenance: str
+    at_floor: bool = False
 
 
 def percentile_95(values: list[float]) -> float:
@@ -84,10 +85,11 @@ class BudgetProvider:
             f"n={len(recorded)}, censored={censored_count}"
         )
         floor = self.declared_floor(verb)
-        if floor is not None and derived < floor:
+        at_floor = floor is not None and derived < floor
+        if at_floor:
             derived = min(floor, BUDGET_CEILING_SECONDS)
             provenance += f", raised to the declared floor {floor:g}s"
-        return Budget(seconds=derived, provenance=provenance)
+        return Budget(seconds=derived, provenance=provenance, at_floor=at_floor)
 
     def declared_floor(self, verb: str) -> float | None:
         if not self.provisional_path.exists():

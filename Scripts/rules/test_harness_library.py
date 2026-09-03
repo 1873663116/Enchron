@@ -97,6 +97,13 @@ class BudgetDerivationTests(unittest.TestCase):
         ).budget("simulator", "tap")
         self.assertEqual(budget.seconds, 75.0)
         self.assertIn("raised to the declared floor 75s", budget.provenance)
+        self.assertTrue(budget.at_floor)
+
+    def test_a_measured_budget_above_the_floor_is_not_at_floor(self) -> None:
+        samples = [measured(float(value)) for value in range(1, 21)]
+        write_timings(self.directory, "device", "press", samples)
+        budget = provider(self.directory).budget("device", "press")
+        self.assertFalse(budget.at_floor)
 
     def test_a_measured_budget_above_the_floor_is_untouched(self) -> None:
         samples = [measured(80.0) for _ in range(6)]
@@ -569,6 +576,23 @@ class RecoveryPolicyTests(unittest.TestCase):
         decision = self.policy.on_fault(self.fault("transport-timeout"), history)
         self.assertIsInstance(decision, Retry)
         self.assertIn("transient", decision.reason)
+
+    def test_a_floor_timeout_is_not_excused_as_transient(self) -> None:
+        history = [
+            FaultRecord("open-media", "response-timeout", censored=True, at_floor=True),
+        ]
+        decision = self.policy.on_fault(self.fault("response-timeout"), history)
+        self.assertIsInstance(decision, Retry)
+        self.assertNotIn("transient", decision.reason)
+
+    def test_a_floor_timeout_twice_in_a_row_halts(self) -> None:
+        history = [
+            FaultRecord("open-media", "response-timeout", censored=True, at_floor=True),
+            FaultRecord("open-media", "response-timeout", censored=True, at_floor=True),
+        ]
+        self.policy.on_fault(self.fault("response-timeout"), history[:1])
+        decision = self.policy.on_fault(self.fault("response-timeout"), history)
+        self.assertIsInstance(decision, Halt)
 
     def test_history_tail_must_match_fault(self) -> None:
         with self.assertRaises(AssertionError):

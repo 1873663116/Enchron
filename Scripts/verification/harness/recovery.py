@@ -11,6 +11,7 @@ class FaultRecord:
     location: str
     kind: str
     censored: bool = False
+    at_floor: bool = False
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ class RecoveryPolicy:
                     ),
                     report=self.fault_report(),
                 )
-        if current.censored:
+        if current.censored and not current.at_floor:
             return Retry(
                 reason=(
                     f"censored sample at {current.location} signals a "

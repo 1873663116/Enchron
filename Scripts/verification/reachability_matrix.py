@@ -1224,6 +1224,7 @@ class ReachabilityRun:
             location=location,
             kind=fault.kind,
             censored=fault.kind in CENSORED_FAULT_KINDS,
+            at_floor=fault.budget.at_floor if fault.budget is not None else False,
         ))
         decision = self.policy.on_fault(fault, self.history)
         entry: dict[str, Any] = {
@@ -2293,6 +2294,8 @@ class ReachabilityRun:
     def read_probe_status(self) -> dict[str, Any]:
         document = self.app_command("probeStatus", defer_response=False)
         if document.get("success") is True:
+            return document
+        if str((document.get("failure") or {}).get("kind")) == "response-timeout":
             return document
         retry = self.app_command("probeStatus", defer_response=False)
         self.events.append({
