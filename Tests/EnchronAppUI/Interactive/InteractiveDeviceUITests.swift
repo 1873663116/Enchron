@@ -661,6 +661,21 @@ private final class InteractiveDeviceUIChannel {
         return matchedElementObservation(for: element)
     }
 
+    private static let snapshotValueLimit = 512
+
+    private func fullValue(
+        of element: XCUIElement,
+        snapshot: XCUIElementSnapshot
+    ) -> String? {
+        guard let value = snapshot.value.map({ String(describing: $0) }) else {
+            return nil
+        }
+        guard value.count >= Self.snapshotValueLimit, element.exists else {
+            return value
+        }
+        return element.value.map { String(describing: $0) }
+    }
+
     private func matchedElementObservation(
         for element: XCUIElement
     ) -> InteractiveDeviceUIElementObservation? {
@@ -669,7 +684,7 @@ private final class InteractiveDeviceUIChannel {
         return InteractiveDeviceUIElementObservation(
             identifier: snapshot.identifier,
             label: snapshot.label,
-            value: snapshot.value.map { String(describing: $0) },
+            value: fullValue(of: element, snapshot: snapshot),
             elementType: String(describing: snapshot.elementType),
             isEnabled: snapshot.isEnabled,
             isHittable: element.isHittable,
