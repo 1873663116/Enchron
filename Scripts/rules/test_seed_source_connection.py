@@ -261,6 +261,8 @@ class FakeClient:
             self.taps.append(identifier)
             if identifier == "FileBrowsing-CertificateTrust-trust":
                 self.phase = "connected"
+            if identifier in ("Not Now", "以后") and self.phase == "cert":
+                self.phase = "cert-ready"
             if identifier == "Delete selected sources":
                 self.phase = "clean"
             return RunnerResponse(
@@ -312,6 +314,12 @@ class FakeClient:
         if self.phase == "form":
             return "identifier: 'FileBrowsing-SourceConnection-webDAV-address'\n"
         if self.phase == "cert":
+            return (
+                "Alert, label: 'Save Password?'\n"
+                "  Button, label: 'Save'\n"
+                "  Button, label: 'Not Now'\n"
+            )
+        if self.phase == "cert-ready":
             return (
                 "identifier: 'FileBrowsing-CertificateTrust-trust'\n"
                 "identifier: 'FileBrowsing-CertificateTrust-cancel'\n"
@@ -381,6 +389,16 @@ class WebDAVConnectionScenarioTests(unittest.TestCase):
         self.run.client = self.client
         self.client.phase = "cert"
 
+        def scripted_cert_wait(identifiers: tuple[str, ...], **kwargs: object) -> object:
+            if "Not Now" in self.client.taps or "以后" in self.client.taps:
+                return (
+                    "FileBrowsing-CertificateTrust-trust",
+                    {"matchedElement": {"isHittable": True, "isEnabled": True, "value": ""}},
+                )
+            return None, {}
+
+        self.run.wait_for_any_identifier = scripted_cert_wait  # noqa: E731
+
     def test_connect_uses_the_environment_identity_without_fake_credentials(self) -> None:
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
@@ -408,6 +426,16 @@ class WebDAVConnectionScenarioTests(unittest.TestCase):
             self.run.source_connection_scenario("webDAV")
         self.assertIn("FileBrowsing-CertificateTrust-trust", self.client.taps)
         self.assertNotIn("FileBrowsing-CertificateTrust-cancel", self.client.taps)
+
+    def test_save_password_sheet_is_dismissed_before_trust(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.run.source_connection_scenario("webDAV")
+        taps = self.client.taps
+        self.assertIn("Not Now", taps)
+        self.assertLess(
+            taps.index("Not Now"),
+            taps.index("FileBrowsing-CertificateTrust-trust"),
+        )
 
     def test_connected_source_is_required_and_recorded(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()):

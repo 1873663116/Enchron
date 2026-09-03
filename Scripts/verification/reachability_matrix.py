@@ -3285,6 +3285,16 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "Connect delivered the source-specific request to FilesScreen before network resolution.",
             )
+        cert_id, cert_doc = None, None
+        password_prompt = self.controller("snapshot", "--no-screenshot")
+        if "Save Password?" in str(password_prompt.get("hierarchy", "")):
+            for label in ("Not Now", "以后"):
+                dismissed = self.controller(
+                    "tap", "--label", label, "--no-screenshot"
+                )
+                if dismissed.get("success") is True:
+                    self.hold("pace", 0.5)
+                    break
         cert_id, cert_doc = self.wait_for_any_identifier(
             (
                 "FileBrowsing-CertificateTrust-cancel",
@@ -3343,12 +3353,6 @@ class ReachabilityRun:
             self.tap(presentation, "FileBrowsing-CleartextExposure-cancel")
             self.hold("pace", 0.5)
             return None
-        for label in ("以后", "Not Now"):
-            dismissed = self.controller(
-                "tap", "--label", label, "--no-screenshot"
-            )
-            if dismissed.get("success") is True:
-                break
         snapshot = self.controller("snapshot", "--no-screenshot")
         source_identifiers = sorted(
             identifier
@@ -3706,6 +3710,15 @@ class ReachabilityRun:
                         "The connected source row reached FilesScreen.select without activating its delete control.",
                     )
                     break
+        if not self.connected_remote_source_identifiers():
+            self.events.append({
+                "at": utc_now(),
+                "action": "remoteSourceRemovedDuringSelect",
+                "success": False,
+                "detail": "The connected source left the sidebar during selection.",
+                "evidence": self.events[-1]["evidence"] if self.events else "",
+            })
+            return
         visible = self.wait_for_identifier(
             "FileBrowsing-Breadcrumb-current"
         )
