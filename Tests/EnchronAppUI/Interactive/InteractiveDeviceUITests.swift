@@ -433,7 +433,9 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            routeElements.append(matchedElementObservation(for: element))
+            if let observation = matchedElementObservation(for: element) {
+                routeElements.append(observation)
+            }
             element.tap()
             record(afterStep: "label:\(label)")
         }
@@ -459,7 +461,9 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            routeElements.append(matchedElementObservation(for: element))
+            if let observation = matchedElementObservation(for: element) {
+                routeElements.append(observation)
+            }
             element.tap()
             record(afterStep: identifier)
         }
@@ -492,7 +496,9 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            routeElements.append(matchedElementObservation(for: element))
+            if let observation = matchedElementObservation(for: element) {
+                routeElements.append(observation)
+            }
             element.tap()
             record(afterStep: "label:\(trailingLabel)")
             return (
@@ -657,16 +663,17 @@ private final class InteractiveDeviceUIChannel {
 
     private func matchedElementObservation(
         for element: XCUIElement
-    ) -> InteractiveDeviceUIElementObservation {
-        let frame = element.frame
+    ) -> InteractiveDeviceUIElementObservation? {
+        guard let snapshot = try? element.snapshot() else { return nil }
+        let frame = snapshot.frame
         return InteractiveDeviceUIElementObservation(
-            identifier: element.identifier,
-            label: element.label,
-            value: element.value.map { String(describing: $0) },
-            elementType: String(describing: element.elementType),
-            isEnabled: element.isEnabled,
+            identifier: snapshot.identifier,
+            label: snapshot.label,
+            value: snapshot.value.map { String(describing: $0) },
+            elementType: String(describing: snapshot.elementType),
+            isEnabled: snapshot.isEnabled,
             isHittable: element.isHittable,
-            isSelected: element.isSelected,
+            isSelected: snapshot.isSelected,
             frame: .init(
                 x: Double(frame.origin.x),
                 y: Double(frame.origin.y),
