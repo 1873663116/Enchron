@@ -3,7 +3,7 @@ from __future__ import annotations
 import fcntl
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from .errors import RegressionError
 from .events import EventType, LedgerEvent, canonical_payload_bytes, command_digest
@@ -14,8 +14,24 @@ from .replay import LEDGER_FILENAME, read_event_log
 LOCK_FILENAME = "ledger.lock"
 
 
+EventFold = Callable[[Tuple[LedgerEvent, ...]], Any]
+
+
 class LedgerWriter:
-    def __init__(self, directory: Path, run_id: RunID, plan_digest: Digest) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        run_id: RunID,
+        plan_digest: Digest,
+        fold: EventFold,
+    ) -> None:
+        if not callable(fold):
+            raise RegressionError(
+                "ledger.invalid_fold",
+                str(directory),
+                "a writer needs the fold that decides whether an event is admissible",
+            )
+        self._fold = fold
         self.directory = Path(directory)
         self.run_id = parse_identifier("run", run_id, "runId")
         self.plan_digest = parse_identifier("digest", plan_digest, "planDigest")
@@ -112,6 +128,7 @@ class LedgerWriter:
                 str(self.directory),
                 "new event does not extend the current hash chain",
             )
+        self._fold(tuple(self._events) + (event,))
         self._ledger.write(event.canonical_line())
         self._ledger.flush()
         os.fsync(self._ledger.fileno())
@@ -152,4 +169,4 @@ class LedgerWriter:
             pass
 
 
-__all__ = ("LOCK_FILENAME", "LedgerWriter")
+__all__ = ("EventFold", "LOCK_FILENAME", "LedgerWriter")

@@ -57,6 +57,7 @@ from .plan import (
     PreparationBinding,
     ScenarioAttemptNode,
     compiled_plan_payload,
+    success_payload,
 )
 from .replay import read_event_log, replay
 from .runview import (
@@ -68,10 +69,13 @@ from .runview import (
     RunOutcome,
     RunView,
     StateProductionView,
+    TERMINAL_NODE_STATUSES,
     TRANSITION_FAULT_INTERRUPTION_PREFIX,
     _assigned_emergency_arm,
     aggregate_oracle_results,
+    awaiting_adjudication,
     build_run_view,
+    nodes_awaiting_adjudication,
     resolve_call_arguments,
 )
 from .scheduler import ReadyCandidate, choose_ready
@@ -953,11 +957,7 @@ class MainRun:
                 str(lease.lease_id),
                 "the lease already received a different envelope digest",
             )
-        if node_view.status in (
-            NodeStatus.PASSED,
-            NodeStatus.FAILED,
-            NodeStatus.INDETERMINATE,
-        ):
+        if node_view.status in TERMINAL_NODE_STATUSES:
             if lease.evidence_accepted:
                 return _evidence_receipt(lease, node_view.status)
             raise RegressionError(
@@ -1098,7 +1098,9 @@ class MainRun:
         if target is not None:
             lease = current.lease(target)
             node_view = current.node(lease.node_id)
-            if node_view.status is NodeStatus.LEASED:
+            if node_view.status is NodeStatus.LEASED and not awaiting_adjudication(
+                node_view, lease
+            ):
                 self._record_verdict(
                     lease.node_id,
                     NodeStatus.INDETERMINATE,
@@ -1197,6 +1199,13 @@ class MainRun:
         self._recover_uncertain_invocations()
         self._settle_derivable_nodes()
         current = self.view
+        owed = nodes_awaiting_adjudication(current)
+        if owed:
+            raise RegressionError(
+                "runtime.adjudication_owed",
+                ", ".join(str(item.node_id) for item in owed),
+                "a non-satisfied node needs its ledger verdict before the run closes",
+            )
         for lease in current.leases:
             if current.node(lease.node_id).status is NodeStatus.LEASED:
                 self.interrupt_lane(
@@ -1562,15 +1571,8 @@ class MainRun:
             )
             completed[binding.id] = result.overall
 
-        verdict = evaluate_success(node.success, completed)
-        if verdict is OracleResult.SATISFIED:
+        if evaluate_success(node.success, completed) is OracleResult.SATISFIED:
             self._record_verdict(node.id, NodeStatus.PASSED, lease.lease_id)
-        elif verdict is OracleResult.VIOLATED:
-            self._record_verdict(node.id, NodeStatus.FAILED, lease.lease_id)
-        else:
-            self.interrupt_lane(
-                lease.lane, "oracle-indeterminate", lease.lease_id
-            )
 
     def _validate_evaluator(
         self,
@@ -1748,24 +1750,16 @@ class MainRun:
                     item.obligation_id: item.overall
                     for item in lease.oracle_evaluations
                 }
-                if set(results) == {
-                    item.id for item in plan_node.evaluation_bindings
-                }:
-                    verdict = evaluate_success(plan_node.success, results)
-                    if verdict is OracleResult.SATISFIED:
-                        self._record_verdict(
-                            plan_node.id, NodeStatus.PASSED, lease.lease_id
-                        )
-                    elif verdict is OracleResult.VIOLATED:
-                        self._record_verdict(
-                            plan_node.id, NodeStatus.FAILED, lease.lease_id
-                        )
-                    else:
-                        self.interrupt_lane(
-                            lease.lane,
-                            "oracle-indeterminate",
-                            lease.lease_id,
-                        )
+                if (
+                    set(results) == {
+                        item.id for item in plan_node.evaluation_bindings
+                    }
+                    and evaluate_success(plan_node.success, results)
+                    is OracleResult.SATISFIED
+                ):
+                    self._record_verdict(
+                        plan_node.id, NodeStatus.PASSED, lease.lease_id
+                    )
                     current = self.view
 
     def _call_sequence(
@@ -1959,7 +1953,7 @@ def open_run(plan: CompiledRunPlan, directory: Path) -> MainRun:
     _write_plan_once(run_directory, plan)
     existing = read_event_log(run_directory)
     run_id = existing.run_id or RunID("run:" + secrets.token_hex(12))
-    ledger = LedgerWriter(run_directory, run_id, plan.plan_digest)
+    ledger = LedgerWriter(run_directory, run_id, plan.plan_digest, build_run_view)
     main = MainRun(plan, run_directory, ledger)
     try:
         main.bootstrap_and_recover()
@@ -2014,7 +2008,7 @@ def _write_plan_once(directory: Path, plan: CompiledRunPlan) -> None:
 
 
 def _node_open_payload(node: Any) -> Mapping[str, Any]:
-    return {
+    payload = {
         "nodeId": str(node.id),
         "kind": "bothJoin" if isinstance(node, BothJoinNode) else "scenarioAttempt",
         "predecessors": [str(item) for item in node.predecessors],
@@ -2026,6 +2020,9 @@ def _node_open_payload(node: Any) -> Mapping[str, Any]:
             for item in node.gate_dependencies
         ],
     }
+    if not isinstance(node, BothJoinNode):
+        payload["success"] = success_payload(node.success)
+    return payload
 
 
 def _preparation_calls(binding: PreparationBinding) -> Tuple[CallPlanView, ...]:

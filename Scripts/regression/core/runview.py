@@ -14,7 +14,13 @@ from .contracts import BoundLane
 from .digest import canonical_bytes, digest_bytes
 from .errors import RegressionError
 from .events import EventType, LedgerEvent, decode_json_bytes, payload_value
-from .expression import OracleResult
+from .expression import (
+    OracleResult,
+    SuccessExpression,
+    evaluate_success,
+    parse_success_expression,
+    referenced_obligations,
+)
 from .ids import (
     CallID,
     CaseKey,
@@ -29,6 +35,7 @@ from .ids import (
     PreparationID,
     RunID,
     SidekickID,
+    SignatureID,
     StateKey,
     StateSchema,
     StateTag,
@@ -73,6 +80,19 @@ PRODUCT_FAILURE_NODE_STATUSES = (
     NodeStatus.FAILED,
     NodeStatus.FAILED_KNOWN,
 )
+
+
+class Attribution(Enum):
+    PRODUCT = "product"
+    HARNESS = "harness"
+    SPEC = "spec"
+
+
+ADJUDICATED_NODE_STATUSES = {
+    OracleResult.SATISFIED: (NodeStatus.PASSED,),
+    OracleResult.VIOLATED: (NodeStatus.FAILED, NodeStatus.FAILED_KNOWN),
+    OracleResult.INDETERMINATE: (NodeStatus.INDETERMINATE,),
+}
 
 
 class LeaseStatus(Enum):
@@ -467,16 +487,27 @@ def resolve_call_arguments(lease: LeaseView, call: CallPlanView) -> bytes:
 
 
 @dataclass(frozen=True)
+class AdjudicationView:
+    first_deviant_frame: Optional[int]
+    region_observation: str
+    attribution: Attribution
+    signature: Optional[SignatureID]
+    bundle_frame_count: int
+
+
+@dataclass(frozen=True)
 class NodeView:
     node_id: NodeID
     kind: str
     predecessors: Tuple[NodeID, ...]
     lane_candidates: Tuple[BoundLane, ...]
     gate_dependencies: Tuple[LaneGateView, ...]
+    success: Optional[SuccessExpression] = None
     status: NodeStatus = NodeStatus.PENDING
     lane: Optional[BoundLane] = None
     lease_id: Optional[LeaseID] = None
     failure_ancestors: Tuple[NodeID, ...] = ()
+    adjudication: Optional[AdjudicationView] = None
 
 
 @dataclass(frozen=True)
@@ -543,6 +574,46 @@ class RunView:
             if prepared.handle.is_valid(key, schema, lane, epochs):
                 return prepared
         return None
+
+
+def settled_oracle_result(
+    node: NodeView, lease: Optional[LeaseView]
+) -> Optional[OracleResult]:
+    if (
+        node.status is not NodeStatus.LEASED
+        or node.success is None
+        or lease is None
+        or lease.node_id != node.node_id
+        or not lease.operations_complete
+        or not lease.evidence_accepted
+    ):
+        return None
+    recorded = {item.obligation_id: item.overall for item in lease.oracle_evaluations}
+    referenced = referenced_obligations(node.success)
+    settled = evaluate_success(
+        node.success,
+        {
+            key: recorded.get(key, OracleResult.INDETERMINATE)
+            for key in referenced
+        },
+    )
+    if referenced <= frozenset(recorded) or settled is not OracleResult.INDETERMINATE:
+        return settled
+    return None
+
+
+def awaiting_adjudication(node: NodeView, lease: Optional[LeaseView]) -> bool:
+    settled = settled_oracle_result(node, lease)
+    return settled is not None and settled is not OracleResult.SATISFIED
+
+
+def nodes_awaiting_adjudication(view: RunView) -> Tuple[NodeView, ...]:
+    leases = {item.node_id: item for item in view.leases}
+    return tuple(
+        node
+        for node in view.nodes
+        if awaiting_adjudication(node, leases.get(node.node_id))
+    )
 
 
 def build_run_view(events: Iterable[LedgerEvent]) -> RunView:
@@ -925,12 +996,28 @@ def _open_nodes(
                     _node_id(gate.get("nodeId"), item_location + ".gate.nodeId"),
                 )
             )
+        raw_success = item.get("success")
+        if kind == "scenarioAttempt":
+            if raw_success is None:
+                raise _transition(
+                    item_location, "Scenario node needs its success expression"
+                )
+            success = parse_success_expression(
+                raw_success, item_location + ".success"
+            )
+        else:
+            if raw_success is not None:
+                raise _transition(
+                    item_location, "join node cannot carry a success expression"
+                )
+            success = None
         nodes[node_id] = NodeView(
             node_id,
             kind,
             predecessors,
             lane_candidates,
             tuple(gates),
+            success,
         )
         if kind == "scenarioAttempt" and not lane_candidates:
             raise _transition(item_location, "Scenario node needs a lane candidate")
@@ -1392,11 +1479,26 @@ def _record_verdict(
         raise _transition(location, "only BlockedBy may carry failure ancestors")
 
     raw_lease = payload.get("leaseId")
+    settled = None
     if node.status is NodeStatus.LEASED:
         lease_id = _lease_id(raw_lease, location + ".leaseId")
         if lease_id != node.lease_id:
             raise _transition(location, "verdict lease does not match the node")
         lease = leases[lease_id]
+        settled = settled_oracle_result(node, lease)
+        if settled is not None and status not in ADJUDICATED_NODE_STATUSES[settled]:
+            raise _transition(
+                location, "node verdict contradicts the Oracle result of its own lease"
+            )
+        if (
+            settled is None
+            and lease.oracle_evaluations
+            and status is not NodeStatus.INDETERMINATE
+        ):
+            raise _transition(
+                location,
+                "a half-evaluated lease carries no Oracle result to adjudicate",
+            )
         if status in PRODUCT_NODE_STATUSES and (
             not lease.operations_complete
             or not lease.evidence_accepted
@@ -1408,12 +1510,13 @@ def _record_verdict(
             )
         if node.kind == "bothJoin":
             raise _transition(location, "join node cannot own a lease")
-        lease_status = (
-            LeaseStatus.INTERRUPTED
-            if status is NodeStatus.INDETERMINATE
-            else LeaseStatus.COMPLETED
-        )
-        leases[lease_id] = replace(lease, status=lease_status)
+        if lease.status is LeaseStatus.ACTIVE:
+            lease_status = (
+                LeaseStatus.INTERRUPTED
+                if status is NodeStatus.INDETERMINATE
+                else LeaseStatus.COMPLETED
+            )
+            leases[lease_id] = replace(lease, status=lease_status)
         lane = lanes[lease.lane]
         if lane.active_lease_id == lease_id:
             lanes[lease.lane] = replace(lane, active_lease_id=None)
@@ -1428,11 +1531,73 @@ def _record_verdict(
         if status in PRODUCT_FAILURE_NODE_STATUSES:
             raise _transition(location, "join nodes cannot create product failures")
 
+    raw_adjudication = payload.get("adjudication")
+    adjudication = None
+    if settled is not None and settled is not OracleResult.SATISFIED:
+        if raw_adjudication is None:
+            raise _transition(
+                location, "a non-satisfied node verdict needs its adjudication"
+            )
+        adjudication = _adjudication(
+            raw_adjudication, status, location + ".adjudication"
+        )
+    elif raw_adjudication is not None:
+        raise _transition(
+            location, "only a non-satisfied node verdict carries an adjudication"
+        )
+
     nodes[node_id] = replace(
         node,
         status=status,
         failure_ancestors=tuple(sorted(set(ancestors), key=str)),
+        adjudication=adjudication,
     )
+
+
+def _adjudication(value: Any, status: NodeStatus, location: str) -> AdjudicationView:
+    item = _mapping(value, location)
+    unknown = set(item) - {
+        "attribution",
+        "bundleFrameCount",
+        "firstDeviantFrame",
+        "regionObservation",
+        "signature",
+    }
+    if unknown:
+        raise _transition(
+            location, "adjudication field(s) not recognized: " + ", ".join(sorted(unknown))
+        )
+    frame_count = _positive_integer(
+        item.get("bundleFrameCount"), location + ".bundleFrameCount"
+    )
+    raw_frame = item.get("firstDeviantFrame")
+    frame = (
+        None
+        if raw_frame is None
+        else _integer(raw_frame, location + ".firstDeviantFrame")
+    )
+    if frame is not None and not 0 <= frame < frame_count:
+        raise _transition(
+            location, "first deviant frame lies outside the bundle frame count"
+        )
+    observation = _text(
+        item.get("regionObservation"), location + ".regionObservation"
+    )
+    try:
+        attribution = Attribution(item.get("attribution"))
+    except (TypeError, ValueError) as error:
+        raise _transition(location, "attribution is not recognized") from error
+    raw_signature = item.get("signature")
+    signature = (
+        None
+        if raw_signature is None
+        else SignatureID(
+            parse_identifier("signature", raw_signature, location + ".signature")
+        )
+    )
+    if status is NodeStatus.FAILED_KNOWN and signature is None:
+        raise _transition(location, "a known defect verdict needs its signature")
+    return AdjudicationView(frame, observation, attribution, signature, frame_count)
 
 
 def _interrupt_lane(
@@ -1807,7 +1972,10 @@ def _transition(location: str, detail: str) -> RegressionError:
 
 
 __all__ = (
+    "ADJUDICATED_NODE_STATUSES",
     "AcceptedArtifactView",
+    "AdjudicationView",
+    "Attribution",
     "CallPlanView",
     "FrozenJSONObject",
     "LaneGateView",
@@ -1827,7 +1995,10 @@ __all__ = (
     "TERMINAL_NODE_STATUSES",
     "TRANSITION_FAULT_INTERRUPTION_PREFIX",
     "aggregate_oracle_results",
+    "awaiting_adjudication",
     "build_run_view",
+    "nodes_awaiting_adjudication",
     "resolve_call_arguments",
+    "settled_oracle_result",
     "validate_emergency_interruption_records",
 )

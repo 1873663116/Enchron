@@ -31,7 +31,7 @@ from regression.core.contracts import (
 from regression.core.digest import canonical_bytes, canonical_digest, digest_bytes
 from regression.core.errors import RegressionError
 from regression.core.events import EventType, payload_value
-from regression.core.expression import ObservationRef, OracleResult
+from regression.core.expression import AllOf, ObservationRef, OracleResult
 from regression.core.ids import (
     CallID,
     CaseKey,
@@ -69,6 +69,7 @@ from regression.core.plan import (
     ScenarioAttemptNode,
     ToolchainIdentity,
 )
+from regression.core.ledger import LedgerWriter
 from regression.core.replay import replay
 from regression.core.runtime import (
     CriterionEvaluation,
@@ -88,6 +89,9 @@ from regression.core.runview import (
     FrozenJSONObject,
     NodeStatus,
     RunOutcome,
+    awaiting_adjudication,
+    build_run_view,
+    nodes_awaiting_adjudication,
 )
 from regression.core.scheduler import CriticalCost
 
@@ -414,6 +418,110 @@ def _run_claimed_node(main, result: OracleResult):
     return lease, envelope, receipt
 
 
+ADJUDICATION = {
+    "attribution": "product",
+    "bundleFrameCount": 12,
+    "firstDeviantFrame": 3,
+    "regionObservation": "the poster grid stayed blank",
+    "signature": None,
+}
+
+
+def _verdict_payload(node_id, lease_id, status, adjudication=ADJUDICATION):
+    payload = {
+        "nodeId": str(node_id),
+        "leaseId": None if lease_id is None else str(lease_id),
+        "status": status.value,
+        "failureAncestors": [],
+    }
+    if adjudication is not None:
+        payload["adjudication"] = dict(adjudication)
+    return payload
+
+
+def _two_obligation_plan() -> CompiledRunPlan:
+    calls = (_call("gate-first"), _call("gate-second"))
+    bindings = (_evaluation("gate-first", calls[0]), _evaluation("gate-second", calls[1]))
+    node = ScenarioAttemptNode(
+        NodeID("node:gate"),
+        ScenarioID("scenario:gate"),
+        JourneyID("journey:runtime"),
+        _digest("scenario:gate"),
+        (BoundLane.SIMULATOR,),
+        False,
+        10,
+        (),
+        (),
+        (),
+        calls,
+        bindings,
+        AllOf(tuple(ObservationRef(item.id) for item in bindings)),
+        _build_identity((BoundLane.SIMULATOR,)),
+        _evidence_environment(),
+        100,
+    )
+    return _plan(
+        (node,),
+        (MainGateBinding(BoundLane.SIMULATOR, node.scenario_id, node.id),),
+    )
+
+
+def _half_evaluated_run(root: Path, plan, first: OracleResult):
+    complete = root / "complete"
+    main = open_run(plan, complete)
+    lease = main.claim(
+        BoundLane.SIMULATOR,
+        SidekickID("sidekick:main"),
+        now_millis=0,
+    )
+    _complete_operations(main, lease)
+    main.accept_evidence(
+        _envelope(main, lease),
+        FakeOracle(
+            {
+                ObligationID("obligation:gate-first"): first,
+                ObligationID("obligation:gate-second"): OracleResult.VIOLATED,
+            }
+        ),
+    )
+    main.close()
+
+    crashed = root / "crashed"
+    crashed.mkdir(parents=True, exist_ok=True)
+    kept = []
+    for line in (complete / "ledger.jsonl").read_bytes().splitlines(keepends=True):
+        kept.append(line)
+        if b'"OracleEvaluated"' in line:
+            break
+    (crashed / "ledger.jsonl").write_bytes(b"".join(kept))
+    for item in complete.iterdir():
+        if item.name != "ledger.jsonl" and item.name != "ledger.lock":
+            _copy_tree(item, crashed / item.name)
+    return crashed, lease
+
+
+def _copy_tree(source: Path, target: Path) -> None:
+    if source.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+        for item in source.iterdir():
+            _copy_tree(item, target / item.name)
+    else:
+        target.write_bytes(source.read_bytes())
+
+
+def _append_verdict(directory: Path, plan, payload):
+    view = replay(directory)
+    with LedgerWriter(
+        directory, view.run_id, plan.plan_digest, build_run_view
+    ) as writer:
+        return writer.append(
+            EventType.VERDICT_RECORDED,
+            payload,
+            "2026-09-04T00:00:00.000Z",
+            f"verdict:{payload['nodeId']}",
+        )
+
+
 class RuntimeHappyPathTests(unittest.TestCase):
     def test_happy_path_writes_cas_and_public_replay_returns_frozen_view(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -451,20 +559,195 @@ class RuntimeHappyPathTests(unittest.TestCase):
             with self.assertRaises(FrozenInstanceError):
                 setattr(restored, "outcome", None)
 
-    def test_valid_violated_evidence_is_the_only_failed_verdict_source(self) -> None:
+    def test_a_violated_node_stays_open_until_the_ledger_adjudicates_it(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            plan = _single_node_plan()
+            main = open_run(plan, directory)
+            lease, _, receipt = _run_claimed_node(main, OracleResult.VIOLATED)
+
+            self.assertEqual(NodeStatus.LEASED, receipt.node_status)
+            self.assertEqual(
+                (lease.node_id,),
+                tuple(item.node_id for item in nodes_awaiting_adjudication(main.view)),
+            )
+            with self.assertRaises(RegressionError) as raised:
+                main.finalize()
+            self.assertEqual("runtime.adjudication_owed", raised.exception.code)
+            main.close()
+
+            _append_verdict(
+                directory,
+                plan,
+                _verdict_payload(lease.node_id, lease.id, NodeStatus.FAILED),
+            )
+            adjudicated = replay(directory)
+            node = adjudicated.node(lease.node_id)
+            self.assertEqual(NodeStatus.FAILED, node.status)
+            self.assertEqual(3, node.adjudication.first_deviant_frame)
+            self.assertEqual((), nodes_awaiting_adjudication(adjudicated))
+            self.assertEqual(RunOutcome.FAILED, open_run(plan, directory).finalize().outcome)
+
+    def test_the_ledger_refuses_a_verdict_its_own_lease_contradicts(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            plan = _single_node_plan()
+            main = open_run(plan, directory)
+            lease, _, _ = _run_claimed_node(main, OracleResult.VIOLATED)
+            main.close()
+            before = (directory / "ledger.jsonl").stat().st_size
+
+            for status, adjudication in (
+                (NodeStatus.PASSED, None),
+                (NodeStatus.DEFERRED_HUMAN, ADJUDICATION),
+                (NodeStatus.INDETERMINATE, ADJUDICATION),
+            ):
+                with self.subTest(status=status):
+                    with self.assertRaisesRegex(
+                        RegressionError, "contradicts the Oracle result"
+                    ):
+                        _append_verdict(
+                            directory,
+                            plan,
+                            _verdict_payload(
+                                lease.node_id, lease.id, status, adjudication
+                            ),
+                        )
+
+            self.assertEqual(before, (directory / "ledger.jsonl").stat().st_size)
+
+    def test_an_adjudication_is_required_and_bounded_by_its_bundle(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            plan = _single_node_plan()
+            main = open_run(plan, directory)
+            lease, _, _ = _run_claimed_node(main, OracleResult.VIOLATED)
+            main.close()
+            before = (directory / "ledger.jsonl").stat().st_size
+
+            rejected = (
+                (NodeStatus.FAILED, None, "needs its adjudication"),
+                (
+                    NodeStatus.FAILED,
+                    {**ADJUDICATION, "firstDeviantFrame": 12},
+                    "outside the bundle frame count",
+                ),
+                (
+                    NodeStatus.FAILED,
+                    {**ADJUDICATION, "regionObservation": ""},
+                    "must be a non-empty string",
+                ),
+                (
+                    NodeStatus.FAILED,
+                    {**ADJUDICATION, "attribution": "operator"},
+                    "attribution is not recognized",
+                ),
+                (NodeStatus.FAILED_KNOWN, ADJUDICATION, "needs its signature"),
+            )
+            for status, adjudication, refusal in rejected:
+                with self.subTest(refusal=refusal):
+                    with self.assertRaisesRegex(RegressionError, refusal):
+                        _append_verdict(
+                            directory,
+                            plan,
+                            _verdict_payload(
+                                lease.node_id, lease.id, status, adjudication
+                            ),
+                        )
+            self.assertEqual(before, (directory / "ledger.jsonl").stat().st_size)
+
+    def test_a_violation_already_determined_survives_a_half_evaluated_lease(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plan = _two_obligation_plan()
+            crashed, lease = _half_evaluated_run(
+                root, plan, OracleResult.VIOLATED
+            )
+            view = replay(crashed)
+            self.assertEqual(1, len(view.lease(lease.id).oracle_evaluations))
+            self.assertTrue(
+                awaiting_adjudication(view.node(lease.node_id), view.lease(lease.id))
+            )
+
+            with self.assertRaisesRegex(
+                RegressionError, "contradicts the Oracle result"
+            ):
+                _append_verdict(
+                    crashed,
+                    plan,
+                    _verdict_payload(
+                        lease.node_id, lease.id, NodeStatus.INDETERMINATE, None
+                    ),
+                )
+            with self.assertRaisesRegex(RegressionError, "needs its adjudication"):
+                _append_verdict(
+                    crashed,
+                    plan,
+                    _verdict_payload(
+                        lease.node_id, lease.id, NodeStatus.FAILED, None
+                    ),
+                )
+
+            _append_verdict(
+                crashed,
+                plan,
+                _verdict_payload(lease.node_id, lease.id, NodeStatus.FAILED),
+            )
+            self.assertEqual(
+                NodeStatus.FAILED, replay(crashed).node(lease.node_id).status
+            )
+
+    def test_an_undetermined_lease_owes_nothing_and_resumes_from_its_envelope(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plan = _two_obligation_plan()
+            crashed, lease = _half_evaluated_run(
+                root, plan, OracleResult.SATISFIED
+            )
+            view = replay(crashed)
+            node = view.node(lease.node_id)
+            self.assertEqual(1, len(view.lease(lease.id).oracle_evaluations))
+            self.assertFalse(awaiting_adjudication(node, view.lease(lease.id)))
+
+            with self.assertRaisesRegex(RegressionError, "half-evaluated lease"):
+                _append_verdict(
+                    crashed,
+                    plan,
+                    _verdict_payload(lease.node_id, lease.id, NodeStatus.FAILED),
+                )
+
+            resumed = open_run(plan, crashed)
+            receipt = resumed.accept_evidence(
+                _envelope(resumed, lease),
+                FakeOracle(
+                    {
+                        ObligationID("obligation:gate-first"): OracleResult.SATISFIED,
+                        ObligationID("obligation:gate-second"): OracleResult.VIOLATED,
+                    }
+                ),
+            )
+            self.assertEqual(NodeStatus.LEASED, receipt.node_status)
+            self.assertEqual(1, len(nodes_awaiting_adjudication(resumed.view)))
+            resumed.close()
+
+    def test_an_interruption_cannot_launder_a_node_that_owes_a_verdict(self) -> None:
         with TemporaryDirectory() as temporary:
             main = open_run(_single_node_plan(), Path(temporary))
-            _, _, receipt = _run_claimed_node(main, OracleResult.VIOLATED)
-            final = main.finalize()
+            lease, _, _ = _run_claimed_node(main, OracleResult.VIOLATED)
+            view = main.interrupt_lane(lease.lane, "device-detached", lease.id)
 
-            self.assertEqual(NodeStatus.FAILED, receipt.node_status)
-            self.assertEqual(RunOutcome.FAILED, final.outcome)
-            verdict = next(
-                event
-                for event in final.events
-                if event.type is EventType.VERDICT_RECORDED
+            self.assertTrue(view.lane(lease.lane).interrupted)
+            self.assertEqual(NodeStatus.LEASED, view.node(lease.node_id).status)
+            self.assertTrue(
+                awaiting_adjudication(
+                    view.node(lease.node_id), view.lease(lease.id)
+                )
             )
-            self.assertEqual("failed", payload_value(verdict.payload)["status"])
+            main.close()
 
 
 class RuntimeFaultTests(unittest.TestCase):
@@ -778,8 +1061,11 @@ class RuntimeFaultTests(unittest.TestCase):
             _, _, receipt = _run_claimed_node(
                 indeterminate, OracleResult.INDETERMINATE
             )
-            self.assertEqual(NodeStatus.INDETERMINATE, receipt.node_status)
+            self.assertEqual(NodeStatus.LEASED, receipt.node_status)
             self.assertNotEqual(NodeStatus.FAILED, receipt.node_status)
+            self.assertEqual(
+                1, len(nodes_awaiting_adjudication(indeterminate.view))
+            )
             indeterminate.close()
 
             invalid = open_run(_single_node_plan(), root / "invalid")
@@ -1440,8 +1726,12 @@ class RuntimeEvidenceAndDagTests(unittest.TestCase):
                 _envelope(main, device_gate_lease),
                 FakeOracle(OracleResult.VIOLATED),
             )
-            self.assertEqual(NodeStatus.FAILED, main.view.node(device_gate.id).status)
-            self.assertEqual(NodeStatus.BLOCKED_BY, main.view.node(join.id).status)
+            self.assertEqual(NodeStatus.LEASED, main.view.node(device_gate.id).status)
+            self.assertEqual(
+                (device_gate.id,),
+                tuple(item.node_id for item in nodes_awaiting_adjudication(main.view)),
+            )
+            self.assertEqual(NodeStatus.PENDING, main.view.node(join.id).status)
             self.assertEqual(NodeStatus.LEASED, main.view.node(simulator_branch.id).status)
 
             _complete_operations(main, branch_lease)
@@ -1481,10 +1771,22 @@ class RuntimeEvidenceAndDagTests(unittest.TestCase):
         )
 
         with TemporaryDirectory() as temporary:
-            main = open_run(plan, Path(temporary))
+            directory = Path(temporary)
+            main = open_run(plan, directory)
             _run_claimed_node(main, OracleResult.SATISFIED)
             failed_lease, _, _ = _run_claimed_node(main, OracleResult.VIOLATED)
             self.assertEqual(failing.id, failed_lease.node_id)
+            self.assertEqual(NodeStatus.PENDING, main.view.node(successor.id).status)
+            main.close()
+
+            _append_verdict(
+                directory,
+                plan,
+                _verdict_payload(
+                    failed_lease.node_id, failed_lease.id, NodeStatus.FAILED
+                ),
+            )
+            main = open_run(plan, directory)
             blocked = main.view.node(successor.id)
             self.assertEqual(NodeStatus.BLOCKED_BY, blocked.status)
             self.assertEqual((failing.id,), blocked.failure_ancestors)

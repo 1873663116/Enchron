@@ -1266,20 +1266,20 @@ def _evaluation_payload(binding: EvaluationBinding) -> object:
     }
 
 
-def _success_payload(expression: SuccessExpression) -> object:
+def success_payload(expression: SuccessExpression) -> object:
     if isinstance(expression, ObservationRef):
         return {"observation": str(expression.ref)}
     if isinstance(expression, AllOf):
-        return {"all": [_success_payload(item) for item in expression.terms]}
+        return {"all": [success_payload(item) for item in expression.terms]}
     if isinstance(expression, AnyOf):
-        return {"any": [_success_payload(item) for item in expression.terms]}
+        return {"any": [success_payload(item) for item in expression.terms]}
     if isinstance(expression, Not):
-        return {"not": _success_payload(expression.term)}
+        return {"not": success_payload(expression.term)}
     if isinstance(expression, AtLeast):
         return {
             "atLeast": {
                 "count": expression.count,
-                "of": [_success_payload(item) for item in expression.terms],
+                "of": [success_payload(item) for item in expression.terms],
             }
         }
     raise TypeError(f"unsupported success expression: {type(expression).__name__}")
@@ -1352,7 +1352,7 @@ def _node_payload(node: RunPlanNode) -> object:
         "evaluationBindings": [
             _evaluation_payload(item) for item in node.evaluation_bindings
         ],
-        "success": _success_payload(node.success),
+        "success": success_payload(node.success),
         "buildIdentityDigest": str(node.build_identity.digest),
         "evidenceEnvironmentDigest": str(node.evidence_environment_identity.digest),
         "criticalRemainingMillis": node.critical_remaining_millis,
@@ -1422,4 +1422,5 @@ __all__ = (
     "ToolchainIdentity",
     "compiled_plan_bytes",
     "compiled_plan_payload",
+    "success_payload",
 )

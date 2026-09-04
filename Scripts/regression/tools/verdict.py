@@ -3,16 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 
 from regression.core.errors import RegressionError
 from regression.core.ids import NodeID, SignatureID, parse_identifier
-
-
-class Attribution(Enum):
-    PRODUCT = "product"
-    HARNESS = "harness"
-    SPEC = "spec"
+from regression.core.runview import Attribution
 
 
 class VerdictError(ValueError):

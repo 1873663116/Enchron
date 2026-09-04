@@ -33,6 +33,10 @@ RECORDED_AT = "2026-08-28T14:05:01.000Z"
 EVIDENCE_SCHEMA = EvidenceSchema("fake.frame@1")
 
 
+def any_events(events) -> None:
+    return None
+
+
 class LedgerTests(unittest.TestCase):
     def test_expanded_evidence_and_oracle_payloads_round_trip_without_shape_loss(self) -> None:
         accepted = {
@@ -68,7 +72,7 @@ class LedgerTests(unittest.TestCase):
         }
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 writer.append(EventType.EVIDENCE_ACCEPTED, accepted, RECORDED_AT)
                 writer.append(EventType.ORACLE_EVALUATED, evaluated, RECORDED_AT)
 
@@ -98,7 +102,7 @@ class LedgerTests(unittest.TestCase):
     def test_complete_round_trip_has_canonical_payload_and_hash_chain(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 first = writer.append(
                     EventType.RUN_OPENED,
                     {"z": 2, "a": ["播放", True]},
@@ -125,7 +129,7 @@ class LedgerTests(unittest.TestCase):
     def test_payload_tamper_is_rejected(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 writer.append(EventType.RUN_OPENED, {"value": 1}, RECORDED_AT)
             path = directory / "ledger.jsonl"
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -139,7 +143,7 @@ class LedgerTests(unittest.TestCase):
     def test_previous_digest_chain_tamper_is_rejected(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 writer.append(EventType.RUN_OPENED, {}, RECORDED_AT)
                 writer.append(EventType.RUN_CLOSED, {}, RECORDED_AT)
             path = directory / "ledger.jsonl"
@@ -173,7 +177,7 @@ class LedgerTests(unittest.TestCase):
     def test_truncated_tail_is_rejected_even_when_json_is_complete(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 writer.append(EventType.RUN_OPENED, {}, RECORDED_AT)
             path = directory / "ledger.jsonl"
             path.write_bytes(path.read_bytes().removesuffix(b"\n"))
@@ -185,7 +189,7 @@ class LedgerTests(unittest.TestCase):
     def test_sequence_gap_is_rejected_before_chain_can_be_used(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 writer.append(EventType.RUN_OPENED, {}, RECORDED_AT)
             path = directory / "ledger.jsonl"
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -202,7 +206,7 @@ class LedgerTests(unittest.TestCase):
     def test_unknown_wire_field_is_rejected(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 writer.append(EventType.RUN_OPENED, {}, RECORDED_AT)
             path = directory / "ledger.jsonl"
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -216,20 +220,20 @@ class LedgerTests(unittest.TestCase):
     def test_second_writer_is_rejected_until_first_closes(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            first = LedgerWriter(directory, RUN_ID, PLAN_DIGEST)
+            first = LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events)
             try:
                 with self.assertRaises(RegressionError) as raised:
-                    LedgerWriter(directory, RUN_ID, PLAN_DIGEST)
+                    LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events)
                 self.assertEqual("ledger.writer_locked", raised.exception.code)
             finally:
                 first.close()
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST):
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events):
                 pass
 
     def test_idempotency_survives_writer_restart_and_conflicts_fail(self) -> None:
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as writer:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as writer:
                 first = writer.append(
                     EventType.NODE_CLAIMED,
                     {"nodeId": "node:first"},
@@ -243,7 +247,7 @@ class LedgerTests(unittest.TestCase):
                     "claim:first",
                 )
                 self.assertIs(first, repeated)
-            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST) as reopened:
+            with LedgerWriter(directory, RUN_ID, PLAN_DIGEST, any_events) as reopened:
                 repeated = reopened.append(
                     EventType.NODE_CLAIMED,
                     {"nodeId": "node:first"},

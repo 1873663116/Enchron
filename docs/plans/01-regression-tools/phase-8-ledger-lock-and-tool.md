@@ -33,7 +33,7 @@
 
 - `Scripts/regression/core/runtime.py`。`_evaluate_and_record`（:1565）只保留 SATISFIED 分支的 `_record_verdict(node.id, PASSED, lease.lease_id)`；`_recover_uncertain_invocations`（:1755）同样只保留该分支，`bootstrap_and_recover` 每次 `open_run` 都会调它，绿色节点在「最后一条 `ORACLE_EVALUATED` 与 `PASSED` 之间崩溃」后仍自愈。`interrupt_lane`（:1101）对等待裁决的节点不再写 `INDETERMINATE`，lane 照常记录中断，节点照常欠裁决；这里是约二十个中断调用点唯一的节点关闭写入。`finalize`（:1195）在清扫 `LEASED` 之前对等待裁决的节点抛错并列出 NodeID。`accept_evidence`（:953）的终态提前返回把字面元组换成 `TERMINAL_NODE_STATUSES`，该元组早于阶段 7，漏掉了三个终态。`_node_open_payload`（:2016）给 scenarioAttempt 节点补 `success` 字段，复用 `plan.py:1269` 的 `_success_payload`。
 - `Scripts/regression/core/runview.py`。`NodeView` 增 `success: SuccessExpression | None`，`_open_nodes` 用 `expression.parse_success_expression` 解析，scenarioAttempt 必须有、bothJoin 必须没有。`_record_verdict`（:1368）定义等待裁决的判别项，并在该状态下由 `success` 与 `lease.oracle_evaluations` 重算 `evaluate_success`，核对声明的终态。
-- `Scripts/regression/core/ledger.py`。`append`（:115）在 `write`／`flush`／`fsync` 之前，用候选事件跑一次 `build_run_view(self._events + (event,))`，通过才落盘。`MainRun.view`（`runtime.py:599`）本就在每次读取时重跑整份 fold，本改动是常数倍开销，不改变量级。`verify_regression_core_layering.py` 的 `ledger` 条目增加 `runview`，该依赖此前经 `replay` 间接成立。
+- `Scripts/regression/core/ledger.py`。`LedgerWriter` 增一个必填构造参数 `fold`，`append` 在 `write`／`flush`／`fsync` 之前用候选事件列表调它，抛错即不落盘。`open_run` 传 `build_run_view`，阶段 8 的 ledger 工具同样传它。`fold` 由调用方注入而不写死在 `append` 里：`LedgerWriter` 是哈希链与文件格式层，`build_run_view` 是语义层，写死会让 `Scripts/rules/test_regression_core_ledger.py` 的十二处合成 payload——篡改、截断、序号跳变、幂等冲突——全部先撞上状态机，格式层从此无法单独测试。参数必填，遗漏在 diff 里是一处显式改动而不是一次沉默。`MainRun.view`（`runtime.py:599`）本就在每次读取时重跑整份 fold，本改动是常数倍开销，不改变量级。
 - `Scripts/rules/test_regression_core_runtime.py`。VIOLATED 路径的 `receipt.node_status` 由 `FAILED` 改为 `LEASED`；Indeterminate 路径不再中断 lane；补：`interrupt_lane` 不能把等待裁决的节点洗成 `INDETERMINATE`、`finalize` 拒绝等待裁决的节点、VIOLATED lease 上写 `passed` 被拒、不带裁决字段的 `failed` 被拒、越界的 `firstDeviantFrame` 被拒且 `ledger.jsonl` 字节数不变。
 
 `success` 表达式进 `RUN_OPENED` 是重算的前提。`plan.py:1269` 的 `_success_payload` 产出的形状正是 `expression.py:59` 的 `parse_success_expression` 接受的形状，字段可往返。替代做法是拿 `runview.py:95` 的 `aggregate_oracle_results` 顶替 `evaluate_success`，那在真实数据上就是错的：`AllOf` 对 `{VIOLATED, INDETERMINATE}` 给 VIOLATED（`expression.py:389`），原始聚合给 INDETERMINATE（`runview.py:96`），Catalog 现有的 52 个 Scenario 全部用 `all`。
@@ -44,14 +44,18 @@
 SATISFIED       只许 passed，且不得携带裁决字段
 VIOLATED        只许 failed 或 failed(known)；failed(known) 必须带 signature
 INDETERMINATE   只许 indeterminate
-评估集不完整      只许 indeterminate
+结果尚未定       只许 indeterminate，且不得携带裁决字段
 ```
+
+聚合在评估集不完整时照样求值，缺失的 obligation 以 `INDETERMINATE` 代入：`AllOf` 只要有一项已记录为 VIOLATED 就是 VIOLATED（`expression.py:389`），`AnyOf` 要全部 VIOLATED 才是 VIOLATED，`AtLeast` 把代入项计入 indeterminate 因而只会更难判负，`Not` 对 INDETERMINATE 仍是 INDETERMINATE。代入只会让判定更保守，得出的 SATISFIED 或 VIOLATED 对任何一种补全都成立。「结果尚未定」专指代入之后仍为 INDETERMINATE 且评估集不完整的情形。
+
+这条区分是护栏的一部分，不是精度问题。若以「评估集是否完整」作判别项，一条已记录 VIOLATED 的半评估 lease 会被判为无结果，`indeterminate` 裁决因此获准写入，而该裁决清空 `lane.active_lease_id` 且不标记 lane 中断（`runview.py:1508`），lane 就在没有任何归因的情况下重新开放。
 
 `deferred(human)` 不在表内。它的入口条件是同一节点连续两次 attempt 均为 harness 超时类，判定函数 `deferrable(view, node)` 由阶段 16 提供；在那之前把它放进准入表等于开一个无人把守的出口——`DEFERRED_HUMAN` 不属于 `PRODUCT_NODE_STATUSES`，会绕过 `runview.py:1400` 的证据义务并释放 lane。阶段 16 与 `deferrable` 一并放行。「产品慢是 Violated，写 `failed`，不可推迟」由此在 replay 层成立，不靠调用方自觉。
 
 ### 工具
 
-- 新增 `Scripts/regression/tools/ledger_lock.py`。`lane_lock_state(view, lane) -> LaneLock` 判该 lane 的 `active_lease_id` 非空、其节点 `LEASED`、lease 的 `operations_complete` 与 `evidence_accepted` 皆真。评估集不完整时给一个独立的 reason：那是崩在两条 `ORACLE_EVALUATED` 之间的停滞，重投同一 envelope 即可恢复，不欠裁决。`admit_verdict(view, verdict, status, bundle_frame_count) -> None` 拒绝越界的 `first_deviant_frame`、空的 `region_observation`、缺 signature 的 `failed(known)`、以及不处于等待裁决的节点。每一条在 `runview._record_verdict` 里都有对应规则，本层只负责先给出可读的拒绝理由。
+- 新增 `Scripts/regression/tools/ledger_lock.py`。`lane_lock_state(view, lane) -> LaneLock` 判该 lane 的 `active_lease_id` 非空、其节点 `LEASED`、lease 的 `operations_complete` 与 `evidence_accepted` 皆真。结果尚未定时给一个独立的 reason：那是崩在两条 `ORACLE_EVALUATED` 之间且已记录的部分尚不足以定论的停滞，重投同一 envelope 即可恢复，不欠裁决。已记录部分足以定论 VIOLATED 的半评估 lease 不属于此列，它欠裁决。`admit_verdict(view, verdict, status, bundle_frame_count) -> None` 拒绝越界的 `first_deviant_frame`、空的 `region_observation`、缺 signature 的 `failed(known)`、以及不处于等待裁决的节点。每一条在 `runview._record_verdict` 里都有对应规则，本层只负责先给出可读的拒绝理由。
 - 新增 `Scripts/regression/tools/ledger_tool.py`。`write` 接 `Verdict`、终态与 `bundle_frame_count`，过 `admit_verdict` 后交 `LedgerWriter`；`view` 返回 `replay(run_directory)` 的投影加逐 lane 的 `LaneLock`；`resume` 返回依赖已满足、lane 未锁、状态非终态的节点清单，并单列欠裁决的节点，否则清单为空时读不出原因。
 - 新增 `Scripts/rules/test_regression_ledger_lock.py`。覆盖：非 Satisfied 后同 lane 的 claim 被 `runtime.lane_busy` 拒、裁决写入后解锁并可再 claim、帧序号越界被拒、绿色步骤不锁、两条 lane 的锁互不影响、中断路径下节点仍欠裁决、伪造一条在锁住的 lane 上 `NODE_CLAIMED` 的账本行被 replay 拒绝。
 
