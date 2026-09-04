@@ -631,7 +631,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1549,
+          "line": 1550,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -644,7 +644,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1153,
+          "line": 1154,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -657,7 +657,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1133,
+          "line": 1134,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -670,7 +670,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1204,
+          "line": 1205,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -683,7 +683,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1001,
+          "line": 1002,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -696,7 +696,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1309,
+          "line": 1310,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -709,7 +709,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 930,
+          "line": 931,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -722,7 +722,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1454,
+          "line": 1455,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -800,7 +800,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1602,
+          "line": 1603,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -839,7 +839,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1365,
+          "line": 1366,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -852,7 +852,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1346,
+          "line": 1347,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -904,7 +904,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1626,
+          "line": 1627,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -3420,7 +3420,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 25,
+          "line": 26,
           "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
         }
       ],
@@ -3937,7 +3937,7 @@
         "host": "environmentVolume",
         "sources": [
           {
-            "line": 16,
+            "line": 17,
             "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
           }
         ]
@@ -3957,7 +3957,7 @@
         "host": "environmentVolume",
         "sources": [
           {
-            "line": 16,
+            "line": 17,
             "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
           }
         ]
@@ -3977,7 +3977,7 @@
         "host": "environmentVolume",
         "sources": [
           {
-            "line": 16,
+            "line": 17,
             "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
           }
         ]
@@ -3997,7 +3997,7 @@
         "host": "environmentVolume",
         "sources": [
           {
-            "line": 16,
+            "line": 17,
             "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
           }
         ]
