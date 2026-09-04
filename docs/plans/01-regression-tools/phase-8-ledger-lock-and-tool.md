@@ -23,7 +23,7 @@
 
 选丙。锁因此是一条转移规则而不是一条工具约定：在锁住的 lane 上继续跑 op 的账本无法 replay。`lane_lock_state` 解释这条拒绝，不制造它。阶段 7 的终态契约不动，`NodeStatus` 与 `EventType` 都不新增成员。
 
-`LEASED` 在本阶段之后承载两种情形：工作进行中，与工作结束等待裁决。判别项是同一个 lease 的 `operations_complete` 与 `evidence_accepted`，两者皆真即等待裁决。判别项不含聚合结果：`runtime.py:1566` 自行关闭每个 SATISFIED 节点，仍停在该状态的节点按构造即非 Satisfied。
+`LEASED` 在本阶段之后承载两种情形：工作进行中，与工作结束等待裁决。判别项是同一个 lease 的 `operations_complete`、`evidence_accepted`，以及由 `success` 与已记录的 obligation 结果重算出的聚合非 Satisfied。聚合必须参与判别，理由见下方准入表一节。
 
 ## 改动清单
 
@@ -55,11 +55,12 @@ INDETERMINATE   只许 indeterminate
 
 ### 工具
 
-- 新增 `Scripts/regression/tools/ledger_lock.py`。`lane_lock_state(view, lane) -> LaneLock` 判该 lane 的 `active_lease_id` 非空、其节点 `LEASED`、lease 的 `operations_complete` 与 `evidence_accepted` 皆真。结果尚未定时给一个独立的 reason：那是崩在两条 `ORACLE_EVALUATED` 之间且已记录的部分尚不足以定论的停滞，重投同一 envelope 即可恢复，不欠裁决。已记录部分足以定论 VIOLATED 的半评估 lease 不属于此列，它欠裁决。`admit_verdict(view, verdict, status, bundle_frame_count) -> None` 拒绝越界的 `first_deviant_frame`、空的 `region_observation`、缺 signature 的 `failed(known)`、以及不处于等待裁决的节点。每一条在 `runview._record_verdict` 里都有对应规则，本层只负责先给出可读的拒绝理由。
+- 新增 `Scripts/regression/tools/ledger_lock.py`。`lane_lock_state(view, lane) -> LaneLock` 按序判五件事：整轮已关闭、该 lane 持有欠裁决的节点、该 lane 已中断、lease 的评估结果尚未定、lease 仍在跑操作；五者皆不成立才是开放。`locked` 的含义是「这条 lane 接不了新的 claim」，不是「欠裁决」，因此中断与整轮关闭同样落在 `locked` 内——`MainRun.claim` 拒绝它们的方式与拒绝忙碌 lane 相同，工具不该把已关闭的 run 报成开放。中断优先于 lease 扫描：崩在 `LANE_INTERRUPTED` 与其 `INDETERMINATE` 裁决之间的节点仍是 `LEASED`，但那条 lane 上不会再有操作。结果尚未定时给一个独立的 reason：那是崩在两条 `ORACLE_EVALUATED` 之间且已记录的部分尚不足以定论的停滞，重开 run 即结清，不欠裁决；已记录部分足以定论 VIOLATED 的半评估 lease 不属于此列，它欠裁决。`admit_verdict(view, verdict, status, bundle_frame_count) -> None` 拒绝越界的 `first_deviant_frame`、空的 `region_observation`、缺 signature 的 `failed(known)`、与聚合结果不符的终态、以及不处于等待裁决的节点。每一条在 `runview._record_verdict` 里都有对应规则，本层只负责先给出可读的拒绝理由。
 - 新增 `Scripts/regression/tools/ledger_tool.py`。`write` 接 `Verdict`、终态与 `bundle_frame_count`，过 `admit_verdict` 后交 `LedgerWriter`；`view` 返回 `replay(run_directory)` 的投影加逐 lane 的 `LaneLock`；`resume` 返回依赖已满足、lane 未锁、状态非终态的节点清单，并单列欠裁决的节点，否则清单为空时读不出原因。
-- 新增 `Scripts/rules/test_regression_ledger_lock.py`。覆盖：非 Satisfied 后同 lane 的 claim 被 `runtime.lane_busy` 拒、裁决写入后解锁并可再 claim、帧序号越界被拒、绿色步骤不锁、两条 lane 的锁互不影响、中断路径下节点仍欠裁决、伪造一条在锁住的 lane 上 `NODE_CLAIMED` 的账本行被 replay 拒绝。
+- `Scripts/regression/core/runview.py`。`_settle_derivable_nodes` 的推导规则移出 `MainRun`，成为只读 RunView 的 `derivable_verdict` 与 `settled_node_statuses`，`runtime` 与 `resume` 共用一份。`claim` 在挑选候选之前先跑一次结算（`runtime.py:653`）；若 `resume` 另写一套就绪判据，崩在 join 节点 `PASSED` 裁决之前的账本会让两者答案不同：`resume` 漏报后继节点，下一次 `claim` 却立刻把它派出去。
+- 新增 `Scripts/rules/test_regression_ledger_lock.py`。覆盖：非 Satisfied 后同 lane 的 claim 被 `runtime.lane_busy` 拒、裁决写入后解锁并可再 claim、帧序号越界被拒、绿色步骤不锁、两条 lane 的锁互不影响、中断与整轮关闭都报为锁住、结果尚未定的 lease 不欠裁决、`resume` 扣下锁住 lane 上的同侪节点并在解锁后交还、`resume` 与下一次 claim 对 join 后继节点的答案一致、伪造一条在锁住的 lane 上 `NODE_CLAIMED` 的账本行被 replay 拒绝。
 
-四个新文件都不得含注释。
+三个新文件都不得含注释。
 
 ## 数据结构与形态
 

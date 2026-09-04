@@ -607,6 +607,76 @@ def awaiting_adjudication(node: NodeView, lease: Optional[LeaseView]) -> bool:
     return settled is not None and settled is not OracleResult.SATISFIED
 
 
+def failure_ancestors(nodes: Iterable[NodeView]) -> Tuple[NodeID, ...]:
+    result = set()
+    for node in nodes:
+        if node.status is NodeStatus.FAILED:
+            result.add(node.node_id)
+        elif node.status is NodeStatus.BLOCKED_BY:
+            result.update(node.failure_ancestors)
+    return tuple(sorted(result, key=str))
+
+
+def strict_predecessors(node: NodeView) -> Tuple[NodeID, ...]:
+    gates = frozenset(item.node_id for item in node.gate_dependencies)
+    return tuple(item for item in node.predecessors if item not in gates)
+
+
+def derivable_verdict(
+    node: NodeView, nodes: Mapping[NodeID, NodeView]
+) -> Optional[Tuple[NodeStatus, Tuple[NodeID, ...]]]:
+    if node.status is not NodeStatus.PENDING:
+        return None
+    if node.kind == "bothJoin":
+        predecessors = tuple(nodes[item] for item in node.predecessors)
+        ancestors = failure_ancestors(predecessors)
+        if ancestors:
+            return (NodeStatus.BLOCKED_BY, ancestors)
+        if all(item.status is NodeStatus.PASSED for item in predecessors):
+            return (NodeStatus.PASSED, ())
+        return None
+
+    ancestors = failure_ancestors(
+        tuple(nodes[item] for item in strict_predecessors(node))
+    )
+    if ancestors:
+        return (NodeStatus.BLOCKED_BY, ancestors)
+    gate_ancestors = []
+    has_nonfailed_lane = False
+    for lane in node.lane_candidates:
+        gate = next(
+            (item for item in node.gate_dependencies if item.lane is lane), None
+        )
+        if gate is None:
+            has_nonfailed_lane = True
+            continue
+        found = failure_ancestors((nodes[gate.node_id],))
+        if found:
+            gate_ancestors.extend(found)
+        else:
+            has_nonfailed_lane = True
+    if not has_nonfailed_lane and gate_ancestors:
+        return (NodeStatus.BLOCKED_BY, tuple(sorted(set(gate_ancestors), key=str)))
+    return None
+
+
+def settled_node_statuses(view: RunView) -> Dict[NodeID, NodeStatus]:
+    nodes = {item.node_id: item for item in view.nodes}
+    while True:
+        derived = None
+        for node in nodes.values():
+            decision = derivable_verdict(node, nodes)
+            if decision is not None:
+                derived = (node, decision)
+                break
+        if derived is None:
+            return {node_id: item.status for node_id, item in nodes.items()}
+        node, (status, ancestors) = derived
+        nodes[node.node_id] = replace(
+            node, status=status, failure_ancestors=ancestors
+        )
+
+
 def nodes_awaiting_adjudication(view: RunView) -> Tuple[NodeView, ...]:
     leases = {item.node_id: item for item in view.leases}
     return tuple(

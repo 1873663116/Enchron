@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 import json
 from types import MappingProxyType
@@ -110,6 +111,12 @@ def canonical_payload_bytes(payload: Any, location: str = "payload") -> bytes:
 
 def payload_value(payload: bytes, location: str = "payload") -> Any:
     return decode_json_bytes(payload, location)
+
+
+def now_rfc3339_millis() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def command_digest(event_type: EventType, payload: bytes) -> Digest:
@@ -317,5 +324,6 @@ __all__ = (
     "command_digest",
     "decode_json_bytes",
     "event_from_wire",
+    "now_rfc3339_millis",
     "payload_value",
 )

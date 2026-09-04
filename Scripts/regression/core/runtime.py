@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 import os
 from pathlib import Path
@@ -23,7 +23,7 @@ from .capability import (
 from .contracts import BoundLane, StateRequirement
 from .digest import canonical_bytes, canonical_digest, digest_bytes
 from .errors import RegressionError
-from .events import EventType, decode_json_bytes
+from .events import EventType, decode_json_bytes, now_rfc3339_millis
 from .expression import OracleResult, evaluate_success
 from .ids import (
     CallID,
@@ -75,6 +75,7 @@ from .runview import (
     aggregate_oracle_results,
     awaiting_adjudication,
     build_run_view,
+    derivable_verdict,
     nodes_awaiting_adjudication,
     resolve_call_arguments,
 )
@@ -1640,59 +1641,18 @@ class MainRun:
     def _settle_derivable_nodes(self) -> None:
         while True:
             current = self.view
-            decision = None
-            for plan_node in self.plan.nodes:
-                node = current.node(plan_node.id)
-                if node.status is not NodeStatus.PENDING:
-                    continue
-                if isinstance(plan_node, BothJoinNode):
-                    predecessors = tuple(current.node(item) for item in plan_node.predecessors)
-                    ancestors = _failure_ancestors(predecessors)
-                    if ancestors:
-                        decision = (plan_node.id, NodeStatus.BLOCKED_BY, ancestors)
-                        break
-                    if all(item.status is NodeStatus.PASSED for item in predecessors):
-                        decision = (plan_node.id, NodeStatus.PASSED, ())
-                        break
-                    continue
-
-                strict = tuple(
-                    current.node(item) for item in self._strict_predecessors(plan_node)
-                )
-                ancestors = _failure_ancestors(strict)
-                if ancestors:
-                    decision = (plan_node.id, NodeStatus.BLOCKED_BY, ancestors)
-                    break
-                gate_ancestors = []
-                has_nonfailed_lane = False
-                for lane in plan_node.lane_candidates:
-                    gate = next(
-                        (
-                            item
-                            for item in plan_node.gate_dependencies
-                            if item.lane is lane
-                        ),
-                        None,
-                    )
-                    if gate is None:
-                        has_nonfailed_lane = True
-                        continue
-                    gate_view = current.node(gate.gate_node_id)
-                    found = _failure_ancestors((gate_view,))
-                    if found:
-                        gate_ancestors.extend(found)
-                    else:
-                        has_nonfailed_lane = True
-                if not has_nonfailed_lane and gate_ancestors:
-                    decision = (
-                        plan_node.id,
-                        NodeStatus.BLOCKED_BY,
-                        tuple(sorted(set(gate_ancestors), key=str)),
-                    )
-                    break
+            nodes = {item.node_id: item for item in current.nodes}
+            decision = next(
+                (
+                    (node.node_id, derivable_verdict(node, nodes))
+                    for node in current.nodes
+                    if derivable_verdict(node, nodes) is not None
+                ),
+                None,
+            )
             if decision is None:
                 return
-            node_id, status, ancestors = decision
+            node_id, (status, ancestors) = decision
             self._record_verdict(node_id, status, None, ancestors)
 
     def _record_verdict(
@@ -1927,7 +1887,7 @@ class MainRun:
         self._ledger.append(
             event_type,
             payload,
-            _recorded_at(),
+            now_rfc3339_millis(),
             idempotency_key,
         )
 
@@ -2174,16 +2134,6 @@ def _invocation_counts(invocations: Iterable[Any]) -> InvocationCounts:
     )
 
 
-def _failure_ancestors(nodes: Iterable[Any]) -> Tuple[NodeID, ...]:
-    result = set()
-    for node in nodes:
-        if node.status is NodeStatus.FAILED:
-            result.add(node.node_id)
-        elif node.status is NodeStatus.BLOCKED_BY:
-            result.update(node.failure_ancestors)
-    return tuple(sorted(result, key=str))
-
-
 def _artifact_receipt(
     directory: Path, lease_id: LeaseID, artifact: AcceptedArtifactView
 ) -> ArtifactReceipt:
@@ -2242,12 +2192,6 @@ def _non_negative_millis(value: Any, location: str) -> int:
             "runtime.invalid_clock", location, "clock value must be a non-negative integer"
         )
     return value
-
-
-def _recorded_at() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace(
-        "+00:00", "Z"
-    )
 
 
 _RFC3339_INSTANT = re.compile(
