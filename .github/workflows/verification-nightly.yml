@@ -1,9 +1,9 @@
-name: verification
+name: verification-nightly
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: verification
@@ -13,7 +13,7 @@ jobs:
   verification:
     runs-on: self-hosted
     steps:
-      - name: Run the quick verification at the revision under review
+      - name: Run the full verification against main
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -30,7 +30,7 @@ jobs:
             fetch --no-tags --force origin \
               '+refs/heads/*:refs/remotes/origin/*' \
               '+refs/pull/*/merge:refs/remotes/origin/pull/*/merge'
-          git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
+          git -C "$REPO" checkout --force --detach "${GITHUB_SHA:-refs/remotes/origin/main}"
           git -C "$REPO" clean -ffdx
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
-          python3 "$REPO/Scripts/rules/run_verification.py" --quick
+          python3 "$REPO/Scripts/rules/run_verification.py"
