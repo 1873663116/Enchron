@@ -48,6 +48,8 @@ PRODUCT_FAILURE_NODE_STATUSES  failed | failed(known)，判定「join 节点是�
 - `Verdict.signature` 本阶段只校验 `signature:<colon-path>` 格式，任何格式合法但未登记的 id 都会通过。阶段 12 建立签名表后，该分支要改为查表，而不只是新增表。
 - `runtime.py:1215` 由节点状态推 `RunOutcome` 的分支只认 `INDETERMINATE`、`FAILED` 与 `PASSED|BLOCKED_BY`，`FAILED_KNOWN` 与 `DEFERRED_HUMAN` 落到 `else` 的 `RunOutcome.INTERRUPTED`。这是保守取值，不会把未处理状态误判为通过；阶段 15 与阶段 16 引入生产者时一并收口。
 
+阶段 8 不改动本阶段的终态契约：`pending` 与 `leased` 仍是仅有的两个非终态，`NodeStatus` 与 `EventType` 都不新增成员。`leased` 在阶段 8 之后承载两种情形——工作进行中，与工作结束等待裁决——判别项是同一个 lease 的 `operations_complete` 与 `evidence_accepted`。
+
 ## 阶段验证方案
 
 静态：

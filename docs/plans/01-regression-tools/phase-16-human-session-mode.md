@@ -10,6 +10,7 @@
 
 ## 改动清单
 
+- `Scripts/regression/core/runview.py`。`_record_verdict` 的裁决准入表放行 `deferred(human)`：阶段 8 只允许 INDETERMINATE 聚合写 `indeterminate`，因为 `DEFERRED_HUMAN` 不属于 `PRODUCT_NODE_STATUSES`，绕过证据义务并释放 lane，在 `deferrable` 存在之前是一个无人把守的出口。本阶段与该函数一并放行。
 - `Scripts/regression/tools/ledger_lock.py`。增一个函数 `deferrable(view, node) -> bool`。读该节点的两次最近 attempt，两次都是超时类才返回真。产品侧的慢、断言不匹配、崩溃都返回假。判定读的是仪器故障 kind，不读耗时数值：耗时长短由 `Scripts/verification/harness/budgets.py` 的预算体系折算成 `provisional-budget-expired`，那也是仪器故障，与产品慢是两回事。
 - `Scripts/regression/tools/session_tool.py`。`--mode human` 落地：起阶段 11 的分段录屏，起 console，每 2 到 3 秒轮询一次 `snapshot --no-screenshot`、控制面字段与 PlaybackCore 的容器内 `tmp/playbackcore-live-debug/current.json`，逐行写 `timeline.jsonl`。接受 `mark` 打标，把人在此刻的标记写进同一条时间线。`halt` 时停录屏并取回。
 - 新增 `Scripts/rules/test_regression_human_session.py`。覆盖：连续两次超时才可 defer、一次超时加一次产品失败不可 defer、`timeline.jsonl` 每行是合法 JSON 且时间戳单调、`mark` 落在正确的时间点、`halt` 之后录屏文件存在。
