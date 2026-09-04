@@ -42,9 +42,12 @@ jobs:
           mount | sed -n 's/^.* on \(.*\) ([^)]*)$/\1/p' \
             | grep "^$REPO/" \
             | while IFS= read -r point; do
-                umount "$point" 2>/dev/null \
-                  || umount -f "$point" 2>/dev/null \
-                  || echo "could not unmount $point"
+                # A graceful umount on a busy SMB mount blocks with no
+                # deadline of its own, which turns this step into the hang it
+                # exists to prevent. Force is the only form used here.
+                umount -f "$point" 2>/dev/null \
+                  || diskutil unmount force "$point" >/dev/null 2>&1 \
+                  || echo "could not unmount $point; the clean skips it"
               done
           # The build caches are the one thing worth carrying between runs.
           # Deleting the 3.3 GB DerivedData tree the full tier leaves behind
