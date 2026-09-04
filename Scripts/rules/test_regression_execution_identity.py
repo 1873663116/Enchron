@@ -460,6 +460,40 @@ class ExecutionIdentityTests(unittest.TestCase):
         with self.assertRaisesRegex(ExecutionIdentityError, "canonical absolute product path"):
             self.freeze()
 
+    def test_a_products_root_holding_a_double_underscore_still_resolves(self) -> None:
+        """The leftover-macro check reads the template, not the expanded path.
+
+        It used to read the expanded path, so any checkout or DerivedData
+        directory whose name held two adjacent underscores was reported as an
+        unresolved macro. tempfile draws its names from an alphabet that
+        includes the underscore, which is how the self-tests met this: roughly
+        one run in thirty landed on a scratch directory like tmpa__b9 and the
+        gate turned red on a path it had chosen itself.
+        """
+        root = Path("/tmp/tmpa__b9/DerivedData/Build/Products")
+
+        resolved = identity._macro_product_path(
+            "__TESTROOT__/Debug/Enchron.app",
+            "UITargetAppPath",
+            root,
+            {"__TESTROOT__": root},
+            frozenset({"__TESTROOT__"}),
+        )
+
+        self.assertEqual(Path("Debug/Enchron.app"), resolved)
+
+    def test_a_macro_shaped_token_left_in_the_template_is_still_refused(self) -> None:
+        root = Path("/tmp/products")
+
+        with self.assertRaisesRegex(ExecutionIdentityError, "unresolved Xcode macro"):
+            identity._macro_product_path(
+                "__TESTROOT__/__leftover__/Enchron.app",
+                "UITargetAppPath",
+                root,
+                {"__TESTROOT__": root},
+                frozenset({"__TESTROOT__"}),
+            )
+
     def test_variable_product_closure_change_or_mode_change_invalidates_load(self) -> None:
         _, path = self.write_input()
         dependency = self.products[BoundLane.DEVICE]["dependency"]

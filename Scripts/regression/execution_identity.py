@@ -1155,12 +1155,14 @@ def _macro_product_path(
             f"{field} uses unsupported Xcode macro(s): {', '.join(unknown)}"
         )
     expanded = text
+    residue = text
     for macro in sorted(macros):
         replacement = replacements.get(macro)
         if replacement is None:
             raise ExecutionIdentityError(f"{field} cannot resolve Xcode macro {macro}")
         expanded = expanded.replace(macro, str(replacement))
-    if _MACRO.search(expanded) or "__" in expanded:
+        residue = residue.replace(macro, "")
+    if _MACRO.search(residue) or "__" in residue:
         raise ExecutionIdentityError(f"{field} contains an unresolved Xcode macro")
     path = Path(expanded)
     if not path.is_absolute() or ".." in path.parts:
