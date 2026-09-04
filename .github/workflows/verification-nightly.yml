@@ -70,6 +70,16 @@ jobs:
             mkdir -p "$REPO/$(dirname "$EMBY_IDENTITY")"
             cp "$MAIN/$EMBY_IDENTITY" "$REPO/$EMBY_IDENTITY"
           fi
+          # One WebDAV daemon can hold port 8443, and it is the one the main
+          # checkout started. Its certificate fingerprint and service id live in
+          # this runtime document; without it the worktree compares the live
+          # daemon against a fingerprint from a daemon of its own that no longer
+          # runs, and calls the answer a mismatch.
+          WEBDAV_RUNTIME=.build/regression-remote-source/runtime.json
+          if [ -f "$MAIN/$WEBDAV_RUNTIME" ]; then
+            mkdir -p "$REPO/$(dirname "$WEBDAV_RUNTIME")"
+            cp "$MAIN/$WEBDAV_RUNTIME" "$REPO/$WEBDAV_RUNTIME"
+          fi
           # A stray .pth left by an unrelated editable install points into
           # ~/Documents, and every interpreter startup under the runner blocked
           # in opendir there for as long as the job was allowed to run. An empty
