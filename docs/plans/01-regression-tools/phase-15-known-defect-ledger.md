@@ -77,7 +77,7 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 合并之后一次独立审计（2026-09-05）在阶段 10 到 19 的工具层找到下列几项，已修的不在此列：
 
 - **`field_value` 是无锚点的深度优先首命中查找。** 一条判据无从表达它问的是哪个元素、哪一次调用。`op` 的 L0 读数与已知缺陷豁免的字段匹配共用它，因此豁免的作用范围由同一次首命中决定。闭合它要给判据一个锚（调用 id 加字段路径），属于阶段 13 编译器的形状。
-- **48 条 L0 谓词里 30 条命名的是 Operation 的入参而非输出。** `requireMatchedElement` 出现在 `regression_operation_adapter.py:2807` 的参数里，不在任何返回的 outputs 中，因此这些谓词恒为 `indeterminate`。`Config/rubric_predicate_baseline.json` 的 `criteriaYieldingPredicates: 47` 把这个数字锁住了：一次「不再把入参名编译成观测」的修正会被该门拒绝，需要同时下调基线。
+- ~~**48 条 L0 谓词里 30 条命名的是 Operation 的入参而非输出。**~~ 2026-09-05 闭合。`requireMatchedElement` 出现在 `regression_operation_adapter.py:2807` 的参数里、读于 `:4520`，不在任何返回的 outputs 中，那 30 条谓词恒为 `indeterminate`。字段表移除该名字，基线从 47 条 criterion、48 个谓词下调到 17 与 18。下调一个 ratchet 需要理由，理由记在这里：拦住无声下滑是它的用途，锁住一个错数不是。
 - **`negativeControls` 没有被编译器读取。** 阶段 13 的改动清单写的是「只读 front matter 里的 `criteria` 与 `negativeControls`」，实际只读 `criteria`。覆盖报告的分母因此不含 negative controls。
 - **人类会话的轮询回路没有接线。** `poll_timeline`、`mark`、`read_timeline` 三个函数只有测试调用；MCP 的 `session` schema 没有 `mark` 动作，也没有任何一处驱动轮询。`ensure` 现在会开出 `timeline.jsonl` 并写入第一行，路径不再指向不存在的文件，但佩戴者回路本身仍是空的。
 - **仪器故障的整个 evidence 字典进了账本。** `op_tool` 把 `InstrumentFault` 合成为一次完成的调用，`outputs.failure.evidence` 是 harness 自己写的内容而不是 Operation 输出合同的一部分，`invoke_operation` 也不按输出形状校验它。它随后可被 `field_value` 检索，而那正是 L0 读数与已知缺陷豁免共用的匹配函数。阶段 16 需要的是故障 kind，落到账本里的是整个故障。
