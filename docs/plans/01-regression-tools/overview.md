@@ -154,7 +154,7 @@ verify_product_source_comments.py 扩到 Scripts/**/*.py，清 307 行（regress
 python3 Scripts/rules/run_verification.py
 ```
 
-模拟器 lane 端到端，以工具集自身走一遍：
+模拟器 lane 端到端，以工具集自身走一遍。`op` 从同一组入参就地编译计划，因此不需要先单独 compile 一份 `plan.json`；`open_run` 会把编译结果与 run 目录里既有的 `plan.json` 逐字节比对。
 
 ```sh
 python3 Scripts/regression/runctl.py freeze \
@@ -162,21 +162,20 @@ python3 Scripts/regression/runctl.py freeze \
   --simulator-target <模拟器 UDID> --device-target <真机 UDID> \
   --agent-model <模型> --output execution-input.json
 
-python3 Scripts/regression/runctl.py compile \
-  --reviews-root Regression/reviews \
-  --execution-input .scratch/harness-tools/execution-input.json \
-  --output .scratch/harness-tools/plan.json
-
 python3 Scripts/regression/tools/server.py --once session \
   --mode agent --device <模拟器 UDID> --stage ensure \
   --execution-input .scratch/harness-tools/execution-input.json \
   --output-directory .scratch/<日期>-harness-tools/evidence
 python3 Scripts/regression/tools/server.py --once op \
-  --plan .scratch/harness-tools/plan.json \
+  --repository-root . \
+  --execution-input .scratch/harness-tools/execution-input.json \
+  --catalog-root Regression --policy Regression/policy.json \
+  --reviews-root Regression/reviews --blueprint Regression/blueprint.json \
   --run-directory .scratch/harness-tools/run \
-  --node <NodeID> --call <CallID>
+  --node <NodeID> --call <CallID> \
+  --lane simulator --target <模拟器 UDID> --sidekick sidekick:one
 python3 Scripts/regression/tools/server.py --once ledger \
-  --run-directory .scratch/harness-tools/run --view
+  --action view --run-directory .scratch/harness-tools/run
 python3 Scripts/regression/tools/server.py --once receipt \
   --run-directory .scratch/harness-tools/run
 ```
@@ -191,6 +190,17 @@ python3 Scripts/rules/merge_authority.py generate origin/main..HEAD \
   --approval .scratch/merge/approval.json \
   --output .scratch/merge/run-receipt.json
 ```
+
+## 落地后的实际形状
+
+十九个阶段落地之后，与设计定稿时的差异集中在四处，都由实测或对抗审查推动：
+
+- **判读三级的实际覆盖是可数的。** 97 份 rubric 的 199 条 criterion 里，47 条能抽出至少一个字段谓词，共 48 个谓词，触及 45 份 rubric；其余 152 条仍由 Agent 判读并逐条列在覆盖报告里。基线走 ratchet，覆盖率只能升。
+- **账本多了一个「重开」事实。** 人类层的进入条件要求同一节点有两次 attempt，而原状态机里一个节点只能被 claim 一次。`NODE_REOPENED` 只接受归因为 harness 的 `indeterminate`，上限两次，全部候选 lane 中断时拒绝，且回放时核对它自称的 attempt 数。
+- **逐 Operation digest 按 handler 源码段算。** 35 个 Operation 合同共用同一个 `implementation.locator`，按文件算达不到「只失效用过该 Operation 的节点」。实测：改一个 handler 只改一个 digest，改共享代码改全部 35 个。
+- **异常包的裁切没有产出。** `matchedElement.frame` 的单位是点，截图是像素，响应里没有任何字段记录屏幕的点尺寸。按猜的比例裁切会把错的区域配上裁决文字，因此逐条说明为什么产不出。
+
+未闭合的缺口逐条记在[阶段 15](phase-15-known-defect-ledger.md) 的「未闭合的缺口」一节，其中最重要的一条是：`verdict.signature` 与运行期实际命中的签名之间还没有绑定。
 
 ## 实施指引
 

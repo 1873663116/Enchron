@@ -16,13 +16,11 @@ flowchart LR
     R[Oracle and rubric] --> C
     F[Reviewed facts] --> C
     C --> RP[Immutable RunPlan DAG]
-    RP --> M[Main]
-    M --> L[Scenario lease]
-    L --> SK[Sidekick]
-    SK --> E[Lease-local evidence]
-    E --> M
-    M --> LG[Append-only ledger]
-    LG --> V[replay and final verdict]
+    RP --> T[Tool set over MCP]
+    T --> E[Attempt-local evidence]
+    E --> LG[Append-only ledger]
+    T --> LG
+    LG --> V[replay, verdict and receipt]
 ```
 
 各对象的职责如下。
@@ -32,11 +30,11 @@ flowchart LR
 - `Scenario` 是最小的独立裁决单元。它必须能在一次 lease 内完成操作、取证和成功判断。
 - `Preparation` 是可重试的前置状态生产规则。它可以调用 setup Operation 并生成带 schema、语义 key、lane、tag epoch 与 fingerprint 的 `StateHandle`，但不能覆盖 Promise 或产生产品 verdict。
 - `Operation` 是带版本的语义动作。驱动方式、参数合同、支持的 lane、状态失效标签和证据输出只在 Operation 合同及实现中声明。
-- `Oracle` 根据已审 rubric 把证据判为 `Satisfied`、`Violated` 或 `Indeterminate`。当前 Catalog 的 Oracle 全部由 Agent 执行；结构化 Oracle 只读取闭合字段、事件和附件，视觉与音频 Oracle 还可检查相应媒体。两者都不能修改 rubric、适用性或成功表达式。
-- `Main` 是计划、lease、Operation 授权、证据接受、节点状态和 ledger 的唯一写者。
-- `Sidekick` 一次领取并完整执行一个 Scenario。Sidekick 只能通过当前 lease 授权的 Operation gateway 驱动系统，并只能向自己的 staging 目录写证据。
+- `Oracle` 根据已审 rubric 把证据判为 `Satisfied`、`Violated` 或 `Indeterminate`。rubric 里能编成字段谓词的断言走确定性判读，其余仍由 Agent 执行；结构化 Oracle 只读取闭合字段、事件和附件，视觉与音频 Oracle 还可检查相应媒体。两者都不能修改 rubric、适用性或成功表达式。
+- 工具集是计划、lease、Operation 授权、证据接受、节点状态与 ledger 的唯一写者。它以 MCP 暴露五个工具：`session` 起停设备会话，`op` 执行一个 Operation Call 并跑 L0 字段谓词与 L1 像素启发，`bundle` 产出异常包，`ledger` 写裁决、读状态、读续跑点、重开节点，`receipt` 把整轮账本算成合并收据。循环不在工具里：它在交互中的 Agent 和 console 前的人那里。
+- 判读分三级。L0 是由 rubric 编译出的字段谓词，编不出的 criterion 逐条进覆盖报告（`Scripts/rules/check_rubric_predicate_coverage.py`）。L1 是像素启发，命中的签名取自 `Scripts/regression/tools/signatures.py` 的注册表。L2 是 Agent，只在异常包之后做归因。
 
-自动回归运行时不包含 Human Oracle、wearer、人工确认、`Skipped`、`Voided` 或 `NotApplicable`。只能由人类主观判断且无法形成 Agent rubric 的内容在 Catalog 设计期设为 `excluded`，因此不会成为运行中的中断点。
+人类层静态为空，成员是账本终态为 `deferred(human)` 的节点。进入条件由账本校验：同一节点连续两次 attempt 的 op 结果都是仪器超时类。产品慢是 `Violated`，不可推迟。这些节点由人类收据关闭，收据覆盖哪些节点由 `receipt` 校验。只能由人类主观判断且无法形成 Agent rubric 的内容仍在 Catalog 设计期设为 `excluded`。
 
 ## 权威目录
 
@@ -92,7 +90,7 @@ DraftCatalog
 
 ### 适用性白名单
 
-编译器本身不推测“什么是正确或适用的”。Scenario 的 applicability 只能引用 Catalog 中的 `FactID`，`CompileRequest` 只能提供已有审查 receipt 的 fact value。编译器机械求值并拒绝未知事实；Main 和 Sidekick 都不能在运行中新增事实或改写范围。
+编译器本身不推测“什么是正确或适用的”。Scenario 的 applicability 只能引用 Catalog 中的 `FactID`，`CompileRequest` 只能提供已有审查 receipt 的 fact value。编译器机械求值并拒绝未知事实；运行期的任何工具都不能新增事实或改写范围。
 
 这形成明确分工：人和设计审查决定产品承诺、排除项与事实含义；确定性编译器检查闭包并生成计划；Agent 的灵活性只存在于已审 rubric 内的证据判断。系统不要求把整个世界写成完美白名单，只要求每个会改变本轮计划的事实显式可追溯。
 
@@ -132,11 +130,11 @@ Operation invoked
   -> preserve unrelated prepared state
 ```
 
-Epoch 在 Operation gateway 确认调用时推进，而不是等 Sidekick 的结果被接受后才推进，因为失败或被拒绝的结果也可能已经改变设备。重启、重装、重连、账号变更、库变更和播放会话变更分别使用不同 tag；不得用一个全局 generation 让无关准备全部失效。
+Epoch 在 Operation gateway 确认调用时推进，而不是等结果被接受后才推进，因为失败或被拒绝的结果也可能已经改变设备。重启、重装、重连、账号变更、库变更和播放会话变更分别使用不同 tag；不得用一个全局 generation 让无关准备全部失效。
 
 ## 关键路径调度
 
-编译器为每个节点保存已审的整数成本，并在 DAG 上反向计算 `criticalRank = nodeCost + max(successor criticalRank)`。Main 只在依赖、lane MainGate、状态要求和 lease 条件都满足的节点中选择工作。
+编译器为每个节点保存已审的整数成本，并在 DAG 上反向计算 `criticalRank = nodeCost + max(successor criticalRank)`。`ledger resume` 只把依赖、lane MainGate、状态要求和 lane 锁都满足的节点列为可跑。
 
 同一 lane 的稳定优先级依次为：
 
@@ -152,17 +150,17 @@ Simulator 与真机分别通过自己的 MainGate 后即可解锁各自分支，
 
 ## Operation 能力白名单
 
-编译器把每个 Scenario 中的 OperationCall 编译为精确的 `AllowedOperationCall`，绑定 call ID、Operation ID、版本、合同 digest、规范参数模板字节及其 digest、实现 locator 及其 digest、失效标签和最大调用次数。参数模板字节进入不可变 RunPlan；Main 不需要在运行时重新读取可变 Catalog。`AssignmentLease` 携带该集合。
+编译器把每个 Scenario 中的 OperationCall 编译为精确的 `AllowedOperationCall`，绑定 call ID、Operation ID、版本、合同 digest、规范参数模板字节及其 digest、实现 locator 及其 digest、失效标签和最大调用次数。参数模板字节进入不可变 RunPlan；运行时不需要重新读取可变 Catalog。`AssignmentLease` 携带该集合。
 
 每条 coverage obligation 还绑定一个 `evidenceType`。编译器同时检查生产该证据的 Operation 声明能输出该类型，Oracle 声明能接收该类型；任一端不匹配都不能生成 RunPlan。Rubric 是所有 Oracle 的必填合同，Agent 只能在 rubric 的 criteria 与 negative controls 内作结构化判断。编译器、能力授权、证据来源与成功表达式保持机械确定；自然语言 rubric 不伪装成没有实现字段谓词的“确定性比较器”。
 
-每次调用必须先经过 Main 控制的 gateway。授权时，Main 只把完整字符串 `result://<earlier-call-id>/<top-level-field>` 解析为同一 lease 中更早成功调用的结构化输出；缺失调用、失败调用、缺失字段和错误引用语法都会在 adapter 触达目标前中断 lane。普通字符串和仅在字符串中间出现的相似文本保持原值。解析后的规范参数字节及其 digest 与模板 digest、实现身份一起进入 grant。
+每次调用必须先经过 gateway。授权时只把完整字符串 `result://<earlier-call-id>/<top-level-field>` 解析为同一 lease 中更早成功调用的结构化输出；缺失调用、失败调用、缺失字段和错误引用语法都会在 adapter 触达目标前中断 lane。普通字符串和仅在字符串中间出现的相似文本保持原值。解析后的规范参数字节及其 digest 与模板 digest、实现身份一起进入 grant。
 
-Gateway 在执行前验证 run、plan、node、lease、lane、call、参数字节、模板与解析后摘要和实现摘要，并写入 `OperationInvoked` 事件；未授权调用在触达设备前被拒绝。`OperationCompleted` 把不可变 JSON object 输出写入 ledger，replay 和重新打开运行后仍从 ledger 恢复后续引用，不维护旁路结果状态。Sidekick 的提示词可以解释允许做什么，但提示词不是执法边界。最终切换时，设备和 Xcode adapter 只接受 gateway grant，旧的无授权直接入口不再承担正式回归。
+Gateway 在执行前验证 run、plan、node、lease、lane、call、参数字节、模板与解析后摘要和实现摘要，并写入 `OperationInvoked` 事件；未授权调用在触达设备前被拒绝。`OperationCompleted` 把不可变 JSON object 输出写入 ledger，replay 和重新打开运行后仍从 ledger 恢复后续引用，不维护旁路结果状态。驱动方的提示词可以解释允许做什么，但提示词不是执法边界。最终切换时，设备和 Xcode adapter 只接受 gateway grant，旧的无授权直接入口不再承担正式回归。
 
-Scenario 与 Preparation 中的 OperationCall 数组同时定义严格执行顺序。Main 只有在前一 call 已得到成功的结构化完成结果后才允许下一 call；同一 call 的有界重试只能发生在顺序游标前进之前，游标前进后不得回退。一个 Scenario lease 若需要重建 prerequisite，先按 Preparation 依赖拓扑和各自 call 顺序完成状态生产，再进入 Scenario call 顺序。这样失败不会因后续状态覆盖而被跳过，Sidekick 也不能提前采集本应在产品操作之后取得的证据。
+Scenario 与 Preparation 中的 OperationCall 数组同时定义严格执行顺序。只有在前一 call 已得到成功的结构化完成结果后才允许下一 call；同一 call 的有界重试只能发生在顺序游标前进之前，游标前进后不得回退。一个 Scenario lease 若需要重建 prerequisite，先按 Preparation 依赖拓扑和各自 call 顺序完成状态生产，再进入 Scenario call 顺序。这样失败不会因后续状态覆盖而被跳过，也不会提前采集本应在产品操作之后取得的证据。
 
-该能力系统防止意外越权和计划漂移，不把 Sidekick 当作恶意攻击者；若执行宿主仍向 Sidekick 暴露任意 shell 或设备控制权限，系统只能拒收未授权证据，不能声称具备操作系统级隔离。
+该能力系统防止意外越权和计划漂移，不把驱动方当作恶意攻击者；若执行宿主仍向它暴露任意 shell 或设备控制权限，系统只能拒收未授权证据，不能声称具备操作系统级隔离。
 
 ## 类型化评审预算
 
@@ -170,21 +168,21 @@ Scenario 与 Preparation 中的 OperationCall 数组同时定义严格执行顺�
 
 预算使用有单位的整数值，不使用无单位数字或浮点金额：`inputTokens`、`outputTokens`、`wallSeconds`、`costMicros` 和 `reviewItems`。每种审查只声明实际使用的单位。`PlannedReview -> BudgetApprovedReview -> CompletedReview` 是三个不同类型；receipt 的实际用量超出任一批准上限时，完成态无法构造。
 
-类型化预算的目的不是减少审查，而是让 Main 在发出任务前证明资源足够覆盖 packet。系统不采用全量 digest 导致每次全部重审，也不允许为了省预算漏掉 Scenario。
+类型化预算的目的不是减少审查，而是在发出任务前证明资源足够覆盖 packet。系统不采用全量 digest 导致每次全部重审，也不允许为了省预算漏掉 Scenario。
 
 ## Oracle 边界
 
-系统没有全局 2-of-3、多数投票或强制多模型共识。每个 obligation 绑定一个 Oracle 合同和一个 rubric；一次有效、确定的结构化结果即可进入 SuccessExpression。`Indeterminate` 可以在明确预算内重新采证或重新判读，但重试不是投票；如果多个有效判读互相冲突，Main 中断该 lane 并保留全部结果，不自行选择多数。
+系统没有全局 2-of-3、多数投票或强制多模型共识。每个 obligation 绑定一个 Oracle 合同和一个 rubric；一次有效、确定的结构化结果即可进入 SuccessExpression。`Indeterminate` 可以在明确预算内重新采证或重新判读，但重试不是投票；如果多个有效判读互相冲突，lane 被中断并保留全部结果，不自行选择多数。
 
 Agent Oracle 的模型、prompt、实现和采样参数属于 `EvidenceEnvironmentIdentity`。其中任一项变化都会使旧 Agent Oracle 证据不能用于新计划，但不会要求产品负责人重新审查未改变的 Promise 文案。
 
 ## 运行与证据不变量
 
 - `CompiledRunPlan` 不可变，`PlanDigest` 绑定 CatalogGate receipt、selector、reviewed facts、BuildIdentity、EvidenceEnvironmentIdentity、候选 lane、Operation 和 Oracle 实现 digest。
-- Sidekick 只写 `assignments/<lease-id>/`。Main 校验 identity、artifact bytes、SHA-256、evidence type 和 obligation binding 后，才把证据收入内容寻址 store。
+- 一次 attempt 只写 `assignments/<lease-id>/`。证据被收入内容寻址 store 之前要先通过 identity、artifact bytes、SHA-256、evidence type 与 obligation binding 的校验。
 - `lease-id + envelope digest` 的重复提交幂等；同一 lease 的不同 digest 必须拒绝。
 - ledger 只追加，事件带连续 sequence、前一事件 digest 和自身 digest。`replay(run_directory)` 是 RunView 的唯一来源，不维护 `current.json` 或平行 summary 状态。
-- 有效产品证据得到 `Violated` 才产生 `Failed`。无效 envelope、设备断连、控制器故障或 Oracle `Indeterminate` 只能重试或产生 `InterruptedRunReceipt`。
+- 有效产品证据得到 `Violated` 才产生 `failed`；命中已知缺陷账本的 `failed` 记为 `failed(known)`，它不阻塞收据。无效 envelope、设备断连、控制器故障或 Oracle `Indeterminate` 得到 `indeterminate`。归因为 harness 的 `indeterminate` 可以由 `ledger reopen` 把节点送回 `pending` 再跑一次，一个节点最多两次 attempt。
 - 上游 `Failed` 使严格后继成为带非空失败祖先的 `BlockedBy`；独立分支继续。
 
 核心公开接口保持为：
@@ -199,7 +197,7 @@ def open_run(plan: CompiledRunPlan, directory: RunDirectory) -> MainRun: ...
 def replay(directory: RunDirectory) -> RunView: ...
 ```
 
-`MainRun` 只暴露 claim、Operation 授权／调用登记、证据接受、lane 中断和 finalize。纯决策逻辑与磁盘事务分开，测试可以用假 lane 证明状态机，而不需要启动设备。
+`MainRun` 只暴露 claim、Operation 授权／调用登记、证据接受、lane 中断和 finalize。它不再驱动任何循环：一次一个 Operation Call 由 `Scripts/regression/tools/op_tool.py` 发起，裁决由 `ledger` 工具写入。纯决策逻辑与磁盘事务分开，测试可以用假 lane 证明状态机，而不需要启动设备。
 
 ## 实施关口
 

@@ -20,6 +20,19 @@
 
 无新类型。本阶段只改自然语言。
 
+## 与原清单的偏离
+
+四处：
+
+- **`Regression/README.md` 的改动比清单大。** 清单点名了系统关系图、对象职责、运行与证据不变量、核心公开接口与实施关口五处，实际还有六处散落的 `Main` 与 `Sidekick` 句子（:93、:133、:137、:153、:157、:159、:161、:163、:171、:175）。留下任何一处，读者会以为调度层还在。现在这两个词在该文件里出现零次。
+- **`.agents/skills/vp-e2e/SKILL.md` 的「不许中途收工」改写而不是删除。** 清单说删掉这一节，但它承载的一条约束仍然成立：每个节点都要有机器终态，未结节点不能出收据。删掉整节会连这条一起丢掉。改写后的一节说的是同一件事，只是执行者从 Main 换成了 `receipt` 工具，终态清单也补上了 `failed(known)` 与 `deferred(human)`。
+- **`Regression/` 下的三份文档是生成物，源在 `Config/regression/catalog-root/`。** 直接改 `Regression/README.md`、`execution-protocol.md`、`oracle-protocol.md` 会让 `test_regression_catalog_materialized` 红：`materialize_catalog_v2.py` 把它们按 `copyDocuments` 里记录的 digest 逐份比对。改动落在源目录，再刷新 `Config/regression/catalog-v2.json` 里那三条 digest 与整份 blueprint 的 `contentDigest`。这道门是对的——生成物只有一个真相源。
+- **`ensure-session` 示例同时补上返回 stage 的取值。** 清单只要求把 `--derived-data-path` 换成 `--execution-input`。示例下方那句「只有返回 `stage: ready` 才算建立成功」在读者不知道另外四种 stage 时是悬空的，因此把五种取值一并写出。
+
+## 顺带修掉的一处产品缺陷
+
+`missingFirstDisplayedFrameFailsWithoutGuessingTheCause` 在整轮运行里间歇性变红，读到的 `snapshot.lastFailure` 是 `nil`。不是测试写松了：`recordFailure`（`SampleBufferPlaybackSession+Diagnostics.swift:723`）先 `updateLifecycle(.failed)`，再写 `debugStore.recordFailure`。任何等待 `.failed` 再去读 `lastFailure` 的观察者都可能落在这两步之间读到空值，App 自己的诊断面也一样。机器有负载时窗口变宽，这就是它在门禁与 CI 同时跑时才红的原因。失败记录改为先写、生命周期后发布，连跑三轮干净。
+
 ## 阶段验证方案
 
 静态：

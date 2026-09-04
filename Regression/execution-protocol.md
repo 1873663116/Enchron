@@ -4,7 +4,7 @@ This file is the implementation locator for every Regression Catalog v1 Operatio
 
 ## Authorize each call
 
-Main must authorize the exact `callId`, Operation ID, version, contract digest, canonical arguments, lane, attempt, and invocation limit before an Agent touches the target. The Agent executes calls in front-matter order. A `result://<call-id>/<field>` argument reads only the named field from an earlier successful call in the same lane and Scenario or Preparation attempt.
+The capability gateway must authorize the exact `callId`, Operation ID, version, contract digest, canonical arguments, lane, attempt, and invocation limit before anything touches the target. `Scripts/regression/tools/op_tool.py` obtains that grant for the one call it runs; the authorization content is unchanged. The Agent executes calls in front-matter order. A `result://<call-id>/<field>` argument reads only the named field from an earlier successful call in the same lane and Scenario or Preparation attempt.
 
 Reject a call before target access when its grant, version, digest, lane, argument set, or invocation count differs from the contract. Record the accepted invocation and every returned artifact with the same build identity, lane, Scenario attempt identity, `callId`, and capture time.
 
@@ -17,6 +17,7 @@ Read [the vp-e2e skill](../.agents/skills/vp-e2e/SKILL.md) before execution. Use
 - [Device lane](../.agents/skills/vp-e2e/references/device.md) defines device transport, capture limits, and authorization failures.
 - [Feature map](../.agents/skills/vp-e2e/features/README.md) routes product actions to the feature-specific drive and evidence sequence.
 - `Scripts/verification/interactive_visionpro_ui.py` owns the shared session, accessibility actions, application commands, snapshots, and capture output.
+- `Scripts/regression/tools/server.py` exposes the harness as MCP tools and runs one of them at a time under `--once`: `session` brings a device session up or takes it down, `op` runs one authorized Operation call, `bundle` assembles the anomaly bundle, `ledger` writes a verdict and reads the run, and `receipt` closes the run.
 - `Scripts/verification/device_hub_canvas.py` owns Simulator gaze-and-pinch delivery.
 - `Scripts/verification/journey_preflight.py` and the source-specific probes under `Scripts/verification/` own read-only fixture and remote-source checks.
 

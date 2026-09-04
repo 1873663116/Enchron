@@ -721,7 +721,6 @@ extension SampleBufferPlaybackSession {
     }
 
     func recordFailure(_ error: Error, node: PlaybackNode, kind: String) {
-        updateLifecycle(.failed)
         debugStore.recordFailure(PlaybackFailureRecord(
             mediaSessionID: traceID,
             node: node,
@@ -730,6 +729,7 @@ extension SampleBufferPlaybackSession {
             message: error.localizedDescription,
             recoverability: "notRecoverableWithinMediaSession"
         ))
+        updateLifecycle(.failed)
         debugStore.emit(
             mediaSessionID: traceID,
             node: node,

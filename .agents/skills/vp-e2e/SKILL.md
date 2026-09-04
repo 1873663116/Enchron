@@ -27,12 +27,12 @@ E2E 测试默认在 visionOS 模拟器 lane 执行。只有以下两类内容必
 ```sh
 python3 Scripts/verification/interactive_visionpro_ui.py \
   --device <UDID> --developer-dir "$(xcode-select -p)" \
-  --derived-data-path .scratch/DerivedData-<主题> \
+  --execution-input .scratch/<日期>-<主题>/execution-input.json \
   --output-directory .scratch/<日期>-<主题>/evidence \
   ensure-session
 ```
 
-只有返回 `stage: ready` 才算建立成功。模拟器约 24 秒，真机约 26 秒。该命令走 `test-without-building` 并复用 DerivedData；源码有改动时先自行 `build-for-testing`。
+只有返回 `stage: ready` 才算建立成功。模拟器约 24 秒，真机约 26 秒。该命令走 `test-without-building` 并复用 DerivedData；源码有改动时先自行 `build-for-testing`。执行输入由 `python3 Scripts/regression/runctl.py freeze` 冻结，也可以改用 `ENCHRON_EXECUTION_INPUT` 环境变量给出同一份文件。`ensure-session` 的返回 stage 有五种：`adopted`、`ready`、`halt`、`firstCommand`、`readyTimeout`。
 
 如果只需要做注入式前置或状态读取，可以跳过 runner，直接以测试通道冷启 App（约 2 秒，仅模拟器有此捷径）：
 
@@ -67,9 +67,9 @@ Bug 复现与回归测试应当模拟真实用户操作，默认走产品自己�
 
 同一控件在 window 与 panorama 下的验证互不覆盖，因为那是对两个渲染宿主的两次独立 hit test，一个通过不能替另一个作证。
 
-### 不许中途收工
+### 每个节点都要有终态
 
-回归由编译计划和 Run Controller 管理，不依赖会话 Stop hook。Main Agent 负责调度，Sidekick 只执行分配给自己的 Scenario；每个节点必须写入 `passed`、`failed`、`blocked` 或 `indeterminate` 的机器终态及其证据绑定。存在未结节点的运行不是完整回归，不能据此生成成功收据。运行入口、冻结输入和恢复规则以 `Scripts/regression/runctl.py --help` 及 `Regression/execution-protocol.md` 为准。
+每个节点必须写入 `passed`、`failed`、`failed(known)`、`blockedBy`、`indeterminate` 或 `deferred(human)` 的机器终态及其证据绑定。存在未结节点时 `Scripts/regression/tools/server.py --once receipt` 拒绝出收据，并列出未关闭的节点。循环由交互中的 Agent 驱动，一次一个 Operation Call；冻结输入与编译规则以 `Scripts/regression/runctl.py --help` 及 `Regression/execution-protocol.md` 为准。
 
 ### 佩戴者边界
 
@@ -113,4 +113,6 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <UDID> halt
 - `Scripts/verification/reachability_matrix.py` 是物理可达性基线。操作单元问的是「产品做对了没有」，可达性基线问的是「操作送不送得到」。它与操作单元共用同一份源码派生清单作为轴。
 - `Scripts/verification/playback_mode_matrix.py` 是播放模式矩阵，轴是片源 × 呈现路径，回答「某种媒体在某条路径上放不放得出来」。它与具体操作无关。
 
-其余工装：`playback_open_sweep.py` 做宽度优先的多片源扫描；`extract_visionpro_ui_recording.py` 从 `.xcresult` 提取录屏；Catalog 由 `Config/regression/catalog-v2.json` 经 `Scripts/regression/materialize_catalog_v2.py` 生成。
+回归工具集入口是 `Scripts/regression/tools/server.py`，以 MCP 暴露 session、op、bundle、ledger、receipt 五个工具，也可以用 `--once <工具>` 单次调用。
+
+其余工装：`playback_open_sweep.py` 做宽度优先的多片源扫描；`extract_visionpro_ui_recording.py` 从 `.xcresult` 或一个模拟器分段提取录屏；Catalog 由 `Config/regression/catalog-v2.json` 经 `Scripts/regression/materialize_catalog_v2.py` 生成。

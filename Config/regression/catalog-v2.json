@@ -11,10 +11,10 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:c84c38aa1c3205c7bacd1b1919c099a0fda7079a64a5805d2cb0df63a9288f85",
+  "contentDigest": "sha256:d5d72136499bc97dae99c272c90dbe7d798daaa50fccbca71e90304c0e6debbe",
   "copyDocuments": [
     {
-      "digest": "sha256:729dc6ae575bd7d996de32d18a084e6bea55c6b477d806b7d3419cd4f693c5de",
+      "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
       "path": "README.md"
     },
     {
@@ -22,7 +22,7 @@
       "path": "agent-operability-review-protocol.md"
     },
     {
-      "digest": "sha256:e4d086c4661a06ffcaf1dee36cbd6a8b4a7a3647b0f3eed14b2216689156c34c",
+      "digest": "sha256:364dcbf6828d764d6371250cb250b782324ff4bf9d50103cd73c610d2db6f4b8",
       "path": "execution-protocol.md"
     },
     {
@@ -66,7 +66,7 @@
       "path": "facts/viewing-minimum-observed-seconds.md"
     },
     {
-      "digest": "sha256:ac4cb92f80743c6150047d6f15bbe105d71a8dde68b6447403be2b0cc15c8b3d",
+      "digest": "sha256:7ed55cdfb5ea0dd1f8bbdcea970a6fddf60cfd640e28f9dda796c5da137322a5",
       "path": "oracle-protocol.md"
     },
     {
