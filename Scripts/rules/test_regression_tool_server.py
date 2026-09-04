@@ -289,7 +289,7 @@ class LedgerToolRoutingTests(unittest.TestCase):
     def test_an_unknown_action_and_a_missing_directory_are_refused(self) -> None:
         with self.assertRaisesRegex(LedgerLockError, "reads one run directory"):
             server.call_tool("ledger", {"action": "view"})
-        with self.assertRaisesRegex(LedgerLockError, "write, view or resume"):
+        with self.assertRaisesRegex(LedgerLockError, "write, view, resume or reopen"):
             server.call_tool("ledger", {"action": "close", "runDirectory": "/tmp"})
 
 

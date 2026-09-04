@@ -18,12 +18,17 @@ from regression.core.contracts import BoundLane
 from regression.core.errors import RegressionError
 from regression.core.events import EventType, payload_value
 from regression.core.expression import OracleResult
-from regression.core.ids import NodeID, SidekickID, SignatureID
+from regression.core.ids import NodeID, ScenarioID, SidekickID, SignatureID
 from regression.core.ledger import LedgerWriter
 from regression.core.replay import read_event_log, replay
 from regression.core.runtime import open_run
 from regression.core.plan import BothJoinNode, LaneGateDependency, MainGateBinding
-from regression.core.runview import NodeStatus, build_run_view
+from regression.core.runview import (
+    MAX_NODE_ATTEMPTS,
+    NodeStatus,
+    build_run_view,
+    nodes_awaiting_adjudication,
+)
 from regression.tools.ledger_lock import (
     LOCKED_BY_INTERRUPTION,
     STATES_REFUSING_AN_OPERATION,
@@ -35,13 +40,20 @@ from regression.tools.ledger_lock import (
     UNLOCKED,
     LedgerLockError,
     admit_verdict,
+    attempts,
     lane_lock_state,
 )
-from regression.tools import ledger_tool
+from datetime import date
+
+from regression.rubric_compiler import FieldPredicate
+from regression.tools import known_defects, ledger_tool
 from regression.tools.signatures import ALL_BLACK
 from regression.tools.verdict import Attribution, Verdict
 
 from test_regression_core_runtime import (
+    FakeOperationAdapter,
+    OperationResult,
+    _invoke_current,
     FakeOracle,
     _complete_operations,
     _copy_tree,
@@ -543,6 +555,381 @@ class LedgerToolTests(unittest.TestCase):
                     FRAME_COUNT,
                 )
             self.assertEqual(before, (directory / "ledger.jsonl").read_bytes())
+
+
+class ReopenTests(unittest.TestCase):
+    """A node was claimed once and never returned to pending, so a second attempt
+    could not exist and the human layer's entry condition -- two consecutive
+    harness timeouts on one node -- could never be met. Reopening is its own
+    fact in the ledger, admitted only out of an indeterminate node whose
+    adjudication blamed the harness."""
+
+    def indeterminate_run(self, directory: Path):
+        main = open_run(_single_node_plan(), directory)
+        lease = run_node(
+            main, BoundLane.SIMULATOR, OracleResult.INDETERMINATE, "amber"
+        )
+        main.close()
+        ledger_tool.write(
+            directory,
+            verdict(lease.node_id, attribution=Attribution.HARNESS),
+            NodeStatus.INDETERMINATE,
+            FRAME_COUNT,
+        )
+        return lease
+
+    def test_a_harness_indeterminate_node_returns_to_pending(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+
+            ledger_tool.reopen(directory, lease.node_id)
+            reopened = replay(directory)
+            node = reopened.node(lease.node_id)
+
+            self.assertIs(NodeStatus.PENDING, node.status)
+            self.assertIsNone(node.lease_id)
+            self.assertIs(Attribution.HARNESS, node.adjudication.attribution)
+            self.assertFalse(lane_lock_state(reopened, BoundLane.SIMULATOR).locked)
+
+    def test_the_earlier_attempt_stays_in_the_ledger(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+
+            ledger_tool.reopen(directory, lease.node_id)
+            reopened = replay(directory)
+
+            self.assertEqual(1, attempts(reopened, lease.node_id))
+            self.assertTrue(reopened.lease(lease.id).invocations)
+
+    def test_a_reopened_node_can_be_claimed_again(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+            ledger_tool.reopen(directory, lease.node_id)
+
+            main = open_run(_single_node_plan(), directory)
+            second = run_node(
+                main, BoundLane.SIMULATOR, OracleResult.SATISFIED, "green"
+            )
+            current = main.view
+            main.close()
+
+            self.assertNotEqual(lease.id, second.id)
+            self.assertEqual(2, attempts(current, lease.node_id))
+
+    def test_a_third_attempt_is_refused_by_the_cap(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+            ledger_tool.reopen(directory, lease.node_id)
+            main = open_run(_single_node_plan(), directory)
+            run_node(main, BoundLane.SIMULATOR, OracleResult.INDETERMINATE, "amber2")
+            main.close()
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, attribution=Attribution.HARNESS),
+                NodeStatus.INDETERMINATE,
+                FRAME_COUNT,
+            )
+
+            with self.assertRaisesRegex(LedgerLockError, f"of {MAX_NODE_ATTEMPTS}"):
+                ledger_tool.reopen(directory, lease.node_id)
+
+    def test_a_later_session_does_not_recover_the_stopped_first_attempt(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+            ledger_tool.reopen(directory, lease.node_id)
+            main = open_run(_single_node_plan(), directory)
+            second = main.claim(
+                BoundLane.SIMULATOR, SidekickID("sidekick:green"), now_millis=0
+            )
+            main.close()
+
+            reopened = open_run(_single_node_plan(), directory)
+            current = reopened.view
+            reopened.close()
+
+            self.assertFalse(current.lane(BoundLane.SIMULATOR).interrupted)
+            self.assertEqual(
+                second.id, current.node(lease.node_id).lease_id
+            )
+            self.assertFalse(
+                lane_lock_state(current, BoundLane.SIMULATOR).refuses_an_operation
+            )
+
+    def test_the_second_attempt_is_adjudicated_against_its_own_evaluations(
+        self,
+    ) -> None:
+        """Lease identifiers are digest prefixes, so the run's leases sort in an
+        order unrelated to the order they were claimed in. Picking "the lease of
+        this node" by node id therefore reads the stopped attempt about half the
+        time. Ten runs make that coin toss decide the test."""
+        for trial in range(10):
+            with self.subTest(trial=trial), TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                lease = self.indeterminate_run(directory)
+                ledger_tool.reopen(directory, lease.node_id)
+                main = open_run(_single_node_plan(), directory)
+                run_node(main, BoundLane.SIMULATOR, OracleResult.VIOLATED, "red")
+                main.close()
+
+                ledger_tool.write(
+                    directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
+                )
+
+                self.assertIs(
+                    NodeStatus.FAILED, replay(directory).node(lease.node_id).status
+                )
+
+    def test_a_reopen_onto_interrupted_lanes_is_refused(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+            main = open_run(_single_node_plan(), directory)
+            main.interrupt_lane(BoundLane.SIMULATOR, "device fault", None)
+            main.close()
+
+            with self.assertRaisesRegex(LedgerLockError, "is interrupted"):
+                ledger_tool.reopen(directory, lease.node_id)
+
+    def test_a_reopen_that_misreports_the_attempt_count_fails_replay(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.indeterminate_run(directory)
+            log = read_event_log(directory)
+            with LedgerWriter(
+                directory, log.run_id, log.plan_digest, build_run_view
+            ) as writer:
+                with self.assertRaises(RegressionError):
+                    writer.append(
+                        EventType.NODE_REOPENED,
+                        {"nodeId": str(lease.node_id), "attemptsBefore": 0},
+                        "2026-09-05T00:00:00.000Z",
+                        "reopen:forged",
+                    )
+
+    def test_a_product_attribution_does_not_reopen(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            main = open_run(_single_node_plan(), directory)
+            lease = run_node(
+                main, BoundLane.SIMULATOR, OracleResult.INDETERMINATE, "amber"
+            )
+            main.close()
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, attribution=Attribution.PRODUCT),
+                NodeStatus.INDETERMINATE,
+                FRAME_COUNT,
+            )
+
+            with self.assertRaisesRegex(LedgerLockError, "product is a conclusion"):
+                ledger_tool.reopen(directory, lease.node_id)
+
+    def test_a_failed_node_does_not_reopen(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            main = open_run(_single_node_plan(), directory)
+            lease = run_node(main, BoundLane.SIMULATOR, OracleResult.VIOLATED, "red")
+            main.close()
+            ledger_tool.write(
+                directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
+            )
+
+            with self.assertRaisesRegex(LedgerLockError, "reopened out of"):
+                ledger_tool.reopen(directory, lease.node_id)
+
+    def test_a_node_the_run_does_not_hold_is_refused(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.indeterminate_run(directory)
+
+            with self.assertRaisesRegex(LedgerLockError, "does not hold"):
+                ledger_tool.reopen(directory, NodeID("node:absent"))
+
+
+class KnownDefectRoutingTests(unittest.TestCase):
+    """A failure that matches the known-defect ledger is written as a different
+    terminal state, not as the same state with a note beside it. Every input the
+    match reads is taken from the run itself: the Scenario from the plan the run
+    pinned, the field readings from what the Operation recorded."""
+
+    def failed_run(self, directory: Path, outputs=None):
+        main = open_run(_single_node_plan(), directory)
+        lease = main.claim(BoundLane.SIMULATOR, SidekickID("sidekick:red"), now_millis=0)
+        while True:
+            call = main.view.lease(lease.id).current_call
+            if call is None:
+                break
+            _invoke_current(
+                main,
+                lease,
+                FakeOperationAdapter(
+                    [OperationResult(True, (), "", dict(outputs or {}))]
+                ),
+            )
+        main.accept_evidence(_envelope(main, lease), FakeOracle(OracleResult.VIOLATED))
+        main.close()
+        return lease
+
+    def with_defects(self, *records):
+        original = known_defects.load
+        known_defects.load = lambda path=None: records
+        self.addCleanup(setattr, known_defects, "load", original)
+
+    def defect(self, scenario, match):
+        return known_defects.KnownDefect(
+            ScenarioID(scenario),
+            "the poster grid renders one frame late",
+            match,
+            date(2026, 9, 1),
+            "the grid stops rendering before its first layout pass",
+        )
+
+    def test_a_matching_record_is_written_as_its_own_terminal_state(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory)
+            self.with_defects(self.defect("scenario:gate", ALL_BLACK))
+
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, signature=ALL_BLACK),
+                NodeStatus.FAILED,
+                FRAME_COUNT,
+            )
+
+            self.assertIs(
+                NodeStatus.FAILED_KNOWN, replay(directory).node(lease.node_id).status
+            )
+
+    def test_a_record_for_another_scenario_does_not_reach_this_node(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory)
+            self.with_defects(self.defect("scenario:elsewhere", ALL_BLACK))
+
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, signature=ALL_BLACK),
+                NodeStatus.FAILED,
+                FRAME_COUNT,
+            )
+
+            self.assertIs(
+                NodeStatus.FAILED, replay(directory).node(lease.node_id).status
+            )
+
+    def test_the_scenario_comes_from_the_plan_the_run_pinned(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory)
+
+            self.assertEqual(
+                "scenario:gate", str(ledger_tool.scenario_of(directory, lease.node_id))
+            )
+            self.assertIsNone(
+                ledger_tool.scenario_of(directory, NodeID("node:absent"))
+            )
+
+    def test_the_field_readings_come_from_the_recorded_outputs(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory, {"lifecycle": "Paused"})
+            current = replay(directory)
+
+            recorded = ledger_tool.recorded_fields(current, lease.node_id)
+
+            self.assertEqual({"lifecycle": "Paused"}, dict(recorded))
+            self.assertEqual(
+                {}, ledger_tool.recorded_fields(current, NodeID("node:absent"))
+            )
+
+    def test_a_field_match_reads_the_recorded_output(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory, {"lifecycle": "Paused"})
+            self.with_defects(
+                self.defect(
+                    "scenario:gate", FieldPredicate("lifecycle", "==", "Paused")
+                )
+            )
+
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, signature=ALL_BLACK),
+                NodeStatus.FAILED,
+                FRAME_COUNT,
+            )
+
+            self.assertIs(
+                NodeStatus.FAILED_KNOWN, replay(directory).node(lease.node_id).status
+            )
+
+    def test_a_caller_cannot_ask_for_the_known_failure_state(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory)
+            self.with_defects()
+
+            with self.assertRaisesRegex(LedgerLockError, "derived from the known"):
+                ledger_tool.write(
+                    directory,
+                    verdict(lease.node_id, signature=ALL_BLACK),
+                    NodeStatus.FAILED_KNOWN,
+                    FRAME_COUNT,
+                )
+
+            self.assertIs(
+                NodeStatus.FAILED,
+                replay(directory).node(lease.node_id).status
+                if replay(directory).node(lease.node_id).status
+                is not NodeStatus.LEASED
+                else NodeStatus.FAILED,
+            )
+
+    def test_a_run_whose_only_failure_is_known_closes_as_passed(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory)
+            self.with_defects(self.defect("scenario:gate", ALL_BLACK))
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, signature=ALL_BLACK),
+                NodeStatus.FAILED,
+                FRAME_COUNT,
+            )
+
+            main = open_run(_single_node_plan(), directory)
+            closed = main.finalize()
+            main.close()
+
+            self.assertIs(
+                NodeStatus.FAILED_KNOWN, closed.node(lease.node_id).status
+            )
+            self.assertEqual("passed", closed.outcome.value)
+
+    def test_a_known_failure_leaves_its_lane_open(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            lease = self.failed_run(directory)
+            self.with_defects(self.defect("scenario:gate", ALL_BLACK))
+
+            ledger_tool.write(
+                directory,
+                verdict(lease.node_id, signature=ALL_BLACK),
+                NodeStatus.FAILED,
+                FRAME_COUNT,
+            )
+            current = replay(directory)
+
+            self.assertFalse(lane_lock_state(current, BoundLane.SIMULATOR).locked)
+            self.assertEqual((), nodes_awaiting_adjudication(current))
 
 
 if __name__ == "__main__":

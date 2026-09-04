@@ -57,7 +57,7 @@ class OpToolError(ValueError):
     pass
 
 
-_ABSENT = object()
+ABSENT = object()
 
 
 @dataclass(frozen=True)
@@ -238,28 +238,28 @@ def _obligation_reading(binding, outputs: Mapping[str, Any]) -> str:
 
 def _predicate_reading(predicate: FieldPredicate, outputs: Mapping[str, Any]) -> str:
     named = f"{predicate.field}{predicate.operator}{predicate.value}"
-    read = _field_value(outputs, predicate.field)
-    if read is _ABSENT:
+    read = field_value(outputs, predicate.field)
+    if read is ABSENT:
         return f"{FIELD_ABSENT}: {named} names a field this call did not report"
     if read == predicate.value:
         return f"{FIELD_HOLDS}: {named}"
     return f"{FIELD_FAILS}: {named}, read {read!r}"
 
 
-def _field_value(value: Any, field: str) -> Any:
+def field_value(value: Any, field: str) -> Any:
     if isinstance(value, Mapping):
         if field in value:
             return value[field]
         for nested in value.values():
-            found = _field_value(nested, field)
-            if found is not _ABSENT:
+            found = field_value(nested, field)
+            if found is not ABSENT:
                 return found
     elif isinstance(value, (list, tuple)):
         for item in value:
-            found = _field_value(item, field)
-            if found is not _ABSENT:
+            found = field_value(item, field)
+            if found is not ABSENT:
                 return found
-    return _ABSENT
+    return ABSENT
 
 
 def run(
@@ -422,6 +422,7 @@ def _lease_for(main, lane: BoundLane, node: NodeID, sidekick: SidekickID, now_mi
 
 __all__ = (
     "ARM_WITHOUT_DISARM_REFUSAL",
+    "ABSENT",
     "FIELD_ABSENT",
     "FIELD_FAILS",
     "FIELD_HOLDS",
@@ -430,6 +431,7 @@ __all__ = (
     "OpOutcome",
     "OpToolError",
     "field_predicates",
+    "field_value",
     "pixel_signatures",
     "run",
     "screenshot_bytes",

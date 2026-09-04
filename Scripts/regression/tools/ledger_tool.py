@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from regression.core.contracts import BoundLane
+from regression.core.ids import NodeID, ScenarioID
 from regression.core.events import EventType, now_rfc3339_millis
+from regression.core.runtime import PLAN_FILENAME
 from regression.core.ledger import LedgerWriter
 from regression.core.replay import read_event_log, replay
 from regression.core.runview import (
@@ -20,11 +23,17 @@ from regression.core.runview import (
 from regression.tools.ledger_lock import (
     LaneLock,
     LedgerLockError,
+    admit_reopen,
     admit_verdict,
+    attempts,
     lane_lock_state,
     verdict_payload,
 )
+from regression.tools.known_defects import classify
 from regression.tools.verdict import Verdict
+
+
+DERIVED_ONLY_STATUSES = (NodeStatus.FAILED_KNOWN,)
 
 
 def write(
@@ -40,7 +49,18 @@ def write(
     with LedgerWriter(
         directory, log.run_id, log.plan_digest, build_run_view
     ) as writer:
+        if status in DERIVED_ONLY_STATUSES:
+            raise LedgerLockError(
+                f"{status.value} is derived from the known defect ledger, not "
+                "requested; write the failure and let the ledger decide"
+            )
         current = build_run_view(writer.events)
+        if status is NodeStatus.FAILED:
+            status = classify(
+                scenario_of(directory, verdict.node),
+                verdict,
+                recorded_fields(current, verdict.node),
+            )
         admit_verdict(current, verdict, status, bundle_frame_count)
         node = current.node(verdict.node)
         writer.append(
@@ -49,7 +69,53 @@ def write(
                 str(node.lease_id), verdict, status, bundle_frame_count
             ),
             now_rfc3339_millis(),
-            f"verdict:{verdict.node}",
+            f"verdict:{verdict.node}:{attempts(current, verdict.node)}",
+        )
+        return projection(build_run_view(writer.events))
+
+
+def scenario_of(run_directory: Path, node: NodeID) -> Optional[ScenarioID]:
+    path = Path(run_directory) / PLAN_FILENAME
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for item in payload.get("nodes", []):
+        if isinstance(item, Mapping) and item.get("id") == str(node):
+            found = item.get("scenarioId")
+            return None if found is None else ScenarioID(str(found))
+    return None
+
+
+def recorded_fields(current: RunView, node: NodeID) -> Mapping[str, Any]:
+    found = next((item for item in current.nodes if item.node_id == node), None)
+    if found is None or found.lease_id is None:
+        return {}
+    completed = [
+        item
+        for item in current.lease(found.lease_id).invocations
+        if item.completed and item.outputs is not None
+    ]
+    if not completed:
+        return {}
+    return dict(completed[-1].outputs.payload())
+
+
+def reopen(run_directory: Path, node: NodeID) -> Dict[str, Any]:
+    directory = Path(run_directory)
+    log = read_event_log(directory)
+    if not log.events:
+        raise LedgerLockError(f"{directory} holds no ledger to reopen a node in")
+    with LedgerWriter(
+        directory, log.run_id, log.plan_digest, build_run_view
+    ) as writer:
+        current = build_run_view(writer.events)
+        admit_reopen(current, node)
+        attempt = attempts(current, node)
+        writer.append(
+            EventType.NODE_REOPENED,
+            {"nodeId": str(node), "attemptsBefore": attempt},
+            now_rfc3339_millis(),
+            f"reopen:{node}:{attempt}",
         )
         return projection(build_run_view(writer.events))
 
@@ -164,4 +230,12 @@ def _open_lanes(node: NodeView, statuses, locks) -> Tuple[BoundLane, ...]:
     return tuple(open_lanes)
 
 
-__all__ = ("projection", "resume", "view", "write")
+__all__ = (
+    "projection",
+    "recorded_fields",
+    "reopen",
+    "resume",
+    "scenario_of",
+    "view",
+    "write",
+)

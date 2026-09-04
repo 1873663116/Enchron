@@ -10,9 +10,13 @@ from regression.core.contracts import BoundLane
 from regression.core.ids import NodeID
 from regression.core.runview import (
     ADJUDICATED_NODE_STATUSES,
+    MAX_NODE_ATTEMPTS,
     NodeStatus,
     RunView,
+    attempts_of,
     awaiting_adjudication,
+    current_lease,
+    reopen_refusal,
     settled_oracle_result,
 )
 from regression.tools.verdict import Verdict
@@ -80,7 +84,11 @@ def lane_lock_state(view: RunView, lane: BoundLane) -> LaneLock:
         if lease.lane is not lane:
             continue
         node = nodes.get(lease.node_id)
-        if node is None or node.status is not NodeStatus.LEASED:
+        if (
+            node is None
+            or node.status is not NodeStatus.LEASED
+            or node.lease_id != lease.lease_id
+        ):
             continue
         if awaiting_adjudication(node, lease):
             return LaneLock(lane, LaneLockState.AWAITING_VERDICT, node.node_id, LOCKED_UNTIL_ADJUDICATED)
@@ -92,6 +100,19 @@ def lane_lock_state(view: RunView, lane: BoundLane) -> LaneLock:
     if view.lane(lane).interrupted:
         return LaneLock(lane, LaneLockState.INTERRUPTED, None, LOCKED_BY_INTERRUPTION)
     return LaneLock(lane, LaneLockState.OPEN, None, UNLOCKED)
+
+
+def attempts(view: RunView, node: NodeID) -> int:
+    return sum(1 for item in view.leases if item.node_id == node)
+
+
+def admit_reopen(view: RunView, node: NodeID) -> None:
+    found = next((item for item in view.nodes if item.node_id == node), None)
+    refusal = reopen_refusal(
+        found, attempts(view, node), {item.lane: item for item in view.lanes}
+    )
+    if refusal is not None:
+        raise LedgerLockError(refusal)
 
 
 def admit_verdict(
@@ -112,9 +133,7 @@ def admit_verdict(
     )
     if node is None:
         raise LedgerLockError(f"the run holds no node {verdict.node}")
-    lease = next(
-        (item for item in view.leases if item.node_id == node.node_id), None
-    )
+    lease = current_lease(view, node)
     if not awaiting_adjudication(node, lease):
         raise LedgerLockError(
             f"node {verdict.node} carries the status {node.status.value} and owes "
@@ -169,6 +188,7 @@ def verdict_payload(
 
 
 __all__ = (
+    "MAX_NODE_ATTEMPTS",
     "LOCKED_BY_INTERRUPTION",
     "LOCKED_BY_RUN_CLOSURE",
     "LOCKED_UNTIL_ADJUDICATED",
@@ -179,7 +199,9 @@ __all__ = (
     "LaneLockState",
     "LedgerLockError",
     "STATES_REFUSING_AN_OPERATION",
+    "admit_reopen",
     "admit_verdict",
+    "attempts",
     "lane_lock_state",
     "verdict_payload",
 )

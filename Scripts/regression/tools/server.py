@@ -184,9 +184,14 @@ def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
         return ToolResult(ledger_tool.view(Path(directory), lane))
     if action == "resume":
         return ToolResult(ledger_tool.resume(Path(directory)))
+    if action == "reopen":
+        node = arguments.get("node")
+        if not isinstance(node, str) or not node:
+            raise LedgerLockError("a reopen names the node it sends back")
+        return ToolResult(ledger_tool.reopen(Path(directory), NodeID(node)))
     if action != "write":
         raise LedgerLockError(
-            f"ledger takes the write, view or resume action, not {action!r}"
+            f"ledger takes the write, view, resume or reopen action, not {action!r}"
         )
     raw_verdict = arguments.get("verdict")
     if not isinstance(raw_verdict, Mapping):
@@ -267,10 +272,21 @@ SESSION_SCHEMA = {
 LEDGER_SCHEMA = {
     "type": "object",
     "properties": {
-        "action": {"type": "string", "enum": ["write", "view", "resume"]},
+        "action": {
+            "type": "string",
+            "enum": ["write", "view", "resume", "reopen"],
+        },
         "runDirectory": {"type": "string"},
+        "node": {"type": "string"},
         "lane": {"type": "string", "enum": [item.value for item in BoundLane]},
-        "status": {"type": "string", "enum": [item.value for item in NodeStatus]},
+        "status": {
+            "type": "string",
+            "enum": [
+                item.value
+                for item in NodeStatus
+                if item not in ledger_tool.DERIVED_ONLY_STATUSES
+            ],
+        },
         "bundleFrameCount": {"type": "integer", "minimum": 1},
         "verdict": {
             "type": "object",
@@ -349,6 +365,7 @@ def registry() -> Dict[str, ToolDefinition]:
                 (
                     ("--action", {}),
                     ("--run-directory", {"dest": "runDirectory"}),
+                    ("--node", {}),
                     ("--lane", {}),
                     ("--status", {}),
                     ("--bundle-frame-count", {"dest": "bundleFrameCount", "type": int}),

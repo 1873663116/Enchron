@@ -1227,6 +1227,16 @@ class MainRun:
         elif NodeStatus.FAILED in statuses:
             outcome = RunOutcome.FAILED
         elif all(
+            status
+            in (
+                NodeStatus.PASSED,
+                NodeStatus.BLOCKED_BY,
+                NodeStatus.FAILED_KNOWN,
+            )
+            for status in statuses
+        ):
+            outcome = RunOutcome.PASSED
+        elif all(
             status in (NodeStatus.PASSED, NodeStatus.BLOCKED_BY) for status in statuses
         ):
             outcome = RunOutcome.PASSED
@@ -1678,7 +1688,7 @@ class MainRun:
         current = self.view
         for lease in current.leases:
             node = current.node(lease.node_id)
-            if node.status is not NodeStatus.LEASED:
+            if node.status is not NodeStatus.LEASED or node.lease_id != lease.lease_id:
                 continue
             call = lease.current_call
             retries_exhausted = (

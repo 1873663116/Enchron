@@ -23,6 +23,7 @@ class EventType(Enum):
     EVIDENCE_ACCEPTED = "EvidenceAccepted"
     ORACLE_EVALUATED = "OracleEvaluated"
     VERDICT_RECORDED = "VerdictRecorded"
+    NODE_REOPENED = "NodeReopened"
     LANE_INTERRUPTED = "LaneInterrupted"
     RUN_CLOSED = "RunClosed"
 

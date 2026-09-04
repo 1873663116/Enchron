@@ -42,6 +42,36 @@ KnownDefect(
 classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 ```
 
+## 与原清单的偏离
+
+九处：
+
+- **重开暴露了四处「一个节点只被 claim 一次」的下游假设，全部在本阶段修掉。** 对抗审查逐条跑出来的：
+  - `runtime.py` 的恢复循环按**节点**状态判断要不要恢复一个 lease（`:1680`）。第二次 attempt 让节点重新变成 `LEASED` 之后，第一次那条已经 `INTERRUPTED` 的 lease 也通过了这道判断，于是下一次 `open_run` 就把 lane 打断——实测 12 次里 12 次，而每一次 `op` 调用都会 `open_run`。判断改为同时要求这条 lease 就是节点当前持有的那条。
+  - 三处用 `node_id` 去取「这个节点的 lease」，而 `RunView.leases` 按 lease id 排序，lease id 是 digest 前缀，排序与 claim 顺序无关。审查员在 2000 个合成 run id 上量到第一次 attempt 排在前面的比例是 975/2000。取错的后果是拿第一次的 Oracle 结果去裁决第二次，节点因此既关不掉也 finalize 不了。改为一律走 `current_lease`（节点自己记着它当前的 lease）。
+  - `bundle --attempt n` 同样按排序取，`--attempt 1` 有 4/10 拿到第二次。`LeaseView` 增 `claim_sequence`，attempt 按 claim 顺序取。
+  - `failed(known)` 在 `finalize` 的结局阶梯里没有分支，落到末尾的 `else` 判成 `INTERRUPTED`——本阶段要产出的那个状态，恰好让整轮 run 被判为中断。补上分支。
+- **重开保留裁决，并拒绝所有候选 lane 都已中断的节点。** 原先重开把 `adjudication` 清掉，而它是这个节点被送回来的唯一原因记录；`projection` 也只读这一个字段。若重开发生在一条已中断的 lane 上，节点会停在 `PENDING` 且没有任何 lane 能 claim 它，`resume` 既不报 ready 也不报待裁决，那条裁决就此消失。现在裁决留着，全部候选 lane 都中断时直接拒绝重开。
+- **`attemptsBefore` 在回放时被核对。** 它原本只写不读，一条声称 `attemptsBefore: 0` 的伪造事件能干净回放。阶段 8 的原则是伪造的账本回放不过去，这个字段得对得上 lease 数。
+- **重开机制与本阶段同批落地。** 前置阻塞一节选定的 `NODE_REOPENED` 是本阶段的一部分：`events.py` 增该事件，`runview.py` 增 `reopen_refusal` 与 `_reopen_node`，`ledger_lock.py` 增 `admit_reopen` 与 `attempts`，`ledger_tool.py` 增 `reopen`，`server.py` 的 ledger 动作增 `reopen`。没有它，本阶段与阶段 16 都无从谈起。
+- **裁决事件的幂等键带上 attempt。** 原先是 `verdict:<node>`，一个节点重开之后写第二次裁决会撞上 `ledger.idempotency_conflict`。这一条是账本自己在自测里抓出来的：键必须是 `verdict:<node>:<attempt>`。
+- **判定所读的每一项都取自这次运行本身，不接受调用方的声明。** 起初 Scenario 与字段读数是 `write` 的两个参数，理由写的是「run 目录里没有计划」——这句话是错的：`_write_plan_once`（`runtime.py:1926`）把 `plan.json` 落在 run 目录里，每个节点的 payload 带着 `scenarioId`（`plan.py:1366`）。对抗审查指出，只要这两项由调用方给，记录里的 `scenario` 就不是作用域约束而是一句口令：谁打对那串字符，谁就拿到那条豁免。现在 Scenario 从 `plan.json` 按节点查出，字段读数从该节点 lease 最后一次完成调用的 `outputs` 取出，两个参数都删掉了。
+- **`failed(known)` 不接受调用方点名。** 它原本是 `NodeStatus` 里一个普通取值，调用方直接传就绕过 `classify`，账本上留下的事件与一次真正的豁免逐字节相同。现在 `write` 直接拒绝这个状态，MCP schema 的 enum 里也不再列出它：它只能由已知缺陷账本推导出来。
+- **字段匹配与 op 的 L0 读数共用同一个查找函数。** 两处原本一个扁平查找、一个递归查找，同一份 `outputs` 会得出不同结论，把操作者推向手工摊平字典或改用签名匹配——那两条恰好是未经核对的路径。
+- **匹配只认注册表内的签名 id 与 `field == value`。** 不接受其他比较符：一条 `!=` 记录能豁免的失败范围比它描述的缺陷大得多。自由文本不进匹配判据。
+
+`Config/regression/known_defects.json` 以空表落地。第一条记录由真正遇到已知缺陷的那次运行录入，而不是为了让表非空而预填。
+
+## 未闭合的缺口
+
+对抗审查列出的以下几项本阶段没有关闭，逐条记在这里而不是留给下一个人重新发现：
+
+- **`verdict.signature` 与运行期实际命中的签名之间没有绑定。** `op` 的 `pixel_signatures` 与 `bundle` 的 `frame_unchanged` 算出的签名都没有进账本，因此账本里根本没有可比对的一侧。要闭合它，得先把算出的签名写成事件或写进完成事件的保留键，再让 `write` 拒绝一个不在该节点该次 attempt 命中集合里的签名。
+- **豁免的依据不进账本。** `verdict_payload` 只写 attribution、帧数、区域观察与签名，`_adjudication` 拒绝其余键。因此事后没人能从账本读出「是哪条记录豁免了这个节点」。补上它需要扩 adjudication 的 schema，属于阶段 7 定下的形状。
+- **`expiresWhen` 只要求非空文本。** 它没有任何检查方式，也没有任何地方再读它。可检查的替代是一个必填的 `expiresOn` 日期，`load` 在过期时拒绝；`recorded` 已经按 ISO 解析，也可以据此设一个最长年龄。
+- **没有登记的 ratchet 检查看住这张表。** 阶段 13 的覆盖率基线是同一个机制的反向用法：那里下限只能升，这里条数只能降。表目前为空，第一条记录落地之前补上这道门是自然的时机。
+- **`failed(known)` 不进 `failure_ancestors`，因此不阻塞下游。** 这是「不阻塞收据」的预期行为，代价要一并说清楚：一条范围划错的豁免放行的不只是那个节点，而是它整棵下游子树，那些节点在一个并不成立的前置条件上取的证据会被当作有效证据收下。
+
 ## 阶段验证方案
 
 静态：

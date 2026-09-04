@@ -9,7 +9,12 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from regression.core.ids import CallID, NodeID, SignatureID
 from regression.core.replay import replay
-from regression.core.runview import LeaseView, OperationInvocationView, RunView
+from regression.core.runview import (
+    LeaseView,
+    OperationInvocationView,
+    RunView,
+    attempts_in_claim_order,
+)
 from regression.tools.op_tool import screenshot_bytes
 from regression.tools.pixel_heuristics import all_black, capture_failed, frame_delta
 from regression.tools.raster import (
@@ -114,13 +119,13 @@ def run(run_directory: Path, node: NodeID, attempt: int) -> ExceptionBundle:
 
 def _lease_for(current: RunView, node: NodeID, attempt: int) -> LeaseView:
     current.node(node)
-    leases = tuple(item for item in current.leases if item.node_id == node)
+    leases = attempts_in_claim_order(current, node)
     if not leases:
         raise BundleError(f"{node} was never claimed, so it recorded no attempt")
     if attempt > len(leases):
         raise BundleError(
-            f"{node} recorded {len(leases)} attempt(s), not {attempt}; the ledger "
-            "admits one lease per node, so a second attempt lives in a later run"
+            f"{node} recorded {len(leases)} attempt(s), not {attempt}; a node runs "
+            "again only after the ledger reopens it"
         )
     return leases[attempt - 1]
 

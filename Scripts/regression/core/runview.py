@@ -88,6 +88,8 @@ class Attribution(Enum):
     SPEC = "spec"
 
 
+MAX_NODE_ATTEMPTS = 2
+
 ADJUDICATED_NODE_STATUSES = {
     OracleResult.SATISFIED: (NodeStatus.PASSED,),
     OracleResult.VIOLATED: (NodeStatus.FAILED, NodeStatus.FAILED_KNOWN),
@@ -344,6 +346,7 @@ class LeaseView:
     evidence_accepted: bool = False
     evidence: Tuple[AcceptedArtifactView, ...] = ()
     oracle_evaluations: Tuple[OracleEvaluationView, ...] = ()
+    claim_sequence: int = 0
 
     @property
     def current_call(self) -> Optional[CallPlanView]:
@@ -677,12 +680,28 @@ def settled_node_statuses(view: RunView) -> Dict[NodeID, NodeStatus]:
         )
 
 
+def current_lease(view: RunView, node: NodeView) -> Optional[LeaseView]:
+    if node.lease_id is None:
+        return None
+    return next(
+        (item for item in view.leases if item.lease_id == node.lease_id), None
+    )
+
+
+def attempts_in_claim_order(view: RunView, node_id: NodeID) -> Tuple[LeaseView, ...]:
+    return tuple(
+        sorted(
+            (item for item in view.leases if item.node_id == node_id),
+            key=lambda item: item.claim_sequence,
+        )
+    )
+
+
 def nodes_awaiting_adjudication(view: RunView) -> Tuple[NodeView, ...]:
-    leases = {item.node_id: item for item in view.leases}
     return tuple(
         node
         for node in view.nodes
-        if awaiting_adjudication(node, leases.get(node.node_id))
+        if awaiting_adjudication(node, current_lease(view, node))
     )
 
 
@@ -738,6 +757,8 @@ def build_run_view(events: Iterable[LedgerEvent]) -> RunView:
             _record_oracle(payload, leases, location)
         elif event.type is EventType.VERDICT_RECORDED:
             _record_verdict(payload, nodes, lanes, leases, location)
+        elif event.type is EventType.NODE_REOPENED:
+            _reopen_node(payload, nodes, lanes, leases, location)
         elif event.type is EventType.LANE_INTERRUPTED:
             _interrupt_lane(payload, nodes, lanes, leases, location)
         elif event.type is EventType.RUN_CLOSED:
@@ -1154,7 +1175,14 @@ def _claim_node(
     if not calls or len({item.call_id for item in calls}) != len(calls):
         raise _transition(location, "a lease needs unique ordered calls")
     leases[lease_id] = LeaseView(
-        lease_id, node_id, lane, sidekick_id, claimed_at, deadline, calls
+        lease_id,
+        node_id,
+        lane,
+        sidekick_id,
+        claimed_at,
+        deadline,
+        calls,
+        claim_sequence=len(leases),
     )
     nodes[node_id] = replace(
         node, status=NodeStatus.LEASED, lane=lane, lease_id=lease_id
@@ -1622,6 +1650,69 @@ def _record_verdict(
         failure_ancestors=tuple(sorted(set(ancestors), key=str)),
         adjudication=adjudication,
     )
+
+
+def attempts_of(node_id: NodeID, leases: Mapping[LeaseID, LeaseView]) -> int:
+    return sum(1 for item in leases.values() if item.node_id == node_id)
+
+
+def reopen_refusal(
+    node: Optional[NodeView],
+    attempts: int,
+    lanes: Mapping[BoundLane, LaneView],
+) -> Optional[str]:
+    if node is None:
+        return "reopen names a node this run does not hold"
+    if node.status is not NodeStatus.INDETERMINATE:
+        return (
+            f"a node is reopened out of {NodeStatus.INDETERMINATE.value}, not out of "
+            f"{node.status.value}"
+        )
+    if node.adjudication is None:
+        return "a reopened node carries the adjudication that sent it back"
+    if node.adjudication.attribution is not Attribution.HARNESS:
+        return (
+            "only a harness attribution reopens a node; "
+            f"{node.adjudication.attribution.value} is a conclusion, not a retry"
+        )
+    if attempts >= MAX_NODE_ATTEMPTS:
+        return (
+            f"{node.node_id} already ran {attempts} of {MAX_NODE_ATTEMPTS} attempts"
+        )
+    open_lanes = [
+        candidate
+        for candidate in node.lane_candidates
+        if candidate in lanes and not lanes[candidate].interrupted
+    ]
+    if not open_lanes:
+        return (
+            f"every lane {node.node_id} can run on is interrupted, so reopening it "
+            "would leave it pending with nothing able to claim it"
+        )
+    return None
+
+
+def _reopen_node(
+    payload: Mapping[str, Any],
+    nodes: Dict[NodeID, NodeView],
+    lanes: Dict[BoundLane, LaneView],
+    leases: Dict[LeaseID, LeaseView],
+    location: str,
+) -> None:
+    node_id = _node_id(payload.get("nodeId"), location + ".nodeId")
+    node = nodes.get(node_id)
+    attempts = attempts_of(node_id, leases)
+    refusal = reopen_refusal(node, attempts, lanes)
+    if refusal is not None:
+        raise _transition(location, refusal)
+    recorded = payload.get("attemptsBefore")
+    if recorded != attempts:
+        raise _transition(
+            location,
+            f"the reopen records {recorded!r} attempts before it, and the ledger "
+            f"holds {attempts}",
+        )
+    nodes[node_id] = replace(node, status=NodeStatus.PENDING, lease_id=None)
 
 
 def _adjudication(value: Any, status: NodeStatus, location: str) -> AdjudicationView:

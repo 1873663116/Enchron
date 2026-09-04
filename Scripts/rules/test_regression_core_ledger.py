@@ -93,6 +93,7 @@ class LedgerTests(unittest.TestCase):
                 "EvidenceAccepted",
                 "OracleEvaluated",
                 "VerdictRecorded",
+                "NodeReopened",
                 "LaneInterrupted",
                 "RunClosed",
             },
