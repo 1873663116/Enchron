@@ -294,6 +294,67 @@ class LedgerToolRoutingTests(unittest.TestCase):
             server.call_tool("ledger", {"action": "close", "runDirectory": "/tmp"})
 
 
+class FailureShapeTests(unittest.TestCase):
+    """A refusal is the tool saying no. Anything else is the tool breaking, and
+    the Agent reading the reply overnight has to be able to tell them apart."""
+
+    def test_a_refusal_reaches_the_agent_as_the_sentence_the_tool_wrote(
+        self,
+    ) -> None:
+        reply = server._dispatch(
+            {
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "ledger", "arguments": {"action": "view"}},
+            }
+        )
+
+        self.assertTrue(reply["result"]["isError"])
+        self.assertNotIn(
+            server.UNEXPECTED_FAILURE, reply["result"]["content"][0]["text"]
+        )
+
+    def test_a_failure_that_is_not_a_refusal_says_so(self) -> None:
+        original = server.call_tool
+
+        def broken(name, arguments):
+            raise TypeError("unsupported operand")
+
+        server.call_tool = broken
+        self.addCleanup(setattr, server, "call_tool", original)
+        reply = server._dispatch(
+            {
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "ledger", "arguments": {}},
+            }
+        )
+
+        text = reply["result"]["content"][0]["text"]
+        self.assertTrue(reply["result"]["isError"])
+        self.assertIn(server.UNEXPECTED_FAILURE, text)
+        self.assertIn("TypeError", text)
+
+    def test_op_names_every_input_it_is_missing_before_it_compiles(self) -> None:
+        with self.assertRaisesRegex(OpToolError, "lane"):
+            server.call_tool(
+                "op",
+                {
+                    "repositoryRoot": ".",
+                    "executionInput": "execution-input.json",
+                    "catalogRoot": "Regression",
+                    "policy": "policy.json",
+                    "reviewsRoot": "reviews",
+                    "blueprint": "blueprint.json",
+                    "runDirectory": "/tmp",
+                    "node": "node:gate",
+                    "call": "call:one",
+                    "target": "SIM-UDID",
+                    "sidekick": "sidekick:red",
+                },
+            )
+
+
 class OpRoutingTests(unittest.TestCase):
     def arguments(self, directory: Path) -> dict:
         return {

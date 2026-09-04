@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:d5d72136499bc97dae99c272c90dbe7d798daaa50fccbca71e90304c0e6debbe",
+  "contentDigest": "sha256:b7ed7579de049c2cda03144055fd69b16321676e262c5af916aded6d4227edbc",
   "copyDocuments": [
     {
       "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
@@ -66,7 +66,7 @@
       "path": "facts/viewing-minimum-observed-seconds.md"
     },
     {
-      "digest": "sha256:7ed55cdfb5ea0dd1f8bbdcea970a6fddf60cfd640e28f9dda796c5da137322a5",
+      "digest": "sha256:5ff311066f8428c2b6ca6792b5d665cb5e54baa36c9d961fe1b7f19605adb7f9",
       "path": "oracle-protocol.md"
     },
     {

@@ -31,6 +31,15 @@ MONTAGE_REDUCTION = 4
 UNCHANGED_FRAME_DELTA = 0.002
 NO_BASELINE = None
 
+MONTAGE_REFUSAL = "the frames did not decode, so no montage was built"
+NO_FRAME_MONTAGE = "the call captured no frame, so there is no montage"
+SIGNATURE_REFUSAL = (
+    "the frames did not decode, so the deterministic signatures were not read"
+)
+NO_FRAME_SIGNATURE = (
+    "the call captured no frame, so no deterministic signature was read"
+)
+
 CROP_REFUSAL = (
     "the matched element reports its frame in points and no field of the "
     "operation response records the screen size in points, so no point to pixel "
@@ -61,6 +70,8 @@ class ExceptionBundle:
     crop_refusal: Optional[str] = None
     field_diff: Mapping[str, Any] = MappingProxyType({})
     matched_signature: Tuple[SignatureID, ...] = ()
+    montage_refusal: Optional[str] = None
+    signature_refusal: Optional[str] = None
 
     def images(self) -> Tuple[BundleImage, ...]:
         montage = () if self.contact_sheet is None else (self.contact_sheet,)
@@ -82,6 +93,8 @@ class ExceptionBundle:
                 key: list(value) for key, value in sorted(self.field_diff.items())
             },
             "matchedSignature": [str(item) for item in self.matched_signature],
+            "montageRefusal": self.montage_refusal,
+            "signatureRefusal": self.signature_refusal,
         }
 
 
@@ -123,17 +136,21 @@ def run(run_directory: Path, node: NodeID, attempt: int) -> ExceptionBundle:
         screenshot_bytes(_outputs(completed[index - 1])) if index > 0 else None
     )
     frames = tuple(item for item in (before, after) if item is not None)
+    montage, montage_refusal = _contact_sheet(frames, failing.call_id)
+    matched, signature_refusal = _signatures(before, after)
     return ExceptionBundle(
         node=node,
         attempt=attempt,
         call=failing.call_id,
         before_after=_before_after(before, after, completed, index),
-        contact_sheet=_contact_sheet(frames, failing.call_id),
+        contact_sheet=montage,
         frame_count=len(frames),
         crops=(),
-        crop_refusal=CROP_REFUSAL,
+        crop_refusal=CROP_REFUSAL if frames else None,
         field_diff=_field_diff(_outputs(failing)),
-        matched_signature=_signatures(before, after),
+        matched_signature=matched,
+        montage_refusal=montage_refusal,
+        signature_refusal=signature_refusal,
     )
 
 
@@ -170,18 +187,23 @@ def _before_after(
 
 def _contact_sheet(
     frames: Tuple[bytes, ...], call: CallID
-) -> Optional[BundleImage]:
+) -> Tuple[Optional[BundleImage], Optional[str]]:
+    """A montage that failed to build is not a montage with no frames. The
+    reviewer is told which of the two happened."""
     if not frames:
-        return None
+        return None, NO_FRAME_MONTAGE
     try:
         rasters = [scale_down(decode_png(item), MONTAGE_REDUCTION) for item in frames]
         montage = tile(rasters, min(MONTAGE_COLUMNS, len(rasters)))
-        return BundleImage(
+    except RasterError as error:
+        return None, f"{MONTAGE_REFUSAL}: {error}"
+    return (
+        BundleImage(
             f"{len(frames)} frame(s) around {call}, numbered from zero",
             encode_png(montage),
-        )
-    except RasterError:
-        return None
+        ),
+        None,
+    )
 
 
 def _field_diff(outputs: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -192,9 +214,12 @@ def _field_diff(outputs: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _signatures(
     before: Optional[bytes], after: Optional[bytes]
-) -> Tuple[SignatureID, ...]:
+) -> Tuple[Tuple[SignatureID, ...], Optional[str]]:
+    """A decoder that broke and a frame that matched nothing both leave the
+    signature list empty, so the reason the list is empty is recorded beside
+    it."""
     if after is None:
-        return ()
+        return (), NO_FRAME_SIGNATURE
     found = []
     try:
         for hit in (capture_failed(after), all_black(after)):
@@ -202,9 +227,9 @@ def _signatures(
                 found.append(hit)
         if before is not None and frame_delta(before, after) < UNCHANGED_FRAME_DELTA:
             found.append(FRAME_UNCHANGED)
-    except (RasterError, OSError, ValueError):
-        return tuple(found)
-    return tuple(found)
+    except (RasterError, OSError, ValueError) as error:
+        return tuple(found), f"{SIGNATURE_REFUSAL}: {error}"
+    return tuple(found), None
 
 
 __all__ = (

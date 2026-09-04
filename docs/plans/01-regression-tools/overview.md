@@ -76,7 +76,7 @@ verify_product_source_comments.py 扩到 Scripts/**/*.py，清 307 行（regress
 ### 明确排除
 
 - 不新增 Journey、Scenario、Promise 或 rubric。97 份 rubric 的文本不改，编译器只读它们。
-- 不改产品 Swift 源码。
+- 不改产品 Swift 源码。**偏离**：`Packages/PlaybackCore` 的 `PlaybackDebugRecorder.record` 与 `SampleBufferPlaybackSession+Diagnostics` 两处改了。前者的 `queue.sync` 与 MediaToolbox 构成锁序倒置，CI 上挂死 11 分钟，用 `sample(1)` 取到栈后改成 `queue.async`；后两处 `recordFailure` 与 `publishRendererFailure` 在写失败记录之前就发布了 `.failed`，读方拿到的是空记录。三处都是产品缺陷经由 harness 暴露，按「产品问题优先于 harness 问题」处理。
 - 不动 `Scripts/rules/merge_authority.py` 的 RunReceipt 与 approval receipt 机制。`docs/MERGE_EVIDENCE.md` 中 Tier 与 ChangeKind 两个正交维度的划分保持原样，本计划只重切 path→tier 的前缀表。
 - 不动 `Scripts/verification/harness/` 的预算体系（`budgets.py`、`provisional_budgets.json`、`controller_timings.device.json`、`controller_timings.simulator.json`、`fold_timing_samples.py`）。人类层的入口条件读取超时类故障 kind，不改变预算如何折算。
 - 不动 `Scripts/verification/harness/parallel.py`。它的 campaign 形状拒绝逻辑被 `Scripts/verification/reachability_matrix.py:8127` 的 `_campaign_serial_refusal` 使用。
@@ -195,9 +195,9 @@ python3 Scripts/rules/merge_authority.py generate origin/main..HEAD \
 
 十九个阶段落地之后，与设计定稿时的差异集中在四处，都由实测或对抗审查推动：
 
-- **判读三级的实际覆盖是可数的。** 97 份 rubric 的 199 条 criterion 里，47 条能抽出至少一个字段谓词，共 48 个谓词，触及 45 份 rubric；其余 152 条仍由 Agent 判读并逐条列在覆盖报告里。基线走 ratchet，覆盖率只能升。
+- **判读三级的实际覆盖是可数的。** 97 份 rubric 的 199 条 criterion 里，17 条能抽出至少一个字段谓词，共 18 个谓词；其余 182 条仍由 Agent 判读并逐条列在覆盖报告里。基线走 ratchet，覆盖率只能升。这两个数最初记的是 47 与 48：编译器的字段表里有 `requireMatchedElement`，它是 `operation:accessibility.inspect@2` 的入参（`Scripts/verification/regression_operation_adapter.py:2807`，读于 `:4520`），不出现在任何一次调用的 outputs 里，48 个谓词里有 30 个因此恒为 `indeterminate`。2026-09-05 把该字段移出字段表并把基线下调到实际可读的数目——ratchet 拦的是无声的下滑，不是一次记账修正。
 - **账本多了一个「重开」事实。** 人类层的进入条件要求同一节点有两次 attempt，而原状态机里一个节点只能被 claim 一次。`NODE_REOPENED` 只接受归因为 harness 的 `indeterminate`，上限两次，全部候选 lane 中断时拒绝，且回放时核对它自称的 attempt 数。
-- **逐 Operation digest 按 handler 源码段算。** 35 个 Operation 合同共用同一个 `implementation.locator`，按文件算达不到「只失效用过该 Operation 的节点」。实测：改一个 handler 只改一个 digest，改共享代码改全部 35 个。
+- **逐 Operation digest 按 handler 源码段算。** 35 个 Operation 合同共用同一个 `implementation.locator`，按文件算达不到「只失效用过该 Operation 的节点」。实测：改一个 handler 只改一个 digest，改共享代码改全部 35 个。这条实测最初只在类外的代码上成立：`ResidentOperationBackend` 的 80 个方法被整体剔出共享 digest，其中 45 个（2338 行）不服务任何 Operation，改动它们一个 digest 都不动。2026-09-05 起剔除范围收窄到 Catalog 点名的 35 个 handler，类内非 handler 方法的改动同样使全部 35 个 digest 失效。
 - **异常包的裁切没有产出。** `matchedElement.frame` 的单位是点，截图是像素，响应里没有任何字段记录屏幕的点尺寸。按猜的比例裁切会把错的区域配上裁决文字，因此逐条说明为什么产不出。
 
 未闭合的缺口逐条记在[阶段 15](phase-15-known-defect-ledger.md) 的「未闭合的缺口」一节，其中最重要的一条是：`verdict.signature` 与运行期实际命中的签名之间还没有绑定。

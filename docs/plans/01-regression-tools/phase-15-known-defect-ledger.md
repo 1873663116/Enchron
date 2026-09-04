@@ -70,7 +70,21 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 - **豁免的依据不进账本。** `verdict_payload` 只写 attribution、帧数、区域观察与签名，`_adjudication` 拒绝其余键。因此事后没人能从账本读出「是哪条记录豁免了这个节点」。补上它需要扩 adjudication 的 schema，属于阶段 7 定下的形状。
 - **`expiresWhen` 只要求非空文本。** 它没有任何检查方式，也没有任何地方再读它。可检查的替代是一个必填的 `expiresOn` 日期，`load` 在过期时拒绝；`recorded` 已经按 ISO 解析，也可以据此设一个最长年龄。
 - **没有登记的 ratchet 检查看住这张表。** 阶段 13 的覆盖率基线是同一个机制的反向用法：那里下限只能升，这里条数只能降。表目前为空，第一条记录落地之前补上这道门是自然的时机。
-- **`failed(known)` 不进 `failure_ancestors`，因此不阻塞下游。** 这是「不阻塞收据」的预期行为，代价要一并说清楚：一条范围划错的豁免放行的不只是那个节点，而是它整棵下游子树，那些节点在一个并不成立的前置条件上取的证据会被当作有效证据收下。
+- **一条范围划错的豁免影响整棵下游子树。** `failed(known)` 现在与 `failed` 一样进入 `failure_ancestors`（`Scripts/regression/core/runview.py:628`），下游节点因此被派生为 `blockedBy` 并随 run 一同收口。这条记账原先写的是相反的因果——「不进 `failure_ancestors`，因此不阻塞下游」。实测那个版本的后果不是放行而是冻结：下游节点拿不到派生裁决，停在 `PENDING`，收口时变成 `indeterminate`，收据被拒。代价仍在，形状不同：豁免划错时，被判成 `blockedBy` 的是一整棵本可以跑的子树。
+
+### 独立审计追加的缺口
+
+合并之后一次独立审计（2026-09-05）在阶段 10 到 19 的工具层找到下列几项，已修的不在此列：
+
+- **`field_value` 是无锚点的深度优先首命中查找。** 一条判据无从表达它问的是哪个元素、哪一次调用。`op` 的 L0 读数与已知缺陷豁免的字段匹配共用它，因此豁免的作用范围由同一次首命中决定。闭合它要给判据一个锚（调用 id 加字段路径），属于阶段 13 编译器的形状。
+- **48 条 L0 谓词里 30 条命名的是 Operation 的入参而非输出。** `requireMatchedElement` 出现在 `regression_operation_adapter.py:2807` 的参数里，不在任何返回的 outputs 中，因此这些谓词恒为 `indeterminate`。`Config/rubric_predicate_baseline.json` 的 `criteriaYieldingPredicates: 47` 把这个数字锁住了：一次「不再把入参名编译成观测」的修正会被该门拒绝，需要同时下调基线。
+- **`negativeControls` 没有被编译器读取。** 阶段 13 的改动清单写的是「只读 front matter 里的 `criteria` 与 `negativeControls`」，实际只读 `criteria`。覆盖报告的分母因此不含 negative controls。
+- **人类会话的轮询回路没有接线。** `poll_timeline`、`mark`、`read_timeline` 三个函数只有测试调用；MCP 的 `session` schema 没有 `mark` 动作，也没有任何一处驱动轮询。`ensure` 现在会开出 `timeline.jsonl` 并写入第一行，路径不再指向不存在的文件，但佩戴者回路本身仍是空的。
+- **人类收据没有 run 绑定。** 收据现在必须匹配本次 run 生成的 checklist digest（`Scripts/regression/tools/receipt_tool.py`），但收据里的 `buildDigest`、`deviceId`、`recordingDigest` 依然没有任何一侧可比对，`seal` 也没有工具入口，操作者实际走的是手写 JSON 这条路。
+
+### 计划要求但没有执行的门
+
+`overview.md:118` 与本文件开头都要求本阶段与阶段 16 合并前走 **interrogate**。该技能保留给使用者显式调用，Agent 无法代为发起。合并前实际执行的是两轮派遣式对抗审查（豁免路径与重开路径），各找出 1 个 critical 与若干 high 并当场修掉；这不等同于计划指定的那道门。需要补的话由使用者运行 `/interrogate`。
 
 ## 阶段验证方案
 

@@ -27,8 +27,11 @@ from regression.tools import (
     receipt_tool,
     session_tool,
 )
+from regression.tools.bundle_tool import BundleError
+from regression.tools.human_receipt import HumanReceiptError
 from regression.tools.ledger_lock import LedgerLockError
 from regression.tools.op_tool import OpToolError
+from regression.tools.receipt_tool import ReceiptToolError
 from regression.tools.session_tool import SessionToolError
 from regression.tools.verdict import Attribution, Verdict, VerdictError
 
@@ -43,7 +46,20 @@ INVALID_PARAMS = -32602
 INVALID_REQUEST = -32600
 PARSE_ERROR = -32700
 
+TOOL_REFUSALS = (
+    BundleError,
+    HumanReceiptError,
+    LedgerLockError,
+    OpToolError,
+    ReceiptToolError,
+    RegressionError,
+    SessionToolError,
+    VerdictError,
+)
 TOOL_FAILURES = (Exception,)
+UNEXPECTED_FAILURE = (
+    "the tool did not refuse this call, it failed part way through serving it"
+)
 
 
 @dataclass(frozen=True)
@@ -128,7 +144,11 @@ def _session(arguments: Mapping[str, Any]) -> ToolResult:
 
 
 def _op(arguments: Mapping[str, Any]) -> ToolResult:
-    missing = [name for name in OP_COMPILE_INPUTS if not arguments.get(name)]
+    missing = [
+        name
+        for name in OP_COMPILE_INPUTS + OP_INVOCATION_INPUTS
+        if not arguments.get(name)
+    ]
     if missing:
         raise OpToolError(
             "op compiles the plan it runs against and needs " + ", ".join(missing)
@@ -229,6 +249,15 @@ def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
         )
     )
 
+
+OP_INVOCATION_INPUTS = (
+    "runDirectory",
+    "node",
+    "call",
+    "lane",
+    "target",
+    "sidekick",
+)
 
 OP_COMPILE_INPUTS = (
     "repositoryRoot",
@@ -472,11 +501,27 @@ def _dispatch(request: Any) -> Optional[Dict[str, Any]]:
         return _error(identifier, INVALID_PARAMS, "tool arguments must be an object")
     try:
         result = call_tool(parameters.get("name"), supplied)
-    except TOOL_FAILURES as error:
+    except TOOL_REFUSALS as error:
         return _reply(
             identifier,
             {
                 "content": [{"type": "text", "text": str(error)}],
+                "isError": True,
+            },
+        )
+    except TOOL_FAILURES as error:
+        return _reply(
+            identifier,
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            f"{UNEXPECTED_FAILURE}: "
+                            f"{type(error).__name__}: {error}"
+                        ),
+                    }
+                ],
                 "isError": True,
             },
         )

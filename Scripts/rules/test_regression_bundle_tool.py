@@ -161,11 +161,46 @@ class BundleContentTests(BundleFixture):
     def test_a_crop_is_refused_in_words_rather_than_cut_at_a_guessed_scale(
         self,
     ) -> None:
-        bundle = self.build([{"succeeded": False, "outputs": {}}])
+        bundle = self.build(
+            [
+                {
+                    "succeeded": False,
+                    "outputs": {"localScreenshotPath": self.shot("d", frame(8, 6, 30))},
+                }
+            ]
+        )
 
         self.assertEqual((), bundle.crops)
         self.assertIn("point", bundle.crop_refusal)
         self.assertEqual(bundle.crop_refusal, bundle.payload()["cropRefusal"])
+
+    def test_a_bundle_with_no_frame_refuses_no_crop_it_never_had(self) -> None:
+        bundle = self.build([{"succeeded": False, "outputs": {}}])
+
+        self.assertIsNone(bundle.crop_refusal)
+        self.assertIsNone(bundle.contact_sheet)
+        self.assertIn("captured no frame", bundle.montage_refusal)
+        self.assertIn("captured no frame", bundle.signature_refusal)
+
+    def test_a_frame_that_does_not_decode_says_so_rather_than_reading_clean(
+        self,
+    ) -> None:
+        bundle = self.build(
+            [
+                {
+                    "succeeded": False,
+                    "outputs": {"localScreenshotPath": self.shot("e", b"not a png")},
+                }
+            ]
+        )
+
+        self.assertEqual((), bundle.matched_signature)
+        self.assertIsNone(bundle.contact_sheet)
+        self.assertIn("did not decode", bundle.montage_refusal)
+        self.assertIn("did not decode", bundle.signature_refusal)
+        self.assertEqual(
+            bundle.signature_refusal, bundle.payload()["signatureRefusal"]
+        )
 
     def test_the_payload_names_every_image_it_returns(self) -> None:
         bundle = self.build(

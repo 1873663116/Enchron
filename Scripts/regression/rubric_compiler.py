@@ -21,7 +21,6 @@ FIELD_VALUES: Mapping[str, frozenset] = MappingProxyType(
         "isSelected": BOOLEAN_VALUES,
         "lifecycle": frozenset({"Playing", "Paused", "Stopped", "Loading"}),
         "mediaKind": frozenset({"audioOnly", "video"}),
-        "requireMatchedElement": BOOLEAN_VALUES,
         "succeeded": BOOLEAN_VALUES,
         "visible": BOOLEAN_VALUES,
     }
