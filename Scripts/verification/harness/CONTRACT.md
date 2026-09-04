@@ -33,7 +33,7 @@ class InstrumentFault(Exception):
     budget: Budget | None
 ```
 
-仪器故障 kind 至少包含：`transport-timeout`（subprocess 超时）、`runner-crashed`（非零退出且无可解析 JSON）、`response-undecodable`（JSON 解码失败）、`contract-mismatch`（退出码与 JSON 内 success 字段矛盾）、`wait-expired`（等待原语到期）、`app-not-running`、`session-lost`、`authorization-required`、`provisional-budget-expired`。产品失败 kind 由判决层定义，Wave 1 只需要 `assertion-mismatch` 与 `app-crashed` 两个内建值。
+仪器故障 kind 至少包含：`transport-timeout`（subprocess 超时）、`runner-crashed`（非零退出且无可解析 JSON）、`response-undecodable`（JSON 解码失败）、`contract-mismatch`（退出码与 JSON 内 success 字段矛盾）、`wait-expired`（等待原语到期）、`app-not-running`、`session-lost`、`provisional-budget-expired`。产品失败 kind 由判决层定义，Wave 1 只需要 `assertion-mismatch` 与 `app-crashed` 两个内建值。
 
 ## Runner 结构化失败输出（interactive_visionpro_ui.py）
 
@@ -49,7 +49,7 @@ runner 输出的 JSON 文档在失败时必须携带：
 
 - 现有 `explain_failure` 的 prose 诊断保留，移入 `evidence.diagnosis`。
 - 现有 `timeout_observations` 的产物移入 `evidence.observations`。
-- kind→class 映射：`app-crashed` 为 product（正向证据是 journal 崩溃记录）；`response-timeout`、`app-not-running`、`session-lost`、`authorization-required` 为 instrument。
+- kind→class 映射：`app-crashed` 为 product（正向证据是 journal 崩溃记录）；`response-timeout`、`app-not-running`、`session-lost` 为 instrument。
 - 退出码契约不变：0 成功、1 未捕获异常、2 `success: false`。
 
 ## 预算（harness/budgets.py）

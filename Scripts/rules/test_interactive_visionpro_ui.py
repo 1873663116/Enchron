@@ -1030,5 +1030,65 @@ class EnsureSessionAdoptionFieldTests(unittest.TestCase):
             self.assertEqual(response["adoption"]["refused"], "no-ready")
 
 
+class ReadyTimeoutTests(unittest.TestCase):
+    def arguments(self, directory: str) -> argparse.Namespace:
+        return argparse.Namespace(
+            device="SIM-UDID",
+            output_directory=directory,
+            ready_timeout=0.05,
+            runner_bundle_id="runner",
+            result_bundle_path="/tmp/not.xcresult",
+        )
+
+    def timed_out(self, directory: str, log_lines: list[str]):
+        provenance = {"lane": "simulator", "targetId": "SIM-UDID", "xctestrunDigest": "a", "testProductsDigest": "b", "applicationCodeDigest": "c", "processId": 1}
+        missing = Path(directory) / "missing.json"
+        no_runner = RuntimeError(
+            "The interactive XCUI runner is not ready. Start its dedicated UI test first."
+        )
+        with patch.object(controller, "read_ready_state", side_effect=no_runner), patch.object(
+            controller, "halt_session", return_value={"remaining": [], "terminated": []}
+        ), patch.object(
+            controller, "current_session_id", return_value=None
+        ), patch.object(
+            controller, "launch_runner", return_value=provenance
+        ) as launch, patch.object(
+            controller, "log_tail", return_value=log_lines
+        ), patch.object(
+            controller.time, "sleep"
+        ), patch.object(
+            controller, "_resident_runner_path", return_value=missing
+        ), patch.object(
+            controller, "_write_resident_runner"
+        ):
+            return controller.ensure_session(self.arguments(directory)), launch
+
+    def test_a_session_that_never_publishes_times_out_after_one_launch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            response, launch = self.timed_out(directory, ["no session yet"])
+
+        self.assertEqual("readyTimeout", response["stage"])
+        self.assertFalse(response["success"])
+        self.assertEqual(1, launch.call_count, "the launch is not retried")
+        self.assertIn("runnerLog", response)
+        self.assertIn("launchProvenance", response)
+
+    def test_the_timeout_states_observations_without_naming_a_wearer_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            response, _ = self.timed_out(directory, ["no session yet"])
+
+        self.assertIn("what was seen, not why", response["message"])
+        for absent in ("automation mode", "authorization", "wearer"):
+            self.assertNotIn(absent, response["message"].lower())
+        self.assertEqual(1, len(response["observations"]))
+
+    def test_the_idle_synchronization_line_is_reported_as_normal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            response, _ = self.timed_out(directory, ["Wait for com.enchron.app to idle"])
+
+        sources = [str(item["source"]) for item in response["observations"]]
+        self.assertTrue(any("diagnostics.md" in source for source in sources))
+
+
 if __name__ == "__main__":
     unittest.main()

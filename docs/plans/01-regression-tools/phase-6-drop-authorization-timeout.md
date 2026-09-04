@@ -13,6 +13,10 @@
 - `Scripts/verification/harness/CONTRACT.md`。:36 的仪器故障 kind 清单与 :52 的 kind→class 映射各删一处 `authorization-required`。
 - `.agents/skills/vp-e2e/references/diagnostics.md`。删表格第 9 行（真机锁定）与第 10 行（`Timed out while enabling automation mode.` 授权超时）。第 11 行「尚未定性的会话建立失败」中「未命中时，对照授权时间节律排除授权解释」一句同步删掉，改为直接进入升级调查。
 
+`Scripts/verification/validate_visionpro_regression_result.py:39` 保留对 `Timed out while enabling automation mode` 的匹配。它读的是已结束运行的 `.xcresult` 日志，命中后判 `device_infrastructure_failure`，不声称需要佩戴者介入，也不等待任何人。该字符串由 visionOS 发出，与仓库是否持有同名常量无关，事后判据继续成立。本阶段删的是「等佩戴者授权」这条活路径，不是这条事后分类。
+
+diagnostics.md 另有两处依赖被删行：`responseTimeout` 分流行把「日志停在授权签名」列为区分依据，设备侧退化行把「runner.log 无授权签名」列为进入条件。两者都随定义该签名的行一并删除。`interactive_visionpro_ui.py` 的 `timeout_observations` 从未引用该签名，不受影响。
+
 修改 `.agents/skills/vp-e2e/` 下的文件前，先调用 **writing-for-agents** 技能并研读其技能机制章节。
 
 ## 数据结构与形态

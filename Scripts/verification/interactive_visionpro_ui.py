@@ -907,9 +907,6 @@ def current_session_id(arguments: argparse.Namespace) -> str | None:
         return None
 
 
-AUTOMATION_AUTHORIZATION_SIGNATURE = "Timed out while enabling automation mode."
-
-
 FrozenTestLaunchLoader = Callable[[Path, BoundLane, str], object]
 
 
@@ -1216,13 +1213,12 @@ def log_tail(log_path: Path, lines: int = 5) -> list[str]:
 
 def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     """Brings up one live session and returns only when it can accept commands
-    or the remaining step belongs to the wearer.
+    or the launch window expires.
 
     Session bring-up is the step whose apparent length invites backgrounding and
-    a handed-back turn. Collapsing halt, launch, readiness and the
-    authorization-timeout restart into one call keeps an investigation inside a
-    single continuous run: the caller asked for a ready session, and everything
-    here executes that one intent."""
+    a handed-back turn. Collapsing halt, launch and readiness into one call keeps
+    an investigation inside a single continuous run: the caller asked for a ready
+    session, and everything here executes that one intent."""
     started_at = time.monotonic()
     adoption_refused: str | None = None
     ready: dict[str, object] | None = None
@@ -1323,118 +1319,72 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     output_directory = Path(arguments.output_directory)
     output_directory.mkdir(parents=True, exist_ok=True)
     log_path = output_directory / "runner.log"
-    archived_log = output_directory / "runner-authorization-timeout.log"
 
-    for attempt in (1, 2):
-        result_bundle = output_directory / (
-            f"Interactive-{int(time.time())}-{attempt}.xcresult"
-        )
-        launch_provenance = launch_runner(arguments, log_path, result_bundle)
+    result_bundle = output_directory / f"Interactive-{int(time.time())}.xcresult"
+    launch_provenance = launch_runner(arguments, log_path, result_bundle)
 
-        deadline = time.monotonic() + arguments.ready_timeout
-        signature_seen = False
-        while time.monotonic() < deadline:
-            if AUTOMATION_AUTHORIZATION_SIGNATURE in "\n".join(log_tail(log_path, 200)):
-                signature_seen = True
-                break
-            session_id = current_session_id(arguments)
-            if session_id is not None and session_id != stale_session_id:
-                probe = argparse.Namespace(**vars(arguments))
-                probe.action = "snapshot"
-                probe.no_screenshot = True
-                try:
-                    response = send_command(probe)
-                except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
-                    return {
-                        "success": False,
-                        "stage": "firstCommand",
-                        "message": str(error),
-                        "sessionID": session_id,
-                        "runnerLog": str(log_path),
-                        "adoption": {"attempted": True, "refused": adoption_refused},
-                    }
-                _write_resident_runner(_resident_runner_path(arguments), session_id, launch_provenance)
+    deadline = time.monotonic() + arguments.ready_timeout
+    while time.monotonic() < deadline:
+        session_id = current_session_id(arguments)
+        if session_id is not None and session_id != stale_session_id:
+            probe = argparse.Namespace(**vars(arguments))
+            probe.action = "snapshot"
+            probe.no_screenshot = True
+            try:
+                response = send_command(probe)
+            except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
                 return {
-                    "success": bool(response.get("success")),
-                    "stage": "ready",
+                    "success": False,
+                    "stage": "firstCommand",
+                    "message": str(error),
                     "sessionID": session_id,
-                    "appState": response.get("appState"),
-                    "launchProvenance": launch_provenance,
-                    "resultBundlePath": str(result_bundle),
                     "runnerLog": str(log_path),
-                    "haltedProcessCount": len(halt["terminated"]),
-                    "authorizationRestarts": attempt - 1,
-                    "elapsedSeconds": round(time.monotonic() - started_at, 1),
                     "adoption": {"attempted": True, "refused": adoption_refused},
                 }
-            time.sleep(3)
-
-        if not signature_seen:
-            tail = log_tail(log_path)
-            observations: list[dict[str, object]] = [
-                {
-                    "observation": (
-                        f"'{AUTOMATION_AUTHORIZATION_SIGNATURE}' does not appear "
-                        "in the runner log"
-                    ),
-                    "source": str(log_path),
-                },
-                {"observation": tail, "source": f"{log_path} (last lines)"},
-            ]
-            if any("Wait for" in line and "to idle" in line for line in tail):
-                observations.append(
-                    {
-                        "observation": (
-                            "'Wait for ... to idle' is XCTest's normal "
-                            "synchronization line; it also appears in recorded "
-                            "successful runs"
-                        ),
-                        "source": "references/diagnostics.md, device evidence 2026-08-09",
-                    }
-                )
+            _write_resident_runner(_resident_runner_path(arguments), session_id, launch_provenance)
             return {
-                "success": False,
-                "stage": "readyTimeout",
-                "message": (
-                    f"No new session was published within "
-                    f"{arguments.ready_timeout:g} seconds and the authorization "
-                    "signature was not observed. The observations below state "
-                    "what was seen, not why."
-                ),
-                "observations": observations,
+                "success": bool(response.get("success")),
+                "stage": "ready",
+                "sessionID": session_id,
+                "appState": response.get("appState"),
                 "launchProvenance": launch_provenance,
+                "resultBundlePath": str(result_bundle),
                 "runnerLog": str(log_path),
+                "haltedProcessCount": len(halt["terminated"]),
                 "elapsedSeconds": round(time.monotonic() - started_at, 1),
                 "adoption": {"attempted": True, "refused": adoption_refused},
             }
+        time.sleep(3)
 
-        halt_session(arguments)
-        if attempt == 1:
-            try:
-                log_path.replace(archived_log)
-            except OSError:
-                pass
-            continue
-        return {
-            "success": False,
-            "stage": "authorizationTimeout",
-            "message": (
-                f"Both runner launches logged "
-                f"'{AUTOMATION_AUTHORIZATION_SIGNATURE}'. That signature is "
-                "the automation-authorization gate: XCTest did not receive "
-                "wearer-side authorization or passcode confirmation within "
-                "the launch window (device-diagnosed 2026-08-10; "
-                "authorization renews on a measured 8-12 hour cadence). Both "
-                "runners were halted and the build is untouched. Wearer "
-                "action: complete the automation authorization or passcode "
-                "confirmation on the headset, then rerun ensure-session."
-            ),
-            "runnerLogs": [str(archived_log), str(log_path)],
-            "launchProvenance": launch_provenance,
-            "elapsedSeconds": round(time.monotonic() - started_at, 1),
-            "adoption": {"attempted": True, "refused": adoption_refused},
-        }
-    raise AssertionError("unreachable: both attempts return")
+    tail = log_tail(log_path)
+    observations: list[dict[str, object]] = [
+        {"observation": tail, "source": f"{log_path} (last lines)"},
+    ]
+    if any("Wait for" in line and "to idle" in line for line in tail):
+        observations.append(
+            {
+                "observation": (
+                    "'Wait for ... to idle' is XCTest's normal "
+                    "synchronization line; it also appears in recorded "
+                    "successful runs"
+                ),
+                "source": "references/diagnostics.md, device evidence 2026-08-09",
+            }
+        )
+    return {
+        "success": False,
+        "stage": "readyTimeout",
+        "message": (
+            f"No new session was published within "
+            f"{arguments.ready_timeout:g} seconds. The observations below state "
+            "what was seen, not why."
+        ),
+        "observations": observations,
+        "launchProvenance": launch_provenance,
+        "runnerLog": str(log_path),
+        "elapsedSeconds": round(time.monotonic() - started_at, 1),
+        "adoption": {"attempted": True, "refused": adoption_refused},
+    }
 
 
 def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1552,9 +1502,6 @@ def _attach_failure(arguments, response: dict) -> dict:
         diagnosis = message
     elif stage == "runnerGone":
         kind = "runner-gone"
-        diagnosis = message
-    elif stage == "authorizationTimeout":
-        kind = "authorization-required"
         diagnosis = message
     elif stage == "readyTimeout":
         kind = "session-lost"

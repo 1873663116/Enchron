@@ -17,7 +17,6 @@ INSTRUMENT_KINDS = frozenset(
         "wait-expired",
         "app-not-running",
         "session-lost",
-        "authorization-required",
         "provisional-budget-expired",
         "evidence-destroyed",
     }

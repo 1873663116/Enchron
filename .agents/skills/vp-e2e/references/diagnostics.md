@@ -6,10 +6,8 @@
 
 | lane | 可观察签名 | 含义 | 下一步 |
 | --- | --- | --- | --- |
-| 真机 | Xcode 或设备工具明确报告 Vision Pro 已锁定 | 设备启动前检查被阻塞 | 请佩戴者解锁，然后继续同一个操作。 |
-| 真机 | 测试初始化报告 `Timed out while enabling automation mode.`，或头显中可见密码、UI 测试授权界面 | XCTest 未在启动时限内取得佩戴者授权。这是 XCUITest 特有的授权门槛，区别于 App 卡死、设备普通锁定与 Mac 终端认证。出现该超时的 runner 已经失去建立可用会话的机会 | `ensure-session` 会识别该签名并收敛：结束死 runner、保留构建、自动重启一次；连续两次超时则返回 `authorizationTimeout`。剩下的动作属于佩戴者：在头显内完成授权后重跑 `ensure-session`。授权的时间节律见[真机 lane](device.md)。 |
-| 两条 | `ensure-session` 返回 `readyTimeout` 或长时间悬挂，而 runner.log 中**不含** `Timed out while enabling automation mode` | 尚未定性的会话建立失败。设备深度待机、连续 halt 与重启带来的系统疲劳、连接抖动都有可能 | 先 `grep` runner.log 查找上一行的字面签名；未命中时，对照授权时间节律排除授权解释，halt 干净后重试一次。仍然失败则升级调查（`devicectl device info lockState`、App 命令通道 ping、设备闲置时长、系统资源）。已定性的一种情况见下一行；发现新签名时补进本表。注意：宣称「需要佩戴者介入」的前提是观察到字面的授权签名。 |
-| 真机 | App 命令通道应答正常（`app-command --verb ping` 返回 ok）、持久状态已清空，而连续多个全新 runner 都停在 `Wait for <bundle> to idle`，且 runner.log 无授权签名 | 设备侧自动化基础设施退化。它与 App 状态、当前构建、Mac 侧进程均无关（三者已逐一排除后仍复现），随会话高频循环渐进出现，可能偶发单次恢复后再度恶化（2026-08-10 定性：一夜约 20 余次会话后出现） | 重启 Vision Pro（`devicectl device reboot`），重连后以一次 `ensure-session` 验证恢复。矩阵 runner 在连续 DRIVE_ERROR 熔断时会自动执行判别器，把 `diagnosis` 与剩余 cell 清单写入 results.jsonl；按其分流后，以 remaining 清单续跑。 |
+| 两条 | `ensure-session` 返回 `readyTimeout` 或长时间悬挂 | 尚未定性的会话建立失败。设备深度待机、连续 halt 与重启带来的系统疲劳、连接抖动都有可能 | halt 干净后重试一次。仍然失败则升级调查（`devicectl device info lockState`、App 命令通道 ping、设备闲置时长、系统资源）。已定性的一种情况见下一行；发现新签名时补进本表。 |
+| 真机 | App 命令通道应答正常（`app-command --verb ping` 返回 ok）、持久状态已清空，而连续多个全新 runner 都停在 `Wait for <bundle> to idle` | 设备侧自动化基础设施退化。它与 App 状态、当前构建、Mac 侧进程均无关（三者已逐一排除后仍复现），随会话高频循环渐进出现，可能偶发单次恢复后再度恶化（2026-08-10 定性：一夜约 20 余次会话后出现） | 重启 Vision Pro（`devicectl device reboot`），重连后以一次 `ensure-session` 验证恢复。矩阵 runner 在连续 DRIVE_ERROR 熔断时会自动执行判别器，把 `diagnosis` 与剩余 cell 清单写入 results.jsonl；按其分流后，以 remaining 清单续跑。 |
 | 真机 | Shell 显示 `Password:` | Mac 正在等待管理员认证。XCTest 失败后，它可能来自 Xcode 调用 `devicectl diagnose` 触发的 `/usr/bin/sudo -- /usr/bin/true` | 在该命令所在的 PTY 中完成 Mac 认证。预期会反复触发时，在同一 PTY 中执行 `sudo -v && exec … xcodebuild …`；在另一个 PTY 中预热 sudo 无效。该签名与 Vision Pro 锁定无关。 |
 | 真机 | 系统权限弹窗覆盖已启动的 App | 首次启动的系统权限请求正在阻塞 App | interruption monitor 能触达该系统 Scene 时使用它，否则请佩戴者处理可见权限。随后以一次新快照加一次公开操作证明 session 仍然健康；若 runner 从未可用或已失败，从现有构建重新启动。 |
 | 两条 | 控制台打印 `Wait for <bundle> to idle` | XCTest 到达了正常的同步点 | 继续观察是否返回新快照或 session 响应。只有在排除了直接观察到的锁定与权限门槛之后仍无进展，才标记为停滞。 |
@@ -17,7 +15,7 @@
 | 两条 | 外部启动目标进程后，普通 App 窗口可读，而所有合成事件均报 `Received invalid scene ID (nil) from Accessibility` | 目标 App 不属于当前 XCTest 的自动化 Scene 关系 | 结束无效会话，经 `XCUIApplication.launch()` 建立由 XCTest 拥有的新会话。只能截图的通道不构成可交互。 |
 | 两条 | Window 控件可以接受合成事件，而 RealityKit 或沉浸表面报 `invalid activation point transform (nil)` | Window 侧的自动化关系正常；XCUIAutomation 无法为该空间表面推导激活坐标变换 | 单独记录这条空间输入边界。产品存在真正公开的空间 Accessibility target 时使用它；模拟器 lane 可用 Device Hub 鼠标映射（见[模拟器 lane](simulator.md)）；真机上需要佩戴者操作与直接物理证据。 |
 | 两条 | 元素存在但不可命中，且层级中另有大型 Window 或 Scene | 另一个产品或系统 Scene 可能遮挡了画面或持有焦点 | 对照可见像素、几何范围、Scene 声明、恢复与默认启动行为判定。这属于产品 Scene 证据，区别于传输通道失败。 |
-| 两条 | 控制器 UI 命令返回 `stage: responseTimeout`，附带现场观察清单（Mac 侧 runner 进程、设备进程表、runner 日志尾部、沉浸计数，逐项注明来源） | 文件应答未在时限内到达。清单只陈述观察，归因由读者作出 | 按清单区分：runner 进程消失、设备上 App 消失、日志停在授权签名，各自指向不同原因。经 halt 后 ensure-session 重建，保持单一 runner。 |
+| 两条 | 控制器 UI 命令返回 `stage: responseTimeout`，附带现场观察清单（Mac 侧 runner 进程、设备进程表、runner 日志尾部、沉浸计数，逐项注明来源） | 文件应答未在时限内到达。清单只陈述观察，归因由读者作出 | 按清单区分：runner 进程消失、设备上 App 消失，各自指向不同原因。经 halt 后 ensure-session 重建，保持单一 runner。 |
 | 真机 | 反复进出沉浸后合成事件停止投递，或 runner 进程无声消失（2026-08-10 出现两次） | 进入沉浸会断开主窗口的 UIScene（探针实测：SwiftUI 的 `onDisappear` 不触发、场景身份值不变，而 UIKit session 已断开，执行器正是靠 `mainWindowSceneIsDisconnected` 确认关闭），而 XCTest 绑定的正是被销毁的那个 UIScene。这是 visionOS 正常的场景生命周期。控制器会对沉浸进入计数，随响应（`immersiveFacts`）与超时观察清单一起返回 | 测试侧据此规划：跨沉浸转场的批次把每个 cell 都视为可能失去输入所有权；命令返回 responseTimeout 即 halt 后重建会话；单个会话内的沉浸往返保持有限次数。 |
 | 真机 | Device Hub 无法显示 Vision Pro 画面，而 XCTest 截图可用 | 该观察界面在真机上不可用；XCUITest 证据通道仍然成立 | 使用 Xcode 与 XCTest 的截图和录屏。该失败的范围仅限真机的 Device Hub。 |
 | 两条 | 测试动作报告成功，而截图、层级或录屏未显示请求的产品结果 | 输入交付与产品结果发生了分离 | 从实际观察到的状态继续调查。此时可以报告的是「动作已交付」；功能是否通过尚待证据。 |
