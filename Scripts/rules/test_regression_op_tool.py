@@ -8,6 +8,7 @@ import sys
 from tempfile import TemporaryDirectory
 from types import MappingProxyType
 from typing import Any, Mapping
+import types
 import unittest
 
 
@@ -374,6 +375,78 @@ class FieldPredicateTests(OpToolTestCase):
             ).payload()
             for verdict in outcome["predicates"].values():
                 self.assertNotIn(verdict.lower(), ("pass", "passed", "satisfied"))
+
+
+class CompiledPredicateReadingTests(unittest.TestCase):
+    """A rubric criterion that names a field assertion is read against the call's
+    own structured output. A field the call never reported is indeterminate, not
+    a pass: an absent reading has never established anything."""
+
+    class Binding:
+        def __init__(self, obligation: str, criteria):
+            self.id = obligation
+            self.rubric = types.SimpleNamespace(criteria=tuple(criteria))
+
+    class Node:
+        def __init__(self, bindings):
+            self.evaluation_bindings = tuple(bindings)
+
+    def reading(self, criteria, outputs):
+        node = self.Node([self.Binding("obligation:one", criteria)])
+        return op_tool.field_predicates(node, outputs)["obligation:one"]
+
+    def test_a_matching_field_reads_as_satisfied(self) -> None:
+        verdict = self.reading(
+            ("The bound fields report lifecycle Playing.",),
+            {"lifecycle": "Playing"},
+        )
+
+        self.assertTrue(verdict.startswith(op_tool.FIELD_HOLDS))
+        self.assertIn("lifecycle==Playing", verdict)
+
+    def test_a_differing_field_reads_as_violated_and_names_what_it_read(self) -> None:
+        verdict = self.reading(
+            ("The bound fields report lifecycle Playing.",),
+            {"lifecycle": "Paused"},
+        )
+
+        self.assertTrue(verdict.startswith(op_tool.FIELD_FAILS))
+        self.assertIn("'Paused'", verdict)
+
+    def test_a_field_the_call_never_reported_is_indeterminate(self) -> None:
+        verdict = self.reading(
+            ("The bound fields report lifecycle Playing.",), {"controls": "shown"}
+        )
+
+        self.assertTrue(verdict.startswith(op_tool.FIELD_ABSENT))
+        self.assertNotIn(op_tool.FIELD_HOLDS, verdict)
+
+    def test_a_nested_field_is_found(self) -> None:
+        verdict = self.reading(
+            ("The bound fields report controls=shown.",),
+            {"response": {"playbackState": {"controls": "shown"}}},
+        )
+
+        self.assertTrue(verdict.startswith(op_tool.FIELD_HOLDS))
+
+    def test_a_criterion_with_no_assertion_still_reports_no_predicate(self) -> None:
+        verdict = self.reading(
+            ("The first deviant frame shows the popover clipped.",), {}
+        )
+
+        self.assertEqual(op_tool.NO_FIELD_PREDICATE, verdict)
+
+    def test_every_predicate_of_one_obligation_is_reported(self) -> None:
+        verdict = self.reading(
+            (
+                "The bound fields report lifecycle Playing.",
+                "The same reading reports controls=shown.",
+            ),
+            {"lifecycle": "Playing", "controls": "hidden"},
+        )
+
+        self.assertIn(op_tool.FIELD_HOLDS, verdict)
+        self.assertIn(op_tool.FIELD_FAILS, verdict)
 
 
 class AdapterBridgeTests(OpToolTestCase):

@@ -20,6 +20,7 @@ from regression.core.runview import LeaseStatus, NodeStatus
 from regression.tools.ledger_lock import LaneLockState, lane_lock_state
 from regression.tools.pixel_heuristics import all_black, capture_failed
 from regression.tools.raster import RasterError
+from regression.rubric_compiler import FieldPredicate, compile_criteria
 
 
 VERIFICATION = Path(__file__).resolve().parents[2] / "verification"
@@ -41,6 +42,9 @@ DESIGNATED_RESPONSE_KEYS = ("response", "record", "playbackState")
 TARGET_FILENAME = "lane-target"
 SCREENSHOT_MEDIA_TYPE = "image/png"
 NO_FIELD_PREDICATE = "no compiled field predicate"
+FIELD_ABSENT = "indeterminate"
+FIELD_HOLDS = "satisfied"
+FIELD_FAILS = "violated"
 
 ARM_WITHOUT_DISARM_REFUSAL = (
     "this call arms the transition trace, and a tool that stops after one call "
@@ -51,6 +55,9 @@ ARM_WITHOUT_DISARM_REFUSAL = (
 
 class OpToolError(ValueError):
     pass
+
+
+_ABSENT = object()
 
 
 @dataclass(frozen=True)
@@ -215,11 +222,44 @@ def pixel_signatures(screenshot: Optional[bytes]) -> Tuple[SignatureID, ...]:
     return tuple(item for item in hits if item is not None)
 
 
-def field_predicates(node) -> Dict[str, str]:
+def field_predicates(node, outputs: Mapping[str, Any]) -> Dict[str, str]:
     return {
-        str(binding.id): NO_FIELD_PREDICATE
+        str(binding.id): _obligation_reading(binding, outputs)
         for binding in getattr(node, "evaluation_bindings", ())
     }
+
+
+def _obligation_reading(binding, outputs: Mapping[str, Any]) -> str:
+    predicates, _ = compile_criteria(binding.rubric.criteria)
+    if not predicates:
+        return NO_FIELD_PREDICATE
+    return "; ".join(_predicate_reading(item, outputs) for item in predicates)
+
+
+def _predicate_reading(predicate: FieldPredicate, outputs: Mapping[str, Any]) -> str:
+    named = f"{predicate.field}{predicate.operator}{predicate.value}"
+    read = _field_value(outputs, predicate.field)
+    if read is _ABSENT:
+        return f"{FIELD_ABSENT}: {named} names a field this call did not report"
+    if read == predicate.value:
+        return f"{FIELD_HOLDS}: {named}"
+    return f"{FIELD_FAILS}: {named}, read {read!r}"
+
+
+def _field_value(value: Any, field: str) -> Any:
+    if isinstance(value, Mapping):
+        if field in value:
+            return value[field]
+        for nested in value.values():
+            found = _field_value(nested, field)
+            if found is not _ABSENT:
+                return found
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found = _field_value(item, field)
+            if found is not _ABSENT:
+                return found
+    return _ABSENT
 
 
 def run(
@@ -305,15 +345,15 @@ def run(
             outputs,
             pixel_signatures(screenshot),
             screenshot,
-            _node_predicates(main, view.node_id),
+            _node_predicates(main, view.node_id, outputs),
         )
     finally:
         main.close()
 
 
-def _node_predicates(main, node_id: NodeID) -> Dict[str, str]:
+def _node_predicates(main, node_id: NodeID, outputs: Mapping[str, Any]) -> Dict[str, str]:
     found = next((item for item in main.plan.nodes if item.id == node_id), None)
-    return field_predicates(found)
+    return field_predicates(found, outputs)
 
 
 def _armed_call(main, node: NodeID) -> Optional[CallID]:
@@ -382,6 +422,9 @@ def _lease_for(main, lane: BoundLane, node: NodeID, sidekick: SidekickID, now_mi
 
 __all__ = (
     "ARM_WITHOUT_DISARM_REFUSAL",
+    "FIELD_ABSENT",
+    "FIELD_FAILS",
+    "FIELD_HOLDS",
     "NO_FIELD_PREDICATE",
     "OP_LEASE_DURATION_MILLIS",
     "OpOutcome",

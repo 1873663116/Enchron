@@ -40,6 +40,17 @@ compile_rubric(rubric: Rubric) -> CompiledRubric
 {schema, rubricCount, criterionCount, compiledCount, byRubric: [{id, compiled, uncompiled: [原文]}]}
 ```
 
+## 与原清单的偏离
+
+四处：
+
+- **谓词从 criterion 的句子里抽，不要求整条 criterion 是一个断言。** 实测 97 份 rubric 的 199 条 criterion，长度中位数 327 字符，最短 77 字符，没有一条是裸的字段断言。要求整条匹配，编译器的产出恒为 0。改为在句子粒度上匹配已登记的断言形状，产出 48 个谓词，覆盖 47 条 criterion，触及 45 份 rubric。原清单举的例子（`mediaKind audioOnly`、`lifecycle Playing`、`controls=shown`）本来就是片段而不是整条 criterion。
+- **含否定标记的句子不产谓词。** `negativeControls` 整段都是「…fails the bound case」的写法，`criteria` 里也有「no reading of mediaKind video is admissible」这类句子。从这些句子里抽片段会把断言的极性抽反，把一条禁止写成一条要求。判定读的是一张登记的否定词表，命中就整句跳过，不做进一步的语义推断。
+- **报告的计数叫 `criteriaYieldingPredicates`，不叫「已覆盖」。** 一条产出谓词的 criterion 只是其中的字段断言被机械化了，同一条 criterion 的其余部分仍然由 Agent 判读。把这个数读成覆盖率会高估确定性判读的范围。
+- **L0 挂点从计划里读 rubric，不读 Catalog。** `RubricEvaluationBinding`（`plan.py:796`）已经带着 `criteria` 的原文，因此 `op_tool.field_predicates` 直接编译它，不需要 op 再加载一次 Catalog。它逐条给出读数：字段相等是 `satisfied`，不等是 `violated` 并附上实际读到的值，这次调用没有报告该字段是 `indeterminate`——缺席的读数没有确立任何东西。
+
+`Regression/oracle-protocol.md:15` 那句「the current Catalog has no such runtime Oracle」在阶段 19 按实际覆盖率改写：47 条 criterion 走确定性字段谓词，其余 152 条仍是自然语言判读，覆盖报告逐条列出。
+
 ## 阶段验证方案
 
 静态：

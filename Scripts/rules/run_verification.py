@@ -77,6 +77,7 @@ def structure_check_path(filename: str) -> Path:
 
 
 STRUCTURE_CHECKS = (
+    StructureCheck("rubric-predicate-coverage", "check_rubric_predicate_coverage.py"),
     StructureCheck("design-source-architecture", "verify_design_source_architecture.py"),
     StructureCheck("package-membership", "verify_package_membership.py"),
     StructureCheck("playback-surface-structure", "verify_playback_surface_structure.py"),
