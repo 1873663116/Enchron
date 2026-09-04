@@ -48,8 +48,31 @@ class NodeStatus(Enum):
     LEASED = "leased"
     PASSED = "passed"
     FAILED = "failed"
-    INTERRUPTED = "interrupted"
+    FAILED_KNOWN = "failed(known)"
     BLOCKED_BY = "blockedBy"
+    DEFERRED_HUMAN = "deferred(human)"
+    INDETERMINATE = "indeterminate"
+
+
+TERMINAL_NODE_STATUSES = (
+    NodeStatus.PASSED,
+    NodeStatus.FAILED,
+    NodeStatus.FAILED_KNOWN,
+    NodeStatus.BLOCKED_BY,
+    NodeStatus.DEFERRED_HUMAN,
+    NodeStatus.INDETERMINATE,
+)
+
+PRODUCT_NODE_STATUSES = (
+    NodeStatus.PASSED,
+    NodeStatus.FAILED,
+    NodeStatus.FAILED_KNOWN,
+)
+
+PRODUCT_FAILURE_NODE_STATUSES = (
+    NodeStatus.FAILED,
+    NodeStatus.FAILED_KNOWN,
+)
 
 
 class LeaseStatus(Enum):
@@ -1357,12 +1380,7 @@ def _record_verdict(
         status = NodeStatus(payload.get("status"))
     except (TypeError, ValueError) as error:
         raise _transition(location, "node verdict status is not recognized") from error
-    if status not in (
-        NodeStatus.PASSED,
-        NodeStatus.FAILED,
-        NodeStatus.INTERRUPTED,
-        NodeStatus.BLOCKED_BY,
-    ):
+    if status not in TERMINAL_NODE_STATUSES:
         raise _transition(location, "node verdict is not terminal")
     ancestors = tuple(
         _node_id(value, location + ".failureAncestors")
@@ -1379,7 +1397,7 @@ def _record_verdict(
         if lease_id != node.lease_id:
             raise _transition(location, "verdict lease does not match the node")
         lease = leases[lease_id]
-        if status in (NodeStatus.PASSED, NodeStatus.FAILED) and (
+        if status in PRODUCT_NODE_STATUSES and (
             not lease.operations_complete
             or not lease.evidence_accepted
             or not lease.oracle_evaluations
@@ -1392,7 +1410,7 @@ def _record_verdict(
             raise _transition(location, "join node cannot own a lease")
         lease_status = (
             LeaseStatus.INTERRUPTED
-            if status is NodeStatus.INTERRUPTED
+            if status is NodeStatus.INDETERMINATE
             else LeaseStatus.COMPLETED
         )
         leases[lease_id] = replace(lease, status=lease_status)
@@ -1401,16 +1419,13 @@ def _record_verdict(
             lanes[lease.lane] = replace(lane, active_lease_id=None)
     elif raw_lease is not None:
         raise _transition(location, "an unleased node verdict cannot name a lease")
-    elif node.kind == "scenarioAttempt" and status in (
-        NodeStatus.PASSED,
-        NodeStatus.FAILED,
-    ):
+    elif node.kind == "scenarioAttempt" and status in PRODUCT_NODE_STATUSES:
         raise _transition(location, "Scenario product verdict needs its lease")
     elif node.kind == "bothJoin" and status in (
-        NodeStatus.FAILED,
-        NodeStatus.INTERRUPTED,
+        *PRODUCT_FAILURE_NODE_STATUSES,
+        NodeStatus.INDETERMINATE,
     ):
-        if status is NodeStatus.FAILED:
+        if status in PRODUCT_FAILURE_NODE_STATUSES:
             raise _transition(location, "join nodes cannot create product failures")
 
     nodes[node_id] = replace(
@@ -1803,10 +1818,13 @@ __all__ = (
     "NodeView",
     "OperationInvocationView",
     "OracleEvaluationView",
+    "PRODUCT_FAILURE_NODE_STATUSES",
+    "PRODUCT_NODE_STATUSES",
     "PreparedStateView",
     "RunOutcome",
     "RunView",
     "StateProductionView",
+    "TERMINAL_NODE_STATUSES",
     "TRANSITION_FAULT_INTERRUPTION_PREFIX",
     "aggregate_oracle_results",
     "build_run_view",

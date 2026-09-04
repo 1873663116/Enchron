@@ -33,6 +33,21 @@ NodeStatus = pending | leased
 
 `LedgerEntry` 是 `NodeStatus` 的终态取值加上写入它的 `Verdict`，落盘形状由 `Scripts/regression/core/events.py` 的既有事件编码承载，本阶段不新增事件类型。
 
+终态集合在 `runview.py` 落为三个具名常量，取代原先散在 `_record_verdict` 各分支里的字面元组：
+
+```text
+TERMINAL_NODE_STATUSES         六个终态，判定「这条裁决是否终态」
+PRODUCT_NODE_STATUSES          passed | failed | failed(known)，判定「是否需要完整操作与已评据」
+PRODUCT_FAILURE_NODE_STATUSES  failed | failed(known)，判定「join 节点是否越权制造产品失败」
+```
+
+`failed(known)` 属于产品裁决，与 `failed` 承担同一套证据义务；差别只在阶段 15 的已知缺陷账本是否放行收据，不在证据要求上。`deferred(human)` 与 `indeterminate` 不属于产品裁决：前者的入口条件是连续两次 harness 超时，后者没有可评的 Oracle 结果，都不该被要求提供 Oracle 评估。
+
+两处留给后续阶段收口：
+
+- `Verdict.signature` 本阶段只校验 `signature:<colon-path>` 格式，任何格式合法但未登记的 id 都会通过。阶段 12 建立签名表后，该分支要改为查表，而不只是新增表。
+- `runtime.py:1215` 由节点状态推 `RunOutcome` 的分支只认 `INDETERMINATE`、`FAILED` 与 `PASSED|BLOCKED_BY`，`FAILED_KNOWN` 与 `DEFERRED_HUMAN` 落到 `else` 的 `RunOutcome.INTERRUPTED`。这是保守取值，不会把未处理状态误判为通过；阶段 15 与阶段 16 引入生产者时一并收口。
+
 ## 阶段验证方案
 
 静态：

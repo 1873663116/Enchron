@@ -54,6 +54,7 @@ class IdentifierTests(unittest.TestCase):
             "grant": "grant:open-local-file-01",
             "sidekick": "sidekick:simulator-01",
             "review_packet": "review-packet:playback-coverage",
+            "signature": "signature:blank-frame",
             "digest": "sha256:" + "a" * 64,
         }
 

@@ -956,7 +956,7 @@ class MainRun:
         if node_view.status in (
             NodeStatus.PASSED,
             NodeStatus.FAILED,
-            NodeStatus.INTERRUPTED,
+            NodeStatus.INDETERMINATE,
         ):
             if lease.evidence_accepted:
                 return _evidence_receipt(lease, node_view.status)
@@ -1101,7 +1101,7 @@ class MainRun:
             if node_view.status is NodeStatus.LEASED:
                 self._record_verdict(
                     lease.node_id,
-                    NodeStatus.INTERRUPTED,
+                    NodeStatus.INDETERMINATE,
                     lease.lease_id,
                 )
         self._settle_derivable_nodes()
@@ -1209,10 +1209,10 @@ class MainRun:
         current = self.view
         for node in current.nodes:
             if node.status is NodeStatus.PENDING:
-                self._record_verdict(node.node_id, NodeStatus.INTERRUPTED, None)
+                self._record_verdict(node.node_id, NodeStatus.INDETERMINATE, None)
         current = self.view
         statuses = tuple(node.status for node in current.nodes)
-        if NodeStatus.INTERRUPTED in statuses:
+        if NodeStatus.INDETERMINATE in statuses:
             outcome = RunOutcome.INTERRUPTED
         elif NodeStatus.FAILED in statuses:
             outcome = RunOutcome.FAILED

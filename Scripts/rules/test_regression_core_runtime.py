@@ -506,7 +506,7 @@ class RuntimeFaultTests(unittest.TestCase):
                     for event in main.view.events
                 )
             )
-            self.assertEqual(NodeStatus.INTERRUPTED, main.view.node(lease.node_id).status)
+            self.assertEqual(NodeStatus.INDETERMINATE, main.view.node(lease.node_id).status)
             main.close()
 
     def test_evaluator_identity_and_typed_protocol_are_mandatory(self) -> None:
@@ -778,7 +778,7 @@ class RuntimeFaultTests(unittest.TestCase):
             _, _, receipt = _run_claimed_node(
                 indeterminate, OracleResult.INDETERMINATE
             )
-            self.assertEqual(NodeStatus.INTERRUPTED, receipt.node_status)
+            self.assertEqual(NodeStatus.INDETERMINATE, receipt.node_status)
             self.assertNotEqual(NodeStatus.FAILED, receipt.node_status)
             indeterminate.close()
 
@@ -802,7 +802,7 @@ class RuntimeFaultTests(unittest.TestCase):
             with self.assertRaises(RegressionError) as raised:
                 invalid.accept_evidence(wrong, FakeOracle(OracleResult.SATISFIED))
             self.assertEqual("runtime.envelope_binding_mismatch", raised.exception.code)
-            self.assertEqual(NodeStatus.INTERRUPTED, invalid.view.node(lease.node_id).status)
+            self.assertEqual(NodeStatus.INDETERMINATE, invalid.view.node(lease.node_id).status)
             self.assertFalse((root / "invalid" / "objects").exists())
             invalid.close()
 
@@ -836,7 +836,7 @@ class RuntimeFaultTests(unittest.TestCase):
 
             recovered = open_run(plan, directory)
             self.assertEqual(1, adapter.calls)
-            self.assertEqual(NodeStatus.INTERRUPTED, recovered.view.node(lease.node_id).status)
+            self.assertEqual(NodeStatus.INDETERMINATE, recovered.view.node(lease.node_id).status)
             self.assertTrue(recovered.view.lane(BoundLane.SIMULATOR).interrupted)
             self.assertEqual(
                 1,
@@ -879,7 +879,7 @@ class RuntimeFaultTests(unittest.TestCase):
 
             recovered = open_run(plan, directory)
             self.assertEqual(
-                NodeStatus.INTERRUPTED, recovered.view.node(lease.node_id).status
+                NodeStatus.INDETERMINATE, recovered.view.node(lease.node_id).status
             )
             invoked = [
                 event
@@ -906,7 +906,7 @@ class RuntimeFaultTests(unittest.TestCase):
                 main.accept_evidence(_envelope(main, lease), InvalidResultOracle())
             self.assertEqual("runtime.invalid_oracle_result", raised.exception.code)
             self.assertEqual(
-                NodeStatus.INTERRUPTED, main.view.node(lease.node_id).status
+                NodeStatus.INDETERMINATE, main.view.node(lease.node_id).status
             )
             main.close()
 
@@ -1103,7 +1103,7 @@ class RuntimeCapabilityTests(unittest.TestCase):
             )
             self.assertEqual(before, after)
             self.assertEqual(
-                NodeStatus.INTERRUPTED, main.view.node(lease.node_id).status
+                NodeStatus.INDETERMINATE, main.view.node(lease.node_id).status
             )
             self.assertTrue(main.view.lane(lease.lane).interrupted)
             main.close()
@@ -1144,7 +1144,7 @@ class RuntimeCapabilityTests(unittest.TestCase):
                 )
             )
             self.assertEqual(
-                NodeStatus.INTERRUPTED, main.view.node(lease.node_id).status
+                NodeStatus.INDETERMINATE, main.view.node(lease.node_id).status
             )
             main.close()
 

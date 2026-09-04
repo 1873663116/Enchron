@@ -29,6 +29,7 @@ LeaseID = NewType("LeaseID", str)
 GrantID = NewType("GrantID", str)
 SidekickID = NewType("SidekickID", str)
 ReviewPacketID = NewType("ReviewPacketID", str)
+SignatureID = NewType("SignatureID", str)
 Digest = NewType("Digest", str)
 
 Identifier = Union[
@@ -54,6 +55,7 @@ Identifier = Union[
     GrantID,
     SidekickID,
     ReviewPacketID,
+    SignatureID,
     Digest,
 ]
 
@@ -84,6 +86,7 @@ _PATTERN_TEXT = {
     "grant": rf"grant:{_SLUG}",
     "sidekick": rf"sidekick:{_SLUG}",
     "review_packet": rf"review-packet:{_COLON_PATH}",
+    "signature": rf"signature:{_COLON_PATH}",
     "digest": r"sha256:[0-9a-f]{64}",
 }
 
@@ -114,6 +117,7 @@ _IDENTIFIER_TYPES: Mapping[str, Callable[[str], Identifier]] = MappingProxyType(
     "grant": GrantID,
     "sidekick": SidekickID,
     "review_packet": ReviewPacketID,
+    "signature": SignatureID,
     "digest": Digest,
 })
 
@@ -191,6 +195,7 @@ __all__ = (
     "RunID",
     "ScenarioID",
     "SidekickID",
+    "SignatureID",
     "StateKey",
     "StateSchema",
     "StateTag",
