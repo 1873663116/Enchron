@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
-import threading
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Sequence
 
@@ -25,7 +23,6 @@ from regression.core.compiler import accept_reviews, compile_run
 from regression.core.contracts import ArgumentValueKind, BoundLane
 from regression.core.digest import canonical_bytes, canonical_digest
 from regression.core.errors import RegressionError
-from regression.core.ids import SidekickID
 from regression.core.plan import CompileRequest, FullSelector, compiled_plan_bytes
 from regression.core.replay import replay
 from regression.core.review import (
@@ -38,7 +35,6 @@ from regression.core.review_catalog import (
     build_catalog_review_units,
     plan_catalog_reviews,
 )
-from regression.core.runview import RunOutcome
 from regression.execution_identity import (
     ExecutionIdentityError,
     PreparedLaneProvenance,
@@ -47,29 +43,12 @@ from regression.execution_identity import (
     prepare_build_provenance,
     write_execution_input,
 )
-from regression.oracle_agent import AgentOracleProvider
 from regression.review_io import load_review_policy, load_review_receipts
 from regression.review_stage import review_status
-from regression.sidekick_runner import open_main_agent
-from verification.regression_oracle_adapter import RegressionOracleAdapter
 
 
 class RunControlError(ValueError):
     pass
-
-
-@dataclass(frozen=True)
-class LaneExecutionError:
-    lane: BoundLane
-    kind: str
-    detail: str
-
-
-@dataclass(frozen=True)
-class LaneExecutionResult:
-    receipts: tuple[Any, ...]
-    errors: tuple[LaneExecutionError, ...]
-    completed_by_lane: Mapping[BoundLane, int]
 
 
 def _repository_path(repository: Path, value: Path, label: str) -> Path:
@@ -242,88 +221,6 @@ def compile_execution_plan(
     return compile_run(reviewed_catalog, request), execution
 
 
-def execute_lanes(coordinator: Any) -> LaneExecutionResult:
-    condition = threading.Condition()
-    progress = 0
-    active = 0
-    receipts = []
-    errors = []
-    completed = {BoundLane.SIMULATOR: 0, BoundLane.DEVICE: 0}
-
-    def run_lane(lane: BoundLane) -> None:
-        nonlocal progress, active
-        ordinal = 0
-        while True:
-            with condition:
-                snapshot = progress
-                active += 1
-            ordinal += 1
-            try:
-                receipt = coordinator.run_sidekick(
-                    lane,
-                    coordinator.lane_targets[lane],
-                    SidekickID(f"sidekick:{lane.value}-{ordinal:04d}"),
-                )
-            except RegressionError as error:
-                if error.code != "scheduler.no_ready_work":
-                    with condition:
-                        active -= 1
-                        errors.append(
-                            LaneExecutionError(lane, error.code, str(error))
-                        )
-                        progress += 1
-                        condition.notify_all()
-                    return
-                with condition:
-                    active -= 1
-                    if progress != snapshot:
-                        condition.notify_all()
-                        continue
-                    if active == 0:
-                        condition.notify_all()
-                        return
-                    condition.wait_for(
-                        lambda: progress != snapshot or active == 0,
-                        timeout=1,
-                    )
-                    if progress == snapshot and active == 0:
-                        return
-                continue
-            except Exception as error:
-                with condition:
-                    active -= 1
-                    errors.append(
-                        LaneExecutionError(lane, type(error).__name__, str(error))
-                    )
-                    progress += 1
-                    condition.notify_all()
-                return
-            with condition:
-                active -= 1
-                receipts.append(receipt)
-                completed[lane] += 1
-                progress += 1
-                condition.notify_all()
-
-    workers = tuple(
-        threading.Thread(
-            target=run_lane,
-            args=(lane,),
-            name=f"regression-{lane.value}",
-        )
-        for lane in (BoundLane.SIMULATOR, BoundLane.DEVICE)
-    )
-    for worker in workers:
-        worker.start()
-    for worker in workers:
-        worker.join()
-    return LaneExecutionResult(
-        tuple(receipts),
-        tuple(errors),
-        MappingProxyType(dict(completed)),
-    )
-
-
 def _write_once(path: Path, source: bytes) -> Path:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -368,92 +265,6 @@ def _view_payload(view: Any) -> Mapping[str, Any]:
             for item in view.lanes
         ],
     }
-
-
-def _assert_ignored_runtime_path(repository: Path, path: Path) -> Path:
-    resolved = _repository_path(repository, path, "run directory")
-    relative = resolved.relative_to(repository).as_posix()
-    completed = subprocess.run(
-        ["git", "-C", str(repository), "check-ignore", "--no-index", "-q", relative],
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise RunControlError("run directory must be excluded from the source snapshot")
-    return resolved
-
-
-def _run_full(
-    repository: Path,
-    execution_input_path: Path,
-    catalog_root: Path,
-    policy_path: Path,
-    reviews_root: Path,
-    blueprint_path: Path,
-    run_directory: Path,
-) -> tuple[Mapping[str, Any], int]:
-    plan, execution = compile_execution_plan(
-        repository,
-        execution_input_path,
-        catalog_root,
-        policy_path,
-        reviews_root,
-        blueprint_path,
-    )
-    run_root = _assert_ignored_runtime_path(repository, run_directory)
-    provider = AgentOracleProvider(
-        repository,
-        run_root / "oracle-agent",
-        model=execution.agent_model,
-        executable=execution.agent_executable,
-    )
-    evaluator = RegressionOracleAdapter(provider)
-    environment_keys = ("ENCHRON_ARTIFACT_ROOT", "ENCHRON_EXECUTION_INPUT")
-    previous_environment = {key: os.environ.get(key) for key in environment_keys}
-    os.environ["ENCHRON_ARTIFACT_ROOT"] = str(execution.artifact_root)
-    os.environ["ENCHRON_EXECUTION_INPUT"] = str(
-        Path(execution_input_path).resolve()
-    )
-    try:
-        with open_main_agent(
-            plan,
-            run_root,
-            execution.build_identity,
-            execution.evidence_environment_identity,
-            execution.lane_targets,
-            evaluator,
-        ) as coordinator:
-            lane_result = execute_lanes(coordinator)
-            load_execution_input(execution_input_path)
-            view = coordinator.finalize()
-    finally:
-        for key, value in previous_environment.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
-    payload = {
-        "schema": "enchron.regression.full-run-summary",
-        "schemaVersion": 1,
-        "catalogDigest": str(plan.catalog_digest),
-        "catalogGateDigest": str(plan.catalog_gate_digest),
-        "buildIdentityDigest": str(plan.build_identity.digest),
-        "evidenceEnvironmentDigest": str(
-            plan.evidence_environment_identity.digest
-        ),
-        "completedByLane": {
-            lane.value: lane_result.completed_by_lane[lane]
-            for lane in (BoundLane.SIMULATOR, BoundLane.DEVICE)
-        },
-        "executionErrors": [
-            {"lane": item.lane.value, "kind": item.kind, "detail": item.detail}
-            for item in lane_result.errors
-        ],
-        "run": _view_payload(view),
-    }
-    _write_once(run_root / "summary.json", canonical_bytes(payload) + b"\n")
-    passed = view.outcome is RunOutcome.PASSED and not lane_result.errors
-    return payload, 0 if passed else 1
 
 
 def _artifact_path(repository: Path, path: Path) -> Path:
@@ -508,7 +319,7 @@ def _common(parser: argparse.ArgumentParser) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare builds, freeze execution input, compile, execute, and inspect "
+            "Prepare builds, freeze execution input, compile, and inspect "
             "Enchron Regression runs."
         )
     )
@@ -532,9 +343,6 @@ def _parser() -> argparse.ArgumentParser:
     compile_parser = commands.add_parser("compile")
     _common(compile_parser)
     compile_parser.add_argument("--output", type=Path, required=True)
-    run_parser = commands.add_parser("run")
-    _common(run_parser)
-    run_parser.add_argument("--run-directory", type=Path, required=True)
     status_parser = commands.add_parser("status")
     status_parser.add_argument("--run-directory", type=Path, required=True)
     return parser
@@ -602,15 +410,7 @@ def _execute(arguments: argparse.Namespace) -> tuple[Mapping[str, Any], int]:
             "catalogDigest": str(plan.catalog_digest),
             "nodeCount": len(plan.nodes),
         }, 0
-    return _run_full(
-        repository,
-        execution_input,
-        arguments.catalog_root,
-        arguments.policy,
-        arguments.reviews_root,
-        arguments.blueprint,
-        arguments.run_directory,
-    )
+    raise RunControlError(f"unknown operation: {arguments.operation}")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

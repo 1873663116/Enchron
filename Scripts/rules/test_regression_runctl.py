@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager, redirect_stderr
+from contextlib import redirect_stderr
 import hashlib
 from io import StringIO
-import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
 from tempfile import TemporaryDirectory
-import threading
 import unittest
 from unittest.mock import patch
 
@@ -22,11 +20,9 @@ if str(SCRIPTS) not in sys.path:
 
 from regression.core.contracts import ArgumentValueKind, BoundLane, FactDeclaration
 from regression.core.digest import canonical_bytes, canonical_digest
-from regression.core.errors import RegressionError
-from regression.core.ids import FactID, SidekickID
+from regression.core.ids import FactID
 from regression.core.plan import ToolchainIdentity
 from regression.core.review import ReviewClass, ReviewUnitKind
-from regression.core.runview import RunOutcome
 from regression.execution_identity import (
     ExecutionIdentityError,
     LinkProvenance,
@@ -36,53 +32,11 @@ from regression.runctl import (
     RunControlError,
     _execute,
     _parser,
-    _run_full,
     compile_execution_plan,
     derive_reviewed_facts,
-    execute_lanes,
     load_blueprint_fact_values,
     main,
 )
-
-
-class ConcurrentCoordinator:
-    def __init__(self, failure_lane=None) -> None:
-        self.lane_targets = {
-            BoundLane.SIMULATOR: "SIM",
-            BoundLane.DEVICE: "DEVICE",
-        }
-        self.barrier = threading.Barrier(2, timeout=3)
-        self.counts = {lane: 0 for lane in self.lane_targets}
-        self.failure_lane = failure_lane
-        self.active = 0
-        self.maximum_active = 0
-        self.lock = threading.Lock()
-
-    def run_sidekick(self, lane, target, sidekick_id: SidekickID):
-        self.assert_target(lane, target, sidekick_id)
-        with self.lock:
-            count = self.counts[lane]
-            self.counts[lane] += 1
-            if count:
-                raise RegressionError(
-                    "scheduler.no_ready_work", lane.value, "fixture complete"
-                )
-            self.active += 1
-            self.maximum_active = max(self.maximum_active, self.active)
-        try:
-            self.barrier.wait()
-            if lane is self.failure_lane:
-                raise RuntimeError(f"{lane.value} failed")
-            return SimpleNamespace(node_status=SimpleNamespace(value="passed"))
-        finally:
-            with self.lock:
-                self.active -= 1
-
-    def assert_target(self, lane, target, sidekick_id) -> None:
-        if target != self.lane_targets[lane]:
-            raise AssertionError("wrong target")
-        if not str(sidekick_id).startswith(f"sidekick:{lane.value}-"):
-            raise AssertionError("wrong Sidekick identity")
 
 
 class RunControlTests(unittest.TestCase):
@@ -407,136 +361,6 @@ class RunControlTests(unittest.TestCase):
                 self.assertEqual(2, raised.exception.code)
                 self.assertEqual(f"runctl: {error}\n", stderr.getvalue())
 
-    def test_run_exports_and_restores_the_frozen_input_locator(self) -> None:
-        with TemporaryDirectory() as temporary:
-            repository = Path(temporary).resolve()
-            artifact_root = repository / ".scratch" / "regression"
-            execution_input = artifact_root / "execution-input.json"
-            run_root = artifact_root / "run"
-            build_identity = SimpleNamespace(digest="sha256:build")
-            evidence_identity = SimpleNamespace(digest="sha256:environment")
-            plan = SimpleNamespace(
-                catalog_digest="sha256:catalog",
-                catalog_gate_digest="sha256:gate",
-                build_identity=build_identity,
-                evidence_environment_identity=evidence_identity,
-                nodes=(),
-            )
-            execution = SimpleNamespace(
-                artifact_root=artifact_root,
-                build_identity=build_identity,
-                evidence_environment_identity=evidence_identity,
-                lane_targets={
-                    BoundLane.SIMULATOR: "SIM-UDID",
-                    BoundLane.DEVICE: "DEVICE-ID",
-                },
-                agent_model="gpt-5",
-                agent_executable="codex",
-            )
-            view = SimpleNamespace(
-                run_id=None,
-                plan_digest=None,
-                outcome=RunOutcome.PASSED,
-                events=(),
-                nodes=(),
-                lanes=(),
-            )
-            coordinator = SimpleNamespace(finalize=lambda: view)
-            lane_result = SimpleNamespace(
-                completed_by_lane={
-                    BoundLane.SIMULATOR: 0,
-                    BoundLane.DEVICE: 0,
-                },
-                errors=(),
-            )
-            observed = {}
-
-            @contextmanager
-            def open_coordinator(*_arguments):
-                observed.update(
-                    {
-                        "artifactRoot": os.environ.get("ENCHRON_ARTIFACT_ROOT"),
-                        "executionInput": os.environ.get("ENCHRON_EXECUTION_INPUT"),
-                        "derivedData": os.environ.get("ENCHRON_DERIVED_DATA"),
-                    }
-                )
-                yield coordinator
-
-            original = {
-                "ENCHRON_ARTIFACT_ROOT": "previous-artifacts",
-                "ENCHRON_EXECUTION_INPUT": "previous-input",
-                "ENCHRON_DERIVED_DATA": "legacy-derived-data",
-            }
-            with patch.dict(os.environ, original, clear=False):
-                with (
-                    patch(
-                        "regression.runctl.compile_execution_plan",
-                        return_value=(plan, execution),
-                    ),
-                    patch(
-                        "regression.runctl._assert_ignored_runtime_path",
-                        return_value=run_root,
-                    ),
-                    patch("regression.runctl.AgentOracleProvider"),
-                    patch("regression.runctl.RegressionOracleAdapter"),
-                    patch(
-                        "regression.runctl.open_main_agent",
-                        side_effect=open_coordinator,
-                    ),
-                    patch(
-                        "regression.runctl.execute_lanes",
-                        return_value=lane_result,
-                    ),
-                    patch(
-                        "regression.runctl.load_execution_input"
-                    ) as reload_execution,
-                    patch("regression.runctl._write_once"),
-                ):
-                    _, status = _run_full(
-                        repository,
-                        execution_input,
-                        Path("Regression"),
-                        Path("Regression/review-policy.md"),
-                        Path("Regression/reviews"),
-                        Path("Config/regression/catalog-v2.json"),
-                        run_root,
-                    )
-                    reload_execution.assert_called_once_with(execution_input)
-                    self.assertEqual(
-                        original,
-                        {key: os.environ[key] for key in original},
-                    )
-                    reload_execution.side_effect = ExecutionIdentityError(
-                        "execution input changed during run"
-                    )
-                    with self.assertRaisesRegex(
-                        ExecutionIdentityError,
-                        "changed during run",
-                    ):
-                        _run_full(
-                            repository,
-                            execution_input,
-                            Path("Regression"),
-                            Path("Regression/review-policy.md"),
-                            Path("Regression/reviews"),
-                            Path("Config/regression/catalog-v2.json"),
-                            run_root,
-                        )
-                    self.assertEqual(
-                        original,
-                        {key: os.environ[key] for key in original},
-                    )
-
-        self.assertEqual(0, status)
-        self.assertEqual(
-            {
-                "artifactRoot": str(artifact_root),
-                "executionInput": str(execution_input),
-                "derivedData": "legacy-derived-data",
-            },
-            observed,
-        )
-
     def test_blueprint_fact_values_require_a_current_content_digest(self) -> None:
         with TemporaryDirectory() as temporary:
             path = Path(temporary) / "catalog-v2.json"
@@ -595,27 +419,6 @@ class RunControlTests(unittest.TestCase):
         self.assertEqual(receipt_digest, reviewed[0].review_receipt_digest)
         with self.assertRaisesRegex(RunControlError, "exactly"):
             derive_reviewed_facts(catalog, completed, {})
-
-    def test_lane_execution_overlaps_simulator_and_device(self) -> None:
-        coordinator = ConcurrentCoordinator()
-        result = execute_lanes(coordinator)
-
-        self.assertEqual(2, coordinator.maximum_active)
-        self.assertEqual(2, len(result.receipts))
-        self.assertEqual((), result.errors)
-        self.assertEqual(1, result.completed_by_lane[BoundLane.SIMULATOR])
-        self.assertEqual(1, result.completed_by_lane[BoundLane.DEVICE])
-
-    def test_lane_failure_does_not_cancel_the_other_lane(self) -> None:
-        coordinator = ConcurrentCoordinator(BoundLane.SIMULATOR)
-        result = execute_lanes(coordinator)
-
-        self.assertEqual(2, coordinator.maximum_active)
-        self.assertEqual(1, len(result.receipts))
-        self.assertEqual(1, len(result.errors))
-        self.assertEqual("simulator", result.errors[0].lane.value)
-        self.assertIn("simulator failed", result.errors[0].detail)
-        self.assertEqual(1, result.completed_by_lane[BoundLane.DEVICE])
 
 
 if __name__ == "__main__":
