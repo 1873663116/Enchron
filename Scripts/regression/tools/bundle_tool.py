@@ -179,7 +179,9 @@ def _before_after(
 ) -> Tuple[BundleImage, ...]:
     images = []
     if before is not None:
-        images.append(BundleImage(f"before {completed[index].call_id}", before))
+        images.append(
+            BundleImage(f"before {completed[index - 1].call_id}", before)
+        )
     if after is not None:
         images.append(BundleImage(f"after {completed[index].call_id}", after))
     return tuple(images)

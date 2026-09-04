@@ -334,13 +334,11 @@ class AdmitVerdictTests(unittest.TestCase):
         with self.assertRaisesRegex(LedgerLockError, "observation is empty"):
             self.admit(region_observation="   ")
 
-    def test_a_known_defect_without_its_signature_is_refused(self) -> None:
-        with self.assertRaisesRegex(LedgerLockError, "names the signature"):
-            self.admit(status=NodeStatus.FAILED_KNOWN)
-        self.admit(
-            status=NodeStatus.FAILED_KNOWN,
-            signature=ALL_BLACK,
-        )
+    def test_a_known_defect_is_admitted_whether_or_not_it_names_a_signature(
+        self,
+    ) -> None:
+        self.admit(status=NodeStatus.FAILED_KNOWN)
+        self.admit(status=NodeStatus.FAILED_KNOWN, signature=ALL_BLACK)
 
     def test_a_status_the_oracle_result_forbids_is_refused(self) -> None:
         for status in (
@@ -802,6 +800,43 @@ class KnownDefectRoutingTests(unittest.TestCase):
                 NodeStatus.FAILED)
 
             self.assertIs(
+                NodeStatus.FAILED_KNOWN, replay(directory).node(lease.node_id).status
+            )
+
+    def test_a_field_matched_exemption_closes_and_records_what_matched(
+        self,
+    ) -> None:
+        from regression.rubric_compiler import FieldPredicate
+
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            main = open_run(_single_node_plan(), directory)
+            lease = run_node(
+                main, BoundLane.SIMULATOR, OracleResult.VIOLATED, "red"
+            )
+            main.close()
+            fields = ledger_tool.recorded_fields(replay(directory), lease.node_id)
+            field, value = next(iter(fields.items()))
+            self.with_defects(
+                self.defect(
+                    ledger_tool.scenario_of(directory, lease.node_id),
+                    FieldPredicate(field, "==", value),
+                )
+            )
+
+            written = ledger_tool.write(
+                directory,
+                verdict(lease.node_id, first_deviant_frame=None, signature=None),
+                NodeStatus.FAILED,
+            )
+
+            node = written["nodes"][0]
+            self.assertEqual("failed(known)", node["status"])
+            self.assertEqual(
+                {"field": field, "operator": "==", "value": value},
+                node["adjudication"]["knownDefect"]["match"],
+            )
+            self.assertEqual(
                 NodeStatus.FAILED_KNOWN, replay(directory).node(lease.node_id).status
             )
 

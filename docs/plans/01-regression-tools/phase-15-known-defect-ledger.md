@@ -67,7 +67,7 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 对抗审查列出的以下几项本阶段没有关闭，逐条记在这里而不是留给下一个人重新发现：
 
 - **`verdict.signature` 与运行期实际命中的签名之间没有绑定。** `op` 的 `pixel_signatures` 与 `bundle` 的 `frame_unchanged` 算出的签名都没有进账本，因此账本里根本没有可比对的一侧。要闭合它，得先把算出的签名写成事件或写进完成事件的保留键，再让 `write` 拒绝一个不在该节点该次 attempt 命中集合里的签名。
-- **豁免的依据不进账本。** `verdict_payload` 只写 attribution、帧数、区域观察与签名，`_adjudication` 拒绝其余键。因此事后没人能从账本读出「是哪条记录豁免了这个节点」。补上它需要扩 adjudication 的 schema，属于阶段 7 定下的形状。
+- ~~**豁免的依据不进账本。**~~ 2026-09-05 闭合。`adjudication` 增加 `knownDefect` 键，写下豁免这个节点的记录的 Scenario 与它的命中判据。replay 据此校验：`failed(known)` 必须带这个键，其他终态不得带；判据是签名 id 时它必须等于裁决里的签名。同一次改动修掉一个死锁——`classify` 判出 `failed(known)` 之后，`admit_verdict` 与 replay 都要求裁决带签名，而按字段谓词命中的记录并不产生签名，那个节点因此既写不成 `failed(known)`（缺签名被拒）也写不成 `failed`（`classify` 会覆盖），无法收口。
 - **`expiresWhen` 只要求非空文本。** 它没有任何检查方式，也没有任何地方再读它。可检查的替代是一个必填的 `expiresOn` 日期，`load` 在过期时拒绝；`recorded` 已经按 ISO 解析，也可以据此设一个最长年龄。
 - **没有登记的 ratchet 检查看住这张表。** 阶段 13 的覆盖率基线是同一个机制的反向用法：那里下限只能升，这里条数只能降。表目前为空，第一条记录落地之前补上这道门是自然的时机。
 - **一条范围划错的豁免影响整棵下游子树。** `failed(known)` 现在与 `failed` 一样进入 `failure_ancestors`（`Scripts/regression/core/runview.py:628`），下游节点因此被派生为 `blockedBy` 并随 run 一同收口。这条记账原先写的是相反的因果——「不进 `failure_ancestors`，因此不阻塞下游」。实测那个版本的后果不是放行而是冻结：下游节点拿不到派生裁决，停在 `PENDING`，收口时变成 `indeterminate`，收据被拒。代价仍在，形状不同：豁免划错时，被判成 `blockedBy` 的是一整棵本可以跑的子树。
@@ -80,6 +80,7 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 - **48 条 L0 谓词里 30 条命名的是 Operation 的入参而非输出。** `requireMatchedElement` 出现在 `regression_operation_adapter.py:2807` 的参数里，不在任何返回的 outputs 中，因此这些谓词恒为 `indeterminate`。`Config/rubric_predicate_baseline.json` 的 `criteriaYieldingPredicates: 47` 把这个数字锁住了：一次「不再把入参名编译成观测」的修正会被该门拒绝，需要同时下调基线。
 - **`negativeControls` 没有被编译器读取。** 阶段 13 的改动清单写的是「只读 front matter 里的 `criteria` 与 `negativeControls`」，实际只读 `criteria`。覆盖报告的分母因此不含 negative controls。
 - **人类会话的轮询回路没有接线。** `poll_timeline`、`mark`、`read_timeline` 三个函数只有测试调用；MCP 的 `session` schema 没有 `mark` 动作，也没有任何一处驱动轮询。`ensure` 现在会开出 `timeline.jsonl` 并写入第一行，路径不再指向不存在的文件，但佩戴者回路本身仍是空的。
+- **异常包的 before 帧可能来自另一个 Operation。** 它取的是上一次完成调用的截图，标题原先写的是失败调用的 call id；标题已改成那张图真正的来源。Agent 仍需要知道这两帧可能横跨两个 Operation。
 - **人类收据没有 run 绑定。** 收据现在必须匹配本次 run 生成的 checklist digest（`Scripts/regression/tools/receipt_tool.py`），但收据里的 `buildDigest`、`deviceId`、`recordingDigest` 依然没有任何一侧可比对，`seal` 也没有工具入口，操作者实际走的是手写 JSON 这条路。
 
 ### 计划要求但没有执行的门

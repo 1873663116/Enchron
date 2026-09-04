@@ -122,23 +122,35 @@ def _match(value: Any, location: str) -> Union[SignatureID, FieldPredicate]:
     return FieldPredicate(value["field"], EQUALS, value["value"])
 
 
+def matching_defect(
+    scenario: Optional[ScenarioID],
+    verdict: Verdict,
+    fields: Mapping[str, Any],
+    defects: Optional[Tuple[KnownDefect, ...]] = None,
+) -> Optional[KnownDefect]:
+    """The record that exempted a failure is the record the ledger has to be
+    able to name, so the lookup returns it rather than only its consequence."""
+    if not isinstance(verdict, Verdict):
+        raise KnownDefectError("a known defect is classified from a Verdict")
+    if scenario is None:
+        return None
+    records = load() if defects is None else defects
+    for record in records:
+        if record.scenario != scenario:
+            continue
+        if _hits(record.match, verdict, fields):
+            return record
+    return None
+
+
 def classify(
     scenario: Optional[ScenarioID],
     verdict: Verdict,
     fields: Mapping[str, Any],
     defects: Optional[Tuple[KnownDefect, ...]] = None,
 ) -> NodeStatus:
-    if not isinstance(verdict, Verdict):
-        raise KnownDefectError("a known defect is classified from a Verdict")
-    if scenario is None:
-        return NodeStatus.FAILED
-    records = load() if defects is None else defects
-    for record in records:
-        if record.scenario != scenario:
-            continue
-        if _hits(record.match, verdict, fields):
-            return NodeStatus.FAILED_KNOWN
-    return NodeStatus.FAILED
+    found = matching_defect(scenario, verdict, fields, defects)
+    return NodeStatus.FAILED if found is None else NodeStatus.FAILED_KNOWN
 
 
 def _hits(
@@ -158,5 +170,6 @@ __all__ = (
     "KnownDefect",
     "KnownDefectError",
     "classify",
+    "matching_defect",
     "load",
 )

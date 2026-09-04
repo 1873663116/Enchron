@@ -173,10 +173,7 @@ def admit_verdict(
             f"the first deviant frame {frame} is outside the {bundle_frame_count} "
             "frames the montage holds"
         )
-    if status is NodeStatus.FAILED_KNOWN and verdict.signature is None:
-        raise LedgerLockError(
-            "a known defect verdict names the signature it matched"
-        )
+
 
 
 def verdict_payload(
@@ -184,6 +181,7 @@ def verdict_payload(
     verdict: Verdict,
     status: NodeStatus,
     bundle_frame_count: int,
+    known_defect: Optional[dict] = None,
 ) -> dict:
     return {
         "nodeId": str(verdict.node),
@@ -198,6 +196,7 @@ def verdict_payload(
             "signature": (
                 None if verdict.signature is None else str(verdict.signature)
             ),
+            **({} if known_defect is None else {"knownDefect": known_defect}),
         },
     }
 

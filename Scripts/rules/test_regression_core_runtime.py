@@ -681,7 +681,34 @@ class RuntimeHappyPathTests(unittest.TestCase):
                     {**ADJUDICATION, "attribution": "operator"},
                     "attribution is not recognized",
                 ),
-                (NodeStatus.FAILED_KNOWN, ADJUDICATION, "needs its signature"),
+                (
+                    NodeStatus.FAILED_KNOWN,
+                    ADJUDICATION,
+                    "names the record that exempted it",
+                ),
+                (
+                    NodeStatus.FAILED,
+                    {
+                        **ADJUDICATION,
+                        "knownDefect": {
+                            "scenario": "scenario:gate",
+                            "match": "signature:all-black",
+                        },
+                    },
+                    "only a known defect verdict names the record",
+                ),
+                (
+                    NodeStatus.FAILED_KNOWN,
+                    {
+                        **ADJUDICATION,
+                        "signature": "signature:capture-failed",
+                        "knownDefect": {
+                            "scenario": "scenario:gate",
+                            "match": "signature:all-black",
+                        },
+                    },
+                    "matched a signature the verdict does not name",
+                ),
             )
             for status, adjudication, refusal in rejected:
                 with self.subTest(refusal=refusal):

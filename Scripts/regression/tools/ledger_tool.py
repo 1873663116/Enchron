@@ -30,7 +30,8 @@ from regression.tools.ledger_lock import (
     verdict_payload,
 )
 from regression.tools.bundle_tool import BundleError, frames_of
-from regression.tools.known_defects import classify
+from regression.rubric_compiler import FieldPredicate
+from regression.tools.known_defects import matching_defect
 from regression.tools.verdict import Verdict
 
 
@@ -55,12 +56,16 @@ def write(
                 "requested; write the failure and let the ledger decide"
             )
         current = build_run_view(writer.events)
+        exemption = None
         if status is NodeStatus.FAILED:
-            status = classify(
+            record = matching_defect(
                 scenario_of(directory, verdict.node),
                 verdict,
                 recorded_fields(current, verdict.node),
             )
+            if record is not None:
+                status = NodeStatus.FAILED_KNOWN
+                exemption = _exemption_payload(record)
         bundle_frame_count = bundled_frame_count(
             current, verdict.node, attempts(current, verdict.node) or 1
         )
@@ -69,12 +74,23 @@ def write(
         writer.append(
             EventType.VERDICT_RECORDED,
             verdict_payload(
-                str(node.lease_id), verdict, status, bundle_frame_count
+                str(node.lease_id), verdict, status, bundle_frame_count, exemption
             ),
             now_rfc3339_millis(),
             f"verdict:{verdict.node}:{attempts(current, verdict.node)}",
         )
         return projection(build_run_view(writer.events))
+
+
+def _exemption_payload(record) -> dict:
+    """The record that exempted a failure goes into the ledger beside the
+    verdict, so a replay can read which record spoke rather than inferring it
+    from a signature the verdict happened to carry."""
+    match = record.match
+    return {
+        "scenario": str(record.scenario),
+        "match": match.payload() if isinstance(match, FieldPredicate) else str(match),
+    }
 
 
 def bundled_frame_count(current: RunView, node: NodeID, attempt: int) -> int:
@@ -205,6 +221,11 @@ def _adjudication_payload(node: NodeView) -> Optional[Dict[str, Any]]:
         "firstDeviantFrame": found.first_deviant_frame,
         "regionObservation": found.region_observation,
         "signature": None if found.signature is None else str(found.signature),
+        **(
+            {}
+            if found.known_defect is None
+            else {"knownDefect": dict(found.known_defect)}
+        ),
     }
 
 

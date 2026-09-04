@@ -7,6 +7,7 @@ from enum import Enum
 import json
 import math
 import re
+from types import MappingProxyType
 from typing import Any, Dict, Iterable, Iterator, Mapping, Optional, Tuple
 
 from .capability import AllowedOperationCall, OperationGrant
@@ -508,6 +509,7 @@ class AdjudicationView:
     attribution: Attribution
     signature: Optional[SignatureID]
     bundle_frame_count: int
+    known_defect: Optional[Mapping[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -1770,6 +1772,7 @@ def _adjudication(value: Any, status: NodeStatus, location: str) -> Adjudication
         "attribution",
         "bundleFrameCount",
         "firstDeviantFrame",
+        "knownDefect",
         "regionObservation",
         "signature",
     }
@@ -1810,9 +1813,45 @@ def _adjudication(value: Any, status: NodeStatus, location: str) -> Adjudication
             parse_identifier("signature", raw_signature, location + ".signature")
         )
     )
-    if status is NodeStatus.FAILED_KNOWN and signature is None:
-        raise _transition(location, "a known defect verdict needs its signature")
-    return AdjudicationView(frame, observation, attribution, signature, frame_count)
+    exemption = _known_defect(
+        item.get("knownDefect"), status, signature, location + ".knownDefect"
+    )
+    return AdjudicationView(
+        frame, observation, attribution, signature, frame_count, exemption
+    )
+
+
+def _known_defect(
+    value: Any,
+    status: NodeStatus,
+    signature: Optional[SignatureID],
+    location: str,
+) -> Optional[Mapping[str, Any]]:
+    if status is not NodeStatus.FAILED_KNOWN:
+        if value is not None:
+            raise _transition(
+                location, "only a known defect verdict names the record that exempted it"
+            )
+        return None
+    if value is None:
+        raise _transition(
+            location, "a known defect verdict names the record that exempted it"
+        )
+    item = _mapping(value, location)
+    scenario = _text(item.get("scenario"), location + ".scenario")
+    match = item.get("match")
+    if isinstance(match, str):
+        if signature is None or str(signature) != match:
+            raise _transition(
+                location + ".match",
+                "the record matched a signature the verdict does not name",
+            )
+    elif not isinstance(match, Mapping) or set(match) != {"field", "operator", "value"}:
+        raise _transition(
+            location + ".match",
+            "an exemption matched a signature id or a field predicate",
+        )
+    return MappingProxyType({"scenario": scenario, "match": match})
 
 
 def _interrupt_lane(
