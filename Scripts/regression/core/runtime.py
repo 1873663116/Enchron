@@ -750,7 +750,7 @@ class MainRun:
             )
         current = self.view
         lease = current.lease(capability.lease_id)
-        expected = self._capability_for_lease(lease)
+        expected = self.capability_for_lease(lease)
         if capability != expected:
             raise RegressionError(
                 "runtime.capability_mismatch",
@@ -1838,7 +1838,7 @@ class MainRun:
             if item.lane is lane
         )
 
-    def _capability_for_lease(self, lease: Any) -> AssignmentCapability:
+    def capability_for_lease(self, lease: Any) -> AssignmentCapability:
         return AssignmentCapability(
             self.run_id,
             self.plan.plan_digest,

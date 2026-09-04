@@ -134,6 +134,7 @@ def _lock_payload(lock: LaneLock) -> Dict[str, Any]:
     return {
         "lane": lock.lane.value,
         "locked": lock.locked,
+        "state": lock.state.value,
         "pendingNode": None if lock.pending_node is None else str(lock.pending_node),
         "reason": lock.reason,
     }

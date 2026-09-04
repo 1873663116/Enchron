@@ -20,15 +20,17 @@ if str(SCRIPTS / "rules") not in sys.path:
 from regression.core.contracts import BoundLane
 from regression.core.expression import OracleResult
 from regression.core.runview import NodeStatus
-from regression.tools import server, session_tool
+from regression.tools import op_tool, server, session_tool
 from regression.tools.ledger_lock import LedgerLockError
+from regression.tools.op_tool import OpToolError
 from regression.tools.session_tool import SessionToolError
 
 from test_regression_ledger_lock import _both_lane_plan, run_node
-from test_regression_core_runtime import open_run
+from test_regression_core_runtime import _single_node_plan, open_run
+from test_regression_pixel_heuristics import flat, png
 
 
-PENDING_TOOLS = ("op", "bundle", "receipt")
+PENDING_TOOLS = ("bundle", "receipt")
 
 
 class RegistryTests(unittest.TestCase):
@@ -56,7 +58,6 @@ class RegistryTests(unittest.TestCase):
                 self.assertEqual((), result.images)
 
     def test_the_refusal_names_the_phase_that_fills_the_tool_in(self) -> None:
-        self.assertIn("phase 10", server.call_tool("op", {}).json["refusal"])
         self.assertIn("phase 12", server.call_tool("bundle", {}).json["refusal"])
         self.assertIn("phase 17", server.call_tool("receipt", {}).json["refusal"])
 
@@ -293,6 +294,90 @@ class LedgerToolRoutingTests(unittest.TestCase):
             server.call_tool("ledger", {"action": "close", "runDirectory": "/tmp"})
 
 
+class OpRoutingTests(unittest.TestCase):
+    def arguments(self, directory: Path) -> dict:
+        return {
+            "repositoryRoot": ".",
+            "executionInput": "execution-input.json",
+            "catalogRoot": "Regression",
+            "policy": "policy.json",
+            "reviewsRoot": "Regression/reviews",
+            "blueprint": "blueprint.json",
+            "runDirectory": str(directory),
+            "node": "node:gate",
+            "call": "call:gate-evidence",
+            "lane": "simulator",
+            "target": "SIM-UDID",
+            "sidekick": "sidekick:op",
+        }
+
+    def test_the_compiler_the_server_imports_is_the_real_one(self) -> None:
+        from regression.runctl import compile_execution_plan
+
+        self.assertIs(compile_execution_plan, server.compile_execution_plan)
+        self.assertTrue(callable(server.compile_execution_plan))
+
+    def test_op_reaches_the_compiler_with_every_input_it_was_given(self) -> None:
+        captured = {}
+
+        def compile_execution_plan(*arguments):
+            captured["arguments"] = arguments
+            raise RuntimeError("the catalog is not part of this test")
+
+        original = server.compile_execution_plan
+        server.compile_execution_plan = compile_execution_plan
+        try:
+            with TemporaryDirectory() as temporary:
+                with self.assertRaisesRegex(RuntimeError, "not part of this test"):
+                    server.call_tool("op", self.arguments(Path(temporary)))
+        finally:
+            server.compile_execution_plan = original
+
+        self.assertEqual(6, len(captured["arguments"]))
+        self.assertEqual(Path("Regression"), captured["arguments"][2])
+
+    def test_op_names_every_compile_input_it_is_missing(self) -> None:
+        with self.assertRaisesRegex(OpToolError, "repositoryRoot"):
+            server.call_tool("op", {"runDirectory": "/tmp", "node": "node:gate"})
+
+    def test_the_op_schema_requires_what_the_handler_requires(self) -> None:
+        required = set(server.OP_SCHEMA["required"])
+        self.assertTrue(set(server.OP_COMPILE_INPUTS) <= required)
+        for name in ("runDirectory", "node", "call", "lane", "target", "sidekick"):
+            with self.subTest(field=name):
+                self.assertIn(name, required)
+
+    def test_a_screenshot_returns_as_an_image_content_block(self) -> None:
+        captured = {}
+
+        def compile_execution_plan(*arguments):
+            return _single_node_plan(), None
+
+        def run(plan, run_directory, node, call, lane, target, sidekick, **rest):
+            captured["lane"] = lane
+            return op_tool.OpOutcome(
+                node=node,
+                call=call,
+                succeeded=True,
+                screenshot=png(4, 4, flat(4, 4, 90)),
+            )
+
+        original = (server.compile_execution_plan, op_tool.run)
+        server.compile_execution_plan = compile_execution_plan
+        op_tool.run = run
+        try:
+            with TemporaryDirectory() as temporary:
+                result = server.call_tool("op", self.arguments(Path(temporary)))
+        finally:
+            server.compile_execution_plan, op_tool.run = original
+
+        blocks = result.content()
+        self.assertEqual(BoundLane.SIMULATOR, captured["lane"])
+        self.assertEqual("image", blocks[-1]["type"])
+        self.assertEqual(op_tool.SCREENSHOT_MEDIA_TYPE, blocks[-1]["mimeType"])
+        self.assertEqual(1, len(result.images))
+
+
 class ProtocolTests(unittest.TestCase):
     def test_initialize_announces_the_tool_capability(self) -> None:
         reply = server._dispatch({"id": 1, "method": "initialize"})
@@ -476,7 +561,7 @@ class OnceModeTests(unittest.TestCase):
         original = sys.stdout
         sys.stdout = captured
         try:
-            code = server.main(["--once", "op"])
+            code = server.main(["--once", "bundle"])
         finally:
             sys.stdout = original
 

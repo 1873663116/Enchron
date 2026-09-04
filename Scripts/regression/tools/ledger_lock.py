@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 from regression.core.contracts import BoundLane
@@ -32,6 +33,23 @@ LOCKED_WHILE_WORKING = "this lane holds a lease that is still running its operat
 UNLOCKED = "this lane holds no lease and owes no verdict"
 
 
+class LaneLockState(Enum):
+    OPEN = "open"
+    WORKING = "working"
+    UNDETERMINED = "undetermined"
+    AWAITING_VERDICT = "awaitingVerdict"
+    INTERRUPTED = "interrupted"
+    CLOSED = "closed"
+
+
+STATES_REFUSING_AN_OPERATION = (
+    LaneLockState.UNDETERMINED,
+    LaneLockState.AWAITING_VERDICT,
+    LaneLockState.INTERRUPTED,
+    LaneLockState.CLOSED,
+)
+
+
 class LedgerLockError(ValueError):
     pass
 
@@ -39,16 +57,24 @@ class LedgerLockError(ValueError):
 @dataclass(frozen=True)
 class LaneLock:
     lane: BoundLane
-    locked: bool
+    state: LaneLockState
     pending_node: Optional[NodeID]
     reason: str
+
+    @property
+    def locked(self) -> bool:
+        return self.state is not LaneLockState.OPEN
+
+    @property
+    def refuses_an_operation(self) -> bool:
+        return self.state in STATES_REFUSING_AN_OPERATION
 
 
 def lane_lock_state(view: RunView, lane: BoundLane) -> LaneLock:
     if not isinstance(lane, BoundLane):
         raise LedgerLockError("a lane lock is read for one concrete lane")
     if view.closed:
-        return LaneLock(lane, True, None, LOCKED_BY_RUN_CLOSURE)
+        return LaneLock(lane, LaneLockState.CLOSED, None, LOCKED_BY_RUN_CLOSURE)
     nodes = {item.node_id: item for item in view.nodes}
     for lease in view.leases:
         if lease.lane is not lane:
@@ -57,15 +83,15 @@ def lane_lock_state(view: RunView, lane: BoundLane) -> LaneLock:
         if node is None or node.status is not NodeStatus.LEASED:
             continue
         if awaiting_adjudication(node, lease):
-            return LaneLock(lane, True, node.node_id, LOCKED_UNTIL_ADJUDICATED)
+            return LaneLock(lane, LaneLockState.AWAITING_VERDICT, node.node_id, LOCKED_UNTIL_ADJUDICATED)
         if view.lane(lane).interrupted:
             break
         if lease.evidence_accepted and lease.oracle_evaluations:
-            return LaneLock(lane, True, None, LOCKED_WHILE_UNDETERMINED)
-        return LaneLock(lane, True, None, LOCKED_WHILE_WORKING)
+            return LaneLock(lane, LaneLockState.UNDETERMINED, None, LOCKED_WHILE_UNDETERMINED)
+        return LaneLock(lane, LaneLockState.WORKING, None, LOCKED_WHILE_WORKING)
     if view.lane(lane).interrupted:
-        return LaneLock(lane, True, None, LOCKED_BY_INTERRUPTION)
-    return LaneLock(lane, False, None, UNLOCKED)
+        return LaneLock(lane, LaneLockState.INTERRUPTED, None, LOCKED_BY_INTERRUPTION)
+    return LaneLock(lane, LaneLockState.OPEN, None, UNLOCKED)
 
 
 def admit_verdict(
@@ -150,7 +176,9 @@ __all__ = (
     "LOCKED_WHILE_WORKING",
     "UNLOCKED",
     "LaneLock",
+    "LaneLockState",
     "LedgerLockError",
+    "STATES_REFUSING_AN_OPERATION",
     "admit_verdict",
     "lane_lock_state",
     "verdict_payload",

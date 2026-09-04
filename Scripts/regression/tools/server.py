@@ -16,10 +16,13 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from regression.core.contracts import BoundLane
+from regression.runctl import compile_execution_plan
 from regression.core.errors import RegressionError
+from regression.core.ids import CallID, NodeID, SidekickID
 from regression.core.runview import NodeStatus
-from regression.tools import ledger_tool, session_tool
+from regression.tools import ledger_tool, op_tool, session_tool
 from regression.tools.ledger_lock import LedgerLockError
+from regression.tools.op_tool import OpToolError
 from regression.tools.session_tool import SessionToolError
 from regression.tools.verdict import Attribution, Verdict, VerdictError
 
@@ -34,7 +37,7 @@ INVALID_PARAMS = -32602
 INVALID_REQUEST = -32600
 PARSE_ERROR = -32700
 
-TOOL_FAILURES = (OSError, RuntimeError, ValueError)
+TOOL_FAILURES = (Exception,)
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,42 @@ def _session(arguments: Mapping[str, Any]) -> ToolResult:
     )
 
 
+def _op(arguments: Mapping[str, Any]) -> ToolResult:
+    missing = [name for name in OP_COMPILE_INPUTS if not arguments.get(name)]
+    if missing:
+        raise OpToolError(
+            "op compiles the plan it runs against and needs " + ", ".join(missing)
+        )
+
+    plan, _ = compile_execution_plan(
+        Path(arguments["repositoryRoot"]),
+        Path(arguments["executionInput"]),
+        Path(arguments["catalogRoot"]),
+        Path(arguments["policy"]),
+        Path(arguments["reviewsRoot"]),
+        Path(arguments["blueprint"]),
+    )
+    outcome = op_tool.run(
+        plan,
+        Path(arguments["runDirectory"]),
+        NodeID(arguments["node"]),
+        CallID(arguments["call"]),
+        BoundLane(arguments["lane"]),
+        arguments["target"],
+        SidekickID(arguments["sidekick"]),
+    )
+    images = ()
+    if outcome.screenshot is not None:
+        images = (
+            ImageBlock(
+                op_tool.SCREENSHOT_MEDIA_TYPE,
+                outcome.screenshot,
+                f"{outcome.call} on {outcome.node}",
+            ),
+        )
+    return ToolResult(outcome.payload(), images)
+
+
 def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
     action = arguments.get("action")
     directory = arguments.get("runDirectory")
@@ -152,6 +191,38 @@ def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
         )
     )
 
+
+OP_COMPILE_INPUTS = (
+    "repositoryRoot",
+    "executionInput",
+    "catalogRoot",
+    "policy",
+    "reviewsRoot",
+    "blueprint",
+)
+
+OP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        **{name: {"type": "string"} for name in OP_COMPILE_INPUTS},
+        "runDirectory": {"type": "string"},
+        "node": {"type": "string"},
+        "call": {"type": "string"},
+        "lane": {"type": "string", "enum": [item.value for item in BoundLane]},
+        "target": {"type": "string"},
+        "sidekick": {"type": "string"},
+    },
+    "required": [
+        *OP_COMPILE_INPUTS,
+        "runDirectory",
+        "node",
+        "call",
+        "lane",
+        "target",
+        "sidekick",
+    ],
+    "additionalProperties": False,
+}
 
 SESSION_SCHEMA = {
     "type": "object",
@@ -212,7 +283,26 @@ def registry() -> Dict[str, ToolDefinition]:
                     ("--output-directory", {"dest": "outputDirectory"}),
                 ),
             ),
-            _pending("op", "phase 10", "the Operation call and the pixel heuristics"),
+            ToolDefinition(
+                "op",
+                "Run one Operation call and read its pixel heuristics.",
+                OP_SCHEMA,
+                _op,
+                (
+                    ("--repository-root", {"dest": "repositoryRoot"}),
+                    ("--execution-input", {"dest": "executionInput"}),
+                    ("--catalog-root", {"dest": "catalogRoot"}),
+                    ("--policy", {"dest": "policy"}),
+                    ("--reviews-root", {"dest": "reviewsRoot"}),
+                    ("--blueprint", {"dest": "blueprint"}),
+                    ("--run-directory", {"dest": "runDirectory"}),
+                    ("--node", {"dest": "node"}),
+                    ("--call", {"dest": "call"}),
+                    ("--lane", {"dest": "lane"}),
+                    ("--target", {"dest": "target"}),
+                    ("--sidekick", {"dest": "sidekick"}),
+                ),
+            ),
             _pending("bundle", "phase 12", "the anomaly bundle"),
             ToolDefinition(
                 "ledger",

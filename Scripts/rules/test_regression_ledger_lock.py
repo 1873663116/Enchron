@@ -26,6 +26,9 @@ from regression.core.plan import BothJoinNode, LaneGateDependency, MainGateBindi
 from regression.core.runview import NodeStatus, build_run_view
 from regression.tools.ledger_lock import (
     LOCKED_BY_INTERRUPTION,
+    STATES_REFUSING_AN_OPERATION,
+    LaneLock,
+    LaneLockState,
     LOCKED_BY_RUN_CLOSURE,
     LOCKED_UNTIL_ADJUDICATED,
     LOCKED_WHILE_UNDETERMINED,
@@ -247,6 +250,31 @@ class LaneLockTests(unittest.TestCase):
             lock = lane_lock_state(view, BoundLane.SIMULATOR)
             self.assertTrue(lock.locked)
             self.assertEqual(LOCKED_BY_INTERRUPTION, lock.reason)
+
+    def test_a_working_lane_is_locked_to_a_claim_but_open_to_its_own_next_call(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            main = open_run(_single_node_plan(), Path(temporary))
+            main.claim(
+                BoundLane.SIMULATOR, SidekickID("sidekick:working"), now_millis=0
+            )
+            lock = lane_lock_state(main.view, BoundLane.SIMULATOR)
+            main.close()
+
+            self.assertIs(LaneLockState.WORKING, lock.state)
+            self.assertTrue(lock.locked)
+            self.assertFalse(lock.refuses_an_operation)
+
+    def test_every_state_that_refuses_an_operation_is_also_locked(self) -> None:
+        for state in STATES_REFUSING_AN_OPERATION:
+            with self.subTest(state=state):
+                lock = LaneLock(BoundLane.SIMULATOR, state, None, "reason")
+                self.assertTrue(lock.locked)
+                self.assertTrue(lock.refuses_an_operation)
+        open_lane = LaneLock(BoundLane.SIMULATOR, LaneLockState.OPEN, None, UNLOCKED)
+        self.assertFalse(open_lane.locked)
+        self.assertFalse(open_lane.refuses_an_operation)
 
     def test_an_undetermined_lease_locks_without_owing_a_verdict(self) -> None:
         with TemporaryDirectory() as temporary:
