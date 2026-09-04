@@ -12,7 +12,7 @@ RULES = Path(__file__).resolve().parent
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-import verify_release_test_channel_absent as checker  # noqa: E402
+import verify_release_test_channel_absent as checker
 
 
 GUARDED_CHANNEL = """#if DEBUG

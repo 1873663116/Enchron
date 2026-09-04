@@ -16,7 +16,7 @@ SCRIPTS_ROOT = REPOSITORY_ROOT / "Scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-import regression.review_stage as review_stage  # noqa: E402
+import regression.review_stage as review_stage
 
 
 AUTHORITY_PATH = (

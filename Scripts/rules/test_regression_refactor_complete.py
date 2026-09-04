@@ -22,8 +22,8 @@ if str(SCRIPTS) not in sys.path:
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-from regression import completion  # noqa: E402
-from regression.completion import (  # noqa: E402
+from regression import completion
+from regression.completion import (
     CompletionError,
     CompletionPaths,
     CompletionReport,
@@ -40,19 +40,19 @@ from regression.completion import (  # noqa: E402
     verification_log_records,
     verify_completion,
 )
-from regression.core.contracts import BoundLane  # noqa: E402
-from regression.core.digest import (  # noqa: E402
+from regression.core.contracts import BoundLane
+from regression.core.digest import (
     canonical_bytes,
     canonical_digest,
     digest_bytes,
 )
-from regression.core.plan import (  # noqa: E402
+from regression.core.plan import (
     BuildIdentity,
     LaneBuildArtifact,
     ToolchainIdentity,
 )
-from regression.materialize_catalog_v2 import materialize  # noqa: E402
-import verify_regression_refactor_complete as command  # noqa: E402
+from regression.materialize_catalog_v2 import materialize
+import verify_regression_refactor_complete as command
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]

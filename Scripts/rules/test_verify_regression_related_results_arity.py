@@ -13,7 +13,7 @@ RULES = Path(__file__).resolve().parent
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-import verify_regression_related_results_arity as checker  # noqa: E402
+import verify_regression_related_results_arity as checker
 
 
 def catalog(criteria, inlined, *, bound=True):

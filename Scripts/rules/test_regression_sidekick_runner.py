@@ -19,25 +19,25 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from regression.core.capability import (  # noqa: E402
+from regression.core.capability import (
     AllowedOperationCall,
     AssignmentCapability,
     InvocationCounts,
     OperationRequest,
     authorize_operation,
 )
-from regression.core.contracts import (  # noqa: E402
+from regression.core.contracts import (
     ArtifactClass,
     BoundLane,
     OracleKind,
     StateDeclaration,
     StateRequirement,
 )
-from regression.core.digest import canonical_bytes, canonical_digest, digest_bytes  # noqa: E402
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.events import EventType, LedgerEvent, payload_value  # noqa: E402
-from regression.core.expression import ObservationRef, OracleResult  # noqa: E402
-from regression.core.ids import (  # noqa: E402
+from regression.core.digest import canonical_bytes, canonical_digest, digest_bytes
+from regression.core.errors import RegressionError
+from regression.core.events import EventType, LedgerEvent, payload_value
+from regression.core.expression import ObservationRef, OracleResult
+from regression.core.ids import (
     CallID,
     CaseKey,
     Digest,
@@ -58,7 +58,7 @@ from regression.core.ids import (  # noqa: E402
     StateSchema,
     StateTag,
 )
-from regression.core.plan import (  # noqa: E402
+from regression.core.plan import (
     AgentEnvironment,
     BuildIdentity,
     CompiledRunPlan,
@@ -75,8 +75,8 @@ from regression.core.plan import (  # noqa: E402
     ScenarioAttemptNode,
     ToolchainIdentity,
 )
-from regression.core.replay import LEDGER_FILENAME, replay as core_replay  # noqa: E402
-from regression.core.runtime import (  # noqa: E402
+from regression.core.replay import LEDGER_FILENAME, replay as core_replay
+from regression.core.runtime import (
     CriterionEvaluation,
     EvidenceReference,
     NegativeControlEvaluation,
@@ -85,15 +85,15 @@ from regression.core.runtime import (  # noqa: E402
     TRANSITION_FAULT_INTERRUPTION_PREFIX,
     replay,
 )
-from regression.core.runview import NodeStatus, RunOutcome  # noqa: E402
-from regression.core.scheduler import CriticalCost  # noqa: E402
-from regression.sidekick_runner import (  # noqa: E402
+from regression.core.runview import NodeStatus, RunOutcome
+from regression.core.scheduler import CriticalCost
+from regression.sidekick_runner import (
     MainAgentCoordinator,
     PREPARATION_TRANSCRIPT_SCHEMA,
     ResidentGrantBridge,
 )
-from verification.regression_operation_adapter import OperationContext  # noqa: E402
-from verification.regression_oracle_adapter import (  # noqa: E402
+from verification.regression_operation_adapter import OperationContext
+from verification.regression_oracle_adapter import (
     OracleDecision,
     OracleDecisionRequest,
     RegressionOracleAdapter,

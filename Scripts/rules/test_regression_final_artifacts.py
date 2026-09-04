@@ -16,14 +16,14 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from regression.completion import (  # noqa: E402
+from regression.completion import (
     CompletionError,
     artifact_record,
     validate_audit_manifest,
     validate_configuration_receipt,
 )
-from regression.core.digest import canonical_bytes, digest_bytes  # noqa: E402
-from regression.final_artifacts import (  # noqa: E402
+from regression.core.digest import canonical_bytes, digest_bytes
+from regression.final_artifacts import (
     FinalArtifactError,
     FinalArtifactInputs,
     main,

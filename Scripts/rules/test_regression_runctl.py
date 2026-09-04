@@ -20,19 +20,19 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from regression.core.contracts import ArgumentValueKind, BoundLane, FactDeclaration  # noqa: E402
-from regression.core.digest import canonical_bytes, canonical_digest  # noqa: E402
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.ids import FactID, SidekickID  # noqa: E402
-from regression.core.plan import ToolchainIdentity  # noqa: E402
-from regression.core.review import ReviewClass, ReviewUnitKind  # noqa: E402
-from regression.core.runview import RunOutcome  # noqa: E402
-from regression.execution_identity import (  # noqa: E402
+from regression.core.contracts import ArgumentValueKind, BoundLane, FactDeclaration
+from regression.core.digest import canonical_bytes, canonical_digest
+from regression.core.errors import RegressionError
+from regression.core.ids import FactID, SidekickID
+from regression.core.plan import ToolchainIdentity
+from regression.core.review import ReviewClass, ReviewUnitKind
+from regression.core.runview import RunOutcome
+from regression.execution_identity import (
     ExecutionIdentityError,
     LinkProvenance,
     PreparedLaneProvenance,
 )
-from regression.runctl import (  # noqa: E402
+from regression.runctl import (
     RunControlError,
     _execute,
     _parser,

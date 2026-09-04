@@ -13,7 +13,7 @@ RULES = Path(__file__).resolve().parent
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-import verify_regression_element_targeting as checker  # noqa: E402
+import verify_regression_element_targeting as checker
 
 
 SEEDER = 'LIBRARY_NAME = "Enchron Regression Emby"\nSERIES_NAME = "Enchron Regression Series"\n'

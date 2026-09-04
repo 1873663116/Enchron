@@ -50,7 +50,7 @@ def evaluate_numeric(expression: str) -> float:
     for node in ast.walk(tree):
         if not isinstance(node, allowed):
             raise ValueError(f"unsupported expression {expression!r}")
-    return eval(compile(tree, "<constant>", "eval"))  # noqa: S307 - literals only, guarded above
+    return eval(compile(tree, "<constant>", "eval"))
 
 
 def extract(provenance: dict, location: str) -> tuple[object | None, str | None]:

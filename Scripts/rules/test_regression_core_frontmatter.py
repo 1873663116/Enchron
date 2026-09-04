@@ -9,8 +9,8 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts"))
 
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.frontmatter import parse_frontmatter  # noqa: E402
+from regression.core.errors import RegressionError
+from regression.core.frontmatter import parse_frontmatter
 
 
 class FrontMatterTests(unittest.TestCase):

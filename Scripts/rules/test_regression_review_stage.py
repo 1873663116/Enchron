@@ -21,21 +21,21 @@ SCRIPTS_ROOT = REPOSITORY_ROOT / "Scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from regression.core.catalog import load_catalog  # noqa: E402
-from regression.core.contracts import BoundLane  # noqa: E402
-from regression.core.digest import canonical_bytes, canonical_digest  # noqa: E402
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.plan import ToolchainIdentity  # noqa: E402
-from regression.core.review import (  # noqa: E402
+from regression.core.catalog import load_catalog
+from regression.core.contracts import BoundLane
+from regression.core.digest import canonical_bytes, canonical_digest
+from regression.core.errors import RegressionError
+from regression.core.plan import ToolchainIdentity
+from regression.core.review import (
     ReviewActorIdentity,
     ReviewClass,
     ReviewReceipt,
     ReviewUsage,
     approve_review_budgets,
 )
-from regression.core.review_catalog import plan_catalog_reviews  # noqa: E402
-import regression.review_stage as review_stage  # noqa: E402
-from regression.review_io import (  # noqa: E402
+from regression.core.review_catalog import plan_catalog_reviews
+import regression.review_stage as review_stage
+from regression.review_io import (
     load_review_policy,
     load_review_report,
     receipt_path,
@@ -43,7 +43,7 @@ from regression.review_io import (  # noqa: E402
     write_review_receipt,
     write_review_report,
 )
-from regression.review_stage import (  # noqa: E402
+from regression.review_stage import (
     AGENT_ASSESSMENT_SCHEMA,
     DERIVED_HUMAN_ACTOR_ID,
     PACKET_MANIFEST_SCHEMA,

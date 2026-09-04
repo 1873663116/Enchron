@@ -14,18 +14,18 @@ CATALOG_ROOT = REPOSITORY_ROOT / "Regression"
 BLUEPRINT_PATH = REPOSITORY_ROOT / "Config/regression/catalog-v2.json"
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts"))
 
-from regression.core.applicability import ReviewedFact  # noqa: E402
-from regression.core.catalog import load_catalog  # noqa: E402
-from regression.core.compiler import analyze_catalog  # noqa: E402
-from regression.core.contracts import (  # noqa: E402
+from regression.core.applicability import ReviewedFact
+from regression.core.catalog import load_catalog
+from regression.core.compiler import analyze_catalog
+from regression.core.contracts import (
     AutomationScope,
     BoundLane,
     ContractReadiness,
     EvidenceSchemaPair,
     OperationRole,
 )
-from regression.core.digest import digest_text_file  # noqa: E402
-from regression.core.expression import (  # noqa: E402
+from regression.core.digest import digest_text_file
+from regression.core.expression import (
     AllOf,
     AnyOf,
     AtLeast,
@@ -33,7 +33,7 @@ from regression.core.expression import (  # noqa: E402
     ObservationRef,
     SuccessExpression,
 )
-from regression.core.plan import (  # noqa: E402
+from regression.core.plan import (
     AgentEnvironment,
     BuildIdentity,
     CompileRequest,
@@ -42,7 +42,7 @@ from regression.core.plan import (  # noqa: E402
     LaneBuildArtifact,
     ToolchainIdentity,
 )
-from regression.materialize_catalog_v2 import materialize  # noqa: E402
+from regression.materialize_catalog_v2 import materialize
 
 
 EXPECTED_COUNTS = {

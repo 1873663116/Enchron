@@ -17,7 +17,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from Scripts.regression.core import transition_trace  # noqa: E402
+from Scripts.regression.core import transition_trace
 
 from Scripts.verification import regression_operation_adapter as operation_adapter
 sys.modules["regression_operation_adapter"] = operation_adapter

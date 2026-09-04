@@ -80,7 +80,7 @@ except ModuleNotFoundError:
     # Only `run` needs somewhere to put a log. Resolving a selection and reading a
     # finished run are pure text, so a copy of this file carried on its own to
     # wherever a log is still does those two.
-    scratch_directory = None  # type: ignore[assignment]
+    scratch_directory = None
 
 # How far past an unterminated identifier the salvage will look for the rest of
 # it. The interleaved block in the preserved fixture is six lines; anything much
@@ -109,8 +109,6 @@ TERMINAL_VERDICT = re.compile(r"\*\* TEST (?:EXECUTE )?(SUCCEEDED|FAILED) \*\*")
 TEST_ACTIONS = ("test", "test-without-building", "build-for-testing")
 
 
-# ---------------------------------------------------------------------------
-# Enumeration
 
 
 @dataclass(frozen=True)
@@ -258,8 +256,6 @@ def enumeration_arguments(passthrough: list[str], output: Path) -> list[str]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Selection
 
 
 def selects(test_filter: str, identifier: str) -> bool:
@@ -389,8 +385,6 @@ def selected_identifiers(resolutions: list[Resolution]) -> tuple[str, ...]:
     return tuple(union)
 
 
-# ---------------------------------------------------------------------------
-# Complete target partitioning
 
 
 class PlanError(ValueError):
@@ -625,8 +619,6 @@ def read_target_invocation_plan(path: Path) -> TargetInvocationPlan:
     return plan
 
 
-# ---------------------------------------------------------------------------
-# Reading a finished run
 
 
 @dataclass
@@ -796,8 +788,6 @@ def report_verdict(verdict: RunVerdict) -> None:
     print(f"  executed, both         {verdict.executed}")
 
 
-# ---------------------------------------------------------------------------
-# Commands
 
 
 def finish(problems: list[str], notes: list[str]) -> None:

@@ -664,7 +664,7 @@ def runtime_identifier_templates(
 
         by_prefix_name: dict[str, dict[str, list[SourceLocation]]] = {}
         for template in templates:
-            prefix_name = dynamic_prefix.fullmatch(template).group(1)  # type: ignore[union-attr]
+            prefix_name = dynamic_prefix.fullmatch(template).group(1)
             if isinstance(owner, SwiftStruct):
                 prefixes = component_prefixes(owner, prefix_name, documents)
             else:
@@ -1547,7 +1547,7 @@ def encoded_inventory() -> str:
     """The inventory as it is committed. `interactiveEvidence` is a demand for a
     human decision, not a fact about the product, so it never reaches the file."""
     inventory = build_inventory()
-    for record in inventory["identifiers"]:  # type: ignore[index]
+    for record in inventory["identifiers"]:
         record.pop("interactiveEvidence", None)
     return json.dumps(inventory, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
@@ -1558,8 +1558,8 @@ def extend_matrix_baseline(
 ) -> dict[str, object]:
     expected = {
         (str(context), str(operation["id"]))
-        for operation in inventory["operations"]  # type: ignore[index]
-        for context in operation["proofContexts"]  # type: ignore[index]
+        for operation in inventory["operations"]
+        for context in operation["proofContexts"]
     }
     cells = baseline.get("cells", [])
     if not isinstance(cells, list):
@@ -1601,7 +1601,7 @@ def migrate_matrix_baseline(
     """Map the four-presentation baseline onto source-derived proof contexts."""
     operations_by_id = {
         str(operation["id"]): operation
-        for operation in inventory["operations"]  # type: ignore[index]
+        for operation in inventory["operations"]
     }
     cells = old_baseline.get("cells")
     if not isinstance(cells, list):
@@ -1780,8 +1780,8 @@ def reconcile_proof_context_baseline(
 
     expected = {
         (str(context), str(operation["id"]))
-        for operation in inventory["operations"]  # type: ignore[index]
-        for context in operation["proofContexts"]  # type: ignore[index]
+        for operation in inventory["operations"]
+        for context in operation["proofContexts"]
     }
     context_order = {context: index for index, context in enumerate(PROOF_CONTEXTS)}
     reconciled_cells = [

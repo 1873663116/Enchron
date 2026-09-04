@@ -625,7 +625,7 @@ def interval(
     end = float(end_marker["wallClock"]) - recording_start - edge_trim
     if end <= start:
         raise ValueError(f"Acoustic interval {name} is empty after edge trimming")
-    return start, end, start_marker["state"]  # type: ignore[return-value]
+    return start, end, start_marker["state"]
 
 
 def require_timeline_inputs(arguments: argparse.Namespace) -> None:

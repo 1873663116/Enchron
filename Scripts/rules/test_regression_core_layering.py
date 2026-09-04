@@ -12,7 +12,7 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts/rules"))
 
-from verify_regression_core_layering import check_tree  # noqa: E402
+from verify_regression_core_layering import check_tree
 
 
 class RegressionCoreLayeringTests(unittest.TestCase):

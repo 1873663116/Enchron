@@ -32,7 +32,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from playback_mode_matrix import (  # noqa: E402
+from playback_mode_matrix import (
     BUNDLE,
     CORE_DEVICE,
     DEVELOPER_DIR,

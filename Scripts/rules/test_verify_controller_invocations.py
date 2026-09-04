@@ -12,7 +12,7 @@ RULES = Path(__file__).resolve().parent
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-import verify_controller_invocations as checker  # noqa: E402
+import verify_controller_invocations as checker
 
 
 CONTROLLER_SOURCE = '''

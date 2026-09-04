@@ -9,15 +9,15 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts"))
 
-from regression.core.digest import (  # noqa: E402
+from regression.core.digest import (
     canonical_bytes,
     canonical_digest,
     digest_bytes,
     digest_text_file,
     normalize_text_bytes,
 )
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.ids import (  # noqa: E402
+from regression.core.errors import RegressionError
+from regression.core.ids import (
     CallID,
     CaseKey,
     EvidenceSchema,

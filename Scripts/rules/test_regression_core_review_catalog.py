@@ -14,11 +14,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT))
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts"))
 
-from regression.core.catalog import load_catalog  # noqa: E402
-from regression.core.contracts import DraftCatalog  # noqa: E402
-from regression.core.digest import canonical_digest  # noqa: E402
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.review import (  # noqa: E402
+from regression.core.catalog import load_catalog
+from regression.core.contracts import DraftCatalog
+from regression.core.digest import canonical_digest
+from regression.core.errors import RegressionError
+from regression.core.review import (
     BudgetAmount,
     BudgetUnit,
     CompletedReview,
@@ -33,12 +33,12 @@ from regression.core.review import (  # noqa: E402
     approve_review_budgets,
     complete_reviews,
 )
-from regression.core.review_catalog import (  # noqa: E402
+from regression.core.review_catalog import (
     build_catalog_review_units,
     plan_catalog_reviews,
     verify_completed_catalog_reviews,
 )
-from Scripts.rules.test_regression_core_catalog import CatalogFixture  # noqa: E402
+from Scripts.rules.test_regression_core_catalog import CatalogFixture
 
 
 def _amounts(input_tokens: int, review_items: int) -> Tuple[BudgetAmount, ...]:

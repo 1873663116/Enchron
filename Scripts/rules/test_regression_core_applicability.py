@@ -10,7 +10,7 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts"))
 
-from regression.core.applicability import (  # noqa: E402
+from regression.core.applicability import (
     AllFacts,
     AnyFact,
     Constant,
@@ -22,8 +22,8 @@ from regression.core.applicability import (  # noqa: E402
     referenced_facts,
     reviewed_facts_digest,
 )
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.ids import Digest, FactID  # noqa: E402
+from regression.core.errors import RegressionError
+from regression.core.ids import Digest, FactID
 
 
 HDR = FactID("fact:media-library-has-hdr")

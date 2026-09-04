@@ -13,8 +13,8 @@ SCRIPTS_ROOT = REPOSITORY_ROOT / "Scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from regression.completion import CompletionPaths, verify_completion  # noqa: E402
-from regression.core.digest import canonical_bytes  # noqa: E402
+from regression.completion import CompletionPaths, verify_completion
+from regression.core.digest import canonical_bytes
 
 
 def _parser() -> argparse.ArgumentParser:

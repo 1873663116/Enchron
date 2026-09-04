@@ -14,15 +14,15 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from regression.core.contracts import OracleKind  # noqa: E402
-from regression.core.digest import canonical_digest  # noqa: E402
-from regression.core.expression import OracleResult  # noqa: E402
-from regression.core.runtime import OracleDiagnostic  # noqa: E402
-from regression.oracle_agent import (  # noqa: E402
+from regression.core.contracts import OracleKind
+from regression.core.digest import canonical_digest
+from regression.core.expression import OracleResult
+from regression.core.runtime import OracleDiagnostic
+from regression.oracle_agent import (
     AgentOracleProvider,
     agent_environment,
 )
-from verification.regression_oracle_adapter import OracleDecisionRequest  # noqa: E402
+from verification.regression_oracle_adapter import OracleDecisionRequest
 
 
 class FakeRunner:

@@ -336,7 +336,7 @@ def check_reporting(controller: Path, failures: list[str]) -> None:
     with replaced_environment(environment):
         try:
             wake(arguments)
-        except Exception as error:  # noqa: BLE001 - any propagation is the point
+        except Exception as error:
             raised = error
     ok = raised is not None
     print(f"  {'ok  ' if ok else 'FAIL'} a rejected wake raised: {raised!r}")

@@ -43,8 +43,8 @@ import sys
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts/verification"))
 
-from harness import lane_partition  # noqa: E402
-import reachability_matrix as matrix  # noqa: E402
+from harness import lane_partition
+import reachability_matrix as matrix
 
 INVENTORY = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json"
 

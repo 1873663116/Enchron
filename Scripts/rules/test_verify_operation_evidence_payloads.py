@@ -11,7 +11,7 @@ RULES = Path(__file__).resolve().parent
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-import verify_operation_evidence_payloads as checker  # noqa: E402
+import verify_operation_evidence_payloads as checker
 
 
 def function(source: str) -> ast.FunctionDef:

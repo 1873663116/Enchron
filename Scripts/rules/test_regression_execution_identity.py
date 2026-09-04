@@ -19,11 +19,11 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from regression.core.contracts import BoundLane  # noqa: E402
-from regression.core.digest import canonical_bytes, digest_bytes  # noqa: E402
-from regression.core.plan import ToolchainIdentity  # noqa: E402
-import regression.execution_identity as identity  # noqa: E402
-from regression.execution_identity import (  # noqa: E402
+from regression.core.contracts import BoundLane
+from regression.core.digest import canonical_bytes, digest_bytes
+from regression.core.plan import ToolchainIdentity
+import regression.execution_identity as identity
+from regression.execution_identity import (
     ExecutionIdentityError,
     PhysicalVisionOSDevice,
     PhysicalVisionOSDeviceRegistry,
@@ -36,7 +36,7 @@ from regression.execution_identity import (  # noqa: E402
     repository_source_digest,
     write_execution_input,
 )
-from regression.runctl import _prepared_build_payload  # noqa: E402
+from regression.runctl import _prepared_build_payload
 
 
 TOOLCHAIN = ToolchainIdentity(

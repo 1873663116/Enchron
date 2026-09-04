@@ -24,13 +24,13 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from presentation_model import (  # noqa: E402
+from presentation_model import (
     CONTENT_FAMILY,
     FLAT,
     PANORAMIC,
     lands_in_main_window,
 )
-from playback_mode_matrix import (  # noqa: E402
+from playback_mode_matrix import (
     APPLY_360_MONO,
     APPLY_FLAT_MONO,
     APPLY_NATIVE_180,

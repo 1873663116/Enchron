@@ -13,7 +13,7 @@ RULES = Path(__file__).resolve().parent
 if str(RULES) not in sys.path:
     sys.path.insert(0, str(RULES))
 
-import verify_regression_fact_provenance as checker  # noqa: E402
+import verify_regression_fact_provenance as checker
 
 
 CONSTANT_SOURCE = """static const double SOME_TARGET_SECONDS = 1.0;

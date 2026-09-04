@@ -12,8 +12,8 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "Scripts"))
 
-from regression.core.catalog import load_catalog  # noqa: E402
-from regression.core.contracts import (  # noqa: E402
+from regression.core.catalog import load_catalog
+from regression.core.contracts import (
     ArtifactClass,
     AutomationScope,
     BoundLane,
@@ -25,8 +25,8 @@ from regression.core.contracts import (  # noqa: E402
     StateDeclaration,
     StateRequirement,
 )
-from regression.core.errors import RegressionError  # noqa: E402
-from regression.core.ids import CallID, CaseKey, EvidenceSchema, EvidenceType  # noqa: E402
+from regression.core.errors import RegressionError
+from regression.core.ids import CallID, CaseKey, EvidenceSchema, EvidenceType
 
 
 PROMISE_FEATURES = (
