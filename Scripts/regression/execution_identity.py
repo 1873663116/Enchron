@@ -839,6 +839,13 @@ def _shared_runtime_digest(
             if record["kind"] != "file":
                 continue
             if relative in sources:
+                read = sources[relative].encode("utf-8")
+                if hashlib.sha256(read).hexdigest() != record["sha256"]:
+                    raise ExecutionIdentityError(
+                        f"{relative} changed between the read that found its "
+                        "Operation handlers and the read the snapshot took, so "
+                        "the handler spans do not describe the file on disk"
+                    )
                 elided = _elided(sources[relative], spans[relative]).encode("utf-8")
                 record = dict(record)
                 record["bytes"] = len(elided)
@@ -861,29 +868,6 @@ def _runtime_source_paths(repository: Path) -> set[str]:
     if not candidates:
         raise ExecutionIdentityError("deterministic runtime source set is empty")
     return candidates
-
-
-def deterministic_runtime_digest(repository_root: Path) -> Digest:
-    repository = _absolute_lexical(repository_root, "repository root")
-    candidates: set[str] = set()
-    for relative_root in RUNTIME_SOURCE_ROOTS:
-        root = repository / relative_root
-        if not root.is_dir() or root.is_symlink():
-            continue
-        for path in root.rglob("*.py"):
-            if "__pycache__" not in path.parts:
-                candidates.add(path.relative_to(repository).as_posix())
-    if not candidates:
-        raise ExecutionIdentityError("deterministic runtime source set is empty")
-    records = []
-    with _directory_descriptor(repository, "repository root") as descriptor:
-        for relative in sorted(candidates):
-            record = _snapshot_record_at(descriptor, relative)
-            if record["kind"] == "file":
-                records.append(record)
-    if not records:
-        raise ExecutionIdentityError("deterministic runtime source set is empty")
-    return canonical_digest(records)
 
 
 def _clean(repository: Path) -> bool:
@@ -2546,7 +2530,6 @@ __all__ = (
     "PhysicalVisionOSDeviceRegistrySource",
     "PreparedLaneProvenance",
     "SimulatorUDIDSource",
-    "deterministic_runtime_digest",
     "operation_implementation_digests",
     "execution_input_payload",
     "freeze_execution_input",

@@ -42,6 +42,7 @@ SCREENSHOT_KEYS = ("localScreenshotPath", "screenshotPath", "screenshot")
 DESIGNATED_RESPONSE_KEYS = ("response", "record", "playbackState")
 TARGET_FILENAME = "lane-target"
 SCREENSHOT_MEDIA_TYPE = "image/png"
+MAXIMUM_SCREENSHOT_BYTES = 16 * 1024 * 1024
 NO_FIELD_PREDICATE = "no compiled field predicate"
 FIELD_ABSENT = "indeterminate"
 FIELD_HOLDS = "satisfied"
@@ -196,9 +197,13 @@ def _request(call) -> OperationRequest:
 
 
 def screenshot_bytes(outputs: Mapping[str, Any]) -> Optional[bytes]:
+    """One capture reaches the Agent's context base64 encoded. A file larger
+    than the cap is left where it is rather than spent on that context."""
     for candidate in _designated_paths(outputs) + _screenshot_paths(outputs)[::-1]:
         path = Path(candidate)
         if path.is_file() and not path.is_symlink():
+            if path.stat().st_size > MAXIMUM_SCREENSHOT_BYTES:
+                continue
             return path.read_bytes()
     return None
 

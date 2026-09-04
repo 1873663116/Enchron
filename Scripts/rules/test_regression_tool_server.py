@@ -23,6 +23,7 @@ from regression.core.runview import NodeStatus
 from regression.tools import op_tool, server, session_tool
 from regression.tools.ledger_lock import LedgerLockError
 from regression.tools.op_tool import OpToolError
+from regression.tools.receipt_tool import ReceiptToolError
 from regression.tools.session_tool import SessionToolError
 
 from test_regression_ledger_lock import _both_lane_plan, run_node
@@ -292,6 +293,81 @@ class LedgerToolRoutingTests(unittest.TestCase):
             server.call_tool("ledger", {"action": "view"})
         with self.assertRaisesRegex(LedgerLockError, "write, view, resume or reopen"):
             server.call_tool("ledger", {"action": "close", "runDirectory": "/tmp"})
+
+
+class ReceiptAndReopenRoutingTests(unittest.TestCase):
+    """The two actions phases 15 and 17 added reach the tools through the MCP
+    dispatcher, not only through their own modules."""
+
+    def failed_run(
+        self, temporary: str, result: OracleResult = OracleResult.VIOLATED
+    ) -> Path:
+        directory = Path(temporary)
+        main = open_run(_single_node_plan(), directory)
+        run_node(main, BoundLane.SIMULATOR, result, "red")
+        main.close()
+        return directory
+
+    def test_the_receipt_tool_names_what_is_still_open(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = self.failed_run(temporary)
+
+            result = server.call_tool(
+                "receipt", {"runDirectory": str(directory)}
+            )
+
+            self.assertIn("refused", result.json)
+            self.assertEqual(["node:gate"], result.json["openNodes"])
+
+    def test_the_receipt_tool_needs_a_run_directory(self) -> None:
+        with self.assertRaisesRegex(ReceiptToolError, "reads one run directory"):
+            server.call_tool("receipt", {})
+
+    def test_the_reopen_action_sends_a_node_back_through_the_dispatcher(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = self.failed_run(
+                temporary, OracleResult.INDETERMINATE
+            )
+            server.call_tool(
+                "ledger",
+                {
+                    "action": "write",
+                    "runDirectory": str(directory),
+                    "status": "indeterminate",
+                    "verdict": {
+                        "node": "node:gate",
+                        "firstDeviantFrame": None,
+                        "regionObservation": "the session never answered",
+                        "attribution": "harness",
+                        "signature": None,
+                    },
+                },
+            )
+
+            result = server.call_tool(
+                "ledger",
+                {
+                    "action": "reopen",
+                    "runDirectory": str(directory),
+                    "node": "node:gate",
+                },
+            )
+
+            node = next(
+                item for item in result.json["nodes"] if item["node"] == "node:gate"
+            )
+            self.assertEqual("pending", node["status"])
+
+    def test_a_reopen_that_names_no_node_is_refused(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = self.failed_run(temporary)
+
+            with self.assertRaisesRegex(LedgerLockError, "names the node"):
+                server.call_tool(
+                    "ledger", {"action": "reopen", "runDirectory": str(directory)}
+                )
 
 
 class FailureShapeTests(unittest.TestCase):

@@ -490,5 +490,74 @@ class AdapterBridgeTests(OpToolTestCase):
                 )
 
 
+class ScreenshotSizeTests(unittest.TestCase):
+    """A capture reaches the Agent as base64 inside one reply. A file past the
+    cap is skipped rather than spent."""
+
+    def test_a_capture_past_the_cap_is_left_where_it_is(self) -> None:
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "huge.png"
+            path.write_bytes(b"\x00" * (op_tool.MAXIMUM_SCREENSHOT_BYTES + 1))
+
+            self.assertIsNone(
+                op_tool.screenshot_bytes({"localScreenshotPath": str(path)})
+            )
+
+    def test_a_capture_within_the_cap_is_read(self) -> None:
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "small.png"
+            path.write_bytes(b"\x89PNG")
+
+            self.assertEqual(
+                b"\x89PNG",
+                op_tool.screenshot_bytes({"localScreenshotPath": str(path)}),
+            )
+
+
+class InstrumentFaultTests(unittest.TestCase):
+    """An instrument that fell over is not a product that failed. The bridge
+    turns the fault into a completed call whose outputs say which it was, so the
+    ledger and the human layer can both read the kind."""
+
+    def bridge(self, fault):
+        bridge = op_tool._AdapterBridge(object(), (), ())
+
+        class Adapter:
+            def invoke(self, operation, arguments, context):
+                raise fault
+
+        original = op_tool.RegressionOperationAdapter
+        op_tool.RegressionOperationAdapter = lambda backend: Adapter()
+        self.addCleanup(
+            setattr, op_tool, "RegressionOperationAdapter", original
+        )
+        original_backend = op_tool.ResidentOperationBackend
+        op_tool.ResidentOperationBackend = lambda: object()
+        self.addCleanup(
+            setattr, op_tool, "ResidentOperationBackend", original_backend
+        )
+        grant = types.SimpleNamespace(
+            call_id=CallID("call:one"), operation="operation:harness.ensure-session@1"
+        )
+        return bridge.invoke(grant, b"{}")
+
+    def test_an_instrument_fault_completes_the_call_naming_its_kind(self) -> None:
+        from harness.failures import InstrumentFault
+
+        result = self.bridge(
+            InstrumentFault("response-timeout", {"waited": 90})
+        )
+
+        self.assertFalse(result.succeeded)
+        self.assertIn("response-timeout", result.detail)
+        self.assertEqual("instrument", result.outputs["failure"]["class"])
+        self.assertEqual("response-timeout", result.outputs["failure"]["kind"])
+        self.assertIs(False, result.outputs["succeeded"])
+
+    def test_a_fault_of_another_class_is_not_swallowed(self) -> None:
+        with self.assertRaises(ZeroDivisionError):
+            self.bridge(ZeroDivisionError("division by zero"))
+
+
 if __name__ == "__main__":
     unittest.main()

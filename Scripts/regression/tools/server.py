@@ -117,20 +117,6 @@ def _encode(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
-def _pending(name: str, phase: str, builds: str) -> ToolDefinition:
-    refusal = f"{name} is registered but unimplemented; {phase} builds {builds}"
-
-    def handler(arguments: Mapping[str, Any]) -> ToolResult:
-        return ToolResult({"tool": name, "implemented": False, "refusal": refusal})
-
-    return ToolDefinition(
-        name,
-        refusal,
-        {"type": "object", "properties": {}, "additionalProperties": True},
-        handler,
-    )
-
-
 def _session(arguments: Mapping[str, Any]) -> ToolResult:
     return ToolResult(
         session_tool.run(
