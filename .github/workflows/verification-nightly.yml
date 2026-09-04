@@ -39,16 +39,20 @@ jobs:
           # sat in `git clean` for 48 minutes at 0.01s of CPU, reading
           # //Mac-mini.local/TestMedia over the network. Unmount whatever a
           # previous run left behind before cleaning anything.
-          mount | sed -n 's/^.* on \(.*\) ([^)]*)$/\1/p' \
-            | grep "^$REPO/" \
-            | while IFS= read -r point; do
-                # A graceful umount on a busy SMB mount blocks with no
-                # deadline of its own, which turns this step into the hang it
-                # exists to prevent. Force is the only form used here.
-                umount -f "$point" 2>/dev/null \
-                  || diskutil unmount force "$point" >/dev/null 2>&1 \
-                  || echo "could not unmount $point; the clean skips it"
-              done
+          # `grep` exits 1 when nothing is mounted under the worktree, which
+          # is the ordinary case and not a failure of this step.
+          MOUNTED=$(mount | sed -n 's/^.* on \(.*\) ([^)]*)$/\1/p' \
+            | grep "^$REPO/" || true)
+          if [ -n "$MOUNTED" ]; then
+            printf '%s\n' "$MOUNTED" | while IFS= read -r point; do
+              # A graceful umount on a busy SMB mount blocks with no deadline
+              # of its own, which turns this step into the hang it exists to
+              # prevent. Force is the only form used here.
+              umount -f "$point" 2>/dev/null \
+                || diskutil unmount force "$point" >/dev/null 2>&1 \
+                || echo "could not unmount $point; the clean skips it"
+            done
+          fi
           # The build caches are the one thing worth carrying between runs.
           # Deleting the 3.3 GB DerivedData tree the full tier leaves behind
           # takes longer on this volume than the job's whole time budget, and
