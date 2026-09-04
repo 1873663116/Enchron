@@ -82,6 +82,16 @@
       "name": "the window ornament does not have a stable rendered outer width",
       "count": 1,
       "reason": "9c48de9 deliberately replaced the fixed PlayerPanelChrome.contentSize chrome with a width-morphing panel (clusterWidth animates between ControlBar.contentWidth and expandedPlayerControlsContentWidth, PlaybackPanelExpansionTests updated to match). The check still encodes the pre-9c48de9 fixed-width contract from 7676b57; restoring panelChromeSize would revert that shipped product decision, so the gap is recorded until the contract text is redefined."
+    },
+    {
+      "name": "Modules/Playback/Views/SenseZoneVolumeRoot.swift bypasses the platform executor: @Environment(\\.dismissWindow) private var dismissWindow",
+      "count": 1,
+      "reason": "d34c3ae3 lets the SenseZone Environment volume dismiss its own window on the DEBUG request; the call sits inside #if DEBUG (SenseZoneVolumeRoot.swift:58-67) and its @Environment(\\.dismissWindow) property backs only that call, the same shape ImmersiveSpaceView's blackout probe is exempted for. Recorded as intentional, not a contract to close."
+    },
+    {
+      "name": "Modules/Playback/Views/SenseZoneVolumeRoot.swift bypasses the platform executor: dismissWindow(id: PlaybackSessionModel.senseZoneVolumeID)",
+      "count": 1,
+      "reason": "d34c3ae3 lets the SenseZone Environment volume dismiss its own window on the DEBUG request; the call sits inside #if DEBUG (SenseZoneVolumeRoot.swift:58-67) and its @Environment(\\.dismissWindow) property backs only that call, the same shape ImmersiveSpaceView's blackout probe is exempted for. Recorded as intentional, not a contract to close."
     }
   ]
 }
