@@ -46,7 +46,9 @@ Modules/Playback/Resources/Immersive_Space.reality
 # Tiers are defined in AGENTS.md.
 TestEvidence/
 
-# Coordinator ledger: watches, dispatch records, drained messages
-.claude/state/
-.claude/hooks-off
-.claude/loop-off
+# Coordinator ledger: watches, dispatch records, drained messages.
+# Agents write these beside whatever directory they are working in, so the
+# patterns match at any depth rather than only at the repository root.
+**/.claude/state/
+**/.claude/hooks-off
+**/.claude/loop-off
