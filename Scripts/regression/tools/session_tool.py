@@ -163,7 +163,9 @@ def _forward(call: Callable[[Any], Mapping[str, Any]], argv: list) -> Dict[str, 
     try:
         return dict(call(arguments))
     except CONTROLLER_FAILURES as error:
-        return {"success": False, "error": str(error)}
+        raise SessionToolError(
+            f"the controller failed to serve this session stage: {error}"
+        ) from error
 
 
 __all__ = (

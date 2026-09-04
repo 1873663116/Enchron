@@ -861,6 +861,14 @@ class NarrowedEnvironmentTests(unittest.TestCase):
             before.narrowed([second]).digest, after.narrowed([second]).digest
         )
 
+    def test_a_node_that_calls_no_operation_keeps_the_whole_identity(self) -> None:
+        identity = self.identity_for(one="1", two="2")
+
+        self.assertEqual(
+            dict(identity.operation_digests),
+            dict(identity.narrowed(()).operation_digests),
+        )
+
     def test_an_operation_with_no_frozen_digest_is_refused(self) -> None:
         whole = self.identity_for(one="1")
 

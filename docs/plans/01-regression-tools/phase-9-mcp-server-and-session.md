@@ -12,6 +12,8 @@
 - 新增 `Scripts/regression/tools/session_tool.py`。`ensure` 与 `halt` 两个 stage 转发到 `Scripts/verification/interactive_visionpro_ui.py` 的 `ensure_session` 与 `halt_session`，原样返回其 stage 字段。转发而不是重实现：会话建立的单 runner 约束、DerivedData 复用与进程作用域解析都在控制器里，复制一份会分叉。
 - 新增 `Scripts/rules/test_regression_tool_server.py`。覆盖：五个工具都在注册表里、未实现工具返回拒绝而不是异常、`session ensure` 与 `halt` 的参数面、image 内容块的编码形状。
 
+本阶段定的「控制器失败返回一个 `success: false` 文档而不是异常」在 2026-09-05 改掉了。那之后 `op`、`ledger`、`receipt` 三个工具都以抛出拒绝的方式作答，`session` 是唯一一个把失败编码进返回值的，无人值守的 Agent 因此要同时认三种失败形状：`refused` 对象、`success: false` 对象、`isError: true`。`_forward` 现在抛 `SessionToolError`，MCP 层统一回 `isError: true`；Agent 拿到的仍是控制器写的那句话。
+
 `Config/harness_primitives_allowlist.json` 不动。`harness_primitives_gate.py` 的白名单是一张豁免表：列进去的文件从此不再被扫描（`harness_primitives_gate.py:34-42`、`:105-116`）。`server.py` 与 `session_tool.py` 自己不碰 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic` 与 `devicectl`——设备驱动全在 `interactive_visionpro_ui.py` 内，那个文件已按 basename 豁免。给一个不需要豁免的文件登记豁免，等于永久关掉它头上的那盏灯。转发时用 `parse_arguments(argv)` 传字符串 argv，而不是写 `ready_timeout=`，正是为了不触发那条字面量规则。
 
 三个新文件都不得含注释。

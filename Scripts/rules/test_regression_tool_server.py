@@ -213,21 +213,48 @@ class SessionParameterTests(unittest.TestCase):
         arguments, _ = self.forwarded(device="--not-a-device")
         self.assertEqual("--not-a-device", arguments.device)
 
-    def test_a_controller_failure_becomes_a_document_not_an_exception(self) -> None:
+    def test_a_controller_failure_refuses_the_way_every_other_tool_refuses(
+        self,
+    ) -> None:
         def explode(arguments):
             raise RuntimeError("the controller target is not paired")
 
         original = session_tool.ensure_session
         session_tool.ensure_session = explode
-        try:
-            result = session_tool.run(
+        self.addCleanup(setattr, session_tool, "ensure_session", original)
+
+        with self.assertRaisesRegex(SessionToolError, "not paired"):
+            session_tool.run(
                 session_tool.AGENT_MODE, "udid", session_tool.ENSURE_STAGE
             )
-        finally:
-            session_tool.ensure_session = original
 
-        self.assertFalse(result["success"])
-        self.assertIn("not paired", result["error"])
+    def test_a_session_refusal_reaches_the_agent_as_one_error_shape(self) -> None:
+        def explode(arguments):
+            raise RuntimeError("the controller target is not paired")
+
+        original = session_tool.ensure_session
+        session_tool.ensure_session = explode
+        self.addCleanup(setattr, session_tool, "ensure_session", original)
+
+        reply = server._dispatch(
+            {
+                "id": 9,
+                "method": "tools/call",
+                "params": {
+                    "name": "session",
+                    "arguments": {
+                        "mode": "agent",
+                        "device": "udid",
+                        "stage": "ensure",
+                    },
+                },
+            }
+        )
+
+        self.assertTrue(reply["result"]["isError"])
+        text = reply["result"]["content"][0]["text"]
+        self.assertIn("not paired", text)
+        self.assertNotIn(server.UNEXPECTED_FAILURE, text)
 
     def test_the_controller_still_answers_every_stage_the_tool_forwards(self) -> None:
         source = (

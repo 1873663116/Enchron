@@ -314,5 +314,24 @@ class DeferrableTests(unittest.TestCase):
             )
 
 
+class ForwardShapeTests(unittest.TestCase):
+    """A controller that fell over refuses the way every other tool refuses. An
+    Agent reading the reply overnight reads one shape, not three."""
+
+    def test_a_controller_failure_refuses_rather_than_returning_a_payload(
+        self,
+    ) -> None:
+        import regression.tools.session_tool as tool
+
+        original = tool.ensure_session
+        tool.ensure_session = lambda arguments: (_ for _ in ()).throw(
+            RuntimeError("the simulator is not booted")
+        )
+        self.addCleanup(setattr, tool, "ensure_session", original)
+
+        with self.assertRaisesRegex(SessionToolError, "not booted"):
+            tool.run("agent", "SIM-UDID", "ensure")
+
+
 if __name__ == "__main__":
     unittest.main()
