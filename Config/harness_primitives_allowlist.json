@@ -1,7 +1,6 @@
 [
   "Scripts/regression/completion.py",
   "Scripts/regression/execution_identity.py",
-  "Scripts/regression/oracle_agent.py",
   "Scripts/regression/runctl.py",
   "Scripts/verification/analyze_acoustic_timeline.py",
   "Scripts/verification/analyze_real_video_aac_diagnostic.py",

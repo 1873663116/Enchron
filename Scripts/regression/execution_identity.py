@@ -29,7 +29,7 @@ from regression.core.plan import (
     LaneBuildArtifact,
     ToolchainIdentity,
 )
-from regression.oracle_agent import agent_environment
+from regression.agent_identity import agent_environment
 
 
 INPUT_SCHEMA = "enchron.regression.execution-input"
