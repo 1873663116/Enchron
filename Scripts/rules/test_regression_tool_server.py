@@ -30,7 +30,7 @@ from test_regression_core_runtime import _single_node_plan, open_run
 from test_regression_raster import flat, png
 
 
-PENDING_TOOLS = ("receipt",)
+PENDING_TOOLS = ()
 
 
 class RegistryTests(unittest.TestCase):
@@ -57,8 +57,8 @@ class RegistryTests(unittest.TestCase):
                 self.assertIn("unimplemented", result.json["refusal"])
                 self.assertEqual((), result.images)
 
-    def test_the_refusal_names_the_phase_that_fills_the_tool_in(self) -> None:
-        self.assertIn("phase 17", server.call_tool("receipt", {}).json["refusal"])
+    def test_every_registered_tool_is_implemented(self) -> None:
+        self.assertEqual((), PENDING_TOOLS)
 
     def test_an_unregistered_name_is_refused(self) -> None:
         with self.assertRaisesRegex(ValueError, "is not a registered tool"):
@@ -101,11 +101,11 @@ class SessionParameterTests(unittest.TestCase):
         with self.assertRaisesRegex(SessionToolError, "ensure or halt stage"):
             session_tool.run(session_tool.AGENT_MODE, "udid", "restart")
 
-    def test_human_mode_refuses_and_names_its_phase(self) -> None:
-        with self.assertRaisesRegex(SessionToolError, "phase 16"):
-            session_tool.run(
-                session_tool.HUMAN_MODE, "udid", session_tool.ENSURE_STAGE
-            )
+    def test_human_mode_takes_the_same_stages_as_agent_mode(self) -> None:
+        with self.assertRaisesRegex(SessionToolError, "ensure or halt stage"):
+            session_tool.run(session_tool.HUMAN_MODE, "udid", "restart")
+        with self.assertRaisesRegex(SessionToolError, "needs the device"):
+            session_tool.run(session_tool.HUMAN_MODE, "", session_tool.ENSURE_STAGE)
 
     def test_a_session_without_its_device_is_refused(self) -> None:
         with self.assertRaisesRegex(SessionToolError, "needs the device"):
@@ -555,20 +555,17 @@ class OnceModeTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn("run directory", json.loads(captured.getvalue())["error"])
 
-    def test_once_on_a_pending_tool_reports_the_refusal_as_content(self) -> None:
+    def test_once_on_a_tool_that_refuses_reports_it_as_an_error(self) -> None:
         captured = io.StringIO()
         original = sys.stdout
         sys.stdout = captured
         try:
-            code = server.main(["--once", "receipt"])
+            code = server.main(["--once", "ledger"])
         finally:
             sys.stdout = original
 
-        self.assertEqual(0, code)
-        payload = json.loads(captured.getvalue())
-        self.assertFalse(
-            json.loads(payload["content"][0]["text"])["implemented"]
-        )
+        self.assertEqual(1, code)
+        self.assertIn("run directory", json.loads(captured.getvalue())["error"])
 
 
 class BundleRegistrationTests(unittest.TestCase):

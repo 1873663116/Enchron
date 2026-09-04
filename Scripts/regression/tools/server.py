@@ -20,7 +20,13 @@ from regression.runctl import compile_execution_plan
 from regression.core.errors import RegressionError
 from regression.core.ids import CallID, NodeID, SidekickID
 from regression.core.runview import NodeStatus
-from regression.tools import bundle_tool, ledger_tool, op_tool, session_tool
+from regression.tools import (
+    bundle_tool,
+    ledger_tool,
+    op_tool,
+    receipt_tool,
+    session_tool,
+)
 from regression.tools.ledger_lock import LedgerLockError
 from regression.tools.op_tool import OpToolError
 from regression.tools.session_tool import SessionToolError
@@ -173,6 +179,18 @@ def _bundle(arguments: Mapping[str, Any]) -> ToolResult:
     return ToolResult(outcome.payload(), images)
 
 
+def _receipt(arguments: Mapping[str, Any]) -> ToolResult:
+    directory = arguments.get("runDirectory")
+    if not isinstance(directory, str) or not directory:
+        raise receipt_tool.ReceiptToolError("receipt reads one run directory")
+    human = arguments.get("humanReceipt")
+    return ToolResult(
+        receipt_tool.run(
+            Path(directory), None if human is None else Path(human)
+        )
+    )
+
+
 def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
     action = arguments.get("action")
     directory = arguments.get("runDirectory")
@@ -242,6 +260,16 @@ OP_SCHEMA = {
         "target",
         "sidekick",
     ],
+    "additionalProperties": False,
+}
+
+RECEIPT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "runDirectory": {"type": "string"},
+        "humanReceipt": {"type": ["string", "null"]},
+    },
+    "required": ["runDirectory"],
     "additionalProperties": False,
 }
 
@@ -372,7 +400,16 @@ def registry() -> Dict[str, ToolDefinition]:
                     ("--verdict-json", {"dest": "verdict", "type": json.loads}),
                 ),
             ),
-            _pending("receipt", "phase 17", "the merge receipt"),
+            ToolDefinition(
+                "receipt",
+                "Close the run into a merge receipt, or name what is still open.",
+                RECEIPT_SCHEMA,
+                _receipt,
+                (
+                    ("--run-directory", {"dest": "runDirectory"}),
+                    ("--human-receipt", {"dest": "humanReceipt"}),
+                ),
+            ),
         )
     }
 

@@ -90,10 +90,17 @@ class Attribution(Enum):
 
 MAX_NODE_ATTEMPTS = 2
 
+HARNESS_TIMEOUT_KINDS = frozenset(
+    {"transport-timeout", "wait-expired", "provisional-budget-expired"}
+)
+
 ADJUDICATED_NODE_STATUSES = {
     OracleResult.SATISFIED: (NodeStatus.PASSED,),
     OracleResult.VIOLATED: (NodeStatus.FAILED, NodeStatus.FAILED_KNOWN),
-    OracleResult.INDETERMINATE: (NodeStatus.INDETERMINATE,),
+    OracleResult.INDETERMINATE: (
+        NodeStatus.INDETERMINATE,
+        NodeStatus.DEFERRED_HUMAN,
+    ),
 }
 
 
@@ -1588,6 +1595,14 @@ def _record_verdict(
             raise _transition(
                 location, "node verdict contradicts the Oracle result of its own lease"
             )
+        if status is NodeStatus.DEFERRED_HUMAN and not deferrable_from(
+            node_id, leases
+        ):
+            raise _transition(
+                location,
+                "a node reaches the human layer only after two consecutive "
+                "attempts that both timed out on the harness",
+            )
         if (
             settled is None
             and lease.oracle_evaluations
@@ -1649,6 +1664,35 @@ def _record_verdict(
         status=status,
         failure_ancestors=tuple(sorted(set(ancestors), key=str)),
         adjudication=adjudication,
+    )
+
+
+def timed_out_on_the_harness(lease: LeaseView) -> bool:
+    for invocation in lease.invocations:
+        if not invocation.completed or invocation.outputs is None:
+            continue
+        failure = invocation.outputs.payload().get("failure")
+        if not isinstance(failure, Mapping):
+            continue
+        if (
+            failure.get("class") == "instrument"
+            and failure.get("kind") in HARNESS_TIMEOUT_KINDS
+        ):
+            return True
+    return False
+
+
+def deferrable_from(
+    node_id: NodeID, leases: Mapping[LeaseID, LeaseView]
+) -> bool:
+    owned = sorted(
+        (item for item in leases.values() if item.node_id == node_id),
+        key=lambda item: item.claim_sequence,
+    )
+    if len(owned) < MAX_NODE_ATTEMPTS:
+        return False
+    return all(
+        timed_out_on_the_harness(item) for item in owned[-MAX_NODE_ATTEMPTS:]
     )
 
 

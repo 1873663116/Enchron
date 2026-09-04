@@ -15,6 +15,7 @@ from regression.core.runview import (
     RunView,
     attempts_of,
     awaiting_adjudication,
+    deferrable_from,
     current_lease,
     reopen_refusal,
     settled_oracle_result,
@@ -106,6 +107,10 @@ def attempts(view: RunView, node: NodeID) -> int:
     return sum(1 for item in view.leases if item.node_id == node)
 
 
+def deferrable(view: RunView, node: NodeID) -> bool:
+    return deferrable_from(node, {item.lease_id: item for item in view.leases})
+
+
 def admit_reopen(view: RunView, node: NodeID) -> None:
     found = next((item for item in view.nodes if item.node_id == node), None)
     refusal = reopen_refusal(
@@ -147,6 +152,11 @@ def admit_verdict(
         raise LedgerLockError(
             f"the Oracle result for {verdict.node} was {settled.value}, which the "
             f"ledger closes as {allowed}, not as {status.value}"
+        )
+    if status is NodeStatus.DEFERRED_HUMAN and not deferrable(view, verdict.node):
+        raise LedgerLockError(
+            f"{verdict.node} reaches the human layer only after two consecutive "
+            "attempts that both timed out on the harness"
         )
     if not verdict.region_observation.strip():
         raise LedgerLockError(
@@ -202,6 +212,7 @@ __all__ = (
     "admit_reopen",
     "admit_verdict",
     "attempts",
+    "deferrable",
     "lane_lock_state",
     "verdict_payload",
 )

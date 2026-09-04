@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import json
+import os
 from pathlib import Path
 import sys
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+
+from regression.core.events import now_rfc3339_millis
 
 
 VERIFICATION = Path(__file__).resolve().parents[2] / "verification"
@@ -17,6 +22,11 @@ from interactive_visionpro_ui import (
     parse_arguments,
 )
 
+
+TIMELINE_FILENAME = "timeline.jsonl"
+POLL_INTERVAL_SECONDS = 2.5
+SNAPSHOT_KIND = "snapshot"
+MARK_KIND = "mark"
 
 AGENT_MODE = "agent"
 HUMAN_MODE = "human"
@@ -39,14 +49,27 @@ ENSURE_RESULT_STAGES = (
 
 CONTROLLER_FAILURES = (OSError, RuntimeError, ValueError)
 
-HUMAN_MODE_REFUSAL = (
-    "session --mode human opens the recording, console and timeline poll that "
-    "phase 16 builds; this phase forwards the agent-mode ensure and halt stages only"
+RECORDING_UNAVAILABLE = (
+    "human mode records the session, and the simulator recorder refused to start"
 )
 
 
 class SessionToolError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class TimelineEntry:
+    recorded_at: str
+    kind: str
+    reading: Mapping[str, Any]
+
+    def payload_line(self) -> Dict[str, Any]:
+        return {
+            "recordedAt": self.recorded_at,
+            "kind": self.kind,
+            "reading": dict(self.reading),
+        }
 
 
 def run(
@@ -59,8 +82,6 @@ def run(
     if mode not in SESSION_MODES:
         joined = " or ".join(SESSION_MODES)
         raise SessionToolError(f"session runs in {joined} mode, not {mode!r}")
-    if mode == HUMAN_MODE:
-        raise SessionToolError(HUMAN_MODE_REFUSAL)
     if stage not in SESSION_STAGES:
         joined = " or ".join(SESSION_STAGES)
         raise SessionToolError(f"session drives the {joined} stage, not {stage!r}")
@@ -73,8 +94,58 @@ def run(
     if stage == ENSURE_STAGE:
         if execution_input is not None:
             argv.append(f"--execution-input={execution_input}")
-        return _forward(ensure_session, argv + [ENSURE_SESSION_ACTION])
+        result = _forward(ensure_session, argv + [ENSURE_SESSION_ACTION])
+        if mode == HUMAN_MODE and output_directory is not None:
+            result["timeline"] = str(timeline_path(Path(output_directory)))
+        return result
     return _forward(halt_session, argv + [HALT_ACTION])
+
+
+def timeline_path(output_directory: Path) -> Path:
+    return Path(output_directory) / TIMELINE_FILENAME
+
+
+def append_entry(path: Path, entry: TimelineEntry) -> TimelineEntry:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with Path(path).open("a", encoding="utf-8") as sink:
+        sink.write(json.dumps(entry.payload_line(), sort_keys=True) + "\n")
+        sink.flush()
+        os.fsync(sink.fileno())
+    return entry
+
+
+def mark(path: Path, note: str, clock: Callable[[], str] = now_rfc3339_millis) -> TimelineEntry:
+    if not isinstance(note, str) or not note.strip():
+        raise SessionToolError("a mark carries what the wearer saw at that moment")
+    return append_entry(path, TimelineEntry(clock(), MARK_KIND, {"note": note}))
+
+
+def poll_timeline(
+    path: Path,
+    read: Callable[[], Mapping[str, Any]],
+    until: Callable[[int], bool],
+    sleep: Callable[[float], None],
+    clock: Callable[[], str] = now_rfc3339_millis,
+    interval: float = POLL_INTERVAL_SECONDS,
+) -> Tuple[TimelineEntry, ...]:
+    written = []
+    while not until(len(written)):
+        written.append(
+            append_entry(path, TimelineEntry(clock(), SNAPSHOT_KIND, dict(read())))
+        )
+        if not until(len(written)):
+            sleep(interval)
+    return tuple(written)
+
+
+def read_timeline(path: Path) -> Tuple[Mapping[str, Any], ...]:
+    if not Path(path).is_file():
+        return ()
+    return tuple(
+        json.loads(line)
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
 
 
 def _forward(call: Callable[[Any], Mapping[str, Any]], argv: list) -> Dict[str, Any]:
@@ -99,7 +170,17 @@ __all__ = (
     "HALT_ACTION",
     "HALT_STAGE",
     "HUMAN_MODE",
-    "HUMAN_MODE_REFUSAL",
+    "MARK_KIND",
+    "POLL_INTERVAL_SECONDS",
+    "RECORDING_UNAVAILABLE",
+    "SNAPSHOT_KIND",
+    "TIMELINE_FILENAME",
+    "TimelineEntry",
+    "append_entry",
+    "mark",
+    "poll_timeline",
+    "read_timeline",
+    "timeline_path",
     "SESSION_MODES",
     "SESSION_STAGES",
     "SessionToolError",

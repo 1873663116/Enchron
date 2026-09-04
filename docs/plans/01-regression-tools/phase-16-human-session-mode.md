@@ -38,6 +38,17 @@ session --mode human --device <UDID> --stage ensure --checklist <deferred 节点
 {at, source: snapshot|controlPlane|playbackCore|mark, payload}
 ```
 
+## 与原清单的偏离
+
+六处：
+
+- **仪器故障的 kind 原本根本不进账本。** `_harness_recovered` 在 `Halt` 时把 `InstrumentFault` 原样抛出（`regression_operation_adapter.py:82-84`），`op_tool` 让它逃逸成工具错误，因此调用输出里只有产品失败带 kind，仪器失败连一条记录都没有。`deferrable` 于是无据可依。现在 `op_tool` 捕获它，把 `failure.class=instrument` 与 kind 记进该次调用的 outputs：一次尝试失败在仪器上，这是关于这次 attempt 的事实，本来就该进账本。
+- **超时类的取值按本仓库的实际清单对账。** 原清单写的 `response-timeout` 不在 `harness/CONTRACT.md:36` 的仪器故障 kind 里；`readyTimeout` 是 `ensure-session` 的一个阶段，压根到不了 op 调用。实际可用的超时类是 `transport-timeout`、`wait-expired`、`provisional-budget-expired`，`HARNESS_TIMEOUT_KINDS` 就是这三个。
+- **入口条件在回放层执行，工具层同一条规则再拒一次。** `deferrable_from` 长在 `runview.py`，`_record_verdict` 用它拦住任何不满足条件的 `deferred(human)`，因此一份手写的账本回放不过去——这是阶段 8 定下的原则。`admit_verdict` 用同一个函数在写入前给出可读的拒绝理由，排在 Oracle 结果检查之后：一个 `Violated` 的节点该听到的是「Oracle 结果是 violated」，而不是人类层的门槛。
+- **重开机制随阶段 15 落地。** 「同一节点连续两次 attempt」的前提是节点能跑第二次，那部分与已知缺陷账本同批提交。
+- **`poll_timeline` 的休眠由调用方传入，没有默认值。** `Scripts/regression/tools/` 禁用 `time.sleep`，`harness_primitives_gate` 在门禁上抓到了这一行。这条规则是对的：`tools/` 里的工具不该自己决定睡多久。休眠成为一个必填参数，console 传它进来。
+- **`session --mode human` 的时间线可测，佩戴者循环未验证。** `poll_timeline`、`mark`、`read_timeline` 接受注入的读数、时钟与休眠，因此每行是合法 JSON、时间戳单调、`mark` 落在它之后的读数之前这三条都由自测钉住。真正驱动佩戴者会话的那半部分需要一台真机和一个人，本次没有跑过，不声称跑过。
+
 ## 阶段验证方案
 
 静态：

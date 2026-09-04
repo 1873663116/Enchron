@@ -27,6 +27,7 @@ VERIFICATION = Path(__file__).resolve().parents[2] / "verification"
 if str(VERIFICATION) not in sys.path:
     sys.path.insert(0, str(VERIFICATION))
 
+from harness.failures import InstrumentFault
 from regression_operation_adapter import (
     OperationContext,
     RegressionOperationAdapter,
@@ -108,7 +109,24 @@ class _AdapterBridge:
     def invoke(self, grant: OperationGrant, arguments_bytes: bytes) -> OperationResult:
         arguments = decode_json_bytes(arguments_bytes, str(grant.call_id))
         adapter = RegressionOperationAdapter(ResidentOperationBackend())
-        self.invocation = adapter.invoke(str(grant.operation), arguments, self._context)
+        try:
+            self.invocation = adapter.invoke(
+                str(grant.operation), arguments, self._context
+            )
+        except InstrumentFault as fault:
+            return OperationResult(
+                False,
+                (),
+                f"instrument fault {fault.kind}",
+                {
+                    "succeeded": False,
+                    "failure": {
+                        "class": "instrument",
+                        "kind": fault.kind,
+                        "evidence": dict(fault.evidence),
+                    },
+                },
+            )
         outputs = dict(self.invocation.result)
         succeeded = outputs.get("succeeded")
         if type(succeeded) is not bool:

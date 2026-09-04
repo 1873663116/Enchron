@@ -33,6 +33,15 @@ receipt --run-directory [--human-receipt <path>]
   -> 收据 | {refused: 理由, openNodes: [NodeID]}
 ```
 
+## 与原清单的偏离
+
+四处：
+
+- **`seal` 的入参展开为 checklist、build digest、device、recording digest 与逐条归因。** 原清单写的是 `seal(checklist, timeline, recording, attributions)`，但收据要封的是 `buildDigest` 与 `deviceId`，时间线本身不进收据——它是 Agent 做归因时读的材料，归因的结果才进收据。
+- **`build_checklist` 接受扩大范围，并拒绝不属于这次 run 的节点。** 人可以把清单扩大，这是设计里写好的；扩到一个这次 run 根本没有的节点上则是笔误，直接拒绝而不是让它进 digest。
+- **`receipt_tool` 只读账本与一份可选的人类收据。** 关闭判据：`passed`、`failed`、`failed(known)`、`blockedBy` 自行关闭，`deferred(human)` 只有被人类收据的归因覆盖才算关闭，其余（`pending`、`leased`、`indeterminate`）一律列进 `openNodes`。
+- **`failed(known)` 不阻塞收据这一条，由阶段 15 的结局阶梯与本阶段的关闭判据两处共同保证。** 阶段 15 修掉了 `finalize` 把 `failed(known)` 判成 `INTERRUPTED` 的缺口；本阶段的 `CLOSED_WITHOUT_A_HUMAN` 把它列为自行关闭。两处都有自测。
+
 ## 阶段验证方案
 
 静态：
