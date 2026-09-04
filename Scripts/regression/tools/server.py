@@ -20,7 +20,7 @@ from regression.runctl import compile_execution_plan
 from regression.core.errors import RegressionError
 from regression.core.ids import CallID, NodeID, SidekickID
 from regression.core.runview import NodeStatus
-from regression.tools import ledger_tool, op_tool, session_tool
+from regression.tools import bundle_tool, ledger_tool, op_tool, session_tool
 from regression.tools.ledger_lock import LedgerLockError
 from regression.tools.op_tool import OpToolError
 from regression.tools.session_tool import SessionToolError
@@ -157,6 +157,22 @@ def _op(arguments: Mapping[str, Any]) -> ToolResult:
     return ToolResult(outcome.payload(), images)
 
 
+def _bundle(arguments: Mapping[str, Any]) -> ToolResult:
+    directory = arguments.get("runDirectory")
+    if not isinstance(directory, str) or not directory:
+        raise bundle_tool.BundleError("bundle reads one run directory")
+    outcome = bundle_tool.run(
+        Path(directory),
+        NodeID(arguments.get("node")),
+        arguments.get("attempt"),
+    )
+    images = tuple(
+        ImageBlock(op_tool.SCREENSHOT_MEDIA_TYPE, item.png, item.caption)
+        for item in outcome.images()
+    )
+    return ToolResult(outcome.payload(), images)
+
+
 def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
     action = arguments.get("action")
     directory = arguments.get("runDirectory")
@@ -221,6 +237,17 @@ OP_SCHEMA = {
         "target",
         "sidekick",
     ],
+    "additionalProperties": False,
+}
+
+BUNDLE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "runDirectory": {"type": "string"},
+        "node": {"type": "string"},
+        "attempt": {"type": "integer", "minimum": 1},
+    },
+    "required": ["runDirectory", "node", "attempt"],
     "additionalProperties": False,
 }
 
@@ -303,7 +330,17 @@ def registry() -> Dict[str, ToolDefinition]:
                     ("--sidekick", {"dest": "sidekick"}),
                 ),
             ),
-            _pending("bundle", "phase 12", "the anomaly bundle"),
+            ToolDefinition(
+                "bundle",
+                "Assemble the anomaly bundle one attribution reads.",
+                BUNDLE_SCHEMA,
+                _bundle,
+                (
+                    ("--run-directory", {"dest": "runDirectory"}),
+                    ("--node", {"dest": "node"}),
+                    ("--attempt", {"dest": "attempt", "type": int}),
+                ),
+            ),
             ToolDefinition(
                 "ledger",
                 "Write a verdict, read the run view, or read the resume points.",

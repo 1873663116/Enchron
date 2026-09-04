@@ -170,7 +170,7 @@ def _request(call) -> OperationRequest:
     )
 
 
-def _screenshot(outputs: Mapping[str, Any]) -> Optional[bytes]:
+def screenshot_bytes(outputs: Mapping[str, Any]) -> Optional[bytes]:
     for candidate in _designated_paths(outputs) + _screenshot_paths(outputs)[::-1]:
         path = Path(candidate)
         if path.is_file() and not path.is_symlink():
@@ -296,7 +296,7 @@ def run(
         )
         result = main.invoke_operation(grant, grant.arguments_bytes, bridge)
         outputs = dict(result.outputs.payload())
-        screenshot = _screenshot(outputs)
+        screenshot = screenshot_bytes(outputs)
         return OpOutcome(
             view.node_id,
             current.call_id,
@@ -389,4 +389,5 @@ __all__ = (
     "field_predicates",
     "pixel_signatures",
     "run",
+    "screenshot_bytes",
 )

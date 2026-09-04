@@ -30,7 +30,7 @@ from test_regression_core_runtime import _single_node_plan, open_run
 from test_regression_raster import flat, png
 
 
-PENDING_TOOLS = ("bundle", "receipt")
+PENDING_TOOLS = ("receipt",)
 
 
 class RegistryTests(unittest.TestCase):
@@ -58,7 +58,6 @@ class RegistryTests(unittest.TestCase):
                 self.assertEqual((), result.images)
 
     def test_the_refusal_names_the_phase_that_fills_the_tool_in(self) -> None:
-        self.assertIn("phase 12", server.call_tool("bundle", {}).json["refusal"])
         self.assertIn("phase 17", server.call_tool("receipt", {}).json["refusal"])
 
     def test_an_unregistered_name_is_refused(self) -> None:
@@ -561,7 +560,7 @@ class OnceModeTests(unittest.TestCase):
         original = sys.stdout
         sys.stdout = captured
         try:
-            code = server.main(["--once", "bundle"])
+            code = server.main(["--once", "receipt"])
         finally:
             sys.stdout = original
 
@@ -570,6 +569,50 @@ class OnceModeTests(unittest.TestCase):
         self.assertFalse(
             json.loads(payload["content"][0]["text"])["implemented"]
         )
+
+
+class BundleRegistrationTests(unittest.TestCase):
+    """The anomaly bundle reaches an Agent as image content blocks. A payload
+    that counts images the reply does not carry would describe evidence nobody
+    can look at."""
+
+    def test_the_bundle_schema_requires_the_run_the_node_and_the_attempt(self) -> None:
+        schema = server.registry()["bundle"].descriptor()["inputSchema"]
+
+        self.assertEqual(
+            {"runDirectory", "node", "attempt"}, set(schema["required"])
+        )
+        self.assertEqual("integer", schema["properties"]["attempt"]["type"])
+        self.assertFalse(schema["additionalProperties"])
+
+    def test_a_bundle_call_without_a_run_directory_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "one run directory"):
+            server.call_tool("bundle", {"node": "node:gate", "attempt": 1})
+
+    def test_every_image_the_payload_counts_rides_with_the_reply(self) -> None:
+        class Image:
+            caption = "after call:step-0"
+            png = b"\x89PNG\r\n\x1a\n"
+
+        class Outcome:
+            def images(self):
+                return (Image(), Image())
+
+            def payload(self):
+                return {"frameCount": 2}
+
+        original = server.bundle_tool.run
+        server.bundle_tool.run = lambda directory, node, attempt: Outcome()
+        try:
+            result = server.call_tool(
+                "bundle",
+                {"runDirectory": "/tmp/run", "node": "node:gate", "attempt": 1},
+            )
+        finally:
+            server.bundle_tool.run = original
+
+        self.assertEqual(2, len(result.images))
+        self.assertEqual("after call:step-0", result.images[0].caption)
 
 
 if __name__ == "__main__":

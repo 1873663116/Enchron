@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import gcd
 import struct
-from typing import Tuple
+from typing import Sequence, Tuple
 import zlib
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -18,6 +18,8 @@ LUMA_SCALE = 1000
 FULL_SCALE = 255
 SAMPLE_BUDGET = 200_000
 DEGENERATE_EDGE = 1
+TILE_PADDING = 2
+TILE_BACKGROUND = 32
 
 
 class RasterError(ValueError):
@@ -226,12 +228,61 @@ def crop(raster: Raster, left: int, top: int, width: int, height: int) -> Raster
     return Raster(width, height, raster.channels, bytes(out))
 
 
+def scale_down(raster: Raster, factor: int) -> Raster:
+    if type(factor) is not int or factor < 1:
+        raise RasterError(f"a raster is reduced by a whole factor, not {factor}")
+    if factor == 1:
+        return raster
+    width = max(1, raster.width // factor)
+    height = max(1, raster.height // factor)
+    line_length = raster.width * raster.channels
+    out = bytearray()
+    for row in range(height):
+        source = row * factor * line_length
+        for column in range(width):
+            start = source + column * factor * raster.channels
+            out.extend(raster.samples[start : start + raster.channels])
+    return Raster(width, height, raster.channels, bytes(out))
+
+
+def tile(rasters: Sequence[Raster], columns: int, padding: int = TILE_PADDING) -> Raster:
+    if not rasters:
+        raise RasterError("a montage is tiled from at least one frame")
+    if type(columns) is not int or columns < 1:
+        raise RasterError(f"a montage has at least one column, not {columns}")
+    if type(padding) is not int or padding < 0:
+        raise RasterError(f"a montage pads by whole pixels, not {padding}")
+    channels = rasters[0].channels
+    if any(item.channels != channels for item in rasters):
+        raise RasterError("a montage tiles frames that carry the same channels")
+    cell_width = max(item.width for item in rasters)
+    cell_height = max(item.height for item in rasters)
+    rows = -(-len(rasters) // columns)
+    width = columns * cell_width + (columns + 1) * padding
+    height = rows * cell_height + (rows + 1) * padding
+    line_length = width * channels
+    canvas = bytearray(bytes([TILE_BACKGROUND]) * (line_length * height))
+    for index, item in enumerate(rasters):
+        left = padding + (index % columns) * (cell_width + padding)
+        top = padding + (index // columns) * (cell_height + padding)
+        source_line = item.width * channels
+        for row in range(item.height):
+            start = (top + row) * line_length + left * channels
+            canvas[start : start + source_line] = item.samples[
+                row * source_line : (row + 1) * source_line
+            ]
+    return Raster(width, height, channels, bytes(canvas))
+
+
 __all__ = (
     "DEGENERATE_EDGE",
     "FULL_SCALE",
+    "TILE_PADDING",
     "Raster",
     "RasterError",
     "crop",
     "decode_png",
     "encode_png",
+    "scale_down",
+    "tile",
 )

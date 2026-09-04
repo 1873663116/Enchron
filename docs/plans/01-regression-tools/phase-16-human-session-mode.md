@@ -8,6 +8,12 @@
 
 入口条件由 ledger 校验：同一节点连续两次 attempt 的 op 结果均为 harness 超时类。超时类的取值来自 `Scripts/verification/harness/CONTRACT.md:36` 的仪器故障 kind 清单，具体为 `transport-timeout`、`response-timeout`、`readyTimeout`、`ensure-session` 未 ready。产品慢是 `Violated`，写 `failed`，不可推迟。
 
+## 前置阻塞：账本里没有第二次 attempt
+
+`_claim_node` 要求节点处于 `PENDING`（`Scripts/regression/core/runview.py:1131`），而 `runtime.py` 里没有任何路径把节点写回 `PENDING`：状态只会向终态推进。因此一次 run 内一个节点只能被 claim 一次，本阶段所依赖的「同一节点连续两次 attempt」在当前状态机下无法出现。
+
+先决定重试如何进账本，再实现本阶段。两条路：让裁决把节点退回 `PENDING` 并新起一个 lease，或者把 attempt 定义为跨 run 的概念并由收据层跨 run 聚合。前者改动阶段 8 定下的转移规则，后者改动阶段 17 的收据输入。这一项在阶段 12 实现 `bundle --attempt` 时暴露（见 [阶段 12](phase-12-bundle-tool.md) 的偏离一节）。
+
 ## 改动清单
 
 - `Scripts/regression/core/runview.py`。`_record_verdict` 的裁决准入表放行 `deferred(human)`：阶段 8 只允许 INDETERMINATE 聚合写 `indeterminate`，因为 `DEFERRED_HUMAN` 不属于 `PRODUCT_NODE_STATUSES`，绕过证据义务并释放 lane，在 `deferrable` 存在之前是一个无人把守的出口。本阶段与该函数一并放行。
