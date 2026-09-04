@@ -79,13 +79,13 @@ admit_verdict(
 ledger 工具的对外形状：
 
 ```text
-ledger write  --run-directory --node --status --verdict-json --bundle-frame-count
+ledger write  --run-directory --status --verdict-json --bundle-frame-count
                                                       -> 新的账本视图
 ledger view   --run-directory [--lane]                -> {nodes, lanes, locks}
 ledger resume --run-directory                         -> {ready, awaitingVerdict}
 ```
 
-`bundle_frame_count` 随裁决落进 payload，`0 <= firstDeviantFrame < bundleFrameCount` 因此在 replay 时可复核。阶段 12 产出真实拼图帧数后只换来源，不换校验位置。
+`--verdict-json` 自带 `node` 字段，命令面不再单列 `--node`。`bundle_frame_count` 随裁决落进 payload，`0 <= firstDeviantFrame < bundleFrameCount` 因此在 replay 时可复核。阶段 12 产出真实拼图帧数后只换来源，不换校验位置。
 
 ## 阶段验证方案
 

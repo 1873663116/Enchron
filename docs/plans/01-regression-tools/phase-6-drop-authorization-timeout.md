@@ -24,7 +24,7 @@ diagnostics.md 另有两处依赖被删行：`responseTimeout` 分流行把「�
 `ensure_session` 删除后的返回 stage 取值：
 
 ```text
-adopted | ready | halt | readyTimeout
+adopted | ready | halt | firstCommand | readyTimeout
 ```
 
 `_attach_failure` 删除后的 kind 取值：

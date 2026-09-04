@@ -1,0 +1,353 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import argparse
+import base64
+from dataclasses import dataclass
+import json
+from pathlib import Path
+import sys
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+
+
+TOOLS_ROOT = Path(__file__).resolve().parents[2]
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+from regression.core.contracts import BoundLane
+from regression.core.errors import RegressionError
+from regression.core.runview import NodeStatus
+from regression.tools import ledger_tool, session_tool
+from regression.tools.ledger_lock import LedgerLockError
+from regression.tools.session_tool import SessionToolError
+from regression.tools.verdict import Attribution, Verdict, VerdictError
+
+
+PROTOCOL_VERSION = "2025-06-18"
+SERVER_NAME = "enchron-regression"
+SERVER_VERSION = "1"
+
+JSONRPC_VERSION = "2.0"
+METHOD_NOT_FOUND = -32601
+INVALID_PARAMS = -32602
+INVALID_REQUEST = -32600
+PARSE_ERROR = -32700
+
+TOOL_FAILURES = (OSError, RuntimeError, ValueError)
+
+
+@dataclass(frozen=True)
+class ImageBlock:
+    media_type: str
+    data: bytes
+    caption: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.media_type, str) or "/" not in self.media_type:
+            raise ValueError("an image block carries an IANA media type")
+        if not isinstance(self.data, bytes) or not self.data:
+            raise ValueError("an image block carries its bytes")
+        if not isinstance(self.caption, str) or not self.caption:
+            raise ValueError("an image block says what it shows")
+
+    def content(self) -> Dict[str, Any]:
+        return {
+            "type": "image",
+            "mimeType": self.media_type,
+            "data": base64.b64encode(self.data).decode("ascii"),
+        }
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    json: Mapping[str, Any]
+    images: Tuple[ImageBlock, ...] = ()
+
+    def content(self) -> Tuple[Dict[str, Any], ...]:
+        blocks = [{"type": "text", "text": _encode(self.json)}]
+        for image in self.images:
+            blocks.append({"type": "text", "text": image.caption})
+            blocks.append(image.content())
+        return tuple(blocks)
+
+
+@dataclass(frozen=True)
+class ToolDefinition:
+    name: str
+    description: str
+    input_schema: Mapping[str, Any]
+    handler: Callable[[Mapping[str, Any]], ToolResult]
+    arguments: Tuple[Tuple[str, Dict[str, Any]], ...] = ()
+
+    def descriptor(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "inputSchema": dict(self.input_schema),
+        }
+
+
+def _encode(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def _pending(name: str, phase: str, builds: str) -> ToolDefinition:
+    refusal = f"{name} is registered but unimplemented; {phase} builds {builds}"
+
+    def handler(arguments: Mapping[str, Any]) -> ToolResult:
+        return ToolResult({"tool": name, "implemented": False, "refusal": refusal})
+
+    return ToolDefinition(
+        name,
+        refusal,
+        {"type": "object", "properties": {}, "additionalProperties": True},
+        handler,
+    )
+
+
+def _session(arguments: Mapping[str, Any]) -> ToolResult:
+    return ToolResult(
+        session_tool.run(
+            arguments.get("mode"),
+            arguments.get("device"),
+            arguments.get("stage"),
+            arguments.get("executionInput"),
+            arguments.get("outputDirectory"),
+        )
+    )
+
+
+def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
+    action = arguments.get("action")
+    directory = arguments.get("runDirectory")
+    if not isinstance(directory, str) or not directory:
+        raise LedgerLockError("ledger reads one run directory")
+    if action == "view":
+        raw_lane = arguments.get("lane")
+        lane = None if raw_lane is None else BoundLane(raw_lane)
+        return ToolResult(ledger_tool.view(Path(directory), lane))
+    if action == "resume":
+        return ToolResult(ledger_tool.resume(Path(directory)))
+    if action != "write":
+        raise LedgerLockError(
+            f"ledger takes the write, view or resume action, not {action!r}"
+        )
+    raw_verdict = arguments.get("verdict")
+    if not isinstance(raw_verdict, Mapping):
+        raise LedgerLockError("a ledger write carries its verdict")
+    verdict = Verdict(
+        raw_verdict.get("node"),
+        raw_verdict.get("firstDeviantFrame"),
+        raw_verdict.get("regionObservation", ""),
+        Attribution(raw_verdict.get("attribution")),
+        raw_verdict.get("signature"),
+    )
+    return ToolResult(
+        ledger_tool.write(
+            Path(directory),
+            verdict,
+            NodeStatus(arguments.get("status")),
+            arguments.get("bundleFrameCount"),
+        )
+    )
+
+
+SESSION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "mode": {"type": "string", "enum": list(session_tool.SESSION_MODES)},
+        "device": {"type": "string"},
+        "stage": {"type": "string", "enum": list(session_tool.SESSION_STAGES)},
+        "executionInput": {"type": "string"},
+        "outputDirectory": {"type": "string"},
+    },
+    "required": ["mode", "device", "stage"],
+    "additionalProperties": False,
+}
+
+LEDGER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "enum": ["write", "view", "resume"]},
+        "runDirectory": {"type": "string"},
+        "lane": {"type": "string", "enum": [item.value for item in BoundLane]},
+        "status": {"type": "string", "enum": [item.value for item in NodeStatus]},
+        "bundleFrameCount": {"type": "integer", "minimum": 1},
+        "verdict": {
+            "type": "object",
+            "properties": {
+                "node": {"type": "string"},
+                "firstDeviantFrame": {"type": ["integer", "null"], "minimum": 0},
+                "regionObservation": {"type": "string"},
+                "attribution": {
+                    "type": "string",
+                    "enum": [item.value for item in Attribution],
+                },
+                "signature": {"type": ["string", "null"]},
+            },
+            "required": ["node", "regionObservation", "attribution"],
+            "additionalProperties": False,
+        },
+    },
+    "required": ["action", "runDirectory"],
+    "additionalProperties": False,
+}
+
+
+def registry() -> Dict[str, ToolDefinition]:
+    return {
+        item.name: item
+        for item in (
+            ToolDefinition(
+                "session",
+                "Bring one device session up or take it down.",
+                SESSION_SCHEMA,
+                _session,
+                (
+                    ("--mode", {"default": session_tool.AGENT_MODE}),
+                    ("--device", {}),
+                    ("--stage", {}),
+                    ("--execution-input", {"dest": "executionInput"}),
+                    ("--output-directory", {"dest": "outputDirectory"}),
+                ),
+            ),
+            _pending("op", "phase 10", "the Operation call and the pixel heuristics"),
+            _pending("bundle", "phase 12", "the anomaly bundle"),
+            ToolDefinition(
+                "ledger",
+                "Write a verdict, read the run view, or read the resume points.",
+                LEDGER_SCHEMA,
+                _ledger,
+                (
+                    ("--action", {}),
+                    ("--run-directory", {"dest": "runDirectory"}),
+                    ("--lane", {}),
+                    ("--status", {}),
+                    ("--bundle-frame-count", {"dest": "bundleFrameCount", "type": int}),
+                    ("--verdict-json", {"dest": "verdict", "type": json.loads}),
+                ),
+            ),
+            _pending("receipt", "phase 17", "the merge receipt"),
+        )
+    }
+
+
+TOOL_NAMES = ("session", "op", "bundle", "ledger", "receipt")
+
+
+def call_tool(name: str, arguments: Mapping[str, Any]) -> ToolResult:
+    tools = registry()
+    if name not in tools:
+        joined = ", ".join(sorted(tools))
+        raise ValueError(f"{name!r} is not a registered tool; the registry holds {joined}")
+    return tools[name].handler(arguments)
+
+
+def _serve(stream_in, stream_out) -> int:
+    for line in stream_in:
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            request = json.loads(text)
+        except json.JSONDecodeError as error:
+            _write(stream_out, _error(None, PARSE_ERROR, str(error)))
+            continue
+        response = _dispatch(request)
+        if response is not None:
+            _write(stream_out, response)
+    return 0
+
+
+def _dispatch(request: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(request, Mapping):
+        return _error(None, INVALID_REQUEST, "a JSON-RPC frame must be an object")
+    identifier = request.get("id")
+    notification = "id" not in request
+    method = request.get("method")
+    if notification:
+        return None
+    if method == "ping":
+        return _reply(identifier, {})
+    if method == "initialize":
+        return _reply(
+            identifier,
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+            },
+        )
+    if method == "tools/list":
+        return _reply(
+            identifier,
+            {"tools": [item.descriptor() for item in registry().values()]},
+        )
+    if method != "tools/call":
+        return _error(identifier, METHOD_NOT_FOUND, f"unknown method {method!r}")
+    parameters = request.get("params") or {}
+    if not isinstance(parameters, Mapping):
+        return _error(identifier, INVALID_PARAMS, "params must be an object")
+    supplied = parameters.get("arguments") or {}
+    if not isinstance(supplied, Mapping):
+        return _error(identifier, INVALID_PARAMS, "tool arguments must be an object")
+    try:
+        result = call_tool(parameters.get("name"), supplied)
+    except TOOL_FAILURES as error:
+        return _reply(
+            identifier,
+            {
+                "content": [{"type": "text", "text": str(error)}],
+                "isError": True,
+            },
+        )
+    return _reply(identifier, {"content": list(result.content()), "isError": False})
+
+
+def _reply(identifier: Any, result: Mapping[str, Any]) -> Dict[str, Any]:
+    return {"jsonrpc": JSONRPC_VERSION, "id": identifier, "result": dict(result)}
+
+
+def _error(identifier: Any, code: int, message: str) -> Dict[str, Any]:
+    return {
+        "jsonrpc": JSONRPC_VERSION,
+        "id": identifier,
+        "error": {"code": code, "message": message},
+    }
+
+
+def _write(stream_out, payload: Mapping[str, Any]) -> None:
+    stream_out.write(_encode(payload) + "\n")
+    stream_out.flush()
+
+
+def main(argv: Optional[list] = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Expose the regression harness tools over MCP."
+    )
+    parser.add_argument("--once", choices=TOOL_NAMES)
+    known, remainder = parser.parse_known_args(argv)
+    if known.once is None:
+        return _serve(sys.stdin, sys.stdout)
+
+    definition = registry()[known.once]
+    once = argparse.ArgumentParser(prog=f"server.py --once {known.once}")
+    for flag, options in definition.arguments:
+        once.add_argument(flag, **options)
+    arguments = {
+        key: value
+        for key, value in vars(once.parse_args(remainder)).items()
+        if value is not None
+    }
+    try:
+        result = call_tool(known.once, arguments)
+    except TOOL_FAILURES as error:
+        sys.stdout.write(_encode({"error": str(error)}) + "\n")
+        return 1
+    sys.stdout.write(_encode({"content": list(result.content())}) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
