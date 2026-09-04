@@ -19,7 +19,8 @@ class FormatDescriptionIdentityTests(unittest.TestCase):
             {
                 "prores-limited-range-default": 8,
                 "prores-frame-matrix": 5,
-                "h264-unspecified-range-default": 2,
+                "h264-unspecified-range-default": 3,
+                "playback-behaviour-truncated-clip": 1,
                 "unsupported-prores-raw": 1,
                 "unsupported-mpeg4-part-2": 3,
                 "unsupported-mpeg2-video": 1,
@@ -87,6 +88,34 @@ class FormatDescriptionIdentityTests(unittest.TestCase):
             "rendering on this device",
         ))
         self.assertFalse(rule.matches(declaration, "probe timed out"))
+
+
+    def test_an_unreadable_fixture_is_named_by_path_and_nothing_else(self) -> None:
+        rule = next(
+            item for item in self.baseline.unreadable_fixtures
+            if item.identifier == "playback-behaviour-truncated-clip"
+        )
+
+        self.assertTrue(rule.matches(rule.path))
+        self.assertFalse(rule.matches(rule.path + ".bak"))
+        self.assertFalse(
+            rule.matches("TestVectors/Enchron/PlaybackBehavior/other.mp4")
+        )
+        self.assertTrue(rule.reason)
+        self.assertTrue(rule.evidence)
+
+    def test_a_fixture_entry_without_its_reason_is_refused(self) -> None:
+        import json
+        from tempfile import TemporaryDirectory
+
+        payload = json.loads(identity.DEFAULT_BASELINE.read_text(encoding="utf-8"))
+        payload["knownUnreadableFixtures"][0].pop("reason")
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "baseline.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "non-empty reason"):
+                identity.load_baseline(path)
 
 
 if __name__ == "__main__":

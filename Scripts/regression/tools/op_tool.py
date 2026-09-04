@@ -17,7 +17,7 @@ from regression.core.ids import CallID, NodeID, OperationID, SidekickID, Signatu
 from regression.core.plan import CompiledRunPlan
 from regression.core.runtime import OperationResult, StateFingerprint, open_run
 from regression.core.runview import LeaseStatus, NodeStatus
-from regression.tools.ledger_lock import LaneLockState, lane_lock_state
+from regression.tools.ledger_lock import lane_lock_state
 from regression.tools.pixel_heuristics import all_black, capture_failed
 from regression.tools.raster import RasterError
 from regression.rubric_compiler import FieldPredicate, compile_criteria
@@ -434,7 +434,7 @@ def _lease_for(main, lane: BoundLane, node: NodeID, sidekick: SidekickID, now_mi
             node=claimed.node_id,
             refused=True,
             lane=lane.value,
-            state=LaneLockState.WORKING.value,
+            state=lane_lock_state(main.view, lane).state.value,
             detail=(
                 f"the scheduler offers {claimed.node_id} on {lane.value}, not "
                 f"{node}; that node now holds the lane"

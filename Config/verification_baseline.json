@@ -24,6 +24,10 @@
     },
     {
       "decode": "probe_failed",
+      "name": "TestVectors/Enchron/PlaybackBehavior/broken-clip.mp4"
+    },
+    {
+      "decode": "probe_failed",
       "name": "TestVectors/Upstream/FATE/DVB/dvbsubtest_filter.ts"
     },
     {

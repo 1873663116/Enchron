@@ -36,7 +36,7 @@
       "field": "full_range",
       "expected": "none",
       "actual": "0",
-      "count": 2,
+      "count": 3,
       "reason": "CoreMedia's H.264 parameter-set constructor materializes the documented limited-range default when the SPS omits a range declaration.",
       "evidence": "Xcode beta5 XROS27.0 SDK CMFormatDescription.h FullRangeVideo default; identity corpus output records the H.264 constructor result"
     }
@@ -81,6 +81,15 @@
       "count": 1,
       "reason": "The current device cannot render VP9 compressed samples.",
       "evidence": "PlaybackFFmpegBridge.c compressed_codec_is_renderable gate and exact reader error"
+    }
+  ],
+  "knownUnreadableFixtures": [
+    {
+      "id": "playback-behaviour-truncated-clip",
+      "path": "TestVectors/Enchron/PlaybackBehavior/broken-clip.mp4",
+      "count": 1,
+      "reason": "The fixture is a truncated MP4 with no moov atom, written so the playback failure path has a file that cannot open. It carries no format description for this verifier to compare.",
+      "evidence": "ffprobe reports 'moov atom not found'; the fixture is read by the playback failure Scenarios under TestVectors/Enchron/PlaybackBehavior/"
     }
   ]
 }

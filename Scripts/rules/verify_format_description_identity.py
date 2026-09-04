@@ -133,15 +133,32 @@ class CapabilityBoundary:
 
 
 @dataclass(frozen=True)
+class UnreadableFixture:
+    identifier: str
+    path: str
+    count: int
+    reason: str
+    evidence: str
+
+    def matches(self, label: str) -> bool:
+        return self.path == label
+
+
+@dataclass(frozen=True)
 class Baseline:
     exemptions: tuple[Exemption, ...]
     capability_boundaries: tuple[CapabilityBoundary, ...]
+    unreadable_fixtures: tuple[UnreadableFixture, ...] = ()
 
     @property
     def expected_counts(self) -> dict[str, int]:
         return {
             rule.identifier: rule.count
-            for rule in (*self.exemptions, *self.capability_boundaries)
+            for rule in (
+                *self.exemptions,
+                *self.capability_boundaries,
+                *self.unreadable_fixtures,
+            )
         }
 
 
@@ -222,9 +239,34 @@ def load_baseline(path: Path) -> Baseline:
         if identifier in identifiers:
             raise ValueError(f"baseline id {identifier!r} is duplicated")
         identifiers.add(identifier)
-    if len(identifiers) != len(exemptions) + len(boundaries):
+    unreadable: list[UnreadableFixture] = []
+    for entry in payload.get("knownUnreadableFixtures", []):
+        if not isinstance(entry, dict):
+            raise ValueError("every unreadable fixture entry must be an object")
+        identifier = entry.get("id")
+        relative = entry.get("path")
+        count = entry.get("count")
+        reason = entry.get("reason")
+        evidence = entry.get("evidence")
+        if not isinstance(identifier, str) or not identifier:
+            raise ValueError("every unreadable fixture entry needs a non-empty id")
+        if not isinstance(relative, str) or not relative:
+            raise ValueError(f"{identifier} needs the path it covers")
+        if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+            raise ValueError(f"{identifier} needs a positive count")
+        if not isinstance(reason, str) or not reason:
+            raise ValueError(f"{identifier} needs a non-empty reason")
+        if not isinstance(evidence, str) or not evidence:
+            raise ValueError(f"{identifier} needs non-empty evidence")
+        if identifier in identifiers:
+            raise ValueError(f"baseline id {identifier!r} is duplicated")
+        identifiers.add(identifier)
+        unreadable.append(
+            UnreadableFixture(identifier, relative, count, reason, evidence)
+        )
+    if len(identifiers) != len(exemptions) + len(boundaries) + len(unreadable):
         raise ValueError("knownExemptions contains duplicate ids")
-    return Baseline(tuple(exemptions), tuple(boundaries))
+    return Baseline(tuple(exemptions), tuple(boundaries), tuple(unreadable))
 
 
 def run(command: list[str], timeout: int = 300) -> subprocess.CompletedProcess[str]:
@@ -477,6 +519,22 @@ def verify_one(
                         str(error),
                     ),
                 )
+        listed = [
+            rule for rule in baseline.unreadable_fixtures if rule.matches(label)
+        ]
+        if len(listed) == 1:
+            rule = listed[0]
+            return Result(
+                label,
+                is_dolby_vision,
+                "unreadable-fixture",
+                (
+                    f"reason={rule.reason}",
+                    f"evidence={rule.evidence}",
+                    f"error={error}",
+                ),
+                (rule.identifier,),
+            )
         return Result(label, is_dolby_vision, "probe-failed", (str(error),))
 
 
@@ -558,6 +616,8 @@ def main() -> int:
             print(f"EXEMPT declared shape: {result.label}")
         elif result.kind == "capability-boundary":
             print(f"BOUNDARY known capability: {result.label}")
+        elif result.kind == "unreadable-fixture":
+            print(f"FIXTURE unreadable by design: {result.label}")
         else:
             print(f"FAIL {result.kind}: {result.label}")
         for detail in result.details:
@@ -566,7 +626,11 @@ def main() -> int:
     unclassified = [
         result for result in results
         if result.kind not in (
-            "pass", "no-video", "exemption", "capability-boundary"
+            "pass",
+            "no-video",
+            "exemption",
+            "capability-boundary",
+            "unreadable-fixture",
         )
     ]
     dovi_failures = [result for result in unclassified if result.is_dolby_vision]
