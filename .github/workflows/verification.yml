@@ -18,6 +18,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          export PATH="/opt/homebrew/bin:$PATH"
           WORKSPACE=/Volumes/Cortisol/DevSpace/EnchronWorkspace
           MAIN="$WORKSPACE/Enchron"
           REPO="$WORKSPACE/wt-ci"
@@ -33,4 +34,5 @@ jobs:
           git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
           git -C "$REPO" clean -ffdx
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
+          cp "$MAIN/.env" "$REPO/.env"
           python3 "$REPO/Scripts/rules/run_verification.py" --quick

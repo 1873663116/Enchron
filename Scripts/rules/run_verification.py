@@ -65,6 +65,7 @@ class StructureCheck:
 
 
 SCRIPT_DIRECTORIES = ("Scripts/rules", "Scripts/verification")
+MINIMUM_PYTHON = (3, 10)
 
 
 def structure_check_path(filename: str) -> Path:
@@ -244,7 +245,23 @@ def load_baseline(path: Path = BASELINE_PATH) -> dict[str, object]:
     return payload
 
 
+def interpreter_refusal(version: tuple[int, ...], executable: str) -> str | None:
+    if tuple(version) >= MINIMUM_PYTHON:
+        return None
+    wanted = ".".join(str(part) for part in MINIMUM_PYTHON)
+    found = ".".join(str(part) for part in version)
+    return (
+        f"the checks call zip(strict=True) and annotate unions as 'X | None', so they "
+        f"need Python {wanted} or newer; {executable} is {found}. An interpreter this "
+        "old turns one configuration problem into a scatter of unrelated-looking "
+        "failures across the structure checks."
+    )
+
+
 def tool_environment() -> dict[str, str]:
+    refusal = interpreter_refusal(sys.version_info[:3], sys.executable)
+    if refusal is not None:
+        raise ValueError(refusal)
     completed = subprocess.run(
         ["/usr/bin/xcode-select", "-p"],
         capture_output=True,

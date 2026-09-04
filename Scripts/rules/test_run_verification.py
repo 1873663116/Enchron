@@ -193,5 +193,37 @@ class LockWaitGuardTests(unittest.TestCase):
                 fcntl.flock(lock, fcntl.LOCK_UN)
 
 
+class InterpreterFloorTests(unittest.TestCase):
+    """The gate ran for months under whichever python3 the caller's PATH held.
+
+    On the self-hosted runner that was Xcode's 3.9, and ten structure checks
+    failed with unrelated-looking tracebacks: zip() rejecting a keyword, unions
+    unparseable, credentials unreadable. One configuration fault presented as
+    ten defects, so the gate names it instead.
+    """
+
+    def test_an_interpreter_below_the_floor_is_refused_by_version(self) -> None:
+        refusal = verification.interpreter_refusal((3, 9, 6), "/usr/bin/python3")
+        self.assertIsNotNone(refusal)
+        self.assertIn("3.9.6", refusal)
+        self.assertIn("/usr/bin/python3", refusal)
+        self.assertIn("zip(strict=True)", refusal)
+
+    def test_the_floor_itself_and_anything_above_it_is_accepted(self) -> None:
+        self.assertIsNone(
+            verification.interpreter_refusal(verification.MINIMUM_PYTHON, "python3")
+        )
+        self.assertIsNone(verification.interpreter_refusal((3, 14, 6), "python3"))
+
+    def test_gate_configuration_refuses_before_it_reads_the_toolchain(self) -> None:
+        original = verification.interpreter_refusal
+        verification.interpreter_refusal = lambda version, executable: "stale python"
+        try:
+            with self.assertRaisesRegex(ValueError, "stale python"):
+                verification.tool_environment()
+        finally:
+            verification.interpreter_refusal = original
+
+
 if __name__ == "__main__":
     unittest.main()
