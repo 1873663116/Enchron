@@ -80,6 +80,8 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 - **48 条 L0 谓词里 30 条命名的是 Operation 的入参而非输出。** `requireMatchedElement` 出现在 `regression_operation_adapter.py:2807` 的参数里，不在任何返回的 outputs 中，因此这些谓词恒为 `indeterminate`。`Config/rubric_predicate_baseline.json` 的 `criteriaYieldingPredicates: 47` 把这个数字锁住了：一次「不再把入参名编译成观测」的修正会被该门拒绝，需要同时下调基线。
 - **`negativeControls` 没有被编译器读取。** 阶段 13 的改动清单写的是「只读 front matter 里的 `criteria` 与 `negativeControls`」，实际只读 `criteria`。覆盖报告的分母因此不含 negative controls。
 - **人类会话的轮询回路没有接线。** `poll_timeline`、`mark`、`read_timeline` 三个函数只有测试调用；MCP 的 `session` schema 没有 `mark` 动作，也没有任何一处驱动轮询。`ensure` 现在会开出 `timeline.jsonl` 并写入第一行，路径不再指向不存在的文件，但佩戴者回路本身仍是空的。
+- **仪器故障的整个 evidence 字典进了账本。** `op_tool` 把 `InstrumentFault` 合成为一次完成的调用，`outputs.failure.evidence` 是 harness 自己写的内容而不是 Operation 输出合同的一部分，`invoke_operation` 也不按输出形状校验它。它随后可被 `field_value` 检索，而那正是 L0 读数与已知缺陷豁免共用的匹配函数。阶段 16 需要的是故障 kind，落到账本里的是整个故障。
+- **`--catalog-root` 与 digest 计算的 Catalog 不是同一个。** `execution_identity` 两处都写死 `Regression`，`op` 却接受任意 `catalogRoot`。两者持有不同 Operation 集合时 `narrowed()` 会拒绝——方向是安全的——但操作者读到的是「冻结环境里没有某个 Operation 的 digest」，而不是「你指错了 Catalog」。
 - **异常包的 before 帧可能来自另一个 Operation。** 它取的是上一次完成调用的截图，标题原先写的是失败调用的 call id；标题已改成那张图真正的来源。Agent 仍需要知道这两帧可能横跨两个 Operation。
 - **人类收据没有 run 绑定。** 收据现在必须匹配本次 run 生成的 checklist digest（`Scripts/regression/tools/receipt_tool.py`），但收据里的 `buildDigest`、`deviceId`、`recordingDigest` 依然没有任何一侧可比对，`seal` 也没有工具入口，操作者实际走的是手写 JSON 这条路。
 
