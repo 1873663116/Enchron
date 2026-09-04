@@ -18,11 +18,8 @@ from regression.core.plan import CompiledRunPlan
 from regression.core.runtime import OperationResult, StateFingerprint, open_run
 from regression.core.runview import LeaseStatus, NodeStatus
 from regression.tools.ledger_lock import LaneLockState, lane_lock_state
-from regression.tools.pixel_heuristics import (
-    PixelHeuristicError,
-    all_black,
-    capture_failed,
-)
+from regression.tools.pixel_heuristics import all_black, capture_failed
+from regression.tools.raster import RasterError
 
 
 VERIFICATION = Path(__file__).resolve().parents[2] / "verification"
@@ -213,7 +210,7 @@ def pixel_signatures(screenshot: Optional[bytes]) -> Tuple[SignatureID, ...]:
         return ()
     try:
         hits = (capture_failed(screenshot), all_black(screenshot))
-    except (PixelHeuristicError, OSError, ValueError):
+    except (RasterError, OSError, ValueError):
         return ()
     return tuple(item for item in hits if item is not None)
 

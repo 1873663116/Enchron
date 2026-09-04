@@ -27,7 +27,7 @@ from regression.tools.session_tool import SessionToolError
 
 from test_regression_ledger_lock import _both_lane_plan, run_node
 from test_regression_core_runtime import _single_node_plan, open_run
-from test_regression_pixel_heuristics import flat, png
+from test_regression_raster import flat, png
 
 
 PENDING_TOOLS = ("bundle", "receipt")

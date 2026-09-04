@@ -19,11 +19,12 @@ from regression.core.runview import (
     TERMINAL_NODE_STATUSES,
     NodeStatus,
 )
+from regression.tools.signatures import ALL_BLACK, REGISTERED
 from regression.tools.verdict import Attribution, Verdict, VerdictError
 
 
 NODE = NodeID("node:emby:poster-wall")
-SIGNATURE = SignatureID("signature:blank-frame")
+SIGNATURE = ALL_BLACK
 
 
 def verdict(**overrides) -> Verdict:
@@ -117,6 +118,13 @@ class VerdictTests(unittest.TestCase):
             {"product", "harness", "spec"},
             {item.value for item in Attribution},
         )
+
+    def test_a_well_formed_but_unregistered_signature_is_refused(self) -> None:
+        with self.assertRaises(VerdictError) as raised:
+            verdict(signature="signature:blank-frame")
+
+        for item in REGISTERED:
+            self.assertIn(str(item.id), str(raised.exception))
 
 
 if __name__ == "__main__":

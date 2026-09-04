@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from regression.core.errors import RegressionError
 from regression.core.ids import NodeID, SignatureID, parse_identifier
 from regression.core.runview import Attribution
+from regression.tools.signatures import SignatureError, signature
 
 
 class VerdictError(ValueError):
@@ -54,6 +55,10 @@ class Verdict:
                 "verdict.signature",
                 "Verdict signature must be a signature identifier",
             )
+            try:
+                signature(self.signature)
+            except SignatureError as error:
+                raise VerdictError(str(error)) from error
 
 
 __all__ = (

@@ -26,11 +26,11 @@ from regression.core.replay import replay
 from regression.core.runtime import open_run
 from regression.tools import op_tool
 from regression.tools.op_tool import OpToolError
-from regression.tools.pixel_heuristics import ALL_BLACK, CAPTURE_FAILED
+from regression.tools.signatures import ALL_BLACK, CAPTURE_FAILED
 
 from test_regression_core_runtime import _plan, _node, _single_node_plan
 from test_regression_ledger_lock import _both_lane_plan, run_node
-from test_regression_pixel_heuristics import flat, png
+from test_regression_raster import flat, png
 
 
 SIDEKICK = SidekickID("sidekick:op")

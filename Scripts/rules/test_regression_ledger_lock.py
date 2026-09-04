@@ -38,6 +38,7 @@ from regression.tools.ledger_lock import (
     lane_lock_state,
 )
 from regression.tools import ledger_tool
+from regression.tools.signatures import ALL_BLACK
 from regression.tools.verdict import Attribution, Verdict
 
 from test_regression_core_runtime import (
@@ -327,7 +328,7 @@ class AdmitVerdictTests(unittest.TestCase):
             self.admit(status=NodeStatus.FAILED_KNOWN)
         self.admit(
             status=NodeStatus.FAILED_KNOWN,
-            signature=SignatureID("signature:blank-frame"),
+            signature=ALL_BLACK,
         )
 
     def test_a_status_the_oracle_result_forbids_is_refused(self) -> None:
