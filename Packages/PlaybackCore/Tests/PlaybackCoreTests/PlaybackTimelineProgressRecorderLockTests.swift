@@ -74,6 +74,7 @@ import Testing
 
     let observation = try #require(lockProbe.observation)
     #expect(observation.acquiredRecoveryLock)
+    recorder.writeSnapshotIgnoringErrors()
     let snapshotDecoder = JSONDecoder()
     snapshotDecoder.dateDecodingStrategy = .iso8601
     let persistedSnapshot = try snapshotDecoder.decode(

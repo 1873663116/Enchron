@@ -110,7 +110,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
     }
 
     private func record(_ event: PlaybackDebugEvent) {
-        queue.sync {
+        queue.async { [self] in
             guard !isStopped else { return }
             appendLocked(event)
             if Self.requiresImmediateSnapshot(event.kind) {

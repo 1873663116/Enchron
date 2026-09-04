@@ -36,15 +36,18 @@ jobs:
           git -C "$REPO" clean -ffdx
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
           cp "$MAIN/.env" "$REPO/.env"
-          # The gate runs stdlib-only Python, so it takes an empty virtual
-          # environment rather than whatever site-packages the machine holds. A
-          # stray .pth left by an unrelated editable install pointed into
+          # A stray .pth left by an unrelated editable install points into
           # ~/Documents, and every interpreter startup under the runner blocked
-          # in opendir there for as long as the job was allowed to run.
+          # in opendir there for as long as the job was allowed to run. An empty
+          # virtual environment processes no .pth file at all, and PYTHONPATH
+          # reaches the machine's numpy and Pillow without turning that
+          # directory back into a site directory, which is what would execute
+          # the .pth again.
           VENV="$WORKSPACE/wt-ci-venv"
           if ! "$VENV/bin/python3" -c "" 2>/dev/null; then
             rm -rf "$VENV"
             python3 -S -m venv --without-pip "$VENV"
           fi
+          export PYTHONPATH="$(python3 -S -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
           export PATH="$VENV/bin:$PATH"
           python3 "$REPO/Scripts/rules/run_verification.py" --quick
