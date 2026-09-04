@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import io
 import sys
+import tokenize
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOTS = (
+SWIFT_ROOTS = (
     REPOSITORY_ROOT / "Apps/Enchron",
     REPOSITORY_ROOT / "Modules",
     REPOSITORY_ROOT / "Packages/PlaybackCore/Sources",
 )
+PYTHON_ROOTS = (REPOSITORY_ROOT / "Scripts",)
 
 
 @dataclass(frozen=True)
@@ -97,42 +100,81 @@ def swift_comments(source: str) -> tuple[Comment, ...]:
     return tuple(comments)
 
 
+def python_comments(source: str) -> tuple[Comment, ...]:
+    comments: list[Comment] = []
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+        for token in tokens:
+            if token.type != tokenize.COMMENT:
+                continue
+            row, column = token.start
+            if row == 1 and column == 0 and token.string.startswith("#!"):
+                continue
+            comments.append(Comment(row, column + 1, "#"))
+    except (tokenize.TokenError, SyntaxError) as error:
+        comments.append(Comment(1, 1, f"untokenizable source ({error})"))
+    return tuple(comments)
+
+
 def product_sources() -> tuple[Path, ...]:
     return tuple(
         sorted(
             path
-            for root in SOURCE_ROOTS
+            for root in SWIFT_ROOTS
             for path in root.rglob("*.swift")
             if path.is_file()
         )
     )
 
 
+def script_sources() -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            path
+            for root in PYTHON_ROOTS
+            for path in root.rglob("*.py")
+            if path.is_file()
+        )
+    )
+
+
+def comments_in(path: Path) -> tuple[Comment, ...]:
+    source = path.read_text(encoding="utf-8")
+    if path.suffix == ".py":
+        return python_comments(source)
+    return swift_comments(source)
+
+
 def violations(paths: tuple[Path, ...]) -> list[str]:
     found: list[str] = []
     for path in paths:
-        for comment in swift_comments(path.read_text(encoding="utf-8")):
+        for comment in comments_in(path):
             relative = path.relative_to(REPOSITORY_ROOT)
             found.append(
                 f"{relative}:{comment.line}:{comment.column}: "
-                f"product source comment {comment.token} is forbidden"
+                f"source comment {comment.token} is forbidden"
             )
     return found
 
 
 def main() -> int:
-    paths = product_sources()
-    found = violations(paths)
+    swift = product_sources()
+    python = script_sources()
+    found = violations(swift + python)
     if found:
         for violation in found:
             print(f"error: {violation}", file=sys.stderr)
         print(
-            "Move external constraints to the owning constraints document and "
-            "encode invariants in types or checks.",
+            "Move external constraints to the owning constraints document, "
+            "put measured values behind named constants, and encode invariants "
+            "in types or checks.",
             file=sys.stderr,
         )
         return 1
-    print(f"{len(paths)} product Swift files contain no source comments")
+    print(
+        f"{len(swift)} product Swift files and {len(python)} harness Python files "
+        "contain no source comments"
+    )
     return 0
 
 

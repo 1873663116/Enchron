@@ -225,7 +225,25 @@
         "exitCode": 1,
         "outputContains": [
           "Modules/DesignSystem/View+Platform.swift:3:1",
-          "product source comment // is forbidden"
+          "source comment // is forbidden"
+        ]
+      }
+    },
+    {
+      "id": "product-source-comments-rejects-python-comment",
+      "guard": "Scripts/rules/verify_product_source_comments.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/rules/verify_glass_usage.py",
+        "find": "from __future__ import annotations\n\n",
+        "replaceWith": "from __future__ import annotations\n\n# forbidden guard self-test comment\n",
+        "introduces": "# forbidden guard self-test comment"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "Scripts/rules/verify_glass_usage.py:5:1",
+          "source comment # is forbidden"
         ]
       }
     },
