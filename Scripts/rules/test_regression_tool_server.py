@@ -270,10 +270,10 @@ class LedgerToolRoutingTests(unittest.TestCase):
                     "action": "write",
                     "runDirectory": str(directory),
                     "status": "failed",
-                    "bundleFrameCount": 12,
+                    "bundleFrameCount": 99,
                     "verdict": {
                         "node": "node:gate",
-                        "firstDeviantFrame": 4,
+                        "firstDeviantFrame": 0,
                         "regionObservation": "the gate never appeared",
                         "attribution": "product",
                         "signature": None,
@@ -284,7 +284,8 @@ class LedgerToolRoutingTests(unittest.TestCase):
                 item for item in result.json["nodes"] if item["node"] == "node:gate"
             )
             self.assertEqual("failed", adjudicated["status"])
-            self.assertEqual(4, adjudicated["adjudication"]["firstDeviantFrame"])
+            self.assertEqual(0, adjudicated["adjudication"]["firstDeviantFrame"])
+            self.assertEqual(1, adjudicated["adjudication"]["bundleFrameCount"])
 
     def test_an_unknown_action_and_a_missing_directory_are_refused(self) -> None:
         with self.assertRaisesRegex(LedgerLockError, "reads one run directory"):

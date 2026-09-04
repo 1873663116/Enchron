@@ -226,7 +226,6 @@ def _ledger(arguments: Mapping[str, Any]) -> ToolResult:
             Path(directory),
             verdict,
             NodeStatus(arguments.get("status")),
-            arguments.get("bundleFrameCount"),
         )
     )
 
@@ -315,7 +314,6 @@ LEDGER_SCHEMA = {
                 if item not in ledger_tool.DERIVED_ONLY_STATUSES
             ],
         },
-        "bundleFrameCount": {"type": "integer", "minimum": 1},
         "verdict": {
             "type": "object",
             "properties": {
@@ -396,7 +394,6 @@ def registry() -> Dict[str, ToolDefinition]:
                     ("--node", {}),
                     ("--lane", {}),
                     ("--status", {}),
-                    ("--bundle-frame-count", {"dest": "bundleFrameCount", "type": int}),
                     ("--verdict-json", {"dest": "verdict", "type": json.loads}),
                 ),
             ),

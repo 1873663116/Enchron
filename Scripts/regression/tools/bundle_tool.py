@@ -85,6 +85,26 @@ class ExceptionBundle:
         }
 
 
+def frames_of(current: RunView, node: NodeID, attempt: int) -> Tuple[bytes, ...]:
+    """The montage holds the screenshot of the call that failed and the one
+    before it. The count is read from the run, so no caller states it."""
+    if type(attempt) is not int or attempt < 1:
+        raise BundleError(f"attempts are numbered from one, not {attempt}")
+    lease = _lease_for(current, node, attempt)
+    completed = tuple(item for item in lease.invocations if item.completed)
+    if not completed:
+        raise BundleError(
+            f"{node} attempt {attempt} completed no Operation call, so there is "
+            "nothing for a bundle to show"
+        )
+    index = len(completed) - 1
+    after = screenshot_bytes(_outputs(completed[index]))
+    before = (
+        screenshot_bytes(_outputs(completed[index - 1])) if index > 0 else None
+    )
+    return tuple(item for item in (before, after) if item is not None)
+
+
 def run(run_directory: Path, node: NodeID, attempt: int) -> ExceptionBundle:
     if type(attempt) is not int or attempt < 1:
         raise BundleError(f"attempts are numbered from one, not {attempt}")
@@ -188,6 +208,7 @@ def _signatures(
 
 
 __all__ = (
+    "frames_of",
     "CROP_REFUSAL",
     "MONTAGE_COLUMNS",
     "MONTAGE_REDUCTION",

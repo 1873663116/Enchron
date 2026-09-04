@@ -49,10 +49,6 @@ ENSURE_RESULT_STAGES = (
 
 CONTROLLER_FAILURES = (OSError, RuntimeError, ValueError)
 
-RECORDING_UNAVAILABLE = (
-    "human mode records the session, and the simulator recorder refused to start"
-)
-
 
 class SessionToolError(ValueError):
     pass
@@ -96,7 +92,16 @@ def run(
             argv.append(f"--execution-input={execution_input}")
         result = _forward(ensure_session, argv + [ENSURE_SESSION_ACTION])
         if mode == HUMAN_MODE and output_directory is not None:
-            result["timeline"] = str(timeline_path(Path(output_directory)))
+            path = timeline_path(Path(output_directory))
+            append_entry(
+                path,
+                TimelineEntry(
+                    now_rfc3339_millis(),
+                    SNAPSHOT_KIND,
+                    {"stage": ENSURE_STAGE, "device": device},
+                ),
+            )
+            result["timeline"] = str(path)
         return result
     return _forward(halt_session, argv + [HALT_ACTION])
 
@@ -172,7 +177,6 @@ __all__ = (
     "HUMAN_MODE",
     "MARK_KIND",
     "POLL_INTERVAL_SECONDS",
-    "RECORDING_UNAVAILABLE",
     "SNAPSHOT_KIND",
     "TIMELINE_FILENAME",
     "TimelineEntry",

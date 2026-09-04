@@ -202,8 +202,7 @@ class DeferrableTests(unittest.TestCase):
             main.close()
             if adjudicate_last or index + 1 < len(kinds):
                 ledger_tool.write(
-                    directory, verdict(NODE), NodeStatus.INDETERMINATE, FRAME_COUNT
-                )
+                    directory, verdict(NODE), NodeStatus.INDETERMINATE)
             main = open_run(_single_node_plan(), directory)
         main.close()
         return leases
@@ -273,7 +272,16 @@ class DeferrableTests(unittest.TestCase):
     def test_the_human_layer_takes_only_instrument_timeouts(self) -> None:
         self.assertNotIn("assertion-mismatch", HARNESS_TIMEOUT_KINDS)
         self.assertNotIn("app-crashed", HARNESS_TIMEOUT_KINDS)
-        self.assertIn("transport-timeout", HARNESS_TIMEOUT_KINDS)
+        for kind in ("transport-timeout", "response-timeout"):
+            with self.subTest(kind=kind):
+                self.assertIn(kind, HARNESS_TIMEOUT_KINDS)
+
+    def test_a_response_timeout_pair_reaches_the_human_layer(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.timed_out_run(directory, ("response-timeout", "response-timeout"))
+
+            self.assertTrue(deferrable(replay(directory), NODE))
 
     def test_a_node_with_no_lease_is_not_deferrable(self) -> None:
         self.assertFalse(deferrable_from(NODE, {}))
@@ -287,8 +295,7 @@ class DeferrableTests(unittest.TestCase):
 
             with self.assertRaises(LedgerLockError):
                 ledger_tool.write(
-                    directory, verdict(NODE), NodeStatus.DEFERRED_HUMAN, FRAME_COUNT
-                )
+                    directory, verdict(NODE), NodeStatus.DEFERRED_HUMAN)
 
     def test_two_timed_out_attempts_reach_the_human_layer(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -300,8 +307,7 @@ class DeferrableTests(unittest.TestCase):
             )
 
             ledger_tool.write(
-                directory, verdict(NODE), NodeStatus.DEFERRED_HUMAN, FRAME_COUNT
-            )
+                directory, verdict(NODE), NodeStatus.DEFERRED_HUMAN)
 
             self.assertIs(
                 NodeStatus.DEFERRED_HUMAN, replay(directory).node(NODE).status

@@ -12,6 +12,7 @@ from regression.core.runview import NodeStatus, RunView
 from regression.tools.human_receipt import (
     HumanReceipt,
     HumanReceiptError,
+    build_checklist,
     load_receipt,
 )
 
@@ -54,6 +55,17 @@ def run(
             receipt = load_receipt(json.loads(path.read_text(encoding="utf-8")))
         except (json.JSONDecodeError, HumanReceiptError) as error:
             raise ReceiptToolError(str(error)) from error
+    if receipt is not None:
+        expected = build_checklist(current).digest()
+        if receipt.checklist_digest != expected:
+            return {
+                "refused": (
+                    "a human receipt closes the checklist it was sealed against; "
+                    f"this run's checklist is {expected} and the receipt seals "
+                    f"{receipt.checklist_digest}"
+                ),
+                "checklistDigest": str(expected),
+            }
     remaining = open_nodes(current, receipt)
     if remaining:
         return {

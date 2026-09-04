@@ -91,7 +91,12 @@ class Attribution(Enum):
 MAX_NODE_ATTEMPTS = 2
 
 HARNESS_TIMEOUT_KINDS = frozenset(
-    {"transport-timeout", "wait-expired", "provisional-budget-expired"}
+    {
+        "transport-timeout",
+        "response-timeout",
+        "wait-expired",
+        "provisional-budget-expired",
+    }
 )
 
 ADJUDICATED_NODE_STATUSES = {
@@ -620,7 +625,7 @@ def awaiting_adjudication(node: NodeView, lease: Optional[LeaseView]) -> bool:
 def failure_ancestors(nodes: Iterable[NodeView]) -> Tuple[NodeID, ...]:
     result = set()
     for node in nodes:
-        if node.status is NodeStatus.FAILED:
+        if node.status in PRODUCT_FAILURE_NODE_STATUSES:
             result.add(node.node_id)
         elif node.status is NodeStatus.BLOCKED_BY:
             result.update(node.failure_ancestors)
@@ -1772,9 +1777,14 @@ def _adjudication(value: Any, status: NodeStatus, location: str) -> Adjudication
         raise _transition(
             location, "adjudication field(s) not recognized: " + ", ".join(sorted(unknown))
         )
-    frame_count = _positive_integer(
+    frame_count = _integer(
         item.get("bundleFrameCount"), location + ".bundleFrameCount"
     )
+    if frame_count < 0:
+        raise _transition(
+            location + ".bundleFrameCount",
+            "the montage holds a countable number of frames",
+        )
     raw_frame = item.get("firstDeviantFrame")
     frame = (
         None

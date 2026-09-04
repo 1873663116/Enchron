@@ -19,6 +19,7 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+from regression.core.catalog import load_catalog
 from regression.core.contracts import BoundLane
 from regression.core.digest import canonical_bytes, digest_bytes
 from regression.core.ids import Digest, OperationID
@@ -741,9 +742,9 @@ class OperationDigestGranularityTests(unittest.TestCase):
         spans = identity._handler_spans(original, "adapter")
         name, (start, _) = sorted(spans.items())[0]
         grown = "\n".join(
-            original.splitlines()[:start]
+            original.split("\n")[:start]
             + ["        widened = 1"]
-            + original.splitlines()[start:]
+            + original.split("\n")[start:]
         )
 
         self.assertEqual(
@@ -765,6 +766,53 @@ class OperationDigestGranularityTests(unittest.TestCase):
             identity._elided(original, identity._handler_spans(original, "adapter")),
             identity._elided(changed, identity._handler_spans(changed, "adapter")),
         )
+
+    def test_the_shared_source_moves_when_a_non_handler_method_changes(
+        self,
+    ) -> None:
+        original = self.source()
+        spans = identity._handler_spans(original, "adapter")
+        serving = identity._handlers_serving_operations(
+            load_catalog(SCRIPTS.parent / "Regression").operations,
+            {"Scripts/verification/regression_operation_adapter.py": spans},
+        )["Scripts/verification/regression_operation_adapter.py"]
+        outside = sorted(set(spans) - set(serving))
+        self.assertTrue(outside, "the backend defines methods that serve no Operation")
+        name = outside[0]
+        _, end = spans[name]
+        changed = "\n".join(
+            original.split("\n")[:end] + ["        widened = 1"] + original.split("\n")[end:]
+        )
+        moved = identity._handlers_serving_operations(
+            load_catalog(SCRIPTS.parent / "Regression").operations,
+            {
+                "Scripts/verification/regression_operation_adapter.py": identity._handler_spans(
+                    changed, "adapter"
+                )
+            },
+        )["Scripts/verification/regression_operation_adapter.py"]
+
+        self.assertNotEqual(
+            identity._elided(original, serving), identity._elided(changed, moved)
+        )
+
+    def test_every_operation_handler_is_elided_and_nothing_else_is(self) -> None:
+        original = self.source()
+        spans = identity._handler_spans(original, "adapter")
+        operations = load_catalog(SCRIPTS.parent / "Regression").operations
+        serving = identity._handlers_serving_operations(
+            operations,
+            {"Scripts/verification/regression_operation_adapter.py": spans},
+        )["Scripts/verification/regression_operation_adapter.py"]
+
+        self.assertEqual(len(operations), len(serving))
+        self.assertLess(len(serving), len(spans))
+
+    def test_line_slicing_agrees_with_the_line_numbers_ast_reports(self) -> None:
+        source = 'class ResidentOperationBackend:\n    MARK = "\x0c"\n\n    def _a(self):\n        return 1\n'
+        spans = identity._handler_spans(source, "stand-in")
+
+        self.assertEqual("    def _a(self):\n        return 1", identity._handler_source(source, spans["_a"]))
 
     def test_a_module_with_no_resident_backend_is_refused(self) -> None:
         with self.assertRaisesRegex(ExecutionIdentityError, "defines no"):

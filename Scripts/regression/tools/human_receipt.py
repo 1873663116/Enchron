@@ -137,15 +137,22 @@ def seal(
     )
 
 
+def _digest_field(payload: Mapping[str, Any], key: str, label: str) -> Digest:
+    value = payload[key]
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        raise HumanReceiptError(f"a receipt names its {label} as a sha256 digest")
+    return Digest(value)
+
+
 def load_receipt(payload: Mapping[str, Any]) -> HumanReceipt:
     if not isinstance(payload, Mapping) or payload.get("schema") != RECEIPT_SCHEMA:
         raise HumanReceiptError(f"a human receipt is a {RECEIPT_SCHEMA} document")
     try:
         return HumanReceipt(
-            Digest(payload["checklistDigest"]),
-            Digest(payload["buildDigest"]),
+            _digest_field(payload, "checklistDigest", "checklist digest"),
+            _digest_field(payload, "buildDigest", "build digest"),
             str(payload["deviceId"]),
-            Digest(payload["recordingDigest"]),
+            _digest_field(payload, "recordingDigest", "recording digest"),
             tuple(
                 NodeAttribution(
                     NodeID(str(item["node"])),

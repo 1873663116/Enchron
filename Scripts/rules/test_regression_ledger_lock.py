@@ -124,7 +124,7 @@ def _join_follower_plan():
 def verdict(node: NodeID, **overrides) -> Verdict:
     fields = {
         "node": node,
-        "first_deviant_frame": 3,
+        "first_deviant_frame": 0,
         "region_observation": "the poster grid stayed blank",
         "attribution": Attribution.PRODUCT,
         "signature": None,
@@ -135,7 +135,7 @@ def verdict(node: NodeID, **overrides) -> Verdict:
 
 def run_node(main, lane: BoundLane, result: OracleResult, sidekick: str):
     lease = main.claim(lane, SidekickID(f"sidekick:{sidekick}"), now_millis=0)
-    _complete_operations(main, lease)
+    _complete_operations(main, lease, screenshots=True)
     main.accept_evidence(_envelope(main, lease), FakeOracle(result))
     return lease
 
@@ -187,8 +187,7 @@ class LaneLockTests(unittest.TestCase):
             main.close()
 
             ledger_tool.write(
-                directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
-            )
+                directory, verdict(lease.node_id), NodeStatus.FAILED)
             unlocked = replay(directory)
             lock = lane_lock_state(unlocked, BoundLane.SIMULATOR)
 
@@ -376,8 +375,8 @@ class AdmitVerdictTests(unittest.TestCase):
                 NodeStatus.FAILED,
                 FRAME_COUNT,
             )
-        with self.assertRaisesRegex(LedgerLockError, "positive integer"):
-            self.admit(bundle_frame_count=0)
+        with self.assertRaisesRegex(LedgerLockError, "derived from the run"):
+            self.admit(bundle_frame_count=-1)
 
 
 class LedgerToolTests(unittest.TestCase):
@@ -400,9 +399,7 @@ class LedgerToolTests(unittest.TestCase):
             written = ledger_tool.write(
                 directory,
                 verdict(lease.node_id),
-                NodeStatus.FAILED,
-                FRAME_COUNT,
-            )
+                NodeStatus.FAILED)
             adjudicated = next(
                 item
                 for item in written["nodes"]
@@ -412,13 +409,29 @@ class LedgerToolTests(unittest.TestCase):
             self.assertEqual(
                 {
                     "attribution": "product",
-                    "bundleFrameCount": FRAME_COUNT,
-                    "firstDeviantFrame": 3,
+                    "bundleFrameCount": 1,
+                    "firstDeviantFrame": 0,
                     "regionObservation": "the poster grid stayed blank",
                     "signature": None,
                 },
                 adjudicated["adjudication"],
             )
+
+    def test_a_frame_the_run_captured_no_image_for_is_refused(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            main = open_run(_single_node_plan(), directory)
+            lease = run_node(
+                main, BoundLane.SIMULATOR, OracleResult.VIOLATED, "red"
+            )
+            main.close()
+
+            with self.assertRaisesRegex(LedgerLockError, "outside the 1 frames"):
+                ledger_tool.write(
+                    directory,
+                    verdict(lease.node_id, first_deviant_frame=1),
+                    NodeStatus.FAILED,
+                )
 
     def test_resume_withholds_a_sibling_on_the_locked_lane(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -436,8 +449,7 @@ class LedgerToolTests(unittest.TestCase):
             self.assertIn("node:device-gate", locked["ready"])
 
             ledger_tool.write(
-                directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
-            )
+                directory, verdict(lease.node_id), NodeStatus.FAILED)
             released = ledger_tool.resume(directory)
             self.assertEqual([], released["awaitingVerdict"])
             self.assertIn("node:third", released["ready"])
@@ -497,15 +509,12 @@ class LedgerToolTests(unittest.TestCase):
             main.close()
 
             ledger_tool.write(
-                directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
-            )
+                directory, verdict(lease.node_id), NodeStatus.FAILED)
             with self.assertRaisesRegex(LedgerLockError, "owes no verdict"):
                 ledger_tool.write(
                     directory,
                     verdict(lease.node_id),
-                    NodeStatus.FAILED,
-                    FRAME_COUNT,
-                )
+                    NodeStatus.FAILED)
 
     def test_a_forged_claim_on_a_locked_lane_does_not_replay(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -551,9 +560,7 @@ class LedgerToolTests(unittest.TestCase):
                 ledger_tool.write(
                     directory,
                     verdict(lease.node_id, first_deviant_frame=FRAME_COUNT),
-                    NodeStatus.FAILED,
-                    FRAME_COUNT,
-                )
+                    NodeStatus.FAILED)
             self.assertEqual(before, (directory / "ledger.jsonl").read_bytes())
 
 
@@ -573,9 +580,7 @@ class ReopenTests(unittest.TestCase):
         ledger_tool.write(
             directory,
             verdict(lease.node_id, attribution=Attribution.HARNESS),
-            NodeStatus.INDETERMINATE,
-            FRAME_COUNT,
-        )
+            NodeStatus.INDETERMINATE)
         return lease
 
     def test_a_harness_indeterminate_node_returns_to_pending(self) -> None:
@@ -630,9 +635,7 @@ class ReopenTests(unittest.TestCase):
             ledger_tool.write(
                 directory,
                 verdict(lease.node_id, attribution=Attribution.HARNESS),
-                NodeStatus.INDETERMINATE,
-                FRAME_COUNT,
-            )
+                NodeStatus.INDETERMINATE)
 
             with self.assertRaisesRegex(LedgerLockError, f"of {MAX_NODE_ATTEMPTS}"):
                 ledger_tool.reopen(directory, lease.node_id)
@@ -679,8 +682,7 @@ class ReopenTests(unittest.TestCase):
                 main.close()
 
                 ledger_tool.write(
-                    directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
-                )
+                    directory, verdict(lease.node_id), NodeStatus.FAILED)
 
                 self.assertIs(
                     NodeStatus.FAILED, replay(directory).node(lease.node_id).status
@@ -724,9 +726,7 @@ class ReopenTests(unittest.TestCase):
             ledger_tool.write(
                 directory,
                 verdict(lease.node_id, attribution=Attribution.PRODUCT),
-                NodeStatus.INDETERMINATE,
-                FRAME_COUNT,
-            )
+                NodeStatus.INDETERMINATE)
 
             with self.assertRaisesRegex(LedgerLockError, "product is a conclusion"):
                 ledger_tool.reopen(directory, lease.node_id)
@@ -738,8 +738,7 @@ class ReopenTests(unittest.TestCase):
             lease = run_node(main, BoundLane.SIMULATOR, OracleResult.VIOLATED, "red")
             main.close()
             ledger_tool.write(
-                directory, verdict(lease.node_id), NodeStatus.FAILED, FRAME_COUNT
-            )
+                directory, verdict(lease.node_id), NodeStatus.FAILED)
 
             with self.assertRaisesRegex(LedgerLockError, "reopened out of"):
                 ledger_tool.reopen(directory, lease.node_id)
@@ -799,10 +798,8 @@ class KnownDefectRoutingTests(unittest.TestCase):
 
             ledger_tool.write(
                 directory,
-                verdict(lease.node_id, signature=ALL_BLACK),
-                NodeStatus.FAILED,
-                FRAME_COUNT,
-            )
+                verdict(lease.node_id, signature=ALL_BLACK, first_deviant_frame=None),
+                NodeStatus.FAILED)
 
             self.assertIs(
                 NodeStatus.FAILED_KNOWN, replay(directory).node(lease.node_id).status
@@ -816,10 +813,8 @@ class KnownDefectRoutingTests(unittest.TestCase):
 
             ledger_tool.write(
                 directory,
-                verdict(lease.node_id, signature=ALL_BLACK),
-                NodeStatus.FAILED,
-                FRAME_COUNT,
-            )
+                verdict(lease.node_id, signature=ALL_BLACK, first_deviant_frame=None),
+                NodeStatus.FAILED)
 
             self.assertIs(
                 NodeStatus.FAILED, replay(directory).node(lease.node_id).status
@@ -862,10 +857,8 @@ class KnownDefectRoutingTests(unittest.TestCase):
 
             ledger_tool.write(
                 directory,
-                verdict(lease.node_id, signature=ALL_BLACK),
-                NodeStatus.FAILED,
-                FRAME_COUNT,
-            )
+                verdict(lease.node_id, signature=ALL_BLACK, first_deviant_frame=None),
+                NodeStatus.FAILED)
 
             self.assertIs(
                 NodeStatus.FAILED_KNOWN, replay(directory).node(lease.node_id).status
@@ -880,17 +873,11 @@ class KnownDefectRoutingTests(unittest.TestCase):
             with self.assertRaisesRegex(LedgerLockError, "derived from the known"):
                 ledger_tool.write(
                     directory,
-                    verdict(lease.node_id, signature=ALL_BLACK),
-                    NodeStatus.FAILED_KNOWN,
-                    FRAME_COUNT,
-                )
+                    verdict(lease.node_id, signature=ALL_BLACK, first_deviant_frame=None),
+                    NodeStatus.FAILED_KNOWN)
 
             self.assertIs(
-                NodeStatus.FAILED,
-                replay(directory).node(lease.node_id).status
-                if replay(directory).node(lease.node_id).status
-                is not NodeStatus.LEASED
-                else NodeStatus.FAILED,
+                NodeStatus.LEASED, replay(directory).node(lease.node_id).status
             )
 
     def test_a_run_whose_only_failure_is_known_closes_as_passed(self) -> None:
@@ -900,10 +887,8 @@ class KnownDefectRoutingTests(unittest.TestCase):
             self.with_defects(self.defect("scenario:gate", ALL_BLACK))
             ledger_tool.write(
                 directory,
-                verdict(lease.node_id, signature=ALL_BLACK),
-                NodeStatus.FAILED,
-                FRAME_COUNT,
-            )
+                verdict(lease.node_id, signature=ALL_BLACK, first_deviant_frame=None),
+                NodeStatus.FAILED)
 
             main = open_run(_single_node_plan(), directory)
             closed = main.finalize()
@@ -922,10 +907,8 @@ class KnownDefectRoutingTests(unittest.TestCase):
 
             ledger_tool.write(
                 directory,
-                verdict(lease.node_id, signature=ALL_BLACK),
-                NodeStatus.FAILED,
-                FRAME_COUNT,
-            )
+                verdict(lease.node_id, signature=ALL_BLACK, first_deviant_frame=None),
+                NodeStatus.FAILED)
             current = replay(directory)
 
             self.assertFalse(lane_lock_state(current, BoundLane.SIMULATOR).locked)

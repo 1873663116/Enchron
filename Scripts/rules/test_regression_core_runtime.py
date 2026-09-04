@@ -367,7 +367,18 @@ def _invoke_current(main, lease, adapter: FakeOperationAdapter) -> OperationResu
     return main.invoke_operation(grant, grant.arguments_bytes, adapter)
 
 
-def _complete_operations(main, lease) -> None:
+def _screenshot(directory: Path, name: str) -> str:
+    from regression.tools.raster import Raster, encode_png
+
+    path = Path(directory) / f"{name}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    shade = (len(name) * 7) % 200 + 20
+    path.write_bytes(encode_png(Raster(2, 2, 3, bytes([shade]) * 12)))
+    return str(path)
+
+
+def _complete_operations(main, lease, screenshots: bool = False) -> None:
+    index = 0
     while True:
         call = main.view.lease(lease.id).current_call
         if call is None:
@@ -376,10 +387,26 @@ def _complete_operations(main, lease) -> None:
             StateFingerprint(item.key, item.schema, _digest(f"state:{item.key}"))
             for item in call.state_productions
         )
+        outputs = FrozenJSONObject()
+        if screenshots:
+            outputs = FrozenJSONObject(
+                (
+                    (
+                        "localScreenshotPath",
+                        _screenshot(
+                            lease.assignment_directory / "screens",
+                            f"{lease.id}-{index}".replace(":", "-"),
+                        ),
+                    ),
+                )
+            )
+        index += 1
         _invoke_current(
             main,
             lease,
-            FakeOperationAdapter([OperationResult(True, fingerprints)]),
+            FakeOperationAdapter(
+                [OperationResult(True, fingerprints, "", outputs)]
+            ),
         )
 
 

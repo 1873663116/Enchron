@@ -56,7 +56,7 @@ class ChecklistTests(unittest.TestCase):
         main = open_run(_single_node_plan(), directory)
         lease = run_node(main, BoundLane.SIMULATOR, OracleResult.VIOLATED, "red")
         main.close()
-        ledger_tool.write(directory, verdict(lease.node_id), status, FRAME_COUNT)
+        ledger_tool.write(directory, verdict(lease.node_id), status)
         return replay(directory)
 
     def test_a_checklist_is_generated_from_the_deferred_nodes(self) -> None:
@@ -64,6 +64,20 @@ class ChecklistTests(unittest.TestCase):
             current = self.run_with(Path(temporary), NodeStatus.FAILED)
 
             self.assertEqual((), build_checklist(current).deferred)
+
+    def test_a_deferred_node_lands_on_the_checklist(self) -> None:
+        checklist = build_checklist(_deferred_view())
+
+        self.assertEqual((NODE,), checklist.deferred)
+        self.assertEqual((NODE,), checklist.nodes)
+
+    def test_a_known_failure_does_not_block_its_successors_from_closing(
+        self,
+    ) -> None:
+        from regression.core.runview import failure_ancestors
+
+        blocked = failure_ancestors((_deferred_view().node(NODE),))
+        self.assertEqual((), blocked)
 
     def test_widening_the_checklist_changes_its_digest(self) -> None:
         narrow = Checklist((NODE,), ())
@@ -154,9 +168,7 @@ class MergeReceiptTests(unittest.TestCase):
         ledger_tool.write(
             directory,
             verdict(lease.node_id, signature=ALL_BLACK),
-            status,
-            FRAME_COUNT,
-        )
+            status)
         return lease
 
     def test_a_failed_node_closes_the_receipt(self) -> None:
@@ -242,6 +254,34 @@ class MergeReceiptTests(unittest.TestCase):
             self.assertEqual(
                 "failed(known)", result["nodes"][0]["status"]
             )
+
+    def test_a_receipt_sealed_against_another_checklist_is_refused(self) -> None:
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.closed_run(directory, NodeStatus.FAILED)
+            elsewhere = seal(
+                Checklist((NODE,), ()),
+                BUILD,
+                "DEVICE-UDID",
+                RECORDING,
+                (attribution(),),
+            )
+            path = directory / "receipt.json"
+            path.write_text(json.dumps(elsewhere.payload()), encoding="utf-8")
+
+            result = receipt_tool.run(directory, path)
+
+            self.assertIn("refused", result)
+            self.assertIn("sealed against", result["refused"])
+
+    def test_a_receipt_naming_a_digest_that_is_not_one_is_refused(self) -> None:
+        payload = seal(
+            Checklist((NODE,), ()), BUILD, "DEVICE-UDID", RECORDING, (attribution(),)
+        ).payload()
+        payload["buildDigest"] = 7
+
+        with self.assertRaisesRegex(HumanReceiptError, "build digest"):
+            load_receipt(payload)
 
     def test_a_human_receipt_path_that_does_not_exist_is_refused(self) -> None:
         with TemporaryDirectory() as temporary:

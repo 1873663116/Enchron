@@ -29,6 +29,7 @@ from regression.tools.ledger_lock import (
     lane_lock_state,
     verdict_payload,
 )
+from regression.tools.bundle_tool import BundleError, frames_of
 from regression.tools.known_defects import classify
 from regression.tools.verdict import Verdict
 
@@ -40,7 +41,6 @@ def write(
     run_directory: Path,
     verdict: Verdict,
     status: NodeStatus,
-    bundle_frame_count: int,
 ) -> Dict[str, Any]:
     directory = Path(run_directory)
     log = read_event_log(directory)
@@ -61,6 +61,9 @@ def write(
                 verdict,
                 recorded_fields(current, verdict.node),
             )
+        bundle_frame_count = bundled_frame_count(
+            current, verdict.node, attempts(current, verdict.node) or 1
+        )
         admit_verdict(current, verdict, status, bundle_frame_count)
         node = current.node(verdict.node)
         writer.append(
@@ -72,6 +75,15 @@ def write(
             f"verdict:{verdict.node}:{attempts(current, verdict.node)}",
         )
         return projection(build_run_view(writer.events))
+
+
+def bundled_frame_count(current: RunView, node: NodeID, attempt: int) -> int:
+    """The frame a verdict names is bounded by the montage the reviewer sees,
+    and the montage is built from the run, so the bound is read, not stated."""
+    try:
+        return len(frames_of(current, node, attempt))
+    except BundleError:
+        return 0
 
 
 def scenario_of(run_directory: Path, node: NodeID) -> Optional[ScenarioID]:

@@ -130,8 +130,8 @@ def admit_verdict(
         raise LedgerLockError("the ledger admits a Verdict")
     if not isinstance(status, NodeStatus):
         raise LedgerLockError("the ledger admits a NodeStatus")
-    if type(bundle_frame_count) is not int or bundle_frame_count < 1:
-        raise LedgerLockError("the montage frame count must be a positive integer")
+    if type(bundle_frame_count) is not int or bundle_frame_count < 0:
+        raise LedgerLockError("the montage frame count is derived from the run")
 
     node = next(
         (item for item in view.nodes if item.node_id == verdict.node), None
@@ -163,6 +163,11 @@ def admit_verdict(
             "a verdict states what the cropped region showed; that observation is empty"
         )
     frame = verdict.first_deviant_frame
+    if frame is not None and bundle_frame_count == 0:
+        raise LedgerLockError(
+            f"the bundle for {verdict.node} holds no frame, so frame {frame} names "
+            "nothing a reviewer can look at"
+        )
     if frame is not None and frame >= bundle_frame_count:
         raise LedgerLockError(
             f"the first deviant frame {frame} is outside the {bundle_frame_count} "

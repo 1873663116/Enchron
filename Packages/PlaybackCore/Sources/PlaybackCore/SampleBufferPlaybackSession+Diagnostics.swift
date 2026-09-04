@@ -803,7 +803,6 @@ extension SampleBufferPlaybackSession {
         diagnostics.rendererStatus = "failed"
         diagnostics.rendererError = fact.message
         onDiagnosticsChange?(diagnostics)
-        updateLifecycle(.failed)
         let activeFailureCause = Self.activeFailureCause(for: fact)
         let stage = PlaybackArtifactEventName.renderer(
             fact.rendererKind,
@@ -819,6 +818,7 @@ extension SampleBufferPlaybackSession {
             rendererKind: fact.rendererKind.rawValue,
             requiresFlushToResumeDecoding: fact.requiresFlushToResumeDecoding
         ))
+        updateLifecycle(.failed)
         debugStore.emit(
             mediaSessionID: traceID,
             node: .rendererInputCoordination,

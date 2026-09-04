@@ -744,7 +744,7 @@ def _handler_spans(source: str, location: str) -> Mapping[str, tuple[int, int]]:
 
 
 def _elided(source: str, spans: Mapping[str, tuple[int, int]]) -> str:
-    lines = source.splitlines()
+    lines = source.split("\n")
     covered = {}
     for name, (start, end) in spans.items():
         for index in range(start - 1, min(end, len(lines))):
@@ -759,9 +759,27 @@ def _elided(source: str, spans: Mapping[str, tuple[int, int]]) -> str:
     return "\n".join(kept)
 
 
+def _handlers_serving_operations(
+    operations, spans: Mapping[str, Mapping[str, tuple[int, int]]]
+) -> Mapping[str, Mapping[str, tuple[int, int]]]:
+    """The class holds methods that serve an Operation and methods that serve
+    the runtime. Only the first kind is elided from the shared digest, so an
+    edit to the second moves every Operation."""
+    serving: dict[str, dict[str, tuple[int, int]]] = {
+        locator: {} for locator in spans
+    }
+    for operation in operations:
+        locator = operation.implementation_locator
+        name = resident_handler_name(str(operation.id))
+        span = spans.get(locator, {}).get(name)
+        if span is not None:
+            serving.setdefault(locator, {})[name] = span
+    return serving
+
+
 def _handler_source(source: str, span: tuple[int, int]) -> str:
     start, end = span
-    return "\n".join(source.splitlines()[start - 1 : end])
+    return "\n".join(source.split("\n")[start - 1 : end])
 
 
 def operation_implementation_digests(
@@ -786,7 +804,8 @@ def operation_implementation_digests(
         source = path.read_text(encoding="utf-8")
         sources[locator] = source
         spans[locator] = _handler_spans(source, locator)
-    shared = _shared_runtime_digest(repository, sources, spans)
+    handlers = _handlers_serving_operations(catalog.operations, spans)
+    shared = _shared_runtime_digest(repository, sources, handlers)
     digests: dict[OperationID, Digest] = {}
     for operation in catalog.operations:
         locator = operation.implementation_locator
