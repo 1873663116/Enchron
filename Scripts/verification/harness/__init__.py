@@ -9,6 +9,13 @@ from harness.failures import (
     ProductFailure,
 )
 from harness.local import LocalToolRunner
+from harness.recording import (
+    RecordingError,
+    Segment,
+    segment_filename,
+    start_segment,
+    stop_segment,
+)
 from harness.recovery import Decision, FaultRecord, Halt, RecoveryPolicy, Retry
 from harness.replay import RecordingTap, ReplayDrift, ReplayRun, normalize_command
 from harness.waits import Evidence, wait_for

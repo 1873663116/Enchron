@@ -8,7 +8,7 @@ and ffmpeg demuxes plain text as ANSI art video with a width, a frame rate and a
 plausible duration. The runner's stdout is staged beside the attachments, so five
 consecutive sessions reported a 575 KB recording that was in fact that log.
 
-Four checks, because the container predicate that closed it is only one of the
+Five checks, because the container predicate that closed it is only one of the
 ways this can come back:
 
   fixtures   both fixtures are present, since a negative that has been deleted
@@ -18,7 +18,11 @@ ways this can come back:
              replaced, so its rejection is a decision and not an accident of
              whichever ffmpeg is installed;
   selection  find_recording_sources, which is what actually offers staged files
-             to the predicate, returns the movie and not the log.
+             to the predicate, returns the movie and not the log;
+  segment    segment_sources, the simulator entry point, offers its single file
+             to the same predicate rather than trusting the caller's suffix, and
+             the negative it has to reject carries the .mp4 suffix and the name
+             a real segment carries, so passing it takes reading the container.
 """
 
 from __future__ import annotations
@@ -127,6 +131,14 @@ def synthesized_recording(scratch: Path) -> Path:
     return movie
 
 
+def truncated_segment(scratch: Path, recording: Path) -> Path:
+    """A segment whose recorder died before the moov atom was written: the name
+    and the suffix a real segment carries, and no readable container."""
+    partial = scratch / "node--playback--seek-1.mp4"
+    partial.write_bytes(recording.read_bytes()[:512])
+    return partial
+
+
 def staged_bundle(log: Path) -> tuple[Path, Path, Path]:
     """A result bundle shaped like the unsealed ones: a Staging tree holding the
     runner's stdout beside a real movie, and no exported attachments."""
@@ -225,6 +237,27 @@ def main() -> None:
             f"find_recording_sources recovered {chosen} from a staging tree whose only "
             f"movie is {movie.name}"
         )
+
+    print("\nsegment")
+    from_movie = [Path(source.path).name for source in module.segment_sources(RECORDING)]
+    if from_movie == [RECORDING.name]:
+        print(f"  ok   the simulator segment was recovered: {from_movie}")
+    else:
+        print(f"  FAIL recovered {from_movie} from a lone screen recording")
+        failures.append(
+            f"segment_sources recovered {from_movie} from {RECORDING.name}"
+        )
+    truncated = truncated_segment(scratch, RECORDING)
+    for negative in (STDOUT_LOG, truncated):
+        recovered = [Path(source.path).name for source in module.segment_sources(negative)]
+        if recovered:
+            print(f"  FAIL {negative.name} was accepted as a segment: {recovered}")
+            failures.append(
+                f"segment_sources accepted {negative.name}, so the simulator entry "
+                "point trusts the caller's path instead of the container predicate"
+            )
+        else:
+            print(f"  ok   rejected {negative.name} offered as a segment")
 
     print()
     for failure in failures:

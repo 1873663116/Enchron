@@ -343,29 +343,52 @@ def export_attachments(result_bundle: Path, output_root: Path) -> tuple[Path, li
     return export_root, records
 
 
+def segment_sources(path: Path) -> list[RecordingSource]:
+    metadata = probe_video(path)
+    if metadata is None:
+        return []
+    return [
+        RecordingSource(
+            path=path,
+            origin="simulator segment",
+            started_at=None,
+            metadata=metadata,
+        )
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Recover physical Vision Pro UI-test recordings from an xcresult and "
-            "extract frames aligned to interactions, checkpoints, fixed intervals, "
-            "and large visual changes."
+            "Recover Vision Pro UI-test recordings from an xcresult, or read one "
+            "simulator segment recorded by simctl, and extract frames aligned to "
+            "interactions, checkpoints, fixed intervals, and large visual changes."
         )
     )
-    parser.add_argument("result_bundle", type=Path)
+    parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--fixed-interval", type=float, default=5.0)
     parser.add_argument("--scene-threshold", type=float, default=0.35)
     arguments = parser.parse_args()
 
-    result_bundle = arguments.result_bundle.resolve()
+    source_path = arguments.source.resolve()
     output_root = arguments.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
-    export_root, attachment_records = export_attachments(result_bundle, output_root)
-    sources = find_recording_sources(
-        result_bundle,
-        export_root,
-        attachment_records,
-    )
+    export_root: Path | None = None
+    if source_path.is_file():
+        attachment_records: list[dict[str, object]] = []
+        sources = segment_sources(source_path)
+    elif source_path.is_dir():
+        export_root, attachment_records = export_attachments(source_path, output_root)
+        sources = find_recording_sources(
+            source_path,
+            export_root,
+            attachment_records,
+        )
+    else:
+        raise SystemExit(
+            f"{source_path} is neither an xcresult bundle nor a recording file"
+        )
 
     recordings: list[dict[str, object]] = []
     for index, source in enumerate(sources, start=1):
@@ -410,11 +433,12 @@ def main() -> None:
             }
         )
 
-    shutil.rmtree(export_root, ignore_errors=True)
+    if export_root is not None:
+        shutil.rmtree(export_root, ignore_errors=True)
 
     report = {
         "schemaVersion": 1,
-        "resultBundle": str(result_bundle),
+        "source": str(source_path),
         "recordingCount": len(recordings),
         "recordings": recordings,
     }
