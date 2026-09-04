@@ -107,7 +107,8 @@ def serial_refusal_reason(targets: Sequence[str]) -> str:
     joined = " and ".join(targets)
     return (
         f"{joined} each have pending segments on reachable hardware from one freeze, "
-        "so they must run concurrently through the campaign launcher, not one segment "
-        "at a time by hand. Launch the campaign; a bare serial segment stays refused "
-        "while the lanes are parallelizable."
+        "so they must run concurrently, each in its own worktree, not one segment at a "
+        f"time by hand. Whoever drives that concurrent run sets {CAMPAIGN_TOKEN_ENV} in "
+        "each lane's environment; a bare serial segment stays refused while the lanes "
+        "are parallelizable."
     )
