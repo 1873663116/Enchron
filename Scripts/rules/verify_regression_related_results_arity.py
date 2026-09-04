@@ -56,16 +56,13 @@ def producing_calls(catalog: dict) -> dict[str, list[tuple[str, int, str | None]
     return found
 
 
-# Split on sentence-ending periods only: "relatedResults[1..2]" carries dots
-# of its own, and splitting inside it would strand the index from the case
-# name that scopes it.
-SENTENCE = re.compile(r".+?(?:\.(?=\s|$)|$)", re.DOTALL)
+SENTENCE_SPLIT_OUTSIDE_SLOT_RANGES = re.compile(r".+?(?:\.(?=\s|$)|$)", re.DOTALL)
 
 
 def demands(text: str, case_keys: set[str]) -> list[tuple[int, set[str]]]:
     """Every slot the text reads, paired with the case keys its sentence names."""
     found: list[tuple[int, set[str]]] = []
-    for sentence in SENTENCE.findall(text):
+    for sentence in SENTENCE_SPLIT_OUTSIDE_SLOT_RANGES.findall(text):
         indexes = [int(index) for index in SLOT.findall(sentence)]
         if not indexes:
             continue

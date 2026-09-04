@@ -123,10 +123,7 @@ ALLOWED_INTERNAL_IMPORTS = {
     ),
 }
 
-# Python 3.9 standard-library roots. Platform-specific modules are included
-# because this rule describes portability to the supported Python runtime, not
-# only the interpreter executing the check.
-ALLOWED_STDLIB_ROOTS = frozenset(
+PYTHON_3_9_STDLIB_ROOTS_ALL_PLATFORMS = frozenset(
     (
         "__future__",
         "_thread",
@@ -458,7 +455,7 @@ def _classify_core_candidate(
         return violations, target
 
     root = candidate.split(".", 1)[0]
-    if root not in ALLOWED_STDLIB_ROOTS:
+    if root not in PYTHON_3_9_STDLIB_ROOTS_ALL_PLATFORMS:
         violations.append(
             _diagnostic(
                 path,

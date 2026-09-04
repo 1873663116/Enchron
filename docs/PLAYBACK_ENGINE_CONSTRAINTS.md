@@ -73,6 +73,10 @@ reorder floor 优先于两个上限：队列比编码器自身的重排还浅会
 
 Profile 7 把配置记录放在**增强流**而不是被解码的基础层上，因此 `dolbyVisionProfile` 必须扫描来源的每一条视频流才读得到。两层来源只交付基础层，`dolbyVisionHasEnhancementLayer` 因此是"来源声称的 Dolby Vision"与"佩戴者实际收到的画面"之间的分界。断言见 `PlaybackFFmpegBridgeTests`（profile7 的两条 `#expect`）。
 
+- **命名规则的三个 fixture 里，前两个的 level 与 cross compatibility ID 朝相反方向背离**，这排除了两个字段按惯例总是相等的可能。`Scripts/rules/check_dolby_vision_premises.py` 的 `FIXTURES_WHERE_LEVEL_AND_CROSS_ID_DISAGREE` 选中它们正是为此。
+- **第三个命名 fixture 是唯一走到"完全省略数字"那条分支的文件**：`Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4` 发布为 Dolby Vision Profile 5，level 为 1、cross compatibility ID 为 0，按 level 命名会读成 Profile 5.1。见 `Scripts/rules/check_dolby_vision_premises.py`。
+- **构造"携带无关 Dolby Vision 轨道"的容器时，第一条流必须是 `av_find_best_stream` 会挑中的那条**（`-disposition:v:0 default`、`-disposition:v:1 0`），否则配置记录会落在被解码的流上，`detect_dolby_vision` 中关于其他流的那条规则根本不会被触及。见 `Scripts/rules/check_dolby_vision_premises.py`。
+
 ## 诊断把判定与文本分开
 
 `rendererFailedToDecode` 与 `rendererError` 是两个字段：判定归判定，框架文本归文本。产品表面因此永远不需要解释框架措辞。同类的分工还有 `audioRetired`——音频可以离开活动图而视频继续，断言见 `audioRendererFailureRetiresAudioAndVideoContinues`（以及 `audioProvider.openFailed.videoContinues`、`audioProvider.readFailed.videoContinues` 两条 stage 名）。
@@ -95,6 +99,7 @@ Profile 7 把配置记录放在**增强流**而不是被解码的基础层上，
 - 一张合格的 MOV 流表可以让 open 跳过 `avformat_find_stream_info`，被跳过的探测本该填的字段留在零值。渲染器超前预算花的正是这些字段，而一个静默的零读作"这帧不花钱"，会把为 720p 准备的上限发给 8K 流。已知缺口是 Sony 那条 4:2:2 十比特 H.264：真实成本每像素四字节，但 H.264 解码器在解出一帧之前不选定像素格式，`avcC` atom 本身也带不回色度格式，估计因此落到 4:2:0 八比特——高估预算而不是饿死它。强制探测能买到精确数字，代价是每次 open 都读媒体字节，而这条路径存在的目的正是避免它。
 - CoreMedia 只在 `create_h264_format_from_avcc` 调用的参数集构造里展开 SPS 的颜色声明。仅由 `avcC` atom 构建的描述会丢掉 primaries、transfer、matrix 与 range 四项。相关 fixture 把这四项只声明在 SPS 里，正是为了钉住这条。
 - 从来源格式描述读出的 projection kind、view packing kind 与左右眼视图标志，用途是让产品在渲染器发布之前拒绝 Apple Immersive Video。它们**不构成来源格式替换的授权**：codec payload 与聚合来源仍归 bridge 所有。
+- **`PlaybackFFmpegBridge` 只按 `codec_type` 判定一条流属于哪一类**。m4a 里的封面图因此被算作视频流，带封面的音频文件的 mediaKind 是 video 而不是 audioOnly；要一个真正 audioOnly 的资产，只能选完全不带视频流的那种。见 `Scripts/rules/test_fixture_registry.py`。
 
 ## 诊断工具的时间基准
 

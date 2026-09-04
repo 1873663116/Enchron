@@ -55,9 +55,7 @@ TOOL = Path(__file__).resolve().parents[1] / "verification" / "xcodebuild_test_s
 ENUMERATION = (
     REPOSITORY / "Tests/Fixtures/xcodebuild-test-selection/test-enumeration-salvaged.json"
 )
-# The target verify_vision_test_suites.sh names. The fixture has to contain it, since
-# the verifier is driven as it ships rather than reconfigured for the fixture.
-TARGET = "EnchronAppTests"
+VERIFIER_TARGET = "EnchronAppTests"
 FREE_FUNCTION_INVOCATION = "TargetLevelFreeFunctions"
 
 STUB_SOURCE = '''#!/usr/bin/env python3
@@ -158,7 +156,7 @@ def main() -> int:
     target_identifiers = tuple(
         identifier
         for identifier in enumeration.identifiers
-        if tool.selects(TARGET, identifier)
+        if tool.selects(VERIFIER_TARGET, identifier)
     )
     nested = tuple(name for name in target_identifiers if len(name.split("/")) >= 3)
     free_functions = tuple(name for name in target_identifiers if len(name.split("/")) == 2)
@@ -180,19 +178,21 @@ def main() -> int:
         "the damaged capture was repaired without losing an identifier",
         f"the enumeration lost identifiers: {enumeration.damaged}",
     )
-    # A fixture with one suite, or with no target-level function, checks the plan
-    # against a shape that exercises half of what the partition has to get right and
-    # leaves the other half free to be wrong. How many of each is the fixture's
-    # business.
     require(
         "fixture",
         len(suites) > 1 and bool(free_functions),
         f"the target has {len(nested)} test(s) across {len(suites)} suites and "
         f"{len(free_functions)} target-level function(s), so a partition has to reach both",
         f"the fixture has {len(suites)} suite(s) and {len(free_functions)} target-level "
-        f"function(s) in {TARGET}, so it cannot show that a partition covers both",
+        f"function(s) in {VERIFIER_TARGET}, so it cannot show that a partition covers both. "
+        "One suite, or no target-level function, exercises half of what the partition has "
+        "to get right and leaves the other half free to be wrong. The verifier is driven as "
+        "it ships rather than reconfigured for the fixture, so the fixture has to contain "
+        "that target.",
     )
-    disabled = tuple(name for name in enumeration.disabled if tool.selects(TARGET, name))
+    disabled = tuple(
+        name for name in enumeration.disabled if tool.selects(VERIFIER_TARGET, name)
+    )
     require(
         "fixture",
         not disabled,
@@ -201,10 +201,7 @@ def main() -> int:
     )
 
     print("\ntrap")
-    # The defect stated as a relationship rather than a count. A target-level Swift
-    # Testing function has no suite component, so a selection made of suite names
-    # cannot reach one however complete the list of suite names is.
-    suite_filters = [f"{TARGET}/{suite}" for suite in suites]
+    suite_filters = [f"{VERIFIER_TARGET}/{suite}" for suite in suites]
     suite_resolutions = tool.resolve(suite_filters, enumeration)
     suite_covered = set(tool.selected_identifiers(suite_resolutions))
     unreachable = set(target_identifiers) - suite_covered
@@ -215,14 +212,16 @@ def main() -> int:
         f"{len(free_functions)} target-level function(s) unassigned",
         f"filters made of every suite name leave {len(unreachable)} test(s) unassigned "
         f"rather than the {len(free_functions)} target-level function(s), so the fixture "
-        "no longer reproduces what a hardcoded suite list misses",
+        "no longer reproduces what a hardcoded suite list misses. A target-level Swift "
+        "Testing function has no suite component, so a selection made of suite names "
+        "cannot reach one however complete the list of suite names is.",
     )
     suite_only_plan = tool.TargetInvocationPlan(
-        target=TARGET,
+        target=VERIFIER_TARGET,
         invocations=tuple(
             tool.TargetInvocation(
                 name=suite,
-                filters=(f"{TARGET}/{suite}",),
+                filters=(f"{VERIFIER_TARGET}/{suite}",),
                 identifiers=tuple(
                     name for name in target_identifiers if name.split("/")[1] == suite
                 ),
@@ -472,7 +471,7 @@ def main() -> int:
         )
         empty = tool.TargetInvocation(
             name="EmptySelection",
-            filters=(f"{TARGET}/ThisSuiteDoesNotExist",),
+            filters=(f"{VERIFIER_TARGET}/ThisSuiteDoesNotExist",),
             identifiers=(),
         )
         refused(
@@ -487,8 +486,8 @@ def main() -> int:
     if failures:
         return 1
     print(
-        f"the verifier partitions all {len(target_identifiers)} {TARGET} tests exactly once and "
-        "refuses incomplete, overlapping, and empty plans"
+        f"the verifier partitions all {len(target_identifiers)} {VERIFIER_TARGET} tests "
+        "exactly once and refuses incomplete, overlapping, and empty plans"
     )
     return 0
 

@@ -785,6 +785,19 @@ def analyze_whole_interval_calibration(
     }
 
 
+UNLABELED_DROPOUT_BRIDGE_SECONDS = 0.16
+
+
+def bridges_unlabeled_dropout(
+    label: float | None, last_same: float | None, at_seconds: float
+) -> bool:
+    return (
+        label is None
+        and last_same is not None
+        and at_seconds - last_same <= UNLABELED_DROPOUT_BRIDGE_SECONDS
+    )
+
+
 def observed_envelope_affine_fit(
     samples: list[float],
     sample_rate: int,
@@ -848,9 +861,7 @@ def observed_envelope_affine_fit(
                 continue
             if run_start is None:
                 continue
-            # Only an unlabeled dropout may be bridged. Seeing the competing tone
-            # always terminates this frequency's burst.
-            if label is None and last_same is not None and time - last_same <= 0.16:
+            if bridges_unlabeled_dropout(label, last_same, time):
                 continue
             assert last_same is not None
             offset = last_same + 0.10

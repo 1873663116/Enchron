@@ -21,8 +21,6 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CHANNEL_SOURCE = "Apps/Enchron/TestCommandChannel.swift"
 PROJECT_FILE = "Enchron.xcodeproj/project.pbxproj"
 
-# The install call is the only way the channel reaches a running app, so it is
-# the one reference outside the channel file that has to stay guarded.
 INSTALL_CALL = "installTestCommandChannelIfEnabled"
 INSTALL_SITE = "Apps/Enchron/EnchronApplication.swift"
 
@@ -94,7 +92,8 @@ def install_site_failures() -> list[str]:
             guarded = False
         elif INSTALL_CALL in stripped and not guarded:
             failures.append(
-                f"{INSTALL_SITE}:{number}: {INSTALL_CALL} is reachable outside #if DEBUG"
+                f"{INSTALL_SITE}:{number}: {INSTALL_CALL} is the only way the "
+                "channel reaches a running app and is reachable outside #if DEBUG"
             )
     return failures
 

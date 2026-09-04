@@ -1138,9 +1138,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                     connection_tail(simulator_id),
                 )
 
-        # Every credential form the product submits raises the system
-        # Save-Password sheet, so each connect branch owns exactly one
-        # dismissal, and it has to follow that branch's connect button.
         connect_buttons = {
             "connect_webdav": ["FileBrowsing-SourceConnection-webDAV-connect"],
             "connect_smb": ["FileBrowsing-SourceConnection-smb-connect"],
@@ -1175,7 +1172,11 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                     if call.operation_id == "operation:accessibility.activate@2"
                     and call.arguments.get("labels") == ["以后"]
                 ]
-                self.assertEqual(len(dismiss_indexes), len(branches))
+                self.assertEqual(
+                    len(dismiss_indexes),
+                    len(branches),
+                    "each connect branch owns exactly one Save-Password dismissal",
+                )
                 claimed: list[int] = []
                 for identifiers in branches:
                     connect_index = next(
@@ -1191,9 +1192,11 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                         f"{identifiers[0]} has no later Save-Password dismissal",
                     )
                     claimed.append(min(following))
-                # One dismissal cannot stand in for two connects: the nearest
-                # dismissal after each connect button has to be its own.
-                self.assertEqual(len(set(claimed)), len(branches))
+                self.assertEqual(
+                    len(set(claimed)),
+                    len(branches),
+                    "one Save-Password dismissal cannot stand in for two connect buttons",
+                )
 
     def test_remote_fault_and_issue_preparations_are_webdav_only_and_ready(self) -> None:
         plans = self.plans()

@@ -238,11 +238,6 @@ class RemoteSourceProtocolTests(RemoteSourceTestCase):
         self.assertEqual({item["triggered"] for item in outside}, {False})
 
     def test_the_address_the_product_was_given_survives_every_activation(self) -> None:
-        # The product is told this address once, when the source is added, and
-        # it keeps requesting that path for the life of the session it opened.
-        # A recipe exists to reach that session, so an activation that moved
-        # the endpoint would answer the bound session before any recipe branch
-        # ran, and all four injected faults would carry one signature.
         bound = urlsplit(str(self.runtime()["address"])).path
         self.assertEqual(bound, remote.BASE_PATH)
         target = bound + quote(self.media_name())
@@ -257,7 +252,13 @@ class RemoteSourceProtocolTests(RemoteSourceTestCase):
         ):
             with self.subTest(recipe=recipe):
                 receipt = self.activate(recipe)
-                self.assertEqual(urlsplit(str(self.runtime()["address"])).path, bound)
+                self.assertEqual(
+                    urlsplit(str(self.runtime()["address"])).path,
+                    bound,
+                    "an activation that moved the endpoint would answer the bound "
+                    "session before any recipe branch ran, so all four injected "
+                    "faults would carry one signature",
+                )
                 status, _, _ = self.request(
                     "GET", path=target, headers={"Range": "bytes=0-31"}
                 )
@@ -285,10 +286,16 @@ class RemoteSourceProtocolTests(RemoteSourceTestCase):
                 generations.append(int(restored["generation"]))
                 logs.add(str(restored["requestLogPath"]))
 
-        # Isolation is unchanged: the generation still advances on every
-        # activation and restore, and each one still owns its own request log.
-        self.assertEqual(generations, sorted(set(generations)))
-        self.assertEqual(len(logs), len(generations))
+        self.assertEqual(
+            generations,
+            sorted(set(generations)),
+            "the generation advances on every activation and restore",
+        )
+        self.assertEqual(
+            len(logs),
+            len(generations),
+            "every activation and restore owns its own request log",
+        )
 
 
 class RemoteSourceRecipeTests(RemoteSourceTestCase):

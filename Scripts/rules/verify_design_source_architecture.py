@@ -316,8 +316,11 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
                 line=1,
                 signature="design-source-architecture-production-inputs",
                 message=(
-                    "Xcode Design Source Architecture production inputs must exactly "
-                    f"match scanned Swift sources: {'; '.join(details)}"
+                    "Xcode's user script sandbox grants the Design Source "
+                    "Architecture phase read access to its declared inputs and "
+                    "nothing else, so a production Swift file missing from this "
+                    "generated list is a build that dies on PermissionError "
+                    f"rather than a stale manifest: {'; '.join(details)}"
                 ),
             )
         )
@@ -475,11 +478,6 @@ def main() -> int:
     if not baseline_path.is_absolute():
         baseline_path = root / baseline_path
 
-    # Xcode's user script sandbox grants this phase read access to its declared
-    # inputs and nothing else, so a production Swift file missing from the list is
-    # not a stale manifest but a build that dies on PermissionError. The list is
-    # derived from the same walk that checks it, so it is generated rather than kept
-    # by hand.
     if arguments.write_inputs:
         inputs_path = root / PRODUCTION_INPUT_LIST
         entries = sorted(

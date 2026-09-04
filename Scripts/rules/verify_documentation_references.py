@@ -36,21 +36,12 @@ INSTRUCTION_ROOTS = (
 
 HISTORY_ROOTS = ("docs/archive",)
 
-# Review artifacts record what a reviewer observed; they do not instruct anyone.
-# A rationale quotes paths the way prose does, abbreviations included, and once
-# an assessment is accepted its bytes are bound by digest -- correcting the
-# quotation would invalidate the receipt that cites it. A rule satisfiable only
-# by editing immutable evidence is not a rule, so this population is out of
-# scope. The materialised Catalog under Regression/ stays in scope: journeys,
-# scenarios, rubrics and operations are instructions and their citations must
-# resolve.
-EVIDENCE_ROOTS = ("Regression/reviews",)
+DIGEST_BOUND_EVIDENCE_ROOTS = ("Regression/reviews",)
 
-# This check and its test quote dead paths as data. They define the rule
-# rather than instructing anyone, so scanning them only finds the examples.
 SELF = ("Scripts/rules/verify_documentation_references.py",
         "Scripts/rules/test_verify_documentation_references.py")
 
+GENERATOR_OUTPUT_ROOT = ".scratch"
 RETIRED_ARTIFACT_ROOT = "/Volumes/Cortisol/DevSpace/Xcode/Enchron"
 RETIRED_DOCUMENTS_PATH = REPOSITORY_ROOT / "Config/retired_documents.json"
 CATALOG_SOURCE_ROOT = "Config/regression/catalog-root"
@@ -100,11 +91,18 @@ def tracked_text_files() -> list[Path]:
     return sorted(path for path in files if path.is_file())
 
 
+def quotes_dead_paths_as_examples(relative: str) -> bool:
+    return relative in SELF
+
+
 def population(path: Path) -> str | None:
     relative = path.relative_to(REPOSITORY_ROOT).as_posix()
-    if relative in SELF:
+    if quotes_dead_paths_as_examples(relative):
         return None
-    if any(relative == root or relative.startswith(root + "/") for root in EVIDENCE_ROOTS):
+    if any(
+        relative == root or relative.startswith(root + "/")
+        for root in DIGEST_BOUND_EVIDENCE_ROOTS
+    ):
         return None
     if any(relative == root or relative.startswith(root + "/") for root in HISTORY_ROOTS):
         return "history"
@@ -180,7 +178,13 @@ def retired_replacement(candidate: str, retired: dict[str, str]) -> str | None:
     return None
 
 
-def is_gitignored(candidate: str) -> bool:
+def is_unrun_generator_output(candidate: str) -> bool:
+    return candidate == GENERATOR_OUTPUT_ROOT or candidate.startswith(
+        GENERATOR_OUTPUT_ROOT + "/"
+    )
+
+
+def is_provisioned_per_machine(candidate: str) -> bool:
     completed = subprocess.run(
         ["git", "-C", str(REPOSITORY_ROOT), "check-ignore", "--quiet", "--", candidate],
         capture_output=True,
@@ -203,14 +207,9 @@ def unresolved_references() -> tuple[list[str], list[str]]:
         for candidate in sorted(repository_candidates(text, resolution_document)):
             if (REPOSITORY_ROOT / candidate).exists():
                 continue
-            # .scratch holds what a check regenerates, so an absent path there
-            # means nobody has run the generator yet, not that the doc is stale.
-            if candidate == ".scratch" or candidate.startswith(".scratch/"):
+            if is_unrun_generator_output(candidate):
                 continue
-            # A gitignored path is provisioned per machine (credentials, local
-            # runtime state); its absence means this clone is unprovisioned,
-            # not that the doc names something that no longer exists.
-            if is_gitignored(candidate):
+            if is_provisioned_per_machine(candidate):
                 continue
             replacement = retired_replacement(candidate, retired)
             if replacement is None:

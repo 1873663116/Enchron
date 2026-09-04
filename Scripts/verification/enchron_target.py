@@ -25,8 +25,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-# Last reconciled 2026-08-09. `xcrun devicectl list devices` is the source of
-# truth when the headset changes.
 PHYSICAL_DESTINATION = "00008142-001871A11491401C"
 PHYSICAL_CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
 
@@ -222,9 +220,6 @@ def copy_from_container(
             )
         destination.parent.mkdir(parents=True, exist_ok=True)
         if origin.is_dir():
-            # devicectl copies a directory whole, and the deferred response
-            # batch is one. Copying only files would have left every batched
-            # response behind on the simulator lane.
             if destination.exists():
                 shutil.rmtree(destination)
             shutil.copytree(origin, destination)

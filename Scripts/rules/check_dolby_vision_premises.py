@@ -77,12 +77,7 @@ SINGLE_LAYER = (
     SAMPLE_ROOT / "HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
 )
 
-# Files whose level and cross compatibility ID disagree, so that a name built from
-# the wrong one reads differently. Each entry carries the name the file is published
-# under and the name the level would produce. The first two disagree in opposite
-# directions, which is what rules out the two fields agreeing by convention; the
-# third is the only one that reaches the branch omitting the digit entirely.
-NAMING_FIXTURES = (
+FIXTURES_WHERE_LEVEL_AND_CROSS_ID_DISAGREE = (
     (
         SAMPLE_ROOT / "HD/Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
         1,
@@ -134,12 +129,12 @@ def build_probe(source: Path, quiet: bool) -> Path:
     if clang is None:
         raise SystemExit("clang is not on PATH; the premise probe cannot be built.")
     library = VENDORED_FFMPEG / "libPlaybackFFmpeg.a"
-    # Keyed by source path, so pointing --probe-source at a variant cannot leave its
-    # binary cached where the next default run would pick it up.
-    fingerprint = hashlib.sha256(str(source.resolve()).encode()).hexdigest()[:12]
+    source_path_fingerprint = hashlib.sha256(
+        str(source.resolve()).encode()
+    ).hexdigest()[:12]
     binary = (
         scratch_directory("dolby-vision-premise-probe")
-        / f"dolby_vision_premise_probe-{fingerprint}"
+        / f"dolby_vision_premise_probe-{source_path_fingerprint}"
     )
     newest_input = max(source.stat().st_mtime, library.stat().st_mtime)
     if binary.exists() and binary.stat().st_mtime >= newest_input:
@@ -195,8 +190,6 @@ def build_unrelated_track_fixture(plain: Path, dolby_vision: Path) -> Path:
             "-map", "1:v:0",
             "-t", "3",
             "-c", "copy",
-            # The first stream has to be the one av_find_best_stream selects, or the
-            # record would be found on the decoded stream and never reach the rule.
             "-disposition:v:0", "default",
             "-disposition:v:1", "0",
             str(path),
@@ -511,7 +504,7 @@ def main() -> None:
     mp4 = measure(binary, arguments.mp4)
     naming = [
         (measure(binary, path), level, cross, published, misread)
-        for path, level, cross, published, misread in NAMING_FIXTURES
+        for path, level, cross, published, misread in FIXTURES_WHERE_LEVEL_AND_CROSS_ID_DISAGREE
     ]
     print(f"measured through libavformat {matroska['libavformatVersion']}")
 

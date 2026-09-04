@@ -519,15 +519,14 @@ class ReviewReceipt:
             "review_receipt.issued_at",
             "Receipt issue time",
         )
-        # AgentOperability is the only class whose verdict comes from outside
-        # and cannot be recomputed at status time, so its receipt has to name
-        # the assessment bytes it was issued from.
         if self.reviewer is ReviewClass.AGENT_OPERABILITY:
             if self.assessment_digest is None:
                 raise _error(
                     "review.invalid.receipt.assessment",
                     "review_receipt.assessment_digest",
-                    "An AgentOperability receipt must name its assessment.",
+                    "An AgentOperability verdict comes from outside and cannot "
+                    "be recomputed at status time, so its receipt must name the "
+                    "assessment bytes it was issued from.",
                 )
             parse_identifier(
                 "digest",

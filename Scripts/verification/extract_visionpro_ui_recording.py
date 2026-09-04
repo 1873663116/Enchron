@@ -75,10 +75,6 @@ def probe_video(path: Path) -> dict[str, object] | None:
         formats = set(str(payload["format"]["format_name"]).split(","))
     except (KeyError, StopIteration, TypeError, ValueError, json.JSONDecodeError):
         return None
-    # The Staging scan below offers every pending file to this probe, and ffmpeg
-    # demuxes plain text as an ANSI art video with a plausible duration and frame
-    # rate. A staged xcresult holds the runner's stdout beside its attachments, so
-    # without a container check the app's own log is recovered as the recording.
     if not formats & MOVIE_CONTAINER_FORMATS:
         return None
     return {
@@ -257,6 +253,9 @@ def link_or_copy(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
+ANAMORPHIC_TO_SIXTEEN_BY_NINE_SCALE_FILTER = "scale=iw:iw*9/16"
+
+
 def extract_frame(video: Path, seconds: float, destination: Path) -> None:
     subprocess.run(
         [
@@ -268,12 +267,8 @@ def extract_frame(video: Path, seconds: float, destination: Path) -> None:
             f"{seconds:.3f}",
             "-i",
             str(video),
-            # The xcresult screen recording is anamorphic: 2732x2048 pixels
-            # carrying a 16:9 view with no aspect metadata, so square-pixel
-            # viewers stretch it vertically. Normalize to the same 16:9
-            # geometry the XCUIScreen screenshot channel delivers.
             "-vf",
-            "scale=iw:iw*9/16",
+            ANAMORPHIC_TO_SIXTEEN_BY_NINE_SCALE_FILTER,
             "-frames:v",
             "1",
             "-y",
@@ -332,11 +327,10 @@ def export_attachments(result_bundle: Path, output_root: Path) -> tuple[Path, li
             text=True,
         )
     except subprocess.CalledProcessError as error:
-        # An unsealed bundle (halt before finalization leaves no Info.plist)
-        # cannot be read by xcresulttool; the Staging scan below still
-        # recovers its pending recording files.
         print(
-            f"xcresulttool export failed; continuing with Staging recovery: "
+            "xcresulttool export failed. A bundle that was never finalized has "
+            "no Info.plist and cannot be read, and the Staging scan still "
+            "recovers its pending recording files. "
             f"{(error.stdout or '').strip()[-200:]}",
             file=sys.stderr,
         )

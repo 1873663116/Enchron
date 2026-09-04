@@ -49,15 +49,6 @@ PERSISTENT_ROOT_DOCUMENTS = frozenset(
     }
 )
 PERSISTENT_SOURCE_DIRECTORIES = frozenset({"facts", "promises"})
-# The webdav pair carried a fifth edge until round sixteen. It was not a
-# handoff: both Scenarios consume preparation:webdav-test-source's
-# webdav-test-source-ready and neither produces state for the other, and
-# webdav-add-source's harness.reset-product-state@2 destroys the very
-# source.connection its successor needs rather than passing it on. Ordering
-# them only guaranteed that open-through-loopback met a source add-source had
-# just rebuilt through the form, so a stale connection left by the Preparation
-# alone could never be observed. Round fifteen removed the last implicit
-# dependency when it gave open-through-loopback its own sidebar selection.
 EXACT_JOURNEY_EDGES: frozenset[tuple[str, str]] = frozenset(
     {
         (
@@ -1172,12 +1163,9 @@ def _validate_high_risk_playback_semantics(
             "sdr-bframe-multiaudio-avsync-30s.mp4",
             "viewing-storage-16m01s.mp4",
         ],
-        # The trigger is imported first and ends naturally; the item Play Next
-        # advances to is imported second and must outlast
-        # ViewingStatePolicy.minimumContentDurationSeconds = 15 * 60
-        # (Modules/Playback/Domain/ViewingState.swift:50-56), or its exit saves
-        # nothing and no resume decision can be presented. 30.0 s then 961.0 s.
-        "Play Next needs one naturally ordered two-item queue",
+        "Play Next needs one naturally ordered two-item queue whose second item "
+        "outlasts ViewingStatePolicy.minimumContentDurationSeconds (15 * 60 s), "
+        "so its exit leaves a resumable state to advance into",
     )
     baseline = next(
         call

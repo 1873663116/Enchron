@@ -56,9 +56,6 @@ def directory_bytes(path: Path) -> int:
 
 
 def is_merged(repository: Path, branch: str, integration: str) -> bool:
-    # `git branch --merged` prefixes a branch checked out in another worktree
-    # with "+" rather than "*", so parsing its output silently reports every
-    # such branch as unmerged. Ask about ancestry directly instead.
     if not branch:
         return False
     finished = subprocess.run(
@@ -126,10 +123,6 @@ def main() -> int:
         )
         if row["untracked"]:
             print(f"{'':10} {'':9}  scratch:{row['untracked']} {row['untracked_names']}")
-    # du reports logical size. On APFS a worktree shares blocks with its
-    # siblings through copy-on-write, so removing them frees less than the sum
-    # of their sizes. Measured 2026-08-15: du said 7.80 GB across 15 worktrees
-    # and df gained 4 GB. Read this as an upper bound and trust df.
     print(f"\nlogical size of merged worktrees: {reclaimable / 1e9:.2f} GB")
     print("APFS clones share blocks, so df will gain less; measure with df")
     print("in-use by a running agent is not visible here; the caller owns that check")

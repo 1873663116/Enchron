@@ -19,14 +19,13 @@ from typing import Callable
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
-# The bundle id never appears in the device process table; processes are
-# listed by executable path (…/Enchron.app/Enchron, …/EnchronAppUITests-
-# Runner.app/…), so this marker matches both the app and the runner.
 DEVICE_PROCESS_MARKER = "Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
 DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
 APP_RESPONSE_ROOT = "Documents/test-responses"
+APP_REQUEST_SLOT_POLL_INTERVAL_SECONDS = 0.5
+DEFERRED_COMMAND_SLOT_HOLD_SECONDS = 1.5 * APP_REQUEST_SLOT_POLL_INTERVAL_SECONDS
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
 SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_ROOT) not in sys.path:
@@ -50,19 +49,8 @@ RUNNER_PROCESS_MARKERS = (
     "-xctestrun",
     "InteractiveDeviceSession",
 )
-# A stop is an ordinary command round trip, and those were measured at a 2.6
-# second median with the device busy. Five seconds sat close enough to that to
-# expire on a session that was merely playing, which then skipped the graceful
-# path entirely. This only elapses when the runner is genuinely not answering.
 GRACEFUL_STOP_DEADLINE_SECONDS = 30.0
 TERMINATION_DEADLINE_SECONDS = 5.0
-# The runner acknowledges a stop before XCTest has torn the test down, and a
-# recording session then spends that teardown pulling the video off the headset
-# and writing the result bundle. Killing xcodebuild during it leaves a bundle
-# with no Info.plist and a recording with no moov atom. This is how long a
-# graceful stop may take to become an exit on its own; a session with no
-# recording exits well inside it, so waiting costs nothing when there is nothing
-# to write.
 RESULT_BUNDLE_SETTLE_SECONDS = 2.0
 """How long xcodebuild gets to exit on its own after a stop, before it is asked.
 
@@ -84,6 +72,7 @@ Two seconds lets an ordinary exit finish without being signalled."""
 TIMINGS_DEVICE_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.device.json"
 TIMINGS_SIMULATOR_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.simulator.json"
 TIMING_SAMPLE_LIMIT = 40
+DEVICECTL_TRANSPORT_DEADLINE_SECONDS = 120.0
 DEVICECTL_CALL_COUNT = 0
 
 
@@ -134,19 +123,22 @@ def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.Co
             command,
             check=False,
             text=True,
-            timeout=120,
+            timeout=DEVICECTL_TRANSPORT_DEADLINE_SECONDS,
             stdout=subprocess.DEVNULL if quiet else subprocess.PIPE,
             stderr=subprocess.DEVNULL if quiet else subprocess.PIPE,
         )
     except subprocess.TimeoutExpired:
-        # The controller only moves command files and screenshots here; a
-        # transfer this slow means a wedged devicectl, and an unbounded child
-        # would hang every caller above it.
         return subprocess.CompletedProcess(
             command,
             returncode=124,
             stdout="",
-            stderr="devicectl exceeded the 120s transport deadline.",
+            stderr=(
+                "devicectl exceeded the "
+                f"{DEVICECTL_TRANSPORT_DEADLINE_SECONDS:.0f} second transport "
+                "deadline. This controller moves only command files and "
+                "screenshots over it, so a transfer this slow means devicectl "
+                "is wedged."
+            ),
         )
 
 
@@ -314,7 +306,7 @@ def remember_ready_state(arguments: argparse.Namespace, ready: dict[str, object]
         return
     state = load_session_state(arguments)
     state[READY_CACHE_KEY] = ready
-    save_session_state(arguments, state)
+    save_session_state_best_effort(arguments, state)
 
 
 def forget_ready_state(arguments: argparse.Namespace) -> None:
@@ -323,7 +315,7 @@ def forget_ready_state(arguments: argparse.Namespace) -> None:
     state = load_session_state(arguments)
     if READY_CACHE_KEY in state:
         del state[READY_CACHE_KEY]
-        save_session_state(arguments, state)
+        save_session_state_best_effort(arguments, state)
 
 
 def read_ready_state(
@@ -355,6 +347,7 @@ RESPONSE_ARRIVED = "arrived"
 RESPONSE_TIMED_OUT = "timedOut"
 RESPONSE_RUNNER_GONE = "runnerGone"
 LIVENESS_INTERVAL_SECONDS = 5.0
+RESPONSE_POLL_INTERVAL_SECONDS = 0.1
 DEVICE_TRANSFER_ATTEMPTS = 3
 DEVICE_TRANSFER_RETRY_SECONDS = 1.5
 device_transfer_pause = time.sleep
@@ -392,9 +385,7 @@ def wait_for_response(
                 return RESPONSE_RUNNER_GONE
         if deadline_seconds is not None and now - started_at >= deadline_seconds:
             return RESPONSE_TIMED_OUT
-        # This is a transport scheduling interval, not a test timeout or retry
-        # limit. The caller remains in control and can interrupt at any time.
-        time.sleep(0.1)
+        time.sleep(RESPONSE_POLL_INTERVAL_SECONDS)
     return RESPONSE_ARRIVED
 
 
@@ -511,15 +502,10 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError):
         graceful = "unavailable"
 
-    # The runner acts on a stop by ending its test, not by writing a response, so
-    # a timed-out acknowledgement does not mean the stop was ignored. Waiting for
-    # xcodebuild to exit is the only observation that distinguishes the two, and
-    # it is also the one that matters: that exit is when the result bundle and any
-    # screen recording finish being written.
     deadline = time.monotonic() + RESULT_BUNDLE_SETTLE_SECONDS
     while time.monotonic() < deadline and scoped_processes():
         time.sleep(0.5)
-    settled = not scoped_processes()
+    xcodebuild_exited_on_its_own = not scoped_processes()
 
     targets = scoped_processes()
     for pid, _ in targets:
@@ -539,9 +525,7 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     return {
         "success": not remaining,
         "gracefulStop": graceful,
-        # False means xcodebuild was still running when the graceful deadline
-        # passed and was killed, so its result bundle is not trustworthy.
-        "resultBundleWritten": settled,
+        "resultBundleWritten": xcodebuild_exited_on_its_own,
         "scope": str(REPOSITORY_ROOT),
         "terminated": [{"pid": pid, "command": command} for pid, command in targets],
         "remaining": [{"pid": pid, "command": command} for pid, command in remaining],
@@ -571,7 +555,9 @@ def load_session_state(arguments: argparse.Namespace) -> dict[str, object]:
     return state if isinstance(state, dict) else {}
 
 
-def save_session_state(arguments: argparse.Namespace, state: dict[str, object]) -> None:
+def save_session_state_best_effort(
+    arguments: argparse.Namespace, state: dict[str, object]
+) -> None:
     try:
         path = session_state_path(arguments)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -579,7 +565,6 @@ def save_session_state(arguments: argparse.Namespace, state: dict[str, object]) 
             json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
     except OSError:
-        # Session bookkeeping must not fail the device command it rode on.
         pass
 
 
@@ -620,7 +605,7 @@ def annotate_response(
             "UIScene; XCTest input binds to that scene."
         )
     state["inImmersive"] = in_immersive
-    save_session_state(arguments, state)
+    save_session_state_best_effort(arguments, state)
 
 
 def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object]]:
@@ -648,8 +633,6 @@ def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object
         )
     )
     if processes.returncode == 0:
-        # `launchctl list` on a simulator labels the app by bundle id rather
-        # than by executable path, so the marker set differs by transport.
         markers = (
             (DEVICE_PROCESS_MARKER, APP_BUNDLE_ID, arguments.runner_bundle_id)
             if is_simulator(arguments.device)
@@ -874,11 +857,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
             ),
         )
         if arguments.defer_response:
-            # The app polls this single request slot every 500 ms. Give it one
-            # full poll interval before a later command may replace the file;
-            # the segment retrieves and validates every UUID-named response in
-            # one directory copy after all actions finish.
-            time.sleep(0.75)
+            time.sleep(DEFERRED_COMMAND_SLOT_HOLD_SECONDS)
             return {
                 "success": True,
                 "deferred": True,

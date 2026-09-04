@@ -11,13 +11,19 @@ sys.path.insert(0, str(ROOT))
 
 import Scripts.verification.reachability_matrix as matrix
 
-# matrix imports the real regression_emby_source at module load, which would
-# hit the network from this fixture. Replace it with a stub: the fixture
-# drives sign-in through the controller mock, not through provisioning.
-_stub_emby_source = ModuleType("regression_emby_source")
-_stub_emby_source.EmbySourceConfiguration = Mock()
-_stub_emby_source.provision_runtime_identity = Mock()
-sys.modules["regression_emby_source"] = _stub_emby_source
+
+def _replace_emby_provisioning_with_an_offline_stub() -> None:
+    stub = ModuleType("regression_emby_source")
+    stub.EmbySourceConfiguration = Mock()
+    stub.provision_runtime_identity = Mock()
+    sys.modules["regression_emby_source"] = stub
+
+
+_replace_emby_provisioning_with_an_offline_stub()
+
+
+def _digest_query_succeeded_with(device_identity: list[str]) -> dict[str, object]:
+    return {"success": True, "ok": True, "payload": device_identity}
 
 
 class EmbyPrepareGuardTests(unittest.TestCase):
@@ -49,11 +55,9 @@ class EmbyPrepareGuardTests(unittest.TestCase):
                 idx = list(args).index("--verb")
                 v = args[idx+1] if idx+1 < len(args) else ""
                 if v == "embyServerIdentityDigest":
-                    # "ok" takes the ensure_emby_sign_in early-True path so the
-                    # fixture exercises the digest comparison, not device I/O.
                     if device_digest is None:
-                        return {"success": True, "ok": True, "payload": []}
-                    return {"success": True, "ok": True, "payload": [device_digest]}
+                        return _digest_query_succeeded_with([])
+                    return _digest_query_succeeded_with([device_digest])
                 if v == "prepareEmbyAccount":
                     return {"success": True}
                 if v == "embySignIn":

@@ -50,9 +50,8 @@ from playback_mode_matrix import (
 
 
 SETTLE_DEADLINE_SECONDS = 45.0
-# An immersive landing empties the window, so the control plane goes missing.
-# Only then is the probe file worth its container copy.
 MISSING_PLANE_POLLS_BEFORE_PROBE = 4
+PRESENTATIONS_WITH_A_READABLE_CONTROL_PLANE = ("window", "portal")
 
 
 def push_clip(media_path: Path) -> str | None:
@@ -128,12 +127,11 @@ def judge_open(name: str, cell: Path, session: Path) -> dict[str, object]:
             }
         if plane.get("transition") != "none":
             continue
-        # Window and portal are the two presentations that keep the control
-        # plane readable, and portal is where a signalled panoramic source
-        # lands before anyone asks for panorama. Accepting only window timed
-        # out every spatial clip in the set.
         presentation = plane.get("presentation")
-        if presentation in ("window", "portal") and lifecycle in WINDOWED_STEADY_LIFECYCLES:
+        if (
+            presentation in PRESENTATIONS_WITH_A_READABLE_CONTROL_PLANE
+            and lifecycle in WINDOWED_STEADY_LIFECYCLES
+        ):
             if plane.get("videoVisible") == "true":
                 return {
                     "verdict": "PASS",
@@ -143,10 +141,6 @@ def judge_open(name: str, cell: Path, session: Path) -> dict[str, object]:
                 }
             invisible_steady += 1
             if invisible_steady >= 5:
-                # A clip that already ended without ever being seen visible
-                # may simply be shorter than one poll: the FATE ProRes
-                # vectors run 70ms. That is unjudged, not a failure. A clip
-                # sitting at ready or playing with nothing on screen is.
                 ended_before_seen = lifecycle == "ended"
                 return {
                     "verdict": "TOO_SHORT" if ended_before_seen else "NO_PICTURE",

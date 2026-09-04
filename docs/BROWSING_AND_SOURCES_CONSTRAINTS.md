@@ -14,6 +14,15 @@
 - **服务器给一个 source 的名字就是磁盘上的文件名**，也就是发布组的 release string——既不可读又远超一个站在 Play 旁边的控件所能容纳。版本选择器因此自己组织"这一版值得说出口的东西"：画面多大、怎么编码、有没有广色域。
 - **图片端点带内容标签**。`ArtworkStore` 的键包含 server image tag，换了封面就是另一个键。
 
+## 媒体受理与容器
+
+- **`FileFilter.playable` 按容器受理，`MediaDiscoveryAdmissionPolicy.mediaFiles` 不列任何基本流扩展名**。裸的 `.dts` 与 `.thd` 因此永远不会出现在库里，DTS 与 TrueHD 要被编码矩阵打开，只能以 Matroska 封装入库。`Scripts/verification/regression_preparation_adapter.py` 的 format-corpus 必需固件集据此选片。
+
+## 凭据表单与系统 Save-Password 面板
+
+- **Emby 连接表单声明 `textContentType(.username)` 与 `textContentType(.password)`，提交它会引出系统的 Save-Password 面板**。WebDAV 与 SMB 的连接表单同样如此：产品提交的每一个凭据表单都会引出这张面板。见 `Scripts/verification/regression_preparation_adapter.py` 与 `Scripts/rules/test_regression_preparation_adapter.py`。
+- **这张面板在窗口层级之外**，同一个 Preparation 里后续的任何一步都清不掉它。每个连接分支因此在自己的连接按钮之后立刻关掉它，一次关闭只能顶一个分支。见 `Scripts/verification/regression_preparation_adapter.py`。
+
 ## 详情页的滚动
 
 详情页只有两个位置：显示它的图片，或显示标题之下的分节。两者之间的一切是它经过的地方，不是它停留的地方。
@@ -55,6 +64,7 @@
 - **demux 策略在来源注册为可播放时就被捕获**。非缓存模式让 demuxer 填到它较短的时长目标，除非先撞上前向字节安全上限；缓存模式的时长目标实际上无界，因此前向字节上限才是正常的停止条件，某些来源另有自己的字节上限。
 - **容器打开区间只有一个**，它结束之后的所有读取都是媒体读取。这条边界是远程读取记账的分界线。
 - **图片先完成原子磁盘写，再在内存里暴露**，避免读者看到半张图。
+- **产品在来源被添加时收到一次地址，此后在它打开的会话存续期间一直向那个路径发请求**。移动端点的激活会由产品已绑定的会话应答，注入的每一个故障因此都会带上同一个签名。见 `Scripts/rules/test_regression_remote_source.py`。
 
 ## SMB 与 WebDAV 的形状
 

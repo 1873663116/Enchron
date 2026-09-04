@@ -815,8 +815,6 @@ INTERACTIVE_CONSTRUCT = re.compile(
 
 CHAIN_CONTINUATION = re.compile(r"^[.}\)\],]")
 
-# The reason each of these really is an observation even though interactive code
-# sits near it in the source.
 REVIEWED_OBSERVATIONS: dict[str, str] = {
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
     "identifier.",
@@ -1301,12 +1299,6 @@ def proof_context_contract(
     return domain, contexts, derivation
 
 
-# Literals shaped like identifiers that no view ever carries, and why. The scan
-# below reads every string in every source file, which is what catches an
-# identifier assembled somewhere other than the modifier that applies it. The
-# same breadth picks up strings that only ever describe a control to the
-# evidence journal. A cell derived from one of those can never be driven,
-# because there is nothing on screen to drive.
 NON_VIEW_IDENTIFIER_LITERALS: dict[str, str] = {
     "Emby-PosterCard-": "A prefix the DEBUG home-activation record concatenates "
     "with an item id. The card itself carries Emby-PosterCard-{metadata.id.rawValue}.",

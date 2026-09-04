@@ -56,17 +56,16 @@ RUNNER = (
     / "Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift"
 )
 
-# What `devicectl <verb> --help` reported when this check was written, used only
-# when devicectl is not installed. Required options are the ones its usage line
-# prints outside brackets.
-RECORDED_REQUIRED_OPTIONS = {
+REQUIRED_OPTIONS_RECORDED_FROM_DEVICECTL_HELP = {
     "device process signal": ["--device", "--pid", "--signal"],
     "device notification post": ["--device", "--name"],
     "device copy from": ["--device", "--source", "--domain-type"],
     "device copy to": ["--device", "--source", "--destination", "--domain-type"],
 }
 
-VERBS = tuple(RECORDED_REQUIRED_OPTIONS)
+VERBS = tuple(REQUIRED_OPTIONS_RECORDED_FROM_DEVICECTL_HELP)
+
+DEVICECTL_USAGE_ERROR_EXIT_CODE = 64
 
 STUB_SOURCE = '''#!/usr/bin/env python3
 """Stands in for `xcrun devicectl` so a halt can be driven with no device.
@@ -151,7 +150,7 @@ def required_options(verb: str) -> tuple[list[str], str]:
     prints in brackets are optional; the rest are not."""
     devicectl = shutil.which("xcrun")
     if devicectl is None:
-        return RECORDED_REQUIRED_OPTIONS[verb], "recorded"
+        return REQUIRED_OPTIONS_RECORDED_FROM_DEVICECTL_HELP[verb], "recorded"
     completed = subprocess.run(
         ["xcrun", "devicectl", *verb.split(), "--help"],
         check=False,
@@ -160,7 +159,7 @@ def required_options(verb: str) -> tuple[list[str], str]:
     )
     match = re.search(r"^USAGE: (.*)$", completed.stdout, re.MULTILINE)
     if completed.returncode != 0 or match is None:
-        return RECORDED_REQUIRED_OPTIONS[verb], "recorded"
+        return REQUIRED_OPTIONS_RECORDED_FROM_DEVICECTL_HELP[verb], "recorded"
     usage = re.sub(r"\[[^\]]*\]", " ", match.group(1))
     return re.findall(r"--[a-z-]+", usage), "devicectl --help"
 
@@ -203,6 +202,16 @@ def calls(state: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
 
 
+def environment_staging_command_files_on_the_artifact_volume(
+    binaries: Path, state: Path
+) -> dict[str, str]:
+    environment = dict(os.environ)
+    environment["PATH"] = f"{binaries}:{environment.get('PATH', '')}"
+    environment["ENCHRON_DEVICECTL_STATE"] = str(state)
+    environment["TMPDIR"] = str(state)
+    return environment
+
+
 def load_controller(path: Path) -> types.ModuleType:
     specification = importlib.util.spec_from_file_location(f"controller_{id(path)}", path)
     module = importlib.util.module_from_spec(specification)
@@ -232,9 +241,6 @@ def check_delivery(controller: Path, failures: list[str]) -> None:
     if not hasattr(module, "halt_session") or not hasattr(module, "scoped_processes"):
         failures.append("the controller has no halt_session and scoped_processes to drive")
         return
-    # Containment before anything runs. A device agent's xcodebuild matches the
-    # same scope markers this controller kills by, so the process table is put out
-    # of reach twice: nothing to find, and a signal that raises instead of landing.
     module.scoped_processes = lambda: []
     module.registered_simulator_udids = lambda: frozenset()
     module._SIMULATOR_UDIDS = None
@@ -242,14 +248,14 @@ def check_delivery(controller: Path, failures: list[str]) -> None:
     module.GRACEFUL_STOP_DEADLINE_SECONDS = 2.0
     module.RESULT_BUNDLE_WRITE_DEADLINE_SECONDS = 2.0
     module.TERMINATION_DEADLINE_SECONDS = 0.2
-    assert module.scoped_processes() == []
+    assert module.scoped_processes() == [], (
+        "halt must find no process to kill here, because a device agent's xcodebuild "
+        "matches the same scope markers this controller kills by"
+    )
 
-    environment = dict(os.environ)
-    environment["PATH"] = f"{binaries}:{environment.get('PATH', '')}"
-    environment["ENCHRON_DEVICECTL_STATE"] = str(state)
-    # The controller stages its command files through the temporary directory, and
-    # those belong on the artifact volume like everything else it writes.
-    environment["TMPDIR"] = str(state)
+    environment = environment_staging_command_files_on_the_artifact_volume(
+        binaries, state
+    )
     arguments = argparse.Namespace(
         device="emulated-device", runner_bundle_id="com.example.runner"
     )
@@ -265,15 +271,11 @@ def check_delivery(controller: Path, failures: list[str]) -> None:
         and module.COMMAND_NOTIFICATION in call["argv"]
     ]
     signals = [call for call in recorded if call["argv"][:3] == ["device", "process", "signal"]]
-    # A poll for a response that has not arrived exits 1 and the caller reads that,
-    # so a non-zero exit is not by itself a defect. A usage error is: it means the
-    # controller issued a command the tool cannot accept, which no amount of
-    # retrying will change and which only a discarded return code can hide.
     malformed = sorted(
         {
             f"{' '.join(call['argv'][:3])} exited {call['returncode']}: {call['message'].strip()}"
             for call in recorded
-            if call["returncode"] == 64
+            if call["returncode"] == DEVICECTL_USAGE_ERROR_EXIT_CODE
         }
     )
 
@@ -293,7 +295,9 @@ def check_delivery(controller: Path, failures: list[str]) -> None:
             or "none",
         ),
         (
-            "halt issued no command devicectl rejects as malformed",
+            "halt issued no command devicectl rejects as a usage error, which means a "
+            "command the tool cannot accept, that no retry will change, and that only a "
+            "discarded return code can hide",
             not malformed,
             "; ".join(malformed) or "none",
         ),
@@ -322,12 +326,9 @@ def check_reporting(controller: Path, failures: list[str]) -> None:
         )
         print("  FAIL there is no single wake path to test")
         return
-    environment = dict(os.environ)
-    environment["PATH"] = f"{binaries}:{environment.get('PATH', '')}"
-    environment["ENCHRON_DEVICECTL_STATE"] = str(state)
-    # The controller stages its command files through the temporary directory, and
-    # those belong on the artifact volume like everything else it writes.
-    environment["TMPDIR"] = str(state)
+    environment = environment_staging_command_files_on_the_artifact_volume(
+        binaries, state
+    )
     environment["ENCHRON_DEVICECTL_FAIL"] = json.dumps(["device notification post"])
     arguments = argparse.Namespace(
         device="emulated-device", runner_bundle_id="com.example.runner"
@@ -404,8 +405,6 @@ def check_structure(controller: Path, failures: list[str]) -> None:
         wake = wake_paths[0]
         for caller in ("halt_session", "send_command"):
             if caller == wake:
-                # The delivery lives inside one command's own body, so no other
-                # command can reach it without duplicating it.
                 print(f"  FAIL the only wake path is {wake} itself, so nothing else shares it")
                 failures.append(
                     f"the notification is posted inside {wake}, which leaves every other "

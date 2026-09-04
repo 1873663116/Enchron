@@ -16,10 +16,6 @@ from pathlib import Path
 import numpy as np
 
 PULSE_FREQUENCIES_HZ = (440.0, 550.0, 660.0, 880.0)
-# A microphone a short distance from the headset speaker lands near -55 dBFS
-# with a clearly resolved tone, so a threshold at that level reports a real
-# capture as silence. This sits below the quietest capture that still carried a
-# 25x peak, and `dominantPeakRatio` is what actually separates tone from floor.
 SILENCE_RMS_DBFS = -75.0
 
 
@@ -80,9 +76,6 @@ def analyze(wav_path: Path) -> dict:
         f"{int(freq)}": round(power_near(freq) / median_power, 1)
         for freq in PULSE_FREQUENCIES_HZ
     }
-    # Room noise below 200 Hz can outweigh the tone, so the loudest bin in the
-    # band names the room rather than the track. Ranking the fixture pulse
-    # frequencies against each other is what survives that.
     ranked = sorted(pulse_powers.items(), key=lambda kv: kv[1], reverse=True)
     leader, runner_up = ranked[0], ranked[1]
 

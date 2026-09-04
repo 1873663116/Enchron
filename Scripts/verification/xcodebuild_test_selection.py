@@ -77,15 +77,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 try:
     from enchron_artifact_paths import scratch_directory
 except ModuleNotFoundError:
-    # Only `run` needs somewhere to put a log. Resolving a selection and reading a
-    # finished run are pure text, so a copy of this file carried on its own to
-    # wherever a log is still does those two.
     scratch_directory = None
 
-# How far past an unterminated identifier the salvage will look for the rest of
-# it. The interleaved block in the preserved fixture is six lines; anything much
-# longer is a different kind of damage and should be reported rather than guessed.
-SALVAGE_LOOKAHEAD = 40
+SALVAGE_LOOKAHEAD_LINES = 40
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -200,7 +194,7 @@ def salvage_enumeration(text: str, source: Path | None) -> Enumeration:
         if opened is not None:
             head = opened.group(1)
             stitched = None
-            for offset in range(1, min(SALVAGE_LOOKAHEAD, len(lines) - index)):
+            for offset in range(1, min(SALVAGE_LOOKAHEAD_LINES, len(lines) - index)):
                 candidate = lines[index + offset]
                 if '"identifier"' in candidate:
                     break
@@ -309,8 +303,6 @@ def resolve(filters: list[str], enumeration: Enumeration) -> list[Resolution]:
         repair = None
         near: tuple[str, ...] = ()
         if not matched:
-            # The parentheses are the common case by a wide margin, so they are
-            # offered as a repair rather than as one guess among several.
             candidate = f"{test_filter}()"
             if any(selects(candidate, name) for name in enumeration.identifiers):
                 repair = candidate
@@ -338,10 +330,6 @@ def report_resolutions(resolutions: list[Resolution], enumeration: Enumeration) 
             continue
         print(f"  FAIL {resolution.test_filter} -> nothing")
         if resolution.repair is not None:
-            # An XCTest method is accepted with or without its parentheses, so this
-            # form is not always fatal. A Swift Testing function is not, and nothing
-            # in an enumeration says which kind a name is. The enumerated form is
-            # accepted by both, so it is demanded rather than guessed at.
             detail = [
                 f"-only-testing:{resolution.test_filter} is not an enumerated identifier. "
                 f"A Swift Testing function selects nothing without its parentheses and the "
@@ -383,6 +371,14 @@ def selected_identifiers(resolutions: list[Resolution]) -> tuple[str, ...]:
             if identifier not in union:
                 union.append(identifier)
     return tuple(union)
+
+
+def expected_count_only_from_a_fully_resolved_selection(
+    resolutions: list[Resolution], unresolved: list[str]
+) -> int | None:
+    if unresolved:
+        return None
+    return len(selected_identifiers(resolutions))
 
 
 
@@ -701,9 +697,6 @@ def read_verdict(text: str) -> RunVerdict:
         if terminal is not None:
             verdict.marker = terminal.group(1)
 
-    # The XCTest reporter nests: each bundle prints its own total and the
-    # enclosing 'Selected tests' or 'All tests' suite prints the aggregate. The
-    # largest is that aggregate; summing would count the inner suites twice.
     if executed_counts:
         verdict.xctest_executed = max(count for count, _ in executed_counts)
         verdict.xctest_failures = max(failures for _, failures in executed_counts)
@@ -723,9 +716,6 @@ def judge(verdict: RunVerdict, expected: int | None) -> tuple[list[str], list[st
     elif verdict.marker == "FAILED":
         problems.append("xcodebuild reported ** TEST FAILED **.")
 
-    # Independent of the count below: a run cut off before Swift Testing reported
-    # its total also reads as zero executed, and the two say different things about
-    # what to do next, so both are stated when both are true.
     if verdict.swift_testing_started and verdict.swift_testing_runs == 0:
         problems.append(
             "Swift Testing announced a run and never reported its total, so it was cut "
@@ -747,10 +737,6 @@ def judge(verdict: RunVerdict, expected: int | None) -> tuple[list[str], list[st
         )
 
     if verdict.failures:
-        # xcodebuild's own terminal verdict decides whether a run passed, and it is
-        # checked above. A count of failures alongside a SUCCEEDED verdict is what
-        # -retry-tests-on-failure produces when a test failed once and then passed,
-        # so it is surfaced rather than treated as a contradiction.
         notes.append(
             f"{verdict.failures} failure(s) appear in the log: {verdict.xctest_failures} "
             f"counted by XCTest, {verdict.swift_testing_failed} Swift Testing run(s) "
@@ -764,11 +750,11 @@ def judge(verdict: RunVerdict, expected: int | None) -> tuple[list[str], list[st
                 f"{verdict.executed}."
             )
         elif verdict.executed > expected:
-            # A parameterized Swift Testing function enumerates once and runs once
-            # per argument, so more is normal and only less is a problem.
             notes.append(
                 f"the run executed {verdict.executed} test(s) against {expected} selected "
-                "identifier(s), which is what a parameterized test does."
+                "identifier(s). A parameterized Swift Testing function enumerates once and "
+                "runs once per argument, so executing more than were selected is normal and "
+                "only executing fewer is a problem."
             )
     return problems, notes
 
@@ -833,10 +819,6 @@ def command_verdict(arguments: argparse.Namespace) -> None:
             resolutions = resolve(list(verdict.only_testing), enumeration)
             unresolved = report_resolutions(resolutions, enumeration)
             if unresolved and verdict.executed > 0:
-                # The run happened. Whatever the identifiers look like, tests ran, and
-                # the count is the authority on that. Demanding the enumerated form is
-                # worth doing before a run, where there is no count yet; afterwards it
-                # would be reporting a run that worked as a failure.
                 notes.append(
                     f"{len(unresolved)} of the log's selections are not written in the "
                     f"enumerated form, but {verdict.executed} test(s) ran, so this is a "
@@ -844,10 +826,10 @@ def command_verdict(arguments: argparse.Namespace) -> None:
                 )
             else:
                 problems.extend(unresolved)
-            # Only a fully resolved selection gives a number worth holding the run to;
-            # a partial one would understate what should have run and hide a shortfall.
-            if expected is None and not unresolved:
-                expected = len(selected_identifiers(resolutions))
+            if expected is None:
+                expected = expected_count_only_from_a_fully_resolved_selection(
+                    resolutions, unresolved
+                )
         else:
             print("\nthe log carries no -only-testing arguments; it ran the whole plan")
             if expected is None and enumeration.trustworthy and not verdict.skip_testing:
@@ -868,8 +850,11 @@ def command_run(arguments: argparse.Namespace) -> None:
         if scratch_directory is None:
             raise SystemExit(
                 "this copy of the script cannot find enchron_artifact_paths.py beside it, "
-                "so it has nowhere of its own to put the enumeration and the run log. Pass "
-                "--keep-enumeration and --log, or run the copy in Scripts/verification."
+                "so it has nowhere of its own to put the enumeration and the run log. Only "
+                "run needs somewhere to write. Resolving a selection and reading a finished "
+                "run are pure text, so a copy of this file carried on its own to wherever a "
+                "log is still does those two. Pass --keep-enumeration and --log, or run the "
+                "copy in Scripts/verification."
             )
         scratch = scratch_directory("xcodebuild-test-selection")
     enumeration_path = arguments.keep_enumeration or (scratch / "enumeration.json")
@@ -1005,9 +990,6 @@ def command_target_run(arguments: argparse.Namespace) -> None:
         return
 
     for invocation in plan.invocations:
-        # Re-resolve immediately before constructing the command. The complete-plan
-        # audit already proved global coverage; this keeps each launch tied to the
-        # exact filters that established its expected count.
         resolutions = resolve(list(invocation.filters), enumeration)
         unresolved = [item.test_filter for item in resolutions if not item.ok]
         if unresolved:
@@ -1018,8 +1000,9 @@ def command_target_run(arguments: argparse.Namespace) -> None:
         selected = selected_identifiers(resolutions)
         if set(selected) != set(invocation.identifiers):
             raise SystemExit(
-                f"refusing to launch {invocation.name}; its filters no longer match "
-                "the audited invocation plan"
+                f"refusing to launch {invocation.name}; its filters no longer match the "
+                "audited invocation plan, so this launch is not tied to the filters that "
+                "established its expected count"
             )
 
         stem = invocation_artifact_stem(invocation.name)

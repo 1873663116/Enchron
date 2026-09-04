@@ -91,30 +91,20 @@ ZERO_TEST_LOG = FIXTURES / "swift-testing-bare-selection.log"
 REAL_LOG = FIXTURES / "swift-testing-enumerated-selection.log"
 ENUMERATION = FIXTURES / "test-enumeration-salvaged.json"
 
-# The Swift Testing pair leaves the XCTest reporter reading zero on both sides and so
-# measures nothing about how it is read. These two do. One passed and one failed, and
-# both print their count three times over nested suites.
-XCTEST_LOG = FIXTURES / "xctest-passing.log"
-FAILED_LOG = FIXTURES / "xctest-failing.log"
-XCTEST_NESTED_LINES = 3
-# The bare identifier the passing run selected and executed, and the enumerated form
-# that has to be demanded before a run even though this one worked without it.
-XCTEST_BARE_IDENTIFIER = (
+XCTEST_PASSING_LOG = FIXTURES / "xctest-passing.log"
+XCTEST_FAILING_LOG = FIXTURES / "xctest-failing.log"
+XCTEST_NESTED_COUNT_LINES = 3
+XCTEST_PASSING_LOG_BARE_IDENTIFIER = (
     "EnchronAppTests/PlaybackSwitchStateRingTests/"
     "testCapacityRetainsEveryRecordThroughItsBoundary"
 )
 
-# A suite with an absent prerequisite prints its count as `Executed 6 tests, with 1
-# test skipped and 0 failures`. That clause sits between the count and the failures,
-# so a pattern written against the two-part form reads the whole run as zero and the
-# guard stops a passing suite.
-SKIPPED_LOG = FIXTURES / "xctest-skipped.log"
-SKIPPED_EXECUTED = 6
+XCTEST_SKIPPING_LOG = FIXTURES / "xctest-skipped.log"
+XCTEST_SKIPPING_LOG_EXECUTED = 6
 
 ENUMERATED_TOTAL = 138
 SELECTED = 6
-# The identifier the interleaved block cuts in half in the salvaged enumeration.
-REPAIRED_IDENTIFIER = (
+SALVAGED_ENUMERATION_SPLIT_IDENTIFIER = (
     "EnchronAppUITests/SpatialHandoffUITests/"
     "testDockedTemporarilyUsesDefaultEnvironmentAndRestoresActiveEnvironmentOnReturn()"
 )
@@ -161,13 +151,15 @@ sys.exit(0)
 '''
 
 
+def register_for_dataclass_module_resolution(name: str, module: types.ModuleType) -> None:
+    sys.modules[name] = module
+
+
 def load_tool(path: Path) -> types.ModuleType:
     name = f"selection_{id(path)}"
     specification = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(specification)
-    # Registered before execution because dataclasses resolves a class's module
-    # through sys.modules while the decorator runs.
-    sys.modules[name] = module
+    register_for_dataclass_module_resolution(name, module)
     specification.loader.exec_module(module)
     return module
 
@@ -241,9 +233,9 @@ def main() -> None:
         ("zero-test log", ZERO_TEST_LOG),
         ("real run log", REAL_LOG),
         ("enumeration", ENUMERATION),
-        ("passing XCTest log", XCTEST_LOG),
-        ("failing XCTest log", FAILED_LOG),
-        ("skipping XCTest log", SKIPPED_LOG),
+        ("passing XCTest log", XCTEST_PASSING_LOG),
+        ("failing XCTest log", XCTEST_FAILING_LOG),
+        ("skipping XCTest log", XCTEST_SKIPPING_LOG),
     ):
         require(
             "fixtures",
@@ -302,8 +294,8 @@ def main() -> None:
     )
     require(
         "enumeration",
-        REPAIRED_IDENTIFIER in enumeration.repaired
-        and REPAIRED_IDENTIFIER in enumeration.identifiers,
+        SALVAGED_ENUMERATION_SPLIT_IDENTIFIER in enumeration.repaired
+        and SALVAGED_ENUMERATION_SPLIT_IDENTIFIER in enumeration.identifiers,
         "the identifier cut in half by the interleaved block was stitched back together",
         f"the identifier the interleaved block splits was not recovered: "
         f"repaired {enumeration.repaired}",
@@ -379,9 +371,6 @@ def main() -> None:
             f"stderr: {completed.stderr.strip()[:400]}",
         )
 
-    # Without an enumeration there is no resolution failure to fall back on, so this
-    # is the only leg where the count alone has to carry the judgement. With one, the
-    # zero-test log fails for two independent reasons and a broken count is invisible.
     completed = subprocess.run(
         [sys.executable, str(tool), "verdict", str(ZERO_TEST_LOG)],
         check=False,
@@ -397,9 +386,6 @@ def main() -> None:
         f"an enumeration. exit {completed.returncode}: {completed.stderr.strip()[:300]}",
     )
 
-    # No captured log selects six tests and executes some of them, so the one shape
-    # that puts the shortfall rule under load is constructed from the real run, the
-    # way check_dolby_vision_premises.py muxes a container no sample tree contains.
     scratch = scratch_directory("xcodebuild-test-selection-check") / "work"
     if scratch.exists():
         shutil.rmtree(scratch)
@@ -447,15 +433,15 @@ def main() -> None:
     )
 
     print("\nxctest")
-    xctest_text = XCTEST_LOG.read_text(encoding="utf-8", errors="replace")
-    failed_text = FAILED_LOG.read_text(encoding="utf-8", errors="replace")
+    xctest_text = XCTEST_PASSING_LOG.read_text(encoding="utf-8", errors="replace")
+    failed_text = XCTEST_FAILING_LOG.read_text(encoding="utf-8", errors="replace")
     nested = len(re.findall(r"Executed 1 test, with 0 failures", xctest_text))
     require(
         "xctest",
-        nested == XCTEST_NESTED_LINES,
+        nested == XCTEST_NESTED_COUNT_LINES,
         f"the passing XCTest log still prints its count {nested} times over nested suites",
         f"the passing XCTest log now prints its count {nested} times rather than "
-        f"{XCTEST_NESTED_LINES}, so it no longer shows that the counts nest and the rule "
+        f"{XCTEST_NESTED_COUNT_LINES}, so it no longer shows that the counts nest and the rule "
         "for aggregating them is measured by nothing.",
     )
     xctest_verdict = module.read_verdict(xctest_text)
@@ -468,20 +454,21 @@ def main() -> None:
         "every XCTest run and would let a shortfall pass as a match.",
     )
     skipped_verdict = module.read_verdict(
-        SKIPPED_LOG.read_text(encoding="utf-8", errors="replace")
+        XCTEST_SKIPPING_LOG.read_text(encoding="utf-8", errors="replace")
     )
     require(
         "xctest",
-        skipped_verdict.executed == SKIPPED_EXECUTED,
+        skipped_verdict.executed == XCTEST_SKIPPING_LOG_EXECUTED,
         f"a suite reporting skips is read as {skipped_verdict.executed} executed tests",
         f"a run whose count carries a skipped clause was read as "
-        f"{skipped_verdict.executed} executed rather than {SKIPPED_EXECUTED}. That clause "
-        "splits the count from the failures, and reading zero there stops a passing suite "
-        "mid-regression.",
+        f"{skipped_verdict.executed} executed rather than "
+        f"{XCTEST_SKIPPING_LOG_EXECUTED}. That clause splits the count from the failures, "
+        "and reading zero there stops a passing suite mid-regression.",
     )
 
     completed = subprocess.run(
-        [sys.executable, str(tool), "verdict", str(XCTEST_LOG), "--enumeration", str(ENUMERATION)],
+        [sys.executable, str(tool), "verdict", str(XCTEST_PASSING_LOG),
+         "--enumeration", str(ENUMERATION)],
         check=False,
         text=True,
         capture_output=True,
@@ -496,7 +483,7 @@ def main() -> None:
         f"off. exit {completed.returncode}: {completed.stderr.strip()[:300]}",
     )
     completed = subprocess.run(
-        [sys.executable, str(tool), "resolve", "--log", str(XCTEST_LOG),
+        [sys.executable, str(tool), "resolve", "--log", str(XCTEST_PASSING_LOG),
          "--enumeration", str(ENUMERATION)],
         check=False,
         text=True,
@@ -504,7 +491,7 @@ def main() -> None:
     )
     require(
         "xctest",
-        completed.returncode == 1 and f"{XCTEST_BARE_IDENTIFIER}()" in completed.stdout,
+        completed.returncode == 1 and f"{XCTEST_PASSING_LOG_BARE_IDENTIFIER}()" in completed.stdout,
         "but before a run the enumerated form is still demanded, with the repair named",
         "the same identifier was accepted before a run. Before a run there is no count to "
         "fall back on and no way to tell an XCTest method from a Swift Testing function, "
@@ -520,7 +507,7 @@ def main() -> None:
         f"{failed_verdict.failures} failed, verdict {failed_verdict.marker}.",
     )
     completed = subprocess.run(
-        [sys.executable, str(tool), "verdict", str(FAILED_LOG)],
+        [sys.executable, str(tool), "verdict", str(XCTEST_FAILING_LOG)],
         check=False,
         text=True,
         capture_output=True,
@@ -645,10 +632,6 @@ def main() -> None:
         f"the truncated run was not reported as cut off: {completed.stderr.strip()[:300]}",
     )
 
-    # A halt that kills xcodebuild after the tests have reported leaves a log whose
-    # every test passed and whose terminal verdict never arrived. It is the only
-    # shape where the missing verdict line is the sole defect, so it is the only one
-    # that holds that judgement to anything.
     unfinished = scratch / "unfinished.log"
     unfinished.write_text(
         real_text.replace("** TEST EXECUTE SUCCEEDED **", ""), encoding="utf-8"
@@ -662,9 +645,10 @@ def main() -> None:
     require(
         "truncation",
         completed.returncode != 0 and "did not finish" in completed.stderr,
-        "a run whose tests all reported but whose terminal verdict never arrived is not a pass",
+        "a run whose tests all reported but whose terminal verdict never arrived is not a "
+        "pass, which is the one shape where the missing verdict line is the sole defect",
         f"a log with {SELECTED} passing tests and no terminal verdict read as a pass, so a "
-        "run killed before xcodebuild finished counts as a green one. exit "
+        "run that a halt killed after its tests reported counts as a green one. exit "
         f"{completed.returncode}: {completed.stderr.strip()[:300]}",
     )
 

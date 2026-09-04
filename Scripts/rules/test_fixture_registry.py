@@ -96,6 +96,7 @@ EXPECTED_INTERNAL_PATHS = {
     "Samples/Spatial/Panorama/Apple-Streaming-Examples/APMP-360-example.mp4",
     "Samples/Spatial/Apple-Immersive/Apple-Streaming-Examples/Immersive-Video-example.f99766.mp4",
 }
+STILL_PLAYING_AT_THE_CONTROL_PLANE_READING_SECONDS = 60
 
 
 def sha256(path: Path) -> str:
@@ -207,18 +208,11 @@ class FixtureRegistryTests(unittest.TestCase):
         )
 
     def test_audio_only_set_carries_one_asset_that_outlasts_the_auto_hide(self) -> None:
-        # secondary-menu-pins-audio-controls opens a secondary menu, waits out the
-        # 8 s controls auto-hide window the audio-only Preparation pins, and then
-        # reads the control plane, which is three controller round trips past the
-        # tap. The FATE clips run 0.107 s to 11.9 s and none can still be Playing
-        # at that reading. This is the asset that can, and it carries no video
-        # stream at all: PlaybackFFmpegBridge derives a stream's category from
-        # codec_type alone, so the cover-art picture in inside.m4a is admitted as
-        # video and its mediaKind is video, not audioOnly.
         long_enough = [
             fixture
             for fixture in self.fixtures_for("audio-only")
-            if fixture["durationSeconds"] >= 60
+            if fixture["durationSeconds"]
+            >= STILL_PLAYING_AT_THE_CONTROL_PLANE_READING_SECONDS
         ]
         self.assertEqual(
             [fixture["id"] for fixture in long_enough],

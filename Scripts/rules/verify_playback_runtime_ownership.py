@@ -42,7 +42,6 @@ class Rule:
     patterns: tuple[str, ...]
 
 
-# Each rule names one ownership boundary the facade must not cross.
 RUNTIME_RULES = (
     Rule(
         "driver-selection",
@@ -75,7 +74,6 @@ RUNTIME_RULES = (
     ),
 )
 
-# The interpreter is pure domain: no engine, no platform media frameworks.
 INTERPRETER_FORBIDDEN_IMPORTS = ("PlaybackCore", "AVFoundation", "AVKit", "CoreMedia", "RealityKit")
 
 

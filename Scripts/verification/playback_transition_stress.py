@@ -52,14 +52,8 @@ from playback_mode_matrix import (
 
 
 SURFACE = "PlayerUI-window-playback-surface"
-# The window column is live in window and portal, so its chrome has to be
-# summoned before the format menu will accept a tap. In an immersive
-# presentation the window is already empty and the surface tap has nothing
-# to hit.
 CHROME_HOSTS = ("window", "portal")
 
-# Projection only changes in the main window column, so the immersive cells
-# offer nothing but the way out. apply-flat from panorama was a diagonal.
 LEGAL_MOVES: dict[str, tuple[str, ...]] = {
     "window": ("apply-flat", "apply-180", "apply-360", "enter-docked"),
     "portal": ("apply-flat", "apply-180", "apply-360", "enter-panorama"),

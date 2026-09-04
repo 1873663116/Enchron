@@ -44,11 +44,7 @@ TEST_MEDIA = REPOSITORY.parent / "TestMedia"
 EMBY_ADDRESS = "http://192.168.5.2:8096"
 MEDIA_SUFFIXES = {".mp4", ".mkv", ".mov", ".m4v", ".ts", ".m2ts"}
 
-# Transport decides how bytes arrive; it must not decide what the decoder sees.
-# The colour fields are what licenses testing picture interpretation on local
-# files alone: if transport could change them, every dynamic-range family would
-# have to be re-proved per source.
-COMPARED_FIELDS = (
+TRANSPORT_INVARIANT_FIELDS = (
     "codec", "samples", "sample_bytes", "decoded_frames",
     "submit_failures", "callback_failures", "decode",
     "color_primaries", "transfer", "matrix", "full_range",
@@ -90,7 +86,6 @@ def run_probe(probe, url, seconds, timeout):
     if completed.returncode != 0:
         detail = (completed.stderr or "").strip().splitlines()
         message = detail[-1] if detail else "unknown"
-        # The corpus globs by suffix, and .mp4 also carries audio-only vectors.
         if "no audio stream" in message or "no video stream" in message:
             return {"decode": "not_video", "error": message}
         return {"decode": "probe_failed", "error": message}
@@ -175,7 +170,7 @@ def emby_corpus(address, include_sdr):
 
 def compare(direct, served):
     differences = {}
-    for field in COMPARED_FIELDS:
+    for field in TRANSPORT_INVARIANT_FIELDS:
         if direct.get(field) != served.get(field):
             differences[field] = [direct.get(field), served.get(field)]
     return differences
@@ -244,13 +239,16 @@ def main():
                 if r.get("decode") not in ("ok", "not_video")]
     mismatches = [r for r in results if r.get("differences")]
     print(f"\n{len(results)} probed, {len(failures)} not ok, "
-          f"{len(skipped)} carried no video track, "
+          f"{len(skipped)} carried no video track because the suffix glob also "
+          f"pulls in audio-only .mp4 vectors, "
           f"{len(mismatches)} with transport differences")
     for entry in failures:
         print(f"  FAIL {entry.get('decode')}: {entry['name'][:70]} "
               f"{entry.get('error', '')}")
     for entry in mismatches:
-        print(f"  DIFF {entry['name'][:70]}: {entry['differences']}")
+        print(f"  DIFF {entry['name'][:70]}: transport changed what the decoder "
+              f"sees, so each dynamic-range family has to be re-proved per "
+              f"source instead of on local files alone: {entry['differences']}")
 
     if arguments.output:
         Path(arguments.output).write_text(

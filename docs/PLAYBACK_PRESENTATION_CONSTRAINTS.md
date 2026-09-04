@@ -48,6 +48,12 @@
 - **播放中的 transfer 必须先推进替换渲染器**，RealityKit 才能在每一种呈现里确认第一个显示像素；暂停的 transfer 没有成功后意图，保持暂停。
 - **等待必须有界**。调用方在整个等待期间持有平台执行 lease，无界等待会让这个 lease 被永远占住，此后每一个空间请求都被拒绝直到应用重启。界限取得宽，是因为高分辨率全景启动本来就慢——但没落定的表面不是"启动慢"，是卡住了。
 
+## 主窗口列在哪些呈现里还在
+
+- **window 与 portal 保留主窗口列，panorama 与 docked 不保留**。窗口 chrome 只能在这两种呈现里由表面点击召唤，格式菜单也只在召唤之后才接受点击；沉浸式呈现下窗口已经空了，表面点击没有落点。见 `Scripts/verification/playback_transition_stress.py`。
+- **投影只在主窗口列里改变**。panorama 与 docked 两个格子因此只有"退出空间呈现"这一条边，从 panorama 直接 apply-flat 是一条同时改投影与改呈现的对角边。见 `Scripts/verification/playback_transition_stress.py`。
+- **被来源信令标注为全景的内容，在有人请求 panorama 之前落在 portal**。只把 window 当作合法落点，集合里每一个空间片都会走到超时。见 `Scripts/verification/playback_open_sweep.py`。
+
 ## 注视输入下的控件判定
 
 注视解析到的落点比光标粗得多，窗口播放控件的几处判定都由此而来：
@@ -57,6 +63,10 @@
 - **水平轨道只测水平距离**。手势挂在整条 strip 上，起始位置在纵向已经通过了 strip 的 interaction 形状；决定"佩戴者是不是要拖这个 scrubber"的轴只有沿轨道那一个。
 - **松手之后 scrubber 锁存在目标值上**。`onSeek` 之后运行时的位置是异步追上来的，锁存期内拇指钉住目标，否则会出现"跳回旧位、再闪到目标"。运行时位置进入容差（或兜底超时）即释放。
 - **展开时间轴的唯一事实是 `contentWidth = duration × pps`**。拖拽极限、标尺与胶片末端全部以它为准；单独截短整体会与拖拽极限脱节，而且在最小缩放下一格约合数十秒，白白丢掉可拖范围。
+
+## 窗口控件的自动隐藏
+
+- **窗口播放控件在一段空闲之后自动隐藏，这段窗口的长度由启动参数给定**。一个要证明"打开菜单会钉住控件"的场景必须把它压到自己的探测点之前，否则读到的 controls=shown 由启动参数保证，与产品无关。见 `Scripts/verification/regression_preparation_adapter.py`。
 
 ## 探针文件的写入纪律
 
@@ -78,6 +88,8 @@
 - **`PlaybackUserVisibleIssue` 只接受有界的产品事实**，`Error` 与任意诊断字符串进不了这个类型，因此呈现代码永远不需要判断一段文本是否可以示人。
 - **ProRes 解码器可用性经 `VTDecompressionSessionCreate` 实测**，不从渲染器的错误文本推断。见 `Tests/EnchronApp/VideoDecoderAvailabilityTests.swift`（真机 lane 专有，模拟器上按构造失败）。
 - **旧构建暴露过一个 Apple 元数据专属的投影选项**，它已不再是用户可选的投影；解码时把它读成普通矩形视频，是为了保住那些偏好里带着旧值的媒体仍能播放。同类的还有把早期那个单一占位环境迁移到第一个稳定的 Scenic 身份（断言见 `EnvironmentSceneMappingTests`），Skybox 有意永不作默认。
+- **`ViewingStatePolicy.mutation` 删除时长低于 `minimumContentDurationSeconds = 15 * 60` 的条目的观看状态**（`Modules/Playback/Domain/ViewingState.swift:50-56`）。只有长过这个常数的条目，退出后才留下可续播的状态。
+- **local-aggregate 固件集里最长的一条是 120.064 s，整集都落在该常数之下**。`generated-viewing-storage-h264-16m01s-v1` 以 898 KB 承载 961.0 s，是集合里唯一在常数之上的条目，automatic-play-next-resume-policy 依赖它。见 `Scripts/verification/regression_preparation_adapter.py`。
 
 ## 面板的三步展开
 
