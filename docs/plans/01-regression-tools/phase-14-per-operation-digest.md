@@ -33,6 +33,15 @@ EvidenceEnvironmentIdentity(
 )
 ```
 
+## 与原清单的偏离
+
+四处：
+
+- **digest 按 handler 的源码段算，不按 locator 的文件算。** 35 个 Operation 合同的 `implementation.locator` 全部指向同一个文件 `Scripts/verification/regression_operation_adapter.py`。按文件算，任何一次 adapter 修改都会同时改动 35 个 digest，阶段目标「一次 harness 修复只失效用过该 Operation 的节点」一次也达不到。改为：每个 Operation 的 digest 由三部分组成——`ResidentOperationBackend` 里 `resident_handler_name(operation)` 那个方法的源码段、把全部 handler 段抽掉之后的其余运行时源码的 digest、以及该 Operation 的合同 digest。实测：改一个 handler 只改一个 digest，改 handler 之外的共享代码改全部 35 个。
+- **抽掉 handler 时按段替换而不是按行置空。** 先写成把 handler 的行逐行置空，结果 handler 多一行，被置空的行数也多一行，共享部分的字节数随之改变，35 个 digest 又一起变了。现在整段替换成一行标记，共享部分与 handler 的长度无关。
+- **粒度落在节点身上，运行时的比对一行不改。** `runtime.py:1378` 比的是 `node.evidence_environment_identity.digest`，一个节点一个 digest。编译器给每个节点绑定的是**收窄到该节点自己那些 call 所用 Operation** 的身份（`EvidenceEnvironmentIdentity.narrowed`），因此粒度由「节点的身份怎么算」承担，比对逻辑不需要知道这件事。收窄时若某个 Operation 没有 digest，直接拒绝：一个没被摘过实现指纹的 Operation，其证据身份无从谈起。
+- **冻结时读 Catalog。** 冻结要知道 Operation 的集合才能逐个算 digest，所以 `_freeze_current` 现在从 `repository/Regression` 加载 Catalog。自测用 `patch.object` 替换 `operation_implementation_digests`，不为此在合成仓库里造一整份 Catalog。
+
 ## 阶段验证方案
 
 静态：

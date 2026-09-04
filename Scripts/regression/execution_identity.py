@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 import errno
@@ -15,6 +16,7 @@ import secrets
 import stat
 import struct
 import subprocess
+import sys
 from tempfile import TemporaryDirectory
 from types import MappingProxyType
 from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
@@ -22,7 +24,7 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from regression.core.contracts import BoundLane
 from regression.core.digest import canonical_bytes, canonical_digest, digest_bytes
 from regression.core.errors import RegressionError
-from regression.core.ids import Digest, parse_identifier
+from regression.core.ids import Digest, OperationID, parse_identifier
 from regression.core.plan import (
     BuildIdentity,
     EvidenceEnvironmentIdentity,
@@ -30,6 +32,13 @@ from regression.core.plan import (
     ToolchainIdentity,
 )
 from regression.agent_identity import agent_environment
+from regression.core.catalog import load_catalog
+
+VERIFICATION_ROOT = Path(__file__).resolve().parents[1] / "verification"
+if str(VERIFICATION_ROOT) not in sys.path:
+    sys.path.insert(0, str(VERIFICATION_ROOT))
+
+from regression_operation_adapter import resident_handler_name
 
 
 INPUT_SCHEMA = "enchron.regression.execution-input"
@@ -40,6 +49,7 @@ CONFIGURATION_RECEIPT_NAME = "configuration-receipt.json"
 UI_TEST_TARGET = "EnchronAppUITests"
 UI_TEST_IDENTIFIER = "InteractiveDeviceUITests/testInteractiveDeviceSession()"
 RUNTIME_SOURCE_ROOTS = ("Scripts/regression", "Scripts/verification")
+CATALOG_DIRECTORY = "Regression"
 VISIONOS_SIMULATOR_RUNTIME_PREFIXES = (
     "com.apple.CoreSimulator.SimRuntime.visionOS-",
     "com.apple.CoreSimulator.SimRuntime.xrOS-",
@@ -707,6 +717,131 @@ def repository_source_digest(repository_root: Path) -> Digest:
             raise ExecutionIdentityError("source tree snapshot is empty")
         records = [_snapshot_record_at(descriptor, relative) for relative in paths]
     return canonical_digest(records)
+
+
+RESIDENT_BACKEND_CLASS = "ResidentOperationBackend"
+HANDLER_ELISION = "<handler elided from the shared digest>"
+
+
+def _handler_spans(source: str, location: str) -> Mapping[str, tuple[int, int]]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as error:
+        raise ExecutionIdentityError(
+            f"{location} does not parse, so its Operation handlers cannot be read: {error}"
+        ) from error
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == RESIDENT_BACKEND_CLASS:
+            return {
+                item.name: (item.lineno, item.end_lineno)
+                for item in node.body
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+    raise ExecutionIdentityError(
+        f"{location} defines no {RESIDENT_BACKEND_CLASS}, so no Operation handler "
+        "can be attributed to it"
+    )
+
+
+def _elided(source: str, spans: Mapping[str, tuple[int, int]]) -> str:
+    lines = source.splitlines()
+    covered = {}
+    for name, (start, end) in spans.items():
+        for index in range(start - 1, min(end, len(lines))):
+            covered[index] = name
+    kept = []
+    for index, line in enumerate(lines):
+        name = covered.get(index)
+        if name is None:
+            kept.append(line)
+        elif covered.get(index - 1) != name:
+            kept.append(f"{name} {HANDLER_ELISION}")
+    return "\n".join(kept)
+
+
+def _handler_source(source: str, span: tuple[int, int]) -> str:
+    start, end = span
+    return "\n".join(source.splitlines()[start - 1 : end])
+
+
+def operation_implementation_digests(
+    repository_root: Path, catalog_root: Path
+) -> Mapping[OperationID, Digest]:
+    repository = _absolute_lexical(repository_root, "repository root")
+    catalog = load_catalog(Path(catalog_root))
+    if not catalog.operations:
+        raise ExecutionIdentityError("the Catalog declares no Operation")
+    sources: dict[str, str] = {}
+    spans: dict[str, Mapping[str, tuple[int, int]]] = {}
+    for operation in catalog.operations:
+        locator = operation.implementation_locator
+        if locator in sources:
+            continue
+        path = repository / locator
+        if not path.is_file() or path.is_symlink():
+            raise ExecutionIdentityError(
+                f"{operation.id} names the implementation {locator}, which is not a "
+                "regular file in this checkout"
+            )
+        source = path.read_text(encoding="utf-8")
+        sources[locator] = source
+        spans[locator] = _handler_spans(source, locator)
+    shared = _shared_runtime_digest(repository, sources, spans)
+    digests: dict[OperationID, Digest] = {}
+    for operation in catalog.operations:
+        locator = operation.implementation_locator
+        name = resident_handler_name(str(operation.id))
+        span = spans[locator].get(name)
+        if span is None:
+            raise ExecutionIdentityError(
+                f"{operation.id} resolves to the handler {name}, and "
+                f"{RESIDENT_BACKEND_CLASS} in {locator} defines no such method"
+            )
+        digests[operation.id] = canonical_digest(
+            {
+                "handler": _handler_source(sources[locator], span),
+                "shared": str(shared),
+                "contract": str(operation.leaf_digest),
+            }
+        )
+    return MappingProxyType(digests)
+
+
+def _shared_runtime_digest(
+    repository: Path,
+    sources: Mapping[str, str],
+    spans: Mapping[str, Mapping[str, tuple[int, int]]],
+) -> Digest:
+    candidates = _runtime_source_paths(repository)
+    records = []
+    with _directory_descriptor(repository, "repository root") as descriptor:
+        for relative in sorted(candidates):
+            record = _snapshot_record_at(descriptor, relative)
+            if record["kind"] != "file":
+                continue
+            if relative in sources:
+                elided = _elided(sources[relative], spans[relative]).encode("utf-8")
+                record = dict(record)
+                record["bytes"] = len(elided)
+                record["sha256"] = hashlib.sha256(elided).hexdigest()
+            records.append(record)
+    if not records:
+        raise ExecutionIdentityError("deterministic runtime source set is empty")
+    return canonical_digest(records)
+
+
+def _runtime_source_paths(repository: Path) -> set[str]:
+    candidates: set[str] = set()
+    for relative_root in RUNTIME_SOURCE_ROOTS:
+        root = repository / relative_root
+        if not root.is_dir() or root.is_symlink():
+            continue
+        for path in root.rglob("*.py"):
+            if "__pycache__" not in path.parts:
+                candidates.add(path.relative_to(repository).as_posix())
+    if not candidates:
+        raise ExecutionIdentityError("deterministic runtime source set is empty")
+    return candidates
 
 
 def deterministic_runtime_digest(repository_root: Path) -> Digest:
@@ -1796,7 +1931,7 @@ def _freeze_current(
         artifacts,
     )
     evidence = EvidenceEnvironmentIdentity(
-        deterministic_runtime_digest(repository),
+        operation_implementation_digests(repository, repository / CATALOG_DIRECTORY),
         agent_environment(agent_model, agent_executable),
     )
     launches = tuple(
@@ -1842,6 +1977,21 @@ def freeze_execution_input(
     return _freeze_current(repository, artifact, targets, agent_model, agent_executable, bootstrap)
 
 
+def _parse_operation_digests(value: object) -> Mapping[OperationID, Digest]:
+    if not isinstance(value, Mapping) or not value:
+        raise ExecutionIdentityError(
+            "evidenceEnvironmentIdentity.operationDigests must be a non-empty object"
+        )
+    return MappingProxyType(
+        {
+            OperationID(
+                parse_identifier("operation", key, f"operationDigests[{key}]")
+            ): _digest(item, f"operationDigests[{key}]")
+            for key, item in value.items()
+        }
+    )
+
+
 def _stored_relative(root: Path, path: Path, label: str) -> str:
     return _relative_path(root, path, label).as_posix()
 
@@ -1873,9 +2023,12 @@ def execution_input_payload(value: FrozenExecutionInput) -> Mapping[str, Any]:
             ],
         },
         "evidenceEnvironmentIdentity": {
-            "deterministicRuntimeDigest": str(
-                value.evidence_environment_identity.deterministic_runtime_digest
-            ),
+            "operationDigests": {
+                str(operation): str(digest)
+                for operation, digest in sorted(
+                    value.evidence_environment_identity.operation_digests.items()
+                )
+            },
             "agentEnvironment": {
                 "model": agent.model,
                 "promptDigest": str(agent.prompt_digest),
@@ -2177,7 +2330,7 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
     build = _parse_build_identity(root["buildIdentity"])
     evidence_value = _object(
         root["evidenceEnvironmentIdentity"],
-        ("deterministicRuntimeDigest", "agentEnvironment"),
+        ("operationDigests", "agentEnvironment"),
         "evidenceEnvironmentIdentity",
     )
     agent_value = _object(
@@ -2288,11 +2441,21 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
         raise ExecutionIdentityError(
             "a lane .xctestrun path differs from exact Xcode discovery"
         )
-    runtime_digest = _digest(
-        evidence_value["deterministicRuntimeDigest"], "deterministicRuntimeDigest"
+    frozen_digests = _parse_operation_digests(evidence_value["operationDigests"])
+    current_digests = operation_implementation_digests(
+        repository, repository / CATALOG_DIRECTORY
     )
-    if deterministic_runtime_digest(repository) != runtime_digest:
-        raise ExecutionIdentityError("deterministic runtime differs from the frozen digest")
+    drifted = sorted(
+        str(operation)
+        for operation in set(frozen_digests) | set(current_digests)
+        if frozen_digests.get(operation) != current_digests.get(operation)
+    )
+    if drifted:
+        raise ExecutionIdentityError(
+            "the implementation of "
+            + ", ".join(drifted)
+            + " differs from the frozen digest"
+        )
     model = _text(agent_value["model"], "agentEnvironment.model")
     executable = _text(agent_value["executable"], "agentEnvironment.executable")
     current_agent = agent_environment(model, executable)
@@ -2306,7 +2469,7 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
         )
     ):
         raise ExecutionIdentityError("Agent environment differs from the frozen identity")
-    evidence = EvidenceEnvironmentIdentity(runtime_digest, current_agent)
+    evidence = EvidenceEnvironmentIdentity(frozen_digests, current_agent)
     actual_launches = tuple(
         FrozenTestLaunch(
             state.lane,
@@ -2365,6 +2528,7 @@ __all__ = (
     "PreparedLaneProvenance",
     "SimulatorUDIDSource",
     "deterministic_runtime_digest",
+    "operation_implementation_digests",
     "execution_input_payload",
     "freeze_execution_input",
     "load_execution_input",

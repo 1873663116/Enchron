@@ -1085,7 +1085,13 @@ def _analysis_request(catalog: DraftCatalog, fact: FactDeclaration) -> CompileRe
         canonical_digest({"configuration": "no-agent-execution"}),
     )
     environment = EvidenceEnvironmentIdentity(
-        canonical_digest({"runtime": "review-stage", "version": 1}), agent
+        {
+            operation.id: canonical_digest(
+                {"runtime": "review-stage", "operation": str(operation.id)}
+            )
+            for operation in catalog.operations
+        },
+        agent,
     )
     return CompileRequest(
         FullSelector(), (reviewed_fact,), lanes, build, environment

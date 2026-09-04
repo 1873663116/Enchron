@@ -49,11 +49,20 @@ class PathTierTests(unittest.TestCase):
             ("Modules/DesignSystem/Tokens.swift", tiers.W2),
             ("Modules/MediaSource/Stream.swift", tiers.W2),
             ("Apps/Enchron/MainView.swift", tiers.W3),
+            ("Apps/Enchron/Screens/PlayerScreen.swift", tiers.W2),
             ("Modules/Playback/Runtime.swift", tiers.W3),
             ("Packages/PlaybackCore/Sources/Core/A.swift", tiers.W3),
             ("Packages/RealityKitContent/Package.swift", tiers.W3),
         ):
             self.assertTier(path, expected)
+
+    def test_longest_prefix_keeps_the_screens_directory_at_w2(self) -> None:
+        self.assertTier(
+            "Apps/Enchron/Screens/PlayerScreen.swift",
+            tiers.W2,
+            "Apps/Enchron/Screens/",
+        )
+        self.assertTier("Apps/Enchron/AppModel.swift", tiers.W3, "Apps/Enchron/")
 
     def test_longest_prefix_keeps_playback_core_tests_at_w1(self) -> None:
         self.assertTier(

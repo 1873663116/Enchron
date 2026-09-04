@@ -10,9 +10,7 @@
 
 ## 前置阻塞：账本里没有第二次 attempt
 
-`_claim_node` 要求节点处于 `PENDING`（`Scripts/regression/core/runview.py:1131`），而 `runtime.py` 里没有任何路径把节点写回 `PENDING`：状态只会向终态推进。因此一次 run 内一个节点只能被 claim 一次，本阶段所依赖的「同一节点连续两次 attempt」在当前状态机下无法出现。
-
-先决定重试如何进账本，再实现本阶段。两条路：让裁决把节点退回 `PENDING` 并新起一个 lease，或者把 attempt 定义为跨 run 的概念并由收据层跨 run 聚合。前者改动阶段 8 定下的转移规则，后者改动阶段 17 的收据输入。这一项在阶段 12 实现 `bundle --attempt` 时暴露（见 [阶段 12](phase-12-bundle-tool.md) 的偏离一节）。
+重开节点的设计与取舍记在[阶段 15](phase-15-known-defect-ledger.md)，本阶段的 `deferrable` 直接读那条规则产出的 attempt 序列。
 
 ## 改动清单
 

@@ -432,7 +432,7 @@ class Fixture:
             if include_agent
             else None
         )
-        environment = EvidenceEnvironmentIdentity(digest("f"), agent)
+        environment = EvidenceEnvironmentIdentity(_catalog_operation_digests(), agent)
         return CompileRequest(
             selector,
             reviewed_facts,
@@ -440,6 +440,13 @@ class Fixture:
             build,
             environment,
         )
+
+
+def _catalog_operation_digests():
+    return {
+        OperationID("operation:setup.session@1"): digest("8"),
+        OperationID("operation:evidence.capture@1"): digest("9"),
+    }
 
 
 def completed_review(catalog: DraftCatalog) -> CompletedReview:
@@ -754,6 +761,27 @@ class CompilerPositiveTests(unittest.TestCase):
             self.assertEqual(
                 expected, binding.prerequisite_bindings[0].preparation_id
             )
+
+    def test_a_node_carries_only_the_operation_digests_its_calls_use(self) -> None:
+        plan = self.compile()
+        attempts = tuple(
+            item for item in plan.nodes if isinstance(item, ScenarioAttemptNode)
+        )
+
+        self.assertTrue(attempts)
+        narrowed = 0
+        for node in attempts:
+            used = {item.operation for item in node.calls}
+            carried = set(node.evidence_environment_identity.operation_digests)
+            with self.subTest(node=str(node.id)):
+                self.assertEqual(used, carried)
+            if carried < set(plan.evidence_environment_identity.operation_digests):
+                narrowed += 1
+
+        self.assertTrue(
+            narrowed,
+            "no node used a strict subset, so narrowing proves nothing here",
+        )
 
     def test_allowed_calls_preserve_strict_catalog_order(self) -> None:
         extra = operation_call(

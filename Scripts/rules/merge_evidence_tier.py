@@ -57,6 +57,7 @@ PATH_RULES = (
     ("Modules/MediaSource/", W2),
     ("Packages/PlaybackCore/", W3),
     ("Apps/Enchron/", W3),
+    ("Apps/Enchron/Screens/", W2),
     ("Modules/Playback/", W3),
     ("Packages/RealityKitContent/", W3),
 )

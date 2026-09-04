@@ -27,6 +27,10 @@ classify_path(path: str) -> Classification(path, tier, rule)
 ("Apps/Enchron/Screens/", W2)
 ```
 
+## 与原清单的偏离
+
+一处：**坏样本落在 `Scripts/rules/test_merge_evidence_tier.py`，不落在 `Config/guard_selftests.json`。** `merge_evidence_tier.py` 没有 `verify_` 或 `check_` 前缀，因此不是登记在 `STRUCTURE_CHECKS` 里的检查器，Mutation Coverage Mandate 不覆盖它，`guard_selftests.json` 里也从来没有 `merge-evidence-tier` 这一条。它的既有自测就是它的坏样本来源：新增的两条断言在删掉 `Apps/Enchron/Screens/` 规则时失败。
+
 ## 阶段验证方案
 
 静态：

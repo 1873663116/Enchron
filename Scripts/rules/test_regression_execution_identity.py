@@ -21,7 +21,8 @@ if str(SCRIPTS) not in sys.path:
 
 from regression.core.contracts import BoundLane
 from regression.core.digest import canonical_bytes, digest_bytes
-from regression.core.plan import ToolchainIdentity
+from regression.core.ids import Digest, OperationID
+from regression.core.plan import EvidenceEnvironmentIdentity, ToolchainIdentity
 import regression.execution_identity as identity
 from regression.execution_identity import (
     ExecutionIdentityError,
@@ -123,6 +124,12 @@ def _macho(
     return header + commands + b"\0" * (data_offset - len(header) - len(commands)) + stamp
 
 
+FIXTURE_OPERATION_DIGESTS = {
+    OperationID("operation:fixture.evidence@1"): Digest("sha256:" + "1" * 64),
+    OperationID("operation:fixture.setup@1"): Digest("sha256:" + "2" * 64),
+}
+
+
 class ExecutionIdentityTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = TemporaryDirectory()
@@ -174,6 +181,11 @@ class ExecutionIdentityTests(unittest.TestCase):
                 identity,
                 "registered_physical_visionos_devices",
                 return_value=self.physical_registry(),
+            ),
+            patch.object(
+                identity,
+                "operation_implementation_digests",
+                return_value=FIXTURE_OPERATION_DIGESTS,
             ),
         ):
             yield
@@ -708,6 +720,112 @@ class ExecutionIdentityTests(unittest.TestCase):
             registry = registered_physical_visionos_devices()
 
         self.assertIs(registry["UDID-PHYSICAL"], registry["CORE-PHYSICAL"])
+
+
+class OperationDigestGranularityTests(unittest.TestCase):
+    """Every Operation contract names the same adapter file, so a digest taken
+    over that file moves for all 35 whenever any of them is touched. The digest
+    is taken over the handler that serves the Operation, plus the rest of the
+    runtime with every handler removed, so a handler-local fix invalidates one
+    Operation and a shared change invalidates all."""
+
+    ADAPTER = (
+        SCRIPTS / "verification" / "regression_operation_adapter.py"
+    )
+
+    def source(self) -> str:
+        return self.ADAPTER.read_text(encoding="utf-8")
+
+    def test_the_shared_source_does_not_move_when_a_handler_grows(self) -> None:
+        original = self.source()
+        spans = identity._handler_spans(original, "adapter")
+        name, (start, _) = sorted(spans.items())[0]
+        grown = "\n".join(
+            original.splitlines()[:start]
+            + ["        widened = 1"]
+            + original.splitlines()[start:]
+        )
+
+        self.assertEqual(
+            identity._elided(original, spans),
+            identity._elided(grown, identity._handler_spans(grown, "adapter")),
+        )
+
+    def test_the_shared_source_moves_when_code_outside_a_handler_changes(
+        self,
+    ) -> None:
+        original = self.source()
+        changed = original.replace(
+            "class ResidentOperationBackend:",
+            "SHARED_MARKER = 1\n\n\nclass ResidentOperationBackend:",
+            1,
+        )
+
+        self.assertNotEqual(
+            identity._elided(original, identity._handler_spans(original, "adapter")),
+            identity._elided(changed, identity._handler_spans(changed, "adapter")),
+        )
+
+    def test_a_module_with_no_resident_backend_is_refused(self) -> None:
+        with self.assertRaisesRegex(ExecutionIdentityError, "defines no"):
+            identity._handler_spans("VALUE = 1\n", "stand-in")
+
+    def test_a_module_that_does_not_parse_is_refused(self) -> None:
+        with self.assertRaisesRegex(ExecutionIdentityError, "does not parse"):
+            identity._handler_spans("def broken(:\n", "stand-in")
+
+
+class NarrowedEnvironmentTests(unittest.TestCase):
+    """A node's evidence identity names only the Operations its own calls use,
+    so a fix to one Operation leaves every node that never ran it untouched."""
+
+    def identity_for(self, **digests) -> EvidenceEnvironmentIdentity:
+        return EvidenceEnvironmentIdentity(
+            {
+                OperationID(f"operation:fixture.{name}@1"): Digest(
+                    "sha256:" + value * 64
+                )
+                for name, value in digests.items()
+            }
+        )
+
+    def test_narrowing_keeps_only_the_operations_it_is_given(self) -> None:
+        whole = self.identity_for(one="1", two="2")
+
+        narrowed = whole.narrowed([OperationID("operation:fixture.one@1")])
+
+        self.assertEqual(
+            (OperationID("operation:fixture.one@1"),),
+            tuple(narrowed.operation_digests),
+        )
+        self.assertNotEqual(whole.digest, narrowed.digest)
+
+    def test_a_change_to_one_operation_leaves_the_other_node_alone(self) -> None:
+        before = self.identity_for(one="1", two="2")
+        after = self.identity_for(one="1", two="3")
+        first = OperationID("operation:fixture.one@1")
+        second = OperationID("operation:fixture.two@1")
+
+        self.assertEqual(
+            before.narrowed([first]).digest, after.narrowed([first]).digest
+        )
+        self.assertNotEqual(
+            before.narrowed([second]).digest, after.narrowed([second]).digest
+        )
+
+    def test_an_operation_with_no_frozen_digest_is_refused(self) -> None:
+        whole = self.identity_for(one="1")
+
+        with self.assertRaises(Exception) as raised:
+            whole.narrowed([OperationID("operation:fixture.absent@1")])
+
+        self.assertIn("operation:fixture.absent@1", str(raised.exception))
+
+    def test_an_empty_mapping_is_refused(self) -> None:
+        with self.assertRaises(Exception) as raised:
+            EvidenceEnvironmentIdentity({})
+
+        self.assertIn("non-empty", str(raised.exception))
 
 
 if __name__ == "__main__":

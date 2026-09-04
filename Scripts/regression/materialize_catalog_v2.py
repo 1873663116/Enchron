@@ -1584,7 +1584,7 @@ def _load_and_analyze(root: Path, blueprint: Mapping[str, Any]) -> Mapping[str, 
             ),
         ),
         EvidenceEnvironmentIdentity(
-            zero,
+            {operation.id: zero for operation in catalog.operations},
             AgentEnvironment("catalog-v2-analysis", zero, one),
         ),
     )

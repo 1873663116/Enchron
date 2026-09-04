@@ -23,13 +23,13 @@ Tier 只回答“需要多强的实测证据”。ChangeKind 只回答“机器�
 
 ## Tier 与路径分类
 
-一个 commit 范围采用其中最高的路径 Tier。映射外的路径归入 W3。前缀按最长匹配，因此 `Packages/PlaybackCore/Tests/` 属于 W1，不会落入包本体的 W3。
+一个 commit 范围采用其中最高的路径 Tier。映射外的路径归入 W3。前缀按最长匹配，因此 `Packages/PlaybackCore/Tests/` 属于 W1，不会落入包本体的 W3；同一机制使 `Apps/Enchron/Screens/` 属于 W2，而 `Apps/Enchron/` 的其余路径仍是 W3。
 
 | 前缀 | Tier |
 |---|---|
 | `docs/`、`.agents/skills/` | W0 |
 | `Regression/`、`Scripts/`、`Config/`、`Tests/`、`Packages/PlaybackCore/Tests/` | W1 |
-| `Modules/DesignSystem/`、`Modules/Emby/`、`Modules/MediaLibrary/`、`Modules/MediaSource/` | W2 |
+| `Modules/DesignSystem/`、`Modules/Emby/`、`Modules/MediaLibrary/`、`Modules/MediaSource/`、`Apps/Enchron/Screens/` | W2 |
 | `Packages/PlaybackCore/`、`Apps/Enchron/`、`Modules/Playback/`、`Packages/RealityKitContent/` | W3 |
 | 其他路径 | W3 |
 

@@ -221,8 +221,18 @@ def _build_identity(lanes: Tuple[BoundLane, ...]) -> BuildIdentity:
     )
 
 
-def _evidence_environment() -> EvidenceEnvironmentIdentity:
-    return EvidenceEnvironmentIdentity(_digest("deterministic-runtime"))
+def _evidence_environment(
+    nodes: Tuple[RunPlanNode, ...] = ()
+) -> EvidenceEnvironmentIdentity:
+    operations = {
+        call.operation
+        for node in nodes
+        for call in getattr(node, "calls", ())
+    }
+    operations.add(OperationID("operation:fake.placeholder@1"))
+    return EvidenceEnvironmentIdentity(
+        {item: _digest(f"implementation:{item}") for item in sorted(operations)}
+    )
 
 
 def _plan(
@@ -233,14 +243,16 @@ def _plan(
 ) -> CompiledRunPlan:
     lanes = tuple(item.lane for item in gates)
     build = _build_identity(lanes)
-    environment = _evidence_environment()
+    environment = _evidence_environment(nodes)
     rebound = tuple(
         node
         if isinstance(node, BothJoinNode)
         else replace(
             node,
             build_identity=build,
-            evidence_environment_identity=environment,
+            evidence_environment_identity=environment.narrowed(
+                item.operation for item in node.calls
+            ),
         )
         for node in nodes
     )
@@ -850,7 +862,8 @@ class RuntimeFaultTests(unittest.TestCase):
         )
         base = _single_node_plan()
         evidence_environment = EvidenceEnvironmentIdentity(
-            _digest("deterministic-runtime"), expected_environment
+            dict(base.nodes[0].evidence_environment_identity.operation_digests),
+            expected_environment,
         )
         node = replace(
             base.nodes[0], evidence_environment_identity=evidence_environment

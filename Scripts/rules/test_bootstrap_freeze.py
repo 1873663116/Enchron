@@ -20,6 +20,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from regression.core.contracts import BoundLane
+from regression.core.ids import Digest, OperationID
 from regression.core.digest import canonical_bytes, digest_bytes
 from regression.core.plan import ToolchainIdentity
 import regression.execution_identity as identity
@@ -156,6 +157,9 @@ class BootstrapFreezeTests(unittest.TestCase):
             query_toolchain_identity=lambda: toolchain,
             registered_simulator_udids=lambda: frozenset({"SIM-UDID"}),
             registered_physical_visionos_devices=lambda: self.physical_registry(),
+            operation_implementation_digests=lambda repository, catalog_root: {
+                OperationID("operation:fixture.evidence@1"): Digest("sha256:" + "1" * 64),
+            },
         )
 
     def write_text(self, relative: str, source: str) -> Path:

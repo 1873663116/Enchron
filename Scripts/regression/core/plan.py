@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, FrozenSet, Optional, Tuple, Union
+from types import MappingProxyType
+from typing import Any, Dict, FrozenSet, Iterable, Mapping, Optional, Tuple, Union
 
 from .applicability import ReviewedFact, reviewed_facts_digest
 from .capability import AllowedOperationCall
@@ -26,6 +27,7 @@ from .ids import (
     JourneyID,
     NodeID,
     ObligationID,
+    OperationID,
     OracleID,
     PreparationID,
     PromiseID,
@@ -316,18 +318,25 @@ class AgentEnvironment:
 
 @dataclass(frozen=True)
 class EvidenceEnvironmentIdentity:
-    deterministic_runtime_digest: Digest
+    operation_digests: Mapping[OperationID, Digest]
     agent_environment: Optional[AgentEnvironment] = None
     identity_digest: Digest = field(init=False)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.operation_digests, Mapping) or not self.operation_digests:
+            raise _error(
+                "plan.invalid.operation.digests",
+                "evidenceEnvironment.operationDigests",
+                "expected a non-empty mapping of Operation to implementation digest",
+            )
+        digests = {}
+        for operation, digest in self.operation_digests.items():
+            location = f"evidenceEnvironment.operationDigests[{operation}]"
+            digests[OperationID(parse_identifier("operation", operation, location))] = (
+                _digest(digest, location)
+            )
         object.__setattr__(
-            self,
-            "deterministic_runtime_digest",
-            _digest(
-                self.deterministic_runtime_digest,
-                "evidenceEnvironment.deterministicRuntimeDigest",
-            ),
+            self, "operation_digests", MappingProxyType(dict(sorted(digests.items())))
         )
         if self.agent_environment is not None and not isinstance(
             self.agent_environment, AgentEnvironment
@@ -346,6 +355,28 @@ class EvidenceEnvironmentIdentity:
     @property
     def digest(self) -> Digest:
         return self.identity_digest
+
+    def narrowed(
+        self, operations: Iterable[OperationID]
+    ) -> "EvidenceEnvironmentIdentity":
+        wanted = frozenset(operations)
+        missing = sorted(str(item) for item in wanted - set(self.operation_digests))
+        if missing:
+            raise _error(
+                "plan.unknown.operation.digest",
+                "evidenceEnvironment.operationDigests",
+                f"the frozen environment carries no digest for {', '.join(missing)}",
+            )
+        if not wanted:
+            return self
+        return EvidenceEnvironmentIdentity(
+            {
+                operation: digest
+                for operation, digest in self.operation_digests.items()
+                if operation in wanted
+            },
+            self.agent_environment,
+        )
 
 
 @dataclass(frozen=True)
@@ -1197,7 +1228,10 @@ def _build_identity_payload(identity: BuildIdentity) -> object:
 def _evidence_environment_payload(identity: EvidenceEnvironmentIdentity) -> object:
     agent = identity.agent_environment
     return {
-        "deterministicRuntimeDigest": str(identity.deterministic_runtime_digest),
+        "operationDigests": {
+            str(operation): str(digest)
+            for operation, digest in sorted(identity.operation_digests.items())
+        },
         "agentEnvironment": None
         if agent is None
         else {

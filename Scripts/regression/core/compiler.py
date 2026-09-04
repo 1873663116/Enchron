@@ -1352,7 +1352,9 @@ def _attempt_node(
         _evaluation_bindings(state.index, request, scenario),
         scenario.success,
         request.build_identity,
-        request.evidence_environment_identity,
+        request.evidence_environment_identity.narrowed(
+            item.operation for item in calls
+        ),
         0,
     )
 

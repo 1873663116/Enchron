@@ -526,7 +526,7 @@ class MaterializedCatalogTests(unittest.TestCase):
                 ),
             ),
             EvidenceEnvironmentIdentity(
-                digest_a,
+                {operation.id: digest_a for operation in self.catalog.operations},
                 AgentEnvironment("catalog-test-agent", digest_a, digest_b),
             ),
         )
