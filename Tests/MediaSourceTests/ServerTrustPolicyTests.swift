@@ -9,17 +9,15 @@ private final class ServerTrustPolicyRecorder {
 }
 
 struct ServerTrustPolicyTests {
-    @Test("stored certificate changes reject once without approval or trust mutation")
+    @Test("a certificate that replaced an approved one is reported without asking")
     @MainActor
-    func storedCertificateChangesRejectOnceWithoutApprovalOrTrustMutation() async throws {
+    func aReplacedCertificateIsReportedWithoutAsking() async throws {
         let suiteName = "ServerTrustPolicyTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let address = "media.example:443"
         let previousFingerprint = "AA:BB:CC"
         let currentFingerprint = "DD:EE:FF"
-        let fingerprintKey = "server-certificate-fingerprint.\(address)"
-        defaults.set(previousFingerprint, forKey: fingerprintKey)
         let recorder = ServerTrustPolicyRecorder()
         let policy = ServerTrustPolicy(defaults: defaults)
         policy.approvalHandler = { _ in
@@ -30,29 +28,14 @@ struct ServerTrustPolicyTests {
             recorder.certificateChanges.append($0)
         }
 
-        let approvalDecision = try await policy.withConnectionApproval(
-            to: try #require(URL(string: "https://media.example"))
-        ) {
-            policy.resolveUntrustedCertificate(
-                address: address,
-                currentFingerprint: currentFingerprint
-            )
-        }
-        #expect(approvalDecision == .requestApproval)
-        #expect(recorder.certificateChanges.isEmpty)
-
-        let firstDecision = policy.resolveUntrustedCertificate(
+        let mayAsk = policy.reportUntrustedCertificate(
             address: address,
-            currentFingerprint: currentFingerprint
-        )
-        let repeatedDecision = policy.resolveUntrustedCertificate(
-            address: address,
-            currentFingerprint: currentFingerprint
+            currentFingerprint: currentFingerprint,
+            previousFingerprint: previousFingerprint
         )
         await Task.yield()
 
-        #expect(firstDecision == .reject)
-        #expect(repeatedDecision == .reject)
+        #expect(mayAsk == false)
         #expect(recorder.approvalRequestCount == 0)
         #expect(
             recorder.certificateChanges == [
@@ -63,12 +46,11 @@ struct ServerTrustPolicyTests {
                 )
             ]
         )
-        #expect(defaults.string(forKey: fingerprintKey) == previousFingerprint)
     }
 
-    @Test("untrusted certificates without a stored trust boundary reject silently")
+    @Test("a certificate seen for the first time reports no change")
     @MainActor
-    func untrustedCertificatesWithoutStoredTrustRejectSilently() async throws {
+    func aFirstContactCertificateReportsNoChange() async throws {
         let suiteName = "ServerTrustPolicyTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -78,13 +60,47 @@ struct ServerTrustPolicyTests {
             recorder.certificateChanges.append($0)
         }
 
-        let decision = policy.resolveUntrustedCertificate(
+        let mayAsk = policy.reportUntrustedCertificate(
             address: "new.example:443",
-            currentFingerprint: "11:22:33"
+            currentFingerprint: "11:22:33",
+            previousFingerprint: nil
         )
         await Task.yield()
 
-        #expect(decision == .reject)
+        #expect(mayAsk == false)
         #expect(recorder.certificateChanges.isEmpty)
+    }
+
+    @Test("the wearer is asked only inside a connection approval")
+    @MainActor
+    func theWearerIsAskedOnlyInsideAConnectionApproval() async throws {
+        let suiteName = "ServerTrustPolicyTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let recorder = ServerTrustPolicyRecorder()
+        let policy = ServerTrustPolicy(defaults: defaults)
+        policy.certificateChangeHandler = {
+            recorder.certificateChanges.append($0)
+        }
+
+        let inside = try await policy.withConnectionApproval(
+            to: try #require(URL(string: "https://media.example"))
+        ) {
+            policy.reportUntrustedCertificate(
+                address: "media.example:443",
+                currentFingerprint: "DD:EE:FF",
+                previousFingerprint: "AA:BB:CC"
+            )
+        }
+        let outside = policy.reportUntrustedCertificate(
+            address: "media.example:443",
+            currentFingerprint: "DD:EE:FF",
+            previousFingerprint: "AA:BB:CC"
+        )
+        await Task.yield()
+
+        #expect(inside == true)
+        #expect(outside == false)
+        #expect(recorder.certificateChanges.count == 2)
     }
 }

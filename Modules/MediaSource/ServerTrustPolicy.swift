@@ -121,8 +121,11 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
             completionHandler(.useCredential, URLCredential(trust: trust))
             return
         }
-        let mayAsk = lock.withLock { (connectionApprovalDepth[address] ?? 0) > 0 }
-        guard mayAsk, let approvalHandler else {
+        guard reportUntrustedCertificate(
+            address: address,
+            currentFingerprint: fingerprint,
+            previousFingerprint: storedFingerprint
+        ), let approvalHandler else {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
@@ -137,18 +140,7 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
         )
         let approval: ServerCertificateApproval = storedFingerprint
             .map { .replacement(info, previousFingerprint: $0) } ?? .firstContact(info)
-        let change = storedFingerprint.map {
-            ServerCertificateChange(
-                address: address,
-                previousFingerprint: $0,
-                currentFingerprint: fingerprint
-            )
-        }
-        let certificateChangeHandler = self.certificateChangeHandler
         Task { @MainActor [defaults] in
-            if let change {
-                certificateChangeHandler?(change)
-            }
             if await approvalHandler(approval) {
                 defaults.set(fingerprint, forKey: Self.fingerprintKey(address: address))
                 completionHandler(.useCredential, URLCredential(trust: trust))
@@ -156,6 +148,24 @@ public final class ServerTrustPolicy: NSObject, URLSessionDelegate, @unchecked S
                 completionHandler(.cancelAuthenticationChallenge, nil)
             }
         }
+    }
+
+    @discardableResult
+    func reportUntrustedCertificate(
+        address: String,
+        currentFingerprint: String,
+        previousFingerprint: String?
+    ) -> Bool {
+        if let previousFingerprint {
+            let change = ServerCertificateChange(
+                address: address,
+                previousFingerprint: previousFingerprint,
+                currentFingerprint: currentFingerprint
+            )
+            let handler = certificateChangeHandler
+            Task { @MainActor in handler?(change) }
+        }
+        return lock.withLock { (connectionApprovalDepth[address] ?? 0) > 0 }
     }
 
     private static func fingerprint(of certificate: SecCertificate) -> String {
