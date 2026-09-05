@@ -174,7 +174,7 @@
     },
     {
       "arguments": {
-        "context": "window",
+        "context": "main-window-browser",
         "identifier": "PlayerUI-resumeDecision-panel"
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:16",
@@ -183,7 +183,7 @@
     },
     {
       "arguments": {
-        "context": "window",
+        "context": "main-window-browser",
         "identifiers": [
           "PlayerUI-resumeDecision-primary"
         ]

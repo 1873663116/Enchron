@@ -157,6 +157,7 @@ public final class MediaLibraryViewModel {
     public private(set) var currentReferenceID: UUID?
     private var playbackCollection: [FileBrowsingDomain.MediaReference] = []
     public private(set) var referenceViewingStates: [UUID: VideoCardViewingState] = [:]
+    public private(set) var referenceArtworkURLs: [UUID: URL] = [:]
 
     private let store: MediaLibraryStoring
     private let resolver: MediaReferenceResolver
@@ -457,6 +458,7 @@ public final class MediaLibraryViewModel {
     private func loadViewingStatesForCurrentFolder() async {
         let snapshot = references
         var states: [UUID: VideoCardViewingState] = [:]
+        var artworkURLs: [UUID: URL] = [:]
         for reference in snapshot {
             let identity: MediaIdentity?
             switch reference.locator {
@@ -474,12 +476,16 @@ public final class MediaLibraryViewModel {
                     canonicalPath: path
                 )
             }
-            guard let identity,
-                  let state = await viewingStateProvider(identity) else { continue }
+            guard let identity else { continue }
+            if let artworkURL = ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity)) {
+                artworkURLs[reference.id] = artworkURL
+            }
+            guard let state = await viewingStateProvider(identity) else { continue }
             states[reference.id] = state
         }
         guard snapshot.map(\.id) == references.map(\.id) else { return }
         referenceViewingStates = states
+        referenceArtworkURLs = artworkURLs
     }
 
     public func refreshViewingStates() {
@@ -487,19 +493,7 @@ public final class MediaLibraryViewModel {
     }
 
     public func artworkURL(for reference: FileBrowsingDomain.MediaReference) -> URL? {
-        let identity: MediaIdentity?
-        switch reference.locator {
-        case .sourceItem(let dataSourceID, let path):
-            identity = .remote(
-                sourceKey: reference.remoteSourceKey
-                    ?? "legacy:\(dataSourceID.uuidString.lowercased())",
-                canonicalPath: path
-            )
-        case .file:
-            identity = nil
-        }
-        guard let identity else { return nil }
-        return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
+        referenceArtworkURLs[reference.id]
     }
 
     private func addFile(

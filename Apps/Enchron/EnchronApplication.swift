@@ -295,9 +295,6 @@ final class EnchronApplication {
         launcher.onPlaybackIntentStarted = { [weak playbackSessionModel] in
             playbackSessionModel?.beginPlaybackWindowSession()
         }
-        launcher.onPlaybackStopRequested = { [weak playbackSessionModel] in
-            playbackSessionModel?.endPlaybackWindowSession()
-        }
         launcher.onEffectiveMediaFormatApplied = {
             [weak playbackSessionModel, weak playbackRuntime] interpretation in
             guard let playbackSessionModel, let playbackRuntime else { return }
@@ -416,6 +413,12 @@ final class EnchronApplication {
             }
         }
         launcher.onViewingStatesCleared = { [weak mediaLibrary, weak browser] in
+            mediaLibrary?.refreshViewingStates()
+            browser?.refreshViewingStates()
+        }
+        launcher.onPlaybackStopRequested = {
+            [weak playbackSessionModel, weak mediaLibrary, weak browser] in
+            playbackSessionModel?.endPlaybackWindowSession()
             mediaLibrary?.refreshViewingStates()
             browser?.refreshViewingStates()
         }

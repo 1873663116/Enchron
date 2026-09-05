@@ -84,6 +84,14 @@ private enum ArtworkImageLoader {
     }()
 
     static func image(at url: URL) async throws -> CGImage {
+        if url.isFileURL {
+            let path = url.path
+            let data = try await Task.detached(priority: .utility) {
+                try Data(contentsOf: URL(fileURLWithPath: path))
+            }.value
+            try Task.checkCancellation()
+            return try decode(data)
+        }
         if let persisted = ArtworkNetworkConfiguration.imageProvider?(url) { return persisted }
         if let cached = decoded.object(forKey: url as NSURL) { return cached }
         let request = URLRequest(
@@ -97,12 +105,17 @@ private enum ArtworkImageLoader {
               (200...299).contains(response.statusCode) else {
             throw LoadError.invalidResponse
         }
+        let image = try decode(data)
+        try ArtworkNetworkConfiguration.imageStorer?(url, image)
+        decoded.setObject(image, forKey: url as NSURL, cost: image.bytesPerRow * image.height)
+        return image
+    }
+
+    private static func decode(_ data: Data) throws -> CGImage {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw LoadError.invalidImage
         }
-        try ArtworkNetworkConfiguration.imageStorer?(url, image)
-        decoded.setObject(image, forKey: url as NSURL, cost: image.bytesPerRow * image.height)
         return image
     }
 

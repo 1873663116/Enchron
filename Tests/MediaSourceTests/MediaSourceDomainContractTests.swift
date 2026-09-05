@@ -137,6 +137,53 @@ struct MediaSourceDomainContractTests {
         )
     }
 
+    #if DEBUG
+    @Test("artwork file URL changes when the stored frame is rewritten")
+    func artworkFileURLCarriesTheModificationTime() throws {
+        let root = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ArtworkStore(debugRootURL: root)
+        let key = ArtworkKey(
+            mediaIdentity: .localPathFallback(canonicalPath: "/regression/rewritten.mkv")
+        )
+        #expect(store.fileURL(for: key) == nil)
+
+        let space = CGColorSpaceCreateDeviceRGB()
+        let context = try #require(
+            CGContext(
+                data: nil,
+                width: 4,
+                height: 4,
+                bitsPerComponent: 8,
+                bytesPerRow: 16,
+                space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.setFillColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        let image = try #require(context.makeImage())
+        try store.store(image, for: key)
+
+        let first = try #require(store.fileURL(for: key))
+        #expect(first.isFileURL)
+        #expect(FileManager.default.fileExists(atPath: first.path))
+        let firstStamp = try #require(first.fragment.flatMap(Int.init))
+
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_700_000_000)],
+            ofItemAtPath: first.path
+        )
+        let second = try #require(store.fileURL(for: key))
+        #expect(second.path == first.path)
+        #expect(second.fragment == "1700000000000")
+        #expect(second.fragment.flatMap(Int.init) != firstStamp)
+    }
+    #endif
+
     @Test("media access lease must release exactly once")
     func mediaAccessLeaseReleasesExactlyOnce() {
         let leaseCounter = MediaSourceContractCounter()

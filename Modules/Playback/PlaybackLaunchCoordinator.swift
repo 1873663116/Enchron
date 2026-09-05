@@ -148,7 +148,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         _ request: PlaybackLaunchRequest,
         origin: PlaybackRequestOrigin
     ) {
-        onPlaybackIntentStarted?()
         activeFailureRecovery = nil
         activeFailureRetry = nil
         playbackRuntime.setUserVisibleIssue(nil)
@@ -309,6 +308,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         trackSelectionPreference: TrackSelectionPreference?,
         retrying recovery: ActiveFailureRecovery? = nil
     ) {
+        onPlaybackIntentStarted?()
         if recovery == nil {
             activeFailureRecovery = nil
             activeFailureRetry = nil

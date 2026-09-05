@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:b7ed7579de049c2cda03144055fd69b16321676e262c5af916aded6d4227edbc",
+  "contentDigest": "sha256:16860bf4c1a15b26c5c7f46136136589ace577373937bd31696d868f685234b2",
   "copyDocuments": [
     {
       "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
@@ -3998,7 +3998,8 @@
             "context": "main-window-browser",
             "identifiers": [
               "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
-            ]
+            ],
+            "settleDelayMillis": 500
           },
           "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:03",
           "maxInvocations": 1,
@@ -13077,7 +13078,7 @@
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "identifier": "PlayerUI-resumeDecision-panel",
             "requireMatchedElement": true
           },
@@ -13087,7 +13088,7 @@
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "identifiers": [
               "PlayerUI-resumeDecision-primary"
             ]
@@ -13327,7 +13328,7 @@
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "identifier": "PlayerUI-resumeDecision-panel"
           },
           "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:13",
@@ -15912,7 +15913,8 @@
             "context": "main-window-browser",
             "identifiers": [
               "MediaLibrary-grid-folder-Regression Parent"
-            ]
+            ],
+            "settleDelayMillis": 500
           },
           "callId": "call:library-management:folder-delete-rehomes-references:03",
           "maxInvocations": 1,
@@ -15968,7 +15970,8 @@
             "context": "main-window-browser",
             "identifiers": [
               "MediaLibrary-grid-folder-Regression Child"
-            ]
+            ],
+            "settleDelayMillis": 500
           },
           "callId": "call:library-management:folder-delete-rehomes-references:08",
           "maxInvocations": 1,
@@ -16541,7 +16544,8 @@
             "context": "main-window-browser",
             "identifiers": [
               "MediaLibrary-grid-folder-Regression Search Folder"
-            ]
+            ],
+            "settleDelayMillis": 500
           },
           "callId": "call:library-management:current-folder-search-counts:05",
           "maxInvocations": 1,
@@ -16777,7 +16781,7 @@
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "identifier": "PlayerUI-resumeDecision-panel"
           },
           "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:16",
@@ -16786,7 +16790,7 @@
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "identifiers": [
               "PlayerUI-resumeDecision-primary"
             ]

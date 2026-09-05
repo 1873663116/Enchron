@@ -330,6 +330,49 @@ struct TrackSelectionPreferenceTests {
         #expect(seconds == 120)
     }
 
+    @Test("Playback intent starts only once the resume decision is resolved")
+    func playbackIntentWaitsForResumeDecision() async throws {
+        let suiteName = "app.enchron.tests.intent-after-decision.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+
+        let firstRuntime = TrackSelectionRuntime()
+        let firstCoordinator = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        firstCoordinator.beginPlayback(request)
+        try await firstRuntime.waitUntilOpened()
+        firstRuntime.playbackPosition = .init(seconds: 120, duration: 1_200)
+        firstRuntime.actualPlaybackSeconds = 20
+        firstCoordinator.stopPlayback()
+        let identity = try #require(request.versionedIdentity).mediaIdentity
+        let persistedDeadline = ContinuousClock.now + .seconds(2)
+        while await firstCoordinator.viewingState(for: identity) == nil,
+              ContinuousClock.now < persistedDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let resumeRuntime = TrackSelectionRuntime()
+        let resumeCoordinator = PlaybackLaunchCoordinator(
+            playbackRuntime: resumeRuntime,
+            mediaStateSuiteName: suiteName,
+            preferencesProvider: AskToResumePreferences()
+        )
+        var intentCount = 0
+        resumeCoordinator.onPlaybackIntentStarted = { intentCount += 1 }
+        resumeCoordinator.beginPlayback(request)
+        let deadline = ContinuousClock.now + .seconds(2)
+        while resumeCoordinator.pendingResumeDecision == nil,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(resumeCoordinator.pendingResumeDecision?.seconds == 120)
+        #expect(intentCount == 0)
+
+        resumeCoordinator.resumePendingPlayback()
+        try await resumeRuntime.waitUntilOpened()
+        #expect(intentCount == 1)
+        #expect(resumeRuntime.lastStartTimeSeconds == 120)
+    }
+
     @Test("Play Next resumes saved progress without presenting an Ask Every Time decision")
     func playNextBypassesAskEveryTimeAndResumesSavedProgress() async throws {
         let suiteName = "app.enchron.tests.play-next-resume.\(UUID().uuidString)"

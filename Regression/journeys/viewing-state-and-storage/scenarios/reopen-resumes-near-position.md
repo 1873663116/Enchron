@@ -147,7 +147,7 @@
     },
     {
       "arguments": {
-        "context": "window",
+        "context": "main-window-browser",
         "identifier": "PlayerUI-resumeDecision-panel",
         "requireMatchedElement": true
       },
@@ -157,7 +157,7 @@
     },
     {
       "arguments": {
-        "context": "window",
+        "context": "main-window-browser",
         "identifiers": [
           "PlayerUI-resumeDecision-primary"
         ]

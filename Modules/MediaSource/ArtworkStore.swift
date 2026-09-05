@@ -153,7 +153,13 @@ public final class ArtworkStore: @unchecked Sendable {
 
     public func fileURL(for key: ArtworkKey) -> URL? {
         let url = diskURL(for: key)
-        return queue.sync { FileManager.default.fileExists(atPath: url.path) ? url : nil }
+        return queue.sync {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let modified = attributes[.modificationDate] as? Date else { return nil }
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.fragment = String(Int(modified.timeIntervalSince1970 * 1000))
+            return components?.url ?? url
+        }
     }
 
     public func store(_ image: CGImage, for key: ArtworkKey) throws {

@@ -592,15 +592,21 @@ public struct FilesScreen: View {
         .contentShape(Rectangle())
     }
 
+    private var folderIdentity: String {
+        isBrowsingSource
+            ? viewModel.currentRemotePath
+            : mediaLibrary.currentFolderID?.uuidString ?? "media-library-root"
+    }
+
     @ViewBuilder
     private var filesBody: some View {
         ZStack {
             currentFolderContent
-                .id(isBrowsingSource ? viewModel.currentRemotePath : mediaLibrary.currentFolderID?.uuidString ?? "media-library-root")
+                .id(folderIdentity)
                 .transition(.opacity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(DesignTokens.AnimationToken.controlsTransition, value: viewModel.currentRemotePath)
+        .animation(DesignTokens.AnimationToken.controlsTransition, value: folderIdentity)
     }
 
     @ViewBuilder

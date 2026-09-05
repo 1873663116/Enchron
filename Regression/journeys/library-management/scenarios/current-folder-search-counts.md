@@ -86,7 +86,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "MediaLibrary-grid-folder-Regression Search Folder"
-        ]
+        ],
+        "settleDelayMillis": 500
       },
       "callId": "call:library-management:current-folder-search-counts:05",
       "maxInvocations": 1,

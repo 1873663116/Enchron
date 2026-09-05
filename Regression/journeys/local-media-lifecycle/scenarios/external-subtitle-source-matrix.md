@@ -53,7 +53,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
-        ]
+        ],
+        "settleDelayMillis": 500
       },
       "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:03",
       "maxInvocations": 1,

@@ -22,6 +22,15 @@ struct EnchronApp: App {
         _application = State(initialValue: EnchronApplication())
     }
 
+    private func stopPlaybackAfterWearerClosedPlaybackWindow() {
+        let session = application.playbackSessionModel
+        guard session.playbackWindowSessionIsActive,
+              session.presentationTransition == nil,
+              session.playbackPresentation.usesMainWindow else { return }
+        SurfaceInputProbes.record("playbackWindowScene closedByWearer stoppingPlayback")
+        application.playbackLauncher.stopPlayback()
+    }
+
     var body: some Scene {
         Window(
             "Enchron",
@@ -49,8 +58,6 @@ struct EnchronApp: App {
             }
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
-                application.spatialPlatformEffectCoordinator
-                    .recordMainScenePhaseActive(current == .active)
                 guard current == .active else { return }
                 Task { @MainActor in
                     await Task.yield()
@@ -99,6 +106,7 @@ struct EnchronApp: App {
                 .onDisappear {
                     application.spatialPlatformEffectCoordinator
                         .recordWindowResidency(.closed, for: .playback)
+                    stopPlaybackAfterWearerClosedPlaybackWindow()
                 }
                 .persistentSystemOverlays(.hidden)
         }

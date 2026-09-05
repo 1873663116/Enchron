@@ -93,6 +93,7 @@ public struct MainView: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
@@ -156,6 +157,10 @@ public struct MainView: View {
         }
         .onChange(of: playbackSession.playbackWindowSessionIsActive) { _, isActive in
             reconcilePlaybackWindowPresentation(sessionIsActive: isActive)
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard sceneRole == .browser else { return }
+            spatialPlatformEffectCoordinator.recordMainScenePhaseActive(phase == .active)
         }
         .task {
             reconcilePlaybackWindowPresentation(
@@ -305,18 +310,6 @@ public struct MainView: View {
         ZStack {
             browserWindowSurface
 
-        }
-        .playbackIssueAlert(at: .mediaLibrary)
-    }
-
-    private var playbackPrimaryContent: some View {
-        ZStack {
-            windowPlayback
-
-            if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
-                PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
-            }
-
             if let decision = playbackLauncher.pendingResumeDecision {
                 ResumeDecisionCard(
                     message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
@@ -339,6 +332,17 @@ public struct MainView: View {
                         playbackLauncher.startPendingPlaybackFromBeginning()
                     }
                 )
+            }
+        }
+        .playbackIssueAlert(at: .mediaLibrary)
+    }
+
+    private var playbackPrimaryContent: some View {
+        ZStack {
+            windowPlayback
+
+            if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
+                PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
             }
         }
     }
@@ -366,7 +370,6 @@ public struct MainView: View {
 
             Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
                 EmbyScreen { selectionResult in
-                    playbackSession.beginPlaybackWindowSession()
                     do {
                         let selection = try selectionResult.get()
                         let request = try await embySession.playbackRequest(for: selection)

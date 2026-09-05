@@ -1154,7 +1154,9 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: videoComponentRevision
         )
         let entity = videoEntity
-        let entityIsInCurrentHost = content.entities.contains { $0 === entity }
+        let entityIsInCurrentHost = content.entities.contains { root in
+            PlaybackRealityViewTopologyWritePolicy.entity(entity, isHostedUnder: root)
+        }
         let topologyWriteDecision = PlaybackRealityViewTopologyWritePolicy.decision(
             currentHostIsActive: realityViewHostMarker.isActive,
             entityIsActive: entity.isActive,

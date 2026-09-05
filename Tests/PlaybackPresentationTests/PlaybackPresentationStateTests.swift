@@ -398,6 +398,22 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("A RealityView hosts an Entity parented anywhere under one of its roots")
+    func realityViewHostsNestedEntities() {
+        let root = Entity()
+        let anchor = Entity()
+        let video = Entity()
+        let stranger = Entity()
+        root.addChild(anchor)
+        anchor.addChild(video)
+
+        #expect(PlaybackRealityViewTopologyWritePolicy.entity(root, isHostedUnder: root))
+        #expect(PlaybackRealityViewTopologyWritePolicy.entity(anchor, isHostedUnder: root))
+        #expect(PlaybackRealityViewTopologyWritePolicy.entity(video, isHostedUnder: root))
+        #expect(PlaybackRealityViewTopologyWritePolicy.entity(stranger, isHostedUnder: root) == false)
+        #expect(PlaybackRealityViewTopologyWritePolicy.entity(root, isHostedUnder: video) == false)
+    }
+
     @Test("RealityView scheduling retains one trailing update")
     func realityViewUpdateSchedulingState() {
         var state = PlaybackRealityViewUpdateSchedulingState()

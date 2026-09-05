@@ -178,7 +178,6 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var handoverTask: Task<Void, Never>?
     private var pendingHandoverDismissal: SpatialPlatformWindowIdentity?
-    private var mainSceneActive = true
     @ObservationIgnored
     private let immersiveActionLane = SpatialPlatformSerializedActionLane()
     @ObservationIgnored
@@ -491,6 +490,7 @@ public final class SpatialPlatformEffectCoordinator {
             return
         }
         handoverTask?.cancel()
+        pendingHandoverDismissal = nil
         handoverTask = Task { @MainActor [weak self] in
             await self?.performPlaybackWindowHandover(handover)
         }
@@ -536,7 +536,6 @@ public final class SpatialPlatformEffectCoordinator {
     }
 
     public func recordMainScenePhaseActive(_ active: Bool) {
-        mainSceneActive = active
         guard active, let outgoing = pendingHandoverDismissal else { return }
         guard let actions = leaseRegistry.currentCapability else {
             pendingHandoverDismissal = nil

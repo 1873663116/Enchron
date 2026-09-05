@@ -53,7 +53,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "MediaLibrary-grid-folder-Regression Parent"
-        ]
+        ],
+        "settleDelayMillis": 500
       },
       "callId": "call:library-management:folder-delete-rehomes-references:03",
       "maxInvocations": 1,
@@ -109,7 +110,8 @@
         "context": "main-window-browser",
         "identifiers": [
           "MediaLibrary-grid-folder-Regression Child"
-        ]
+        ],
+        "settleDelayMillis": 500
       },
       "callId": "call:library-management:folder-delete-rehomes-references:08",
       "maxInvocations": 1,

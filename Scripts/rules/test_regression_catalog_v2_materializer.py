@@ -1341,6 +1341,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "identifiers": [
                     "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
                 ],
+                "settleDelayMillis": 500,
             },
         )
         selections = [

@@ -987,6 +987,7 @@ def _validate_external_subtitle_matrix(
                     "identifiers": [
                         "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
                     ],
+                    "settleDelayMillis": 500,
                 },
                 "external subtitle local-sidecar must open the imported directory folder",
             )

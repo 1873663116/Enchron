@@ -35,6 +35,15 @@ enum PlaybackRealityViewTopologyWritePolicy {
         }
         return .allowed
     }
+
+    static func entity(_ entity: Entity, isHostedUnder root: Entity) -> Bool {
+        var current: Entity? = entity
+        while let candidate = current {
+            if candidate === root { return true }
+            current = candidate.parent
+        }
+        return false
+    }
 }
 
 public struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
