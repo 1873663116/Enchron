@@ -16,6 +16,7 @@
 - **xcresult 里的录屏是 anamorphic 的：2732x2048 像素承载一幅 16:9 画面，且不带 aspect 元数据**，方形像素的查看器会把它纵向拉伸。`Scripts/verification/extract_visionpro_ui_recording.py` 抽帧时归一到 XCUIScreen 截图通道交付的同一 16:9 几何。
 - **麦克风放在头显扬声器一小段距离外时，一次音调清晰可辨的采集落在 -55 dBFS 附近**，把静音阈值设在该电平会把真实采集报成静音。`Scripts/verification/journey_audio_probe.py` 取 -75 dBFS，低于仍然带 25 倍峰值的最安静一次采集；真正把音调与本底分开的是 `dominantPeakRatio`。
 - **200 Hz 以下的房间噪声可以压过被测音调**，此时 band 内最响的 bin 指认的是房间而不是音轨。`Scripts/verification/journey_audio_probe.py` 因此把 fixture 的四个脉冲频率互相排序，而不取 band 内的全局最大值。
+- **播放问题弹窗是系统场景，不在 app 自己的视图树里，截图与像素门都不把它当作失败**。XCUITest 在 visionOS 上能通过 `app.alerts` 枚举它，所以 `Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift` 的每条应答带 `alerts`（标题、正文行、按钮标识符），任何读应答 JSON 的脚本或 agent 都能直接判定；`Scripts/verification/playback_mode_matrix.py` 的落点等待另读控制面 `error` 字段与探针 journal 的 `conversionFailed` 行，命中即判 `PRODUCT_ERROR`，落点正确也不放行。2026-09-06 的 Dock 返回失败就是弹窗被人眼看到、脚本按 tap 成功放行的案例。
 - **控制面读不到就是沉浸式落点的签名**。沉浸式呈现清空主窗口，控制面随之消失，落点判定只能改读容器里的探针文件。见 `Scripts/verification/playback_open_sweep.py`。
 
 ## XCUITest 与 visionOS 的场景
@@ -57,6 +58,7 @@
 ## AX 标识符在 visionOS 上丢失的地方
 
 - **`.alert` 里的 `TextField` 丢掉 `.accessibilityIdentifier`**，而同一个 alert 的按钮保留。字段因此只剩 placeholder 这一个把手，输入动词要从标识符退回 label 谓词、再退回 placeholder，而不是让这个操作无法驱动。
+- **`.alert` 的 `message` 里的 `Text` 丢掉 `.accessibilityIdentifier` 与 `accessibilityValue`**（模拟器 2026-09-06 实测：`PlayerUI-presentation-conversion-diagnostic` 读回空标识符、无 value），按钮保留。弹窗正文只能按 alert 标题与 label 匹配，诊断值要从探针 journal 的 `conversionFailed` 行读。
 - **SwiftUI `Menu` 在真机 visionOS 上可能报 `isHittable == false`，却仍然接受语义 tap**。可观察的契约是"菜单可用 → 公共选项可用 → 设置标题变了"，`isHittable` 单独不足以否决这个系统控件。
 - 系统 `Menu` 里只有 `Button` 行保留标识符、`Section` 会吞掉内部每一行的标识符——两条见 `docs/DESIGN_SYSTEM_CONSTRAINTS.md`。
 

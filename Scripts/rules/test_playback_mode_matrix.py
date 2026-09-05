@@ -62,3 +62,34 @@ class ProbeCursorTests(unittest.TestCase):
         self.assertEqual(error, "Probe line count moved backwards from 2 to 1.")
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProductErrorGateTests(HarnessContainerTests):
+    def test_control_plane_error_is_a_product_error(self):
+        self.assertIsNone(matrix.product_error(None))
+        self.assertIsNone(matrix.product_error({"error": "none"}))
+        self.assertEqual(matrix.product_error({"error": "presentationConversionFailed"}), "presentationConversionFailed")
+
+    def test_probe_journal_conversion_failure_is_a_product_error(self):
+        lines = [
+            "2026-09-06 01:16:40.000 Df portalLastFrameBridge captured=false reason=conversionFailed",
+            "2026-09-06 01:16:40.901 Df conversionFailed outcome=failed(mainWindowUnavailable),operation=main-window-appearance-failed",
+        ]
+        self.assertEqual(matrix.probe_product_error(lines), "outcome=failed(mainWindowUnavailable),operation=main-window-appearance-failed")
+        self.assertIsNone(matrix.probe_product_error(lines[:1]))
+
+    def test_presentation_wait_fails_on_a_product_error_even_at_the_expected_landing(self):
+        plane = {"presentation": "window", "transition": "none", "lifecycle": "idle", "error": "presentationConversionFailed"}
+        with patch.object(matrix, "_read_control_plane_harness", return_value=(plane, {})):
+            result = matrix._wait_for_presentation_harness(instruments=self._instruments, client=None, expected="window", baseline_plane=None, started_dt=matrix.datetime.now(matrix.timezone.utc))
+        self.assertEqual(result["verdict"], matrix.PRODUCT_ERROR)
+        self.assertEqual(result["product_error"], "presentationConversionFailed")
+        self.assertEqual(result["control_plane"]["error"], "presentationConversionFailed")
+        self.assertNotIn(matrix.PRODUCT_ERROR, matrix.PASSING_VERDICTS)
+
+    def test_immersive_settlement_fails_on_a_journal_conversion_failure(self):
+        lines = ["2026-09-06 01:16:40.901 Df conversionFailed outcome=failed(mainWindowUnavailable),operation=main-window-appearance-failed"]
+        with patch.object(matrix, "_copy_probe_lines_harness", return_value=lines):
+            result, delta, _ = matrix._wait_for_immersive_settlement_harness(instruments=self._instruments, cell_directory=self._tmp, expected="docked", probe_cursor=matrix.ProbeCursor(None, 0), client=None, target_started_at=matrix.datetime.now(matrix.timezone.utc))
+        self.assertEqual(result["verdict"], matrix.PRODUCT_ERROR)
+        self.assertEqual(delta, lines)

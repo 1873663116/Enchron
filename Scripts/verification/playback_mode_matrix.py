@@ -30,10 +30,11 @@ STALL_RECOVERED = "STALL_RECOVERED"
 STALL_TIMEOUT = "STALL_TIMEOUT"
 WRONG_STATE = "WRONG_STATE"
 DRIVE_ERROR = "DRIVE_ERROR"
+PRODUCT_ERROR = "PRODUCT_ERROR"
 PASSING_VERDICTS = frozenset((PASS, STALL_RECOVERED))
 DEFAULT_CLIPS = ("180_3D.mp4", "180_3D_TB.mp4")
 STEREO_LABELS = {"180_3D.mp4": "Side-by-Side", "180_3D_TB.mp4": "Top-Bottom", "180_3D_loop10.mp4": "Side-by-Side", "180_3D_TB_loop10.mp4": "Top-Bottom"}
-FORMAT_FIELDS = ("presentation","transition","projection","formatProvenance","sourceContentKind","effectiveContentIsPanoramic","stereoLayout","mvHEVC","providerProjectionKind","sampleProjectionKind","rendererProjectionKind","rendererViewPackingKind","corePresentationPhase","corePresentationComponentStatus","windowComponentContentType","videoVisible","lifecycle","videoRendererStatus","videoRendererError","videoSamples","rendererInputs","displayedPixel","bootstrapComplete","providerCodecName","providerCodecTag","sampleMediaSubtype")
+FORMAT_FIELDS = ("presentation","transition","projection","formatProvenance","sourceContentKind","effectiveContentIsPanoramic","stereoLayout","mvHEVC","providerProjectionKind","sampleProjectionKind","rendererProjectionKind","rendererViewPackingKind","corePresentationPhase","corePresentationComponentStatus","windowComponentContentType","videoVisible","lifecycle","videoRendererStatus","videoRendererError","videoSamples","rendererInputs","displayedPixel","bootstrapComplete","providerCodecName","providerCodecTag","sampleMediaSubtype","error")
 BUNDLE = "com.xiongzhipeng.XrPlayer"
 DEVICE = enchron_target.target_device()
 CORE_DEVICE = enchron_target.core_device()
@@ -296,13 +297,13 @@ def format_facts(plane: dict[str, str] | None) -> dict[str, str | None] | None:
 
 
 def observed_state(plane: dict[str, str], elapsed_seconds: float) -> dict[str, object]:
-    return {"elapsed_seconds": round(elapsed_seconds, 3), "presentation": plane.get("presentation"), "transition": plane.get("transition"), "lifecycle": plane.get("lifecycle"), "projection": plane.get("projection")}
+    return {"elapsed_seconds": round(elapsed_seconds, 3), "presentation": plane.get("presentation"), "transition": plane.get("transition"), "lifecycle": plane.get("lifecycle"), "projection": plane.get("projection"), "error": plane.get("error")}
 
 
 def append_observed_state(observations: list[dict[str, object]], plane: dict[str, str], elapsed_seconds: float) -> None:
     state = observed_state(plane, elapsed_seconds)
     if observations:
-        comparable_keys = ("presentation","transition","lifecycle","projection")
+        comparable_keys = ("presentation","transition","lifecycle","projection","error")
         if all(observations[-1].get(key) == state.get(key) for key in comparable_keys):
             return
     observations.append(state)
@@ -313,6 +314,24 @@ def format_changed(baseline: dict[str, str] | None, plane: dict[str, str]) -> bo
     if baseline is None:
         return True
     return any(plane.get(field) != baseline.get(field) for field in FORMAT_CHANGE_FIELDS)
+PRODUCT_ERROR_PROBE_PATTERN = re.compile(r"(?:^|\s)conversionFailed\s+(?P<diagnostic>\S.*)$")
+
+
+def product_error(plane: dict[str, str] | None) -> str | None:
+    category = plane.get("error") if plane is not None else None
+    return category if category not in (None, "", "none") else None
+
+
+def probe_product_error(lines: Sequence[str]) -> str | None:
+    for line in reversed(lines):
+        match = PRODUCT_ERROR_PROBE_PATTERN.search(line)
+        if match is not None:
+            return match.group("diagnostic").strip()
+    return None
+
+
+def product_error_evidence(*, category: str, elapsed: float, plane: dict[str, str] | None, observations: Sequence[dict[str, object]] = ()) -> dict[str, object]:
+    return {"verdict": PRODUCT_ERROR, "product_error": category, "elapsed_seconds": round(elapsed, 3), "actual_presentation": plane.get("presentation") if plane else None, "control_plane": format_facts(plane), "observed_states": list(observations)}
 
 
 def hold(instruments: Instruments, label: str, seconds: float) -> None:
@@ -346,6 +365,8 @@ def wait_for_presentation(*, output_directory: Path, expected: str, target_start
         elapsed = (datetime.now(timezone.utc) - started_dt).total_seconds()
         if plane is not None:
             append_observed_state(observations, plane, elapsed)
+            if (category := product_error(plane)) is not None:
+                return product_error_evidence(category=category, elapsed=elapsed, plane=plane, observations=observations)
             if plane.get("presentation") == expected and plane.get("transition") == "none" and (not require_format_change or format_changed(baseline_plane, plane)):
                 return {"verdict": PASS, "time_to_target_seconds": round(elapsed, 3), "actual_presentation": plane.get("presentation"), "control_plane": format_facts(plane), "observed_states": list(observations)}
         return None
@@ -435,6 +456,8 @@ def _wait_for_immersive_settlement_harness(*, instruments: Instruments, cell_dir
         latest_delta = delta
         observed_cursor = next_cursor
         elapsed = (datetime.now(timezone.utc) - target_started_at).total_seconds()
+        if (diagnostic := probe_product_error(delta)) is not None:
+            return product_error_evidence(category=diagnostic, elapsed=elapsed, plane=None)
         if last_settlement_settled(delta) is True:
             appeared = appeared_presentation(delta)
             if appeared is not None and appeared != expected:
@@ -613,6 +636,8 @@ def _wait_for_presentation_harness(*, instruments: Instruments, client: Controll
         elapsed = (datetime.now(timezone.utc) - started_dt).total_seconds()
         if plane is not None:
             append_observed_state(observations, plane, elapsed)
+            if (category := product_error(plane)) is not None:
+                return product_error_evidence(category=category, elapsed=elapsed, plane=plane, observations=observations)
             if plane.get("presentation") == expected and plane.get("transition") == "none" and (not require_format_change or format_changed(baseline_plane, plane)):
                 return {"verdict": PASS, "time_to_target_seconds": round(elapsed, 3), "actual_presentation": plane.get("presentation"), "control_plane": format_facts(plane), "observed_states": list(observations)}
         return None
@@ -945,6 +970,9 @@ def _wait_for_clean_open_harness(*, instruments: Instruments, cell_directory: Pa
             latest_plane = None
         if plane is not None:
             lifecycle = plane.get("lifecycle") or ""
+            if (category := product_error(plane)) is not None:
+                elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+                return {**product_error_evidence(category=category, elapsed=elapsed, plane=plane), "landed": "failed"}
             if plane.get("presentation") in MAIN_WINDOW_LANDINGS and plane.get("transition") == "none" and lifecycle.lower() in WINDOWED_STEADY_LIFECYCLES and plane.get("videoVisible") != "true":
                 invisible_steady_polls += 1
                 if invisible_steady_polls >= 4:
@@ -1106,7 +1134,7 @@ def run_cell(*, clip: str, clip_index: int, path_name: str, path_index: int, rep
         verdict = PASS
     wedge_check: str | None = None
     wedge_evidence: dict[str, object] | None = None
-    if verdict in (STALL_TIMEOUT, WRONG_STATE):
+    if verdict in (STALL_TIMEOUT, WRONG_STATE, PRODUCT_ERROR):
         if session.get("stage") != "ready" or session.get("success") is not True:
             wedge_check = "blocked"
             wedge_evidence = {"error": "No ready session for the wedge check."}
