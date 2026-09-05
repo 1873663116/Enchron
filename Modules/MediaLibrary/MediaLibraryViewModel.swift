@@ -158,22 +158,26 @@ public final class MediaLibraryViewModel {
     private var playbackCollection: [FileBrowsingDomain.MediaReference] = []
     public private(set) var referenceViewingStates: [UUID: VideoCardViewingState] = [:]
     public private(set) var referenceArtworkURLs: [UUID: URL] = [:]
+    private var referenceIdentities: [UUID: MediaIdentity] = [:]
 
     private let store: MediaLibraryStoring
     private let resolver: MediaReferenceResolver
     private let viewingStateProvider: MediaViewingStateProvider
+    private let artworkStore: ArtworkStore
     private let onPlay: @MainActor (MediaPlaybackItem) -> Void
 
     init(
         store: MediaLibraryStoring = UserDefaultsMediaLibraryStore(),
         resolver: MediaReferenceResolver,
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
+        artworkStore: ArtworkStore = .shared,
         initialLibrary: FileBrowsingDomain.MediaLibrary? = nil,
         onPlay: @escaping @MainActor (MediaPlaybackItem) -> Void
     ) {
         self.store = store
         self.resolver = resolver
         self.viewingStateProvider = viewingStateProvider
+        self.artworkStore = artworkStore
         self.onPlay = onPlay
         if let initialLibrary {
             self.library = initialLibrary
@@ -455,41 +459,54 @@ public final class MediaLibraryViewModel {
         }
     }
 
-    private func loadViewingStatesForCurrentFolder() async {
+    func loadViewingStatesForCurrentFolder() async {
         let snapshot = references
         var states: [UUID: VideoCardViewingState] = [:]
         var artworkURLs: [UUID: URL] = [:]
         for reference in snapshot {
-            let identity: MediaIdentity?
-            switch reference.locator {
-            case .file:
-                if let source = try? await resolver.resolve(reference) {
-                    identity = VersionedMediaIdentity.localIdentity(source.url)
-                    source.accessLease?.release()
-                } else {
-                    identity = nil
-                }
-            case .sourceItem(let dataSourceID, let path):
-                identity = .remote(
-                    sourceKey: reference.remoteSourceKey
-                        ?? "legacy:\(dataSourceID.uuidString.lowercased())",
-                    canonicalPath: path
-                )
-            }
-            guard let identity else { continue }
-            if let artworkURL = ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity)) {
-                artworkURLs[reference.id] = artworkURL
-            }
+            guard let identity = await mediaIdentity(for: reference) else { continue }
+            artworkURLs[reference.id] = artworkStore.fileURL(for: ArtworkKey(mediaIdentity: identity))
             guard let state = await viewingStateProvider(identity) else { continue }
             states[reference.id] = state
         }
         guard snapshot.map(\.id) == references.map(\.id) else { return }
         referenceViewingStates = states
-        referenceArtworkURLs = artworkURLs
+        var retained = referenceArtworkURLs
+        for reference in snapshot {
+            retained[reference.id] = artworkURLs[reference.id]
+        }
+        referenceArtworkURLs = retained
+    }
+
+    private func mediaIdentity(for reference: FileBrowsingDomain.MediaReference) async -> MediaIdentity? {
+        if let known = referenceIdentities[reference.id] { return known }
+        let identity: MediaIdentity?
+        switch reference.locator {
+        case .file:
+            if let source = try? await resolver.resolve(reference) {
+                identity = VersionedMediaIdentity.localIdentity(source.url)
+                source.accessLease?.release()
+            } else {
+                identity = nil
+            }
+        case .sourceItem(let dataSourceID, let path):
+            identity = .remote(
+                sourceKey: reference.remoteSourceKey
+                    ?? "legacy:\(dataSourceID.uuidString.lowercased())",
+                canonicalPath: path
+            )
+        }
+        if let identity { referenceIdentities[reference.id] = identity }
+        return identity
     }
 
     public func refreshViewingStates() {
         Task { await loadViewingStatesForCurrentFolder() }
+    }
+
+    public func forgetArtwork() {
+        referenceArtworkURLs = [:]
+        refreshViewingStates()
     }
 
     public func artworkURL(for reference: FileBrowsingDomain.MediaReference) -> URL? {

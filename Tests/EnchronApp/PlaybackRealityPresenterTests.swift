@@ -758,7 +758,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertGreaterThan(PlaybackDockedInteractionSurface.frontOffset, 0)
         XCTAssertEqual(
             interactionSurface.position,
-            [0, 0, -PlaybackDockedInteractionSurface.frontOffset]
+            [0, 0, PlaybackDockedInteractionSurface.frontOffset]
         )
         XCTAssertNotNil(interactionSurface.components[InputTargetComponent.self])
         let collision = try XCTUnwrap(

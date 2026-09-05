@@ -286,8 +286,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "while windowObservation.residency(for: handover.incoming) != .open {",
-        "replaceWith": "while false {"
+        "find": "guard await waitUntilWindowIsPresented(",
+        "replaceWith": "guard await windowIsPresentedWithoutWaiting("
       },
       "expected": {
         "exitCode": 1,

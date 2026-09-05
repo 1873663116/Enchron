@@ -7,14 +7,14 @@ DEVICE = "device"
 LANES = (SIMULATOR, DEVICE)
 
 PLAYBACK_OPENING_TOKENS = frozenset(
-    {"MediaLibrary-grid-video", "FileBrowsing-grid-video", "Resume", "PlayFromBeginning"}
+    {"MediaLibrary-grid-video", "FileBrowsing-grid-video", "Emby-Detail-Play"}
 )
 PLAYBACK_OPENING_IDENTIFIER_PREFIXES = (
     "MediaLibrary-grid-video-",
     "FileBrowsing-grid-video-",
 )
 PLAYBACK_OPENING_IDENTIFIERS = frozenset(
-    {"Emby-Detail-Resume", "Emby-Detail-PlayFromBeginning"}
+    {"Emby-Detail-Play"}
 )
 
 

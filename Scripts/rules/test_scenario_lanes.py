@@ -25,7 +25,7 @@ class ReachabilityRun:
         self.tap("main-window-browser", "MediaLibrary-Manage-newFolder")
 
     def resume_from_emby(self):
-        self.tap("main-window-browser", "Emby-Detail-Resume")
+        self.tap("main-window-browser", "Emby-Detail-Play")
 
     def nested(self):
         self.open_first()

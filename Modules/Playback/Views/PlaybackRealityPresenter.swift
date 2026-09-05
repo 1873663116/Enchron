@@ -448,7 +448,7 @@ enum PlaybackDockedInteractionSurface {
             ? screenSize
             : fallbackScreenSize
         entity.name = entityName
-        entity.position = [0, 0, -frontOffset]
+        entity.position = [0, 0, frontOffset]
         entity.orientation = .init()
         entity.scale = .one
         entity.components.set(InputTargetComponent())

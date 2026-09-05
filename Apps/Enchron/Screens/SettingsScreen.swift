@@ -101,7 +101,7 @@ struct SettingsScreen: View {
             .transition(.opacity)
         }
         .scrollIndicators(.hidden)
-        .animation(DesignTokens.AnimationToken.fadeIn, value: selectedCategoryID)
+        .animation(DesignTokens.AnimationToken.levelTransition, value: selectedCategoryID)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
         .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
@@ -367,6 +367,7 @@ struct SettingsScreen: View {
     private func clearArtworkCache() {
         Task {
             await ArtworkStore.shared.clear()
+            viewModel.onArtworkCacheCleared?()
             await refreshCacheUsage()
         }
     }

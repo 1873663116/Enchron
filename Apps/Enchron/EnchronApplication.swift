@@ -459,6 +459,16 @@ final class EnchronApplication {
                 launcher?.savePlaybackMode(mode)
             }
         )
+        spatialPlatformEffectCoordinator.onPlaybackWindowClosedByWearer = {
+            [weak playbackSessionModel, weak launcher, weak playbackRuntime] in
+            guard let playbackSessionModel,
+                  playbackSessionModel.playbackWindowSessionIsActive,
+                  playbackSessionModel.presentationTransition == nil,
+                  playbackSessionModel.playbackPresentation.usesMainWindow,
+                  playbackRuntime?.hasActivePlaybackRequest == true else { return }
+            SurfaceInputProbes.record("playbackWindowScene closedByWearer stoppingPlayback")
+            launcher?.stopPlayback()
+        }
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
@@ -467,7 +477,12 @@ final class EnchronApplication {
         mediaLibraryViewModel = mediaLibrary
         mediaLibraryUIState = mediaLibraryFeature.uiState
         playbackLauncher = launcher
-        settingsViewModel = SettingsViewModel(store: preferencesStore)
+        let settings = SettingsViewModel(store: preferencesStore)
+        settings.onArtworkCacheCleared = { [weak mediaLibrary, weak browser] in
+            mediaLibrary?.forgetArtwork()
+            browser?.refreshViewingStates()
+        }
+        settingsViewModel = settings
         self.connectionSecurityPrompt = connectionSecurityPrompt
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator

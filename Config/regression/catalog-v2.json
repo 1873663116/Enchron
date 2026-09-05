@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:16860bf4c1a15b26c5c7f46136136589ace577373937bd31696d868f685234b2",
+  "contentDigest": "sha256:b7c4c06e7ea0d37607f277aeda5138ac00080c675fd3bf104765bd0642a887cd",
   "copyDocuments": [
     {
       "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
@@ -1166,30 +1166,30 @@
     },
     {
       "criteria": [
-        "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after Resume.",
-        "Play from Beginning starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, as witnessed by the inlined second playback.probe fields."
+        "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after Play followed by the Resume choice in the Resume Playback? alert.",
+        "Play followed by the Play from Start choice in the same alert starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, as witnessed by the inlined second playback.probe fields."
       ],
       "filename": "rubric-emby-server-lifecycle-emby-resume-entry-semantics-o01-1.md",
       "id": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1",
       "negativeControls": [
         "An action return value without the post-action application state cannot satisfy the rubric.",
         "A missing required field, changed session identity where preservation is required, or stale snapshot produces a non-passing result.",
-        "Reading local viewing storage, reversing the two actions, or opening PlayFromBeginning from a series-page episode card that starts playback immediately violates the rubric."
+        "Reading local viewing storage, reversing the two choices, or reaching playback without the alert from a series-page episode card violates the rubric."
       ],
       "title": "Emby Resume Entry Semantics"
     },
     {
       "criteria": [
-        "The bound emby.evidence inlines two inspect matchedElement objects from episode detail whose identifier fields are Emby-Detail-Resume and Emby-Detail-PlayFromBeginning, both present before either action is opened.",
-        "The bound document inlines the host emby-aggregate report and two playback.probe fields: Resume position is within the five-second observed-position bound of receipt.catalog.progressTicks, Play from Beginning is from 0 through 5 seconds inclusive, and both probes share the same Emby item identity as that report.",
-        "The bound document inlines the same-attempt Resume activate's activatedAtMonotonicMillis, that same attempt's playback.await-window-state elapsedMillis, and the capture-frames list, and it decides HC-018's 45000 ms bound from the one interval this instrument resolves: frames[0].capturedAtMonotonicMillis minus activatedAtMonotonicMillis is at most 45000 ms, and frame 0 itself reports lifecycle Playing with displayedPixel true, so the bound is read against a frame that already carries a picture. That interval is an upper bound on click-to-first-frame and never an understatement, because frame 0 is the first capture taken after the wait has already observed playing: it contains the product's whole open plus the instrument's share, of which the inlined elapsedMillis is the wait and the remainder is the activate's return and one diagnostics.playback-state@1 snapshot, device median 3.91 s in Scripts/verification/controller_timings.json. The changing half of the claim is decided without a time bound: at least one later frame has a screenshotDigest differing from frame 0's and a strictly greater position. No spacing between adjacent frames is read as a product latency, because each capture iteration costs two controller snapshots at that same median, so the spacing is the instrument's. 90000 ms is only the harness liveness deadline."
+        "The bound emby.evidence inlines the inspect matchedElement object from episode detail whose identifier field is Emby-Detail-Play, present before the action is opened, and the Play activate response from call 06 that succeeded, after which the Resume Playback? alert offers PlayerUI-resumeDecision-primary and PlayerUI-resumeDecision-secondary.",
+        "The bound document inlines the host emby-aggregate report and two playback.probe fields: the Resume choice's position is within the five-second observed-position bound of receipt.catalog.progressTicks, the Play from Start choice's position is from 0 through 5 seconds inclusive, and both probes share the same Emby item identity as that report.",
+        "The bound document inlines the same-attempt Resume choice activate's activatedAtMonotonicMillis from call 07, that same attempt's playback.await-window-state elapsedMillis, and the capture-frames list, and it decides HC-018's 45000 ms bound from the one interval this instrument resolves: frames[0].capturedAtMonotonicMillis minus activatedAtMonotonicMillis is at most 45000 ms, and frame 0 itself reports lifecycle Playing with displayedPixel true, so the bound is read against a frame that already carries a picture. That interval is an upper bound on click-to-first-frame and never an understatement, because frame 0 is the first capture taken after the wait has already observed playing: it contains the product's whole open plus the instrument's share, of which the inlined elapsedMillis is the wait and the remainder is the activate's return and one diagnostics.playback-state@1 snapshot, device median 3.91 s in Scripts/verification/controller_timings.json. The changing half of the claim is decided without a time bound: at least one later frame has a screenshotDigest differing from frame 0's and a strictly greater position. No spacing between adjacent frames is read as a product latency, because each capture iteration costs two controller snapshots at that same median, so the spacing is the instrument's. 90000 ms is only the harness liveness deadline."
       ],
       "filename": "rubric-emby-server-lifecycle-episode-resume-and-start-actions-o01-1.md",
       "id": "rubric:emby-server-lifecycle.episode-resume-and-start-actions.o01@1",
       "negativeControls": [
         "An action return value without the post-action application state cannot satisfy the rubric.",
         "A missing required field, changed session identity where preservation is required, or stale snapshot produces a non-passing result.",
-        "One action aliasing the other, using local progress, changing the item identity, or opening PlayFromBeginning from a series-page episode card that starts playback immediately violates the rubric.",
+        "One choice aliasing the other, using local progress, changing the item identity, or reaching playback without the alert from a series-page episode card violates the rubric.",
         "Treating the 90000 ms liveness deadline as the product threshold violates HC-018."
       ],
       "title": "Episode Resume And Start Actions"
@@ -1861,14 +1861,14 @@
       "criteria": [
         "The ordered transcript opens MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4 from an empty viewing-state baseline, reaches playing, requests playback.seek positionMillionths 997000, and observes lifecycle ended before any Back action.",
         "relatedResults inline the ended viewingStorageObservation from call 09: activePlayback.endedNaturally is true for a canonical mediaIdentity and contentRevision. After Back, the inlined persisted snapshot from call 11 has exactly one completed entry for that identity and revision with completed true, status completed, and positionSeconds equal to durationSeconds, with no resumable entry and no invalid record.",
-        "relatedResults inline the PlayerUI-resumeDecision-panel matchedElement from call 13, which is null, and the ordered transcript contains no activation of either resume-decision action. Playback reaches playing automatically.",
+        "relatedResults inline the PlayerUI-resumeDecision-primary matchedElement from call 13, which is null because no Resume Playback? alert is shown, and the ordered transcript contains no activation of either resume-decision action. Playback reaches playing automatically.",
         "The producer snapshot's activePlayback has a non-none sessionID different from the naturally ended session, the same mediaIdentity and contentRevision, viewingStateAuthority enchron-persistence, endedNaturally false, and positionSeconds from 0 through 5 inclusive under the observed-position bound decided by HC-021. The store still has no resumable entry. relatedResults also inline the empty baseline snapshot from call 01."
       ],
       "filename": "rubric-viewing-state-and-storage-completed-media-starts-from-beginning-o01-1.md",
       "id": "rubric:viewing-state-and-storage.completed-media-starts-from-beginning.o01@1",
       "negativeControls": [
-        "A near-end seek or Back without an inlined natural Ended snapshot and endedNaturally true cannot establish completion; a missing structured end, persistence, or resume-panel observation is Indeterminate.",
-        "A resume panel, resume-decision activation, resumable marker, reused session, changed identity or revision, or reopened position above five seconds violates the start-over contract.",
+        "A near-end seek or Back without an inlined natural Ended snapshot and endedNaturally true cannot establish completion; a missing structured end, persistence, or resume-alert observation is Indeterminate.",
+        "A resume alert, resume-decision activation, resumable marker, reused session, changed identity or revision, or reopened position above five seconds violates the start-over contract.",
         "priorSnapshotDigests hashes without the inlined ended and persisted viewingStorageObservation objects cannot establish completed entry contents or matchedElement null."
       ],
       "title": "Completed Media Starts From Beginning"
@@ -1926,16 +1926,16 @@
     {
       "criteria": [
         "The ordered transcript establishes an empty viewing-state baseline, plays MediaLibrary-grid-video-viewing-storage-16m01s.mp4 beyond 20 seconds with at least 300 seconds remaining, captures its active identity and session, and exits through PlayerUI-InfoBar-button-back. relatedResults inline the persisted viewingStorageObservation from call 10 with exactly one resumable entry for that mediaIdentity and contentRevision.",
-        "relatedResults inline the PlayerUI-resumeDecision-panel matchedElement from call 12, which is present, and the PlayerUI-resumeDecision-primary activation response from call 13, which succeeded. Playback then reaches lifecycle playing without a reset, clear, different media open, or content mutation between persistence and reopen.",
+        "relatedResults inline the PlayerUI-resumeDecision-primary matchedElement from call 12, which is present because the Resume Playback? alert is shown, and the PlayerUI-resumeDecision-primary activation response from call 13, which succeeded. Playback then reaches lifecycle playing without a reset, clear, different media open, or content mutation between persistence and reopen.",
         "The producer activePlayback has a non-none sessionID different from the inlined pre-exit sessionID in call 08's viewingStorageObservation, viewingStateAuthority enchron-persistence, the same mediaIdentity and contentRevision as the inlined persisted entry, and positionSeconds greater than zero and within the five-second observed-position bound of that persisted entry decided by HC-021.",
         "relatedResults also inline the empty baseline from call 01. Every compared viewing entry has authority enchron-persistence and invalidRecordCount is zero."
       ],
       "filename": "rubric-viewing-state-and-storage-reopen-resumes-near-position-o01-1.md",
       "id": "rubric:viewing-state-and-storage.reopen-resumes-near-position.o01@1",
       "negativeControls": [
-        "A visible panel without a successful primary action, or a primary action without the inlined matched panel and final structured snapshot, is inadmissible.",
+        "A visible alert without a successful primary action, or a primary action without the inlined matched primary button and final structured snapshot, is inadmissible.",
         "Reusing the old session, starting at zero, differing by more than five seconds, selecting a stale identity or revision, using another viewing authority, or retaining invalid records violates the resume contract.",
-        "priorSnapshotDigests hashes without the inlined persisted viewingStorageObservation and resume-panel matchedElement cannot establish the five-second bound or panel presence."
+        "priorSnapshotDigests hashes without the inlined persisted viewingStorageObservation and resume-primary matchedElement cannot establish the five-second bound or alert presence."
       ],
       "title": "Reopen Resumes Near Position"
     },
@@ -5782,9 +5782,9 @@
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "deadlineSeconds": 15,
-            "identifier": "Emby-Detail-Resume",
+            "identifier": "Emby-Detail-Play",
             "requireMatchedElement": true
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:05",
@@ -5793,19 +5793,20 @@
         },
         {
           "arguments": {
-            "context": "window",
-            "identifier": "Emby-Detail-PlayFromBeginning",
-            "requireMatchedElement": true
+            "context": "main-window-browser",
+            "identifiers": [
+              "Emby-Detail-Play"
+            ]
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:06",
           "maxInvocations": 1,
-          "operation": "operation:accessibility.inspect@2"
+          "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
-            "context": "window",
+            "context": "main-window-browser",
             "identifiers": [
-              "Emby-Detail-Resume"
+              "PlayerUI-resumeDecision-primary"
             ]
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
@@ -5853,13 +5854,15 @@
         },
         {
           "arguments": {
-            "deadlineSeconds": 45,
-            "expectedLanding": "window",
-            "identifier": "Emby-Detail-PlayFromBeginning"
+            "context": "main-window-browser",
+            "identifiers": [
+              "Emby-Detail-Play",
+              "PlayerUI-resumeDecision-secondary"
+            ]
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
           "maxInvocations": 1,
-          "operation": "operation:media.open@2"
+          "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
@@ -5885,7 +5888,7 @@
             "relatedResults": [
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:01/report",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:05/matchedElement",
-              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:06/matchedElement",
+              "result://call:emby-server-lifecycle:episode-resume-and-start-actions:06/response",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:07/activatedAtMonotonicMillis",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:08/elapsedMillis",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/fields",
@@ -6347,13 +6350,15 @@
         },
         {
           "arguments": {
-            "deadlineSeconds": 45,
-            "expectedLanding": "window",
-            "identifier": "Emby-Detail-Resume"
+            "context": "main-window-browser",
+            "identifiers": [
+              "Emby-Detail-Play",
+              "PlayerUI-resumeDecision-primary"
+            ]
           },
           "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:05",
           "maxInvocations": 1,
-          "operation": "operation:media.open@2"
+          "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
@@ -6386,13 +6391,15 @@
         },
         {
           "arguments": {
-            "deadlineSeconds": 45,
-            "expectedLanding": "window",
-            "identifier": "Emby-Detail-PlayFromBeginning"
+            "context": "main-window-browser",
+            "identifiers": [
+              "Emby-Detail-Play",
+              "PlayerUI-resumeDecision-secondary"
+            ]
           },
           "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
           "maxInvocations": 1,
-          "operation": "operation:media.open@2"
+          "operation": "operation:accessibility.activate@2"
         },
         {
           "arguments": {
@@ -13079,7 +13086,7 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "PlayerUI-resumeDecision-panel",
+            "identifier": "PlayerUI-resumeDecision-primary",
             "requireMatchedElement": true
           },
           "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:12",
@@ -13329,7 +13336,7 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "PlayerUI-resumeDecision-panel"
+            "identifier": "PlayerUI-resumeDecision-primary"
           },
           "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:13",
           "maxInvocations": 1,
@@ -16782,7 +16789,7 @@
         {
           "arguments": {
             "context": "main-window-browser",
-            "identifier": "PlayerUI-resumeDecision-panel"
+            "identifier": "PlayerUI-resumeDecision-primary"
           },
           "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:16",
           "maxInvocations": 1,

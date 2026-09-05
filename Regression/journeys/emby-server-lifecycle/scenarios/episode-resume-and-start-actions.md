@@ -63,9 +63,9 @@
     },
     {
       "arguments": {
-        "context": "window",
+        "context": "main-window-browser",
         "deadlineSeconds": 15,
-        "identifier": "Emby-Detail-Resume",
+        "identifier": "Emby-Detail-Play",
         "requireMatchedElement": true
       },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:05",
@@ -74,19 +74,20 @@
     },
     {
       "arguments": {
-        "context": "window",
-        "identifier": "Emby-Detail-PlayFromBeginning",
-        "requireMatchedElement": true
+        "context": "main-window-browser",
+        "identifiers": [
+          "Emby-Detail-Play"
+        ]
       },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:06",
       "maxInvocations": 1,
-      "operation": "operation:accessibility.inspect@2"
+      "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
-        "context": "window",
+        "context": "main-window-browser",
         "identifiers": [
-          "Emby-Detail-Resume"
+          "PlayerUI-resumeDecision-primary"
         ]
       },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:07",
@@ -134,13 +135,15 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 45,
-        "expectedLanding": "window",
-        "identifier": "Emby-Detail-PlayFromBeginning"
+        "context": "main-window-browser",
+        "identifiers": [
+          "Emby-Detail-Play",
+          "PlayerUI-resumeDecision-secondary"
+        ]
       },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:12",
       "maxInvocations": 1,
-      "operation": "operation:media.open@2"
+      "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
@@ -166,7 +169,7 @@
         "relatedResults": [
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:01/report",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:05/matchedElement",
-          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:06/matchedElement",
+          "result://call:emby-server-lifecycle:episode-resume-and-start-actions:06/response",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:07/activatedAtMonotonicMillis",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:08/elapsedMillis",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:09/fields",

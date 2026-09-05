@@ -7,12 +7,12 @@
 - 退出播放时保存当前位置。
 - 再次打开同一视频时从该位置续播。
 - 播放完的媒体被标记为已看完，之后不再续播。
-- Emby 提供 Resume 与 Play from Beginning 两个入口，前者尊重服务器进度，后者忽略服务器进度。
+- 存在历史进度时，本地与 Emby 都先弹系统 alert 让用户选 Resume 或 Play from Start；Resume 尊重进度，Play from Start 忽略进度，设置页的 Resume Playback 行对两者同样生效。
 - 设置页的 Playback Progress 一行可以整体清除本地进度。
 
 ## How to get to it (user POV)
 
-用户播放到中途退出，回到媒体库后再次点开同一视频即可续播。Emby 侧会在单集详情页出现 Resume 按钮。设置页的 Playback Progress 行提供 Clear All 操作。
+用户播放到中途退出，回到媒体库后再次点开同一视频，主窗口弹出 Resume Playback? alert，选 Resume 续播、选 Play from Start 从头播。Emby 单集详情页只有一个 Play 按钮，服务器有进度时弹同一个 alert。设置页的 Playback Progress 行提供 Clear All 操作。
 
 ## Driving it with the controller
 

@@ -1,8 +1,77 @@
+import CoreGraphics
 import Foundation
+import MediaSource
 import Testing
 @testable import MediaLibrary
 
 struct MediaLibraryBehaviorTests {
+    #if DEBUG
+    @Test("artwork URLs stay known for folders the user has already visited")
+    @MainActor
+    func artworkURLsStayKnownAcrossFolderChanges() async throws {
+        let root = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let artworkStore = ArtworkStore(debugRootURL: root)
+        var library = FileBrowsingDomain.MediaLibrary()
+        let first = try library.createFolder(named: "First")
+        let second = try library.createFolder(named: "Second")
+        let sourceID = UUID()
+        let played = FileBrowsingDomain.MediaReference(
+            name: "Played.mkv",
+            locator: .sourceItem(dataSourceID: sourceID, path: "played")
+        )
+        let unplayed = FileBrowsingDomain.MediaReference(
+            name: "Unplayed.mkv",
+            locator: .sourceItem(dataSourceID: sourceID, path: "unplayed")
+        )
+        try library.add(played, to: first.id)
+        try library.add(unplayed, to: second.id)
+        let identity = MediaIdentity.remote(
+            sourceKey: played.remoteSourceKey ?? "legacy:\(sourceID.uuidString.lowercased())",
+            canonicalPath: "played"
+        )
+        let space = CGColorSpaceCreateDeviceRGB()
+        let context = try #require(
+            CGContext(
+                data: nil,
+                width: 4,
+                height: 4,
+                bitsPerComponent: 8,
+                bytesPerRow: 16,
+                space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        try artworkStore.store(try #require(context.makeImage()), for: ArtworkKey(mediaIdentity: identity))
+
+        let viewModel = MediaLibraryViewModel(
+            store: UserDefaultsMediaLibraryStore(defaults: .standard),
+            resolver: MediaReferenceResolver(),
+            artworkStore: artworkStore,
+            initialLibrary: library,
+            onPlay: { _ in }
+        )
+
+        viewModel.open(first)
+        await viewModel.loadViewingStatesForCurrentFolder()
+        let playedURL = try #require(viewModel.artworkURL(for: played))
+        #expect(playedURL.isFileURL)
+
+        viewModel.navigateToRoot()
+        viewModel.open(second)
+        await viewModel.loadViewingStatesForCurrentFolder()
+        #expect(viewModel.artworkURL(for: played) == playedURL)
+        #expect(viewModel.artworkURL(for: unplayed) == nil)
+
+        viewModel.forgetArtwork()
+        #expect(viewModel.artworkURL(for: played) == nil)
+    }
+    #endif
+
     @Test("folder names are normalized and unique within one parent")
     func folderNamesAreUniqueWithinOneParent() throws {
         var library = FileBrowsingDomain.MediaLibrary()

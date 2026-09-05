@@ -1037,7 +1037,7 @@ class OperationAllowlistTests(unittest.TestCase):
         backend = adapter.ResidentOperationBackend()
         arguments = {
             "context": "window",
-            "identifiers": ["Emby-Detail-Resume"],
+            "identifiers": ["Emby-Detail-Play"],
         }
         validated = adapter.SPECS["operation:accessibility.activate@2"].validate(
             "device", arguments
@@ -1054,7 +1054,7 @@ class OperationAllowlistTests(unittest.TestCase):
             result = backend._accessibility_activate_2(validated, self.device)
         self.assertIsInstance(result["activatedAtMonotonicMillis"], int)
         controller.assert_called_once_with(
-            self.device, "tap", "--identifier", "Emby-Detail-Resume"
+            self.device, "tap", "--identifier", "Emby-Detail-Play"
         )
 
     def test_accessibility_activate_inlines_related_results_on_the_tree(self) -> None:

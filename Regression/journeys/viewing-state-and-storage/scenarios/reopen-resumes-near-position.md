@@ -148,7 +148,7 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "PlayerUI-resumeDecision-panel",
+        "identifier": "PlayerUI-resumeDecision-primary",
         "requireMatchedElement": true
       },
       "callId": "call:viewing-state-and-storage:reopen-resumes-near-position:12",

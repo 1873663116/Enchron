@@ -104,7 +104,7 @@ class EmbyPlaybackRecoveryTests(unittest.TestCase):
         self.assertIn("_recover_emby_playback_timeout", text)
         self.assertIn("accessibility:Emby-Episode-{metadata.id.rawValue}", text)
         self.assertIn("response-timeout", text)
-        self.assertIn("Emby-Detail-{action == .resume", text)
+        self.assertIn("Emby-Detail-Play", text)
 
     def test_no_broad_except_in_recovery(self):
         text = Path(__file__).resolve().parents[1].joinpath("verification/reachability_matrix.py").read_text(encoding="utf-8")

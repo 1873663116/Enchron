@@ -7,6 +7,17 @@ import Testing
 struct PlaybackDomainContractTests {
     @Test("viewing state policy answers every session evidence shape")
     func viewingStatePolicyAnswersEverySessionEvidenceShape() {
+        let unknownDuration = PlaybackSessionEvidence(
+            durationSeconds: 0,
+            positionSeconds: 0,
+            actualPlaybackSeconds: 30,
+            endedNaturally: false
+        )
+        #expect(
+            ViewingStatePolicy.mutation(for: unknownDuration) == .unchanged,
+            "evidence without a duration must leave the saved viewing state alone"
+        )
+
         let shortInteraction = PlaybackSessionEvidence(
             durationSeconds: 3_600,
             positionSeconds: 120,

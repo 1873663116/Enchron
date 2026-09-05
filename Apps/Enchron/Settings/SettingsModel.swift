@@ -33,6 +33,7 @@ public nonisolated protocol PreferencesStoring: Sendable {
 @Observable
 public final class SettingsViewModel {
     public private(set) var preferences: UserPreferences
+    public var onArtworkCacheCleared: (@MainActor () -> Void)?
     private let store: PreferencesStoring
 
     public init(store: PreferencesStoring = UserDefaultsStore()) {

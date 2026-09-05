@@ -54,7 +54,7 @@ enum PlaybackSurfacePlacement {
             Float(sin(elevation) * transform.distance),
             Float(-cos(elevation) * transform.distance)
         )
-        entity.look(at: viewerReference, from: position, relativeTo: nil)
+        entity.look(at: position + (position - viewerReference), from: position, relativeTo: nil)
         entity.scale = .init(repeating: Float(transform.scale))
     }
 }

@@ -485,10 +485,14 @@ def main() -> int:
     require(
         order(
             handover,
+            "let incomingRevision = windowObservation.revision(for: handover.incoming)",
             "openWindow(id: handover.incoming.rawValue",
-            "windowObservation.residency(for: handover.incoming)",
-            "dismissWindow(id: handover.outgoing.rawValue",
-        ),
+            "await waitUntilWindowIsPresented(",
+            "await dismissWindowUntilGone(handover.outgoing",
+            "windowObservation.confirms(.open, for: window, after: revision)",
+            "actions.dismissWindow(id: window.rawValue)",
+        )
+        and "while windowHasLeft(window) == false {" in handover,
         "the playback window handover dismisses the outgoing window without "
         "first observing the incoming one open, which visionOS drops because "
         "the outgoing window is still the only one",
@@ -650,11 +654,11 @@ def main() -> int:
         "enum PlaybackPanoramaInteractionSurface",
     )
     require(
-        "entity.look(at: viewerReference, from: position, relativeTo: nil)"
+        "entity.look(at: position + (position - viewerReference), from: position, relativeTo: nil)"
         in playback_reality_adapter
-        and "entity.position = [0, 0, -frontOffset]"
+        and "entity.position = [0, 0, frontOffset]"
         in docked_interaction_surface,
-        "the Docked interaction collider is behind its -Z-facing video plane",
+        "the Docked video plane faces the wearer with its local +Z and its interaction collider sits in front of it",
     )
     production_immersive = without_debug_blocks(immersive)
     require(

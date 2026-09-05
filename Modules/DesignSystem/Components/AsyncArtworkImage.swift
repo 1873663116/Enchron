@@ -16,15 +16,15 @@ public struct AsyncArtworkImage: View {
 
     public var body: some View {
         Group {
-            if let loadedImage, loadedImage.url == url {
-                Image(decorative: loadedImage.image, scale: 1)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
+            if contentMode == .fill {
+                Color.clear
+                    .overlay { artwork }
+                    .clipped()
             } else {
-                ArtworkPlaceholder()
+                artwork
             }
         }
-        .animation(DesignTokens.AnimationToken.fadeIn, value: loadedImage?.url)
+        .animation(DesignTokens.AnimationToken.fadeIn, value: displayedImage?.url)
         .task(id: url) {
             loadedImage = nil
             guard let url else { return }
@@ -38,6 +38,23 @@ public struct AsyncArtworkImage: View {
                 loadedImage = nil
             }
         }
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let displayedImage {
+            Image(decorative: displayedImage.image, scale: 1)
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+        } else if url == nil {
+            ArtworkPlaceholder()
+        }
+    }
+
+    private var displayedImage: LoadedImage? {
+        if let loadedImage, loadedImage.url == url { return loadedImage }
+        guard let url, let cached = ArtworkImageLoader.cachedImage(at: url) else { return nil }
+        return LoadedImage(url: url, image: cached)
     }
 }
 
@@ -83,17 +100,23 @@ private enum ArtworkImageLoader {
         return cache
     }()
 
+    static func cachedImage(at url: URL) -> CGImage? {
+        decoded.object(forKey: url as NSURL)
+    }
+
     static func image(at url: URL) async throws -> CGImage {
+        if let cached = decoded.object(forKey: url as NSURL) { return cached }
         if url.isFileURL {
             let path = url.path
             let data = try await Task.detached(priority: .utility) {
                 try Data(contentsOf: URL(fileURLWithPath: path))
             }.value
             try Task.checkCancellation()
-            return try decode(data)
+            let image = try decode(data)
+            decoded.setObject(image, forKey: url as NSURL, cost: image.bytesPerRow * image.height)
+            return image
         }
         if let persisted = ArtworkNetworkConfiguration.imageProvider?(url) { return persisted }
-        if let cached = decoded.object(forKey: url as NSURL) { return cached }
         let request = URLRequest(
             url: url,
             cachePolicy: .useProtocolCachePolicy

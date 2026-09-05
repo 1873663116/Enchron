@@ -2333,7 +2333,7 @@ def _directory_subtitle_source(arguments: Mapping[str, object]) -> None:
 
 def _media_open(arguments: Mapping[str, object]) -> None:
     identifier = str(arguments["identifier"])
-    allowed = identifier in ("Emby-Detail-Resume", "Emby-Detail-PlayFromBeginning") or any(
+    allowed = identifier == "Emby-Detail-Play" or any(
         identifier.startswith(prefix)
         for prefix in (
             "MediaLibrary-grid-video-",

@@ -156,7 +156,7 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "PlayerUI-resumeDecision-panel"
+        "identifier": "PlayerUI-resumeDecision-primary"
       },
       "callId": "call:viewing-state-and-storage:completed-media-starts-from-beginning:13",
       "maxInvocations": 1,

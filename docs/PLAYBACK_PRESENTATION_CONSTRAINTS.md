@@ -37,7 +37,7 @@
 - **Immersive Space 的原点在佩戴者脚下的地板上**。authored anchor 携带佩戴者的名义眼高，距离与仰角把屏幕放在以该点为中心的球面上。
 - **交互壳必须够到远高于站立眼高、也远出常规房间尺度移动的范围**，佩戴者能占据的每一个眼位都留在壳内、留在每一块面板之外。面板做得薄，是为了让一条离开壳的注视射线恰好穿过其中一块。180° 投影只拥有前半球，360° 拥有所有方向。
 - **透明 SwiftUI attachment 接不到真实注视**。2026-08-10 的佩戴者实测里 8/8 次捏合都未命中它。Apple 自己的沉浸媒体示例用一个带 input target 的**不可见碰撞实体**接收召唤捏合，本产品照此办理。
-- `PlaybackSurfaceRealityKitAdapter.dock` 用 `look(at:from:relativeTo:)`，其默认前向是本地 -Z；子碰撞体只有在正的偏移量沿 -Z 移动时才真的在视频前面。
+- `PlaybackSurfaceRealityKitAdapter.dock` 用 `look(at:from:relativeTo:)`，其默认前向是本地 -Z，而 `VideoPlayerComponent` 画面的可见面是本地 +Z；因此 look 的目标取佩戴者的反方向，让 +Z 朝向佩戴者。让 -Z 朝向佩戴者会呈现画面的背面，左右镜像。子碰撞体沿 +Z 正偏移才在视频前面，与窗口呈现一致。
 
 ## 呈现转换的所有权与次序
 

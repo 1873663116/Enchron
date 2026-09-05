@@ -16,7 +16,7 @@ INVENTORY = json.loads(
 )
 OPERATIONS = INVENTORY["operations"]
 MEDIA_OPENERS = [
-    'accessibility:Emby-Detail-{action == .resume ? "Resume" : "PlayFromBeginning"}',
+    "accessibility:Emby-Detail-Play",
     "accessibility:FileBrowsing-grid-video-{file.name}",
     "accessibility:MediaLibrary-grid-video-{reference.name}",
 ]
@@ -51,8 +51,7 @@ class OpeningIdentifierDecision(unittest.TestCase):
 
     def test_file_browser_and_emby_openers_are_recognised(self) -> None:
         self.assertTrue(lp.identifier_opens_playback("FileBrowsing-grid-video-clip.mkv"))
-        self.assertTrue(lp.identifier_opens_playback("Emby-Detail-Resume"))
-        self.assertTrue(lp.identifier_opens_playback("Emby-Detail-PlayFromBeginning"))
+        self.assertTrue(lp.identifier_opens_playback("Emby-Detail-Play"))
 
     def test_browse_controls_do_not_open_playback(self) -> None:
         for identifier in (

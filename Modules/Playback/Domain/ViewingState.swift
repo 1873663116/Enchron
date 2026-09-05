@@ -54,6 +54,7 @@ public enum ViewingStatePolicy {
     public static let nearEndDurationFraction: Double = 0.1
 
     public static func mutation(for evidence: PlaybackSessionEvidence) -> ViewingStateMutation {
+        guard evidence.durationSeconds > 0 else { return .unchanged }
         guard evidence.durationSeconds >= minimumContentDurationSeconds else { return .remove }
 
         if evidence.endedNaturally {

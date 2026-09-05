@@ -54,6 +54,7 @@ public enum DesignTokens {
         public static let scene: Animation = .spring(response: 0.3, dampingFraction: 0.7)
         public static let sceneCarouselSettle: Animation = .spring(response: 0.34, dampingFraction: 0.94)
         public static let fadeIn: Animation = .easeIn(duration: 0.25)
+        public static let levelTransition: Animation = .easeIn(duration: 0.25)
         public static let informationReveal: Animation = .easeOut(duration: 0.2)
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
 

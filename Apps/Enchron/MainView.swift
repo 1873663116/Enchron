@@ -93,7 +93,6 @@ public struct MainView: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
-    @Environment(\.scenePhase) private var scenePhase
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
@@ -157,10 +156,6 @@ public struct MainView: View {
         }
         .onChange(of: playbackSession.playbackWindowSessionIsActive) { _, isActive in
             reconcilePlaybackWindowPresentation(sessionIsActive: isActive)
-        }
-        .onChange(of: scenePhase, initial: true) { _, phase in
-            guard sceneRole == .browser else { return }
-            spatialPlatformEffectCoordinator.recordMainScenePhaseActive(phase == .active)
         }
         .task {
             reconcilePlaybackWindowPresentation(
@@ -296,7 +291,9 @@ public struct MainView: View {
 
     private var browserSceneContent: some View {
         browserPrimaryContent
-            .browserWindowGeometry()
+            .browserWindowGeometry { windowScene in
+                spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
+            }
     }
 
     private var collapsedWindowControlsOrnamentHeight: CGFloat {
@@ -306,33 +303,59 @@ public struct MainView: View {
             + DesignTokens.ControlBar.paddingV * 2
     }
 
+    private func launchEmbySelection(_ selection: EmbyPlaybackSelection) async {
+        do {
+            let request = try await embySession.playbackRequest(for: selection)
+            SurfaceInputProbes.record("openRequestForwarded")
+            playbackLauncher.requestPlayback(request)
+        } catch EmbyError.unsupportedVideoCodec(let codec) {
+            playbackRuntime.setUserVisibleIssue(
+                .unsupportedVideoCodec(
+                    PlaybackUnsupportedVideoCodec(codecName: codec)
+                )
+            )
+        } catch {
+            logger.error(
+                "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+            playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
+        }
+    }
+
     private var browserPrimaryContent: some View {
         ZStack {
             browserWindowSurface
-
-            if let decision = playbackLauncher.pendingResumeDecision {
-                ResumeDecisionCard(
-                    message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
-                    onResume: {
+        }
+        .alert(
+            "Resume Playback?",
+            isPresented: Binding(
+                get: { playbackLauncher.pendingResumeDecision != nil },
+                set: { if $0 == false { playbackLauncher.cancelPendingResumeDecision() } }
+            ),
+            presenting: playbackLauncher.pendingResumeDecision
+        ) { _ in
+            Button("Resume") {
 #if DEBUG
-                        playbackSession.recordSurfaceInputProbe(
-                            "reachability resume decision delivered action=resume",
-                            retention: .evidence
-                        )
-#endif
-                        playbackLauncher.resumePendingPlayback()
-                    },
-                    onStartOver: {
-#if DEBUG
-                        playbackSession.recordSurfaceInputProbe(
-                            "reachability resume decision delivered action=startOver",
-                            retention: .evidence
-                        )
-#endif
-                        playbackLauncher.startPendingPlaybackFromBeginning()
-                    }
+                playbackSession.recordSurfaceInputProbe(
+                    "reachability resume decision delivered action=resume",
+                    retention: .evidence
                 )
+#endif
+                playbackLauncher.resumePendingPlayback()
             }
+            .accessibilityIdentifier("PlayerUI-resumeDecision-primary")
+            Button("Play from Start") {
+#if DEBUG
+                playbackSession.recordSurfaceInputProbe(
+                    "reachability resume decision delivered action=startOver",
+                    retention: .evidence
+                )
+#endif
+                playbackLauncher.startPendingPlaybackFromBeginning()
+            }
+            .accessibilityIdentifier("PlayerUI-resumeDecision-secondary")
+        } message: { decision in
+            Text("Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.")
         }
         .playbackIssueAlert(at: .mediaLibrary)
     }
@@ -370,22 +393,16 @@ public struct MainView: View {
 
             Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
                 EmbyScreen { selectionResult in
-                    do {
-                        let selection = try selectionResult.get()
-                        let request = try await embySession.playbackRequest(for: selection)
-                        SurfaceInputProbes.record("openRequestForwarded")
-                        playbackLauncher.requestPlayback(request)
-                    } catch EmbyError.unsupportedVideoCodec(let codec) {
-                        playbackRuntime.setUserVisibleIssue(
-                            .unsupportedVideoCodec(
-                                PlaybackUnsupportedVideoCodec(codecName: codec)
-                            )
-                        )
-                    } catch {
-                        logger.error(
-                            "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
-                        )
+                    guard let selection = try? selectionResult.get() else {
                         playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
+                        return
+                    }
+                    playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
+                        Task {
+                            await launchEmbySelection(
+                                selection.replacingStartAction(resume ? .resume : .fromBeginning)
+                            )
+                        }
                     }
                 }
                 .enchronScreenAppearance()

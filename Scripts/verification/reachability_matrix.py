@@ -5609,7 +5609,7 @@ class ReachabilityRun:
             return
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.provable(presentation, "accessibility:Emby-Detail-Overview-Expand")
-        self.provable(presentation, "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}")
+        self.provable(presentation, "accessibility:Emby-Detail-Play")
 
         def emby_home_snapshot() -> dict[str, Any]:
             self.relaunch()
@@ -5685,15 +5685,10 @@ class ReachabilityRun:
             "accessibility:Emby-StillCard-{metadata.id.rawValue}",
         )
         playback_detail = still_detail if still_identifier is not None else detail
-        action_identifier = next(
-            (
-                value for value in (
-                    "Emby-Detail-Resume",
-                    "Emby-Detail-PlayFromBeginning",
-                )
-                if value in self.hierarchy_identifiers(playback_detail)
-            ),
-            None,
+        action_identifier = (
+            "Emby-Detail-Play"
+            if "Emby-Detail-Play" in self.hierarchy_identifiers(playback_detail)
+            else None
         )
         if action_identifier is not None:
             before = self.copy_probe("round11-emby-play-before")
@@ -5702,14 +5697,13 @@ class ReachabilityRun:
                 presentation,
                 action_identifier,
                 operation_id=(
-                    "accessibility:Emby-Detail-"
-                    "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}"
+                    "accessibility:Emby-Detail-Play"
                 ),
             )
             if played.get("failure", {}).get("kind") == "response-timeout" or "response-timeout" in str(played.get("error", "")):
                 if not self._recover_emby_playback_timeout(
                     presentation,
-                    "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+                    "accessibility:Emby-Detail-Play",
                     action_identifier,
                 ):
                     return
@@ -5728,13 +5722,12 @@ class ReachabilityRun:
                 ):
                     self.delivered(
                         presentation,
-                        "accessibility:Emby-Detail-"
-                        "{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
+                        "accessibility:Emby-Detail-Play",
                         self.events[-1]["evidence"],
                         "The existing Emby title reached its playback selection handler.",
                     )
 
-        if self.cells[("main-window-browser", "accessibility:Emby-Detail-Overview-Expand")]["verdict"] == "unmeasured" or self.cells[("main-window-browser", "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}")]["verdict"] == "unmeasured":
+        if self.cells[("main-window-browser", "accessibility:Emby-Detail-Overview-Expand")]["verdict"] == "unmeasured" or self.cells[("main-window-browser", "accessibility:Emby-Detail-Play")]["verdict"] == "unmeasured":
             home = emby_home_snapshot()
             if "Emby-PosterCard-177" in self.hierarchy_identifiers(home):
                 before = self.copy_probe("round11-emby-overview-177-before")
@@ -5749,20 +5742,20 @@ class ReachabilityRun:
                     probe2 = self.copy_probe("round11-emby-overview-177-second")
                     if expanded.get("success") is True and any("reachability emby delivered action=detail.overview.toggle" in line for line in probe2[offset2:]):
                         self.delivered(presentation, "accessibility:Emby-Detail-Overview-Expand", self.events[-1]["evidence"], "More changed the product overview expansion state.")
-                playback = next((value for value in ("Emby-Detail-Resume", "Emby-Detail-PlayFromBeginning") if value in identifiers), None)
-                if playback is not None and self.cells[("main-window-browser", "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}")]["verdict"] == "unmeasured":
+                playback = "Emby-Detail-Play" if "Emby-Detail-Play" in identifiers else None
+                if playback is not None and self.cells[("main-window-browser", "accessibility:Emby-Detail-Play")]["verdict"] == "unmeasured":
                     before3 = self.copy_probe("round11-emby-play-177-before")
                     offset3 = len(before3)
-                    played2 = self.tap(presentation, playback, operation_id="accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}")
+                    played2 = self.tap(presentation, playback, operation_id="accessibility:Emby-Detail-Play")
                     if played2.get("failure", {}).get("kind") == "response-timeout" or "response-timeout" in str(played2.get("error", "")):
-                        if not self._recover_emby_playback_timeout(presentation, "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}", playback):
+                        if not self._recover_emby_playback_timeout(presentation, "accessibility:Emby-Detail-Play", playback):
                             return
                     else:
                         control2 = self.wait_for_identifier("PlayerUI-window-control-plane")
                         probe3 = self.copy_probe("round11-emby-play-177-second")
                         if played2.get("success") is True and isinstance(control2.get("matchedElement"), dict) and any("reachability emby delivered action=detail.play." in line for line in probe3[offset3:]):
-                            self.delivered(presentation, "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}", self.events[-1]["evidence"], "The existing Emby title reached its playback selection handler.")
-        for op, ident in [("accessibility:Emby-Detail-Overview-Expand", "Emby-Detail-Overview-Expand"), ("accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}", "Emby-Detail-PlayFromBeginning")]:
+                            self.delivered(presentation, "accessibility:Emby-Detail-Play", self.events[-1]["evidence"], "The existing Emby title reached its playback selection handler.")
+        for op, ident in [("accessibility:Emby-Detail-Overview-Expand", "Emby-Detail-Overview-Expand"), ("accessibility:Emby-Detail-Play", "Emby-Detail-Play")]:
             if self.cells[("main-window-browser", op)]["verdict"] == "unmeasured":
                 self.salvaging = True
                 snap = self.controller("snapshot", "--no-screenshot")

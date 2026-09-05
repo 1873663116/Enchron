@@ -175,7 +175,7 @@
     {
       "arguments": {
         "context": "main-window-browser",
-        "identifier": "PlayerUI-resumeDecision-panel"
+        "identifier": "PlayerUI-resumeDecision-primary"
       },
       "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:16",
       "maxInvocations": 1,

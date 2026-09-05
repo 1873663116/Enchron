@@ -1034,6 +1034,51 @@ struct TrackSelectionPreferenceTests {
     }
 }
 
+extension TrackSelectionPreferenceTests {
+    @Test("a media-server play choice waits for the resume decision under ask-every-time")
+    func mediaServerPlayChoiceWaitsForResumeDecision() {
+        let asking = PlaybackLaunchCoordinator(
+            playbackRuntime: TrackSelectionRuntime(),
+            mediaStateSuiteName: "app.enchron.tests.server-choice.\(UUID().uuidString)",
+            preferencesProvider: AskToResumePreferences()
+        )
+        var choices: [Bool] = []
+
+        asking.decideResume(fromSeconds: 0) { choices.append($0) }
+        #expect(choices == [false])
+        #expect(asking.pendingResumeDecision == nil)
+        #expect(asking.resumePromptPresentationCount == 0)
+
+        asking.decideResume(fromSeconds: 95) { choices.append($0) }
+        #expect(asking.pendingResumeDecision?.seconds == 95)
+        #expect(asking.resumePromptPresentationCount == 1)
+        #expect(choices == [false])
+
+        asking.resumePendingPlayback()
+        #expect(choices == [false, true])
+        #expect(asking.pendingResumeDecision == nil)
+
+        asking.decideResume(fromSeconds: 95) { choices.append($0) }
+        asking.startPendingPlaybackFromBeginning()
+        #expect(choices == [false, true, false])
+
+        asking.decideResume(fromSeconds: 95) { choices.append($0) }
+        asking.cancelPendingResumeDecision()
+        #expect(choices == [false, true, false])
+        #expect(asking.pendingResumeDecision == nil)
+
+        let startingOver = PlaybackLaunchCoordinator(
+            playbackRuntime: TrackSelectionRuntime(),
+            mediaStateSuiteName: "app.enchron.tests.server-choice.\(UUID().uuidString)",
+            preferencesProvider: StartFromBeginningPreferences()
+        )
+        startingOver.decideResume(fromSeconds: 95) { choices.append($0) }
+        #expect(choices == [false, true, false, false])
+        #expect(startingOver.pendingResumeDecision == nil)
+        #expect(startingOver.resumePromptPresentationCount == 0)
+    }
+}
+
 private struct StartFromBeginningPreferences: PlaybackPreferencesProviding {
     func loadPlaybackPreferences() -> PlaybackPreferences {
         PlaybackPreferences(resumePolicy: .alwaysStartFromBeginning)

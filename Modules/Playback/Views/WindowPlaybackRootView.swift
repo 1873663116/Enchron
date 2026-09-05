@@ -93,9 +93,12 @@ public enum BrowserWindowLayout {
 }
 
 extension View {
-    public func browserWindowGeometry() -> some View {
+    public func browserWindowGeometry(
+        onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil
+    ) -> some View {
         background {
             WindowPlaybackSceneReader { windowScene in
+                onWindowSceneChange?(windowScene)
                 guard let windowScene else { return }
                 windowScene.requestGeometryUpdate(
                     UIWindowScene.GeometryPreferences.Vision(

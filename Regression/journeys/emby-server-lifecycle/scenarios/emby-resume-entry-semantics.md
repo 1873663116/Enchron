@@ -63,13 +63,15 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 45,
-        "expectedLanding": "window",
-        "identifier": "Emby-Detail-Resume"
+        "context": "main-window-browser",
+        "identifiers": [
+          "Emby-Detail-Play",
+          "PlayerUI-resumeDecision-primary"
+        ]
       },
       "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:05",
       "maxInvocations": 1,
-      "operation": "operation:media.open@2"
+      "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {
@@ -102,13 +104,15 @@
     },
     {
       "arguments": {
-        "deadlineSeconds": 45,
-        "expectedLanding": "window",
-        "identifier": "Emby-Detail-PlayFromBeginning"
+        "context": "main-window-browser",
+        "identifiers": [
+          "Emby-Detail-Play",
+          "PlayerUI-resumeDecision-secondary"
+        ]
       },
       "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:09",
       "maxInvocations": 1,
-      "operation": "operation:media.open@2"
+      "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {

@@ -12,12 +12,19 @@ public protocol PlaybackLaunching: AnyObject {
 @MainActor
 @Observable
 public final class PlaybackLaunchCoordinator: PlaybackLaunching {
-    public struct ResumeDecision: Equatable {
-        public let request: PlaybackLaunchRequest
+    public struct ResumeDecision {
+        enum Outcome {
+            case launch(
+                request: PlaybackLaunchRequest,
+                format: MediaFormat?,
+                playbackMode: PersistedPlaybackMode,
+                trackSelectionPreference: TrackSelectionPreference?
+            )
+            case choice(@MainActor (Bool) -> Void)
+        }
+
         public let seconds: Double
-        public let format: MediaFormat?
-        public let playbackMode: PersistedPlaybackMode
-        let trackSelectionPreference: TrackSelectionPreference?
+        let outcome: Outcome
     }
 
     private struct ResolvedLaunch {
@@ -130,7 +137,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func viewingState(for identity: MediaIdentity) async -> ViewingStatus? {
-        await mediaStateStore.viewingProjection(for: identity)
+        await mediaStateMutationTask?.value
+        return await mediaStateStore.viewingProjection(for: identity)
     }
 
     #if DEBUG
@@ -176,11 +184,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 case (.askEveryTime, .userInitiated) where seconds > 0:
                     resumePromptPresentationCount += 1
                     pendingResumeDecision = ResumeDecision(
-                        request: request,
                         seconds: seconds,
-                        format: persistedState?.formatPreference,
-                        playbackMode: playbackMode,
-                        trackSelectionPreference: persistedState?.trackSelectionPreference
+                        outcome: .launch(
+                            request: request,
+                            format: persistedState?.formatPreference,
+                            playbackMode: playbackMode,
+                            trackSelectionPreference: persistedState?.trackSelectionPreference
+                        )
                     )
                 case (.alwaysResume, _) where seconds > 0:
                     launchResolvedPlayback(
@@ -228,27 +238,52 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func resumePendingPlayback() {
-        guard let decision = pendingResumeDecision else { return }
-        pendingResumeDecision = nil
-        launchResolvedPlayback(
-            decision.request,
-            resumeAt: decision.seconds,
-            savedFormat: decision.format,
-            playbackMode: decision.playbackMode,
-            trackSelectionPreference: decision.trackSelectionPreference
-        )
+        settlePendingResumeDecision(resuming: true)
     }
 
     public func startPendingPlaybackFromBeginning() {
+        settlePendingResumeDecision(resuming: false)
+    }
+
+    public func cancelPendingResumeDecision() {
+        pendingResumeDecision = nil
+    }
+
+    public func decideResume(
+        fromSeconds seconds: Double,
+        onChoice: @escaping @MainActor (Bool) -> Void
+    ) {
+        pendingResumeDecision = nil
+        guard seconds > 0 else {
+            onChoice(false)
+            return
+        }
+        switch preferencesProvider.loadPlaybackPreferences().resumePolicy {
+        case .askEveryTime:
+            resumePromptPresentationCount += 1
+            pendingResumeDecision = ResumeDecision(seconds: seconds, outcome: .choice(onChoice))
+        case .alwaysResume:
+            onChoice(true)
+        case .alwaysStartFromBeginning:
+            onChoice(false)
+        }
+    }
+
+    private func settlePendingResumeDecision(resuming: Bool) {
         guard let decision = pendingResumeDecision else { return }
         pendingResumeDecision = nil
-        launchResolvedPlayback(
-            decision.request,
-            resumeAt: nil,
-            savedFormat: decision.format,
-            playbackMode: decision.playbackMode,
-            trackSelectionPreference: decision.trackSelectionPreference
-        )
+        switch decision.outcome {
+        case let .launch(request, format, playbackMode, trackSelectionPreference):
+            launchResolvedPlayback(
+                request,
+                resumeAt: resuming ? decision.seconds : nil,
+                savedFormat: format,
+                playbackMode: playbackMode,
+                trackSelectionPreference: trackSelectionPreference
+            )
+        case let .choice(deliver):
+            deliver(resuming)
+        }
     }
 
     public func beginPlayback(_ request: PlaybackLaunchRequest) {
@@ -549,8 +584,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func stopPlayback() {
-        onPlaybackStopRequested?()
         cancelPlaybackLaunchAndPersistProgress()
+        onPlaybackStopRequested?()
         activeFailureRecovery = nil
         activeFailureRetry = nil
         lastResolvedLaunch = nil
@@ -559,8 +594,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func stopPlaybackAndWait() async {
-        onPlaybackStopRequested?()
         cancelPlaybackLaunchAndPersistProgress()
+        onPlaybackStopRequested?()
         activeFailureRecovery = nil
         activeFailureRetry = nil
         lastResolvedLaunch = nil
@@ -635,6 +670,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             }
             if let identity = request.versionedIdentity {
                 let position = playbackRuntime.playbackPosition
+                guard position.duration > 0 else { return }
                 let evidence = PlaybackSessionEvidence(
                     durationSeconds: position.duration,
                     positionSeconds: position.seconds,

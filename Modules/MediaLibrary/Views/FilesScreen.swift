@@ -606,7 +606,7 @@ public struct FilesScreen: View {
                 .transition(.opacity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(DesignTokens.AnimationToken.controlsTransition, value: folderIdentity)
+        .animation(DesignTokens.AnimationToken.levelTransition, value: folderIdentity)
     }
 
     @ViewBuilder

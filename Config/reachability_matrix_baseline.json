@@ -34,11 +34,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Emby-Detail-{action == .resume ? \"Resume\" : \"PlayFromBeginning\"}",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:Emby-Episode-{metadata.id.rawValue}",
       "verdict": "reachable"
     },
@@ -1095,6 +1090,11 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-add",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Detail-Play",
       "verdict": "known-defect"
     }
   ],

@@ -386,7 +386,7 @@ public struct EmbyScreen: View {
                                 .transition(.opacity)
                         }
                             .animation(
-                                DesignTokens.AnimationToken.controlsTransition,
+                                DesignTokens.AnimationToken.levelTransition,
                                 value: navigation.destination
                             )
                             .navigationDestination(for: EmbyLibraryItem.self) { item in
@@ -1184,12 +1184,7 @@ private struct EmbyDetailScreen: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             HStack(spacing: DesignTokens.Spacing.md) {
                 if item.isPlayable {
-                    if (item.metadata.userData?.playbackPositionTicks ?? 0) > 0 {
-                        playButton("Resume", systemImage: "play.fill", action: .resume)
-                        playButton("Play from Beginning", systemImage: "backward.end.fill", action: .fromBeginning)
-                    } else {
-                        playButton("Play", systemImage: "play.fill", action: .fromBeginning)
-                    }
+                    playButton("Play", systemImage: "play.fill", action: .resume)
                 }
 
                 if item.metadata.mediaSources.count > 1 {
@@ -1307,7 +1302,7 @@ private struct EmbyDetailScreen: View {
             Label(title, systemImage: systemImage)
         }
         .buttonStyle(.borderedProminent)
-        .accessibilityIdentifier("Emby-Detail-\(action == .resume ? "Resume" : "PlayFromBeginning")")
+        .accessibilityIdentifier("Emby-Detail-Play")
     }
 
     @ViewBuilder

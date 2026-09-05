@@ -751,6 +751,32 @@ struct PlaybackPresentationStateTests {
         #expect(abs(placed.z - -4 * cos(.pi / 6)) < 0.001)
     }
 
+    @Test("Docked placement turns the screen's visible face toward the wearer")
+    @MainActor
+    func dockedPlacementFacesTheWearer() {
+        for elevation in [0.0, 30.0, -20.0] {
+            let anchor = Entity()
+            anchor.position = [0, 0.9296054, -4]
+            let screen = Entity()
+
+            PlaybackSurfacePlacement.dock(
+                screen,
+                to: anchor,
+                transform: PlaybackSurfaceTransform(
+                    distance: 4,
+                    elevationDegrees: elevation,
+                    scale: 1
+                )
+            )
+
+            let visibleFace = simd_normalize(screen.convert(direction: [0, 0, 1], to: nil))
+            let towardWearer = simd_normalize(
+                SIMD3<Float>(0, 0.9296054, 0) - screen.position(relativeTo: nil)
+            )
+            #expect(simd_dot(visibleFace, towardWearer) > 0.999)
+        }
+    }
+
     @Test("A surface that never settles releases its wait instead of hanging")
     @MainActor
     func unsettledPresentationReleasesItsWait() async {

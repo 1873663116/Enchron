@@ -36,6 +36,34 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
         self.startAction = startAction
         self.seasonEpisodes = seasonEpisodes
     }
+
+    private init(
+        item: EmbyLibraryItem,
+        mediaSourceID: EmbyMediaSourceID?,
+        startAction: EmbyPlaybackStartAction,
+        seasonEpisodes: [EmbyEpisode]?
+    ) {
+        self.item = item
+        self.mediaSourceID = mediaSourceID
+        self.startAction = startAction
+        self.seasonEpisodes = seasonEpisodes
+    }
+
+    public var resumeCandidateSeconds: Double {
+        guard startAction == .resume,
+              let ticks = item.metadata.userData?.playbackPositionTicks,
+              ticks > 0 else { return 0 }
+        return Double(ticks) / 10_000_000
+    }
+
+    public func replacingStartAction(_ startAction: EmbyPlaybackStartAction) -> EmbyPlaybackSelection {
+        EmbyPlaybackSelection(
+            item: item,
+            mediaSourceID: mediaSourceID,
+            startAction: startAction,
+            seasonEpisodes: seasonEpisodes
+        )
+    }
 }
 
 public struct EmbyPreparedPlaybackEvidence: Equatable, Sendable {

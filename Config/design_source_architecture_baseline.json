@@ -333,12 +333,6 @@
       "count": 1
     },
     {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/WindowPlayerDeck.swift",
-      "signature": ".fill(.black.opacity(0.40))",
-      "count": 1
-    },
-    {
       "rule": "token-layer-structure",
       "path": "Modules/DesignSystem/DesignTokens.swift",
       "signature": "public static let card = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)",

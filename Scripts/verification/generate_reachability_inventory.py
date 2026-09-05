@@ -782,6 +782,7 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-customangle",
             "-hdrfallback",
             "-resume",
+            "-detail-play",
             "-primary",
             "-secondary",
             "playfrombeginning",
@@ -1186,7 +1187,7 @@ def presentation_derivation(
             source = required_source_location(
                 documents,
                 "Apps/Enchron/MainView.swift",
-                "ResumeDecisionCard(",
+                '"Resume Playback?",',
             )
             return ["window"], {
                 "host": "browserWindowResumeDecision",
@@ -1304,11 +1305,6 @@ NON_VIEW_IDENTIFIER_LITERALS: dict[str, str] = {
     "with an item id. The card itself carries Emby-PosterCard-{metadata.id.rawValue}.",
     "Emby-StillCard-": "The Continue Watching half of the same prefix. The card "
     "itself carries Emby-StillCard-{metadata.id.rawValue}.",
-    "Emby-Detail-Resume": "An entry in the playbackActionIDs the detail evidence "
-    "declares. The button carries "
-    "Emby-Detail-\\(action == .resume ? \"Resume\" : \"PlayFromBeginning\").",
-    "Emby-Detail-PlayFromBeginning": "The other entry in the same declared list, "
-    "named by the same button.",
 }
 
 
