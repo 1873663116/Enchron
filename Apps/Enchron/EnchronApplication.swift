@@ -292,9 +292,6 @@ final class EnchronApplication {
             playbackSessionModel.prepareColdPlaybackLaunch(for: family)
             return mode
         }
-        launcher.onPlaybackIntentStarted = { [weak playbackSessionModel] in
-            playbackSessionModel?.beginPlaybackWindowSession()
-        }
         launcher.onEffectiveMediaFormatApplied = {
             [weak playbackSessionModel, weak playbackRuntime] interpretation in
             guard let playbackSessionModel, let playbackRuntime else { return }
@@ -417,9 +414,7 @@ final class EnchronApplication {
             mediaLibrary?.refreshViewingStates()
             browser?.refreshViewingStates()
         }
-        launcher.onPlaybackStopRequested = {
-            [weak playbackSessionModel, weak mediaLibrary, weak browser] in
-            playbackSessionModel?.endPlaybackWindowSession()
+        launcher.onPlaybackStopRequested = { [weak mediaLibrary, weak browser] in
             mediaLibrary?.refreshViewingStates()
             browser?.refreshViewingStates()
         }
@@ -460,16 +455,6 @@ final class EnchronApplication {
                 launcher?.savePlaybackMode(mode)
             }
         )
-        spatialPlatformEffectCoordinator.onPlaybackWindowClosedByWearer = {
-            [weak playbackSessionModel, weak launcher, weak playbackRuntime] in
-            guard let playbackSessionModel,
-                  playbackSessionModel.playbackWindowSessionIsActive,
-                  playbackSessionModel.presentationTransition == nil,
-                  playbackSessionModel.playbackPresentation.usesMainWindow,
-                  playbackRuntime?.hasActivePlaybackRequest == true else { return }
-            SurfaceInputProbes.record("playbackWindowScene closedByWearer stoppingPlayback")
-            launcher?.stopPlayback()
-        }
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)

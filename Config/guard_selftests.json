@@ -281,18 +281,162 @@
       }
     },
     {
-      "id": "playback-surface-structure-rejects-a-handover-that-does-not-wait",
+      "id": "playback-surface-structure-rejects-a-second-window-scene-for-playback",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "guard await waitUntilWindowIsPresented(",
-        "replaceWith": "guard await windowIsPresentedWithoutWaiting("
+        "file": "Apps/Enchron/EnchronApp.swift",
+        "find": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n",
+        "replaceWith": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        Window(\"Playback\", id: \"playback\") {\n            MainView()\n        }\n\n        WindowGroup(\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "dismisses the outgoing window without first observing the incoming one open"
+          "playback lives in a second Window scene"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-main-window-with-system-glass",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/EnchronApp.swift",
+        "find": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n",
+        "replaceWith": "        .windowStyle(.automatic)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the main window uses the system window style"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-the-executor-opening-the-main-window",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        case .retainMainWindow:\n            return await waitForMainWindowToBecomeForeground(execution: execution)\n",
+        "replaceWith": "        case .retainMainWindow:\n            _ = openWindow(id: SpatialPlatformWindowIdentity.main.rawValue, execution: execution)\n            return await waitForMainWindowToBecomeForeground(execution: execution)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the executor opens or dismisses the main window"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-resident-push-from-another-window",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "              actions.windowIdentity == .main else {\n",
+        "replaceWith": "              actions.windowIdentity != nil else {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the resident window is pushed from a scene other than the main window"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-rebinding-before-the-main-window-returns",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        case .retainMainWindow:\n            return await waitForMainWindowToBecomeForeground(execution: execution)\n",
+        "replaceWith": "        case .retainMainWindow:\n            return executionIsLive(execution)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "no longer waits for the main window to return to the foreground"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-resident-departure-judged-by-the-swiftui-root",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "            if window == .immersivePlaybackResident, residentWindowSceneHasDisconnected {\n                residentWindowSceneSessionIdentifier = nil\n                recordWindowResidency(.closed, for: window)\n                lastPlatformOperation = \"immersivePlaybackResident-window-scene-disconnected\"\n                return true\n            }\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "resident window departure trusts the SwiftUI root's onDisappear"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-playback-window-identity",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
+        "find": "    case main\n    case immersivePlaybackResident\n}\n",
+        "replaceWith": "    case main\n    case playback\n    case immersivePlaybackResident\n}\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "a playback window identity exists"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-glass-behind-visible-video",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/MainView.swift",
+        "find": "        return presentationState != .videoVisible\n",
+        "replaceWith": "        return true\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the main window draws glass behind visible video"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-main-view-split-by-scene-role",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/MainView.swift",
+        "find": "    public init(playbackSurfaceIsEnabled: Bool = true) {\n",
+        "replaceWith": "    public init(sceneRole: Int = 0, playbackSurfaceIsEnabled: Bool = true) {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "splits the view by scene role again"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-hiding-system-overlays-while-browsing",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/MainView.swift",
+        "find": "        .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)\n",
+        "replaceWith": "        .persistentSystemOverlays(.hidden)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "hides the system overlays while browsing"
         ]
       }
     },
@@ -309,54 +453,6 @@
         "exitCode": 1,
         "outputContains": [
           "NSAllowsLocalNetworking makes the system ignore NSAllowsArbitraryLoads and substitute NO"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-handover-that-pushes-the-playback-window",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        actions.openWindow(id: handover.incoming.rawValue)\n",
-        "replaceWith": "        actions.pushWindow(id: handover.incoming.rawValue)\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the playback window handover dismisses the outgoing window without"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-handover-from-a-window-that-left",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        guard windowHasLeft(handover.outgoing) == false else {\n",
-        "replaceWith": "        if false {\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the playback window handover starts from a window that already left"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-departure-judged-by-the-swiftui-root",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        guard let identifier = windowSceneSessionIdentifier(for: window) else {\n            return windowObservation.residency(for: window) != .open\n        }\n",
-        "replaceWith": "        if windowObservation.residency(for: window) == .closed { return true }\n        guard let identifier = windowSceneSessionIdentifier(for: window) else { return false }\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "window departure trusts the SwiftUI root's disappearance"
         ]
       }
     },
@@ -517,86 +613,6 @@
         "exitCode": 1,
         "outputContains": [
           "the episode caption text left the shared caption block"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-launch-that-keeps-duplicate-window-sessions",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Apps/Enchron/EnchronApp.swift",
-        "find": "        guard windowSessions.count > 1 else { return true }\n        for session in windowSessions {\n            application.requestSceneSessionDestruction(session, options: nil)\n        }\n",
-        "replaceWith": "        guard windowSessions.count > 1 else { return true }\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "launch no longer discards duplicate window sessions"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-opening-a-window-whose-scene-is-still-connected",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        guard await waitUntilWindowHasLeft(\n            handover.incoming,\n",
-        "replaceWith": "        guard await windowHasLeftWithoutWaiting(\n            handover.incoming,\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the playback window handover dismisses the outgoing window without"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-treating-an-unopened-window-as-present",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "            return windowObservation.residency(for: window) != .open\n",
-        "replaceWith": "            return windowObservation.residency(for: window) == .closed\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "window departure treats a window that never opened this launch as still present"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-refusal-that-closes-the-only-window",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "            if windowScenePresentation(for: handover.incoming) == true {\n                await dismissWindowUntilGone(handover.outgoing, clock: clock)\n            }\n            return\n",
-        "replaceWith": "            await dismissWindowUntilGone(handover.outgoing, clock: clock)\n            return\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "a refused handover dismisses the outgoing window"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-handover-that-keeps-stale-window-sessions",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        discardUnconnectedWindowSessions(reason: \"handover\")\n",
-        "replaceWith": ""
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the playback window handover dismisses the outgoing window without"
         ]
       }
     },

@@ -146,61 +146,43 @@ struct PlaybackPresentationStateTests {
                 SpatialPlatformPlaybackWindowPolicy.action(
                     for: .exitImmersivePlayback(family),
                     residentWindowState: .absent
-                ) == .openPlaybackWindow
+                ) == .retainMainWindow
             )
         }
     }
 
-    @Test("Window session reconciliation swaps scenes only from the owning host window")
-    func windowSessionReconciliationSwapsScenesOnlyFromOwningHostWindow() {
-        #expect(
-            PlaybackWindowSessionReconciliationPolicy.handover(
-                hostWindow: .main,
-                sessionIsActive: true
-            ) == PlaybackWindowHandover(incoming: .playback, outgoing: .main)
-        )
-        #expect(
-            PlaybackWindowSessionReconciliationPolicy.handover(
-                hostWindow: .main,
-                sessionIsActive: false
-            ) == nil
-        )
-        #expect(
-            PlaybackWindowSessionReconciliationPolicy.handover(
-                hostWindow: .playback,
-                sessionIsActive: false
-            ) == PlaybackWindowHandover(incoming: .main, outgoing: .playback)
-        )
-        #expect(
-            PlaybackWindowSessionReconciliationPolicy.handover(
-                hostWindow: .playback,
-                sessionIsActive: true
-            ) == nil
-        )
-        for sessionIsActive in [true, false] {
-            #expect(
-                PlaybackWindowSessionReconciliationPolicy.handover(
-                    hostWindow: .immersivePlaybackResident,
-                    sessionIsActive: sessionIsActive
-                ) == nil
-            )
-        }
-    }
-
-    @Test("Every handover names the window that must arrive before the other leaves")
-    func everyHandoverNamesTheWindowThatMustArriveBeforeTheOtherLeaves() {
-        let hosts: [SpatialPlatformWindowIdentity] = [
-            .main, .playback, .immersivePlaybackResident
+    @Test("Leaving the immersive space keeps the main window instead of opening one")
+    func leavingImmersiveSpaceKeepsTheMainWindow() {
+        let returns: [SpatialPlatformPlaybackWindowTransition] = [
+            .exitImmersivePlayback(.flat),
+            .collapseImmersivePlayback(.panoramic),
+            .normalizeSpatialPlayback
         ]
-        for host in hosts {
-            for sessionIsActive in [true, false] {
-                guard let handover = PlaybackWindowSessionReconciliationPolicy
-                    .handover(hostWindow: host, sessionIsActive: sessionIsActive)
-                else { continue }
-                #expect(handover.outgoing == host)
-                #expect(handover.incoming != handover.outgoing)
+        for transition in returns {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.action(
+                    for: transition,
+                    residentWindowState: .absent
+                ) == .retainMainWindow
+            )
+            for residentWindowState in [
+                SpatialPlatformResidentWindowState.opening, .open, .closing
+            ] {
+                #expect(
+                    SpatialPlatformPlaybackWindowPolicy.action(
+                        for: transition,
+                        residentWindowState: residentWindowState
+                    ) == .dismissResidentWindow
+                )
             }
         }
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.action(
+                for: .enterImmersivePlayback(.flat),
+                residentWindowState: .absent
+            ) == .pushResidentWindow
+        )
+        #expect(SpatialPlatformWindowIdentity.allCases == [.main, .immersivePlaybackResident])
     }
 
     @Test("Immersive playback exit reveals the Main Window only after spatial teardown and target activation")
@@ -303,7 +285,7 @@ struct PlaybackPresentationStateTests {
                 SpatialPlatformPlaybackWindowPolicy.action(
                     for: .collapseImmersivePlayback(family),
                     residentWindowState: .absent
-                ) == .openPlaybackWindow
+                ) == .retainMainWindow
             )
         }
     }
@@ -447,7 +429,7 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformPlaybackWindowPolicy.action(
                 for: .normalizeSpatialPlayback,
                 residentWindowState: .absent
-            ) == .openPlaybackWindow
+            ) == .retainMainWindow
         )
     }
 
@@ -459,6 +441,24 @@ struct PlaybackPresentationStateTests {
                 residentWindowState: .opening
             ) == .dismissResidentWindow
         )
+    }
+
+    @Test("The main window keeps its glass until video is visible")
+    func mainWindowGlassLeavesOnlyForVisibleVideo() {
+        #expect(WindowGlassPolicy.showsGlass(
+            showsWindowPlayback: false,
+            presentationState: .videoVisible
+        ))
+        for state in [PlaybackRuntime.PresentationState.hidden, .placeholder, .audioVisible] {
+            #expect(WindowGlassPolicy.showsGlass(
+                showsWindowPlayback: true,
+                presentationState: state
+            ))
+        }
+        #expect(WindowGlassPolicy.showsGlass(
+            showsWindowPlayback: true,
+            presentationState: .videoVisible
+        ) == false)
     }
 
     @Test("Main glass hosts the browser unless a scene operation is in flight")

@@ -5,39 +5,8 @@ import Playback
 import SwiftUI
 import UIKit
 
-@MainActor
-final class EnchronAppDelegate: NSObject, UIApplicationDelegate {
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
-    ) -> Bool {
-        let windowSessions = application.openSessions.filter {
-            $0.role == .windowApplication
-        }
-        let sessionSummary = windowSessions.map { session in
-            "\(session.configuration.name ?? "-")/\(session.persistentIdentifier.suffix(6))"
-        }
-        SurfaceInputProbes.record(
-            "launch openSessions=\(application.openSessions.count)"
-                + " windowSessions=\(windowSessions.count)"
-                + " [\(sessionSummary.joined(separator: ","))]",
-            retention: .evidence
-        )
-        guard windowSessions.count > 1 else { return true }
-        for session in windowSessions {
-            application.requestSceneSessionDestruction(session, options: nil)
-        }
-        SurfaceInputProbes.record(
-            "launch discarded duplicate window sessions count=\(windowSessions.count)",
-            retention: .evidence
-        )
-        return true
-    }
-}
-
 @main
 struct EnchronApp: App {
-    @UIApplicationDelegateAdaptor(EnchronAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var mainScenePhase
     @State private var application: EnchronApplication
     @State private var immersionStyle: ImmersionStyle = .progressive(
@@ -69,10 +38,10 @@ struct EnchronApp: App {
                 ] == "1" {
                     AcousticCalibrationView()
                 } else {
-                    MainView(sceneRole: .browser)
+                    MainView()
                 }
 #else
-                MainView(sceneRole: .browser)
+                MainView()
 #endif
             }
             .background {
@@ -109,37 +78,8 @@ struct EnchronApp: App {
             width: BrowserWindowLayout.defaultSize.width,
             height: BrowserWindowLayout.defaultSize.height
         )
-        .windowStyle(.automatic)
-        .windowResizability(.contentSize)
-
-        Window(
-            "Playback",
-            id: SpatialPlatformWindowIdentity.playback.rawValue
-        ) {
-            MainView(sceneRole: .playback)
-                .background {
-                    SpatialPlatformEffectExecutor(windowIdentity: .playback)
-                }
-                .enchronEnvironment(application)
-                .onAppear {
-                    application.spatialPlatformEffectCoordinator
-                        .recordWindowResidency(.open, for: .playback)
-                }
-                .onDisappear {
-                    application.spatialPlatformEffectCoordinator
-                        .recordWindowResidency(.closed, for: .playback)
-                }
-                .persistentSystemOverlays(.hidden)
-        }
         .windowStyle(.plain)
-        .defaultSize(
-            width: WindowPlaybackLayout.fallback.defaultSize.width,
-            height: WindowPlaybackLayout.fallback.defaultSize.height
-        )
         .windowResizability(.contentSize)
-        .restorationBehavior(.disabled)
-        .defaultLaunchBehavior(.suppressed)
-        .persistentSystemOverlays(.hidden)
 
         WindowGroup(
             "Immersive Playback Resident",
@@ -148,6 +88,10 @@ struct EnchronApp: App {
         ) {
             ImmersivePlaybackResidentRoot()
                 .enchronEnvironment(application)
+                .windowSceneReporting { windowScene in
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowScene(windowScene, for: .immersivePlaybackResident)
+                }
                 .onAppear {
                     application.spatialPlatformEffectCoordinator
                         .recordWindowResidency(

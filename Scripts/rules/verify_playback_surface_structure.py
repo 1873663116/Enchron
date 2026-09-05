@@ -477,84 +477,91 @@ def main() -> int:
         "Media Library is not a singleton Window Scene, so returning from "
         "playback can open a second one",
     )
-    handover = region(
-        platform_executor,
-        "public func reconcilePlaybackWindowPresentation(",
-        "private func invalidateTask(",
+    require(
+        len(re.findall(r"(?<![A-Za-z])Window\(\n", app_scene)) == 1
+        and 'id: "main"' in app_scene
+        and '"Playback"' not in app_scene
+        and "UIApplicationDelegateAdaptor" not in app_scene
+        and "requestSceneSessionDestruction" not in app_scene,
+        "playback lives in a second Window scene, so browsing and playback hand "
+        "scenes back and forth; that handover duplicated the main scene, kept a "
+        "dismissed playback view alive, and trapped SwiftUI on the next return",
+    )
+    require(
+        ".windowStyle(.plain)" in region(app_scene, 'id: "main"', "WindowGroup("),
+        "the main window uses the system window style, whose glass cannot be "
+        "dropped while video is visible, so playback needs its own window again",
+    )
+    require(
+        "openWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
+        and "dismissWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
+        and "reconcilePlaybackWindowPresentation" not in platform_executor
+        and "UIApplication.shared.openSessions" not in platform_executor,
+        "the executor opens or dismisses the main window; the single Window is "
+        "always present unless the resident window is pushed over it",
     )
     require(
         order(
-            handover,
-            "let incomingRevision = windowObservation.revision(for: handover.incoming)",
-            'discardUnconnectedWindowSessions(reason: "handover")',
-            "guard await waitUntilWindowHasLeft(",
-            "openWindow(id: handover.incoming.rawValue",
-            "await waitUntilWindowIsPresented(",
-            "await dismissWindowUntilGone(handover.outgoing",
-            "windowObservation.confirms(.open, for: window, after: revision)",
-            "actions.dismissWindow(id: window.rawValue)",
+            platform_executor,
+            "private func pushResidentWindowAndWaitForAppearance(",
+            "actions.windowIdentity == .main else {",
+            "actions.pushWindow(id: residentWindow.rawValue)",
+        ),
+        "the resident window is pushed from a scene other than the main window; "
+        "pushing from a pushed window is not allowed and the main window would "
+        "not come back in place",
+    )
+    require(
+        order(
+            platform_executor,
+            "case .retainMainWindow:",
+            "return await waitForMainWindowToBecomeForeground(execution: execution)",
+            "if windowObservation.residency(for: .main) != .open {",
+            "recordWindowResidency(.open, for: .main)",
+            "preferMainWindowCapability()",
+        ),
+        "leaving the immersive space without a resident window no longer waits "
+        "for the main window to return to the foreground before rebinding",
+    )
+    require(
+        order(
+            platform_executor,
+            "private func dismissWindowAndWaitForDisappearance(",
+            "if window == .immersivePlaybackResident, residentWindowSceneHasDisconnected {",
+            "recordWindowResidency(.closed, for: window)",
         )
-        and "while windowHasLeft(window) == false {" in handover
-        and "pushWindow(id: handover.incoming.rawValue" not in handover,
-        "the playback window handover dismisses the outgoing window without "
-        "first observing the incoming one open, which visionOS drops because "
-        "the outgoing window is still the only one",
-    )
-    require(
-        order(
-            handover,
-            "guard leaseRegistry.currentCapability != nil else {",
-            "guard windowHasLeft(handover.outgoing) == false else {",
-            "handoverTask?.cancel()",
-        ),
-        "the playback window handover starts from a window that already left, "
-        "so a windowless app requests a main scene it can never present and "
-        "the next launch connects two main scenes",
-    )
-    require(
-        order(
-            handover,
-            "sceneStillConnected",
-            "if windowScenePresentation(for: handover.incoming) == true {",
-            "await dismissWindowUntilGone(handover.outgoing",
-        ),
-        "a refused handover dismisses the outgoing window while the incoming "
-        "one is not on screen, so the wearer is left with no window",
-    )
-    window_departure = region(
-        platform_executor,
-        "private func windowHasLeft(_ window: SpatialPlatformWindowIdentity) -> Bool {",
-        "private var sceneSessionSummary: String {",
-    )
-    require(
-        order(
-            window_departure,
-            "guard let identifier = windowSceneSessionIdentifier(for: window) else {",
-            "return windowObservation.residency(for: window) != .open",
-            "UIApplication.shared.connectedScenes.contains",
-        ),
-        "window departure trusts the SwiftUI root's disappearance while the "
-        "UIKit scene is still connected, so a second scene for the same "
-        "singleton Window gets requested",
-    )
-    require(
-        "return windowObservation.residency(for: window) != .open" in window_departure,
-        "window departure treats a window that never opened this launch as "
-        "still present, so the first handover into it is refused",
-    )
-    require(
-        "@UIApplicationDelegateAdaptor(EnchronAppDelegate.self)" in app_scene
         and order(
             app_scene,
-            "final class EnchronAppDelegate: NSObject, UIApplicationDelegate {",
-            "didFinishLaunchingWithOptions",
-            "$0.role == .windowApplication",
-            "guard windowSessions.count > 1 else { return true }",
-            "application.requestSceneSessionDestruction(session, options: nil)",
+            "ImmersivePlaybackResidentRoot()",
+            ".windowSceneReporting { windowScene in",
+            ".recordWindowScene(windowScene, for: .immersivePlaybackResident)",
         ),
-        "launch no longer discards duplicate window sessions, so a device that "
-        "persisted two main sessions traps on every launch until the app is "
-        "uninstalled",
+        "resident window departure trusts the SwiftUI root's onDisappear, which "
+        "visionOS delivers seconds after the UIKit scene is gone, so leaving the "
+        "immersive space times out and reports a failed conversion",
+    )
+    require(
+        "case playback" not in execution_lease
+        and order(
+            execution_lease,
+            "case .absent:",
+            ".retainMainWindow",
+        ),
+        "a playback window identity exists, so a scene root can register for a "
+        "window that must never exist again",
+    )
+    require(
+        "sceneRole" not in main_view
+        and order(
+            main_view,
+            "enum WindowGlassPolicy {",
+            "guard showsWindowPlayback else { return true }",
+            "return presentationState != .videoVisible",
+            "enchronWindowGlassBackground(showsWindowGlass ? .always : .never)",
+            ".persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)",
+        ),
+        "the main window draws glass behind visible video, hides the system "
+        "overlays while browsing, or splits the view by scene role again",
     )
     main_view_struct = region(
         main_view,

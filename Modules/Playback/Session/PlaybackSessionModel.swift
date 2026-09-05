@@ -210,7 +210,6 @@ public final class PlaybackSessionModel {
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
-    public private(set) var playbackWindowSessionIsActive = false
 
     public var screenDepthOffset: Double {
         playbackPresentationModel.dockedPlacement.distanceMeters
@@ -374,19 +373,10 @@ public final class PlaybackSessionModel {
         line: Int = #line
     ) {
         SurfaceInputProbes.record("stoppedPlaybackCleanup origin=\(origin):\(line)")
-        playbackWindowSessionIsActive = false
         resetPresentationTransitionAppearance()
         playbackPresentationModel.requestStoppedPlaybackCleanup()
         spatialPlatformEffectReplacementHandler?()
         logger.notice("playback stopped; spatial platform cleanup requested")
-    }
-
-    public func beginPlaybackWindowSession() {
-        playbackWindowSessionIsActive = true
-    }
-
-    public func endPlaybackWindowSession() {
-        playbackWindowSessionIsActive = false
     }
 
     public func prepareColdPlaybackLaunch(

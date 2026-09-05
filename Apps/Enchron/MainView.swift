@@ -76,9 +76,14 @@ enum WindowPlaybackLoadingVisibility {
     }
 }
 
-public enum MainViewSceneRole {
-    case browser
-    case playback
+enum WindowGlassPolicy {
+    static func showsGlass(
+        showsWindowPlayback: Bool,
+        presentationState: PlaybackRuntime.PresentationState
+    ) -> Bool {
+        guard showsWindowPlayback else { return true }
+        return presentationState != .videoVisible
+    }
 }
 
 public struct MainView: View {
@@ -96,15 +101,17 @@ public struct MainView: View {
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
-    private let sceneRole: MainViewSceneRole
     private let playbackSurfaceIsEnabled: Bool
 
-    public init(
-        sceneRole: MainViewSceneRole = .browser,
-        playbackSurfaceIsEnabled: Bool = true
-    ) {
-        self.sceneRole = sceneRole
+    public init(playbackSurfaceIsEnabled: Bool = true) {
         self.playbackSurfaceIsEnabled = playbackSurfaceIsEnabled
+    }
+
+    private var showsWindowGlass: Bool {
+        WindowGlassPolicy.showsGlass(
+            showsWindowPlayback: showsWindowPlayback,
+            presentationState: playbackRuntime.presentationState
+        )
     }
 
     private var showsWindowPlayback: Bool {
@@ -131,7 +138,6 @@ public struct MainView: View {
     public var body: some View {
         platformContent
         .onAppear {
-            guard sceneRole == .playback else { return }
             playbackRuntime.onPlaybackEnded = {
                 let showControls = playbackLauncher.handlePlaybackEnded {
                     playbackSession.showControls = true
@@ -144,7 +150,6 @@ public struct MainView: View {
             }
         }
         .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, hasActivePlaybackRequest in
-            guard sceneRole == .playback else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(20))
                 if hasActivePlaybackRequest {
@@ -154,16 +159,7 @@ public struct MainView: View {
                 }
             }
         }
-        .onChange(of: playbackSession.playbackWindowSessionIsActive) { _, isActive in
-            reconcilePlaybackWindowPresentation(sessionIsActive: isActive)
-        }
-        .task {
-            reconcilePlaybackWindowPresentation(
-                sessionIsActive: playbackSession.playbackWindowSessionIsActive
-            )
-        }
         .onChange(of: playbackSession.lastControlsInteractionAt) { _, _ in
-            guard sceneRole == .playback else { return }
             guard playbackRuntime.hasActivePlaybackRequest else { return }
             scheduleControlsAutoHide()
         }
@@ -247,18 +243,8 @@ public struct MainView: View {
         return issue
     }
 
-    @ViewBuilder
     private var platformContent: some View {
-        switch sceneRole {
-        case .browser:
-            browserSceneContent
-        case .playback:
-            playbackSceneContent
-        }
-    }
-
-    private var playbackSceneContent: some View {
-        playbackPrimaryContent
+        primaryContent
             .ornament(
                 visibility: hostsPlaybackOrnament ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
@@ -289,11 +275,21 @@ public struct MainView: View {
             }
     }
 
-    private var browserSceneContent: some View {
-        browserPrimaryContent
-            .browserWindowGeometry { windowScene in
-                spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
+    private var primaryContent: some View {
+        ZStack {
+            if showsWindowPlayback {
+                playbackPrimaryContent
+            } else {
+                browserPrimaryContent
+                    .browserWindowGeometry { windowScene in
+                        spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
+                    }
             }
+        }
+        .background {
+            Color.clear.enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
+        }
+        .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)
     }
 
     private var collapsedWindowControlsOrnamentHeight: CGFloat {
@@ -488,8 +484,9 @@ public struct MainView: View {
                 && hostedPlaybackPresentation.usesMainWindow,
             hidesSurfaceFromAccessibility: playbackSession.windowSecondaryMenuIsPresented,
             onWindowSceneChange: { windowScene in
-                spatialPlatformEffectCoordinator.recordPlaybackWindowScene(
-                    windowScene
+                spatialPlatformEffectCoordinator.recordWindowScene(
+                    windowScene,
+                    for: .main
                 )
             },
             onGeometryRefresh: { event in
@@ -739,15 +736,6 @@ public struct MainView: View {
                 retention: .evidence
             )
         }
-    }
-
-    private func reconcilePlaybackWindowPresentation(
-        sessionIsActive: Bool
-    ) {
-        spatialPlatformEffectCoordinator.reconcilePlaybackWindowPresentation(
-            hostWindow: sceneRole == .browser ? .main : .playback,
-            sessionIsActive: sessionIsActive
-        )
     }
 
 }

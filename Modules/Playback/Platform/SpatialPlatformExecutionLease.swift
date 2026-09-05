@@ -244,9 +244,8 @@ struct SpatialPlatformImmersiveSpaceObservation {
     }
 }
 
-public enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
+public enum SpatialPlatformWindowIdentity: String, CaseIterable, Hashable, Sendable {
     case main
-    case playback
     case immersivePlaybackResident
 }
 
@@ -310,7 +309,7 @@ enum SpatialPlatformPlaybackWindowTransition: Equatable, Sendable {
 enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
     case pushResidentWindow
     case dismissResidentWindow
-    case openPlaybackWindow
+    case retainMainWindow
 }
 
 enum SpatialPlatformPlaybackWindowPolicy {
@@ -326,35 +325,10 @@ enum SpatialPlatformPlaybackWindowPolicy {
              .normalizeSpatialPlayback:
             switch residentWindowState {
             case .absent:
-                .openPlaybackWindow
+                .retainMainWindow
             case .opening, .open, .closing:
                 .dismissResidentWindow
             }
-        }
-    }
-}
-
-struct PlaybackWindowHandover: Equatable, Sendable {
-    let incoming: SpatialPlatformWindowIdentity
-    let outgoing: SpatialPlatformWindowIdentity
-}
-
-enum PlaybackWindowSessionReconciliationPolicy {
-    static func handover(
-        hostWindow: SpatialPlatformWindowIdentity,
-        sessionIsActive: Bool
-    ) -> PlaybackWindowHandover? {
-        switch hostWindow {
-        case .main:
-            sessionIsActive
-                ? PlaybackWindowHandover(incoming: .playback, outgoing: .main)
-                : nil
-        case .playback:
-            sessionIsActive
-                ? nil
-                : PlaybackWindowHandover(incoming: .main, outgoing: .playback)
-        case .immersivePlaybackResident:
-            nil
         }
     }
 }

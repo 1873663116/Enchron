@@ -17,6 +17,7 @@ RAW_GLASS_CALLEE = "glassBackgroundEffect"
 WRAPPER_CALLEES = (
     "enchronGlassBackground",
     "enchronPlateGlassBackground",
+    "enchronWindowGlassBackground",
 )
 
 
@@ -40,6 +41,11 @@ ALLOWED_WRAPPER_CALLS = Counter(
             path=Path("Modules/Playback/Views/PlaybackPanel.swift"),
             enclosing_type="FusedPlayerPanel",
             callee="enchronGlassBackground",
+        ): 1,
+        WrapperCallIdentity(
+            path=Path("Apps/Enchron/MainView.swift"),
+            enclosing_type="MainView",
+            callee="enchronWindowGlassBackground",
         ): 1,
     }
 )
@@ -79,7 +85,7 @@ class Violation:
 
 RAW_CALL_PATTERN = re.compile(r"\bglassBackgroundEffect\s*\(")
 WRAPPER_CALL_PATTERN = re.compile(
-    r"\.\s*(?P<callee>enchron(?:Plate)?GlassBackground)\s*\("
+    r"\.\s*(?P<callee>enchron(?:Plate|Window)?GlassBackground)\s*\("
 )
 TYPE_DECLARATION_PATTERN = re.compile(
     r"\b(?:struct|class|enum|actor|extension)\s+"

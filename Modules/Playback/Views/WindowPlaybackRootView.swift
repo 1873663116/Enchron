@@ -93,6 +93,14 @@ public enum BrowserWindowLayout {
 }
 
 extension View {
+    public func windowSceneReporting(
+        _ onWindowSceneChange: @escaping @MainActor (UIWindowScene?) -> Void
+    ) -> some View {
+        background {
+            WindowPlaybackSceneReader(onChange: onWindowSceneChange)
+        }
+    }
+
     public func browserWindowGeometry(
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil
     ) -> some View {
@@ -502,7 +510,11 @@ public struct WindowPlaybackRootView<
     ) {
         guard let windowScene else { return }
         windowScene.requestGeometryUpdate(
-            freeformWindowGeometryPreferences(size: size)
+            freeformWindowGeometryPreferences(
+                size: size,
+                minimumSize: size == nil ? nil : BrowserWindowLayout.minimumSize,
+                maximumSize: size == nil ? nil : BrowserWindowLayout.maximumSize
+            )
         )
     }
 

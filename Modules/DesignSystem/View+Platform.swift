@@ -64,6 +64,11 @@ public extension View {
     }
 
     @ViewBuilder
+    func enchronWindowGlassBackground(_ displayMode: GlassBackgroundDisplayMode) -> some View {
+        glassBackgroundEffect(displayMode: displayMode)
+    }
+
+    @ViewBuilder
     func enchronHoverContentShape<S: Shape>(_ shape: S) -> some View {
         contentShape(.hoverEffect, shape)
     }
