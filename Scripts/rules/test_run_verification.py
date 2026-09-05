@@ -227,3 +227,19 @@ class InterpreterFloorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TreeHygieneTests(unittest.TestCase):
+    def test_an_unchanged_worktree_passes(self) -> None:
+        before = {"Scripts/verification/controller_timings.device.json": "abc"}
+        result = verification.tree_hygiene(before, dict(before))
+        self.assertEqual(result.state, "PASS")
+
+    def test_a_file_the_run_rewrote_fails_by_name(self) -> None:
+        before = {"Scripts/verification/controller_timings.device.json": "abc"}
+        after = {"Scripts/verification/controller_timings.device.json": "def", "Scripts/x.py": "new"}
+        result = verification.tree_hygiene(before, after)
+        self.assertEqual(result.state, "FAIL")
+        self.assertIn("controller_timings.device.json", result.detail)
+        self.assertIn("Scripts/x.py", result.detail)
+

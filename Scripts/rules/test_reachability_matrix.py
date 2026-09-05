@@ -2967,7 +2967,7 @@ class SimulatorLaneFixesTests(unittest.TestCase):
             run.segment = None
             run.session_id = None
             run.lane = "simulator"
-            run.budgets = matrix.BudgetProvider()
+            run.budgets = matrix.BudgetProvider(timings_directory=pathlib.Path(d))
             run.client = Mock()
             run.tools = immediate_tools()
             run.policy = matrix.RecoveryPolicy()
@@ -3207,3 +3207,27 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
         self.assertFalse(stop_calls)
 if __name__ == "__main__":
     unittest.main()
+
+
+class LibraryGridModeTests(unittest.TestCase):
+    def _run_with_hierarchy(self, *identifiers: str):
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/001-snapshot.json"}]
+        hierarchy = "\n".join(f"Other, 0x1, {{{{0.0, 0.0}}, {{1.0, 1.0}}}}, identifier: '{name}'" for name in identifiers)
+        run.controller = lambda *args, **kwargs: {"success": True, "hierarchy": hierarchy}
+        return run
+
+    def test_an_empty_folder_is_still_grid_mode(self) -> None:
+        run = self._run_with_hierarchy("FileBrowsing-FilesScreen-emptyState", "FileBrowsing-FilesScreen-viewMode")
+        run.require_library_grid_mode("main-window-browser", chain="browser-navigation")
+
+    def test_a_folder_with_cards_is_grid_mode(self) -> None:
+        run = self._run_with_hierarchy("MediaLibrary-grid-folder-Reachability Round 2")
+        run.require_library_grid_mode("main-window-browser", chain="browser-navigation")
+
+    def test_a_list_container_or_a_bare_screen_is_refused(self) -> None:
+        with self.assertRaises(matrix.InstrumentFault):
+            self._run_with_hierarchy("FileBrowsing-FilesScreen-list", "MediaLibrary-grid-video-a.mkv").require_library_grid_mode("main-window-browser", chain="x")
+        with self.assertRaises(matrix.InstrumentFault):
+            self._run_with_hierarchy("FileBrowsing-FilesScreen-viewMode").require_library_grid_mode("main-window-browser", chain="x")
+

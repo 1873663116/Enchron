@@ -604,3 +604,20 @@ class RecoveryPolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TimingsDirectoryEnvironmentTests(unittest.TestCase):
+    def test_the_default_timings_directory_follows_the_environment(self) -> None:
+        import importlib
+        import os
+        from harness import budgets as module
+        with tempfile.TemporaryDirectory() as directory:
+            os.environ["ENCHRON_TIMINGS_DIRECTORY"] = directory
+            try:
+                importlib.reload(module)
+                self.assertEqual(module.DEFAULT_TIMINGS_DIRECTORY, Path(directory))
+                self.assertEqual(module.BudgetProvider().timings_directory, Path(directory))
+            finally:
+                del os.environ["ENCHRON_TIMINGS_DIRECTORY"]
+                importlib.reload(module)
+

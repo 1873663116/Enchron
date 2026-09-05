@@ -147,6 +147,7 @@ PROBE_COPY_LIMIT_BYTES = 600_000
 REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 LIBRARY_GRID_CARD_PREFIX = "MediaLibrary-grid-"
 LIBRARY_LIST_CONTAINER_IDENTIFIER = "FileBrowsing-FilesScreen-list"
+LIBRARY_EMPTY_STATE_IDENTIFIER = "FileBrowsing-FilesScreen-emptyState"
 TEST_MEDIA = ROOT.parent / "TestMedia"
 FIXTURE_SOURCES = {
     "furyroad-stripped.mkv":
@@ -3922,7 +3923,8 @@ class ReachabilityRun:
             if identifier.startswith(LIBRARY_GRID_CARD_PREFIX)
         )
         list_container = LIBRARY_LIST_CONTAINER_IDENTIFIER in identifiers
-        if list_container or not grid_cards:
+        empty_state = LIBRARY_EMPTY_STATE_IDENTIFIER in identifiers
+        if list_container or not (grid_cards or empty_state):
             last = self.events[-1] if self.events else None
             evidence = (
                 last.get("evidence", "raw/snapshot.json")
@@ -3935,6 +3937,7 @@ class ReachabilityRun:
                     "chain": chain,
                     "evidence": evidence,
                     "listContainerPresent": list_container,
+                    "emptyStatePresent": empty_state,
                     "gridCardCount": len(grid_cards),
                     "gridCards": grid_cards[:8],
                     "diagnosis": (
@@ -8744,7 +8747,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--require-baseline-coverage", action="store_true")
     parser.add_argument("--baseline-no-regression-evidence", type=Path)
     parser.add_argument("--window-resume-only", action="store_true")
-    parser.add_argument("--emby-credentials", type=Path)
+    parser.add_argument(
+        "--emby-credentials",
+        type=Path,
+        default=(
+            emby_source.DEFAULT_IDENTITY_FILE
+            if emby_source.DEFAULT_IDENTITY_FILE.is_file()
+            else None
+        ),
+    )
     parser.add_argument("--segment-plan", type=Path)
     parser.add_argument("--segment")
     parser.add_argument(

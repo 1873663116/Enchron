@@ -32,7 +32,10 @@ BUDGET_MULTIPLIER = 1.5
 BUDGET_FLOOR_SECONDS = 5.0
 BUDGET_CEILING_SECONDS = 600.0
 
-DEFAULT_TIMINGS_DIRECTORY = Path(__file__).resolve().parent.parent
+TIMINGS_DIRECTORY_ENVIRONMENT = "ENCHRON_TIMINGS_DIRECTORY"
+DEFAULT_TIMINGS_DIRECTORY = Path(
+    os.environ.get(TIMINGS_DIRECTORY_ENVIRONMENT) or Path(__file__).resolve().parent.parent
+)
 DEFAULT_PROVISIONAL_PATH = Path(__file__).resolve().parent / "provisional_budgets.json"
 
 

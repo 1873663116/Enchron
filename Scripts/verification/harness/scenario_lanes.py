@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from typing import Iterable, Mapping
 
-from harness.lane_partition import DEVICE, SIMULATOR, identifier_opens_playback
+from harness.lane_partition import DEVICE, SIMULATOR, identifier_needs_device
 
 RUN_CLASS = "ReachabilityRun"
 DISPATCH_METHOD = "run_named_segment_scenario"
@@ -66,7 +66,7 @@ def _dispatch_table(methods: Mapping[str, ast.FunctionDef]) -> ast.Dict:
     raise ScenarioTableMissing(f"{DISPATCH_METHOD} holds no scenario table")
 
 
-def _reaches_playback_open(
+def _reaches_device_only_action(
     roots: Iterable[str], methods: Mapping[str, ast.FunctionDef]
 ) -> bool:
     pending = list(roots)
@@ -77,7 +77,7 @@ def _reaches_playback_open(
             continue
         visited.add(name)
         body = methods[name]
-        if any(identifier_opens_playback(text) for text in _string_literals(body)):
+        if any(identifier_needs_device(text) for text in _string_literals(body)):
             return True
         pending.extend(_self_method_references(body))
     return False
@@ -90,6 +90,6 @@ def classify(source: str) -> dict[str, str]:
     for key, value in zip(table.keys, table.values):
         if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
             raise ScenarioTableMissing("scenario table keys must be string literals")
-        opens = _reaches_playback_open(_self_method_references(value), methods)
-        lanes[key.value] = DEVICE if opens else SIMULATOR
+        needs_device = _reaches_device_only_action(_self_method_references(value), methods)
+        lanes[key.value] = DEVICE if needs_device else SIMULATOR
     return lanes

@@ -34,5 +34,19 @@ def identifier_opens_playback(identifier: str) -> bool:
     )
 
 
+CREDENTIAL_SUBMIT_PREFIX = "FileBrowsing-SourceConnection-"
+CREDENTIAL_SUBMIT_SUFFIX = "-connect"
+
+
+def identifier_submits_credentials(identifier: str) -> bool:
+    return identifier.startswith(CREDENTIAL_SUBMIT_PREFIX) and identifier.endswith(
+        CREDENTIAL_SUBMIT_SUFFIX
+    )
+
+
+def identifier_needs_device(identifier: str) -> bool:
+    return identifier_opens_playback(identifier) or identifier_submits_credentials(identifier)
+
+
 def simulator_refuses_tap(lane: str, identifier: str) -> bool:
     return lane == SIMULATOR and identifier_opens_playback(identifier)

@@ -80,7 +80,7 @@ class RemoteBrowserConnectsSourceTests(unittest.TestCase):
 
     def test_round11_stays_on_the_device_lane(self) -> None:
         self.assertEqual(matrix.SCENARIO_LANES["remote-browser-round11"], "device")
-        self.assertEqual(matrix.SCENARIO_LANES["source-connection-webdav"], "simulator")
+        self.assertEqual(matrix.SCENARIO_LANES["source-connection-webdav"], "device")
 
 
 if __name__ == "__main__":

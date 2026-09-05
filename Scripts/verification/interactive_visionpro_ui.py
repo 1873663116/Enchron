@@ -70,8 +70,11 @@ modified during a view update. Those are worth their own investigation.
 
 Two seconds lets an ordinary exit finish without being signalled."""
 
-TIMINGS_DEVICE_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.device.json"
-TIMINGS_SIMULATOR_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.simulator.json"
+TIMINGS_DIRECTORY = Path(
+    os.environ.get("ENCHRON_TIMINGS_DIRECTORY") or REPOSITORY_ROOT / "Scripts/verification"
+)
+TIMINGS_DEVICE_PATH = TIMINGS_DIRECTORY / "controller_timings.device.json"
+TIMINGS_SIMULATOR_PATH = TIMINGS_DIRECTORY / "controller_timings.simulator.json"
 TIMING_SAMPLE_LIMIT = 40
 DEVICECTL_TRANSPORT_DEADLINE_SECONDS = 120.0
 DEVICECTL_CALL_COUNT = 0

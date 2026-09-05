@@ -54,7 +54,7 @@ def bare_run(root: Path) -> matrix.ReachabilityRun:
     run.channel_failures = []
     run.history = []
     run.policy = matrix.RecoveryPolicy()
-    run.budgets = matrix.BudgetProvider()
+    run.budgets = matrix.BudgetProvider(timings_directory=root)
     run.operations = {}
     run.cells = {}
     run.driven_cells = set()

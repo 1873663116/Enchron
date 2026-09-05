@@ -30,6 +30,9 @@ class ReachabilityRun:
     def nested(self):
         self.open_first()
 
+    def connect_webdav(self):
+        self.tap("main-window-browser", "FileBrowsing-SourceConnection-webDAV-connect")
+
     def run_named_segment_scenario(self, name):
         scenarios = {
             "browse": self.browse_only,
@@ -38,6 +41,7 @@ class ReachabilityRun:
             "emby": self.resume_from_emby,
             "lambda-browse": lambda: self.browse_only(),
             "lambda-open": lambda: self.nested(),
+            "connect": self.connect_webdav,
         }
         scenarios[name]()
 '''
@@ -51,6 +55,8 @@ BROWSER_DEVICE_SCENARIOS = {
     "player-ui-candidates",
     "remote-browser-round11",
     "resume-decision",
+    "source-connection-smb",
+    "source-connection-webdav",
 }
 BROWSER_SIMULATOR_SCENARIOS = {
     "browser-core",
@@ -61,8 +67,6 @@ BROWSER_SIMULATOR_SCENARIOS = {
     "manage-add",
     "settings-category-round13",
     "settings-menus",
-    "source-connection-smb",
-    "source-connection-webdav",
     "source-sidebar",
 }
 
@@ -84,6 +88,9 @@ class SyntheticSource(unittest.TestCase):
 
     def test_an_exact_emby_opener_is_recognised(self) -> None:
         self.assertEqual(self.lanes["emby"], DEVICE)
+
+    def test_a_credential_submit_needs_the_device(self) -> None:
+        self.assertEqual(self.lanes["connect"], DEVICE)
 
     def test_a_source_without_the_run_class_is_refused(self) -> None:
         with self.assertRaises(scenario_lanes.ScenarioTableMissing):

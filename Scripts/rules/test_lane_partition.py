@@ -53,6 +53,12 @@ class OpeningIdentifierDecision(unittest.TestCase):
         self.assertTrue(lp.identifier_opens_playback("FileBrowsing-grid-video-clip.mkv"))
         self.assertTrue(lp.identifier_opens_playback("Emby-Detail-Play"))
 
+    def test_a_credential_submit_needs_the_device_without_opening_playback(self) -> None:
+        self.assertTrue(lp.identifier_submits_credentials("FileBrowsing-SourceConnection-smb-connect"))
+        self.assertTrue(lp.identifier_needs_device("FileBrowsing-SourceConnection-webDAV-connect"))
+        self.assertFalse(lp.identifier_opens_playback("FileBrowsing-SourceConnection-webDAV-connect"))
+        self.assertFalse(lp.identifier_submits_credentials("FileBrowsing-SourceConnection-webDAV-cancel"))
+
     def test_browse_controls_do_not_open_playback(self) -> None:
         for identifier in (
             "MediaLibrary-Manage-newFolder",

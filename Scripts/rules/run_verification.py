@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import errno
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -809,6 +810,41 @@ def run_guard_selftests(
     )
 
 
+def tracked_tree_fingerprint(environment: dict[str, str]) -> dict[str, str]:
+    listing = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=normal", "-z"],
+        cwd=REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    fingerprint: dict[str, str] = {}
+    for entry in listing.stdout.split("\0"):
+        if len(entry) < 4:
+            continue
+        relative = entry[3:]
+        candidate = REPOSITORY_ROOT / relative
+        if candidate.is_file():
+            fingerprint[relative] = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        else:
+            fingerprint[relative] = entry[:2]
+    return fingerprint
+
+
+def tree_hygiene(before: dict[str, str], after: dict[str, str]) -> LayerResult:
+    changed = sorted(
+        path for path in set(before) | set(after) if before.get(path) != after.get(path)
+    )
+    if changed:
+        return LayerResult(
+            "Tree hygiene",
+            "FAIL",
+            "the run changed files under version control: " + ", ".join(changed),
+        )
+    return LayerResult("Tree hygiene", "PASS", "the run left the worktree as it found it")
+
+
 def install_git_hooks(environment: dict[str, str]) -> LayerResult:
     hook = REPOSITORY_ROOT / ".githooks/pre-push"
     if not hook.is_file() or not os.access(hook, os.X_OK):
@@ -987,6 +1023,9 @@ def main() -> int:
         print(f"Run logs: {run_directory}")
         try:
             environment = tool_environment()
+            timings_directory = run_directory / "timings"
+            timings_directory.mkdir()
+            environment["ENCHRON_TIMINGS_DIRECTORY"] = str(timings_directory)
             baseline = load_baseline()
         except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as error:
             result = LayerResult("Gate configuration", "FAIL", str(error))
@@ -1001,6 +1040,7 @@ def main() -> int:
             print_summary(results, run_directory)
             return 1
 
+        tree_before = tracked_tree_fingerprint(environment)
         results = [install_git_hooks(environment)]
         results.append(
             run_structure_checks(run_directory, environment, arguments.quick)
@@ -1031,6 +1071,7 @@ def main() -> int:
                 run_media_discovery_capability_matrix(run_directory, environment)
             )
             results.append(run_feature_coverage(run_directory, environment))
+        results.append(tree_hygiene(tree_before, tracked_tree_fingerprint(environment)))
 
         write_summary(
             run_directory,
