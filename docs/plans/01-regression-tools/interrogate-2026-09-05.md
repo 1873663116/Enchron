@@ -27,7 +27,7 @@
 | M4 | 人类层生产路径不可达：仪器故障 → `succeeded=False` → cursor 不前进 → `maxInvocations` 全为 1 → `interrupt_lane` → 无 adjudication 的 `indeterminate` → `reopen_refusal` 拒。自测用的是 `op_tool` 从不产出的形状。 | A C D（B4 相关） | 已修。终局调用以仪器故障收场且不再允许重试的 attempt 走账本锁：节点停在 `LEASED`，lane 不中断，裁决只许归因 harness 的 `indeterminate`／`deferred(human)`；`deferrable` 只读终局调用（B4）；`DeferrableTests` 改用真实形状。 |
 | M5 | `bundleFrameCount` 回放层由 payload 自述，`firstDeviantFrame` 的边界是自洽校验。 | A B C | 已修。`montage_frame_bound(lease)` 数最后两次完成调用里带截图键的条数，声明值不得超过。 |
 | M6 | `runtime._record_verdict` 幂等键无 attempt（C10 D3）；`finalize` 清扫按 lease 排序取到已停掉的第一次 attempt，8/12 把中断记错（C7）。 | C D | 已修。键为 `verdict:<node>:<attempt>`；清扫按节点取 `current_lease`。 |
-| M7 | `deferred(human)` 冻结下游子树：后继停在 `PENDING`，`finalize` 写成 `indeterminate`，run 判 `interrupted`，人类收据覆盖不到后继。 | C | 已修。`BLOCKING_NODE_STATUSES` 把它计入祖先，后继派生 `blockedBy`；`RunOutcome` 增 `deferred`。 |
+| M7 | `deferred(human)` 冻结下游子树：后继停在 `PENDING`，`finalize` 写成 `indeterminate`，run 判 `interrupted`，人类收据覆盖不到后继。 | C | 已修。`BLOCKING_NODE_STATUSES` 把它计入祖先，后继派生 `blockedBy`；`RunOutcome` 增 `deferred`。`completion.py` 的 FullRun 完成门仍只接受 `passed`：一轮 `deferred` 的 run 由人类收据关门，不经该门，这是边界而不是遗漏。 |
 
 ## Consider
 

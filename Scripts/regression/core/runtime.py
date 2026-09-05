@@ -90,6 +90,11 @@ from .store import ArtifactInput, ArtifactReceipt, ArtifactStore
 
 PLAN_FILENAME = "plan.json"
 DEFAULT_LEASE_DURATION_MILLIS = 60_000
+CLOSED_AS_PASSED = (
+    NodeStatus.PASSED,
+    NodeStatus.BLOCKED_BY,
+    NodeStatus.FAILED_KNOWN,
+)
 _TRANSITION_TRACE_DISARM = OperationID("operation:transition-trace.disarm@1")
 
 
@@ -1236,8 +1241,17 @@ class MainRun:
             outcome = RunOutcome.FAILED
         elif NodeStatus.DEFERRED_HUMAN in statuses:
             outcome = RunOutcome.DEFERRED
-        else:
+        elif all(status in CLOSED_AS_PASSED for status in statuses):
             outcome = RunOutcome.PASSED
+        else:
+            unclassified = sorted(
+                {status.value for status in statuses if status not in CLOSED_AS_PASSED}
+            )
+            raise RegressionError(
+                "runtime.unclassified_terminal_status",
+                ", ".join(unclassified),
+                "the outcome ladder classifies every terminal status it closes over",
+            )
         self._append(
             EventType.RUN_CLOSED,
             {"outcome": outcome.value},
