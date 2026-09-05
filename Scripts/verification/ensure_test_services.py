@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import signal
 import socket
 import ssl
 import stat
@@ -863,7 +864,12 @@ def ensure_all(specs: tuple[ServiceSpec, ...] | None = None) -> tuple[list[dict[
     return receipts, code
 
 
+def _exit_so_that_mounts_unwind(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
 def main(argv: list[str] | None = None) -> int:
+    signal.signal(signal.SIGTERM, _exit_so_that_mounts_unwind)
     parser = argparse.ArgumentParser(
         description="Resolve Emby, WebDAV, and SMB test services by identity."
     )

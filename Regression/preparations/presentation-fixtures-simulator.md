@@ -147,7 +147,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "mode": "replace",
-        "textFile": "repo://.build/regression-remote-source/runtime.json",
+        "textFile": "workspace://test-services/webdav/runtime.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -160,7 +160,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-username",
         "mode": "replace",
-        "textFile": "repo://.build/regression-remote-source/runtime.json",
+        "textFile": "workspace://test-services/webdav/runtime.json",
         "textJSONKey": "user",
         "secret": false
       },
@@ -173,7 +173,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-webDAV-password",
         "mode": "replace",
-        "textFile": "repo://.build/regression-remote-source/runtime.json",
+        "textFile": "workspace://test-services/webdav/runtime.json",
         "textJSONKey": "password",
         "secret": true
       },

@@ -778,7 +778,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                     self.assertEqual(prerequisites.get(key), binding["digest"])
                 else:
                     self.assertNotIn(key, prerequisites)
-            runtime_key = ("runtime-identity", "repo://.build/regression-remote-source/runtime.json")
+            runtime_key = ("runtime-identity", "workspace://test-services/webdav/runtime.json")
             if identifier in affected:
                 self.assertIn(runtime_key, prerequisites)
             else:
@@ -996,7 +996,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             ["address", "user", "password"],
         )
         self.assertTrue(
-            all(call.arguments["textFile"] == "repo://.build/regression-remote-source/runtime.json" for call in typed[1:])
+            all(call.arguments["textFile"] == "workspace://test-services/webdav/runtime.json" for call in typed[1:])
         )
         self.assertEqual([call.arguments["secret"] for call in typed], [False, False, False, True])
         self.assertNotIn("text", typed[-1].arguments)
@@ -1042,7 +1042,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
         )
         self.assertTrue(
             all(
-                call.arguments["textFile"] == "repo://.build/regression-smb-source/runtime.json"
+                call.arguments["textFile"] == "workspace://test-services/smb/runtime.json"
                 for call in typed[1:]
             )
         )
@@ -1104,7 +1104,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 prerequisites[(kind, binding["path"])], binding["digest"]
             )
         self.assertIn(
-            ("runtime-identity", "repo://.build/regression-smb-source/runtime.json"), prerequisites
+            ("runtime-identity", "workspace://test-services/smb/runtime.json"), prerequisites
         )
 
     def test_webdav_connection_tail_is_identical_on_device_and_simulator(self) -> None:

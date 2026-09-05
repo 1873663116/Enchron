@@ -20,11 +20,13 @@ from types import MappingProxyType
 from typing import Mapping, Protocol
 from urllib.parse import quote
 
+from regression_paths import TEST_SERVICES_ROOT
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY = REPOSITORY_ROOT / "Tests/Fixtures/fixture-registry.json"
 DEFAULT_ENVIRONMENT_FILE = REPOSITORY_ROOT / ".env"
-DEFAULT_RUNTIME_ROOT = REPOSITORY_ROOT / ".build/regression-smb-source"
+DEFAULT_RUNTIME_ROOT = TEST_SERVICES_ROOT / "smb"
 SHARE_NAME = "TestMedia"
 SHARE_LISTING_TIMEOUT_SECONDS = 30
 REPORT_SCHEMA = "enchron.regression.smb-source-preflight@1"

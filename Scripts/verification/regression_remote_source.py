@@ -33,11 +33,13 @@ from typing import Mapping, cast
 from urllib.parse import quote, unquote_to_bytes, urlsplit
 import xml.etree.ElementTree as ElementTree
 
+from regression_paths import TEST_SERVICES_ROOT
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY = REPOSITORY_ROOT / "Tests/Fixtures/fixture-registry.json"
 DEFAULT_SOURCE_ROOT = REPOSITORY_ROOT.parent / "TestMedia"
-DEFAULT_RUNTIME_ROOT = REPOSITORY_ROOT / ".build/regression-remote-source"
+DEFAULT_RUNTIME_ROOT = TEST_SERVICES_ROOT / "webdav"
 DEFAULT_ENVIRONMENT_FILE = REPOSITORY_ROOT / ".env"
 WEBDAV_ENVIRONMENT_USER_KEY = "WEBDAV_USER"
 WEBDAV_ENVIRONMENT_PASSWORD_KEY = "WEBDAV_PASSWORD"

@@ -33,52 +33,25 @@ jobs:
               '+refs/heads/*:refs/remotes/origin/*' \
               '+refs/pull/*/merge:refs/remotes/origin/pull/*/merge'
           git -C "$REPO" checkout --force --detach "${GITHUB_SHA:-refs/remotes/origin/main}"
-          # ensure_test_services.py mounts the SMB test share under
-          # .build/regression-smb-source, and a clean that walks into a live
-          # mount enumerates the whole remote share: the run against d2440337
-          # sat in `git clean` for 48 minutes at 0.01s of CPU, reading
-          # //Mac-mini.local/TestMedia over the network. Unmount whatever a
-          # previous run left behind before cleaning anything.
-          # `grep` exits 1 when nothing is mounted under the worktree, which
-          # is the ordinary case and not a failure of this step.
-          MOUNTED=$(mount | sed -n 's/^.* on \(.*\) ([^)]*)$/\1/p' \
-            | grep "^$REPO/" || true)
-          if [ -n "$MOUNTED" ]; then
-            printf '%s\n' "$MOUNTED" | while IFS= read -r point; do
-              # A graceful umount on a busy SMB mount blocks with no deadline
-              # of its own, which turns this step into the hang it exists to
-              # prevent. Force is the only form used here.
-              umount -f "$point" 2>/dev/null \
-                || diskutil unmount force "$point" >/dev/null 2>&1 \
-                || echo "could not unmount $point; the clean skips it"
-            done
-          fi
           # The build caches are the one thing worth carrying between runs.
           # Deleting the 3.3 GB DerivedData tree the full tier leaves behind
           # takes longer on this volume than the job's whole time budget, and
           # both Xcode and SwiftPM invalidate their trees by content.
+          # The test services keep their runtime identity documents and the
+          # SMB mount point under $WORKSPACE/test-services, outside every
+          # checkout, so this clean never walks into a live network mount.
           git -C "$REPO" clean -ffdx \
             -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
           cp "$MAIN/.env" "$REPO/.env"
-          # The Emby identity file is gitignored, so a fresh worktree has none
-          # and `ensure_test_services.py` compares every observed identity
-          # against the empty string: emby and webdav both read
-          # `identity-mismatch` for a server that is answering correctly.
+          # The Emby credentials are a resource of the EmbyTests package target
+          # (Package.swift declares `.process("Fixtures")`), and Bundle.module
+          # only sees files under that directory, so this one file has to exist
+          # inside the checkout. It is gitignored; the main checkout holds it.
           EMBY_IDENTITY=Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json
           if [ -f "$MAIN/$EMBY_IDENTITY" ]; then
             mkdir -p "$REPO/$(dirname "$EMBY_IDENTITY")"
             cp "$MAIN/$EMBY_IDENTITY" "$REPO/$EMBY_IDENTITY"
-          fi
-          # One WebDAV daemon can hold port 8443, and it is the one the main
-          # checkout started. Its certificate fingerprint and service id live in
-          # this runtime document; without it the worktree compares the live
-          # daemon against a fingerprint from a daemon of its own that no longer
-          # runs, and calls the answer a mismatch.
-          WEBDAV_RUNTIME=.build/regression-remote-source/runtime.json
-          if [ -f "$MAIN/$WEBDAV_RUNTIME" ]; then
-            mkdir -p "$REPO/$(dirname "$WEBDAV_RUNTIME")"
-            cp "$MAIN/$WEBDAV_RUNTIME" "$REPO/$WEBDAV_RUNTIME"
           fi
           # A stray .pth left by an unrelated editable install points into
           # ~/Documents, and every interpreter startup under the runner blocked

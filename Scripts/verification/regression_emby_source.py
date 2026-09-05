@@ -20,6 +20,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import urllib.request as urllib_request
 
+from regression_paths import TEST_SERVICES_ROOT
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ID = "generated-sdr-avc-bframe-aggregate-30s-v1"
@@ -44,7 +46,7 @@ SHA256 = "sha256:"
 ORIGINAL_PLAYBACK_STATE_FIELDS = frozenset(
     {"PlaybackPositionTicks", "Played"}
 )
-DEFAULT_RUNTIME_ROOT = REPOSITORY_ROOT / ".build/regression-emby-source"
+DEFAULT_RUNTIME_ROOT = TEST_SERVICES_ROOT / "emby"
 DEFAULT_IDENTITY_FILE = (
     REPOSITORY_ROOT
     / "Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json"

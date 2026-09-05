@@ -4,6 +4,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKSPACE_ROOT = REPOSITORY_ROOT.parent
+TEST_SERVICES_ROOT = WORKSPACE_ROOT / "test-services"
 REPOSITORY_SCHEME = "repo://"
 WORKSPACE_SCHEME = "workspace://"
 

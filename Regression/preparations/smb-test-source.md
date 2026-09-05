@@ -84,7 +84,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-smb-address",
         "mode": "replace",
-        "textFile": "repo://.build/regression-smb-source/runtime.json",
+        "textFile": "workspace://test-services/smb/runtime.json",
         "textJSONKey": "address",
         "secret": false
       },
@@ -97,7 +97,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-smb-username",
         "mode": "replace",
-        "textFile": "repo://.build/regression-smb-source/runtime.json",
+        "textFile": "workspace://test-services/smb/runtime.json",
         "textJSONKey": "user",
         "secret": false
       },
@@ -110,7 +110,7 @@
         "context": "main-window-browser",
         "identifier": "FileBrowsing-SourceConnection-smb-password",
         "mode": "replace",
-        "textFile": "repo://.build/regression-smb-source/runtime.json",
+        "textFile": "workspace://test-services/smb/runtime.json",
         "textJSONKey": "password",
         "secret": true
       },
