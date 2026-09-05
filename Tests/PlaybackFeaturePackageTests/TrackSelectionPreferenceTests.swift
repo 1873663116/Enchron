@@ -1230,11 +1230,14 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         replacing previousSessionID: String?
     ) async throws {
         let deadline = ContinuousClock.now + .seconds(2)
-        while currentLaunchRequest != request || activeSessionID == previousSessionID,
-              ContinuousClock.now < deadline {
+        while currentLaunchRequest != request
+            || activeSessionID == nil
+            || activeSessionID == previousSessionID,
+            ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(currentLaunchRequest == request)
+        #expect(activeSessionID != nil)
         #expect(activeSessionID != previousSessionID)
     }
 
