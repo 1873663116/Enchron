@@ -13,6 +13,7 @@ from regression.core.contracts import BoundLane
 from regression.core.digest import canonical_digest
 from regression.core.errors import RegressionError
 from regression.core.events import decode_json_bytes
+from regression.core.fields import ABSENT, SCREENSHOT_KEYS, field_value, screenshot_paths
 from regression.core.ids import CallID, NodeID, OperationID, SidekickID, SignatureID
 from regression.core.plan import CompiledRunPlan
 from regression.core.runtime import OperationResult, StateFingerprint, open_run
@@ -38,7 +39,6 @@ from regression_operation_adapter import (
 OP_LEASE_DURATION_MILLIS = 4 * 60 * 60 * 1000
 TRANSITION_TRACE_ARM = OperationID("operation:transition-trace.arm@1")
 PREPARATION_TRANSCRIPT_SCHEMA = "enchron.regression.preparation-transcript@1"
-SCREENSHOT_KEYS = ("localScreenshotPath", "screenshotPath", "screenshot")
 DESIGNATED_RESPONSE_KEYS = ("response", "record", "playbackState")
 TARGET_FILENAME = "lane-target"
 SCREENSHOT_MEDIA_TYPE = "image/png"
@@ -59,7 +59,6 @@ class OpToolError(ValueError):
     pass
 
 
-ABSENT = object()
 
 
 @dataclass(frozen=True)
@@ -199,7 +198,7 @@ def _request(call) -> OperationRequest:
 def screenshot_bytes(outputs: Mapping[str, Any]) -> Optional[bytes]:
     """One capture reaches the Agent's context base64 encoded. A file larger
     than the cap is left where it is rather than spent on that context."""
-    for candidate in _designated_paths(outputs) + _screenshot_paths(outputs)[::-1]:
+    for candidate in _designated_paths(outputs) + screenshot_paths(outputs)[::-1]:
         path = Path(candidate)
         if path.is_file() and not path.is_symlink():
             if path.stat().st_size > MAXIMUM_SCREENSHOT_BYTES:
@@ -219,20 +218,6 @@ def _designated_paths(outputs: Mapping[str, Any]) -> Tuple[str, ...]:
         if isinstance(nested, Mapping):
             designated.extend(_designated_paths(nested))
     return tuple(designated)
-
-
-def _screenshot_paths(value: Any) -> Tuple[str, ...]:
-    found = []
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            if key in SCREENSHOT_KEYS and isinstance(item, str) and item:
-                found.append(item)
-            else:
-                found.extend(_screenshot_paths(item))
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            found.extend(_screenshot_paths(item))
-    return tuple(found)
 
 
 def pixel_signatures(screenshot: Optional[bytes]) -> Tuple[SignatureID, ...]:
@@ -267,22 +252,6 @@ def _predicate_reading(predicate: FieldPredicate, outputs: Mapping[str, Any]) ->
     if read == predicate.value:
         return f"{FIELD_HOLDS}: {named}"
     return f"{FIELD_FAILS}: {named}, read {read!r}"
-
-
-def field_value(value: Any, field: str) -> Any:
-    if isinstance(value, Mapping):
-        if field in value:
-            return value[field]
-        for nested in value.values():
-            found = field_value(nested, field)
-            if found is not ABSENT:
-                return found
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            found = field_value(item, field)
-            if found is not ABSENT:
-                return found
-    return ABSENT
 
 
 def run(
@@ -445,7 +414,6 @@ def _lease_for(main, lane: BoundLane, node: NodeID, sidekick: SidekickID, now_mi
 
 __all__ = (
     "ARM_WITHOUT_DISARM_REFUSAL",
-    "ABSENT",
     "FIELD_ABSENT",
     "FIELD_FAILS",
     "FIELD_HOLDS",

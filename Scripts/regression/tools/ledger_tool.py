@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from regression.core.contracts import BoundLane
+from regression.core.fields import last_completed_outputs
 from regression.core.ids import NodeID, ScenarioID
 from regression.core.events import EventType, now_rfc3339_millis
 from regression.core.runtime import PLAN_FILENAME
@@ -19,6 +20,7 @@ from regression.core.runview import (
     build_run_view,
     nodes_awaiting_adjudication,
     settled_node_statuses,
+    strict_predecessors,
 )
 from regression.tools.ledger_lock import (
     LaneLock,
@@ -118,14 +120,8 @@ def recorded_fields(current: RunView, node: NodeID) -> Mapping[str, Any]:
     found = next((item for item in current.nodes if item.node_id == node), None)
     if found is None or found.lease_id is None:
         return {}
-    completed = [
-        item
-        for item in current.lease(found.lease_id).invocations
-        if item.completed and item.outputs is not None
-    ]
-    if not completed:
-        return {}
-    return dict(completed[-1].outputs.payload())
+    outputs = last_completed_outputs(current.lease(found.lease_id).invocations)
+    return {} if outputs is None else outputs
 
 
 def reopen(run_directory: Path, node: NodeID) -> Dict[str, Any]:
@@ -240,11 +236,8 @@ def _lock_payload(lock: LaneLock) -> Dict[str, Any]:
 
 
 def _predecessors_passed(node: NodeView, statuses) -> bool:
-    gates = frozenset(item.node_id for item in node.gate_dependencies)
     return all(
-        statuses.get(item) is NodeStatus.PASSED
-        for item in node.predecessors
-        if item not in gates
+        statuses.get(item) is NodeStatus.PASSED for item in strict_predecessors(node)
     )
 
 

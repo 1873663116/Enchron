@@ -15,6 +15,7 @@ CORE_ROOT = REGRESSION_ROOT / "core"
 ALLOWED_INTERNAL_IMPORTS = {
     "__init__": frozenset(("errors",)),
     "errors": frozenset(),
+    "fields": frozenset(),
     "ids": frozenset(("errors",)),
     "digest": frozenset(("ids",)),
     "frontmatter": frozenset(("digest", "errors", "ids")),
@@ -54,6 +55,7 @@ ALLOWED_INTERNAL_IMPORTS = {
             "errors",
             "events",
             "expression",
+            "fields",
             "ids",
             "state",
         )

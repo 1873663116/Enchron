@@ -8,11 +8,10 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Optional, Tuple, Union
 
+from regression.core.fields import ABSENT, field_value, reads_equal
 from regression.core.ids import ScenarioID, SignatureID, parse_identifier
 from regression.core.runview import NodeStatus
 from regression.rubric_compiler import FieldPredicate
-from regression.tools.op_tool import field_value
-from regression.tools.op_tool import ABSENT
 from regression.tools.signatures import SignatureError, signature
 from regression.tools.verdict import Verdict
 
@@ -119,6 +118,11 @@ def _match(value: Any, location: str) -> Union[SignatureID, FieldPredicate]:
         )
     if not isinstance(value["field"], str) or not value["field"]:
         raise KnownDefectError(f"{location} names no field")
+    if type(value["value"]) not in (bool, str):
+        raise KnownDefectError(
+            f"{location} compares against {value['value']!r}; a field predicate "
+            "reads a boolean or a string"
+        )
     return FieldPredicate(value["field"], EQUALS, value["value"])
 
 
@@ -160,7 +164,7 @@ def _hits(
 ) -> bool:
     if isinstance(match, FieldPredicate):
         read = field_value(fields, match.field)
-        return read is not ABSENT and read == match.value
+        return read is not ABSENT and reads_equal(read, match.value)
     return verdict.signature == match
 
 

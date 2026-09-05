@@ -87,6 +87,16 @@ ledger resume --run-directory                         -> {ready, awaitingVerdict
 
 `--verdict-json` 自带 `node` 字段，命令面不再单列 `--node`。`bundle_frame_count` 随裁决落进 payload，`0 <= firstDeviantFrame < bundleFrameCount` 因此在 replay 时可复核。阶段 12 产出真实拼图帧数后只换来源，不换校验位置。
 
+## 2026-09-05 对抗审查后的收紧
+
+[interrogate](interrogate-2026-09-05.md) 的四位审查者在同一个根因上一致：回放层比工具层宽。`admit_verdict` 拒绝的裁决，直接追加成账本行就能回放通过——与本阶段「锁是转移规则而不是工具约定」的原则相反。收紧后的形状：
+
+- **准入表只有一张。** `admissible_verdicts(settled, ended_on_the_harness)` 长在 `runview.py`，回放的 `_record_verdict` 与工具的 `admit_verdict` 都查它。表按「节点是否持有 lease」分两半：无 lease 的节点只接受 `indeterminate`（`finalize` 写的），或与 `derivable_verdict` 逐项相等的派生结论（join 的 `passed`、失败祖先之后的 `blockedBy`）；有 lease 的节点按聚合结果查上文的四行表，聚合未定且终局调用以仪器故障收场时只许 `indeterminate` 与 `deferred(human)`。原实现把 `deferrable_from` 与「结果尚未定只许 indeterminate」两条都写在 `LEASED` 分支里，`PENDING` 节点因此可以被写成 `deferred(human)`，前驱全部 `PENDING` 的 join 可以被写成 `passed`。
+- **`blockedBy` 的祖先由 run 派生。** 原实现对 `failureAncestors` 只做标识符解析，一行指向不存在节点的 `blockedBy` 能关掉任意节点、解开 lane 锁并让整轮收口为 `passed`。现在它必须等于 `derivable_verdict` 算出的集合。
+- **`bundleFrameCount` 在回放层有上界。** 帧数原本只在 `ledger_tool.write` 里从 run 派生，进了 payload 之后回放只校验 `firstDeviantFrame` 落在它之内，两者出自同一份自述。`montage_frame_bound(lease)` 数该 lease 最后两次完成调用里带截图键的条数——`frames_of` 的结构常量——声明值不得超过它。
+- **同一条规则的两份副本合并。** `runtime._evaluate_and_record` 与 `_recover_uncertain_invocations` 各自手写「聚合是否 SATISFIED」，在 `AnyOf` 下与 `settled_oracle_result` 不等价；两处改调后者。`runtime._record_verdict` 的幂等键补上 attempt，与 `ledger_tool` 同一格式；`finalize` 的清扫按节点取 `current_lease`，不再按 lease 排序取到已停掉的第一次 attempt。`_reopen_node` 用 `_integer` 核对 `attemptsBefore`（`True` 不再等于 `1`），并清掉旧 lane。
+- **回放层的每条拒绝都有直接追加账本行的自测。** `Scripts/rules/test_regression_replay_admission.py` 对上面每一条各追加一行伪造事件；重开的五种拒绝理由此前只经 `ledger_tool.reopen` 测过，变异掉 `reopen_refusal` 四个套件全绿，现在各有孪生用例。
+
 ## 阶段验证方案
 
 状态机 commit：

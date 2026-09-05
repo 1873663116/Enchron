@@ -71,13 +71,15 @@ class ChecklistTests(unittest.TestCase):
         self.assertEqual((NODE,), checklist.deferred)
         self.assertEqual((NODE,), checklist.nodes)
 
-    def test_a_known_failure_does_not_block_its_successors_from_closing(
-        self,
-    ) -> None:
+    def test_a_deferred_node_blocks_its_strict_successors(self) -> None:
+        """A successor of a node the wearer still has to look at cannot run,
+        so it closes as blockedBy behind that node and the run closes with
+        it; a successor left pending would turn indeterminate at finalize
+        and the human receipt covers only the deferred node itself."""
         from regression.core.runview import failure_ancestors
 
         blocked = failure_ancestors((_deferred_view().node(NODE),))
-        self.assertEqual((), blocked)
+        self.assertEqual((NODE,), blocked)
 
     def test_widening_the_checklist_changes_its_digest(self) -> None:
         narrow = Checklist((NODE,), ())

@@ -9,14 +9,15 @@ from typing import Optional
 from regression.core.contracts import BoundLane
 from regression.core.ids import NodeID
 from regression.core.runview import (
-    ADJUDICATED_NODE_STATUSES,
-    MAX_NODE_ATTEMPTS,
+    Attribution,
     NodeStatus,
     RunView,
+    admissible_verdicts,
     attempts_of,
     awaiting_adjudication,
-    deferrable_from,
     current_lease,
+    deferrable_from,
+    harness_fault_ending,
     reopen_refusal,
     settled_oracle_result,
 )
@@ -104,7 +105,7 @@ def lane_lock_state(view: RunView, lane: BoundLane) -> LaneLock:
 
 
 def attempts(view: RunView, node: NodeID) -> int:
-    return sum(1 for item in view.leases if item.node_id == node)
+    return attempts_of(node, {item.lease_id: item for item in view.leases})
 
 
 def deferrable(view: RunView, node: NodeID) -> bool:
@@ -146,12 +147,23 @@ def admit_verdict(
         )
 
     settled = settled_oracle_result(node, lease)
-    admissible = ADJUDICATED_NODE_STATUSES[settled]
+    fault = None if settled is not None else harness_fault_ending(lease)
+    admissible = admissible_verdicts(settled, fault is not None)
     if status not in admissible:
         allowed = ", ".join(item.value for item in admissible)
+        outcome = (
+            f"the Oracle result {settled.value}"
+            if settled is not None
+            else f"an instrument fault ({fault.get('kind')}) that ended the attempt"
+        )
         raise LedgerLockError(
-            f"the Oracle result for {verdict.node} was {settled.value}, which the "
-            f"ledger closes as {allowed}, not as {status.value}"
+            f"{verdict.node} recorded {outcome}, which the ledger closes as "
+            f"{allowed}, not as {status.value}"
+        )
+    if fault is not None and verdict.attribution is not Attribution.HARNESS:
+        raise LedgerLockError(
+            f"{verdict.node} ended on the instrument ({fault.get('kind')}), which "
+            f"is attributed to the harness, not to {verdict.attribution.value}"
         )
     if status is NodeStatus.DEFERRED_HUMAN and not deferrable(view, verdict.node):
         raise LedgerLockError(
@@ -202,7 +214,6 @@ def verdict_payload(
 
 
 __all__ = (
-    "MAX_NODE_ATTEMPTS",
     "LOCKED_BY_INTERRUPTION",
     "LOCKED_BY_RUN_CLOSURE",
     "LOCKED_UNTIL_ADJUDICATED",

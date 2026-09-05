@@ -199,6 +199,7 @@ python3 Scripts/rules/merge_authority.py generate origin/main..HEAD \
 - **账本多了一个「重开」事实。** 人类层的进入条件要求同一节点有两次 attempt，而原状态机里一个节点只能被 claim 一次。`NODE_REOPENED` 只接受归因为 harness 的 `indeterminate`，上限两次，全部候选 lane 中断时拒绝，且回放时核对它自称的 attempt 数。
 - **逐 Operation digest 按 handler 源码段算。** 35 个 Operation 合同共用同一个 `implementation.locator`，按文件算达不到「只失效用过该 Operation 的节点」。实测：改一个 handler 只改一个 digest，改共享代码改全部 35 个。这条实测最初只在类外的代码上成立：`ResidentOperationBackend` 的 80 个方法被整体剔出共享 digest，其中 45 个（2338 行）不服务任何 Operation，改动它们一个 digest 都不动。2026-09-05 起剔除范围收窄到 Catalog 点名的 35 个 handler，类内非 handler 方法的改动同样使全部 35 个 digest 失效。
 - **异常包的裁切没有产出。** `matchedElement.frame` 的单位是点，截图是像素，响应里没有任何字段记录屏幕的点尺寸。按猜的比例裁切会把错的区域配上裁决文字，因此逐条说明为什么产不出。
+- **回放层曾比工具层宽。** 计划要求阶段 8、15、16 合并前走 interrogate，该门于 2026-09-05 补跑（[interrogate-2026-09-05.md](interrogate-2026-09-05.md)）。四位审查者各自用手写账本行证明：`failed(known)` 的豁免、`deferred(human)`、`blockedBy` 的祖先、`bundleFrameCount` 四处在回放层由裁决自述，工具拒而回放放行；仪器超时的生产路径到不了人类层。裁决准入收成一张两层共用的表，仪器故障收场的 attempt 走账本锁，逐项记在[阶段 8](phase-8-ledger-lock-and-tool.md)、[阶段 15](phase-15-known-defect-ledger.md) 与[阶段 16](phase-16-human-session-mode.md) 的偏离一节。
 
 未闭合的缺口逐条记在[阶段 15](phase-15-known-defect-ledger.md) 的「未闭合的缺口」一节，其中最重要的一条是：`verdict.signature` 与运行期实际命中的签名之间还没有绑定。
 

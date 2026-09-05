@@ -68,9 +68,11 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 
 - **`verdict.signature` 与运行期实际命中的签名之间没有绑定。** `op` 的 `pixel_signatures` 与 `bundle` 的 `frame_unchanged` 算出的签名都没有进账本，因此账本里根本没有可比对的一侧。要闭合它，得先把算出的签名写成事件或写进完成事件的保留键，再让 `write` 拒绝一个不在该节点该次 attempt 命中集合里的签名。
 - ~~**豁免的依据不进账本。**~~ 2026-09-05 闭合。`adjudication` 增加 `knownDefect` 键，写下豁免这个节点的记录的 Scenario 与它的命中判据。replay 据此校验：`failed(known)` 必须带这个键，其他终态不得带；判据是签名 id 时它必须等于裁决里的签名。同一次改动修掉一个死锁——`classify` 判出 `failed(known)` 之后，`admit_verdict` 与 replay 都要求裁决带签名，而按字段谓词命中的记录并不产生签名，那个节点因此既写不成 `failed(known)`（缺签名被拒）也写不成 `failed`（`classify` 会覆盖），无法收口。
+  同日的 [interrogate](interrogate-2026-09-05.md) 指出上面这一版只校验了键的形状：四位审查者各自追加一行 `failed(known)`，`knownDefect` 指向不存在的 Scenario、用 `!=`、命名一个没有任何调用报告过的字段，回放照常通过，`finalize` 把整轮判成 `passed`。现在 `RUN_OPENED` 的节点 payload 带 `scenarioId`，回放层 `_verify_exemption` 要求记录的 Scenario 等于节点的 Scenario；字段谓词只接受 `==`，并对该 lease 最后一次完成调用的 outputs 重算命中，比较按类型严格（`True` 不等于 `1`）。注册表成员资格不在回放层重查：注册表是配置，账本自含，回放重算的是「这条判据对这次运行成立」。`field_value` 从 `op_tool` 移到 `regression/core/fields.py`，L0 读数、豁免匹配与回放核对三处用同一份查找。
 - **`expiresWhen` 只要求非空文本。** 它没有任何检查方式，也没有任何地方再读它。可检查的替代是一个必填的 `expiresOn` 日期，`load` 在过期时拒绝；`recorded` 已经按 ISO 解析，也可以据此设一个最长年龄。
 - **没有登记的 ratchet 检查看住这张表。** 阶段 13 的覆盖率基线是同一个机制的反向用法：那里下限只能升，这里条数只能降。表目前为空，第一条记录落地之前补上这道门是自然的时机。
-- **一条范围划错的豁免影响整棵下游子树。** `failed(known)` 现在与 `failed` 一样进入 `failure_ancestors`（`Scripts/regression/core/runview.py:628`），下游节点因此被派生为 `blockedBy` 并随 run 一同收口。这条记账原先写的是相反的因果——「不进 `failure_ancestors`，因此不阻塞下游」。实测那个版本的后果不是放行而是冻结：下游节点拿不到派生裁决，停在 `PENDING`，收口时变成 `indeterminate`，收据被拒。代价仍在，形状不同：豁免划错时，被判成 `blockedBy` 的是一整棵本可以跑的子树。
+- **一条范围划错的豁免影响整棵下游子树。** `failed(known)` 现在与 `failed` 一样进入 `failure_ancestors`（`Scripts/regression/core/runview.py` 的 `BLOCKING_NODE_STATUSES`），下游节点因此被派生为 `blockedBy` 并随 run 一同收口。这条记账原先写的是相反的因果——「不进 `failure_ancestors`，因此不阻塞下游」。实测那个版本的后果不是放行而是冻结：下游节点拿不到派生裁决，停在 `PENDING`，收口时变成 `indeterminate`，收据被拒。代价仍在，形状不同：豁免划错时，被判成 `blockedBy` 的是一整棵本可以跑的子树。
+- **`failed` 与 `failed(known)` 在收据层等价。** `receipt_tool` 的关门集合同时含两者：收据记录的是「节点已由账本关闭」，一次普通失败同样关闭。两者的差别落在 `RunOutcome`（`failed` 对 `passed`）与 `finalize` 的结局阶梯上，不在收据能否发出。
 
 ### 独立审计追加的缺口
 
@@ -85,9 +87,9 @@ classify(verdict: Verdict, fields: Mapping[str, Any]) -> NodeStatus
 - **异常包的 before 帧可能来自另一个 Operation。** 它取的是上一次完成调用的截图，标题原先写的是失败调用的 call id；标题已改成那张图真正的来源。Agent 仍需要知道这两帧可能横跨两个 Operation。
 - **人类收据没有 run 绑定。** 收据现在必须匹配本次 run 生成的 checklist digest（`Scripts/regression/tools/receipt_tool.py`），但收据里的 `buildDigest`、`deviceId`、`recordingDigest` 依然没有任何一侧可比对，`seal` 也没有工具入口，操作者实际走的是手写 JSON 这条路。
 
-### 计划要求但没有执行的门
+### 计划要求的门
 
-`overview.md:118` 与本文件开头都要求本阶段与阶段 16 合并前走 **interrogate**。该技能保留给使用者显式调用，Agent 无法代为发起。合并前实际执行的是两轮派遣式对抗审查（豁免路径与重开路径），各找出 1 个 critical 与若干 high 并当场修掉；这不等同于计划指定的那道门。需要补的话由使用者运行 `/interrogate`。
+`overview.md:118` 与本文件开头都要求本阶段与阶段 16 合并前走 **interrogate**。合并前实际执行的是两轮派遣式对抗审查（豁免路径与重开路径）；使用者于 2026-09-05 放行后补跑了该门，四位审查者、同一份 prompt、审当前工作树，裁决与逐项处置记在 [interrogate-2026-09-05.md](interrogate-2026-09-05.md)。
 
 ## 阶段验证方案
 
@@ -111,4 +113,4 @@ python3 Scripts/regression/tools/server.py --once ledger \
   --run-directory .scratch/harness-tools/run --view
 ```
 
-对一个已录入的 Scenario 跑一次 op，账本视图中该节点为 `failed(known)`，且它所在 lane 的 `LaneLock.locked` 为假。这一对返回值证明已知缺陷既被记录也不挡路。
+对一个已录入的 Scenario 跑一次 op，账本视图中该节点为 `failed(known)`，且它所在 lane 的 `LaneLock.locked` 为假。lane 不锁对 `failed` 同样成立；区分两者的是 `receipt` 工具算出的 `RunOutcome`：只有 `failed(known)` 的 run 收口为 `passed`。

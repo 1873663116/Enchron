@@ -73,11 +73,15 @@ from .runview import (
     TRANSITION_FAULT_INTERRUPTION_PREFIX,
     _assigned_emergency_arm,
     aggregate_oracle_results,
+    attempt_ended_on_the_harness,
+    attempts_of,
     awaiting_adjudication,
     build_run_view,
+    current_lease,
     derivable_verdict,
     nodes_awaiting_adjudication,
     resolve_call_arguments,
+    settled_oracle_result,
 )
 from .scheduler import ReadyCandidate, choose_ready
 from .state import capture_state_handle
@@ -1207,14 +1211,18 @@ class MainRun:
                 ", ".join(str(item.node_id) for item in owed),
                 "a non-satisfied node needs its ledger verdict before the run closes",
             )
-        for lease in current.leases:
-            if current.node(lease.node_id).status is NodeStatus.LEASED:
-                self.interrupt_lane(
-                    lease.lane,
-                    "run-finalized-with-active-lease",
-                    lease.lease_id,
-                )
-                current = self.view
+        for node in current.nodes:
+            if node.status is not NodeStatus.LEASED:
+                continue
+            lease = current_lease(current, node)
+            if lease is None:
+                continue
+            self.interrupt_lane(
+                lease.lane,
+                "run-finalized-with-active-lease",
+                lease.lease_id,
+            )
+            current = self.view
         self._settle_derivable_nodes()
         current = self.view
         for node in current.nodes:
@@ -1226,22 +1234,10 @@ class MainRun:
             outcome = RunOutcome.INTERRUPTED
         elif NodeStatus.FAILED in statuses:
             outcome = RunOutcome.FAILED
-        elif all(
-            status
-            in (
-                NodeStatus.PASSED,
-                NodeStatus.BLOCKED_BY,
-                NodeStatus.FAILED_KNOWN,
-            )
-            for status in statuses
-        ):
-            outcome = RunOutcome.PASSED
-        elif all(
-            status in (NodeStatus.PASSED, NodeStatus.BLOCKED_BY) for status in statuses
-        ):
-            outcome = RunOutcome.PASSED
+        elif NodeStatus.DEFERRED_HUMAN in statuses:
+            outcome = RunOutcome.DEFERRED
         else:
-            outcome = RunOutcome.INTERRUPTED
+            outcome = RunOutcome.PASSED
         self._append(
             EventType.RUN_CLOSED,
             {"outcome": outcome.value},
@@ -1365,6 +1361,7 @@ class MainRun:
             and updated.current_call is not None
             and updated.invocation_count(grant.call_id)
             >= updated.current_call.max_invocations
+            and not attempt_ended_on_the_harness(updated)
         ):
             if not defer_interruption:
                 self.interrupt_lane(
@@ -1580,9 +1577,12 @@ class MainRun:
                 },
                 f"oracle:{lease.lease_id}:{binding.id}",
             )
-            completed[binding.id] = result.overall
 
-        if evaluate_success(node.success, completed) is OracleResult.SATISFIED:
+        current = self.view
+        if (
+            settled_oracle_result(current.node(node.id), current.lease(lease.lease_id))
+            is OracleResult.SATISFIED
+        ):
             self._record_verdict(node.id, NodeStatus.PASSED, lease.lease_id)
 
     def _validate_evaluator(
@@ -1678,10 +1678,13 @@ class MainRun:
             "status": status.value,
             "failureAncestors": [str(item) for item in failure_ancestors],
         }
+        attempt = attempts_of(
+            node_id, {item.lease_id: item for item in self.view.leases}
+        )
         self._append(
             EventType.VERDICT_RECORDED,
             payload,
-            f"verdict:{node_id}",
+            f"verdict:{node_id}:{attempt}",
         )
 
     def _recover_uncertain_invocations(self) -> None:
@@ -1704,7 +1707,7 @@ class MainRun:
             recovery_reason = None
             if lease.uncertain_invocations or lease.status is LeaseStatus.INTERRUPTED:
                 recovery_reason = "uncertain-operation-after-recovery"
-            elif retries_exhausted:
+            elif retries_exhausted and not attempt_ended_on_the_harness(lease):
                 recovery_reason = "operation-retries-exhausted"
             if recovery_reason is not None:
                 self.interrupt_lane(
@@ -1714,23 +1717,9 @@ class MainRun:
                 )
                 current = self.view
                 continue
-            if lease.evidence_accepted:
-                plan_node = self._scenario_node(lease.node_id)
-                results = {
-                    item.obligation_id: item.overall
-                    for item in lease.oracle_evaluations
-                }
-                if (
-                    set(results) == {
-                        item.id for item in plan_node.evaluation_bindings
-                    }
-                    and evaluate_success(plan_node.success, results)
-                    is OracleResult.SATISFIED
-                ):
-                    self._record_verdict(
-                        plan_node.id, NodeStatus.PASSED, lease.lease_id
-                    )
-                    current = self.view
+            if settled_oracle_result(node, lease) is OracleResult.SATISFIED:
+                self._record_verdict(node.node_id, NodeStatus.PASSED, lease.lease_id)
+                current = self.view
 
     def _call_sequence(
         self,
@@ -1992,6 +1981,7 @@ def _node_open_payload(node: Any) -> Mapping[str, Any]:
     }
     if not isinstance(node, BothJoinNode):
         payload["success"] = success_payload(node.success)
+        payload["scenarioId"] = str(node.scenario_id)
     return payload
 
 

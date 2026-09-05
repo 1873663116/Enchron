@@ -445,13 +445,13 @@ def _envelope(main, lease, *, data: bytes = b"frame", path_suffix: str = ""):
     )
 
 
-def _run_claimed_node(main, result: OracleResult):
+def _run_claimed_node(main, result: OracleResult, screenshots: bool = True):
     lease = main.claim(
         BoundLane.SIMULATOR,
         SidekickID("sidekick:main"),
         now_millis=0,
     )
-    _complete_operations(main, lease)
+    _complete_operations(main, lease, screenshots=screenshots)
     envelope = _envelope(main, lease)
     receipt = main.accept_evidence(envelope, FakeOracle(result))
     return lease, envelope, receipt
@@ -459,8 +459,8 @@ def _run_claimed_node(main, result: OracleResult):
 
 ADJUDICATION = {
     "attribution": "product",
-    "bundleFrameCount": 12,
-    "firstDeviantFrame": 3,
+    "bundleFrameCount": 1,
+    "firstDeviantFrame": 0,
     "regionObservation": "the poster grid stayed blank",
     "signature": None,
 }
@@ -513,7 +513,7 @@ def _half_evaluated_run(root: Path, plan, first: OracleResult):
         SidekickID("sidekick:main"),
         now_millis=0,
     )
-    _complete_operations(main, lease)
+    _complete_operations(main, lease, screenshots=True)
     main.accept_evidence(
         _envelope(main, lease),
         FakeOracle(
@@ -623,7 +623,9 @@ class RuntimeHappyPathTests(unittest.TestCase):
             adjudicated = replay(directory)
             node = adjudicated.node(lease.node_id)
             self.assertEqual(NodeStatus.FAILED, node.status)
-            self.assertEqual(3, node.adjudication.first_deviant_frame)
+            self.assertEqual(
+                ADJUDICATION["firstDeviantFrame"], node.adjudication.first_deviant_frame
+            )
             self.assertEqual((), nodes_awaiting_adjudication(adjudicated))
             self.assertEqual(RunOutcome.FAILED, open_run(plan, directory).finalize().outcome)
 
@@ -668,12 +670,22 @@ class RuntimeHappyPathTests(unittest.TestCase):
                 (NodeStatus.FAILED, None, "needs its adjudication"),
                 (
                     NodeStatus.FAILED,
-                    {**ADJUDICATION, "firstDeviantFrame": 12},
+                    {**ADJUDICATION, "firstDeviantFrame": 1},
                     "outside the bundle frame count",
                 ),
                 (
                     NodeStatus.FAILED,
+                    {**ADJUDICATION, "bundleFrameCount": 2, "firstDeviantFrame": 1},
+                    "recorded 1 montage frame",
+                ),
+                (
+                    NodeStatus.FAILED,
                     {**ADJUDICATION, "regionObservation": ""},
+                    "must be a non-empty string",
+                ),
+                (
+                    NodeStatus.FAILED,
+                    {**ADJUDICATION, "regionObservation": "   "},
                     "must be a non-empty string",
                 ),
                 (

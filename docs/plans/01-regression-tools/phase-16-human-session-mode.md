@@ -40,14 +40,18 @@ session --mode human --device <UDID> --stage ensure --checklist <deferred 节点
 
 ## 与原清单的偏离
 
-六处：
+十处，后四处由 2026-09-05 的 [interrogate](interrogate-2026-09-05.md) 推动：
 
 - **仪器故障的 kind 原本根本不进账本。** `_harness_recovered` 在 `Halt` 时把 `InstrumentFault` 原样抛出（`regression_operation_adapter.py:82-84`），`op_tool` 让它逃逸成工具错误，因此调用输出里只有产品失败带 kind，仪器失败连一条记录都没有。`deferrable` 于是无据可依。现在 `op_tool` 捕获它，把 `failure.class=instrument` 与 kind 记进该次调用的 outputs：一次尝试失败在仪器上，这是关于这次 attempt 的事实，本来就该进账本。
-- **超时类的取值按本仓库的实际清单对账。** 原清单写的 `response-timeout` 不在 `harness/CONTRACT.md:36` 的仪器故障 kind 里；`readyTimeout` 是 `ensure-session` 的一个阶段，压根到不了 op 调用。实际可用的超时类是 `transport-timeout`、`wait-expired`、`provisional-budget-expired`，`HARNESS_TIMEOUT_KINDS` 就是这三个。
+- **超时类的取值按本仓库的实际清单对账。** `readyTimeout` 是 `ensure-session` 的一个阶段，压根到不了 op 调用。`HARNESS_TIMEOUT_KINDS` 是四个：`transport-timeout`、`response-timeout`、`wait-expired`、`provisional-budget-expired`。`response-timeout` 是 runner 自身应答死线到期时发出的 kind（`interactive_visionpro_ui.py:1501`），`harness/CONTRACT.md:52` 的 kind→class 映射把它列为 instrument，而同文件 `:36` 的 kind 清单漏掉了它；这份合同文件自身规定不得修改、矛盾须上报，矛盾记在这里。`harness/failures.py` 的 `INSTRUMENT_KINDS` 补上了这个 kind，`test_regression_human_session.py` 钉住 `HARNESS_TIMEOUT_KINDS ⊆ INSTRUMENT_KINDS`：任何一侧改名，门禁先红。
 - **入口条件在回放层执行，工具层同一条规则再拒一次。** `deferrable_from` 长在 `runview.py`，`_record_verdict` 用它拦住任何不满足条件的 `deferred(human)`，因此一份手写的账本回放不过去——这是阶段 8 定下的原则。`admit_verdict` 用同一个函数在写入前给出可读的拒绝理由，排在 Oracle 结果检查之后：一个 `Violated` 的节点该听到的是「Oracle 结果是 violated」，而不是人类层的门槛。
 - **重开机制随阶段 15 落地。** 「同一节点连续两次 attempt」的前提是节点能跑第二次，那部分与已知缺陷账本同批提交。
 - **`poll_timeline` 的休眠由调用方传入，没有默认值。** `Scripts/regression/tools/` 禁用 `time.sleep`，`harness_primitives_gate` 在门禁上抓到了这一行。这条规则是对的：`tools/` 里的工具不该自己决定睡多久。休眠成为一个必填参数，console 传它进来。
-- **`session --mode human` 的时间线可测，佩戴者循环未验证。** `poll_timeline`、`mark`、`read_timeline` 接受注入的读数、时钟与休眠，因此每行是合法 JSON、时间戳单调、`mark` 落在它之后的读数之前这三条都由自测钉住。真正驱动佩戴者会话的那半部分需要一台真机和一个人，本次没有跑过，不声称跑过。
+- **`session --mode human` 的时间线可测，佩戴者循环未验证。** `poll_timeline`、`mark`、`read_timeline` 接受注入的读数、时钟与休眠，因此每行是合法 JSON、`mark` 落在它之后的读数之前这两条由自测钉住。真正驱动佩戴者会话的那半部分需要一台真机和一个人，本次没有跑过，不声称跑过。
+- **仪器故障收场的 attempt 走账本锁，不再中断 lane。** 原实现里 `op_tool` 把 `InstrumentFault` 记成一次 `succeeded=False` 的调用，cursor 不前进，`maxInvocations` 在 Catalog 里全部是 1，于是 `_complete_operation` 立即 `interrupt_lane`，节点被写成没有 adjudication 的 `indeterminate`，`reopen_refusal` 因缺 adjudication 拒绝重开，lane 又已中断——人类层的生产路径整条不可达，自测之所以绿是因为夹具用的是 `succeeded=True` 且带 `failure` 块的形状，`op_tool` 从不产出它。三位审查者独立跑出这一条。现在 `harness_fault_ending(lease)` 从 lease 派生「终局调用以仪器故障收场且不再允许重试」，`awaiting_adjudication` 对这种 lease 为真：节点停在 `LEASED`，lane 锁为 `awaitingVerdict`，与 Oracle 非 Satisfied 同一条锁；`admissible_verdicts` 只放行 `indeterminate` 与 `deferred(human)`，回放层与 `admit_verdict` 同时要求 attribution 为 harness——故障是仪器的，这是从 run 读出的事实，不是调用方的自述。产品类的调用失败（`app-crashed`）仍按原路中断 lane。`DeferrableTests` 改用 `OperationResult(False, ..., {"failure": ...})` 这一真实形状。
+- **`deferrable` 只读每次 attempt 的终局调用。** 原实现扫描全部 invocation，一次被重试救回的超时会把一个跑完并被 Oracle 判读的 attempt 算成超时，两次全绿的 attempt 也能进人类层。`timed_out_on_the_harness` 现在建立在 `harness_fault_ending` 之上：只有终结这次 attempt 的那一次调用算数。
+- **`deferred(human)` 阻塞严格后继，run 收口为 `deferred`。** 原实现里它既不进 `failure_ancestors` 也不是 `PASSED`，后继停在 `PENDING`，`finalize` 写成 `indeterminate`，run 被判 `interrupted`，而人类收据只覆盖被推迟的节点本身——与阶段 15 为 `failed(known)` 记下的冻结同形。现在 `BLOCKING_NODE_STATUSES` 把它与产品失败一并计入祖先，后继派生为 `blockedBy`；`RunOutcome` 增 `deferred`，表示这轮 run 剩下的关门动作属于佩戴者。
+- **时间线的单调由写入器执行。** 原自测注入一个递增的时钟迭代器再断言递增，`append_entry` 本身不比较任何两行。现在它读回最后一行的 `recordedAt`，回退的条目被拒绝且不落盘；`read_timeline` 对畸形行抛 `SessionToolError`，与本模块其余错误同一形状。
 
 ## 阶段验证方案
 

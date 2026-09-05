@@ -22,7 +22,7 @@ from regression.core.replay import read_event_log, replay
 from regression.core.runview import build_run_view
 from regression.core.expression import OracleResult
 from regression.core.ids import NodeID, SidekickID
-from regression.core.runtime import OperationResult, StateFingerprint, open_run
+from regression.core.runtime import OperationResult, open_run
 from regression.core.runview import (
     HARNESS_TIMEOUT_KINDS,
     MAX_NODE_ATTEMPTS,
@@ -47,18 +47,27 @@ from regression.tools.verdict import Attribution, Verdict
 from test_regression_core_runtime import (
     FakeOperationAdapter,
     FakeOracle,
-    _digest,
+    _complete_operations,
     _envelope,
     _invoke_current,
     _single_node_plan,
 )
 
-FRAME_COUNT = 12
+if str(SCRIPTS / "verification") not in sys.path:
+    sys.path.insert(0, str(SCRIPTS / "verification"))
+
+from harness.failures import INSTRUMENT_KINDS
+
+FRAME_COUNT = 0
 NODE = NodeID("node:gate")
 
 
 def verdict(node: NodeID, attribution: Attribution = Attribution.HARNESS) -> Verdict:
     return Verdict(node, None, "the session never answered", attribution, None)
+
+
+def failed_call(failure: dict) -> OperationResult:
+    return OperationResult(False, (), "", {"failure": failure})
 
 
 class TimelineTests(unittest.TestCase):
@@ -88,9 +97,18 @@ class TimelineTests(unittest.TestCase):
         for line in lines:
             self.assertEqual(SNAPSHOT_KIND, json.loads(line)["kind"])
 
-    def test_the_timestamps_never_go_backwards(self) -> None:
+    def test_a_clock_that_steps_back_is_refused(self) -> None:
+        """The timeline's order is a property the writer enforces, not one the
+        clock is trusted to keep: a reading stamped before the last line is
+        refused, and the file holds only what was in order."""
         path = self.scratch()
-        stamps = iter(["2026-09-05T00:00:0{}.000Z".format(index) for index in range(6)])
+        stamps = iter(
+            [
+                "2026-09-05T00:00:05.000Z",
+                "2026-09-05T00:00:06.000Z",
+                "2026-09-05T00:00:01.000Z",
+            ]
+        )
         poll_timeline(
             path,
             lambda: {"lifecycle": "Playing"},
@@ -98,11 +116,23 @@ class TimelineTests(unittest.TestCase):
             clock=lambda: next(stamps),
             sleep=lambda seconds: None,
         )
-        mark(path, "the poster grid flickered", clock=lambda: next(stamps))
+
+        with self.assertRaisesRegex(SessionToolError, "falls before"):
+            mark(path, "the poster grid flickered", clock=lambda: next(stamps))
 
         recorded = [item["recordedAt"] for item in read_timeline(path)]
+        self.assertEqual(
+            ["2026-09-05T00:00:05.000Z", "2026-09-05T00:00:06.000Z"], recorded
+        )
 
-        self.assertEqual(sorted(recorded), recorded)
+    def test_a_line_that_is_not_a_timeline_entry_is_refused(self) -> None:
+        path = self.scratch()
+        mark(path, "the poster grid flickered", clock=lambda: "2026-09-05T00:00:01.000Z")
+        with Path(path).open("a", encoding="utf-8") as sink:
+            sink.write("not json\n")
+
+        with self.assertRaisesRegex(SessionToolError, "line 2 is not one JSON object"):
+            read_timeline(path)
 
     def test_a_mark_lands_after_the_readings_that_precede_it(self) -> None:
         path = self.scratch()
@@ -159,52 +189,41 @@ class DeferrableTests(unittest.TestCase):
         adjudicate_last: bool = True,
         product_last: bool = False,
     ):
-        main = open_run(_single_node_plan(), directory)
+        """Each attempt ends the way op_tool records an instrument fault: the
+        call fails and its outputs carry the failure. A None kind is an attempt
+        that ran clean and left an INDETERMINATE Oracle result instead."""
         leases = []
         for index, kind in enumerate(kinds):
             if index:
-                main.close()
                 ledger_tool.reopen(directory, NODE)
-                main = open_run(_single_node_plan(), directory)
+            main = open_run(_single_node_plan(), directory)
             lease = main.claim(
                 BoundLane.SIMULATOR, SidekickID(f"sidekick:one{index}"), now_millis=0
             )
             leases.append(lease)
-            while True:
-                call = main.view.lease(lease.id).current_call
-                if call is None:
-                    break
-                fingerprints = tuple(
-                    StateFingerprint(item.key, item.schema, _digest(f"state:{item.key}"))
-                    for item in call.state_productions
+            failure_class = (
+                "product" if product_last and index + 1 == len(kinds) else "instrument"
+            )
+            if kind is None:
+                _complete_operations(main, lease)
+                main.accept_evidence(
+                    _envelope(main, lease, path_suffix=str(index)),
+                    FakeOracle(OracleResult.INDETERMINATE),
                 )
-                failure_class = (
-                    "product"
-                    if product_last and index + 1 == len(kinds)
-                    else "instrument"
-                )
-                outputs = (
-                    {}
-                    if kind is None
-                    else {"failure": {"class": failure_class, "kind": kind}}
-                )
+            else:
                 _invoke_current(
                     main,
                     lease,
                     FakeOperationAdapter(
-                        [OperationResult(True, fingerprints, "", outputs)]
+                        [failed_call({"class": failure_class, "kind": kind})]
                     ),
                 )
-            main.accept_evidence(
-                _envelope(main, lease, path_suffix=str(index)),
-                FakeOracle(OracleResult.INDETERMINATE),
-            )
             main.close()
-            if adjudicate_last or index + 1 < len(kinds):
-                ledger_tool.write(
-                    directory, verdict(NODE), NodeStatus.INDETERMINATE)
+            owed = failure_class == "instrument" or kind is None
+            if owed and (adjudicate_last or index + 1 < len(kinds)):
+                ledger_tool.write(directory, verdict(NODE), NodeStatus.INDETERMINATE)
             main = open_run(_single_node_plan(), directory)
-        main.close()
+            main.close()
         return leases
 
     def test_an_instrument_failure_that_is_not_a_timeout_does_not_defer(self) -> None:
@@ -270,6 +289,10 @@ class DeferrableTests(unittest.TestCase):
             self.assertFalse(deferrable(replay(directory), NODE))
 
     def test_the_human_layer_takes_only_instrument_timeouts(self) -> None:
+        """The kinds that reach the human layer are a subset of the kinds the
+        harness itself classifies as instrument faults, so a kind renamed on
+        one side turns this red rather than widening or narrowing the gate."""
+        self.assertLessEqual(HARNESS_TIMEOUT_KINDS, INSTRUMENT_KINDS)
         self.assertNotIn("assertion-mismatch", HARNESS_TIMEOUT_KINDS)
         self.assertNotIn("app-crashed", HARNESS_TIMEOUT_KINDS)
         for kind in ("transport-timeout", "response-timeout"):

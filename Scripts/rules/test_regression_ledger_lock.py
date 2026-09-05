@@ -347,7 +347,7 @@ class AdmitVerdictTests(unittest.TestCase):
             NodeStatus.DEFERRED_HUMAN,
         ):
             with self.subTest(status=status):
-                with self.assertRaisesRegex(LedgerLockError, "was violated"):
+                with self.assertRaisesRegex(LedgerLockError, "Oracle result violated"):
                     self.admit(status=status)
 
     def test_a_node_that_owes_nothing_is_refused(self) -> None:

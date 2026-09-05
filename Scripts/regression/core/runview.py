@@ -22,6 +22,13 @@ from .expression import (
     parse_success_expression,
     referenced_obligations,
 )
+from .fields import (
+    ABSENT,
+    field_value,
+    last_completed_outputs,
+    reads_equal,
+    screenshot_paths,
+)
 from .ids import (
     CallID,
     CaseKey,
@@ -35,6 +42,7 @@ from .ids import (
     OperationID,
     PreparationID,
     RunID,
+    ScenarioID,
     SidekickID,
     SignatureID,
     StateKey,
@@ -82,6 +90,16 @@ PRODUCT_FAILURE_NODE_STATUSES = (
     NodeStatus.FAILED_KNOWN,
 )
 
+BLOCKING_NODE_STATUSES = (
+    *PRODUCT_FAILURE_NODE_STATUSES,
+    NodeStatus.DEFERRED_HUMAN,
+)
+
+HARNESS_ENDED_NODE_STATUSES = (
+    NodeStatus.INDETERMINATE,
+    NodeStatus.DEFERRED_HUMAN,
+)
+
 
 class Attribution(Enum):
     PRODUCT = "product"
@@ -119,6 +137,7 @@ class LeaseStatus(Enum):
 class RunOutcome(Enum):
     PASSED = "passed"
     FAILED = "failed"
+    DEFERRED = "deferred"
     INTERRUPTED = "interrupted"
 
 
@@ -520,6 +539,7 @@ class NodeView:
     lane_candidates: Tuple[BoundLane, ...]
     gate_dependencies: Tuple[LaneGateView, ...]
     success: Optional[SuccessExpression] = None
+    scenario_id: Optional[ScenarioID] = None
     status: NodeStatus = NodeStatus.PENDING
     lane: Optional[BoundLane] = None
     lease_id: Optional[LeaseID] = None
@@ -619,15 +639,74 @@ def settled_oracle_result(
     return None
 
 
+def harness_fault_ending(lease: LeaseView) -> Optional[Mapping[str, Any]]:
+    """The call that ended this attempt failed on the instrument and the plan
+    allows it no further invocation. The attempt is over with no Oracle
+    result, and the failure it ended on is the fact the ledger reads."""
+    call = lease.current_call
+    if call is None or lease.invocation_count(call.call_id) < call.max_invocations:
+        return None
+    terminal = next(
+        (
+            item
+            for item in reversed(lease.invocations)
+            if item.call_id == call.call_id and item.completed
+        ),
+        None,
+    )
+    if terminal is None or terminal.succeeded is not False or terminal.outputs is None:
+        return None
+    failure = terminal.outputs.payload().get("failure")
+    if not isinstance(failure, Mapping) or failure.get("class") != "instrument":
+        return None
+    return failure
+
+
+def attempt_ended_on_the_harness(lease: LeaseView) -> bool:
+    return harness_fault_ending(lease) is not None
+
+
 def awaiting_adjudication(node: NodeView, lease: Optional[LeaseView]) -> bool:
     settled = settled_oracle_result(node, lease)
-    return settled is not None and settled is not OracleResult.SATISFIED
+    if settled is not None:
+        return settled is not OracleResult.SATISFIED
+    return (
+        node.status is NodeStatus.LEASED
+        and lease is not None
+        and lease.node_id == node.node_id
+        and attempt_ended_on_the_harness(lease)
+    )
+
+
+def admissible_verdicts(
+    settled: Optional[OracleResult], ended_on_the_harness: bool
+) -> Tuple[NodeStatus, ...]:
+    """One table answers which terminal states a leased node may close into.
+    The replay and the ledger tool both read it, so the tool refuses exactly
+    what the replay would refuse."""
+    if settled is not None:
+        return ADJUDICATED_NODE_STATUSES[settled]
+    if ended_on_the_harness:
+        return HARNESS_ENDED_NODE_STATUSES
+    return (NodeStatus.INDETERMINATE,)
+
+
+def montage_frame_bound(lease: LeaseView) -> int:
+    """The montage shows the screenshot of the call that ended the attempt and
+    the one before it, so no adjudication names more frames than those two
+    calls recorded."""
+    completed = [item for item in lease.invocations if item.completed]
+    return sum(
+        1
+        for item in completed[-2:]
+        if item.outputs is not None and screenshot_paths(item.outputs.payload())
+    )
 
 
 def failure_ancestors(nodes: Iterable[NodeView]) -> Tuple[NodeID, ...]:
     result = set()
     for node in nodes:
-        if node.status in PRODUCT_FAILURE_NODE_STATUSES:
+        if node.status in BLOCKING_NODE_STATUSES:
             result.add(node.node_id)
         elif node.status is NodeStatus.BLOCKED_BY:
             result.update(node.failure_ancestors)
@@ -1102,6 +1181,7 @@ def _open_nodes(
                 )
             )
         raw_success = item.get("success")
+        raw_scenario = item.get("scenarioId")
         if kind == "scenarioAttempt":
             if raw_success is None:
                 raise _transition(
@@ -1110,12 +1190,18 @@ def _open_nodes(
             success = parse_success_expression(
                 raw_success, item_location + ".success"
             )
+            scenario_id = ScenarioID(
+                parse_identifier("scenario", raw_scenario, item_location + ".scenarioId")
+            )
         else:
             if raw_success is not None:
                 raise _transition(
                     item_location, "join node cannot carry a success expression"
                 )
+            if raw_scenario is not None:
+                raise _transition(item_location, "join node cannot carry a Scenario")
             success = None
+            scenario_id = None
         nodes[node_id] = NodeView(
             node_id,
             kind,
@@ -1123,6 +1209,7 @@ def _open_nodes(
             lane_candidates,
             tuple(gates),
             success,
+            scenario_id,
         )
         if kind == "scenarioAttempt" and not lane_candidates:
             raise _transition(item_location, "Scenario node needs a lane candidate")
@@ -1585,108 +1672,117 @@ def _record_verdict(
         _node_id(value, location + ".failureAncestors")
         for value in _list(payload.get("failureAncestors"), location + ".failureAncestors")
     )
+    ancestors = tuple(sorted(set(ancestors), key=str))
     if status is NodeStatus.BLOCKED_BY and not ancestors:
         raise _transition(location, "BlockedBy needs a failed ancestor")
     if status is not NodeStatus.BLOCKED_BY and ancestors:
         raise _transition(location, "only BlockedBy may carry failure ancestors")
-
     raw_lease = payload.get("leaseId")
-    settled = None
-    if node.status is NodeStatus.LEASED:
-        lease_id = _lease_id(raw_lease, location + ".leaseId")
-        if lease_id != node.lease_id:
-            raise _transition(location, "verdict lease does not match the node")
-        lease = leases[lease_id]
-        settled = settled_oracle_result(node, lease)
-        if settled is not None and status not in ADJUDICATED_NODE_STATUSES[settled]:
-            raise _transition(
-                location, "node verdict contradicts the Oracle result of its own lease"
-            )
-        if status is NodeStatus.DEFERRED_HUMAN and not deferrable_from(
-            node_id, leases
-        ):
-            raise _transition(
-                location,
-                "a node reaches the human layer only after two consecutive "
-                "attempts that both timed out on the harness",
-            )
-        if (
-            settled is None
-            and lease.oracle_evaluations
-            and status is not NodeStatus.INDETERMINATE
-        ):
-            raise _transition(
-                location,
-                "a half-evaluated lease carries no Oracle result to adjudicate",
-            )
-        if status in PRODUCT_NODE_STATUSES and (
-            not lease.operations_complete
-            or not lease.evidence_accepted
-            or not lease.oracle_evaluations
-        ):
-            raise _transition(
-                location,
-                "product verdict needs completed operations and evaluated evidence",
-            )
-        if node.kind == "bothJoin":
-            raise _transition(location, "join node cannot own a lease")
-        if lease.status is LeaseStatus.ACTIVE:
-            lease_status = (
-                LeaseStatus.INTERRUPTED
-                if status is NodeStatus.INDETERMINATE
-                else LeaseStatus.COMPLETED
-            )
-            leases[lease_id] = replace(lease, status=lease_status)
-        lane = lanes[lease.lane]
-        if lane.active_lease_id == lease_id:
-            lanes[lease.lane] = replace(lane, active_lease_id=None)
-    elif raw_lease is not None:
-        raise _transition(location, "an unleased node verdict cannot name a lease")
-    elif node.kind == "scenarioAttempt" and status in PRODUCT_NODE_STATUSES:
-        raise _transition(location, "Scenario product verdict needs its lease")
-    elif node.kind == "bothJoin" and status in (
-        *PRODUCT_FAILURE_NODE_STATUSES,
-        NodeStatus.INDETERMINATE,
-    ):
-        if status in PRODUCT_FAILURE_NODE_STATUSES:
-            raise _transition(location, "join nodes cannot create product failures")
-
     raw_adjudication = payload.get("adjudication")
+
+    if node.status is NodeStatus.PENDING:
+        if raw_lease is not None:
+            raise _transition(location, "an unleased node verdict cannot name a lease")
+        if raw_adjudication is not None:
+            raise _transition(
+                location, "an unleased node verdict carries no adjudication"
+            )
+        if status is not NodeStatus.INDETERMINATE:
+            derived = derivable_verdict(node, nodes)
+            if derived != (status, ancestors):
+                raise _transition(
+                    location,
+                    "an unleased node closes only as the run derives it, and the run "
+                    + (
+                        "derives nothing for this node"
+                        if derived is None
+                        else f"derives {derived[0].value} behind "
+                        + ", ".join(str(item) for item in derived[1])
+                    ),
+                )
+        nodes[node_id] = replace(
+            node, status=status, failure_ancestors=ancestors, adjudication=None
+        )
+        return
+
+    if node.kind == "bothJoin":
+        raise _transition(location, "join node cannot own a lease")
+    lease_id = _lease_id(raw_lease, location + ".leaseId")
+    if lease_id != node.lease_id:
+        raise _transition(location, "verdict lease does not match the node")
+    if status is NodeStatus.BLOCKED_BY:
+        raise _transition(
+            location, "a leased node is closed by its own attempt, not by an ancestor"
+        )
+    lease = leases[lease_id]
+    settled = settled_oracle_result(node, lease)
+    harness_fault = None if settled is not None else harness_fault_ending(lease)
+    if (
+        settled is None
+        and lease.oracle_evaluations
+        and status is not NodeStatus.INDETERMINATE
+    ):
+        raise _transition(
+            location,
+            "a half-evaluated lease carries no Oracle result to adjudicate",
+        )
+    if status not in admissible_verdicts(settled, harness_fault is not None):
+        raise _transition(
+            location, "node verdict contradicts the Oracle result of its own lease"
+        )
+    if status is NodeStatus.DEFERRED_HUMAN and not deferrable_from(node_id, leases):
+        raise _transition(
+            location,
+            "a node reaches the human layer only after two consecutive "
+            "attempts that both timed out on the harness",
+        )
     adjudication = None
-    if settled is not None and settled is not OracleResult.SATISFIED:
+    if (settled is not None and settled is not OracleResult.SATISFIED) or (
+        harness_fault is not None
+    ):
         if raw_adjudication is None:
             raise _transition(
                 location, "a non-satisfied node verdict needs its adjudication"
             )
         adjudication = _adjudication(
-            raw_adjudication, status, location + ".adjudication"
+            raw_adjudication,
+            status,
+            montage_frame_bound(lease),
+            location + ".adjudication",
         )
+        if harness_fault is not None and adjudication.attribution is not Attribution.HARNESS:
+            raise _transition(
+                location + ".adjudication",
+                "an attempt that ended on the instrument is attributed to the "
+                f"harness, not to {adjudication.attribution.value}",
+            )
+        if status is NodeStatus.FAILED_KNOWN:
+            _verify_exemption(
+                adjudication, node, lease, location + ".adjudication.knownDefect"
+            )
     elif raw_adjudication is not None:
         raise _transition(
             location, "only a non-satisfied node verdict carries an adjudication"
         )
 
+    if lease.status is LeaseStatus.ACTIVE:
+        lease_status = (
+            LeaseStatus.INTERRUPTED
+            if status is NodeStatus.INDETERMINATE
+            else LeaseStatus.COMPLETED
+        )
+        leases[lease_id] = replace(lease, status=lease_status)
+    lane = lanes[lease.lane]
+    if lane.active_lease_id == lease_id:
+        lanes[lease.lane] = replace(lane, active_lease_id=None)
     nodes[node_id] = replace(
-        node,
-        status=status,
-        failure_ancestors=tuple(sorted(set(ancestors), key=str)),
-        adjudication=adjudication,
+        node, status=status, failure_ancestors=ancestors, adjudication=adjudication
     )
 
 
 def timed_out_on_the_harness(lease: LeaseView) -> bool:
-    for invocation in lease.invocations:
-        if not invocation.completed or invocation.outputs is None:
-            continue
-        failure = invocation.outputs.payload().get("failure")
-        if not isinstance(failure, Mapping):
-            continue
-        if (
-            failure.get("class") == "instrument"
-            and failure.get("kind") in HARNESS_TIMEOUT_KINDS
-        ):
-            return True
-    return False
+    failure = harness_fault_ending(lease)
+    return failure is not None and failure.get("kind") in HARNESS_TIMEOUT_KINDS
 
 
 def deferrable_from(
@@ -1756,17 +1852,21 @@ def _reopen_node(
     refusal = reopen_refusal(node, attempts, lanes)
     if refusal is not None:
         raise _transition(location, refusal)
-    recorded = payload.get("attemptsBefore")
+    recorded = _integer(payload.get("attemptsBefore"), location + ".attemptsBefore")
     if recorded != attempts:
         raise _transition(
             location,
             f"the reopen records {recorded!r} attempts before it, and the ledger "
             f"holds {attempts}",
         )
-    nodes[node_id] = replace(node, status=NodeStatus.PENDING, lease_id=None)
+    nodes[node_id] = replace(
+        node, status=NodeStatus.PENDING, lane=None, lease_id=None
+    )
 
 
-def _adjudication(value: Any, status: NodeStatus, location: str) -> AdjudicationView:
+def _adjudication(
+    value: Any, status: NodeStatus, frame_bound: int, location: str
+) -> AdjudicationView:
     item = _mapping(value, location)
     unknown = set(item) - {
         "attribution",
@@ -1788,6 +1888,11 @@ def _adjudication(value: Any, status: NodeStatus, location: str) -> Adjudication
             location + ".bundleFrameCount",
             "the montage holds a countable number of frames",
         )
+    if frame_count > frame_bound:
+        raise _transition(
+            location + ".bundleFrameCount",
+            f"the attempt recorded {frame_bound} montage frame(s), not {frame_count}",
+        )
     raw_frame = item.get("firstDeviantFrame")
     frame = (
         None
@@ -1801,6 +1906,10 @@ def _adjudication(value: Any, status: NodeStatus, location: str) -> Adjudication
     observation = _text(
         item.get("regionObservation"), location + ".regionObservation"
     )
+    if not observation.strip():
+        raise _transition(
+            location + ".regionObservation", "regionObservation must be a non-empty string"
+        )
     try:
         attribution = Attribution(item.get("attribution"))
     except (TypeError, ValueError) as error:
@@ -1852,6 +1961,45 @@ def _known_defect(
             "an exemption matched a signature id or a field predicate",
         )
     return MappingProxyType({"scenario": scenario, "match": match})
+
+
+def _verify_exemption(
+    adjudication: AdjudicationView,
+    node: NodeView,
+    lease: LeaseView,
+    location: str,
+) -> None:
+    """The record an exemption names is checked against what the run holds:
+    the Scenario the plan gave this node, and the field the call that ended
+    the attempt recorded. A signature match was already held to the verdict's
+    own signature."""
+    exemption = adjudication.known_defect
+    assert exemption is not None
+    if exemption["scenario"] != str(node.scenario_id):
+        raise _transition(
+            location + ".scenario",
+            f"the record exempts {exemption['scenario']}, and this node runs "
+            f"{node.scenario_id}",
+        )
+    match = exemption["match"]
+    if isinstance(match, str):
+        return
+    if match.get("operator") != "==":
+        raise _transition(
+            location + ".match",
+            f"an exemption matches a field with ==, not {match.get('operator')!r}",
+        )
+    field = match.get("field")
+    if not isinstance(field, str) or not field:
+        raise _transition(location + ".match", "an exemption names the field it read")
+    outputs = last_completed_outputs(lease.invocations)
+    read = ABSENT if outputs is None else field_value(outputs, field)
+    if read is ABSENT or not reads_equal(read, match.get("value")):
+        raise _transition(
+            location + ".match",
+            f"the call this attempt ended on did not record {field} == "
+            f"{match.get('value')!r}",
+        )
 
 
 def _interrupt_lane(
@@ -2230,12 +2378,16 @@ __all__ = (
     "AcceptedArtifactView",
     "AdjudicationView",
     "Attribution",
+    "BLOCKING_NODE_STATUSES",
     "CallPlanView",
     "FrozenJSONObject",
+    "HARNESS_ENDED_NODE_STATUSES",
+    "HARNESS_TIMEOUT_KINDS",
     "LaneGateView",
     "LaneView",
     "LeaseStatus",
     "LeaseView",
+    "MAX_NODE_ATTEMPTS",
     "NodeStatus",
     "NodeView",
     "OperationInvocationView",
@@ -2248,11 +2400,25 @@ __all__ = (
     "StateProductionView",
     "TERMINAL_NODE_STATUSES",
     "TRANSITION_FAULT_INTERRUPTION_PREFIX",
+    "admissible_verdicts",
     "aggregate_oracle_results",
+    "attempt_ended_on_the_harness",
+    "attempts_in_claim_order",
+    "attempts_of",
     "awaiting_adjudication",
     "build_run_view",
+    "current_lease",
+    "deferrable_from",
+    "derivable_verdict",
+    "failure_ancestors",
+    "harness_fault_ending",
+    "montage_frame_bound",
     "nodes_awaiting_adjudication",
+    "reopen_refusal",
     "resolve_call_arguments",
+    "settled_node_statuses",
     "settled_oracle_result",
+    "strict_predecessors",
+    "timed_out_on_the_harness",
     "validate_emergency_interruption_records",
 )

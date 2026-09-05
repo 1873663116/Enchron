@@ -111,6 +111,15 @@ def timeline_path(output_directory: Path) -> Path:
 
 
 def append_entry(path: Path, entry: TimelineEntry) -> TimelineEntry:
+    """The timeline is ordered by the moment each line was taken. A line that
+    would sit before the last one already written is refused rather than
+    filed, so a clock that stepped back cannot reorder what the wearer saw."""
+    previous = read_timeline(path)
+    if previous and previous[-1]["recordedAt"] > entry.recorded_at:
+        raise SessionToolError(
+            f"timeline entry at {entry.recorded_at} falls before the last line "
+            f"at {previous[-1]['recordedAt']}"
+        )
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with Path(path).open("a", encoding="utf-8") as sink:
         sink.write(json.dumps(entry.payload_line(), sort_keys=True) + "\n")
@@ -146,11 +155,24 @@ def poll_timeline(
 def read_timeline(path: Path) -> Tuple[Mapping[str, Any], ...]:
     if not Path(path).is_file():
         return ()
-    return tuple(
-        json.loads(line)
-        for line in Path(path).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    )
+    entries = []
+    for number, line in enumerate(
+        Path(path).read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise SessionToolError(
+                f"{path} line {number} is not one JSON object: {error.msg}"
+            ) from error
+        if not isinstance(entry, Mapping) or not isinstance(entry.get("recordedAt"), str):
+            raise SessionToolError(
+                f"{path} line {number} is not a timeline entry with a recordedAt"
+            )
+        entries.append(entry)
+    return tuple(entries)
 
 
 def _forward(call: Callable[[Any], Mapping[str, Any]], argv: list) -> Dict[str, Any]:

@@ -11,6 +11,7 @@ FailureClass = Literal["product", "instrument"]
 INSTRUMENT_KINDS = frozenset(
     {
         "transport-timeout",
+        "response-timeout",
         "runner-crashed",
         "response-undecodable",
         "contract-mismatch",
