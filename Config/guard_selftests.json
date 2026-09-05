@@ -446,13 +446,13 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "                startPoint: .top,\n                endPoint: .bottom\n            )\n        }\n    }\n}\n\nextension View {\n    func thumbnailTextScrim()",
-        "replaceWith": "                startPoint: .top,\n                endPoint: .bottom\n            )\n            .frame(height: DesignTokens.Card.thumbnailHeight)\n        }\n    }\n}\n\nextension View {\n    func thumbnailTextScrim()"
+        "find": "                let plateauHeight = proxy.size.height * DesignTokens.Surface.textScrimPlateauFraction\n",
+        "replaceWith": "                let plateauHeight = DesignTokens.Card.thumbnailHeight * DesignTokens.Surface.textScrimPlateauFraction\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the text scrim no longer scales with the caption height"
+          "the text scrim no longer spans the thumbnail with a plateau sized by"
         ]
       }
     },
@@ -462,13 +462,13 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/DesignTokens.swift",
-        "find": "        public static let textScrimDenseOpacity: Double = 0.9\n",
-        "replaceWith": "        public static let textScrimDenseOpacity: Double = 1\n"
+        "find": "        public static let textScrimOpacity: Double = 0.8\n",
+        "replaceWith": "        public static let textScrimOpacity: Double = 1\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the text scrim profile is no longer the smooth ease"
+          "the text scrim plateau drifted"
         ]
       }
     },
@@ -478,13 +478,13 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/DesignTokens.swift",
-        "find": "                let eased = t * t * (3 - 2 * t)\n",
-        "replaceWith": "                let eased = t\n"
+        "find": "                ScrimKeyframe(location: leadFraction, opacity: textScrimOpacity, curve: .easeInOut),\n",
+        "replaceWith": "                ScrimKeyframe(location: leadFraction, opacity: textScrimOpacity, curve: .easeOut),\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the text scrim profile is no longer the smooth ease"
+          "the text scrim profile drifted from its keyframes"
         ]
       }
     },
@@ -494,13 +494,13 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "                stops: DesignTokens.Surface.textScrimStops,\n",
-        "replaceWith": "                stops: [.init(color: .clear, location: 0.25), .init(color: .black.opacity(0.9), location: 1)],\n"
+        "find": "                            stops: DesignTokens.Surface.textScrimStops(leadFraction: leadFraction),\n",
+        "replaceWith": "                            stops: [.init(color: .clear, location: 0.25), .init(color: .black, location: 1)],\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "painted with the shared smooth stops"
+          "the text scrim no longer spans the thumbnail with a plateau sized by"
         ]
       }
     },

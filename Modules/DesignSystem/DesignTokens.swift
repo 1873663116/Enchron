@@ -64,6 +64,37 @@ public enum DesignTokens {
         }
     }
 
+    public struct ScrimKeyframe: Sendable {
+        public let location: Double
+        public let opacity: Double
+        public let curve: UnitCurve
+
+        public init(location: Double, opacity: Double, curve: UnitCurve) {
+            self.location = location
+            self.opacity = opacity
+            self.curve = curve
+        }
+
+        public static func stops(_ keyframes: [ScrimKeyframe], sampleCount: Int) -> [Gradient.Stop] {
+            (0...sampleCount).map { index in
+                let t = Double(index) / Double(sampleCount)
+                return Gradient.Stop(color: .black.opacity(opacity(at: t, in: keyframes)), location: t)
+            }
+        }
+
+        static func opacity(at location: Double, in keyframes: [ScrimKeyframe]) -> Double {
+            guard let first = keyframes.first, let last = keyframes.last else { return 0 }
+            guard location > first.location else { return first.opacity }
+            guard location < last.location else { return last.opacity }
+            for (start, end) in zip(keyframes, keyframes.dropFirst()) where location <= end.location {
+                let span = end.location - start.location
+                let progress = span > 0 ? (location - start.location) / span : 1
+                return start.opacity + (end.opacity - start.opacity) * end.curve.value(at: progress)
+            }
+            return last.opacity
+        }
+    }
+
     public enum TransitionToken {
         public static let levelReplaceTravel: CGFloat = 12
         @MainActor public static var levelReplace: AnyTransition {
@@ -190,17 +221,22 @@ public enum DesignTokens {
         public static let border: Color = .primary.opacity(0.05)
         public static let divider: Color = .primary.opacity(0.14)
         public static let supportingText: Color = .primary.opacity(0.72)
-        public static let textScrimDenseOpacity: Double = 0.9
-        public static let textScrimSampleCount: Int = 16
-        public static var textScrimStops: [Gradient.Stop] {
-            (0...textScrimSampleCount).map { index in
-                let t = Double(index) / Double(textScrimSampleCount)
-                let eased = t * t * (3 - 2 * t)
-                return Gradient.Stop(
-                    color: .black.opacity(textScrimDenseOpacity * eased),
-                    location: t
-                )
-            }
+        public static let textScrimPlateauFraction: CGFloat = 0.4
+        public static let textScrimOpacity: Double = 0.8
+        public static let textScrimSampleCount: Int = 24
+        public static var textScrimMaterial: Material { .thinMaterial }
+        public static func textScrimKeyframes(leadFraction: Double) -> [ScrimKeyframe] {
+            [
+                ScrimKeyframe(location: 0, opacity: 0, curve: .linear),
+                ScrimKeyframe(location: leadFraction, opacity: textScrimOpacity, curve: .easeInOut),
+                ScrimKeyframe(location: 1, opacity: textScrimOpacity, curve: .linear)
+            ]
+        }
+        public static func textScrimStops(leadFraction: Double) -> [Gradient.Stop] {
+            ScrimKeyframe.stops(
+                textScrimKeyframes(leadFraction: leadFraction),
+                sampleCount: textScrimSampleCount
+            )
         }
         public static let accessoryText: Color = .primary.opacity(0.88)
         public static let selectionHeaderText: Color = .primary

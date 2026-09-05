@@ -169,7 +169,7 @@ def check_grid_card_hover() -> None:
     require(
         order(
             caption,
-            ".thumbnailTextScrim()",
+            ".thumbnailTextScrim(maximumHeight: thumbnailHeight)",
             ".frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)",
             ".enchronHoverOpacity(",
             "active: 1,",
@@ -196,30 +196,52 @@ def check_grid_card_hover() -> None:
         order(
             scrim,
             "content.background {",
+            "GeometryReader { proxy in",
+            "let scrimHeight = maximumHeight",
+            "let plateauHeight = proxy.size.height * DesignTokens.Surface.textScrimPlateauFraction",
+            "let leadFraction = 1 - plateauHeight / max(scrimHeight, 1)",
+            "Rectangle()",
+            ".fill(DesignTokens.Surface.textScrimMaterial)",
+            ".mask {",
             "LinearGradient(",
-            "stops: DesignTokens.Surface.textScrimStops,",
+            "stops: DesignTokens.Surface.textScrimStops(leadFraction: leadFraction),",
+            ".frame(width: proxy.size.width, height: scrimHeight)",
+            ".offset(y: proxy.size.height - scrimHeight)",
         )
-        and "location:" not in scrim
-        and "GeometryReader" not in scrim
-        and ".frame(" not in scrim
-        and ".offset(" not in scrim,
-        "the text scrim no longer scales with the caption height: it must be "
-        "the caption's own background painted with the shared smooth stops",
+        and "location:" not in scrim,
+        "the text scrim no longer spans the thumbnail with a plateau sized by "
+        "the caption: the fade must fill everything above half the caption",
     )
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
+        "public static let textScrimPlateauFraction: CGFloat = 0.4" in tokens
+        and "public static let textScrimOpacity: Double = 0.8" in tokens,
+        "the text scrim plateau drifted from two fifths of the caption at 0.8 material",
+    )
+    require(
+        "public static var textScrimMaterial: Material { .thinMaterial }" in tokens,
+        "the text scrim is no longer the thin material that keeps captions legible without darkening",
+    )
+    require(
         order(
             tokens,
-            "public static let textScrimDenseOpacity: Double = 0.9",
-            "public static let textScrimSampleCount: Int = 16",
-            "public static var textScrimStops: [Gradient.Stop] {",
-            "let t = Double(index) / Double(textScrimSampleCount)",
-            "let eased = t * t * (3 - 2 * t)",
-            "color: .black.opacity(textScrimDenseOpacity * eased),",
-            "location: t",
+            "public static func textScrimKeyframes(leadFraction: Double) -> [ScrimKeyframe] {",
+            "ScrimKeyframe(location: 0, opacity: 0, curve: .linear),",
+            "ScrimKeyframe(location: leadFraction, opacity: textScrimOpacity, curve: .easeInOut),",
+            "ScrimKeyframe(location: 1, opacity: textScrimOpacity, curve: .linear)",
+            "public static func textScrimStops(leadFraction: Double) -> [Gradient.Stop] {",
+            "textScrimKeyframes(leadFraction: leadFraction),",
+        )
+        and order(
+            tokens,
+            "public struct ScrimKeyframe: Sendable {",
+            "public let curve: UnitCurve",
+            "static func opacity(at location: Double, in keyframes: [ScrimKeyframe]) -> Double {",
+            "end.curve.value(at: progress)",
         ),
-        "the text scrim profile is no longer the smooth ease from clear to 0.9: "
-        "a stop with a slope break reads as a hard edge on a short caption",
+        "the text scrim profile drifted from its keyframes: clear at the scrim "
+        "top easing in and out to the plateau, then flat through the lower half of the caption; a curve that starts steep "
+        "draws a visible line at the scrim top",
     )
     require(
         card.count("LinearGradient(") == 1,

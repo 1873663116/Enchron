@@ -494,7 +494,7 @@ public struct GridCard: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .thumbnailTextScrim()
+            .thumbnailTextScrim(maximumHeight: thumbnailHeight)
             .frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)
             .clipped()
             .enchronHoverOpacity(
@@ -619,20 +619,33 @@ public struct GridCard: View {
 }
 
 private struct ThumbnailTextScrim: ViewModifier {
+    let maximumHeight: CGFloat
+
     func body(content: Content) -> some View {
         content.background {
-            LinearGradient(
-                stops: DesignTokens.Surface.textScrimStops,
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            GeometryReader { proxy in
+                let scrimHeight = maximumHeight
+                let plateauHeight = proxy.size.height * DesignTokens.Surface.textScrimPlateauFraction
+                let leadFraction = 1 - plateauHeight / max(scrimHeight, 1)
+                Rectangle()
+                    .fill(DesignTokens.Surface.textScrimMaterial)
+                    .mask {
+                        LinearGradient(
+                            stops: DesignTokens.Surface.textScrimStops(leadFraction: leadFraction),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .frame(width: proxy.size.width, height: scrimHeight)
+                .offset(y: proxy.size.height - scrimHeight)
+            }
         }
     }
 }
 
 extension View {
-    func thumbnailTextScrim() -> some View {
-        modifier(ThumbnailTextScrim())
+    func thumbnailTextScrim(maximumHeight: CGFloat) -> some View {
+        modifier(ThumbnailTextScrim(maximumHeight: maximumHeight))
     }
 }
 
