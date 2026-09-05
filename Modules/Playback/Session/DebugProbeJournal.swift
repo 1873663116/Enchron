@@ -37,12 +37,29 @@ public final class DebugProbeJournal {
         let byteLimit: Int
         let compactionTarget: Int
         let now: () -> Date
+        let retainsLoadedEvidence: Bool
+
+        init(
+            url: URL,
+            byteLimit: Int,
+            compactionTarget: Int,
+            now: @escaping () -> Date,
+            retainsLoadedEvidence: Bool = true
+        ) {
+            self.url = url
+            self.byteLimit = byteLimit
+            self.compactionTarget = compactionTarget
+            self.now = now
+            self.retainsLoadedEvidence = retainsLoadedEvidence
+        }
 
         static let product = Configuration(
             url: URL.documentsDirectory.appending(path: "surface-tap-probe.log"),
             byteLimit: 192 * 1_024,
             compactionTarget: 128 * 1_024,
-            now: Date.init
+            now: Date.init,
+            retainsLoadedEvidence:
+                ProcessInfo.processInfo.environment["ENCHRON_TEST_CHANNEL"] == "1"
         )
     }
 
@@ -67,7 +84,10 @@ public final class DebugProbeJournal {
         precondition(configuration.compactionTarget <= configuration.byteLimit)
         self.configuration = configuration
 
-        let loaded = Self.loadRecords(from: configuration.url)
+        let loaded = Self.loadRecords(
+            from: configuration.url,
+            retainsEvidence: configuration.retainsLoadedEvidence
+        )
         records = loaded.records
         currentSession = loaded.currentSession
         nextSequence = loaded.nextSequence
@@ -222,7 +242,8 @@ public final class DebugProbeJournal {
     }
 
     private static func loadRecords(
-        from url: URL
+        from url: URL,
+        retainsEvidence: Bool
     ) -> LoadedDebugProbeState {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else {
@@ -243,7 +264,7 @@ public final class DebugProbeJournal {
                 .flatMap { UInt64($0.dropFirst("probeSequence=".count)) }
                 ?? nextLegacySequence
             nextLegacySequence = max(nextLegacySequence, sequence &+ 1)
-            let retention = tokens
+            let storedRetention = tokens
                 .first { $0.hasPrefix("probeRetention=") }
                 .flatMap {
                     DebugProbeRecordRetention(
@@ -255,18 +276,34 @@ public final class DebugProbeJournal {
                 .first { $0.hasPrefix("probeSession=") }
                 .map { String($0.dropFirst("probeSession=".count)) }
                 .flatMap(decodeSession)
-            parsed.append(
-                DebugProbeRecord(
-                    sequence: sequence,
-                    retention: retention,
-                    session: session,
-                    line: line
+            if retainsEvidence {
+                parsed.append(
+                    DebugProbeRecord(
+                        sequence: sequence,
+                        retention: storedRetention,
+                        session: session,
+                        line: line
+                    )
                 )
-            )
+            } else {
+                parsed.append(
+                    DebugProbeRecord(
+                        sequence: sequence,
+                        retention: .diagnostic,
+                        session: nil,
+                        line: line.replacingOccurrences(
+                            of: " probeRetention=evidence ",
+                            with: " probeRetention=diagnostic "
+                        )
+                    )
+                )
+            }
         }
         return LoadedDebugProbeState(
             records: parsed,
-            currentSession: parsed.reversed().compactMap(\.session).first,
+            currentSession: retainsEvidence
+                ? parsed.reversed().compactMap(\.session).first
+                : nil,
             nextSequence: nextLegacySequence,
             byteCount: data.count
         )

@@ -75,6 +75,7 @@
 - **每种日志一个去重槽**。把每帧的表面事实与 attach 探针共用一个槽，会让两者都无法重复自己的上一个值，于是 attach 探针每帧触发并把探针文件冲爆。
 - **时钟与计数器字段不能进去重签名**。它们每帧前进，会让每一条 settlement 行都独一无二，文件增长快到中途卡死容器拷贝。
 - **沉浸打开的竞态只表现为两次 attach 的先后**，因此它必须进探针文件，并按技术会话去重。
+- **证据保留只属于 harness 会话**。evidence 记录不参与压缩，harness 用 `evidenceSession` 换会话时才整体清空；从 Home 手动启动的进程没有这一步，文件被上一次 harness 的证据填满后，手动会话的每一条记录（含 evidence）都被静默丢弃。2026-09-05 真机上 196 468 B 的文件对 196 608 B 上限就是这样让一整天的手动验收没有留下任何探针。因此没有 `ENCHRON_TEST_CHANNEL=1`（只有 XCUITest runner 设置它）的进程把加载到的记录降为 diagnostic、会话置空，压缩可以腾出空间；harness 进程保持原语义。见 `Tests/EnchronApp/DebugProbeJournalTests.swift`。
 
 ## 领域模型为何这样切分
 

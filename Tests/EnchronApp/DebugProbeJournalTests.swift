@@ -142,6 +142,49 @@ nonisolated final class DebugProbeJournalTests: XCTestCase {
     }
 
     @MainActor
+    func testLaunchWithoutTestChannelDemotesLoadedEvidence() throws {
+        let fixture = try ProbeJournalFixture(byteLimit: 4_096, compactionTarget: 2_048)
+        defer { fixture.remove() }
+        let harnessJournal = DebugProbeJournal(configuration: fixture.configuration)
+        harnessJournal.record(
+            "reachability evidence session=stale command=1 verb=resetState",
+            retention: .evidenceSession("stale")
+        )
+        for index in 0..<40 {
+            harnessJournal.record(
+                "reachability fileScroll index=\(index)"
+                    + String(repeating: "s", count: 64),
+                retention: .evidence
+            )
+        }
+        XCTAssertGreaterThan(try fixture.fileBytes(), 2_048)
+
+        let manualJournal = DebugProbeJournal(
+            configuration: fixture.manualLaunchConfiguration
+        )
+        manualJournal.record(
+            "playbackWindowHandover pushed incoming=playback outgoing=main",
+            retention: .evidence
+        )
+        for index in 0..<200 {
+            manualJournal.record(
+                "windowSettlement manual=\(index)" + String(repeating: "m", count: 128),
+                retention: .diagnostic
+            )
+        }
+
+        let text = try fixture.text()
+        XCTAssertTrue(text.contains("playbackWindowHandover pushed incoming=playback"))
+        XCTAssertTrue(text.contains("windowSettlement manual=199"))
+        XCTAssertFalse(text.contains("session=stale"))
+        XCTAssertLessThanOrEqual(try fixture.fileBytes(), 4_096)
+        XCTAssertFalse(manualJournal.status.evidenceOverflowed)
+        let durable = try fixture.lines().filter { $0.contains("probeRetention=evidence") }
+        XCTAssertEqual(durable.count, 1)
+        XCTAssertTrue(durable[0].contains("probeSession=none"))
+    }
+
+    @MainActor
     func testEvidenceOverflowFailsClosedWithoutCrossingTheLimit() throws {
         let fixture = try ProbeJournalFixture(byteLimit: 512, compactionTarget: 256)
         defer { fixture.remove() }
@@ -186,6 +229,16 @@ private final class ProbeJournalFixture {
                 defer { tick += 0.001 }
                 return Date(timeIntervalSince1970: 1_787_094_000 + tick)
             }
+        )
+    }
+
+    var manualLaunchConfiguration: DebugProbeJournal.Configuration {
+        DebugProbeJournal.Configuration(
+            url: configuration.url,
+            byteLimit: configuration.byteLimit,
+            compactionTarget: configuration.compactionTarget,
+            now: configuration.now,
+            retainsLoadedEvidence: false
         )
     }
 
