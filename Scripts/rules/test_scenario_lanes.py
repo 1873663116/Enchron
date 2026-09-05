@@ -57,6 +57,7 @@ BROWSER_DEVICE_SCENARIOS = {
     "resume-decision",
     "source-connection-smb",
     "source-connection-webdav",
+    "source-sidebar",
 }
 BROWSER_SIMULATOR_SCENARIOS = {
     "browser-core",
@@ -67,7 +68,6 @@ BROWSER_SIMULATOR_SCENARIOS = {
     "manage-add",
     "settings-category-round13",
     "settings-menus",
-    "source-sidebar",
 }
 
 

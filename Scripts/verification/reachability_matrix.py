@@ -3609,6 +3609,10 @@ class ReachabilityRun:
         ):
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")
+            if target == "delete" and not self.connected_remote_source_identifiers():
+                self.source_connection_scenario("webDAV")
+                self.relaunch()
+                self.tap(presentation, "Navigation-Ornament-tab-files")
             before = self.copy_probe(f"source-sidebar-{identifier}-before")
             offset = len(before)
             parent = self.tap(
