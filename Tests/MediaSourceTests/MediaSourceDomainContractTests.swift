@@ -206,3 +206,39 @@ nonisolated private final class MediaSourceContractCounter: @unchecked Sendable 
         lock.withLock { storedValue += 1 }
     }
 }
+
+extension MediaSourceDomainContractTests {
+    @Test("artwork with an alpha channel round-trips through the store with its transparency")
+    func artworkWithAlphaKeepsTransparency() throws {
+        let root = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ArtworkStore(debugRootURL: root)
+        let key = ArtworkKey(remoteImageURL: try #require(URL(string: "https://emby.test/Items/1/Images/Logo")))
+        let space = CGColorSpaceCreateDeviceRGB()
+        let context = try #require(
+            CGContext(
+                data: nil,
+                width: 4,
+                height: 4,
+                bitsPerComponent: 8,
+                bytesPerRow: 16,
+                space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        )
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 2, height: 4))
+        let image = try #require(context.makeImage())
+        #expect(ArtworkStore.carriesAlpha(image))
+        try store.store(image, for: key)
+        let restored = try #require(store.image(for: key))
+        #expect(ArtworkStore.carriesAlpha(restored))
+        let pixels = try #require(restored.dataProvider?.data as Data?)
+        #expect(pixels[3] == 255)
+        let transparentOffset = 3 * restored.bitsPerPixel / 8 + 3
+        #expect(pixels[transparentOffset] == 0)
+    }
+}

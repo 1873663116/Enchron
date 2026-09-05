@@ -163,6 +163,7 @@ public final class MediaLibraryViewModel {
     private let store: MediaLibraryStoring
     private let resolver: MediaReferenceResolver
     private let viewingStateProvider: MediaViewingStateProvider
+    private let durationProbe: MediaDurationProbe?
     private let artworkStore: ArtworkStore
     private let onPlay: @MainActor (MediaPlaybackItem) -> Void
 
@@ -170,6 +171,7 @@ public final class MediaLibraryViewModel {
         store: MediaLibraryStoring = UserDefaultsMediaLibraryStore(),
         resolver: MediaReferenceResolver,
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
+        durationProbe: MediaDurationProbe? = nil,
         artworkStore: ArtworkStore = .shared,
         initialLibrary: FileBrowsingDomain.MediaLibrary? = nil,
         onPlay: @escaping @MainActor (MediaPlaybackItem) -> Void
@@ -177,6 +179,7 @@ public final class MediaLibraryViewModel {
         self.store = store
         self.resolver = resolver
         self.viewingStateProvider = viewingStateProvider
+        self.durationProbe = durationProbe
         self.artworkStore = artworkStore
         self.onPlay = onPlay
         if let initialLibrary {
@@ -476,6 +479,41 @@ public final class MediaLibraryViewModel {
             retained[reference.id] = artworkURLs[reference.id]
         }
         referenceArtworkURLs = retained
+        guard let durationProbe else { return }
+        for reference in snapshot where states[reference.id] == nil {
+            guard snapshot.map(\.id) == references.map(\.id) else { return }
+            guard let duration = await probeDuration(for: reference, using: durationProbe) else { continue }
+            guard snapshot.map(\.id) == references.map(\.id),
+                  referenceViewingStates[reference.id] == nil else { continue }
+            referenceViewingStates[reference.id] = VideoCardViewingState(
+                positionSeconds: 0,
+                durationSeconds: duration,
+                isCompleted: false
+            )
+        }
+    }
+
+    private func probeDuration(
+        for reference: FileBrowsingDomain.MediaReference,
+        using probe: MediaDurationProbe
+    ) async -> Double? {
+        guard let source = try? await resolver.resolve(reference) else { return nil }
+        defer { source.byteStreamHandle?.release() }
+        let identity: VersionedMediaIdentity? = switch reference.locator {
+        case .file:
+            VersionedMediaIdentity.local(source.url)
+        case .sourceItem(let dataSourceID, let path):
+            VersionedMediaIdentity.remote(
+                sourceKey: reference.remoteSourceKey
+                    ?? "legacy:\(dataSourceID.uuidString.lowercased())",
+                canonicalPath: path,
+                entityTag: reference.remoteEntityTag,
+                sizeInBytes: reference.sizeInBytes,
+                modifiedAt: reference.modifiedAt
+            )
+        }
+        guard let identity else { return nil }
+        return await probe(source, identity)
     }
 
     private func mediaIdentity(for reference: FileBrowsingDomain.MediaReference) async -> MediaIdentity? {

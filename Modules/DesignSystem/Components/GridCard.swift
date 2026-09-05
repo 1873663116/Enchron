@@ -480,12 +480,15 @@ public struct GridCard: View {
     private func videoCaption(fileSize: String, duration: String) -> some View {
         thumbnailCaption {
             captionBlock {
-                if fileSize.isEmpty == false {
-                    Text(fileSize)
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                HStack(alignment: .firstTextBaseline) {
+                    captionDuration(duration)
+                    Spacer(minLength: DesignTokens.Spacing.xs)
+                    if fileSize.isEmpty == false {
+                        Text(fileSize)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Surface.supportingText)
+                    }
                 }
-                captionDuration(duration)
             }
         }
     }
@@ -624,7 +627,7 @@ private struct ThumbnailTextScrim: ViewModifier {
     func body(content: Content) -> some View {
         content.background {
             GeometryReader { proxy in
-                let scrimHeight = maximumHeight
+                let scrimHeight = maximumHeight * DesignTokens.Surface.textScrimCoverageFraction
                 let plateauHeight = proxy.size.height * DesignTokens.Surface.textScrimPlateauFraction
                 let leadFraction = 1 - plateauHeight / max(scrimHeight, 1)
                 Rectangle()

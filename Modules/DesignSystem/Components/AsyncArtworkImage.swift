@@ -3,15 +3,37 @@ import Foundation
 import ImageIO
 import SwiftUI
 
+private struct ArtworkLoadsWhenVisibleKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+public extension EnvironmentValues {
+    var artworkLoadsWhenVisible: Bool {
+        get { self[ArtworkLoadsWhenVisibleKey.self] }
+        set { self[ArtworkLoadsWhenVisibleKey.self] = newValue }
+    }
+}
+
 public struct AsyncArtworkImage: View {
     private let url: URL?
     private let contentMode: ContentMode
+    private let maxPixelSize: Int?
+    private let onLoad: (() -> Void)?
 
+    @Environment(\.artworkLoadsWhenVisible) private var loadsWhenVisible
     @State private var loadedImage: LoadedImage?
+    @State private var isVisible = false
 
-    public init(url: URL?, contentMode: ContentMode = .fill) {
+    public init(
+        url: URL?,
+        contentMode: ContentMode = .fill,
+        maxPixelSize: Int? = ArtworkImageLoader.decodedMaxPixelSize,
+        onLoad: (() -> Void)? = nil
+    ) {
         self.url = url
         self.contentMode = contentMode
+        self.maxPixelSize = maxPixelSize
+        self.onLoad = onLoad
     }
 
     public var body: some View {
@@ -25,14 +47,18 @@ public struct AsyncArtworkImage: View {
             }
         }
         .animation(DesignTokens.AnimationToken.fadeIn, value: displayedImage?.url)
-        .task(id: url) {
+        .onScrollVisibilityChange(threshold: 0.01) { visible in
+            isVisible = visible
+        }
+        .task(id: activeURL) {
             loadedImage = nil
-            guard let url else { return }
+            guard let url = activeURL else { return }
 
             do {
-                let image = try await ArtworkImageLoader.image(at: url)
+                let image = try await ArtworkImageLoader.image(at: url, maxPixelSize: maxPixelSize)
                 try Task.checkCancellation()
                 loadedImage = LoadedImage(url: url, image: image)
+                onLoad?()
             } catch {
                 guard !Task.isCancelled else { return }
                 loadedImage = nil
@@ -49,6 +75,10 @@ public struct AsyncArtworkImage: View {
         } else if url == nil {
             ArtworkPlaceholder()
         }
+    }
+
+    private var activeURL: URL? {
+        loadsWhenVisible && isVisible == false ? nil : url
     }
 
     private var displayedImage: LoadedImage? {
@@ -93,7 +123,7 @@ private struct LoadedImage {
     let image: CGImage
 }
 
-private enum ArtworkImageLoader {
+public enum ArtworkImageLoader {
     nonisolated(unsafe) private static let decoded: NSCache<NSURL, CGImage> = {
         let cache = NSCache<NSURL, CGImage>()
         cache.totalCostLimit = 64 * 1024 * 1024
@@ -104,15 +134,17 @@ private enum ArtworkImageLoader {
         decoded.object(forKey: url as NSURL)
     }
 
-    static func image(at url: URL) async throws -> CGImage {
+    static func image(
+        at url: URL,
+        maxPixelSize: Int? = decodedMaxPixelSize
+    ) async throws -> CGImage {
         if let cached = decoded.object(forKey: url as NSURL) { return cached }
         if url.isFileURL {
             let path = url.path
-            let data = try await Task.detached(priority: .utility) {
-                try Data(contentsOf: URL(fileURLWithPath: path))
+            let image = try await Task.detached(priority: .utility) {
+                try decode(try Data(contentsOf: URL(fileURLWithPath: path)), maxPixelSize: maxPixelSize)
             }.value
             try Task.checkCancellation()
-            let image = try decode(data)
             decoded.setObject(image, forKey: url as NSURL, cost: image.bytesPerRow * image.height)
             return image
         }
@@ -128,17 +160,33 @@ private enum ArtworkImageLoader {
               (200...299).contains(response.statusCode) else {
             throw LoadError.invalidResponse
         }
-        let image = try decode(data)
+        let image = try await Task.detached(priority: .utility) { try decode(data, maxPixelSize: maxPixelSize) }.value
+        try Task.checkCancellation()
         try ArtworkNetworkConfiguration.imageStorer?(url, image)
         decoded.setObject(image, forKey: url as NSURL, cost: image.bytesPerRow * image.height)
         return image
     }
 
-    private static func decode(_ data: Data) throws -> CGImage {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+    public static let decodedMaxPixelSize: Int = 1024
+
+    private static func decode(_ data: Data, maxPixelSize: Int?) throws -> CGImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
             throw LoadError.invalidImage
         }
+        let image: CGImage?
+        if let maxPixelSize {
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+            ]
+            image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        } else {
+            let options: [CFString: Any] = [kCGImageSourceShouldCacheImmediately: true]
+            image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
+        }
+        guard let image else { throw LoadError.invalidImage }
         return image
     }
 

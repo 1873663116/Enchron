@@ -192,6 +192,12 @@ public struct MediaSourceInformation: Codable, Equatable, Sendable {
     }
 }
 
+public enum MediaSourceProbe {
+    public static func information(for url: URL) async throws -> MediaSourceInformation {
+        try await SystemMediaSourceInformationLoader().load(from: url)
+    }
+}
+
 protocol MediaSourceInformationLoading: Sendable {
     func load(from url: URL) async throws -> MediaSourceInformation
 }

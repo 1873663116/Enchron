@@ -566,7 +566,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 598,
+          "line": 604,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -579,7 +579,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 626,
+          "line": 632,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -592,7 +592,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 609,
+          "line": 615,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -605,7 +605,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 604,
+          "line": 610,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -618,7 +618,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 601,
+          "line": 607,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -631,7 +631,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1545,
+          "line": 1647,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -644,7 +644,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1154,
+          "line": 1256,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -657,7 +657,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1305,
+          "line": 1407,
           "path": "Modules/Emby/EmbyScreens.swift"
         },
         {
@@ -674,7 +674,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1134,
+          "line": 1236,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -687,7 +687,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1200,
+          "line": 1302,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -700,7 +700,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1002,
+          "line": 1040,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -713,7 +713,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 931,
+          "line": 965,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -726,7 +726,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1450,
+          "line": 1552,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -752,7 +752,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 712,
+          "line": 718,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -765,7 +765,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 786,
+          "line": 793,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -804,7 +804,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1598,
+          "line": 1700,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -817,7 +817,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 415,
+          "line": 402,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -830,7 +830,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 814,
+          "line": 822,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -843,7 +843,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1361,
+          "line": 1463,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -856,7 +856,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1342,
+          "line": 1444,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -882,7 +882,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 553,
+          "line": 559,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -895,7 +895,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 521,
+          "line": 527,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -908,7 +908,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1622,
+          "line": 1724,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -921,7 +921,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 874,
+          "line": 900,
           "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
@@ -1008,7 +1008,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 739,
+          "line": 732,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1077,7 +1077,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 166,
+          "line": 163,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1090,7 +1090,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 648,
+          "line": 641,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1103,7 +1103,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 840,
+          "line": 833,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1116,7 +1116,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 939,
+          "line": 927,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1129,7 +1129,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 632,
+          "line": 625,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1142,7 +1142,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 681,
+          "line": 674,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1155,7 +1155,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 658,
+          "line": 651,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1172,7 +1172,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 658,
+          "line": 651,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1189,7 +1189,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 707,
+          "line": 700,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1202,7 +1202,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 656,
+          "line": 649,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1215,7 +1215,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 695,
+          "line": 688,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1232,7 +1232,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 692,
+          "line": 685,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1253,7 +1253,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 690,
+          "line": 683,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1275,7 +1275,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 155,
+          "line": 157,
           "path": "Modules/MediaLibrary/Views/FolderListView.swift"
         }
       ],
@@ -1310,7 +1310,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 353,
+          "line": 350,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1323,7 +1323,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 792,
+          "line": 785,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1380,7 +1380,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 201,
+          "line": 198,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1397,7 +1397,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1414,7 +1414,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1431,7 +1431,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1448,7 +1448,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1461,7 +1461,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 203,
+          "line": 200,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1478,7 +1478,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1495,7 +1495,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1512,7 +1512,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1529,7 +1529,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 194,
+          "line": 191,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1542,7 +1542,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 202,
+          "line": 199,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1559,7 +1559,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1576,7 +1576,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1593,7 +1593,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1610,7 +1610,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1627,7 +1627,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1644,7 +1644,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1661,7 +1661,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1678,7 +1678,7 @@
           "path": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift"
         },
         {
-          "line": 195,
+          "line": 192,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1691,7 +1691,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 354,
+          "line": 351,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1704,7 +1704,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1721,7 +1721,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1738,7 +1738,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1755,7 +1755,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1772,7 +1772,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1789,7 +1789,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1806,7 +1806,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1823,7 +1823,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1840,7 +1840,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1857,7 +1857,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 347,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1874,7 +1874,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 319,
+          "line": 316,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1891,7 +1891,7 @@
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         },
         {
-          "line": 310,
+          "line": 307,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1908,7 +1908,7 @@
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         },
         {
-          "line": 310,
+          "line": 307,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1921,7 +1921,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 859,
+          "line": 846,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1934,7 +1934,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 873,
+          "line": 860,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1947,7 +1947,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 727,
+          "line": 720,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         },
         {
@@ -1964,7 +1964,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 751,
+          "line": 744,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1977,7 +1977,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 763,
+          "line": 756,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -1990,7 +1990,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 757,
+          "line": 750,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2003,7 +2003,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 770,
+          "line": 763,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2016,7 +2016,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 779,
+          "line": 772,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2029,7 +2029,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 307,
+          "line": 304,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2042,7 +2042,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 800,
+          "line": 793,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2055,7 +2055,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 824,
+          "line": 817,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2068,7 +2068,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 830,
+          "line": 823,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2081,7 +2081,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 815,
+          "line": 808,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2094,7 +2094,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 247,
+          "line": 244,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2107,7 +2107,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 253,
+          "line": 250,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2120,7 +2120,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 242,
+          "line": 239,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2133,7 +2133,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 271,
+          "line": 268,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2146,7 +2146,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 279,
+          "line": 276,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2159,7 +2159,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 266,
+          "line": 263,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2172,7 +2172,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 340,
+          "line": 337,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2185,7 +2185,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 897,
+          "line": 884,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -2198,7 +2198,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 912,
+          "line": 901,
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
@@ -3424,7 +3424,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 120,
+          "line": 118,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3450,7 +3450,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 116,
+          "line": 114,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3476,7 +3476,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 109,
+          "line": 107,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3489,7 +3489,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 118,
+          "line": 116,
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],

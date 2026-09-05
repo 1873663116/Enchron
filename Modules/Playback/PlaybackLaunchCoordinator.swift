@@ -141,6 +141,20 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         return await mediaStateStore.viewingProjection(for: identity)
     }
 
+    public func knownDuration(for identity: MediaIdentity) async -> Double? {
+        await mediaStateMutationTask?.value
+        return await mediaStateStore.knownDurationProjection(for: identity)
+    }
+
+    public func recordKnownDuration(
+        _ durationSeconds: Double,
+        for identity: VersionedMediaIdentity
+    ) async {
+        await enqueueMediaStateMutation { store in
+            await store.recordKnownDuration(durationSeconds, for: identity)
+        }.value
+    }
+
     #if DEBUG
     public func debugViewingStateSnapshot() async -> ViewingStateDiagnosticSnapshot {
         await mediaStateMutationTask?.value
@@ -678,6 +692,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 )
                 let mutation = ViewingStatePolicy.mutation(for: evidence)
                 enqueueMediaStateMutation { store in
+                    await store.recordKnownDuration(evidence.durationSeconds, for: identity)
                     await store.applyViewingMutation(mutation, for: identity)
                 }
             }

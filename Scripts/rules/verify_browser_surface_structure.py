@@ -8,20 +8,22 @@ import sys
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VIOLATIONS: list[str] = []
 
-LEVEL_TRANSITION_SITES = {
-    "Modules/MediaLibrary/Views/FilesScreen.swift": ".id(folderIdentity)",
-    "Apps/Enchron/Screens/SettingsScreen.swift": ".id(selectedCategoryID)",
-    "Modules/Emby/EmbyScreens.swift": ".id(navigation.destination)",
+LEVEL_CONTENT_SITES = {
+    "Modules/MediaLibrary/Views/FilesScreen.swift": ".levelContent(id: folderIdentity)",
+    "Apps/Enchron/Screens/SettingsScreen.swift": ".levelContent(id: selectedCategoryID)",
+    "Modules/Emby/EmbyScreens.swift": ".levelContent(id: navigation.destination)",
 }
-LEVEL_TRANSITION_ANIMATIONS = {
-    "Modules/MediaLibrary/Views/FilesScreen.swift":
-        ".animation(DesignTokens.AnimationToken.levelTransition, value: folderIdentity)",
-    "Apps/Enchron/Screens/SettingsScreen.swift":
-        ".animation(DesignTokens.AnimationToken.levelTransition, value: selectedCategoryID)",
-    "Modules/Emby/EmbyScreens.swift":
-        "DesignTokens.AnimationToken.levelTransition,\n"
-        "                                value: navigation.destination",
-}
+DESIGN_SYSTEM_ONLY = (
+    "DesignTokens.TransitionToken.levelReplace",
+    "DesignTokens.AnimationToken.levelTransition",
+    "FlowGridLayout(",
+    "artworkLoadsWhenVisible, true",
+)
+PRODUCT_SOURCES = (
+    "Modules/MediaLibrary/Views/FilesScreen.swift",
+    "Apps/Enchron/Screens/SettingsScreen.swift",
+    "Modules/Emby/EmbyScreens.swift",
+)
 
 
 def read(path: str) -> str:
@@ -56,43 +58,173 @@ def order(source: str, *markers: str) -> bool:
 def check_level_transitions() -> None:
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
-        "public static let levelTransition: Animation = .easeOut(duration: 0.3)" in tokens,
-        "the level transition animation drifted from the calibrated 0.3 s ease-out",
+        "public static let levelExitDuration: Double = 0.12" in tokens
+        and "public static let levelEnterDuration: Double = 0.25" in tokens,
+        "the level transition animation drifted from the calibrated 0.12 s exit and 0.25 s entrance",
     )
     require(
         order(
             tokens,
             "public enum TransitionToken {",
-            "public static let levelReplaceTravel: CGFloat = 12",
             "@MainActor public static var levelReplace: AnyTransition {",
-            ".opacity.combined(with: .offset(y: levelReplaceTravel))",
+            ".asymmetric(",
+            "insertion: .opacity.animation(",
+            ".easeOut(duration: AnimationToken.levelEnterDuration)",
+            ".delay(AnimationToken.levelExitDuration)",
+            "removal: .opacity.animation(",
+            ".easeIn(duration: AnimationToken.levelExitDuration)",
         ),
-        "the level transition lost its vertical travel, so a folder that "
-        "looks like its parent switches without any visible transition",
+        "the level transition overlaps the old and new levels again: the old "
+        "level must fade out fully before the new one fades in, or similar "
+        "levels crossfade into a ghost",
     )
-    for path, identity in LEVEL_TRANSITION_SITES.items():
+    for path, marker in LEVEL_CONTENT_SITES.items():
         source = read(path)
-        site = f"{identity}\n"
-        index = source.find(site)
-        require(index >= 0, f"{path}: level content lost its identity modifier {identity}")
-        if index < 0:
-            continue
-        following = source[index:index + 200]
         require(
-            re.match(
-                re.escape(identity)
-                + r"\n\s+\.transition\(DesignTokens\.TransitionToken\.levelReplace\)",
-                following,
+            marker in source,
+            f"{path}: level content must switch through .levelContent(id:), the "
+            "one place that owns the level transition",
+        )
+    for path in PRODUCT_SOURCES:
+        source = read(path)
+        for marker in DESIGN_SYSTEM_ONLY:
+            require(
+                marker not in source,
+                f"{path}: {marker} belongs to DesignSystem components; screens "
+                "compose CardGrid and .levelContent(id:) instead",
             )
-            is not None,
-            f"{path}: level content after {identity} must use "
-            "DesignTokens.TransitionToken.levelReplace",
-        )
+    level = read("Modules/DesignSystem/Components/LevelContent.swift")
+    require(
+        order(
+            level,
+            "ZStack {",
+            ".id(id)",
+            ".transition(DesignTokens.TransitionToken.levelReplace)",
+            ".animation(DesignTokens.AnimationToken.levelTransition, value: id)",
+        ),
+        "LevelContent lost the ZStack that keeps the old level alive through its exit",
+    )
+    grid = read("Modules/DesignSystem/Components/CardGrid.swift")
+    require(
+        order(
+            grid,
+            "FlowGridLayout(spacing: DesignTokens.Card.gridSpacing) {",
+            ".frame(maxWidth: .infinity, alignment: .leading)",
+            ".environment(\\.artworkLoadsWhenVisible, true)",
+        ),
+        "CardGrid must lay cards out with FlowGridLayout and gate their artwork on scroll visibility",
+    )
+
+
+def check_sidebar_layout() -> None:
+    for path in (
+        "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "Modules/Emby/EmbyScreens.swift",
+    ):
+        source = read(path)
         require(
-            LEVEL_TRANSITION_ANIMATIONS[path] in source,
-            f"{path}: level content must animate with "
-            "DesignTokens.AnimationToken.levelTransition keyed by its identity",
+            "SidebarSplitLayout(sidebarIsVisible:" in source
+            and ".transition(.move(edge: .leading)" not in source,
+            f"{path}: the sidebar must slide through SidebarSplitLayout so both "
+            "screens share one push animation",
         )
+    layout = read("Modules/DesignSystem/Components/SidebarSplitLayout.swift")
+    require(
+        order(
+            layout,
+            "let contentWidth = max(0, proxy.size.width - (sidebarIsVisible ? sidebarWidth : 0))",
+            ".frame(width: contentWidth, height: proxy.size.height)",
+            ".offset(x: sidebarIsVisible ? sidebarWidth : 0)",
+        )
+        and ".animation(nil" not in layout,
+        "SidebarSplitLayout must animate the content width continuously; the "
+        "grids underneath keep card identity, so a snapped width only adds a jump",
+    )
+    for path in (
+        "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "Modules/Emby/EmbyScreens.swift",
+    ):
+        source = read(path)
+        require(
+            "CardGrid {" in source
+            and "GridItem(.adaptive(minimum: DesignTokens.Card." not in source,
+            f"{path}: card grids must be CardGrid; LazyVGrid rebuilds whole rows "
+            "whenever the column count changes",
+        )
+    emby = read("Modules/Emby/EmbyScreens.swift")
+    detail = region(
+        emby,
+        "private struct EmbyDetailScreen: View {",
+        "    private func entrancePrefetchURLs() -> [URL] {",
+    )
+    require(
+        "Task { await runEntrance() }" not in detail
+        and order(
+            detail,
+            ".task {",
+            "await viewModel.refresh()",
+            "await runEntrance()",
+            "await ArtworkPrefetch.warm(entrancePrefetchURLs())",
+            "while backdropLoaded == false, ContinuousClock.now < deadline {",
+            "withAnimation { revealed = true }",
+        )
+        and order(
+            emby,
+            "if revealed {",
+            "childrenContent",
+            ".transition(entrance(5))",
+            ".transition(entrance(9))",
+        )
+        and order(
+            emby,
+            "if revealed {",
+            "titleArtwork(item)",
+            ".transition(entrance(0))",
+            "overview(item.metadata)",
+            ".transition(entrance(2))",
+            ".transition(entrance(4))",
+        )
+        and order(emby, ".background {", "if revealed {", "titleWash", ".delay(entranceDelay(0))")
+        and order(emby, "maxPixelSize: nil,", "onLoad: { backdropLoaded = true }"),
+        "the Emby detail page must show nothing until its data, backdrop and "
+        "first card images are in, then reveal backdrop by fade and every other "
+        "block with one slide-up at equal intervals, title first",
+    )
+    require(
+        order(
+            emby,
+            "SidebarSplitLayout(sidebarIsVisible: sidebarIsVisible && sidebarSuspended == false)",
+            "sidebarSuspended = true",
+            "try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))",
+            "navigation.open(item)",
+        ),
+        "opening an Emby item must slide the sidebar away before the push; "
+        "pushing while the width animates competes for the same frames",
+    )
+    require(
+        order(
+            emby,
+            "if isLoading == false {",
+            "CardGrid {",
+            ".opacity(revealed ? 1 : 0)",
+            ".task(id: revealKey) {",
+            "revealed = false",
+            "await ArtworkPrefetch.warm(",
+            "withAnimation(.easeOut(duration: DesignTokens.Card.gridRevealDuration)) {",
+        ),
+        "the Emby poster grid must stay empty until its items are in and lay out "
+        "before it fades in; fading while the grid is built stutters",
+    )
+    artwork = read("Modules/DesignSystem/Components/AsyncArtworkImage.swift")
+    require(
+        order(
+            artwork,
+            ".onScrollVisibilityChange(threshold: 0.01) { visible in",
+            ".task(id: activeURL) {",
+            "loadsWhenVisible && isVisible == false ? nil : url",
+        ),
+        "AsyncArtworkImage no longer gates loading on scroll visibility",
+    )
 
 
 def check_grid_card_hover() -> None:
@@ -150,8 +282,10 @@ def check_grid_card_hover() -> None:
             video_caption,
             "thumbnailCaption {",
             "captionBlock {",
-            "Text(fileSize)",
+            "HStack(alignment: .firstTextBaseline) {",
             "captionDuration(duration)",
+            "Spacer(minLength: DesignTokens.Spacing.xs)",
+            "Text(fileSize)",
         ),
         "the video card's caption left the shared hover caption, so Files cards "
         "and Emby cards reveal different things under the gaze",
@@ -197,7 +331,7 @@ def check_grid_card_hover() -> None:
             scrim,
             "content.background {",
             "GeometryReader { proxy in",
-            "let scrimHeight = maximumHeight",
+            "let scrimHeight = maximumHeight * DesignTokens.Surface.textScrimCoverageFraction",
             "let plateauHeight = proxy.size.height * DesignTokens.Surface.textScrimPlateauFraction",
             "let leadFraction = 1 - plateauHeight / max(scrimHeight, 1)",
             "Rectangle()",
@@ -214,13 +348,14 @@ def check_grid_card_hover() -> None:
     )
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
-        "public static let textScrimPlateauFraction: CGFloat = 0.4" in tokens
-        and "public static let textScrimOpacity: Double = 0.8" in tokens,
-        "the text scrim plateau drifted from two fifths of the caption at 0.8 material",
+        "public static let textScrimCoverageFraction: CGFloat = 0.8" in tokens
+        and "public static let textScrimPlateauFraction: CGFloat = 0.4" in tokens
+        and "public static let textScrimOpacity: Double = 1" in tokens,
+        "the text scrim plateau drifted from two fifths of the caption at full material",
     )
     require(
-        "public static var textScrimMaterial: Material { .thinMaterial }" in tokens,
-        "the text scrim is no longer the thin material that keeps captions legible without darkening",
+        "public static var textScrimMaterial: Material { .ultraThickMaterial }" in tokens,
+        "the text scrim is no longer the ultra-thick material that keeps captions legible without darkening",
     )
     require(
         order(
@@ -252,6 +387,7 @@ def check_grid_card_hover() -> None:
 def main() -> int:
     VIOLATIONS.clear()
     check_level_transitions()
+    check_sidebar_layout()
     check_grid_card_hover()
     if VIOLATIONS:
         for violation in VIOLATIONS:

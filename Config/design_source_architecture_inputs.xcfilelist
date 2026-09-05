@@ -13,12 +13,16 @@ $(SRCROOT)/Apps/Enchron/TestCommandChannel.swift
 $(SRCROOT)/Apps/Enchron/ViewingStorageDiagnostics.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AsyncArtworkImage.swift
 $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
+$(SRCROOT)/Modules/DesignSystem/Components/CardGrid.swift
+$(SRCROOT)/Modules/DesignSystem/Components/FlowGridLayout.swift
 $(SRCROOT)/Modules/DesignSystem/Components/GridCard.swift
 $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
+$(SRCROOT)/Modules/DesignSystem/Components/LevelContent.swift
 $(SRCROOT)/Modules/DesignSystem/Components/LoadingSpinner.swift
 $(SRCROOT)/Modules/DesignSystem/Components/MenuSelectionRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarRow.swift
+$(SRCROOT)/Modules/DesignSystem/Components/SidebarSplitLayout.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarToggleButton.swift
 $(SRCROOT)/Modules/DesignSystem/DebugMenuSelection.swift
 $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift

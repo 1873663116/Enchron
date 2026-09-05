@@ -142,6 +142,7 @@ public final class MediaLibraryFeature {
         sourceMode: SourceMode = .production,
         defaultsSuiteName: String? = nil,
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
+        durationProbe: MediaDurationProbe? = nil,
         onPlay: @escaping @MainActor (MediaPlaybackItem) -> Void
     ) {
         let defaults = defaultsSuiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
@@ -171,6 +172,7 @@ public final class MediaLibraryFeature {
             localDataSource: localSource,
             uiState: uiState,
             viewingStateProvider: viewingStateProvider,
+            durationProbe: durationProbe,
             localDataSourceID: sourceID,
             onPlayFile: onPlay
         )
@@ -178,6 +180,7 @@ public final class MediaLibraryFeature {
             store: UserDefaultsMediaLibraryStore(defaults: defaults),
             resolver: resolver,
             viewingStateProvider: viewingStateProvider,
+            durationProbe: durationProbe,
             initialLibrary: initialLibrary,
             onPlay: onPlay
         )

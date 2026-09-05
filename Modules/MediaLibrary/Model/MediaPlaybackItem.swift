@@ -99,3 +99,4 @@ public struct VideoCardViewingState: Equatable, Sendable {
 }
 
 public typealias MediaViewingStateProvider = @Sendable (MediaIdentity) async -> VideoCardViewingState?
+public typealias MediaDurationProbe = @Sendable (ResolvedMediaSource, VersionedMediaIdentity) async -> Double?

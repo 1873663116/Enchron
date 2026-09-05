@@ -70,3 +70,15 @@
 
 - SMB 连接后**共享在根一级仍然表现为文件夹**，服务器本身是来源根；以 `$` 结尾的管理/隐藏共享被过滤掉。
 - 从完整的 rootPath 路径换算到相对共享的路径，是这两个适配器与来源根之间唯一的坐标转换。
+
+## 卡片时长的来源
+
+- 目录列表只给体积，不给时长；时长只能从容器头读出。`MediaSourceProbe.information(for:)`（PlaybackCore）用 FFmpeg 打开来源、取 `MediaSourceInformation.durationSeconds` 后立即关闭，不建播放会话。远程文件走与播放相同的 `resolvePlayableSource` 与字节流服务，探测结束后 `release()` 句柄；MKV 只读头部几百 KB，moov 在尾部的 MP4 会多一次尾部读。
+- 探测在 `loadProgressForFiles`／`loadViewingStatesForCurrentFolder` 之后按目录顺序逐个进行，只针对没有观看状态也没有已知时长的文件，目录切换（`sourceGeneration`／引用列表变化）即停止。结果经 `PlaybackLaunchCoordinator.recordKnownDuration` 写入 `PersistedMediaState.knownDurationSeconds`，之后不再探测。
+- `knownDurationSeconds` 与观看状态独立：`ViewingStatePolicy` 对短于 15 分钟的内容不保存观看状态，但时长仍是事实；播放会话结束时也把探到的时长写进同一字段。没有观看状态、只有时长的文件，App 侧的 provider 返回位置 0 的 `VideoCardViewingState`，列表视图对位置 0 且未完成的记录不显示续播标记。
+
+
+## 封面缓存的编码
+
+- 远程封面落盘时按 `CGImage.alphaInfo` 选格式：带透明通道的存 PNG，不带的存 JPEG（0.72）。Emby 的 Logo 图是带透明通道的 PNG（2026-09-05 从服务器直接验证：Evangelion 的 Logo 743×306 RGBA，74% 像素透明），统一存成 JPEG 会把透明区域压成白色，第二次打开详情页标题就带白框。
+- `ArtworkKey(remoteImageURL:)` 的散列输入带 `alpha-aware|` 前缀，旧的 JPEG 副本因此被绕开而不是被读回；它们留在 Caches 里由系统回收。

@@ -18,7 +18,7 @@ public struct ArtworkKey: Sendable, Equatable, Hashable {
     }
 
     public init(remoteImageURL: URL) {
-        storageKey = SHA256.hash(data: Data(remoteImageURL.absoluteString.utf8))
+        storageKey = SHA256.hash(data: Data("alpha-aware|\(remoteImageURL.absoluteString)".utf8))
             .map { String(format: "%02x", $0) }
             .joined()
     }
@@ -171,19 +171,30 @@ public final class ArtworkStore: @unchecked Sendable {
         memory.setObject(ImageBox(image), forKey: key.storageKey as NSString)
     }
 
+    public static func carriesAlpha(_ image: CGImage) -> Bool {
+        switch image.alphaInfo {
+        case .none, .noneSkipFirst, .noneSkipLast:
+            false
+        case .first, .last, .premultipliedFirst, .premultipliedLast, .alphaOnly:
+            true
+        @unknown default:
+            true
+        }
+    }
+
     private static func encodedData(_ image: CGImage) throws -> Data {
         let data = NSMutableData()
+        let alpha = carriesAlpha(image)
         guard let destination = CGImageDestinationCreateWithData(
             data,
-            "public.jpeg" as CFString,
+            (alpha ? "public.png" : "public.jpeg") as CFString,
             1,
             nil
         ) else { throw StoreError.encodingFailed }
-        CGImageDestinationAddImage(
-            destination,
-            image,
-            [kCGImageDestinationLossyCompressionQuality: 0.72] as CFDictionary
-        )
+        let options: [CFString: Any] = alpha
+            ? [:]
+            : [kCGImageDestinationLossyCompressionQuality: 0.72]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw StoreError.encodingFailed }
         return data as Data
     }

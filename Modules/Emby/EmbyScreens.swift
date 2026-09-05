@@ -361,6 +361,7 @@ public struct EmbyScreen: View {
     @Environment(EmbyHomeViewModel.self) private var home
     @Environment(EmbyNavigationModel.self) private var navigation
     @State private var sidebarIsVisible = true
+    @State private var sidebarSuspended = false
 
     private let onPlay: PlayHandler
 
@@ -374,21 +375,12 @@ public struct EmbyScreen: View {
             if session.server == nil {
                 EmbyConnectionScreen()
             } else {
-                HStack(spacing: 0) {
-                    if navigation.path.isEmpty, sidebarIsVisible {
-                        sidebar
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
+                SidebarSplitLayout(sidebarIsVisible: sidebarIsVisible && sidebarSuspended == false) {
+                    sidebar
+                } content: {
                     NavigationStack(path: $navigation.path) {
-                        ZStack {
-                            destinationContent
-                                .id(navigation.destination)
-                                .transition(DesignTokens.TransitionToken.levelReplace)
-                        }
-                            .animation(
-                                DesignTokens.AnimationToken.levelTransition,
-                                value: navigation.destination
-                            )
+                        destinationContent
+                            .levelContent(id: navigation.destination)
                             .navigationDestination(for: EmbyLibraryItem.self) { item in
                                 EmbyDetailScreen(
                                     viewModel: EmbyDetailViewModel(
@@ -404,15 +396,13 @@ public struct EmbyScreen: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
-                .animation(
-                    DesignTokens.AnimationToken.controlsTransition,
-                    value: navigation.path.isEmpty
-                )
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Root")
+        .task(id: navigation.path.isEmpty) {
+            await settleSidebar(afterPathIsEmpty: navigation.path.isEmpty)
+        }
 #if DEBUG
         .overlay(alignment: .bottomTrailing) {
             if let evidence = accessibilityEvidence {
@@ -427,7 +417,23 @@ public struct EmbyScreen: View {
 
     private func open(_ item: EmbyLibraryItem) {
         warmDetailArtwork(for: item, session: session)
-        navigation.open(item)
+        Task { @MainActor in
+            if sidebarIsVisible, sidebarSuspended == false {
+                sidebarSuspended = true
+                try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))
+            }
+            navigation.open(item)
+        }
+    }
+
+    private func settleSidebar(afterPathIsEmpty isEmpty: Bool) async {
+        if isEmpty {
+            try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))
+            guard navigation.path.isEmpty else { return }
+            sidebarSuspended = false
+        } else {
+            sidebarSuspended = true
+        }
     }
 
 #if DEBUG
@@ -754,6 +760,7 @@ private struct EmbyLibraryScreen: View {
         @Bindable var viewModel = viewModel
         EmbyPosterGrid(
             items: viewModel.items,
+            isLoading: viewModel.isLoading,
             session: session,
             reachabilityPage: "library",
             onSelect: onSelect
@@ -800,6 +807,7 @@ private struct EmbySearchScreen: View {
         @Bindable var viewModel = viewModel
         EmbyPosterGrid(
             items: viewModel.results,
+            isLoading: false,
             session: session,
             reachabilityPage: "search",
             onSelect: onSelect
@@ -837,23 +845,41 @@ private struct EmbySearchScreen: View {
 
 private struct EmbyPosterGrid: View {
     let items: [EmbyLibraryItem]
+    let isLoading: Bool
     let session: EmbySessionViewModel
     let reachabilityPage: String
     let onSelect: (EmbyLibraryItem) -> Void
     @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
+    @State private var revealed = false
+
+    private var revealKey: [EmbyItemID] {
+        isLoading ? [] : items.map(\.metadata.id)
+    }
 
     var body: some View {
         ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: DesignTokens.Card.posterWidth), spacing: DesignTokens.Card.gridSpacing)],
-                alignment: .leading,
-                spacing: DesignTokens.Card.gridSpacing
-            ) {
-                ForEach(items, id: \.metadata.id) { item in
-                    posterCard(item, session: session, onSelect: onSelect)
+            if isLoading == false {
+                CardGrid {
+                    ForEach(items, id: \.metadata.id) { item in
+                        posterCard(item, session: session, onSelect: onSelect)
+                    }
                 }
+                .padding(DesignTokens.Spacing.xxl)
+                .opacity(revealed ? 1 : 0)
             }
-            .padding(DesignTokens.Spacing.xxl)
+        }
+        .task(id: revealKey) {
+            revealed = false
+            guard revealKey.isEmpty == false else { return }
+            await ArtworkPrefetch.warm(
+                items.prefix(DesignTokens.Card.gridRevealPrefetchCount)
+                    .compactMap { posterURL(for: $0, session: session) }
+            )
+            await Task.yield()
+            try? await Task.sleep(for: .seconds(DesignTokens.Card.gridRevealLayoutDelay))
+            withAnimation(.easeOut(duration: DesignTokens.Card.gridRevealDuration)) {
+                revealed = true
+            }
         }
         .scrollPosition($reachabilityScrollPosition)
 #if DEBUG
@@ -882,6 +908,8 @@ private struct EmbyDetailScreen: View {
     @State private var scrollOffset: CGFloat = 0
     @State private var hasBeenScrolled = false
     @State private var scrollPosition = ScrollPosition(edge: .top)
+    @State private var revealed = false
+    @State private var backdropLoaded = false
 
     let onSelect: (EmbyLibraryItem) -> Void
     let onPlay: EmbyScreen.PlayHandler
@@ -908,6 +936,11 @@ private struct EmbyDetailScreen: View {
                 if let item = viewModel.item {
                     backdrop(item)
                         .opacity(1 - min(progress / DesignTokens.EmbyDetail.backdropFadeFraction, 1))
+                        .opacity(revealed ? 1 : 0)
+                        .animation(
+                            .easeOut(duration: DesignTokens.EmbyDetail.backdropEntranceDuration),
+                            value: revealed
+                        )
                 }
 
                 pageContent(
@@ -926,6 +959,7 @@ private struct EmbyDetailScreen: View {
                 session.recordDetail(item: item, children: viewModel.children)
             }
 #endif
+            await runEntrance()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
@@ -952,16 +986,20 @@ private struct EmbyDetailScreen: View {
                     hero(item)
                         .frame(height: heroHeight, alignment: .bottom)
                         .opacity(Double(1 - progress))
-                    childrenContent
-                    posterShelf(title: "Special Features", items: viewModel.specialFeatures)
-                    posterShelf(title: "Related", items: viewModel.relatedItems)
-                    castAndCrew(item.metadata.people)
-                    about(item.metadata)
+                    if revealed {
+                        childrenContent
+                            .transition(entrance(5))
+                        posterShelf(title: "Special Features", items: viewModel.specialFeatures)
+                            .transition(entrance(6))
+                        posterShelf(title: "Related", items: viewModel.relatedItems)
+                            .transition(entrance(7))
+                        castAndCrew(item.metadata.people)
+                            .transition(entrance(8))
+                        about(item.metadata)
+                            .transition(entrance(9))
+                    }
                 }
                 .padding(.bottom, DesignTokens.Spacing.xxl)
-            } else if viewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 400)
             }
         }
         .contentMargins(.top, topMargin, for: .scrollContent)
@@ -1017,12 +1055,59 @@ private struct EmbyDetailScreen: View {
 #endif
     }
 
+    private func runEntrance() async {
+        await ArtworkPrefetch.warm(entrancePrefetchURLs())
+        let deadline = ContinuousClock.now.advanced(
+            by: .seconds(DesignTokens.EmbyDetail.backdropWaitLimit)
+        )
+        while backdropLoaded == false, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.backdropPollInterval))
+        }
+        withAnimation { revealed = true }
+    }
+
+    private func entrancePrefetchURLs() -> [URL] {
+        var urls: [URL] = []
+        switch viewModel.children {
+        case .none:
+            break
+        case let .seasons(_, _, episodes):
+            urls += episodes.map { thumbURL(for: $0.metadata, session: session) }.compactMap { $0 }
+        case let .episodes(episodes):
+            urls += episodes.map { thumbURL(for: $0.metadata, session: session) }.compactMap { $0 }
+        case let .collection(members):
+            urls += members.compactMap { posterURL(for: $0, session: session) }
+        }
+        urls += viewModel.specialFeatures.compactMap { posterURL(for: $0, session: session) }
+        urls += viewModel.relatedItems.compactMap { posterURL(for: $0, session: session) }
+        return Array(urls.prefix(DesignTokens.EmbyDetail.entrancePrefetchCount))
+    }
+
+    private func entranceDelay(_ index: Int) -> Double {
+        DesignTokens.EmbyDetail.backdropEntranceDuration
+            + DesignTokens.EmbyDetail.heroEntranceDelay
+            + Double(index) * DesignTokens.EmbyDetail.entranceStagger
+    }
+
+    private func entrance(_ index: Int) -> AnyTransition {
+        .opacity
+            .combined(with: .offset(y: DesignTokens.EmbyDetail.entranceTravel))
+            .animation(
+                .easeOut(duration: DesignTokens.EmbyDetail.entranceDuration)
+                    .delay(entranceDelay(index))
+            )
+    }
+
     private func scroll(to offset: CGFloat, topMargin: CGFloat) {
         scrollPosition.scrollTo(y: offset - topMargin)
     }
 
     private func backdrop(_ item: EmbyLibraryItem) -> some View {
-        AsyncArtworkImage(url: heroArtworkURL(for: item, session: session))
+        AsyncArtworkImage(
+            url: heroArtworkURL(for: item, session: session),
+            maxPixelSize: nil,
+            onLoad: { backdropLoaded = true }
+        )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
             .ignoresSafeArea()
@@ -1036,19 +1121,36 @@ private struct EmbyDetailScreen: View {
 
     private func hero(_ item: EmbyLibraryItem) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            titleArtwork(item)
-            genreLine(item)
-            overview(item.metadata)
-            technicalLine(item.metadata)
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
-                actionRow(item)
-                Spacer(minLength: DesignTokens.Spacing.xl)
-                creditSummary(item.metadata.people)
+            if revealed {
+                titleArtwork(item)
+                    .transition(entrance(0))
+                genreLine(item)
+                    .transition(entrance(1))
+                overview(item.metadata)
+                    .transition(entrance(2))
+                technicalLine(item.metadata)
+                    .transition(entrance(3))
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
+                    actionRow(item)
+                    Spacer(minLength: DesignTokens.Spacing.xl)
+                    creditSummary(item.metadata.people)
+                }
+                .transition(entrance(4))
             }
         }
         .padding(DesignTokens.Spacing.xxl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { titleWash }
+        .background {
+            if revealed {
+                titleWash
+                    .transition(
+                        .opacity.animation(
+                            .easeOut(duration: DesignTokens.EmbyDetail.entranceDuration)
+                                .delay(entranceDelay(0))
+                        )
+                    )
+            }
+        }
     }
 
     private var titleWash: some View {

@@ -53,12 +53,6 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Modules/Emby/EmbyScreens.swift",
-      "signature": ".frame(maxWidth: .infinity, minHeight: 400)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
       "signature": ".frame(maxWidth: 220)",
       "count": 1
     },

@@ -54,7 +54,9 @@ public enum DesignTokens {
         public static let scene: Animation = .spring(response: 0.3, dampingFraction: 0.7)
         public static let sceneCarouselSettle: Animation = .spring(response: 0.34, dampingFraction: 0.94)
         public static let fadeIn: Animation = .easeIn(duration: 0.25)
-        public static let levelTransition: Animation = .easeOut(duration: 0.3)
+        public static let levelTransition: Animation = .easeOut(duration: 0.25)
+        public static let levelExitDuration: Double = 0.12
+        public static let levelEnterDuration: Double = 0.25
         public static let informationReveal: Animation = .easeOut(duration: 0.2)
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
 
@@ -96,9 +98,16 @@ public enum DesignTokens {
     }
 
     public enum TransitionToken {
-        public static let levelReplaceTravel: CGFloat = 12
         @MainActor public static var levelReplace: AnyTransition {
-            .opacity.combined(with: .offset(y: levelReplaceTravel))
+            .asymmetric(
+                insertion: .opacity.animation(
+                    .easeOut(duration: AnimationToken.levelEnterDuration)
+                        .delay(AnimationToken.levelExitDuration)
+                ),
+                removal: .opacity.animation(
+                    .easeIn(duration: AnimationToken.levelExitDuration)
+                )
+            )
         }
     }
 
@@ -221,10 +230,11 @@ public enum DesignTokens {
         public static let border: Color = .primary.opacity(0.05)
         public static let divider: Color = .primary.opacity(0.14)
         public static let supportingText: Color = .primary.opacity(0.72)
+        public static let textScrimCoverageFraction: CGFloat = 0.8
         public static let textScrimPlateauFraction: CGFloat = 0.4
-        public static let textScrimOpacity: Double = 0.8
+        public static let textScrimOpacity: Double = 1
         public static let textScrimSampleCount: Int = 24
-        public static var textScrimMaterial: Material { .thinMaterial }
+        public static var textScrimMaterial: Material { .ultraThickMaterial }
         public static func textScrimKeyframes(leadFraction: Double) -> [ScrimKeyframe] {
             [
                 ScrimKeyframe(location: 0, opacity: 0, curve: .linear),
@@ -309,6 +319,9 @@ public enum DesignTokens {
         public static let stillHeight: CGFloat = 205
         public static let thumbnailHeight: CGFloat = 140
         public static let gridSpacing: CGFloat = Spacing.md
+        public static let gridRevealDuration: Double = 0.25
+        public static let gridRevealLayoutDelay: Double = 0.016
+        public static let gridRevealPrefetchCount: Int = 24
         public static let placeholderIconSize: CGFloat = 45
     }
 
@@ -395,6 +408,15 @@ public enum DesignTokens {
         public static let topContentInset: CGFloat = DesignTokens.Interactive.large + Spacing.lg * 2
         public static let backdropFadeFraction: CGFloat = 0.7
         public static let heroSettleFraction: CGFloat = 0.35
+        public static let backdropWaitLimit: Double = 1.5
+        public static let backdropPollInterval: Double = 0.016
+        public static let backdropEntranceDuration: Double = 0.4
+        public static let heroEntranceDelay: Double = 0.5
+        public static let entranceDuration: Double = 0.35
+        public static let entranceStagger: Double = 0.15
+        public static let entranceTravel: CGFloat = 40
+        public static let entrancePrefetchCount: Int = 12
+        public static let sidebarHandoffDelay: Double = 0.45
     }
 
     public enum Collapsible {

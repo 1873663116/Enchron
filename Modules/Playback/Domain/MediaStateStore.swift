@@ -15,19 +15,22 @@ nonisolated package struct PersistedMediaState: Codable, Equatable, Sendable {
     package var formatPreference: MediaFormat?
     package var playbackModePreference: PersistedPlaybackMode?
     package var trackSelectionPreference: TrackSelectionPreference?
+    package var knownDurationSeconds: Double?
 
     package init(
         versionedIdentity: VersionedMediaIdentity,
         viewingStatus: ViewingStatus? = nil,
         formatPreference: MediaFormat? = nil,
         playbackModePreference: PersistedPlaybackMode? = nil,
-        trackSelectionPreference: TrackSelectionPreference? = nil
+        trackSelectionPreference: TrackSelectionPreference? = nil,
+        knownDurationSeconds: Double? = nil
     ) {
         self.versionedIdentity = versionedIdentity
         self.viewingStatus = viewingStatus
         self.formatPreference = formatPreference
         self.playbackModePreference = playbackModePreference
         self.trackSelectionPreference = trackSelectionPreference
+        self.knownDurationSeconds = knownDurationSeconds
     }
 }
 
@@ -256,6 +259,25 @@ package actor MediaStateStore {
         return state.viewingStatus
     }
 
+    package func knownDurationProjection(for identity: MediaIdentity) -> Double? {
+        let key = storageKey(for: identity)
+        guard let data = defaults.data(forKey: key),
+              let state = try? JSONDecoder().decode(PersistedMediaState.self, from: data) else {
+            return nil
+        }
+        return state.knownDurationSeconds
+    }
+
+    package func recordKnownDuration(
+        _ durationSeconds: Double,
+        for identity: VersionedMediaIdentity
+    ) {
+        guard durationSeconds > 0 else { return }
+        var state = loadValidated(for: identity) ?? PersistedMediaState(versionedIdentity: identity)
+        state.knownDurationSeconds = durationSeconds
+        saveOrRemoveEmpty(state)
+    }
+
     package func applyViewingMutation(
         _ mutation: ViewingStateMutation,
         for identity: VersionedMediaIdentity
@@ -363,7 +385,8 @@ package actor MediaStateStore {
         guard state.viewingStatus != nil
             || state.formatPreference != nil
             || state.playbackModePreference != nil
-            || state.trackSelectionPreference != nil else {
+            || state.trackSelectionPreference != nil
+            || state.knownDurationSeconds != nil else {
             defaults.removeObject(forKey: key)
             return
         }

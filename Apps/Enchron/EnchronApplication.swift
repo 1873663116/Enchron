@@ -364,6 +364,7 @@ final class EnchronApplication {
                 : .production,
             defaultsSuiteName: mediaLibraryDefaultsSuiteName,
             viewingStateProvider: Self.viewingStateProvider(launcher),
+            durationProbe: Self.durationProbe(launcher),
             onPlay: {
                 SurfaceInputProbes.record("openRequestForwarded")
                 launcher.requestPlayback($0.playbackLaunchRequest)
@@ -523,6 +524,17 @@ final class EnchronApplication {
         return "app.enchron.spatial-acceptance"
     }
 
+    private static func durationProbe(
+        _ launcher: PlaybackLaunchCoordinator
+    ) -> MediaDurationProbe {
+        { source, identity in
+            guard let information = try? await MediaSourceProbe.information(for: source.url),
+                  information.durationSeconds > 0 else { return nil }
+            await launcher.recordKnownDuration(information.durationSeconds, for: identity)
+            return information.durationSeconds
+        }
+    }
+
     private static func viewingStateProvider(
         _ launcher: PlaybackLaunchCoordinator
     ) -> MediaViewingStateProvider {
@@ -541,7 +553,15 @@ final class EnchronApplication {
                     isCompleted: true
                 )
             case nil:
-                nil
+                if let duration = await launcher.knownDuration(for: identity) {
+                    VideoCardViewingState(
+                        positionSeconds: 0,
+                        durationSeconds: duration,
+                        isCompleted: false
+                    )
+                } else {
+                    nil
+                }
             }
         }
     }

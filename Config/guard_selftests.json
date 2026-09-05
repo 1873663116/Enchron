@@ -381,14 +381,14 @@
       "guard": "Scripts/rules/verify_browser_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
-        "find": "                .id(folderIdentity)\n                .transition(DesignTokens.TransitionToken.levelReplace)\n",
-        "replaceWith": "                .id(folderIdentity)\n                .transition(.opacity)\n"
+        "file": "Modules/DesignSystem/Components/LevelContent.swift",
+        "find": "                .transition(DesignTokens.TransitionToken.levelReplace)\n",
+        "replaceWith": "                .transition(.opacity)\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "must use DesignTokens.TransitionToken.levelReplace"
+          "LevelContent lost the ZStack"
         ]
       }
     },
@@ -430,8 +430,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "        thumbnailCaption {\n            captionBlock {\n                if fileSize.isEmpty == false {\n",
-        "replaceWith": "        thumbnailCaption {\n            captionBlock {\n                captionTitle\n                if fileSize.isEmpty == false {\n"
+        "find": "        thumbnailCaption {\n            captionBlock {\n                HStack(alignment: .firstTextBaseline) {\n",
+        "replaceWith": "        thumbnailCaption {\n            captionBlock {\n                captionTitle\n                HStack(alignment: .firstTextBaseline) {\n"
       },
       "expected": {
         "exitCode": 1,
@@ -462,8 +462,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/DesignTokens.swift",
-        "find": "        public static let textScrimOpacity: Double = 0.8\n",
-        "replaceWith": "        public static let textScrimOpacity: Double = 1\n"
+        "find": "        public static let textScrimOpacity: Double = 1\n",
+        "replaceWith": "        public static let textScrimOpacity: Double = 0.5\n"
       },
       "expected": {
         "exitCode": 1,
@@ -613,6 +613,166 @@
         "exitCode": 1,
         "outputContains": [
           "the playback window's root body reads the playback position"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-level-that-bypasses-levelcontent",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "        currentFolderContent\n            .levelContent(id: folderIdentity)\n",
+        "replaceWith": "        currentFolderContent\n            .id(folderIdentity)\n            .transition(DesignTokens.TransitionToken.levelReplace)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "level content must switch through .levelContent(id:)"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-screen-that-reaches-for-flowgridlayout",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Emby/EmbyScreens.swift",
+        "find": "                CardGrid {\n                    ForEach(items, id: \\.metadata.id) { item in\n",
+        "replaceWith": "                FlowGridLayout(spacing: DesignTokens.Card.gridSpacing) {\n                    ForEach(items, id: \\.metadata.id) { item in\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "belongs to DesignSystem components"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-cardgrid-without-artwork-gating",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/CardGrid.swift",
+        "find": "        .environment(\\.artworkLoadsWhenVisible, true)\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "CardGrid must lay cards out with FlowGridLayout and gate their artwork"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-levelcontent-without-its-zstack",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/LevelContent.swift",
+        "find": "        ZStack {\n            content\n                .id(id)\n                .transition(DesignTokens.TransitionToken.levelReplace)\n        }\n",
+        "replaceWith": "        content\n            .id(id)\n            .transition(DesignTokens.TransitionToken.levelReplace)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "LevelContent lost the ZStack"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-push-before-the-sidebar-leaves",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Emby/EmbyScreens.swift",
+        "find": "                sidebarSuspended = true\n                try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))\n            }\n            navigation.open(item)\n",
+        "replaceWith": "                sidebarSuspended = true\n            }\n            navigation.open(item)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "opening an Emby item must slide the sidebar away before the push"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-detail-page-that-reveals-before-its-data",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Emby/EmbyScreens.swift",
+        "find": "            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children)\n            }\n#endif\n            await runEntrance()\n",
+        "replaceWith": "            Task { await runEntrance() }\n            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children)\n            }\n#endif\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the Emby detail page must show nothing until its data"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-poster-grid-that-fades-in-before-decoding",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Emby/EmbyScreens.swift",
+        "find": "            await ArtworkPrefetch.warm(\n                items.prefix(DesignTokens.Card.gridRevealPrefetchCount)\n                    .compactMap { posterURL(for: $0, session: session) }\n            )\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the Emby poster grid must stay empty until its items are in"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-artwork-that-ignores-scroll-visibility",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/AsyncArtworkImage.swift",
+        "find": "        loadsWhenVisible && isVisible == false ? nil : url\n",
+        "replaceWith": "        url\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "AsyncArtworkImage no longer gates loading on scroll visibility"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-sidebar-layout-that-snaps-the-width",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/SidebarSplitLayout.swift",
+        "find": "                    .frame(width: contentWidth, height: proxy.size.height)\n                    .offset(x: sidebarIsVisible ? sidebarWidth : 0)\n",
+        "replaceWith": "                    .frame(width: contentWidth, height: proxy.size.height)\n                    .animation(nil, value: sidebarIsVisible)\n                    .offset(x: sidebarIsVisible ? sidebarWidth : 0)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "SidebarSplitLayout must animate the content width continuously"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-scrim-that-is-not-material",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/DesignTokens.swift",
+        "find": "        public static var textScrimMaterial: Material { .ultraThickMaterial }\n",
+        "replaceWith": "        public static var textScrimMaterial: Material { .ultraThinMaterial }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the text scrim is no longer the ultra-thick material"
         ]
       }
     }

@@ -62,11 +62,25 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 
 ## 层级切换的过渡
 
-浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都用同一对 token：`AnimationToken.levelTransition` 驱动、`TransitionToken.levelReplace` 定义进出。纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。`levelReplace` 是 `.opacity` 叠加 `levelReplaceTravel`（12 pt）的纵向位移：旧层淡出时下沉、新层从下方淡入，位移对相同内容同样可见，切换的感知因此不再取决于内容差异。2026-09-05 真机否决了 `BlurReplaceTransition`：模糊加缩放在网格上过重。`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用与两个 token 的定义。
+浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都经 `.levelContent(id:)`（DesignSystem）：它内部是 ZStack + `.id` + `TransitionToken.levelReplace` + `AnimationToken.levelTransition`，页面不直接触碰这两个 token，守卫脚本禁止它们出现在页面源码里。纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。`levelReplace` 是先出后进的两段淡变：旧层 `levelExitDuration`（0.12 s）easeIn 淡出，新层延迟同样时长后 `levelEnterDuration`（0.25 s）easeOut 淡入，两层不同时可见。交叉淡变（同时半透明）在内容相似时叠出残影，加位移能让切换可见但佩戴者不接受任何移动；不重叠之后，相似内容看到的是暗一下再亮回来的明确信号，差异大的内容仍是平滑过渡。2026-09-05 真机否决了模糊替换、对称位移、同向位移三版。`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用与两个 token 的定义。
+
+## 侧栏进出与卡片网格
+
+Files 与 Emby 的侧栏都经 `SidebarSplitLayout`：内容区宽度随侧栏在 0.4 s 内连续变化，是真正的"推"。它能不掉帧，靠的是网格：卡片网格是 `CardGrid`（内部是自定义 `FlowGridLayout`：顺序排放、放不下换行，加 leading 对齐与封面可视性门控环境；页面不直接使用 `FlowGridLayout`），每张卡片是身份稳定的子视图，宽度逐帧变化时只重算坐标；`LazyVGrid(.adaptive)` 在列数变化的那一帧会整行销毁重建卡片（图片、hover、材质全部重来），几十张卡就掉帧（2026-09-05 真机）。"宽度一步到位再让卡片滑到新位置"的折中被否决：卡片先跳后动。
+
+非 lazy 网格的代价由可视性门控抵消：`AsyncArtworkImage` 在 `artworkLoadsWhenVisible` 环境下只在 `onScrollVisibilityChange` 报告可见后才加载，离开可视区释放已解码的引用（NSCache 仍持有）；两个网格都设了这个环境，网格之外的封面（详情页、播放面板）不受影响。这样同一时刻只有可视区的卡片在解码，与 lazy 网格同一量级。
+
+## 加载与动画不同时发生
+
+原则（取自 Apple TV 的详情页）：内容没准备好时宁可什么都不显示；准备好后先把布局做完，再播动画。布局和淡入淡出叠在同一批帧里就是卡顿的来源，与 CPU 算不算得过来无关。
+
+- **打开 Emby 条目**：先让侧栏滑出（`EmbyDetail.sidebarHandoffDelay` 0.45 s，父级页面先进入无侧栏状态），再推入详情页；返回时先弹出详情页，0.45 s 后侧栏再滑回。推入与宽度变化不落在同一批帧。
+- **Emby 详情页**：进入后页面为空；`refresh()` 完成、前 `entrancePrefetchCount`（12）张子条目封面解码完成、背景图解码完成（最多等 1.5 s）之后一次性揭示：背景图只淡入（0.4 s），之后静止 `heroEntranceDelay`（0.5 s）让佩戴者看一眼大图；然后标题、类型行、简介、技术行、操作行、剧集架、Special Features、Related、演职员、关于按同一个动画（`entranceDuration` 0.35 s，从下方 `entranceTravel` 40 pt 滑入）以相等间隔 `entranceStagger`（0.15 s）从上到下依次进入。hero 背后的 `titleWash`（椭圆压暗）随标题一起淡入——等待期间它不能先出现，否则空页上悬着一大块软阴影。背景图不设解码上限，其它封面维持 1024 px。
+- **Emby 海报网格**（换分类、搜索）：`isLoading` 期间不渲染网格；条目到齐后先把前 `gridRevealPrefetchCount`（24）张海报解码进缓存，网格再以 opacity 0 建立并完成布局，下一帧用 `gridRevealDuration`（0.25 s）淡入。层级切换的 `levelReplace` 只负责旧层淡出与空页淡入；把未解码的网格直接放进来仍会卡（2026-09-05 真机）。
 
 ## 卡片 hover 揭示
 
-`GridCard` 四种变体在注视下揭示的东西一致：观看进度条只在 hover 时出现（video、poster、episode 都经 `watchedProgressBar`，不直接画 `watchedEdgeProgressVisual`）；video 与 episode 的说明块经同一个 `thumbnailCaption`（scrim、底左对齐、hover 显隐）和同一个 `captionBlock`；episode 的块是标题两行、简介、`play.fill` 时长，video 的块只有体积与时长——文件名已经在缩略图下方，块里不再重复。scrim 由 `thumbnailTextScrim` 画，铺满整张缩略图：文字块下半段（`Surface.textScrimPlateauFraction` = 0.4）是材质满段，满段之上直到卡片顶全部给渐变（0 → `textScrimOpacity` 0.8，缓入缓出）。渐变区随文字块变矮而变长，短文字得到最柔的过渡；把渐变压在文字上或塞进固定 47 pt 的延伸段都被否决——前者让长说明的标题落在最淡处，后者在长说明上把过渡压成一条线。`ScrimKeyframe.stops` 采样 24 段成 stop；被 mask 的不是黑色而是 `Surface.textScrimMaterial`（thinMaterial）——黑色压暗在亮封面上要到 0.5 才能让白字可读，而人眼对低亮度区域敏感，材质用模糊加自适应对比让文字从杂乱封面里分离出来，不靠压暗。缓出（起点斜率最大）被否决，它在顶端留一条马赫带分界线；三段关键帧（0.25 处 0.36 再线性到 0.4）在有了高度下限之后不再需要。曲线处处光滑，文字块多高都只是同一条曲线的缩放，短文字块不会出硬边；0.9 的底部密度与指数 3 的缓入缓出都被否决：一行文字的块里高指数就是硬边。手放的三个 stop 是折线：拐点与起点在 180 pt 的块上看不见，压进 70 pt 就是一条硬边——2026-09-05 同一 Emby grid 里有简介与无简介两张卡因此长得截然不同。Emby 原来的卡片相对渐变（25%／50%／100%）同样是折线，只是永远摊在 205 pt 上。此外 Emby 里没有文字块上方的引入段；「块高 × 2」与「固定 52 pt 引入段」两版都被否决，一行体积上方任何引入段都会让黑色明显超出文字。2026-09-05 真机否决了"角落一行体积＋半张卡的 scrim"：Files 与 Emby 的 hover 必须是同一个说明块。folder 的缩略图是平面，不需要 scrim。同一个守卫脚本钉住这些结构。
+`GridCard` 四种变体在注视下揭示的东西一致：观看进度条只在 hover 时出现（video、poster、episode 都经 `watchedProgressBar`，不直接画 `watchedEdgeProgressVisual`）；video 与 episode 的说明块经同一个 `thumbnailCaption`（scrim、底左对齐、hover 显隐）和同一个 `captionBlock`；episode 的块是标题两行、简介、`play.fill` 时长，video 的块是一行：左边 `play.fill` 加时长（来自观看状态里的 `durationSeconds`，格式与 Emby 相同，未知时留空）、右边体积——文件名已经在缩略图下方，块里不再重复。scrim 由 `thumbnailTextScrim` 画，覆盖缩略图底部 `Surface.textScrimCoverageFraction`（0.8）、在顶部 20% 处消失：文字块下半段（`Surface.textScrimPlateauFraction` = 0.4）是材质满段，满段之上直到遮罩顶（缩略图 80% 处）全部给渐变（0 → `textScrimOpacity` 1，缓入缓出）。渐变区随文字块变矮而变长，短文字得到最柔的过渡；把渐变压在文字上或塞进固定 47 pt 的延伸段都被否决——前者让长说明的标题落在最淡处，后者在长说明上把过渡压成一条线。`ScrimKeyframe.stops` 采样 24 段成 stop；被 mask 的不是黑色而是 `Surface.textScrimMaterial`（ultraThickMaterial）——黑色压暗在亮封面上要到 0.5 才能让白字可读，而人眼对低亮度区域敏感，材质用模糊加自适应对比让文字从杂乱封面里分离出来，不靠压暗。缓出（起点斜率最大）被否决，它在顶端留一条马赫带分界线；三段关键帧（0.25 处 0.36 再线性到 0.4）在有了高度下限之后不再需要。曲线处处光滑，文字块多高都只是同一条曲线的缩放，短文字块不会出硬边；0.9 的底部密度与指数 3 的缓入缓出都被否决：一行文字的块里高指数就是硬边。手放的三个 stop 是折线：拐点与起点在 180 pt 的块上看不见，压进 70 pt 就是一条硬边——2026-09-05 同一 Emby grid 里有简介与无简介两张卡因此长得截然不同。Emby 原来的卡片相对渐变（25%／50%／100%）同样是折线，只是永远摊在 205 pt 上。此外 Emby 里没有文字块上方的引入段；「块高 × 2」与「固定 52 pt 引入段」两版都被否决，一行体积上方任何引入段都会让黑色明显超出文字。2026-09-05 真机否决了"角落一行体积＋半张卡的 scrim"：Files 与 Emby 的 hover 必须是同一个说明块。folder 的缩略图是平面，不需要 scrim。同一个守卫脚本钉住这些结构。
 ## 系统 Menu 里哪种行留得住标识符
 
 **系统 Menu 的内容随宿主 body 一起重建**：宿主窗口的 body 每重新求值一次，UIKit 就重建一次菜单并重新呈现已打开的子菜单。播放窗口的根 body 曾因 `.accessibilityValue` 快照读取每帧更新的播放位置而按播放时钟重算，三级菜单因此闪烁到无法点中；读取高频运行时属性的快照必须住在自己的 `ViewModifier`／子视图里（`WindowControlPlaneStateModifier`、`PlaybackAutomationStateProbe`），Observation 的失效范围就只有那一个节点。同理，菜单内容的 `onAppear` 不能改写被宿主 body 读取的状态：`setControlsFocused` 只在焦点值真正改变时登记一次交互。两条都由 `Scripts/rules/verify_playback_surface_structure.py` 钉住。

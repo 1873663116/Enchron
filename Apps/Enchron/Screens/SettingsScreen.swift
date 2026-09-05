@@ -97,11 +97,9 @@ struct SettingsScreen: View {
             .frame(maxWidth: 820, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, DesignTokens.Spacing.xxxl)
-            .id(selectedCategoryID)
-            .transition(DesignTokens.TransitionToken.levelReplace)
+            .levelContent(id: selectedCategoryID)
         }
         .scrollIndicators(.hidden)
-        .animation(DesignTokens.AnimationToken.levelTransition, value: selectedCategoryID)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
         .padding(.trailing, DesignTokens.SourceSidebar.windowInset)

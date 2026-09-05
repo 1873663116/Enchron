@@ -153,14 +153,11 @@ public struct FilesScreen: View {
     }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            if uiState.sidebarIsVisible {
-                sidebar
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
+        SidebarSplitLayout(sidebarIsVisible: uiState.sidebarIsVisible) {
+            sidebar
+        } content: {
             contentArea
         }
-        .animation(DesignTokens.AnimationToken.controlsTransition, value: uiState.sidebarIsVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("FileBrowsing-FilesScreen")
@@ -600,13 +597,9 @@ public struct FilesScreen: View {
 
     @ViewBuilder
     private var filesBody: some View {
-        ZStack {
-            currentFolderContent
-                .id(folderIdentity)
-                .transition(DesignTokens.TransitionToken.levelReplace)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(DesignTokens.AnimationToken.levelTransition, value: folderIdentity)
+        currentFolderContent
+            .levelContent(id: folderIdentity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -844,13 +837,7 @@ public struct FilesScreen: View {
 
     private var grid: some View {
         ScrollView {
-            LazyVGrid(
-                columns: [
-                    GridItem(.adaptive(minimum: DesignTokens.Card.gridMin), spacing: DesignTokens.Card.gridSpacing)
-                ],
-                alignment: .leading,
-                spacing: DesignTokens.Card.gridSpacing
-            ) {
+            CardGrid {
                 if isBrowsingSource {
                     ForEach(viewModel.displayedFolders) { folder in
                         GridCard.folder(
@@ -868,7 +855,7 @@ public struct FilesScreen: View {
                             title: displayTitle(file),
                             artworkURL: viewModel.artworkURL(for: file),
                             fileSize: fileSizeText(file),
-                            duration: "",
+                            duration: durationText(viewModel.fileViewingStates[file.id]?.durationSeconds),
                             watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
                             accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
                             action: {
@@ -907,7 +894,9 @@ public struct FilesScreen: View {
                             title: displayTitle(reference),
                             artworkURL: mediaLibrary.artworkURL(for: reference),
                             fileSize: fileSizeText(reference),
-                            duration: "",
+                            duration: durationText(
+                                mediaLibrary.referenceViewingStates[reference.id]?.durationSeconds
+                            ),
                             watchedProgress: mediaLibrary.referenceViewingStates[reference.id]?.progress,
                             accessibilityIdentifier: "MediaLibrary-grid-video-\(reference.name)",
                             selectionEnabled: mediaReferenceSelectionIsActive,
@@ -918,7 +907,6 @@ public struct FilesScreen: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
 #if DEBUG
@@ -969,7 +957,7 @@ public struct FilesScreen: View {
                             id: "video-\(file.id)",
                             title: displayTitle(file),
                             fileSize: fileSizeText(file),
-                            duration: "",
+                            duration: durationText(viewModel.fileViewingStates[file.id]?.durationSeconds),
                             contextActions: sourceFileContextActions(file),
                             action: { viewModel.selectFile(file) }
                         )
@@ -991,7 +979,7 @@ public struct FilesScreen: View {
                 id: "library-video-\(reference.id)",
                 title: displayTitle(reference),
                 fileSize: fileSizeText(reference),
-                duration: "",
+                duration: durationText(mediaLibrary.referenceViewingStates[reference.id]?.durationSeconds),
                 contextActions: libraryReferenceContextActions(reference),
                 selectionEnabled: mediaReferenceSelectionIsActive,
                 isSelected: selectedMediaReferenceIDs.contains(reference.id),
@@ -1072,6 +1060,16 @@ public struct FilesScreen: View {
 
     private func fileSizeText(_ file: FileBrowsingDomain.MediaFile) -> String {
         ByteCountFormatter.string(fromByteCount: file.sizeInBytes, countStyle: .file)
+    }
+
+    private func durationText(_ seconds: Double?) -> String {
+        guard let seconds, seconds > 0 else { return "" }
+        let totalSeconds = Int(seconds.rounded())
+        guard totalSeconds >= 60 else { return "\(totalSeconds) sec" }
+        let totalMinutes = totalSeconds / 60
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        return hours > 0 ? "\(hours) hr \(minutes) min" : "\(minutes) min"
     }
 
     private func displayTitle(_ reference: FileBrowsingDomain.MediaReference) -> String {

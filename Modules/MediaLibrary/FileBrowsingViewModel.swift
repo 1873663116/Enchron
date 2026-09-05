@@ -48,6 +48,7 @@ public final class FileBrowsingViewModel {
     private let credentialStoreForConfig: CredentialStoring
     private let savedDataSourceStore: SavedDataSourceRecordStoring
     private let viewingStateProvider: MediaViewingStateProvider
+    private let durationProbe: MediaDurationProbe?
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
     private let onPlayFile: @MainActor (MediaPlaybackItem) -> Void
     private let onPrepareFile: (@MainActor (MediaPlaybackItem) -> Void)?
@@ -75,6 +76,7 @@ public final class FileBrowsingViewModel {
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
+        durationProbe: MediaDurationProbe? = nil,
         localDataSourceID: UUID = UUID(),
         makeRemoteAdapter: (@MainActor (
             FileBrowsingDomain.DataSource,
@@ -89,6 +91,7 @@ public final class FileBrowsingViewModel {
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
         self.viewingStateProvider = viewingStateProvider
+        self.durationProbe = durationProbe
         self.localDataSourceID = localDataSourceID
         self.makeRemoteAdapter = makeRemoteAdapter
         self.onPlayFile = onPlayFile
@@ -979,7 +982,51 @@ public final class FileBrowsingViewModel {
             guard self.sourceGeneration == currentGeneration,
                   self.files.map(\.id) == currentFiles.map(\.id) else { return }
             self.fileViewingStates = map
+            guard let durationProbe = self.durationProbe else { return }
+            for file in currentFiles where map[file.id] == nil {
+                guard self.sourceGeneration == currentGeneration else { return }
+                guard let duration = await self.probeDuration(for: file, using: durationProbe) else { continue }
+                guard self.sourceGeneration == currentGeneration,
+                      self.files.map(\.id) == currentFiles.map(\.id),
+                      self.fileViewingStates[file.id] == nil else { continue }
+                self.fileViewingStates[file.id] = VideoCardViewingState(
+                    positionSeconds: 0,
+                    durationSeconds: duration,
+                    isCompleted: false
+                )
+            }
         }
+    }
+
+    private func probeDuration(
+        for file: FileBrowsingDomain.MediaFile,
+        using probe: MediaDurationProbe
+    ) async -> Double? {
+        let resolved: ResolvedMediaSource
+        do {
+            if let activeRemoteAdapter {
+                resolved = try await activeRemoteAdapter.resolvePlayableSource(for: file)
+            } else {
+                resolved = try await localDataSource.resolvePlayableSource(for: file)
+            }
+        } catch {
+            return nil
+        }
+        defer { resolved.byteStreamHandle?.release() }
+        let identity: VersionedMediaIdentity?
+        if let dataSource = activeDataSource {
+            identity = VersionedMediaIdentity.remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path,
+                entityTag: file.remoteEntityTag,
+                sizeInBytes: file.sizeInBytes,
+                modifiedAt: file.modifiedAt
+            )
+        } else {
+            identity = VersionedMediaIdentity.local(resolved.url)
+        }
+        guard let identity else { return nil }
+        return await probe(resolved, identity)
     }
 
     public func refreshViewingStates() {

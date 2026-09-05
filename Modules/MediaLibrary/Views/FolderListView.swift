@@ -129,7 +129,8 @@ public struct FolderListView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
 
-                                        if let state = fileViewingStates[file.id] {
+                                        if let state = fileViewingStates[file.id],
+                                           state.isCompleted || state.positionSeconds > 0 {
                                             HStack(spacing: 4) {
                                                 Circle()
                                                     .fill(.orange)
@@ -146,7 +147,8 @@ public struct FolderListView: View {
                             }
                             .accessibilityLabel({
                                 var label = file.name
-                                if let state = fileViewingStates[file.id] {
+                                if let state = fileViewingStates[file.id],
+                                   state.isCompleted || state.positionSeconds > 0 {
                                     label += state.isCompleted ? ", completed" : ", resume at \(Self.formatWatchedTime(state.positionSeconds))"
                                 }
                                 return label
