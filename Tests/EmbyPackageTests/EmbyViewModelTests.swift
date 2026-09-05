@@ -219,12 +219,43 @@ struct EmbyViewModelTests {
         #expect(detail.children == .none)
     }
 
+    /// The application installs a cleartext approval handler that denies when
+    /// no prompt is on screen, and these tests run inside that host. A policy of
+    /// their own keeps them measuring authentication rather than the app's
+    /// answer to a question nobody is there to answer.
+    func isolatedCleartextPolicy() -> CleartextExposurePolicy {
+        let suiteName = "EmbyViewModelTests.cleartext.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        return CleartextExposurePolicy(defaults: defaults)
+    }
+
+    @Test("a cleartext address the wearer declines does not connect")
+    func aDeclinedCleartextAddressDoesNotConnect() async {
+        let policy = isolatedCleartextPolicy()
+        policy.approvalHandler = { _ in false }
+        let client = ViewModelFakeEmbyClient(authenticatedServer: authenticatedServer)
+        let session = EmbySessionViewModel(client: client, store: RecordingServerStore())
+        let connection = EmbyConnectionViewModel(
+            session: session,
+            cleartextExposurePolicy: policy
+        )
+        connection.address = "http://example.test:8096"
+        connection.username = "Cortisol"
+        connection.password = "secret"
+
+        #expect(await connection.connect() == false)
+        #expect(session.server == nil)
+    }
+
     @Test("connection persists successful authentication and surfaces failure")
     func connectionSuccessAndFailure() async {
         let successStore = RecordingServerStore()
         let successClient = ViewModelFakeEmbyClient(authenticatedServer: authenticatedServer)
         let successSession = EmbySessionViewModel(client: successClient, store: successStore)
-        let success = EmbyConnectionViewModel(session: successSession)
+        let success = EmbyConnectionViewModel(
+            session: successSession,
+            cleartextExposurePolicy: isolatedCleartextPolicy()
+        )
         success.address = "example.test:8096"
         success.username = "Cortisol"
         success.password = "secret"
@@ -240,7 +271,10 @@ struct EmbyViewModelTests {
             client: failureClient,
             store: RecordingServerStore()
         )
-        let failure = EmbyConnectionViewModel(session: failureSession)
+        let failure = EmbyConnectionViewModel(
+            session: failureSession,
+            cleartextExposurePolicy: isolatedCleartextPolicy()
+        )
         failure.address = "http://example.test:8096"
         failure.username = "Cortisol"
 
@@ -272,7 +306,10 @@ struct EmbyViewModelTests {
                 client: client,
                 store: RecordingServerStore()
             )
-            let connection = EmbyConnectionViewModel(session: session)
+            let connection = EmbyConnectionViewModel(
+                session: session,
+                cleartextExposurePolicy: isolatedCleartextPolicy()
+            )
             connection.address = "http://example.test:8096"
 
             #expect(await connection.connect() == false)
