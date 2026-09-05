@@ -468,7 +468,39 @@
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the text scrim drifted from the Emby-calibrated ramp"
+          "the text scrim profile is no longer the smooth ease"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-scrim-with-a-slope-break",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/DesignTokens.swift",
+        "find": "                let eased = t * t * (3 - 2 * t)\n",
+        "replaceWith": "                let eased = t\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the text scrim profile is no longer the smooth ease"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-hand-placed-scrim-stops",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "                stops: DesignTokens.Surface.textScrimStops,\n",
+        "replaceWith": "                stops: [.init(color: .clear, location: 0.25), .init(color: .black.opacity(0.9), location: 1)],\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "painted with the shared smooth stops"
         ]
       }
     },

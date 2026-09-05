@@ -622,14 +622,7 @@ private struct ThumbnailTextScrim: ViewModifier {
     func body(content: Content) -> some View {
         content.background {
             LinearGradient(
-                stops: [
-                    .init(color: .clear, location: DesignTokens.Surface.textScrimClearStop),
-                    .init(
-                        color: .black.opacity(DesignTokens.Surface.textScrimOpacity),
-                        location: DesignTokens.Surface.textScrimMidStop
-                    ),
-                    .init(color: .black.opacity(DesignTokens.Surface.textScrimDenseOpacity), location: 1)
-                ],
+                stops: DesignTokens.Surface.textScrimStops,
                 startPoint: .top,
                 endPoint: .bottom
             )

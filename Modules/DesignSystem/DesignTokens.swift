@@ -190,10 +190,18 @@ public enum DesignTokens {
         public static let border: Color = .primary.opacity(0.05)
         public static let divider: Color = .primary.opacity(0.14)
         public static let supportingText: Color = .primary.opacity(0.72)
-        public static let textScrimOpacity: Double = 0.55
         public static let textScrimDenseOpacity: Double = 0.9
-        public static let textScrimClearStop: CGFloat = 0.1
-        public static let textScrimMidStop: CGFloat = 0.4
+        public static let textScrimSampleCount: Int = 16
+        public static var textScrimStops: [Gradient.Stop] {
+            (0...textScrimSampleCount).map { index in
+                let t = Double(index) / Double(textScrimSampleCount)
+                let eased = t * t * (3 - 2 * t)
+                return Gradient.Stop(
+                    color: .black.opacity(textScrimDenseOpacity * eased),
+                    location: t
+                )
+            }
+        }
         public static let accessoryText: Color = .primary.opacity(0.88)
         public static let selectionHeaderText: Color = .primary
         public static let focusBorder: Color = Theme.accent

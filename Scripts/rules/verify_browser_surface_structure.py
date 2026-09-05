@@ -197,25 +197,29 @@ def check_grid_card_hover() -> None:
             scrim,
             "content.background {",
             "LinearGradient(",
-            "location: DesignTokens.Surface.textScrimClearStop)",
-            "color: .black.opacity(DesignTokens.Surface.textScrimOpacity),",
-            "location: DesignTokens.Surface.textScrimMidStop",
-            ".black.opacity(DesignTokens.Surface.textScrimDenseOpacity), location: 1)",
+            "stops: DesignTokens.Surface.textScrimStops,",
         )
+        and "location:" not in scrim
         and "GeometryReader" not in scrim
         and ".frame(" not in scrim
         and ".offset(" not in scrim,
         "the text scrim no longer scales with the caption height: it must be "
-        "the caption's own background with stops in caption-relative positions",
+        "the caption's own background painted with the shared smooth stops",
     )
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
-        "public static let textScrimOpacity: Double = 0.55" in tokens
-        and "public static let textScrimDenseOpacity: Double = 0.9" in tokens
-        and "public static let textScrimClearStop: CGFloat = 0.1" in tokens
-        and "public static let textScrimMidStop: CGFloat = 0.4" in tokens,
-        "the text scrim drifted from the Emby-calibrated ramp: clear at 0.1 of "
-        "the caption, 0.55 at 0.4, 0.9 at the bottom",
+        order(
+            tokens,
+            "public static let textScrimDenseOpacity: Double = 0.9",
+            "public static let textScrimSampleCount: Int = 16",
+            "public static var textScrimStops: [Gradient.Stop] {",
+            "let t = Double(index) / Double(textScrimSampleCount)",
+            "let eased = t * t * (3 - 2 * t)",
+            "color: .black.opacity(textScrimDenseOpacity * eased),",
+            "location: t",
+        ),
+        "the text scrim profile is no longer the smooth ease from clear to 0.9: "
+        "a stop with a slope break reads as a hard edge on a short caption",
     )
     require(
         card.count("LinearGradient(") == 1,
