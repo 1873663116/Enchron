@@ -409,6 +409,22 @@
       }
     },
     {
+      "id": "playback-surface-structure-rejects-glass-on-a-background-color",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/MainView.swift",
+        "find": "        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n",
+        "replaceWith": "        .background {\n            Color.clear.enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n        }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "hosts the glass on a background color"
+        ]
+      }
+    },
+    {
       "id": "playback-surface-structure-rejects-a-main-view-split-by-scene-role",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {

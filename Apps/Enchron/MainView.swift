@@ -286,9 +286,7 @@ public struct MainView: View {
                     }
             }
         }
-        .background {
-            Color.clear.enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
-        }
+        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
         .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)
     }
 

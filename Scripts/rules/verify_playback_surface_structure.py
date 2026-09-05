@@ -552,16 +552,19 @@ def main() -> int:
     )
     require(
         "sceneRole" not in main_view
+        and "Color.clear.enchronWindowGlassBackground" not in main_view
         and order(
             main_view,
             "enum WindowGlassPolicy {",
             "guard showsWindowPlayback else { return true }",
             "return presentationState != .videoVisible",
-            "enchronWindowGlassBackground(showsWindowGlass ? .always : .never)",
-            ".persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)",
+            "        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n"
+            "        .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)",
         ),
         "the main window draws glass behind visible video, hides the system "
-        "overlays while browsing, or splits the view by scene role again",
+        "overlays while browsing, splits the view by scene role again, or hosts "
+        "the glass on a background color whose platform view swallows the hit "
+        "test of every pure SwiftUI control above it",
     )
     main_view_struct = region(
         main_view,
