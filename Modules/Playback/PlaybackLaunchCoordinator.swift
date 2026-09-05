@@ -670,7 +670,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             }
             if let identity = request.versionedIdentity {
                 let position = playbackRuntime.playbackPosition
-                guard position.duration > 0 else { return }
                 let evidence = PlaybackSessionEvidence(
                     durationSeconds: position.duration,
                     positionSeconds: position.seconds,
