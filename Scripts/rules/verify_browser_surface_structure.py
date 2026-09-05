@@ -195,29 +195,27 @@ def check_grid_card_hover() -> None:
     require(
         order(
             scrim,
-            "GeometryReader { proxy in",
-            "let textHeight = proxy.size.height",
-            "let leadHeight = DesignTokens.Card.textScrimLeadHeight",
-            "let scrimHeight = leadHeight + textHeight",
-            "min(1, textHeight / DesignTokens.Card.textScrimRampHeight)",
-            "let textOpacity = DesignTokens.Surface.textScrimOpacity",
-            "(DesignTokens.Surface.textScrimDenseOpacity - textOpacity) * rampProgress",
+            "content.background {",
             "LinearGradient(",
-            ".black.opacity(textOpacity), location: leadHeight / scrimHeight)",
-            ".black.opacity(bottomOpacity), location: 1)",
-            ".frame(width: proxy.size.width, height: scrimHeight)",
-            ".offset(y: textHeight - scrimHeight)",
-        ),
-        "the text scrim no longer scales with the caption height",
+            "location: DesignTokens.Surface.textScrimClearStop)",
+            "color: .black.opacity(DesignTokens.Surface.textScrimOpacity),",
+            "location: DesignTokens.Surface.textScrimMidStop",
+            ".black.opacity(DesignTokens.Surface.textScrimDenseOpacity), location: 1)",
+        )
+        and "GeometryReader" not in scrim
+        and ".frame(" not in scrim
+        and ".offset(" not in scrim,
+        "the text scrim no longer scales with the caption height: it must be "
+        "the caption's own background with stops in caption-relative positions",
     )
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
         "public static let textScrimOpacity: Double = 0.55" in tokens
         and "public static let textScrimDenseOpacity: Double = 0.9" in tokens
-        and "public static let textScrimLeadHeight: CGFloat = 52" in tokens
-        and "public static let textScrimRampHeight: CGFloat = 104" in tokens,
-        "the text scrim drifted from the Emby-calibrated ramp: clear to 0.55 "
-        "over 52 pt above the caption, 0.55 to 0.9 over 104 pt of caption",
+        and "public static let textScrimClearStop: CGFloat = 0.1" in tokens
+        and "public static let textScrimMidStop: CGFloat = 0.4" in tokens,
+        "the text scrim drifted from the Emby-calibrated ramp: clear at 0.1 of "
+        "the caption, 0.55 at 0.4, 0.9 at the bottom",
     )
     require(
         card.count("LinearGradient(") == 1,

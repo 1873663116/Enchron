@@ -192,6 +192,8 @@ public enum DesignTokens {
         public static let supportingText: Color = .primary.opacity(0.72)
         public static let textScrimOpacity: Double = 0.55
         public static let textScrimDenseOpacity: Double = 0.9
+        public static let textScrimClearStop: CGFloat = 0.1
+        public static let textScrimMidStop: CGFloat = 0.4
         public static let accessoryText: Color = .primary.opacity(0.88)
         public static let selectionHeaderText: Color = .primary
         public static let focusBorder: Color = Theme.accent
@@ -264,8 +266,6 @@ public enum DesignTokens {
         public static let thumbnailHeight: CGFloat = 140
         public static let gridSpacing: CGFloat = Spacing.md
         public static let placeholderIconSize: CGFloat = 45
-        public static let textScrimLeadHeight: CGFloat = 52
-        public static let textScrimRampHeight: CGFloat = 104
     }
 
     public enum EnvironmentCard {

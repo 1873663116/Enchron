@@ -621,26 +621,18 @@ public struct GridCard: View {
 private struct ThumbnailTextScrim: ViewModifier {
     func body(content: Content) -> some View {
         content.background {
-            GeometryReader { proxy in
-                let textHeight = proxy.size.height
-                let leadHeight = DesignTokens.Card.textScrimLeadHeight
-                let scrimHeight = leadHeight + textHeight
-                let rampProgress = min(1, textHeight / DesignTokens.Card.textScrimRampHeight)
-                let textOpacity = DesignTokens.Surface.textScrimOpacity
-                let bottomOpacity = textOpacity
-                    + (DesignTokens.Surface.textScrimDenseOpacity - textOpacity) * rampProgress
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: .black.opacity(textOpacity), location: leadHeight / scrimHeight),
-                        .init(color: .black.opacity(bottomOpacity), location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(width: proxy.size.width, height: scrimHeight)
-                .offset(y: textHeight - scrimHeight)
-            }
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: DesignTokens.Surface.textScrimClearStop),
+                    .init(
+                        color: .black.opacity(DesignTokens.Surface.textScrimOpacity),
+                        location: DesignTokens.Surface.textScrimMidStop
+                    ),
+                    .init(color: .black.opacity(DesignTokens.Surface.textScrimDenseOpacity), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 }

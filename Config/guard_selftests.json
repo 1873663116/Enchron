@@ -446,24 +446,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "                let scrimHeight = leadHeight + textHeight\n",
-        "replaceWith": "                let scrimHeight = DesignTokens.Card.thumbnailHeight\n"
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the text scrim no longer scales with the caption height"
-        ]
-      }
-    },
-    {
-      "id": "browser-surface-structure-rejects-a-scrim-ramp-that-ignores-the-caption-height",
-      "guard": "Scripts/rules/verify_browser_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "                let rampProgress = min(1, textHeight / DesignTokens.Card.textScrimRampHeight)\n",
-        "replaceWith": "                let rampProgress: CGFloat = 1\n"
+        "find": "                startPoint: .top,\n                endPoint: .bottom\n            )\n        }\n    }\n}\n\nextension View {\n    func thumbnailTextScrim()",
+        "replaceWith": "                startPoint: .top,\n                endPoint: .bottom\n            )\n            .frame(height: DesignTokens.Card.thumbnailHeight)\n        }\n    }\n}\n\nextension View {\n    func thumbnailTextScrim()"
       },
       "expected": {
         "exitCode": 1,
