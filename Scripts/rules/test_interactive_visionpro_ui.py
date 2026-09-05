@@ -1092,3 +1092,35 @@ class ReadyTimeoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AlertsFromHierarchyTests(unittest.TestCase):
+    HIERARCHY = "\n".join([
+        "Attributes: Application, 0x105cf4a00, pid: 64679, label: 'Enchron'",
+        "Element subtree:",
+        " →Application, 0x105cf4a00, pid: 64679, label: 'Enchron'",
+        "    Other, 0x105cf4640, {{0.0, 0.0}, {328.0, 297.0}}",
+        "      StaticText, 0x105cf4700, {{0.0, 0.0}, {10.0, 10.0}}, label: 'Outside'",
+        "      Alert, 0x105cdb980, {{0.0, 0.0}, {328.0, 297.0}}, label: 'Conversion Failed'",
+        "        Other, 0x105cdaf80, {{0.0, 0.0}, {328.0, 297.0}}",
+        "          StaticText, 0x105cd8f00, {{0.0, 0.0}, {328.0, 20.0}}, label: 'Conversion Failed'",
+        "          StaticText, 0x105cda440, {{0.0, 0.0}, {328.0, 40.0}}, identifier: 'PlayerUI-presentation-conversion-diagnostic', label: 'The display could not be changed.', value: 'mainWindowUnavailable'",
+        "          Button, 0x105cdae40, {{0.0, 0.0}, {328.0, 44.0}}, identifier: 'PlayerUI-presentation-conversion-dismiss', label: 'OK'",
+        "      Button, 0x105cdb340, {{0.0, 0.0}, {328.0, 44.0}}, identifier: 'Navigation-Ornament-tab-files', label: 'Files'",
+    ])
+
+    def test_alert_title_lines_and_buttons_come_from_the_alert_subtree(self) -> None:
+        alerts = controller.alerts_from_hierarchy(self.HIERARCHY)
+        self.assertEqual(alerts, [{
+            "title": "Conversion Failed",
+            "lines": [{
+                "identifier": "PlayerUI-presentation-conversion-diagnostic",
+                "label": "The display could not be changed.",
+                "value": "mainWindowUnavailable",
+            }],
+            "buttons": ["PlayerUI-presentation-conversion-dismiss"],
+        }])
+
+    def test_a_hierarchy_without_alerts_yields_an_empty_list(self) -> None:
+        lines = [line for line in self.HIERARCHY.splitlines() if "Alert" not in line and "conversion" not in line]
+        self.assertEqual(controller.alerts_from_hierarchy("\n".join(lines)), [])

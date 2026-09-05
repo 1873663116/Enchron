@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -590,6 +591,7 @@ def annotate_response(
     hierarchy = response.get("hierarchy")
     if not isinstance(hierarchy, str):
         return
+    response["alerts"] = alerts_from_hierarchy(hierarchy)
     in_immersive = IMMERSIVE_ATTACHMENT_MARKER in hierarchy
     state = load_session_state(arguments)
     if state.get("sessionID") != session_id:
@@ -606,6 +608,45 @@ def annotate_response(
         )
     state["inImmersive"] = in_immersive
     save_session_state_best_effort(arguments, state)
+
+
+HIERARCHY_ELEMENT_PATTERN = re.compile(r"^(?P<indent>\s*)(?:→)?(?P<role>[A-Za-z]+), 0x[0-9a-f]+")
+HIERARCHY_ATTRIBUTE_PATTERN = re.compile(r", (?P<name>identifier|label|value): '(?P<value>.*?)'(?=, [a-zA-Z]+: |$)")
+
+
+def hierarchy_attributes(line: str) -> dict[str, str]:
+    return {match.group("name"): match.group("value") for match in HIERARCHY_ATTRIBUTE_PATTERN.finditer(line)}
+
+
+def alerts_from_hierarchy(hierarchy: str) -> list[dict[str, object]]:
+    alerts: list[dict[str, object]] = []
+    current: dict[str, object] | None = None
+    current_indent = -1
+    for line in hierarchy.splitlines():
+        match = HIERARCHY_ELEMENT_PATTERN.match(line)
+        if match is None:
+            continue
+        indent = len(match.group("indent"))
+        role = match.group("role")
+        attributes = hierarchy_attributes(line)
+        if current is not None and indent <= current_indent:
+            current = None
+        if role == "Alert":
+            current = {"title": attributes.get("label", ""), "lines": [], "buttons": []}
+            current_indent = indent
+            alerts.append(current)
+            continue
+        if current is None:
+            continue
+        if role == "StaticText" and attributes.get("label") != current["title"]:
+            cast_lines = current["lines"]
+            assert isinstance(cast_lines, list)
+            cast_lines.append({"identifier": attributes.get("identifier", ""), "label": attributes.get("label", ""), "value": attributes.get("value")})
+        elif role == "Button":
+            cast_buttons = current["buttons"]
+            assert isinstance(cast_buttons, list)
+            cast_buttons.append(attributes.get("identifier") or attributes.get("label", ""))
+    return alerts
 
 
 def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object]]:

@@ -621,7 +621,6 @@ private final class InteractiveDeviceUIChannel {
             message: message,
             appState: appStateDescription,
             hierarchy: app.debugDescription,
-            alerts: alertObservations,
             matchedElement: matchedElement,
             elementAfterAction: elementAfterAction,
             screenshotRelativePath: screenshotName,
@@ -642,27 +641,6 @@ private final class InteractiveDeviceUIChannel {
             nil,
             true
         )
-    }
-
-    private var alertObservations: [InteractiveDeviceUIAlertObservation] {
-        app.alerts.allElementsBoundByIndex.map { alert in
-            let title = alert.label
-            return InteractiveDeviceUIAlertObservation(
-                title: title,
-                lines: alert.staticTexts.allElementsBoundByIndex
-                    .filter { $0.label != title }
-                    .map { text in
-                        InteractiveDeviceUIAlertObservation.Line(
-                            identifier: text.identifier,
-                            label: text.label,
-                            value: (text.value as? String).flatMap { $0.isEmpty ? nil : $0 }
-                        )
-                    },
-                buttons: alert.buttons.allElementsBoundByIndex.map { button in
-                    button.identifier.isEmpty ? button.label : button.identifier
-                }
-            )
-        }
     }
 
     private var appStateDescription: String {
@@ -784,25 +762,12 @@ private struct InteractiveDeviceUIResponse: Codable {
     let message: String
     let appState: String
     let hierarchy: String
-    let alerts: [InteractiveDeviceUIAlertObservation]
     let matchedElement: InteractiveDeviceUIElementObservation?
     let elementAfterAction: InteractiveDeviceUIElementObservation?
     let screenshotRelativePath: String?
     let alsoInspected: [InteractiveDeviceUIInspectedElement]
     let assertAbsentObservations: [InteractiveDeviceUIInspectedElement]
     let routeElements: [InteractiveDeviceUIElementObservation]
-}
-
-private struct InteractiveDeviceUIAlertObservation: Codable {
-    struct Line: Codable {
-        let identifier: String
-        let label: String
-        let value: String?
-    }
-
-    let title: String
-    let lines: [Line]
-    let buttons: [String]
 }
 
 private struct InteractiveDeviceUIInspectedElement: Codable {
