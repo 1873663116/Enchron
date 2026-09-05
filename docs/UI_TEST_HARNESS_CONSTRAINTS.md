@@ -36,6 +36,7 @@
 
 - **XCUITest 的 `tap()` 在合成事件前等待 app 静默，等待上限约 60 秒**。导入媒体后的缩略图与库落盘工作让 app 长时间不静默，所以任何由空闲期样本推出的 p95 预算都会结构性地卡在这个窗口里、把一次正常的慢 tap 杀成 transport-timeout。合成输入类动词的预算地板由 `provisional_budgets.json` 的 `floorSeconds` 承载（当前 75 秒），高于该上限。
 - **样本不足 5 条时等待动词的临时预算取 60 秒上限，而不是猜测值**。`identifier-appearance`／`any-identifier-appearance`／`identifier-absence`／`identifier-value`／`probe-needle`／`presentation-settle` 曾是 8–45 秒的猜测，落在 tap 静默窗口之内，一次正常的慢出现会被杀成 wait-expired；上限 60 秒与 tap 的静默等待对齐，元素真的不出现时仍然以上限失败。`Budget.provenance` 里以 `provisional ceiling 60s` 标出未实测的上限，与合成输入等非等待动词的 `provisional <n>s` 猜测区分。
+- **段尾整树拷贝 `Documents/test-responses` 不能共用探针小文件的 `probe-copy` 预算**。探针文件的实测样本把预算压到 5 s，而一个 800 步的真机段在段尾要一次拷回全部延迟应答，2026-09-06 window／portal／docked 三段因此在最后一步 transport-timeout、整段证据作废。批量应答拷贝走自己的 verb `app-responses-copy`（临时预算 300 s，下限 120 s），样本按 verb 分开累积。
 - **冻结运行的等待样本落在当次输出目录的 `timing-samples.jsonl`**，每行一个 `{"verb", "lane", "seconds", "censored", "at"}`，`results.json` 以 `timingSamples: {"path", "count"}` 指认它。冻结运行不写 `controller_timings.<lane>.json`（受版本控制，写它会破坏冻结），样本归属由构造 `BudgetProvider` 的一方注入输出目录；非冻结运行仍直接写 `controller_timings.<lane>.json`。
 - **冻结样本由 `Scripts/verification/fold_timing_samples.py` 按 lane 折回 `controller_timings.<lane>.json`**，按 `(verb, at)` 去重、每动词保留最近 `SAMPLE_LIMIT`（40）条。同一输入跑两次第二次无改动；某动词折入 5 条以上后 `budget()` 即按 p95 × 1.5 给出实测预算，不再走临时上限。
 - **runner 的应答等待默认 30 秒**（`--timeout-seconds`），必须由调用方随预算下发，否则预算高于 30 秒的调用会先撞 runner 自己的死线，报出的 kind 是 `response-timeout` 而不是 `transport-timeout`。

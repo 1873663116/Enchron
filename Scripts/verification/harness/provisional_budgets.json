@@ -17,6 +17,11 @@
     "floorSeconds": 75,
     "seconds": 60
   },
+  "app-responses-copy": {
+    "expires": "2026-10-01",
+    "floorSeconds": 120,
+    "seconds": 300
+  },
   "clean-open": {
     "expires": "2026-10-01",
     "seconds": 60
@@ -44,6 +49,11 @@
   "emby-stage": {
     "expires": "2026-10-01",
     "seconds": 120
+  },
+  "embySignIn": {
+    "expires": "2026-10-01",
+    "floorSeconds": 15,
+    "seconds": 30
   },
   "ensure-session": {
     "expires": "2026-10-01",
@@ -125,11 +135,6 @@
     "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 20
-  },
-  "embySignIn": {
-    "expires": "2026-10-01",
-    "floorSeconds": 15,
-    "seconds": 30
   },
   "probe-copy": {
     "expires": "2026-10-01",
