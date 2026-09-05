@@ -510,7 +510,7 @@ public final class SpatialPlatformEffectCoordinator {
 
     private func windowHasLeft(_ window: SpatialPlatformWindowIdentity) -> Bool {
         guard let identifier = windowSceneSessionIdentifier(for: window) else {
-            return windowObservation.residency(for: window) == .closed
+            return windowObservation.residency(for: window) != .open
         }
         if let scene = windowScene(for: window), scene.activationState == .unattached {
             return true
@@ -672,7 +672,9 @@ public final class SpatialPlatformEffectCoordinator {
                     + " sceneStillConnected \(sceneSessionSummary)",
                 retention: .evidence
             )
-            await dismissWindowUntilGone(handover.outgoing, clock: clock)
+            if windowScenePresentation(for: handover.incoming) == true {
+                await dismissWindowUntilGone(handover.outgoing, clock: clock)
+            }
             return
         }
         actions.openWindow(id: handover.incoming.rawValue)

@@ -511,6 +511,16 @@ def main() -> int:
         "so a windowless app requests a main scene it can never present and "
         "the next launch connects two main scenes",
     )
+    require(
+        order(
+            handover,
+            "sceneStillConnected",
+            "if windowScenePresentation(for: handover.incoming) == true {",
+            "await dismissWindowUntilGone(handover.outgoing",
+        ),
+        "a refused handover dismisses the outgoing window while the incoming "
+        "one is not on screen, so the wearer is left with no window",
+    )
     window_departure = region(
         platform_executor,
         "private func windowHasLeft(_ window: SpatialPlatformWindowIdentity) -> Bool {",
@@ -520,12 +530,17 @@ def main() -> int:
         order(
             window_departure,
             "guard let identifier = windowSceneSessionIdentifier(for: window) else {",
-            "return windowObservation.residency(for: window) == .closed",
+            "return windowObservation.residency(for: window) != .open",
             "UIApplication.shared.connectedScenes.contains",
         ),
         "window departure trusts the SwiftUI root's disappearance while the "
         "UIKit scene is still connected, so a second scene for the same "
         "singleton Window gets requested",
+    )
+    require(
+        "return windowObservation.residency(for: window) != .open" in window_departure,
+        "window departure treats a window that never opened this launch as "
+        "still present, so the first handover into it is refused",
     )
     require(
         "@UIApplicationDelegateAdaptor(EnchronAppDelegate.self)" in app_scene

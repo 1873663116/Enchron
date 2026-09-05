@@ -54,7 +54,7 @@ public enum DesignTokens {
         public static let scene: Animation = .spring(response: 0.3, dampingFraction: 0.7)
         public static let sceneCarouselSettle: Animation = .spring(response: 0.34, dampingFraction: 0.94)
         public static let fadeIn: Animation = .easeIn(duration: 0.25)
-        public static let levelTransition: Animation = .easeIn(duration: 0.25)
+        public static let levelTransition: Animation = .easeOut(duration: 0.3)
         public static let informationReveal: Animation = .easeOut(duration: 0.2)
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
 
@@ -65,8 +65,9 @@ public enum DesignTokens {
     }
 
     public enum TransitionToken {
+        public static let levelReplaceTravel: CGFloat = 12
         @MainActor public static var levelReplace: AnyTransition {
-            AnyTransition(BlurReplaceTransition(configuration: .upUp))
+            .opacity.combined(with: .offset(y: levelReplaceTravel))
         }
     }
 
@@ -189,8 +190,8 @@ public enum DesignTokens {
         public static let border: Color = .primary.opacity(0.05)
         public static let divider: Color = .primary.opacity(0.14)
         public static let supportingText: Color = .primary.opacity(0.72)
-        public static let textScrim: Color = .black.opacity(0.55)
-        public static let textScrimDense: Color = .black.opacity(0.85)
+        public static let textScrimOpacity: Double = 0.55
+        public static let textScrimDenseOpacity: Double = 0.9
         public static let accessoryText: Color = .primary.opacity(0.88)
         public static let selectionHeaderText: Color = .primary
         public static let focusBorder: Color = Theme.accent
@@ -263,7 +264,8 @@ public enum DesignTokens {
         public static let thumbnailHeight: CGFloat = 140
         public static let gridSpacing: CGFloat = Spacing.md
         public static let placeholderIconSize: CGFloat = 45
-        public static let textScrimLeadFactor: CGFloat = 1
+        public static let textScrimLeadHeight: CGFloat = 52
+        public static let textScrimRampHeight: CGFloat = 104
     }
 
     public enum EnvironmentCard {

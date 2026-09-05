@@ -56,17 +56,18 @@ def order(source: str, *markers: str) -> bool:
 def check_level_transitions() -> None:
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
-        "public static let levelTransition: Animation = .easeIn(duration: 0.25)" in tokens,
-        "the level transition animation drifted from the calibrated 0.25 s ease-in",
+        "public static let levelTransition: Animation = .easeOut(duration: 0.3)" in tokens,
+        "the level transition animation drifted from the calibrated 0.3 s ease-out",
     )
     require(
         order(
             tokens,
             "public enum TransitionToken {",
+            "public static let levelReplaceTravel: CGFloat = 12",
             "@MainActor public static var levelReplace: AnyTransition {",
-            "AnyTransition(BlurReplaceTransition(configuration: .upUp))",
+            ".opacity.combined(with: .offset(y: levelReplaceTravel))",
         ),
-        "the level transition is no longer a blur replace, so a folder that "
+        "the level transition lost its vertical travel, so a folder that "
         "looks like its parent switches without any visible transition",
     )
     for path, identity in LEVEL_TRANSITION_SITES.items():
@@ -123,37 +124,68 @@ def check_grid_card_hover() -> None:
         ),
         "the watched progress bar is no longer revealed only by the card's hover group",
     )
-    video_info = region(
-        card,
-        "private func videoThumbnailInfo(",
-        "private func folderThumbnailInfo(",
-    )
     require(
-        order(
-            video_info,
-            "thumbnailMetadata(fileSize)",
-            "thumbnailMetadata(duration)",
-            ".thumbnailTextScrim()",
-            ".enchronHoverOpacity(",
-        ),
-        "the video card's metadata row lost its text scrim, so Files cards "
-        "and Emby cards darken their captions differently",
+        "videoCaption(fileSize: fileSize, duration: duration)" in thumbnails
+        and "episodeCaption(episode)" in thumbnails,
+        "a video or episode card no longer draws its hover caption",
     )
     episode_caption = region(
         card,
         "private func episodeCaption(_ episode: EpisodeState) -> some View {",
+        "private func videoCaption(fileSize: String, duration: String) -> some View {",
+    )
+    require(
+        order(episode_caption, "thumbnailCaption {", "ViewThatFits(in: .vertical) {")
+        and "LinearGradient(" not in episode_caption,
+        "the episode caption left the shared hover caption, so Emby cards "
+        "and Files cards reveal different things under the gaze",
+    )
+    video_caption = region(
+        card,
+        "private func videoCaption(fileSize: String, duration: String) -> some View {",
+        "private func thumbnailCaption<Content: View>(",
+    )
+    require(
+        order(
+            video_caption,
+            "thumbnailCaption {",
+            "captionBlock {",
+            "Text(fileSize)",
+            "captionDuration(duration)",
+        ),
+        "the video card's caption left the shared hover caption, so Files cards "
+        "and Emby cards reveal different things under the gaze",
+    )
+    require(
+        "captionTitle" not in video_caption,
+        "the video card's caption repeats the title that already sits below "
+        "the thumbnail",
+    )
+    caption = region(
+        card,
+        "private func thumbnailCaption<Content: View>(",
         "private func episodeCaptionText(",
     )
     require(
         order(
-            episode_caption,
-            "ViewThatFits(in: .vertical) {",
+            caption,
             ".thumbnailTextScrim()",
+            ".frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)",
             ".enchronHoverOpacity(",
-        )
-        and "LinearGradient(" not in episode_caption,
-        "the episode caption paints its own gradient instead of the shared "
-        "text scrim sized by the caption",
+            "active: 1,",
+            "inactive: 0,",
+            "in: hoverRevealGroup,",
+        ),
+        "the shared hover caption lost its text scrim or its hover reveal",
+    )
+    episode_text = region(
+        card,
+        "private func episodeCaptionText(",
+        "private func captionBlock<Rows: View>(",
+    )
+    require(
+        order(episode_text, "captionBlock {", "captionTitle", "captionDuration(duration)"),
+        "the episode caption text left the shared caption block",
     )
     scrim = region(
         card,
@@ -165,14 +197,27 @@ def check_grid_card_hover() -> None:
             scrim,
             "GeometryReader { proxy in",
             "let textHeight = proxy.size.height",
-            "let scrimHeight = textHeight * (1 + DesignTokens.Card.textScrimLeadFactor)",
+            "let leadHeight = DesignTokens.Card.textScrimLeadHeight",
+            "let scrimHeight = leadHeight + textHeight",
+            "min(1, textHeight / DesignTokens.Card.textScrimRampHeight)",
+            "let textOpacity = DesignTokens.Surface.textScrimOpacity",
+            "(DesignTokens.Surface.textScrimDenseOpacity - textOpacity) * rampProgress",
             "LinearGradient(",
-            "DesignTokens.Surface.textScrim,",
-            "DesignTokens.Surface.textScrimDense,",
+            ".black.opacity(textOpacity), location: leadHeight / scrimHeight)",
+            ".black.opacity(bottomOpacity), location: 1)",
             ".frame(width: proxy.size.width, height: scrimHeight)",
             ".offset(y: textHeight - scrimHeight)",
         ),
         "the text scrim no longer scales with the caption height",
+    )
+    tokens = read("Modules/DesignSystem/DesignTokens.swift")
+    require(
+        "public static let textScrimOpacity: Double = 0.55" in tokens
+        and "public static let textScrimDenseOpacity: Double = 0.9" in tokens
+        and "public static let textScrimLeadHeight: CGFloat = 52" in tokens
+        and "public static let textScrimRampHeight: CGFloat = 104" in tokens,
+        "the text scrim drifted from the Emby-calibrated ramp: clear to 0.55 "
+        "over 52 pt above the caption, 0.55 to 0.9 over 104 pt of caption",
     )
     require(
         card.count("LinearGradient(") == 1,

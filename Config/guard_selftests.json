@@ -350,7 +350,7 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        guard let identifier = windowSceneSessionIdentifier(for: window) else {\n            return windowObservation.residency(for: window) == .closed\n        }\n",
+        "find": "        guard let identifier = windowSceneSessionIdentifier(for: window) else {\n            return windowObservation.residency(for: window) != .open\n        }\n",
         "replaceWith": "        if windowObservation.residency(for: window) == .closed { return true }\n        guard let identifier = windowSceneSessionIdentifier(for: window) else { return false }\n"
       },
       "expected": {
@@ -414,13 +414,29 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "            .padding(DesignTokens.Spacing.sm)\n            .thumbnailTextScrim()\n",
-        "replaceWith": "            .padding(DesignTokens.Spacing.sm)\n"
+        "find": "    private func videoCaption(fileSize: String, duration: String) -> some View {\n        thumbnailCaption {\n",
+        "replaceWith": "    private func videoCaption(fileSize: String, duration: String) -> some View {\n        Group {\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the video card's metadata row lost its text scrim"
+          "the video card's caption left the shared hover caption"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-video-caption-that-repeats-the-title",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "        thumbnailCaption {\n            captionBlock {\n                if fileSize.isEmpty == false {\n",
+        "replaceWith": "        thumbnailCaption {\n            captionBlock {\n                captionTitle\n                if fileSize.isEmpty == false {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the video card's caption repeats the title"
         ]
       }
     },
@@ -430,13 +446,61 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/GridCard.swift",
-        "find": "                let scrimHeight = textHeight * (1 + DesignTokens.Card.textScrimLeadFactor)\n",
+        "find": "                let scrimHeight = leadHeight + textHeight\n",
         "replaceWith": "                let scrimHeight = DesignTokens.Card.thumbnailHeight\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
           "the text scrim no longer scales with the caption height"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-scrim-ramp-that-ignores-the-caption-height",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "                let rampProgress = min(1, textHeight / DesignTokens.Card.textScrimRampHeight)\n",
+        "replaceWith": "                let rampProgress: CGFloat = 1\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the text scrim no longer scales with the caption height"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-darker-scrim-token",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/DesignTokens.swift",
+        "find": "        public static let textScrimDenseOpacity: Double = 0.9\n",
+        "replaceWith": "        public static let textScrimDenseOpacity: Double = 1\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the text scrim drifted from the Emby-calibrated ramp"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-an-episode-caption-outside-the-shared-block",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "        overviewLineLimit: Int\n    ) -> some View {\n        captionBlock {\n",
+        "replaceWith": "        overviewLineLimit: Int\n    ) -> some View {\n        VStack(alignment: .leading) {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the episode caption text left the shared caption block"
         ]
       }
     },
@@ -469,6 +533,38 @@
         "exitCode": 1,
         "outputContains": [
           "the playback window handover dismisses the outgoing window without"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-treating-an-unopened-window-as-present",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "            return windowObservation.residency(for: window) != .open\n",
+        "replaceWith": "            return windowObservation.residency(for: window) == .closed\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "window departure treats a window that never opened this launch as still present"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-refusal-that-closes-the-only-window",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "            if windowScenePresentation(for: handover.incoming) == true {\n                await dismissWindowUntilGone(handover.outgoing, clock: clock)\n            }\n            return\n",
+        "replaceWith": "            await dismissWindowUntilGone(handover.outgoing, clock: clock)\n            return\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "a refused handover dismisses the outgoing window"
         ]
       }
     },

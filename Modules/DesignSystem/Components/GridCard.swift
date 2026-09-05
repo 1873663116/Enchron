@@ -406,8 +406,13 @@ public struct GridCard: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .background(DesignTokens.Surface.elevated)
+                    .overlay(alignment: .topTrailing) {
+                        if !badges.isEmpty {
+                            videoBadges(badges)
+                        }
+                    }
                     .overlay {
-                        videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
+                        videoCaption(fileSize: fileSize, duration: duration)
                     }
                     .overlay {
                         if let watchedProgress {
@@ -459,50 +464,71 @@ public struct GridCard: View {
     }
 
     private func episodeCaption(_ episode: EpisodeState) -> some View {
-        ViewThatFits(in: .vertical) {
-            episodeCaptionText(episode, overviewLineLimit: 6)
-            episodeCaptionText(episode, overviewLineLimit: 5)
-            episodeCaptionText(episode, overviewLineLimit: 4)
-            episodeCaptionText(episode, overviewLineLimit: 3)
-            episodeCaptionText(episode, overviewLineLimit: 2)
-            episodeCaptionText(episode, overviewLineLimit: 1)
-            episodeCaptionText(episode, overviewLineLimit: 0)
+        thumbnailCaption {
+            ViewThatFits(in: .vertical) {
+                episodeCaptionText(episode, overviewLineLimit: 6)
+                episodeCaptionText(episode, overviewLineLimit: 5)
+                episodeCaptionText(episode, overviewLineLimit: 4)
+                episodeCaptionText(episode, overviewLineLimit: 3)
+                episodeCaptionText(episode, overviewLineLimit: 2)
+                episodeCaptionText(episode, overviewLineLimit: 1)
+                episodeCaptionText(episode, overviewLineLimit: 0)
+            }
         }
-        .thumbnailTextScrim()
-        .frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)
-        .clipped()
-        .enchronHoverOpacity(
-            active: 1,
-            inactive: 0,
-            in: hoverRevealGroup,
-            animation: DesignTokens.AnimationToken.controlsTransition
-        )
-        .allowsHitTesting(false)
+    }
+
+    private func videoCaption(fileSize: String, duration: String) -> some View {
+        thumbnailCaption {
+            captionBlock {
+                if fileSize.isEmpty == false {
+                    Text(fileSize)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+                captionDuration(duration)
+            }
+        }
+    }
+
+    private func thumbnailCaption<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .thumbnailTextScrim()
+            .frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)
+            .clipped()
+            .enchronHoverOpacity(
+                active: 1,
+                inactive: 0,
+                in: hoverRevealGroup,
+                animation: DesignTokens.AnimationToken.controlsTransition
+            )
+            .allowsHitTesting(false)
     }
 
     private func episodeCaptionText(
         _ episode: EpisodeState,
         overviewLineLimit: Int
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-            Text(title)
-                .font(DesignTokens.Typography.headline)
-                .lineLimit(2)
-                .truncationMode(.tail)
-
+        captionBlock {
+            captionTitle
             if let overview = episode.overview, overviewLineLimit > 0 {
                 Text(overview)
                     .font(DesignTokens.Typography.metadata.leading(.tight))
                     .foregroundStyle(DesignTokens.Surface.supportingText)
                     .lineLimit(overviewLineLimit)
             }
-
             if let duration = episode.duration {
-                Label(duration, systemImage: "play.fill")
-                    .labelStyle(.titleAndIcon)
-                    .font(DesignTokens.Typography.metadata)
-                    .padding(.top, DesignTokens.Spacing.xxs)
+                captionDuration(duration)
             }
+        }
+    }
+
+    private func captionBlock<Rows: View>(
+        @ViewBuilder rows: () -> Rows
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+            rows()
         }
         .multilineTextAlignment(.leading)
         .frame(width: cardWidth - 2 * DesignTokens.Spacing.sm, alignment: .leading)
@@ -511,32 +537,30 @@ public struct GridCard: View {
         .padding(.top, DesignTokens.Spacing.xs)
     }
 
-    private func videoThumbnailInfo(fileSize: String, duration: String, badges: [String]) -> some View {
-        VStack {
-            HStack {
-                Spacer(minLength: 0)
-                if !badges.isEmpty {
-                    HStack(spacing: DesignTokens.Spacing.xxs) {
-                        ForEach(badges, id: \.self) { badge in
-                            thumbnailBadge(badge)
-                        }
-                    }
-                }
-            }
+    private var captionTitle: some View {
+        Text(title)
+            .font(DesignTokens.Typography.headline)
+            .lineLimit(2)
+            .truncationMode(.tail)
+    }
 
-            Spacer()
-
-            HStack {
-                thumbnailMetadata(fileSize)
-                Spacer()
-                thumbnailMetadata(duration)
-            }
-            .padding(DesignTokens.Spacing.sm)
-            .thumbnailTextScrim()
+    @ViewBuilder
+    private func captionDuration(_ duration: String) -> some View {
+        if duration.isEmpty == false {
+            Label(duration, systemImage: "play.fill")
+                .labelStyle(.titleAndIcon)
+                .font(DesignTokens.Typography.metadata)
+                .padding(.top, DesignTokens.Spacing.xxs)
         }
-        .padding(.top, DesignTokens.Spacing.sm)
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func videoBadges(_ badges: [String]) -> some View {
+        HStack(spacing: DesignTokens.Spacing.xxs) {
+            ForEach(badges, id: \.self) { badge in
+                thumbnailBadge(badge)
+            }
+        }
+        .padding(DesignTokens.Spacing.sm)
         .enchronHoverOpacity(
             active: 1,
             inactive: 0,
@@ -599,12 +623,17 @@ private struct ThumbnailTextScrim: ViewModifier {
         content.background {
             GeometryReader { proxy in
                 let textHeight = proxy.size.height
-                let scrimHeight = textHeight * (1 + DesignTokens.Card.textScrimLeadFactor)
+                let leadHeight = DesignTokens.Card.textScrimLeadHeight
+                let scrimHeight = leadHeight + textHeight
+                let rampProgress = min(1, textHeight / DesignTokens.Card.textScrimRampHeight)
+                let textOpacity = DesignTokens.Surface.textScrimOpacity
+                let bottomOpacity = textOpacity
+                    + (DesignTokens.Surface.textScrimDenseOpacity - textOpacity) * rampProgress
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0),
-                        .init(color: DesignTokens.Surface.textScrim, location: 0.5),
-                        .init(color: DesignTokens.Surface.textScrimDense, location: 1)
+                        .init(color: .black.opacity(textOpacity), location: leadHeight / scrimHeight),
+                        .init(color: .black.opacity(bottomOpacity), location: 1)
                     ],
                     startPoint: .top,
                     endPoint: .bottom

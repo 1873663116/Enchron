@@ -62,12 +62,11 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 
 ## 层级切换的过渡
 
-浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都用同一对 token：`AnimationToken.levelTransition` 驱动、`TransitionToken.levelReplace` 定义进出。纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。`levelReplace` 是 `BlurReplaceTransition(.upUp)`：模糊加缩放对相同内容同样可见，切换的感知因此不再取决于内容差异。`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用与两个 token 的定义。
+浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都用同一对 token：`AnimationToken.levelTransition` 驱动、`TransitionToken.levelReplace` 定义进出。纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。`levelReplace` 是 `.opacity` 叠加 `levelReplaceTravel`（12 pt）的纵向位移：旧层淡出时下沉、新层从下方淡入，位移对相同内容同样可见，切换的感知因此不再取决于内容差异。2026-09-05 真机否决了 `BlurReplaceTransition`：模糊加缩放在网格上过重。`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用与两个 token 的定义。
 
 ## 卡片 hover 揭示
 
-`GridCard` 四种变体在注视下揭示的东西一致：观看进度条只在 hover 时出现（video、poster、episode 都经 `watchedProgressBar`，不直接画 `watchedEdgeProgressVisual`）；画在缩略图上的文字（video 的体积与时长行、episode 的标题与简介）背后是同一个 `thumbnailTextScrim`，它的高度是文字块高度乘 `1 + Card.textScrimLeadFactor`，随文字行数伸缩，不是缩略图的固定比例。folder 的缩略图是平面，不需要 scrim。同一个守卫脚本钉住这些结构。
-
+`GridCard` 四种变体在注视下揭示的东西一致：观看进度条只在 hover 时出现（video、poster、episode 都经 `watchedProgressBar`，不直接画 `watchedEdgeProgressVisual`）；video 与 episode 的说明块经同一个 `thumbnailCaption`（scrim、底左对齐、hover 显隐）和同一个 `captionBlock`；episode 的块是标题两行、简介、`play.fill` 时长，video 的块只有体积与时长——文件名已经在缩略图下方，块里不再重复。scrim 由 `thumbnailTextScrim` 画，斜坡取自 Emby 原来 205 pt 卡片上的固定渐变（25% 处透明、50% 处 0.55、底部 0.9）并锚到文字块：块上方 `Card.textScrimLeadHeight`（52 pt）从透明升到 `Surface.textScrimOpacity`（0.55），块内部按 `Card.textScrimRampHeight`（104 pt）走向 `textScrimDenseOpacity`（0.9），块比 104 pt 矮就在斜坡上提前停（一行体积约到 0.67）。范围随文字高度伸缩，斜坡速率与 Emby 长块相同；把范围写成「文字高度 × 2」会把整条斜坡压进几十 pt，一行文字得到一条陡黑的带（2026-09-05 真机否决）。2026-09-05 真机否决了"角落一行体积＋半张卡的 scrim"：Files 与 Emby 的 hover 必须是同一个说明块。folder 的缩略图是平面，不需要 scrim。同一个守卫脚本钉住这些结构。
 ## 系统 Menu 里哪种行留得住标识符
 
 **系统 Menu 的内容随宿主 body 一起重建**：宿主窗口的 body 每重新求值一次，UIKit 就重建一次菜单并重新呈现已打开的子菜单。播放窗口的根 body 曾因 `.accessibilityValue` 快照读取每帧更新的播放位置而按播放时钟重算，三级菜单因此闪烁到无法点中；读取高频运行时属性的快照必须住在自己的 `ViewModifier`／子视图里（`WindowControlPlaneStateModifier`、`PlaybackAutomationStateProbe`），Observation 的失效范围就只有那一个节点。同理，菜单内容的 `onAppear` 不能改写被宿主 body 读取的状态：`setControlsFocused` 只在焦点值真正改变时登记一次交互。两条都由 `Scripts/rules/verify_playback_surface_structure.py` 钉住。
