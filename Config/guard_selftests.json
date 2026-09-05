@@ -311,6 +311,198 @@
           "NSAllowsLocalNetworking makes the system ignore NSAllowsArbitraryLoads and substitute NO"
         ]
       }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-handover-that-pushes-the-playback-window",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        actions.openWindow(id: handover.incoming.rawValue)\n",
+        "replaceWith": "        actions.pushWindow(id: handover.incoming.rawValue)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the playback window handover dismisses the outgoing window without"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-handover-from-a-window-that-left",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        guard windowHasLeft(handover.outgoing) == false else {\n",
+        "replaceWith": "        if false {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the playback window handover starts from a window that already left"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-departure-judged-by-the-swiftui-root",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        guard let identifier = windowSceneSessionIdentifier(for: window) else {\n            return windowObservation.residency(for: window) == .closed\n        }\n",
+        "replaceWith": "        if windowObservation.residency(for: window) == .closed { return true }\n        guard let identifier = windowSceneSessionIdentifier(for: window) else { return false }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "window departure trusts the SwiftUI root's disappearance"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-focus-reporting-that-rewrites-the-interaction",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Session/PlaybackSessionModel.swift",
+        "find": "        guard isControlsFocused != focused else { return }\n        isControlsFocused = focused\n",
+        "replaceWith": "        isControlsFocused = focused\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "controls focus reporting rewrites the interaction timestamp"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-plain-fade-between-levels",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "                .id(folderIdentity)\n                .transition(DesignTokens.TransitionToken.levelReplace)\n",
+        "replaceWith": "                .id(folderIdentity)\n                .transition(.opacity)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must use DesignTokens.TransitionToken.levelReplace"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-an-always-visible-progress-bar",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "                        if let watchedProgress = poster.watchedProgress {\n                            watchedProgressBar(watchedProgress)\n",
+        "replaceWith": "                        if let watchedProgress = poster.watchedProgress {\n                            watchedEdgeProgressVisual(watchedProgress)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "outside the hover-revealed bar"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-video-caption-without-a-scrim",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "            .padding(DesignTokens.Spacing.sm)\n            .thumbnailTextScrim()\n",
+        "replaceWith": "            .padding(DesignTokens.Spacing.sm)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the video card's metadata row lost its text scrim"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-scrim-with-a-fixed-height",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/GridCard.swift",
+        "find": "                let scrimHeight = textHeight * (1 + DesignTokens.Card.textScrimLeadFactor)\n",
+        "replaceWith": "                let scrimHeight = DesignTokens.Card.thumbnailHeight\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the text scrim no longer scales with the caption height"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-launch-that-keeps-duplicate-window-sessions",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/EnchronApp.swift",
+        "find": "        guard windowSessions.count > 1 else { return true }\n        for session in windowSessions {\n            application.requestSceneSessionDestruction(session, options: nil)\n        }\n",
+        "replaceWith": "        guard windowSessions.count > 1 else { return true }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "launch no longer discards duplicate window sessions"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-opening-a-window-whose-scene-is-still-connected",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        guard await waitUntilWindowHasLeft(\n            handover.incoming,\n",
+        "replaceWith": "        guard await windowHasLeftWithoutWaiting(\n            handover.incoming,\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the playback window handover dismisses the outgoing window without"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-handover-that-keeps-stale-window-sessions",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        discardUnconnectedWindowSessions(reason: \"handover\")\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the playback window handover dismisses the outgoing window without"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-window-root-that-reads-the-playback-position",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/MainView.swift",
+        "find": "        .modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))\n",
+        "replaceWith": "        .accessibilityValue(String(describing: playbackRuntime.playbackPosition))\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the playback window's root body reads the playback position"
+        ]
+      }
     }
   ],
   "externalSubject": [

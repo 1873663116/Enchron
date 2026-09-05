@@ -383,7 +383,7 @@ public struct EmbyScreen: View {
                         ZStack {
                             destinationContent
                                 .id(navigation.destination)
-                                .transition(.opacity)
+                                .transition(DesignTokens.TransitionToken.levelReplace)
                         }
                             .animation(
                                 DesignTokens.AnimationToken.levelTransition,

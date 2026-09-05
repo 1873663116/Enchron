@@ -23,6 +23,9 @@
 - **`WindowGroup(id:for:)` 的 `defaultValue` 每次求值都产出一个新值时，无参数的 `openWindow(id:)` 每次都开一个新窗口**。产品语义上唯一的窗口必须声明为 `Window`，由场景类型保证唯一，而不是靠每个调用点记得携带同一个值。
 - **被 await 的 scene action 就是平台完成边界**。SwiftUI 不保证 ImmersiveSpace 内容的 `onDisappear` 在该 action 返回之前运行。
 - **一个已消失的场景不能再接受平台请求**，但它持有的活动 lease 仍然有效，好让同一次执行经由新注册的场景根继续下去；`currentCapability` 则立刻停止暴露那个退休场景的动作。
+- **同一个 `Window` 收到第二个 UIKit scene 时 SwiftUI 直接 trap**：`Fatal error: Your app was given a scene with id 'main' but the matching Window in your app body is already connected`，栈顶是 `AppSceneDelegate.makeSceneHostWindow` ← `scene(_:willConnectTo:)` ← FrontBoard `didCreateScene`，signal 5。2026-09-05 从真机拉下的 11 份 `Enchron-*.ips` 全是这一帧：佩戴者按返回时（16:24、16:25）与之后每次从 Home 启动（16:39 六次）都是它；`devicectl device process launch --console` 可直接看到；trap 发生在场景连接期间，被持久化的 session 不会被清理，之后每次启动复现，原地重装同一构建也复现，`.restorationBehavior(.disabled)` 也救不回来。由此得到的约束：交接只从仍然在场的窗口出发（`windowHasLeft(outgoing)` 为真时跳过）；给进入方发 `openWindow` 之前先等它自己的旧 scene 从 UIKit 断开，到期仍连着就只关离场方、不再开第二个；窗口"已离场"以 UIKit scene 断开为准，SwiftUI 根的 `onDisappear` 只在没有记录到 scene 时作兜底；启动时 `openSessions` 里窗口 session 多于一个就全部销毁（`EnchronAppDelegate`），让下一次点击重新开一个干净的主窗口——这一条在已中毒的真机上实测把 trap 解开。见 `Scripts/rules/verify_playback_surface_structure.py`。
+- **运行中的 app 再开一个窗口时，visionOS 把新窗口放在既有窗口前方并略微错开**（Apple：offsetting each additional window by a small amount），这就是播放窗口与回到浏览时主窗口"往上偏"的来源；`defaultWindowPlacement` 在首个窗口上被忽略，也没有"放在原位"的位置值（`WindowPlacement.Position.replacing` 已弃用并指向 `pushWindow`）。`pushWindow(id:)`（visionOS 2+）把新窗口与被压入后台的窗口中心对齐、关闭新窗口时旧窗口自动回来，但**从一个被 push 出来的窗口再 push 是不允许的**，而沉浸式常驻窗口现在正是从播放窗口 push 出来的（`SpatialPlatformEffectExecutor` 的 resident push），主窗口→播放窗口再改成 push 会截断这条链。所以偏移目前保留；把浏览↔播放改成 push/pop 需要连沉浸链一起重排，是独立的一个阶段。
+- **一份 lease 的 `currentCapability` 是"偏好的 scene 根"，不一定是离场窗口**：注册时播放窗口与沉浸常驻窗口优先。任何依赖"从哪个窗口发出"的动作（`pushWindow`）都必须像 resident push 那样先核对 `actions.windowIdentity`。
 
 ## 窗口与视频的几何
 

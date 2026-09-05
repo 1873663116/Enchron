@@ -81,6 +81,7 @@ STRUCTURE_CHECKS = (
     StructureCheck("design-source-architecture", "verify_design_source_architecture.py"),
     StructureCheck("package-membership", "verify_package_membership.py"),
     StructureCheck("playback-surface-structure", "verify_playback_surface_structure.py"),
+    StructureCheck("browser-surface-structure", "verify_browser_surface_structure.py"),
     StructureCheck("format-description-ownership", "verify_format_description_ownership.py"),
     StructureCheck(
         "format-description-identity",

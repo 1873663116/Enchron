@@ -486,16 +486,93 @@ def main() -> int:
         order(
             handover,
             "let incomingRevision = windowObservation.revision(for: handover.incoming)",
+            'discardUnconnectedWindowSessions(reason: "handover")',
+            "guard await waitUntilWindowHasLeft(",
             "openWindow(id: handover.incoming.rawValue",
             "await waitUntilWindowIsPresented(",
             "await dismissWindowUntilGone(handover.outgoing",
             "windowObservation.confirms(.open, for: window, after: revision)",
             "actions.dismissWindow(id: window.rawValue)",
         )
-        and "while windowHasLeft(window) == false {" in handover,
+        and "while windowHasLeft(window) == false {" in handover
+        and "pushWindow(id: handover.incoming.rawValue" not in handover,
         "the playback window handover dismisses the outgoing window without "
         "first observing the incoming one open, which visionOS drops because "
         "the outgoing window is still the only one",
+    )
+    require(
+        order(
+            handover,
+            "guard leaseRegistry.currentCapability != nil else {",
+            "guard windowHasLeft(handover.outgoing) == false else {",
+            "handoverTask?.cancel()",
+        ),
+        "the playback window handover starts from a window that already left, "
+        "so a windowless app requests a main scene it can never present and "
+        "the next launch connects two main scenes",
+    )
+    window_departure = region(
+        platform_executor,
+        "private func windowHasLeft(_ window: SpatialPlatformWindowIdentity) -> Bool {",
+        "private var sceneSessionSummary: String {",
+    )
+    require(
+        order(
+            window_departure,
+            "guard let identifier = windowSceneSessionIdentifier(for: window) else {",
+            "return windowObservation.residency(for: window) == .closed",
+            "UIApplication.shared.connectedScenes.contains",
+        ),
+        "window departure trusts the SwiftUI root's disappearance while the "
+        "UIKit scene is still connected, so a second scene for the same "
+        "singleton Window gets requested",
+    )
+    require(
+        "@UIApplicationDelegateAdaptor(EnchronAppDelegate.self)" in app_scene
+        and order(
+            app_scene,
+            "final class EnchronAppDelegate: NSObject, UIApplicationDelegate {",
+            "didFinishLaunchingWithOptions",
+            "$0.role == .windowApplication",
+            "guard windowSessions.count > 1 else { return true }",
+            "application.requestSceneSessionDestruction(session, options: nil)",
+        ),
+        "launch no longer discards duplicate window sessions, so a device that "
+        "persisted two main sessions traps on every launch until the app is "
+        "uninstalled",
+    )
+    main_view_struct = region(
+        main_view,
+        "public struct MainView: View {",
+        "private struct WindowControlPlaneStateModifier: ViewModifier {",
+    )
+    require(
+        "playbackRuntime.playbackPosition" not in main_view_struct
+        and "playbackRuntime.debugSnapshot()" not in main_view_struct
+        and "windowPlaybackStateValue(" not in main_view_struct
+        and ".modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))" in main_view_struct
+        and order(
+            main_view,
+            "private struct WindowControlPlaneStateModifier: ViewModifier {",
+            "func body(content: Content) -> some View {",
+            "content.accessibilityValue(stateValue)",
+            "let position = playbackRuntime.playbackPosition",
+        ),
+        "the playback window's root body reads the playback position or the "
+        "runtime debug snapshot, so every position update re-evaluates the whole "
+        "window and UIKit rebuilds the presented menus",
+    )
+    require(
+        order(
+            session_model,
+            "public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {",
+            "guard isControlsFocused != focused else { return }",
+            "isControlsFocused = focused",
+            "registerControlsInteraction(at: date)",
+        ),
+        "controls focus reporting rewrites the interaction timestamp on every "
+        "menu appearance, so the playback window re-renders and re-presents "
+        "the open submenu until it flickers",
     )
     require(
         'id: "playerControls"' not in app_scene

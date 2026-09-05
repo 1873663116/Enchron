@@ -603,7 +603,7 @@ public struct FilesScreen: View {
         ZStack {
             currentFolderContent
                 .id(folderIdentity)
-                .transition(.opacity)
+                .transition(DesignTokens.TransitionToken.levelReplace)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(DesignTokens.AnimationToken.levelTransition, value: folderIdentity)

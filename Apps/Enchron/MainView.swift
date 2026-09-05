@@ -178,8 +178,8 @@ public struct MainView: View {
                     .opacity(0.001)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("PlayerUI-application-state")
-                    .accessibilityValue(
-                        windowPlaybackStateValue(
+                    .modifier(
+                        windowControlPlaneState(
                             geometryPolicy: windowPlaybackGeometryPolicy
                         )
                     )
@@ -530,9 +530,7 @@ public struct MainView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
-        .accessibilityValue(
-            windowPlaybackStateValue(geometryPolicy: geometryPolicy)
-        )
+        .modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))
         .opacity(windowPlaybackOpacity)
         .animation(
             PlaybackPresentationTransitionAppearance.animation(
@@ -634,9 +632,145 @@ public struct MainView: View {
         .accessibilityValue(playbackRuntime.lifecycle.label)
     }
 
-    private func windowPlaybackStateValue(
+    private var reapplyVerificationIsEnabled: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment[
+            "ENCHRON_VERIFY_SUFFICIENT_RATE_REAPPLY"
+        ] == "1"
+        #else
+        false
+        #endif
+    }
+
+    private func windowControlPlaneState(
         geometryPolicy: WindowPlaybackGeometryPolicy
-    ) -> String {
+    ) -> WindowControlPlaneStateModifier {
+        WindowControlPlaneStateModifier(
+            geometryPolicy: geometryPolicy,
+            reapplyVerificationSnapshotTick: reapplyVerificationSnapshotTick,
+            showsPlaybackChrome: showsPlaybackChrome,
+            windowPlaybackIssue: windowPlaybackIssue,
+            windowPlaybackOpacity: windowPlaybackOpacity,
+            windowPlaybackAcceptsInput: windowPlaybackAcceptsInput
+        )
+    }
+
+    private var hostedPlaybackPresentation: PlaybackPresentation {
+        if let target = playbackSession.presentationTransition?.targetPresentation,
+           target.usesMainWindow {
+            return target
+        }
+        return playbackSession.playbackPresentation.usesMainWindow
+            ? playbackSession.playbackPresentation
+            : .window
+    }
+
+    private var isLeavingWindowPresentation: Bool {
+        playbackSession.presentationTransition?.previousPresentation.usesMainWindow == true
+            && playbackSession.presentationTransition?.targetPresentation.usesMainWindow == false
+    }
+
+    private var windowPlaybackOpacity: Double {
+        PlaybackPresentationTransitionAppearance.windowSceneHostOpacity(
+            for: hostedPlaybackPresentation,
+            settledPresentation: playbackSession.playbackPresentation,
+            transition: playbackSession.presentationTransition,
+            visualCutoverMayBegin: playbackSession.presentationVisualCutoverMayBegin
+        )
+    }
+
+    private var windowPlaybackAcceptsInput: Bool {
+        PlaybackPresentationTransitionAppearance.acceptsInput(
+            for: hostedPlaybackPresentation,
+            settledPresentation: playbackSession.playbackPresentation,
+            transition: playbackSession.presentationTransition
+        )
+    }
+
+    private var windowPlaybackLayout: WindowPlaybackLayout {
+        WindowPlaybackLayout(
+            resolution: playbackRuntime.displayMediaProfile?.resolution,
+            pixelAspectRatio: playbackRuntime.displayMediaProfile?.pixelAspectRatio ?? .square,
+            stereoLayout: playbackRuntime.effectiveStereoLayout
+        )
+    }
+
+    private var windowPlaybackGeometryPolicy: WindowPlaybackGeometryPolicy {
+        if playbackRuntime.mediaKind == .audioOnly {
+            return .audioOnly
+        }
+        return WindowPlaybackGeometryPolicy(
+            presentation: hostedPlaybackPresentation,
+            videoLayout: windowPlaybackLayout
+        )
+    }
+
+    private func retryPlayback() {
+        playbackLauncher.retryPlayback()
+    }
+
+    private func scheduleControlsAutoHide() {
+        controlsTimer?.cancel()
+        guard playbackSession.controlsAutoHideSeconds > 0 else { return }
+        let delay = Duration.seconds(playbackSession.controlsAutoHideSeconds)
+        let scheduledAtMillis = Int(Date().timeIntervalSince1970 * 1000)
+        SurfaceInputProbes.record(
+            "controlsVisibility event=timer-scheduled "
+                + "state=\(playbackSession.showControls ? "shown" : "hidden") "
+                + "scheduledAtMillis=\(scheduledAtMillis) "
+                + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
+                + "lifecycle=\(playbackRuntime.lifecycle)",
+            retention: .evidence
+        )
+        controlsTimer = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled,
+                  playbackSession.canAutoHideControls,
+                  playbackRuntime.lifecycle == .playing else { return }
+            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                playbackSession.showControls = false
+            }
+            SurfaceInputProbes.record(
+                "controlsVisibility event=auto-hide state=hidden "
+                    + "scheduledAtMillis=\(scheduledAtMillis) "
+                    + "hiddenAtMillis=\(Int(Date().timeIntervalSince1970 * 1000)) "
+                    + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
+                    + "lifecycle=\(playbackRuntime.lifecycle)",
+                retention: .evidence
+            )
+        }
+    }
+
+    private func reconcilePlaybackWindowPresentation(
+        sessionIsActive: Bool
+    ) {
+        spatialPlatformEffectCoordinator.reconcilePlaybackWindowPresentation(
+            hostWindow: sceneRole == .browser ? .main : .playback,
+            sessionIsActive: sessionIsActive
+        )
+    }
+
+}
+
+private struct WindowControlPlaneStateModifier: ViewModifier {
+    @Environment(PlaybackSessionModel.self) private var playbackSession
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(SpatialPlatformEffectCoordinator.self)
+    private var spatialPlatformEffectCoordinator
+    let geometryPolicy: WindowPlaybackGeometryPolicy
+    let reapplyVerificationSnapshotTick: Int
+    let showsPlaybackChrome: Bool
+    let windowPlaybackIssue: PlaybackUserVisibleIssue?
+    let windowPlaybackOpacity: Double
+    let windowPlaybackAcceptsInput: Bool
+
+    func body(content: Content) -> some View {
+        content.accessibilityValue(stateValue)
+    }
+
+    private var stateValue: String {
         _ = reapplyVerificationSnapshotTick
         let position = playbackRuntime.playbackPosition
         let output = playbackRuntime.outputObservation()
@@ -927,112 +1061,6 @@ public struct MainView: View {
                 + playbackSession.spatialPlaybackSurfaceObservation.accessibilityFields
         ).joined(separator: ";")
     }
-
-    private var reapplyVerificationIsEnabled: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.environment[
-            "ENCHRON_VERIFY_SUFFICIENT_RATE_REAPPLY"
-        ] == "1"
-        #else
-        false
-        #endif
-    }
-
-    private var hostedPlaybackPresentation: PlaybackPresentation {
-        if let target = playbackSession.presentationTransition?.targetPresentation,
-           target.usesMainWindow {
-            return target
-        }
-        return playbackSession.playbackPresentation.usesMainWindow
-            ? playbackSession.playbackPresentation
-            : .window
-    }
-
-    private var isLeavingWindowPresentation: Bool {
-        playbackSession.presentationTransition?.previousPresentation.usesMainWindow == true
-            && playbackSession.presentationTransition?.targetPresentation.usesMainWindow == false
-    }
-
-    private var windowPlaybackOpacity: Double {
-        PlaybackPresentationTransitionAppearance.windowSceneHostOpacity(
-            for: hostedPlaybackPresentation,
-            settledPresentation: playbackSession.playbackPresentation,
-            transition: playbackSession.presentationTransition,
-            visualCutoverMayBegin: playbackSession.presentationVisualCutoverMayBegin
-        )
-    }
-
-    private var windowPlaybackAcceptsInput: Bool {
-        PlaybackPresentationTransitionAppearance.acceptsInput(
-            for: hostedPlaybackPresentation,
-            settledPresentation: playbackSession.playbackPresentation,
-            transition: playbackSession.presentationTransition
-        )
-    }
-
-    private var windowPlaybackLayout: WindowPlaybackLayout {
-        WindowPlaybackLayout(
-            resolution: playbackRuntime.displayMediaProfile?.resolution,
-            pixelAspectRatio: playbackRuntime.displayMediaProfile?.pixelAspectRatio ?? .square,
-            stereoLayout: playbackRuntime.effectiveStereoLayout
-        )
-    }
-
-    private var windowPlaybackGeometryPolicy: WindowPlaybackGeometryPolicy {
-        if playbackRuntime.mediaKind == .audioOnly {
-            return .audioOnly
-        }
-        return WindowPlaybackGeometryPolicy(
-            presentation: hostedPlaybackPresentation,
-            videoLayout: windowPlaybackLayout
-        )
-    }
-
-    private func retryPlayback() {
-        playbackLauncher.retryPlayback()
-    }
-
-    private func scheduleControlsAutoHide() {
-        controlsTimer?.cancel()
-        guard playbackSession.controlsAutoHideSeconds > 0 else { return }
-        let delay = Duration.seconds(playbackSession.controlsAutoHideSeconds)
-        let scheduledAtMillis = Int(Date().timeIntervalSince1970 * 1000)
-        SurfaceInputProbes.record(
-            "controlsVisibility event=timer-scheduled "
-                + "state=\(playbackSession.showControls ? "shown" : "hidden") "
-                + "scheduledAtMillis=\(scheduledAtMillis) "
-                + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
-                + "lifecycle=\(playbackRuntime.lifecycle)",
-            retention: .evidence
-        )
-        controlsTimer = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled,
-                  playbackSession.canAutoHideControls,
-                  playbackRuntime.lifecycle == .playing else { return }
-            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                playbackSession.showControls = false
-            }
-            SurfaceInputProbes.record(
-                "controlsVisibility event=auto-hide state=hidden "
-                    + "scheduledAtMillis=\(scheduledAtMillis) "
-                    + "hiddenAtMillis=\(Int(Date().timeIntervalSince1970 * 1000)) "
-                    + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
-                    + "lifecycle=\(playbackRuntime.lifecycle)",
-                retention: .evidence
-            )
-        }
-    }
-
-    private func reconcilePlaybackWindowPresentation(
-        sessionIsActive: Bool
-    ) {
-        spatialPlatformEffectCoordinator.reconcilePlaybackWindowPresentation(
-            hostWindow: sceneRole == .browser ? .main : .playback,
-            sessionIsActive: sessionIsActive
-        )
-    }
-
 }
 
 private struct PlaybackAutomationStateProbe: View {

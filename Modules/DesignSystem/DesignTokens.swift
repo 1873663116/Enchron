@@ -64,6 +64,12 @@ public enum DesignTokens {
         }
     }
 
+    public enum TransitionToken {
+        @MainActor public static var levelReplace: AnyTransition {
+            AnyTransition(BlurReplaceTransition(configuration: .upUp))
+        }
+    }
+
     public enum LoadingSpinner {
         public static let cycleDuration: Duration = .milliseconds(5400)
         public static let cycleDurationMilliseconds: Double = 5400
@@ -183,6 +189,8 @@ public enum DesignTokens {
         public static let border: Color = .primary.opacity(0.05)
         public static let divider: Color = .primary.opacity(0.14)
         public static let supportingText: Color = .primary.opacity(0.72)
+        public static let textScrim: Color = .black.opacity(0.55)
+        public static let textScrimDense: Color = .black.opacity(0.85)
         public static let accessoryText: Color = .primary.opacity(0.88)
         public static let selectionHeaderText: Color = .primary
         public static let focusBorder: Color = Theme.accent
@@ -255,6 +263,7 @@ public enum DesignTokens {
         public static let thumbnailHeight: CGFloat = 140
         public static let gridSpacing: CGFloat = Spacing.md
         public static let placeholderIconSize: CGFloat = 45
+        public static let textScrimLeadFactor: CGFloat = 1
     }
 
     public enum EnvironmentCard {

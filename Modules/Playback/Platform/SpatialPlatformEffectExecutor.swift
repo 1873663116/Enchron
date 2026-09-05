@@ -509,8 +509,9 @@ public final class SpatialPlatformEffectCoordinator {
     }
 
     private func windowHasLeft(_ window: SpatialPlatformWindowIdentity) -> Bool {
-        if windowObservation.residency(for: window) == .closed { return true }
-        guard let identifier = windowSceneSessionIdentifier(for: window) else { return false }
+        guard let identifier = windowSceneSessionIdentifier(for: window) else {
+            return windowObservation.residency(for: window) == .closed
+        }
         if let scene = windowScene(for: window), scene.activationState == .unattached {
             return true
         }
@@ -519,12 +520,30 @@ public final class SpatialPlatformEffectCoordinator {
         } == false
     }
 
+    private var sceneSessionSummary: String {
+        let connected = UIApplication.shared.connectedScenes.map { scene in
+            let role = scene.session.role.rawValue
+                .split(separator: ".").last.map(String.init) ?? scene.session.role.rawValue
+            return "\(role)/\(scene.session.configuration.name ?? "-")"
+                + "/\(scene.session.persistentIdentifier.suffix(6))"
+                + "/\(scene.activationState.rawValue)"
+        }
+        return "openSessions=\(UIApplication.shared.openSessions.count)"
+            + " connected=[\(connected.joined(separator: ","))]"
+    }
+
     private func windowSceneDidDisconnect(sessionIdentifier: String?) {
         guard let sessionIdentifier else { return }
         if sessionIdentifier == mainWindowSceneSessionIdentifier {
-            appDismissedWindows.remove(.main)
+            let dismissedByApp = appDismissedWindows.remove(.main) != nil
             forgetWindowScene(for: .main)
             recordWindowResidency(.closed, for: .main)
+            appModel.recordSurfaceInputProbe(
+                "mainWindowScene disconnected"
+                    + " trigger=\(dismissedByApp ? "app" : "wearer")"
+                    + " \(sceneSessionSummary)",
+                retention: .evidence
+            )
             return
         }
         guard sessionIdentifier == playbackWindowSceneSessionIdentifier else { return }
@@ -533,7 +552,7 @@ public final class SpatialPlatformEffectCoordinator {
         recordWindowResidency(.closed, for: .playback)
         guard dismissedByApp == false else { return }
         appModel.recordSurfaceInputProbe(
-            "playbackWindowScene disconnected trigger=wearer",
+            "playbackWindowScene disconnected trigger=wearer \(sceneSessionSummary)",
             retention: .evidence
         )
         onPlaybackWindowClosedByWearer?()
@@ -619,6 +638,14 @@ public final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+        guard windowHasLeft(handover.outgoing) == false else {
+            appModel.recordSurfaceInputProbe(
+                "playbackWindowHandover skipped outgoing=\(handover.outgoing.rawValue)"
+                    + " alreadyLeft \(sceneSessionSummary)",
+                retention: .evidence
+            )
+            return
+        }
         handoverTask?.cancel()
         handoverTask = Task { @MainActor [weak self] in
             await self?.performPlaybackWindowHandover(handover)
@@ -634,10 +661,25 @@ public final class SpatialPlatformEffectCoordinator {
             by: Self.windowLifecycleConfirmationTimeout
         )
         let incomingRevision = windowObservation.revision(for: handover.incoming)
+        discardUnconnectedWindowSessions(reason: "handover")
+        guard await waitUntilWindowHasLeft(
+            handover.incoming,
+            deadline: deadline,
+            clock: clock
+        ) else {
+            appModel.recordSurfaceInputProbe(
+                "playbackWindowHandover refused incoming=\(handover.incoming.rawValue)"
+                    + " sceneStillConnected \(sceneSessionSummary)",
+                retention: .evidence
+            )
+            await dismissWindowUntilGone(handover.outgoing, clock: clock)
+            return
+        }
         actions.openWindow(id: handover.incoming.rawValue)
         appModel.recordSurfaceInputProbe(
             "playbackWindowHandover opened incoming=\(handover.incoming.rawValue)"
-                + " outgoing=\(handover.outgoing.rawValue)",
+                + " outgoing=\(handover.outgoing.rawValue)"
+                + " \(sceneSessionSummary)",
             retention: .evidence
         )
         guard await waitUntilWindowIsPresented(
@@ -655,6 +697,41 @@ public final class SpatialPlatformEffectCoordinator {
             return
         }
         await dismissWindowUntilGone(handover.outgoing, clock: clock)
+    }
+
+    private func discardUnconnectedWindowSessions(reason: String) {
+        let connected = Set(
+            UIApplication.shared.connectedScenes.map(\.session.persistentIdentifier)
+        )
+        let stale = UIApplication.shared.openSessions.filter { session in
+            session.role == .windowApplication
+                && connected.contains(session.persistentIdentifier) == false
+        }
+        guard stale.isEmpty == false else { return }
+        for session in stale {
+            UIApplication.shared.requestSceneSessionDestruction(session, options: nil)
+        }
+        appModel.recordSurfaceInputProbe(
+            "windowSessions discarded unconnected count=\(stale.count)"
+                + " reason=\(reason) \(sceneSessionSummary)",
+            retention: .evidence
+        )
+    }
+
+    private func waitUntilWindowHasLeft(
+        _ window: SpatialPlatformWindowIdentity,
+        deadline: ContinuousClock.Instant,
+        clock: ContinuousClock
+    ) async -> Bool {
+        while windowHasLeft(window) == false {
+            guard clock.now < deadline else { return false }
+            do {
+                try await Task.sleep(for: .milliseconds(25))
+            } catch {
+                return false
+            }
+        }
+        return true
     }
 
     private func waitUntilWindowIsPresented(

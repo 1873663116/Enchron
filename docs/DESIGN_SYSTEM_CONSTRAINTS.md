@@ -60,7 +60,17 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 
 同一约束下，行高亮的圆角只圆外侧角（与容器裁切一致），内侧对着分隔线的一侧保持方角。
 
+## 层级切换的过渡
+
+浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都用同一对 token：`AnimationToken.levelTransition` 驱动、`TransitionToken.levelReplace` 定义进出。纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。`levelReplace` 是 `BlurReplaceTransition(.upUp)`：模糊加缩放对相同内容同样可见，切换的感知因此不再取决于内容差异。`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用与两个 token 的定义。
+
+## 卡片 hover 揭示
+
+`GridCard` 四种变体在注视下揭示的东西一致：观看进度条只在 hover 时出现（video、poster、episode 都经 `watchedProgressBar`，不直接画 `watchedEdgeProgressVisual`）；画在缩略图上的文字（video 的体积与时长行、episode 的标题与简介）背后是同一个 `thumbnailTextScrim`，它的高度是文字块高度乘 `1 + Card.textScrimLeadFactor`，随文字行数伸缩，不是缩略图的固定比例。folder 的缩略图是平面，不需要 scrim。同一个守卫脚本钉住这些结构。
+
 ## 系统 Menu 里哪种行留得住标识符
+
+**系统 Menu 的内容随宿主 body 一起重建**：宿主窗口的 body 每重新求值一次，UIKit 就重建一次菜单并重新呈现已打开的子菜单。播放窗口的根 body 曾因 `.accessibilityValue` 快照读取每帧更新的播放位置而按播放时钟重算，三级菜单因此闪烁到无法点中；读取高频运行时属性的快照必须住在自己的 `ViewModifier`／子视图里（`WindowControlPlaneStateModifier`、`PlaybackAutomationStateProbe`），Observation 的失效范围就只有那一个节点。同理，菜单内容的 `onAppear` 不能改写被宿主 body 读取的状态：`setControlsFocused` 只在焦点值真正改变时登记一次交互。两条都由 `Scripts/rules/verify_playback_surface_structure.py` 钉住。
 
 `.accessibilityIdentifier` 只保留在菜单当作一等 action 采纳的行上。`Picker` 行与 `Toggle` 行都是菜单自行布局的内容，二者到达 accessibility 树时**完全没有标识符**，任何东西都寻址不到它们，覆盖率检查也不会因此变红；`Button` 行保留标识符。三者在 2026-08-21 于设备上同一构建里实测。
 

@@ -5,8 +5,39 @@ import Playback
 import SwiftUI
 import UIKit
 
+@MainActor
+final class EnchronAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        let windowSessions = application.openSessions.filter {
+            $0.role == .windowApplication
+        }
+        let sessionSummary = windowSessions.map { session in
+            "\(session.configuration.name ?? "-")/\(session.persistentIdentifier.suffix(6))"
+        }
+        SurfaceInputProbes.record(
+            "launch openSessions=\(application.openSessions.count)"
+                + " windowSessions=\(windowSessions.count)"
+                + " [\(sessionSummary.joined(separator: ","))]",
+            retention: .evidence
+        )
+        guard windowSessions.count > 1 else { return true }
+        for session in windowSessions {
+            application.requestSceneSessionDestruction(session, options: nil)
+        }
+        SurfaceInputProbes.record(
+            "launch discarded duplicate window sessions count=\(windowSessions.count)",
+            retention: .evidence
+        )
+        return true
+    }
+}
+
 @main
 struct EnchronApp: App {
+    @UIApplicationDelegateAdaptor(EnchronAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var mainScenePhase
     @State private var application: EnchronApplication
     @State private var immersionStyle: ImmersionStyle = .progressive(

@@ -581,6 +581,7 @@ public final class PlaybackSessionModel {
     }
 
     public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {
+        guard isControlsFocused != focused else { return }
         isControlsFocused = focused
         registerControlsInteraction(at: date)
     }

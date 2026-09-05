@@ -438,7 +438,7 @@ public struct GridCard: View {
                     }
                     .overlay {
                         if let watchedProgress = poster.watchedProgress {
-                            watchedEdgeProgressVisual(watchedProgress)
+                            watchedProgressBar(watchedProgress)
                         }
                     }
             case let .episode(episode):
@@ -451,7 +451,7 @@ public struct GridCard: View {
                     }
                     .overlay {
                         if let watchedProgress = episode.watchedProgress {
-                            watchedEdgeProgressVisual(watchedProgress)
+                            watchedProgressBar(watchedProgress)
                         }
                     }
             }
@@ -459,27 +459,16 @@ public struct GridCard: View {
     }
 
     private func episodeCaption(_ episode: EpisodeState) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.25),
-                    .init(color: .black.opacity(0.55), location: 0.5),
-                    .init(color: .black.opacity(0.9), location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            ViewThatFits(in: .vertical) {
-                episodeCaptionText(episode, overviewLineLimit: 6)
-                episodeCaptionText(episode, overviewLineLimit: 5)
-                episodeCaptionText(episode, overviewLineLimit: 4)
-                episodeCaptionText(episode, overviewLineLimit: 3)
-                episodeCaptionText(episode, overviewLineLimit: 2)
-                episodeCaptionText(episode, overviewLineLimit: 1)
-                episodeCaptionText(episode, overviewLineLimit: 0)
-            }
+        ViewThatFits(in: .vertical) {
+            episodeCaptionText(episode, overviewLineLimit: 6)
+            episodeCaptionText(episode, overviewLineLimit: 5)
+            episodeCaptionText(episode, overviewLineLimit: 4)
+            episodeCaptionText(episode, overviewLineLimit: 3)
+            episodeCaptionText(episode, overviewLineLimit: 2)
+            episodeCaptionText(episode, overviewLineLimit: 1)
+            episodeCaptionText(episode, overviewLineLimit: 0)
         }
+        .thumbnailTextScrim()
         .frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)
         .clipped()
         .enchronHoverOpacity(
@@ -542,8 +531,11 @@ public struct GridCard: View {
                 Spacer()
                 thumbnailMetadata(duration)
             }
+            .padding(DesignTokens.Spacing.sm)
+            .thumbnailTextScrim()
         }
-        .padding(DesignTokens.Spacing.sm)
+        .padding(.top, DesignTokens.Spacing.sm)
+        .padding(.horizontal, DesignTokens.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .enchronHoverOpacity(
             active: 1,
@@ -599,6 +591,34 @@ public struct GridCard: View {
         Text(text)
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(DesignTokens.Surface.supportingText)
+    }
+}
+
+private struct ThumbnailTextScrim: ViewModifier {
+    func body(content: Content) -> some View {
+        content.background {
+            GeometryReader { proxy in
+                let textHeight = proxy.size.height
+                let scrimHeight = textHeight * (1 + DesignTokens.Card.textScrimLeadFactor)
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: DesignTokens.Surface.textScrim, location: 0.5),
+                        .init(color: DesignTokens.Surface.textScrimDense, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: proxy.size.width, height: scrimHeight)
+                .offset(y: textHeight - scrimHeight)
+            }
+        }
+    }
+}
+
+extension View {
+    func thumbnailTextScrim() -> some View {
+        modifier(ThumbnailTextScrim())
     }
 }
 

@@ -98,7 +98,7 @@ struct SettingsScreen: View {
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, DesignTokens.Spacing.xxxl)
             .id(selectedCategoryID)
-            .transition(.opacity)
+            .transition(DesignTokens.TransitionToken.levelReplace)
         }
         .scrollIndicators(.hidden)
         .animation(DesignTokens.AnimationToken.levelTransition, value: selectedCategoryID)

@@ -22,7 +22,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 297,
+          "line": 328,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -35,7 +35,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 309,
+          "line": 340,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -48,7 +48,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 312,
+          "line": 343,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -61,7 +61,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 306,
+          "line": 337,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -74,7 +74,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 303,
+          "line": 334,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -87,7 +87,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 318,
+          "line": 349,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -100,7 +100,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 293,
+          "line": 324,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -113,7 +113,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 300,
+          "line": 331,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -791,7 +791,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1283,
+          "line": 1311,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3021,7 +3021,7 @@
       "scope": "debug-diagnostic",
       "sources": [
         {
-          "line": 612,
+          "line": 610,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3034,7 +3034,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1339,
+          "line": 1367,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3047,7 +3047,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1349,
+          "line": 1377,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3060,7 +3060,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 621,
+          "line": 619,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3138,7 +3138,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1051,
+          "line": 1079,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3151,7 +3151,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1361,
+          "line": 1389,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3164,7 +3164,7 @@
         "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
-            "line": 1341,
+            "line": 1369,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -3177,7 +3177,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1341,
+          "line": 1369,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3190,7 +3190,7 @@
         "host": "uninstantiatedPlayerDeckRetryCloseActions",
         "sources": [
           {
-            "line": 1341,
+            "line": 1369,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -3203,7 +3203,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1351,
+          "line": 1379,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3216,7 +3216,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1277,
+          "line": 1305,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3229,7 +3229,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1360,
+          "line": 1388,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3281,7 +3281,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1340,
+          "line": 1368,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3294,7 +3294,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1350,
+          "line": 1378,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3307,7 +3307,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1359,
+          "line": 1387,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3359,7 +3359,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 633,
+          "line": 631,
           "path": "Apps/Enchron/MainView.swift"
         }
       ],
@@ -3372,7 +3372,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 1057,
+          "line": 1088,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -3385,7 +3385,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 1064,
+          "line": 1095,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -3398,7 +3398,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "line": 1052,
+          "line": 1083,
           "path": "Apps/Enchron/EnchronApp.swift"
         }
       ],
@@ -6152,7 +6152,7 @@
         "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
-            "line": 1339,
+            "line": 1367,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6176,7 +6176,7 @@
         "host": "mainWindowPlaybackIssueActions",
         "sources": [
           {
-            "line": 1339,
+            "line": 1367,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6356,7 +6356,7 @@
         "host": "playbackIssuePresentationSites",
         "sources": [
           {
-            "line": 1209,
+            "line": 1237,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6386,7 +6386,7 @@
         "host": "browserWindowPlaybackIssue",
         "sources": [
           {
-            "line": 1360,
+            "line": 1388,
             "path": "Apps/Enchron/MainView.swift"
           }
         ]
@@ -6443,7 +6443,7 @@
         "host": "immersivePlaybackIssueActions",
         "sources": [
           {
-            "line": 1340,
+            "line": 1368,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6467,7 +6467,7 @@
         "host": "immersivePlaybackIssueActions",
         "sources": [
           {
-            "line": 1340,
+            "line": 1368,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
@@ -6491,7 +6491,7 @@
         "host": "playbackIssuePresentationSites",
         "sources": [
           {
-            "line": 1209,
+            "line": 1237,
             "path": "Apps/Enchron/MainView.swift"
           },
           {
