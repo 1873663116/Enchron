@@ -187,6 +187,8 @@ SCENARIO_FIXTURES = {
 DEFERRED_MENU_TARGETS = {
     ("playerPanel", "audio"): "__firstUnselected",
     ("playerPanel", "episodes"): "__firstAvailable",
+    ("playerUI", "audio"): "__firstUnselected",
+    ("playerUI", "episodes"): "__firstAvailable",
     ("emby", "season"): "__firstUnselected",
     ("emby", "version"): "__firstUnselected",
     ("settings", "resume-strategy"): "askEveryTime",
@@ -6444,11 +6446,15 @@ class ReachabilityRun:
 
     def window_remote_audio_episodes_scenario(self) -> None:
         presentation = "window"
-        if not self.ensure_remote_episode_playback(presentation, "window"):
-            if self.open_local_media("sdr-bframe-multiaudio-subtitles-30s.mkv").get("success") is True and self.ensure_window_projection("Flat"):
-                self.top_menu_scenario(presentation)
-            return
-        self.top_menu_scenario(presentation)
+        if self.ensure_remote_episode_playback(presentation, "window"):
+            self.top_menu_scenario(presentation)
+        if (
+            self.open_local_media(
+                "sdr-bframe-multiaudio-subtitles-30s.mkv"
+            ).get("success") is True
+            and self.ensure_window_projection("Flat")
+        ):
+            self.top_menu_scenario(presentation)
 
     def window_issue_scenario(self) -> None:
         if self.open_local_media(self.primary_video_file()).get("success") is not True:
@@ -7298,11 +7304,15 @@ class ReachabilityRun:
 
     def portal_remote_audio_episodes_scenario(self) -> None:
         presentation = "portal"
-        if not self.ensure_remote_episode_playback(presentation, "portal"):
-            if self.open_local_media("sdr-bframe-multiaudio-subtitles-30s.mkv").get("success") is True and self.ensure_window_projection("180°"):
-                self.top_menu_scenario(presentation)
-            return
-        self.top_menu_scenario(presentation)
+        if self.ensure_remote_episode_playback(presentation, "portal"):
+            self.top_menu_scenario(presentation)
+        if (
+            self.open_local_media(
+                "sdr-bframe-multiaudio-subtitles-30s.mkv"
+            ).get("success") is True
+            and self.ensure_window_projection("180°")
+        ):
+            self.top_menu_scenario(presentation)
 
     def enter_portal_playback(
         self, file_name: str | None = None
