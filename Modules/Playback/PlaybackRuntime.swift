@@ -151,6 +151,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var technicalSessionReplacementStage =
         TechnicalSessionReplacementStage.inactive
     public private(set) var seekIsInProgress = false
+    private var heldPositionSeconds: Double?
     public private(set) var userVisibleIssue: PlaybackUserVisibleIssue?
     public var liveTechnicalSessionCount: Int {
         rendererTransferCoordinator.liveTechnicalSessionCount
@@ -1064,11 +1065,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
+        holdPosition(at: target)
         Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.seekIntentGeneration == seekGeneration {
                     self.seekIsInProgress = false
+                    self.releasePositionHoldIfIdle()
                 }
             }
             do {
@@ -1111,11 +1114,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
+        holdPosition(at: target)
         Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.seekIntentGeneration == seekGeneration {
                     self.seekIsInProgress = false
+                    self.releasePositionHoldIfIdle()
                 }
             }
             do {
@@ -2488,6 +2493,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     private func frameStep(direction: Double) {
         pendingFrameStepDelta += direction > 0 ? 1 : -1
+        let frameSeconds = diagnostics.nominalFrameRate > 0
+            ? 1 / diagnostics.nominalFrameRate
+            : 1.0 / 30
+        holdPosition(
+            at: (heldPositionSeconds ?? playbackPosition.seconds) + direction * frameSeconds
+        )
         guard frameStepTask == nil else { return }
         updateLoadingState { $0.clearStarvation() }
         resetActualPlaybackSampling()
@@ -2528,6 +2539,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard frameStepGeneration == generation else { return }
         frameStepTask = nil
         pendingFrameStepDelta = 0
+        releasePositionHoldIfIdle()
     }
 
     private func resetFrameStepping() {
@@ -2535,6 +2547,23 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         frameStepTask?.cancel()
         frameStepTask = nil
         pendingFrameStepDelta = 0
+        heldPositionSeconds = nil
+    }
+
+    private func holdPosition(at seconds: Double) {
+        let duration = playbackPosition.duration
+        let clamped = duration > 0 ? min(duration, max(0, seconds)) : max(0, seconds)
+        heldPositionSeconds = clamped
+        playbackPosition = .init(seconds: clamped, duration: duration)
+    }
+
+    private func releasePositionHoldIfIdle() {
+        guard heldPositionSeconds != nil, !seekIsInProgress, frameStepTask == nil else { return }
+        heldPositionSeconds = nil
+        playbackPosition = .init(
+            seconds: diagnostics.currentSeconds,
+            duration: playbackPosition.duration
+        )
     }
 
     private func updateLoadingState(
@@ -2742,7 +2771,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             )
         } else {
             playbackPosition = .init(
-                seconds: diagnostics.currentSeconds,
+                seconds: heldPositionSeconds ?? diagnostics.currentSeconds,
                 duration: diagnostics.durationSeconds
             )
         }

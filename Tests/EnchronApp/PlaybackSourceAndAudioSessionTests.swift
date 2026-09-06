@@ -716,6 +716,107 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testSeekAndFrameStepPublishTheRequestedPositionUntilTheyLand() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "TestMedia/TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4"
+            )
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("The video-only playback fixture is not available in this test process.")
+        }
+        let runtime = PlaybackRuntime()
+        addTeardownBlock { @MainActor in
+            await runtime.stopAndWait()
+        }
+        try await runtime.open(
+            PlaybackLaunchRequest(
+                url: fixture,
+                displayName: fixture.lastPathComponent
+            )
+        )
+        let logicalSessionID = try XCTUnwrap(runtime.activeSessionID)
+        let sourceSession = try XCTUnwrap(runtime.activeSessionForVerification())
+        let sourceEntity = Entity()
+        PlaybackRealityPresenter.configure(
+            sourceEntity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let sourceViewHost = try PlaybackRealityViewTestHost(entity: sourceEntity)
+        defer { sourceViewHost.close() }
+        try await sourceViewHost.waitUntilReady()
+        try runtime.attach(
+            entityID: "position-hold-video-entity",
+            realityViewID: "position-hold-reality-view",
+            presentation: .window
+        )
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "position-hold-video-entity"
+        )
+        runtime.videoRendererTargetDidBind(
+            revision: runtime.videoComponentRevision,
+            entityID: "position-hold-video-entity"
+        )
+        try await runtime.beginPlaybackForPresentationSettlement(
+            mediaSessionID: logicalSessionID
+        )
+        _ = try await waitUntilPlaybackAdvances(runtime, sourceSession, beyond: .zero)
+        runtime.pause()
+        try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
+
+        let nominalFrameRate = runtime.diagnostics.nominalFrameRate
+        let frameSeconds = nominalFrameRate > 0 ? 1 / nominalFrameRate : 1.0 / 30
+        var published: [Double] = []
+        runtime.onPlaybackObservation = { observation in
+            if case .diagnostics(let position, _) = observation.event {
+                published.append(position.seconds)
+            }
+        }
+        defer { runtime.onPlaybackObservation = nil }
+
+        let target = 8.4
+        runtime.seek(to: target, event: .precisionTimeline)
+        XCTAssertEqual(runtime.playbackPosition.seconds, target, accuracy: 0.0005)
+        try await waitUntilSeekCompletes(runtime)
+        try await waitUntilPausedSession(sourceSession, settlesNear: target, within: frameSeconds + 0.002)
+        try await Task.sleep(for: .milliseconds(100))
+        let seekLanding = sourceSession.currentTime().seconds
+        XCTAssertEqual(runtime.playbackPosition.seconds, seekLanding, accuracy: 0.002)
+        XCTAssertFalse(published.isEmpty)
+        XCTAssertTrue(
+            published.allSatisfy { $0 >= seekLanding - 0.002 },
+            "a position below the seek landing was published: \(published)"
+        )
+        published.removeAll()
+
+        runtime.frameStepBackward()
+        XCTAssertEqual(
+            runtime.playbackPosition.seconds,
+            seekLanding - frameSeconds,
+            accuracy: 0.0005
+        )
+        try await waitUntilPausedSession(
+            sourceSession,
+            settlesNear: seekLanding - frameSeconds,
+            within: 0.002
+        )
+        try await Task.sleep(for: .milliseconds(100))
+        let stepLanding = sourceSession.currentTime().seconds
+        XCTAssertEqual(runtime.playbackPosition.seconds, stepLanding, accuracy: 0.002)
+        XCTAssertTrue(
+            published.allSatisfy { $0 >= stepLanding - 0.002 && $0 <= seekLanding + 0.002 },
+            "a position outside the step was published: \(published)"
+        )
+        XCTAssertNil(runtime.userVisibleIssue)
+    }
+
+    @MainActor
     func testRapidFrameStepBurstCoalescesIntoOneFurtherStepAndNeverAlerts() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -1376,6 +1477,22 @@ private func waitUntilPlaybackLifecycle(
             throw PlaybackRealityViewTestHostError.playbackLifecycleDidNotSettle
         }
         try await Task.sleep(for: .milliseconds(25))
+    }
+}
+
+@MainActor
+private func waitUntilPausedSession(
+    _ session: SampleBufferPlaybackSession,
+    settlesNear seconds: Double,
+    within tolerance: Double
+) async throws {
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while abs(session.currentTime().seconds - seconds) > tolerance {
+        guard clock.now - startedAt < PlaybackRuntime.presentationSettlementDeadline else {
+            throw PlaybackRealityViewTestHostError.seekDidNotComplete
+        }
+        try await Task.sleep(for: .milliseconds(10))
     }
 }
 

@@ -759,22 +759,12 @@ public final class PlaybackCoreController {
         if activeFormatOverrideTask != nil {
             throw PlaybackControlError.operationInProgress(.setFormatOverrides)
         }
-        var remaining = delta
-        var advancedLanding: CMTime?
-        while remaining > 0,
-              activeSeekTask == nil,
-              case .advanced(let landing) = session.stepForwardOneFrame() {
-            advancedLanding = landing
-            remaining -= 1
-        }
-        if remaining == 0 {
-            return advancedLanding ?? latestRequestedSeekTime ?? session.currentTime()
-        }
+        let base = latestRequestedSeekTime ?? session.currentTime()
+        guard delta != 0 else { return base }
         let rate = session.diagnostics.nominalFrameRate
         let frameSeconds = rate > 0 ? 1 / rate : 1.0 / 30
-        let base = latestRequestedSeekTime ?? session.currentTime()
         let target = CMTime(
-            seconds: base.seconds + Double(remaining) * frameSeconds,
+            seconds: base.seconds + Double(delta) * frameSeconds,
             preferredTimescale: 60_000
         )
         try await seek(to: target, after: .pause)

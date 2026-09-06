@@ -159,8 +159,6 @@ public struct FusedPlayerPanelLive {
 }
 
 enum PlaybackSeekPresentation {
-    static let targetMatchTolerance: CGFloat = 0.02
-
     static func clampedTarget(_ progress: CGFloat) -> CGFloat {
         min(max(progress, 0), 1)
     }
@@ -187,35 +185,13 @@ enum PlaybackSeekPresentation {
         return Double(clampedTarget(displayProgress)) * duration
     }
 
-    static func pendingTarget(
-        for progress: CGFloat,
-        livePositionAvailable: Bool
-    ) -> CGFloat? {
-        guard livePositionAvailable else { return nil }
-        return clampedTarget(progress)
-    }
-
-    static func target(
-        _ target: CGFloat,
-        matches observedPosition: CGFloat?
-    ) -> Bool {
-        guard target.isFinite,
-              let observedPosition,
-              observedPosition.isFinite else {
-            return false
-        }
-        return abs(observedPosition - target) <= targetMatchTolerance
-    }
-
     static func displayProgress(
         isDragging: Bool,
         isTimelineDragging: Bool,
         localProgress: CGFloat,
-        pendingTarget: CGFloat?,
         liveProgress: CGFloat?
     ) -> CGFloat {
         if isDragging || isTimelineDragging { return localProgress }
-        if let pendingTarget { return pendingTarget }
         return liveProgress ?? localProgress
     }
 
@@ -429,7 +405,6 @@ public struct FusedPlayerPanel: View {
     @State private var scrubberActivation: ScrubberActivation = .idle
     @State private var scrubDrag: PlaybackSeekPresentation.ScrubDrag?
     @State private var lastScrubInteractionUptime: TimeInterval = 0
-    @State private var pendingSeekTarget: CGFloat?
     @State private var scrubFeedbackTrigger = 0
     @State private var scrubReleaseTrigger = 0
     @State private var scrubBoundary: EnchronScrubBoundary = .none
@@ -451,7 +426,6 @@ public struct FusedPlayerPanel: View {
             isDragging: isDragging,
             isTimelineDragging: isTimelineDragging,
             localProgress: progress,
-            pendingTarget: pendingSeekTarget,
             liveProgress: live?.progress
         )
     }
@@ -513,12 +487,6 @@ public struct FusedPlayerPanel: View {
                 scrubBoundary = EnchronScrubBoundary.from(normalized: Double(newValue))
             }
         }
-        .onChange(of: live?.progress) { _, newValue in
-            guard let target = pendingSeekTarget, let newValue else { return }
-            if PlaybackSeekPresentation.target(target, matches: newValue) {
-                pendingSeekTarget = nil
-            }
-        }
         .onChange(of: committedVideoFormatSelection) { _, selection in
             guard let selection else { return }
             videoFormatEditing.synchronizeCommittedVideoFormat(selection)
@@ -531,7 +499,6 @@ public struct FusedPlayerPanel: View {
             isTimelineDragging = false
             scrubberActivation = .idle
             scrubDrag = nil
-            pendingSeekTarget = nil
         }
     }
 
@@ -1408,7 +1375,6 @@ public struct FusedPlayerPanel: View {
             CGFloat(seconds / timelineDuration)
         )
         progress = target
-        armPendingSeek(for: target)
         isTimelineDragging = false
         live?.onPrecisionSeek(target)
     }
@@ -1652,7 +1618,6 @@ public struct FusedPlayerPanel: View {
                 var transaction = Transaction()
                 transaction.animation = nil
                 withTransaction(transaction) { progress = target }
-                armPendingSeek(for: target)
                 scrubReleaseTrigger += 1
                 endScrubbing()
                 live?.onSeek(target)
@@ -1668,7 +1633,6 @@ public struct FusedPlayerPanel: View {
             thumbDiameter: DesignTokens.ProgressBar.thumbDiameter
         )
         progress = target
-        armPendingSeek(for: target)
         live?.onSeek(target)
         live?.onReachabilityAction("progress.seekToTrack")
         onInteraction()
@@ -1688,16 +1652,6 @@ public struct FusedPlayerPanel: View {
         isDragging = true
         lastScrubInteractionUptime = ProcessInfo.processInfo.systemUptime
         onInteraction()
-    }
-
-    private func armPendingSeek(for target: CGFloat) {
-        guard let pendingTarget = PlaybackSeekPresentation.pendingTarget(
-            for: target,
-            livePositionAvailable: live != nil
-        ) else {
-            return
-        }
-        pendingSeekTarget = pendingTarget
     }
 
     private func endScrubbing() {
@@ -1742,7 +1696,6 @@ public struct FusedPlayerPanel: View {
             return
         }
         progress = target
-        armPendingSeek(for: target)
         live?.onSeek(target)
         live?.onReachabilityAction("progress.adjust")
         onInteraction()

@@ -40,7 +40,7 @@ extension SampleBufferPlaybackSession {
         let wholeSecond = Int(seconds * 2)
         guard force || wholeSecond != lastDiagnosticsSecond else { return }
         lastDiagnosticsSecond = wholeSecond
-        diagnostics.currentSeconds = seconds
+        diagnostics.currentSeconds = reportedPositionSeconds(timelineSeconds: seconds)
         diagnostics.rendererStatus = currentVideoRendererStatus
         diagnostics.rendererError = currentVideoRendererError ?? "none"
         diagnostics.demuxBuffer = demuxSession?.bufferDiagnostics()
@@ -612,6 +612,11 @@ extension SampleBufferPlaybackSession {
         )
     }
 
+    func reportedPositionSeconds(timelineSeconds: Double) -> Double {
+        guard isPrerolling, requestedTimelineStart.isNumeric else { return timelineSeconds }
+        return requestedTimelineStart.seconds
+    }
+
     func targetTimelineTime(fallback: CMTime) -> CMTime {
         requestedTimelineStart.isNumeric
             ? requestedTimelineStart
@@ -635,25 +640,19 @@ extension SampleBufferPlaybackSession {
     static let pausedSeekCoverageToleranceSeconds = 0.001
 
     func pausedSeekCoverageIsSettled(target: CMTime) -> Bool {
-        guard target.isNumeric,
-              let latest = activationObservation.latestAcceptedVideoPresentationTime(
-                epoch: streamEpoch
-              ) else {
-            return false
-        }
-        let rate = diagnostics.nominalFrameRate
-        let frameSeconds = rate > 0 ? 1 / rate : 1.0 / 30
-        let outputLagFrames = max(diagnostics.videoReorderDepth, Self.pausedSeekMinimumReorderFrames) + 1
-        return latest.seconds >= target.seconds + Double(outputLagFrames) * frameSeconds
+        guard target.isNumeric else { return false }
+        let outputLagFrames = max(diagnostics.videoReorderDepth, Self.pausedSeekMinimumReorderFrames)
+        return prerollFramesBeyondTarget > outputLagFrames
     }
 
     func recordPausedSeekCoverageCandidate(_ presentationTime: CMTime) {
-        guard requestedTimelineStart.isNumeric,
-              presentationTime.seconds
-                <= requestedTimelineStart.seconds + Self.pausedSeekCoverageToleranceSeconds,
-              prerollCoveringPresentationTime.map({ presentationTime > $0 }) ?? true else {
+        guard requestedTimelineStart.isNumeric else { return }
+        guard presentationTime.seconds
+            <= requestedTimelineStart.seconds + Self.pausedSeekCoverageToleranceSeconds else {
+            prerollFramesBeyondTarget += 1
             return
         }
+        guard prerollCoveringPresentationTime.map({ presentationTime > $0 }) ?? true else { return }
         prerollCoveringPresentationTime = presentationTime
     }
 

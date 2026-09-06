@@ -1173,27 +1173,6 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func stepForwardOneFrame() -> PlaybackFrameStepOutcome {
-        guard !isClosed, !isResetting else { return .needsSeek }
-        guard decoderBootstrapLock.withLock({ decoderBootstrapComplete }) else {
-            return .needsSeek
-        }
-        let now = timelineClockReading().mediaTime
-        guard now.isNumeric else { return .needsSeek }
-        let next = videoFramesInFlightLock.withLock {
-            videoFramesInFlight.nextRetirement(after: now.seconds)
-        }
-        guard let next, next.isFinite, next > now.seconds else { return .needsSeek }
-        let target = CMTime(seconds: next, preferredTimescale: 60_000)
-        timelineStartRate = 0
-        isPrerolling = false
-        clearPrerollRequirement()
-        setTimelineStopped(at: target, reason: .frameStep)
-        recordTimelineControlState()
-        publishDiagnostics(at: target, force: true)
-        return .advanced(to: target)
-    }
-
     func discardVideoFramesInFlight() {
         videoFramesInFlightLock.withLock { videoFramesInFlight.removeAll() }
     }

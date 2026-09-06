@@ -59,11 +59,6 @@ struct RendererFramesInFlight {
         presentationEnds.min()
     }
 
-    mutating func nextRetirement(after timelineSeconds: Double) -> Double? {
-        presentationEnds.removeAll { $0 <= timelineSeconds }
-        return presentationEnds.min()
-    }
-
     mutating func removeAll() {
         presentationEnds.removeAll()
     }

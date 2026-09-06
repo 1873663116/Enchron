@@ -118,7 +118,6 @@ public enum PlaybackTimelineControlReason: String, Codable, Equatable, Sendable 
     case decoderBootstrapPreActivation
     case deliveryLagRecovery
     case firstSample
-    case frameStep
     case initialTimelineAnchor
     case pause
     case play

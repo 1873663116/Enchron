@@ -55,15 +55,13 @@ reorder floor 优先于两个上限：队列比编码器自身的重排还浅会
 - `play()` 可以在渲染器时间线已锚定、而 bootstrap 尚未激活它的窗口里到达。待激活状态必须跟随最新的传输意图，否则 bootstrap 会把会话较早的 starts-paused 状态恢复回来。断言见 `playDuringDecoderBootstrapBecomesTheTimelineActivationIntent`。暂停同理：对一个 bootstrap 未完成的时间线，暂停仍是权威意图。
 - 普通打开没有可 preroll 的未来时间线目标，同步器在第一个被接受的样本之后启动，与既定的 `AVSampleBufferRenderSynchronizer` 启动路径一致。
 - 被 seek 取消的交付任务可能仍停在记账调用内部，而 seek 已经清空账本。此后再记录会把一个 seek 之前的帧算到新流头上；向后 seek 时它会一直挂在那里，直到时间线重新走到它。
-- 要求停在选定的一帧上，优先于 preroll 的待激活——否则后者会在它下面把时间线重新锚定。逐帧步进也因此只需要 bootstrap 完成，而不需要时间线在跑：只有 bootstrap 之后排队的帧才是可显示的。
+- 要求停在选定的一帧上，优先于 preroll 的待激活——否则后者会在它下面把时间线重新锚定。
 - 时间线以已知速率前进，因此闸门打开的时刻是算术而不是轮询对象；时间线停住时不退休任何帧，只有状态变化能解锁它，所以那条路径退回到粗粒度间隔。
 - 恢复停住时间线并要求一段以媒体秒表达的视频。表达帧闸门放行的范围需要帧率，因此一条不报帧率的流无法被定尺寸，宁可让它继续跑，也不要卡在一个它可能永远达不到的要求上。
 
-## 逐帧步进的不对称
+## 逐帧步进两个方向都是 seek
 
-向前一帧仍排在渲染器队列里，所以前进只是时间线移动；它前面那一帧已经显示并退休，只有从上一个关键帧解码才能取回，所以后退是一次 seek。mpv 与 VLC 在同一处划线。
-
-落点取自队列而非标称帧率：队列知道每一帧确切在什么时刻让位给后一帧，标称帧率只是近似，变帧率流上会落在两帧之间。断言见 `steppingForwardLandsOnTheNextQueuedFrameWithoutANominalRate` 与 `framesInFlightRetireInDisplayOrderNotDeliveryOrder`。
+暂停中的 `AVSampleBufferVideoRenderer`（经 `VideoPlayerComponent` 呈现）不会因为时钟移动而换画面。原来的前进一帧只把速率为 0 的 timebase 拨到队列里下一帧的 PTS，指望渲染器按新时钟重绘。2026-09-06 模拟器实测：连续 16 次前进，时钟每次恰好走一帧（10.187 → 10.721 s），渲染器 `displayedPixelBuffer()` 的亮度指纹连续 5 步、再连续 10 步不变，`droppedFrames` 计数全程停在 4——它没有因为时钟移动重新评估过队列；同一会话里每次后退（seek）显示的像素都变了。只有 flush 再重新入队才让它显示新的一帧，Apple 文档对速率为 0 时的行为没有任何说明。因此 `stepFrames(by:)` 不区分方向，都折成 `base + delta × 帧长` 的一次 `seek(to:after:.pause)`，落点由下文暂停 seek 的覆盖帧规则决定；每次步进付一次 flush + 重开（该流上约 106 ms + 104 ms），与后退一直在付的一样，连击由 runtime 的合并收敛。断言见 `forwardStepSeeksEvenWhileTheRendererHoldsTheNextFrame`（渲染器已持有下一帧时前进仍 flush 一次并以 seek 收场；delta 为 0 不动）。
 
 ## RealityKit 的 tagged buffer 契约
 
@@ -159,7 +157,7 @@ Apple Immersive Video 的分类查询是建议性的，不是权威判定。它�
 
 ## 帧步进是一次 seek，遇到进行中的 seek 要被取代而不是被拒绝
 
-`PlaybackCoreController.stepFrames(by:)`（`stepFrame(_:)` 是它 delta 为 ±1 的特化）内部把请求的位置换算成 `base + delta × frameSeconds` 后交给同一个 `seek(to:after:)`；它与滚动条拖动、快进快退共享同一条 `activeSeekTask` 生成号机制。因此一次帧步进击中正在进行的 seek 时，正确的行为与拖动命中正在进行的 seek 完全一致——取消旧任务、把新目标接管过去，旧调用方收到 `.seekSuperseded`——而不是让 `rejectIfSeekIsInProgress()` 拦下来抛 `operationInProgress(.seek)`。原地前进一帧的路径（`session.stepForwardOneFrame()`，把时间线停到渲染器里下一帧的呈现时间，不经过 seek 的整套拆卸重建）只在没有 seek 在飞行时才合法；正向 delta 先沿这条路径逐帧消耗飞行中的帧，飞行帧用尽或已有 seek 占着 `activeSeekTask` 时，剩余的帧数折成一次 `seek(to:after:.pause)`；负向 delta 总是 seek；delta 为 0 不动。断言见 `forwardStepBurstDrainsFramesInFlightWithoutSeeking`（两帧正向步进在飞行帧充足时不 flush、不发 seek）、`stepFramesByDeltaLandsMultipleFrameDurationsFromBase`（没有飞行帧时落点相对 base 的帧数倍数正确）与 `frameStepDuringInFlightSeekSupersedesInsteadOfRejecting`（命中飞行中 seek 时不再抛 `operationInProgress`，早先那次 seek 以 `.seekSuperseded` 收场）。
+`PlaybackCoreController.stepFrames(by:)`（`stepFrame(_:)` 是它 delta 为 ±1 的特化）内部把请求的位置换算成 `base + delta × frameSeconds` 后交给同一个 `seek(to:after:)`；它与滚动条拖动、快进快退共享同一条 `activeSeekTask` 生成号机制。因此一次帧步进击中正在进行的 seek 时，正确的行为与拖动命中正在进行的 seek 完全一致——取消旧任务、把新目标接管过去，旧调用方收到 `.seekSuperseded`——而不是让 `rejectIfSeekIsInProgress()` 拦下来抛 `operationInProgress(.seek)`。两个方向的 delta 都折成一次 `seek(to:after:.pause)`（原因见"逐帧步进两个方向都是 seek"）；delta 为 0 不动。断言见 `stepFramesByDeltaLandsMultipleFrameDurationsFromBase`（落点相对 base 的帧数倍数正确）与 `frameStepDuringInFlightSeekSupersedesInsteadOfRejecting`（命中飞行中 seek 时不再抛 `operationInProgress`，早先那次 seek 以 `.seekSuperseded` 收场）。
 
 单帧步进按钮被连续敲击时，`PlaybackRuntime.frameStep` 在 runtime 层把这些请求合并：敲击只把 ±1 累加进一个待处理增量，若已有一个步进任务在飞行就直接返回；那个任务耗尽当前累积的增量、落地后再检查增量是否又变为非零，非零则继续消耗，直至归零才清空任务槽；任务因错误或被取代而提前退出时，积压的增量随之作废，不会叠加到下一次敲击上；准备新会话与停止播放时任务被取消、代数递增，旧任务的收尾不会碰新任务的槽位。一串敲击因此折叠成远少于敲击次数的实际步进，而不是敲一下发起一次要等到 5 秒审计超时的全量拆卸重建。集成断言见 `testRapidFrameStepBurstCoalescesIntoOneFurtherStepAndNeverAlerts`（`Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift`）：五次连击只产生两次落地，会话真实位置恰好前进五帧，全程不产生 `userVisibleIssue`。`replay()` 内部的 seek 现在也像滚动条与快进快退一样只忽略 `.seekSuperseded`，不再把它当成播放失败上报。
 
@@ -167,4 +165,6 @@ Apple Immersive Video 的分类查询是建议性的，不是权威判定。它�
 
 FFmpeg 的 seek 落到目标之前的关键帧，样本按解码顺序送进渲染器；时间线先锚在关键帧的 PTS（`session.firstSample … timelineStart=关键帧`），等解码越过目标再把时间线停到最终位置。暂停中的 seek 原来用两条信号决定"越过了"：接受样本的 DTS ≥ 目标，以及当前样本的 PTS ≥ 目标；最终位置取的是当前样本的 PTS。两条都靠不住：B 帧流里第一个 PTS 越过目标的样本是一枚 P 帧，它比覆盖目标的 B 帧先到、PTS 却晚好几帧（模拟器实测：目标 19.3537 s，时间线停在 19.521 s，后退一帧表现为前进四帧）；而桥接层给 Matroska 样本的 DTS 并不单调（P 帧的 DTS 等于自己的 PTS），按 DTS 判"越过"会提前触发，时间线停回关键帧（目标 18.652 s 停在 18.021 s）。
 
-现在的规则只看呈现时间：会话在 preroll 期间记下**最大的 PTS ≤ 目标**（`prerollCoveringPresentationTime`），当**最大已接受 PTS ≥ 目标 + (重排深度 + 1) × 帧长**时（重排深度取流的 `videoReorderDepth` 与 2 的较大值；解码器输出比解码滞后"重排深度"帧，P 帧解码时它之前的 B 帧还没出来，所以再多等一帧；流在此之前结束也算齐）判定覆盖帧已经齐了，时间线停在覆盖帧的 PTS 上；只有整段流都在目标之后（目标早于首帧）才停在最早接受的那一帧。"覆盖"允许 1 ms 的容差：控制器按标称帧率算出的目标（当前帧 PTS − 1/30）与 Matroska 毫秒量化的 PTS 会差零点几毫秒，不给容差就会错选上一帧（模拟器实测：从 18.521 s 后退一帧目标 18.48767 s，帧 PTS 18.488 s，无容差落到 18.454 s）。停在帧的 PTS 而不是请求的目标本身，是为了让暂停中的位置永远落在帧边界：后退一帧的目标（当前帧 PTS − 帧长）被上一帧覆盖，停在上一帧的 PTS；再前进一帧走就地快路径（`stepForwardOneFrame`，落在飞行中下一帧的呈现时间），恰好回到原来那帧。断言见 `pausedSeekLandsOnTheFrameThatCoversTheTarget`（P 帧的 DTS 与 PTS 相同、先于它的 B 帧到达；红：1.05 s 的暂停 seek 停在 1.2 s → 绿：停在覆盖它的 1.0333 s 帧）。
+现在的规则只看呈现时间：会话在 preroll 期间记下**最大的 PTS ≤ 目标**（`prerollCoveringPresentationTime`），并数**PTS 大于目标的已接受帧数**（`prerollFramesBeyondTarget`），当这个数**超过重排深度**（取流的 `videoReorderDepth` 与 2 的较大值）时判定覆盖帧已经齐了，时间线停在覆盖帧的 PTS 上；流在此之前结束也算齐。依据是解码顺序里一帧最多被"重排深度"个 PTS 更大的帧抢先，所以第 重排深度 + 1 个更晚的帧到达时，所有 PTS ≤ 目标的帧都已经到齐。按 PTS 距离判（最大已接受 PTS ≥ 目标 + (重排深度 + 1) × 帧长）不行：覆盖帧的参考帧恰好在它前面 3 帧的 PTS 上，却只比它早一个解码位到达，距离条件在参考帧到达那一刻就满足，覆盖帧还没来（模拟器实测：从 10.254 s 前进一帧目标 10.2874 s，参考帧 10.388 s 先于覆盖帧 10.288 s 到达，时间线停回 10.254 s，此后每次前进都卡在那里）。只有整段流都在目标之后（目标早于首帧）才停在最早接受的那一帧。"覆盖"允许 1 ms 的容差：控制器按标称帧率算出的目标（当前帧 PTS − 1/30）与 Matroska 毫秒量化的 PTS 会差零点几毫秒，不给容差就会错选上一帧（模拟器实测：从 18.521 s 后退一帧目标 18.48767 s，帧 PTS 18.488 s，无容差落到 18.454 s）。停在帧的 PTS 而不是请求的目标本身，是为了让暂停中的位置永远落在帧边界：后退一帧的目标（当前帧 PTS − 帧长）被上一帧覆盖，停在上一帧的 PTS；再前进一帧的目标是上一帧 PTS + 帧长，被原来那帧覆盖（毫秒量化留下的零点几毫秒由那 1 ms 容差吸收），恰好回到原来那帧。断言见 `pausedSeekLandsOnTheFrameThatCoversTheTarget`（P 帧的 DTS 与 PTS 相同、先于它的 B 帧到达；红：1.05 s 的暂停 seek 停在 1.2 s → 绿：停在覆盖它的 1.0333 s 帧），以及 `pausedSeekWaitsForTheCoveringFrameBehindItsLaterReferences`（B 金字塔顺序 0 4 2 1 3 8 6 5 7 …，目标比第 5 帧低 0.6 ms；红：停在第 4 帧 → 绿：停在第 5 帧）。
+
+preroll 期间会话报出的位置是请求的目标，不是锚点。时间线在第一个样本到达时锚在关键帧 PTS 并立刻发布诊断，约 100 ms 后才停到最终位置；`diagnostics.currentSeconds` 若照抄时钟，UI 的进度条、时间轴与时间字段就会经历"目标 → 关键帧 → 落点"的跳变（模拟器实测：每次 seek 的心跳先报 10.021 s 再报 10.187 s）。现在 `publishDiagnostics` 在 `isPrerolling` 且 `requestedTimelineStart` 有值时报 `requestedTimelineStart`，激活后才跟随时钟；调试快照里的 `rendererState.currentTimeSeconds` 与心跳的 `timeSeconds` 仍是时钟本身。runtime 在 seek 或帧步进飞行期间同样只发布请求的位置（seek 报目标，帧步进报当前位置 ± 帧长，连击逐次累加），操作结束且没有别的 seek 或步进在飞行时再回到诊断报出的落点；面板因此不再需要按时长 2% 判定"到达"的那层保持（那个百分比在 30 秒的片子上是 0.6 秒，关键帧锚点被当成已到达；在两小时的电影上是 144 秒，等于没有）。断言见 `prerollReportsTheSeekTargetNotTheKeyframeAnchor`（暂停 seek 期间报出的每个位置都不低于覆盖帧）与 `testSeekAndFrameStepPublishTheRequestedPositionUntilTheyLand`（`Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift`：seek 与后退一帧在调用返回时就已发布请求的位置，之后发布的每个位置都不低于落点）。

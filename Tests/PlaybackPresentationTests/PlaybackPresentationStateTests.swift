@@ -2070,40 +2070,23 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("scrub target stays visible until the reported position catches up")
-    func scrubTargetLatchSettlesFromPosition() {
-        let oldPosition: CGFloat = 0.18
-        let target = PlaybackSeekPresentation.pendingTarget(
-            for: 0.82,
-            livePositionAvailable: true
-        )
-        #expect(target == 0.82)
+    @Test("an idle panel follows the live position and derives the elapsed label from it")
+    func idlePanelFollowsTheLivePosition() {
         #expect(
             PlaybackSeekPresentation.displayProgress(
                 isDragging: false,
                 isTimelineDragging: false,
-                localProgress: target ?? 0,
-                pendingTarget: target,
-                liveProgress: oldPosition
+                localProgress: 0.82,
+                liveProgress: 0.18
+            ) == 0.18
+        )
+        #expect(
+            PlaybackSeekPresentation.displayProgress(
+                isDragging: false,
+                isTimelineDragging: false,
+                localProgress: 0.82,
+                liveProgress: nil
             ) == 0.82
-        )
-        #expect(
-            !PlaybackSeekPresentation.target(
-                target ?? 0,
-                matches: oldPosition
-            )
-        )
-        #expect(
-            PlaybackSeekPresentation.target(
-                target ?? 0,
-                matches: 0.82
-            )
-        )
-        #expect(
-            PlaybackSeekPresentation.pendingTarget(
-                for: 0.82,
-                livePositionAvailable: false
-            ) == nil
         )
         #expect(
             PlaybackSeekPresentation.elapsedSeconds(
@@ -2135,7 +2118,6 @@ struct PlaybackPresentationStateTests {
                 isDragging: true,
                 isTimelineDragging: false,
                 localProgress: drag.startProgress,
-                pendingTarget: nil,
                 liveProgress: livePosition
             ) == livePosition
         )

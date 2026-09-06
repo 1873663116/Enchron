@@ -1324,7 +1324,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @MainActor
-@Test func forwardStepBurstDrainsFramesInFlightWithoutSeeking() async throws {
+@Test func forwardStepSeeksEvenWhileTheRendererHoldsTheNextFrame() async throws {
     let samples = try [0.0, 0.033, 0.066, 0.1].map {
         try makeCompressedH264Sample(
             presentationTimeSeconds: $0,
@@ -1356,18 +1356,20 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     try controller.start()
     try await waitForSampleCount(4, in: session)
     let flushesBeforeStep = sink.flushCount
+    let baseSeconds = session.currentTime().seconds
+    let rate = session.diagnostics.nominalFrameRate
+    let frameSeconds = rate > 0 ? 1 / rate : 1.0 / 30
 
     let landing = try await controller.stepFrames(by: 2)
 
-    #expect(abs(landing.seconds - 0.066) < 0.005)
-    #expect(sink.flushCount == flushesBeforeStep)
-    #expect(session.debugSnapshot().lastCompletedOperation?.kind != .seek)
-    #expect(abs(session.currentTime().seconds - landing.seconds) < 0.001)
+    #expect(abs(landing.seconds - (baseSeconds + 2 * frameSeconds)) < 0.001)
+    #expect(sink.flushCount == flushesBeforeStep + 1)
+    #expect(session.debugSnapshot().lastCompletedOperation?.kind == .seek)
 
     let noOp = try await controller.stepFrames(by: 0)
 
-    #expect(abs(noOp.seconds - landing.seconds) < 0.001)
-    #expect(sink.flushCount == flushesBeforeStep)
+    #expect(abs(noOp.seconds - session.currentTime().seconds) < 0.001)
+    #expect(sink.flushCount == flushesBeforeStep + 1)
 }
 
 @MainActor
@@ -1449,6 +1451,140 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         abs(session.currentTime().seconds - boundaryFrame) < 0.002,
         "paused seek to \(justBelowBoundary) settled at \(session.currentTime().seconds)"
     )
+}
+
+@MainActor
+@Test func pausedSeekWaitsForTheCoveringFrameBehindItsLaterReferences() async throws {
+    let frame = 1.0 / 30
+    let decodeOrder = [0, 4, 2, 1, 3, 8, 6, 5, 7, 12, 10, 9, 11]
+    let initialSample = try makeCompressedH264Sample()
+    let reorderedSamples = try decodeOrder.enumerated().map { decodeIndex, displayIndex in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: 1.0 + Double(displayIndex) * frame,
+            decodeTimeSeconds: 1.0 + Double(decodeIndex) * frame,
+            durationSeconds: frame
+        )
+    }
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
+                eventDelay: .milliseconds(5)
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/reordered-pyramid.mp4"),
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "visionOSSimulator",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try controller.pause()
+
+    let coveringFrame = 1.0 + 5 * frame
+    let target = coveringFrame - 0.0006
+    try await controller.seek(to: CMTime(seconds: target, preferredTimescale: 60_000), after: .pause)
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while abs(session.currentTime().seconds - coveringFrame) > 0.002,
+          clock.now - startedAt < .seconds(3) {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    #expect(
+        abs(session.currentTime().seconds - coveringFrame) < 0.002,
+        "paused seek to \(target) settled at \(session.currentTime().seconds)"
+    )
+}
+
+@MainActor
+@Test func prerollReportsTheSeekTargetNotTheKeyframeAnchor() async throws {
+    let frame = 1.0 / 30
+    let decodeOrder: [(presentation: Double, decode: Double)] = [
+        (1.0, 1.0),
+        (1.0 + 3 * frame, 1.0 + 3 * frame),
+        (1.0 + frame, 1.0),
+        (1.0 + 2 * frame, 1.0 + frame),
+        (1.0 + 6 * frame, 1.0 + 2 * frame),
+        (1.0 + 4 * frame, 1.0 + 3 * frame),
+        (1.0 + 5 * frame, 1.0 + 4 * frame),
+        (1.0 + 9 * frame, 1.0 + 5 * frame),
+        (1.0 + 7 * frame, 1.0 + 6 * frame),
+        (1.0 + 8 * frame, 1.0 + 7 * frame),
+        (1.0 + 12 * frame, 1.0 + 8 * frame)
+    ]
+    let initialSample = try makeCompressedH264Sample()
+    let reorderedSamples = try decodeOrder.map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0.presentation,
+            decodeTimeSeconds: $0.decode,
+            durationSeconds: frame
+        )
+    }
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
+                eventDelay: .milliseconds(5)
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/reordered.mp4"),
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "visionOSSimulator",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try controller.pause()
+
+    let reported = ReportedPositions()
+    session.onDiagnosticsChange = { diagnostics in
+        reported.append(diagnostics.currentSeconds)
+    }
+    let target = 1.0 + 1.5 * frame
+    let coveringFrame = 1.0 + frame
+    try await controller.seek(to: CMTime(seconds: target, preferredTimescale: 600), after: .pause)
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while abs(session.currentTime().seconds - coveringFrame) > 0.002,
+          clock.now - startedAt < .seconds(3) {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    let positions = reported.values
+    #expect(!positions.isEmpty)
+    #expect(
+        positions.allSatisfy { $0 >= coveringFrame - 0.002 },
+        "the keyframe anchor leaked into the reported position: \(positions)"
+    )
+    #expect(abs(positions.last.map { $0 - coveringFrame } ?? 1) < 0.002)
+}
+
+private final class ReportedPositions: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Double] = []
+
+    func append(_ value: Double) {
+        lock.withLock { storage.append(value) }
+    }
+
+    var values: [Double] {
+        lock.withLock { storage }
+    }
 }
 
 @Test func injectedProviderProducesMediaEventSampleAndRendererIntent() async throws {
@@ -1644,19 +1780,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(unmeasured == RendererLeadBudget.maximumFrames)
 }
 
-@Test func steppingForwardLandsOnTheNextQueuedFrameWithoutANominalRate() {
-    var inFlight = RendererFramesInFlight()
-    for end in [0.5, 0.9, 1.6, 1.7] {
-        inFlight.record(presentationEnd: end)
-    }
-    #expect(inFlight.nextRetirement(after: 0.0) == 0.5)
-    #expect(inFlight.nextRetirement(after: 0.5) == 0.9)
-    #expect(inFlight.nextRetirement(after: 0.9) == 1.6)
-    #expect(inFlight.nextRetirement(after: 1.6) == 1.7)
-
-    #expect(inFlight.nextRetirement(after: 1.7) == nil)
-}
-
 @Test func framesInFlightRetireInDisplayOrderNotDeliveryOrder() {
     var inFlight = RendererFramesInFlight()
     for end in [1.0, 4.0, 2.0, 3.0] {
@@ -1823,49 +1946,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     try session.play()
     try await waitForSampleCount(3, in: session)
     #expect(sink.immediateEnqueueCount == 3)
-}
-
-@Test func steppingForwardMovesTheTimelineWithoutTearingTheChainDown() async throws {
-    let samples = try [0.0, 0.033, 0.066, 0.1].map {
-        try makeCompressedH264Sample(
-            presentationTimeSeconds: $0,
-            decodeTimeSeconds: $0,
-            durationSeconds: 0.033
-        )
-    }
-    let sink = FakeRendererInputSink()
-    let session = SampleBufferPlaybackSession(
-        traceID: "frame-step-forward",
-        provider: FakeVideoSampleProvider(
-            events: samples.map { .sample($0) } + [.end],
-            eventDelay: .milliseconds(20)
-        ),
-        rendererSink: sink
-    )
-    defer { session.close() }
-
-    try await session.prepare(
-        url: URL(fileURLWithPath: "/fixtures/frame-step.mp4"),
-        startsPaused: true
-    )
-    try session.start()
-    try await waitForSampleCount(3, in: session)
-
-    let flushesBeforeStep = sink.flushCount
-    let enqueuedBeforeStep = sink.immediateEnqueueCount
-    let timeBeforeStep = session.currentTime().seconds
-
-    let outcome = session.stepForwardOneFrame()
-
-    guard case .advanced(let landing) = outcome else {
-        Issue.record("the renderer was holding a frame the step should have used")
-        return
-    }
-    #expect(sink.flushCount == flushesBeforeStep)
-    #expect(sink.immediateEnqueueCount >= enqueuedBeforeStep)
-    #expect(landing.seconds > timeBeforeStep)
-    #expect(session.synchronizer.rate == 0)
-    #expect(abs(session.currentTime().seconds - landing.seconds) < 0.001)
 }
 
 @Test func videoDeliveryGatesBeforeEnqueueingImmediately() async throws {

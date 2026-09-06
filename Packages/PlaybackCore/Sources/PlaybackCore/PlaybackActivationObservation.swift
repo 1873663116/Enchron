@@ -403,12 +403,6 @@ final class PlaybackActivationObservation: @unchecked Sendable {
         }
     }
 
-    func latestAcceptedVideoPresentationTime(epoch: UInt64) -> CMTime? {
-        lock.withLock {
-            videoCoverage.epoch == epoch ? videoCoverage.maximumPresentationTime : nil
-        }
-    }
-
     func recordAcceptedAudio(
         epoch: UInt64,
         presentationTime: CMTime,

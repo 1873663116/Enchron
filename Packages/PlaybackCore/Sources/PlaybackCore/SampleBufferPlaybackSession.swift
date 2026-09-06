@@ -322,6 +322,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var lastRecordedSampleEpoch: UInt64 = 0
     var requestedTimelineStart = CMTime.invalid
     var prerollCoveringPresentationTime: CMTime?
+    var prerollFramesBeyondTarget = 0
     var pausedSeekAwaitsCoverage = false
     var isPrerolling = false
     var activeOperation: PlaybackOperationRecord?
