@@ -1128,6 +1128,8 @@ final class TestCommandChannel {
             return try setFileBrowserAlertField(request)
         case "seekNormalized":
             return try seekNormalized(request)
+        case "frameStep":
+            return try frameStep(request)
         case "setDockedPlacement":
             return try setDockedPlacement(request)
         case "listMenuItems":
@@ -1548,6 +1550,43 @@ final class TestCommandChannel {
             ok: true,
             detail: nil,
             payload: [String(position), String(seconds)]
+        )
+    }
+
+    private func frameStep(_ request: Request) throws -> Response {
+        let direction = request.args["direction"] ?? "forward"
+        guard direction == "forward" || direction == "backward" else {
+            throw CommandError(message: "frameStep requires direction=forward or direction=backward.")
+        }
+        guard let count = Int(request.args["count"] ?? "1"), count >= 1,
+              let intervalMillis = Int(request.args["intervalMillis"] ?? "0"), intervalMillis >= 0 else {
+            throw CommandError(message: "frameStep requires count >= 1 and intervalMillis >= 0.")
+        }
+        guard playbackRuntime.playbackPosition.duration > 0 else {
+            throw CommandError(message: "frameStep requires active playback.")
+        }
+        let runtime = playbackRuntime
+        Task { @MainActor in
+            for index in 0..<count {
+                if direction == "forward" {
+                    runtime.frameStepForward()
+                } else {
+                    runtime.frameStepBackward()
+                }
+                if index + 1 < count, intervalMillis > 0 {
+                    try? await Task.sleep(for: .milliseconds(intervalMillis))
+                }
+            }
+        }
+        SurfaceInputProbes.record(
+            "testcmd frameStep delivered direction=\(direction) count=\(count) intervalMillis=\(intervalMillis)",
+            retention: .evidence
+        )
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [direction, String(count), String(intervalMillis)]
         )
     }
 
