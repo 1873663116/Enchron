@@ -187,20 +187,17 @@ public struct PlaybackVideoSurface: View {
 
     let presentation: PlaybackPresentation
     let isActive: Bool
-    let surfaceTapIsEnabled: Bool
     let viewportRefreshRevision: UInt64
     let onViewportRefreshApplied: @MainActor (UInt64) -> Void
 
     public init(
         presentation: PlaybackPresentation,
         isActive: Bool,
-        surfaceTapIsEnabled: Bool,
         viewportRefreshRevision: UInt64,
         onViewportRefreshApplied: @escaping @MainActor (UInt64) -> Void
     ) {
         self.presentation = presentation
         self.isActive = isActive
-        self.surfaceTapIsEnabled = surfaceTapIsEnabled
         self.viewportRefreshRevision = viewportRefreshRevision
         self.onViewportRefreshApplied = onViewportRefreshApplied
     }
@@ -311,8 +308,7 @@ public struct PlaybackVideoSurface: View {
         TapGesture()
             .targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)
             .onEnded { value in
-                guard surfaceTapIsEnabled,
-                      PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                guard PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                         value.entity,
                         for: presentation
                       ) else {

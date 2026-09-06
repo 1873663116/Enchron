@@ -823,6 +823,22 @@
           "follows the __main__ guard"
         ]
       }
+    },
+    {
+      "id": "playback-surface-structure-rejects-an-interaction-region-that-vanishes-for-a-menu",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Model/PlaybackSurfacePlacement.swift",
+        "find": "    ) -> PlaybackWindowInteractionRegion? {\n        let resolvedSize = screenSize.x > 0 && screenSize.y > 0",
+        "replaceWith": "    ) -> PlaybackWindowInteractionRegion? {\n        guard occlusion.secondaryMenuIsPresented == false else { return nil }\n        let resolvedSize = screenSize.x > 0 && screenSize.y > 0"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must not vanish for a presented menu"
+        ]
+      }
     }
   ],
   "externalSubject": [

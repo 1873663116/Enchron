@@ -234,12 +234,11 @@ def main() -> int:
         "nonisolated public static func layout(",
     )
     require(
-        "guard occlusion.secondaryMenuIsPresented == false else { return nil }"
-        in interaction_region
+        "guard occlusion.secondaryMenuIsPresented" not in interaction_region
         and "resolvedSize.y * min(occlusion.topFraction / fill, 1)" in interaction_region
         and "size: [resolvedSize.x, height, thickness]" in interaction_region
         and "center: [0, -occludedHeight / 2, frontOffset]" in interaction_region,
-        "the window interaction region no longer subtracts chrome from the video area",
+        "the window interaction region must subtract chrome from the video area and must not vanish for a presented menu",
     )
     require(
         "PlaybackWindowInteractionSurface.install(" in surface

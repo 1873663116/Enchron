@@ -466,6 +466,7 @@ struct ProductionPlaybackMoreMenu: View {
                 identifier: "PlayerUI-menu-\(category)-\(item.id)"
             ) {
                 recordReachability("menu.item.\(item.id)")
+                reportPresentation(false)
                 item.action()
             }
         }
@@ -499,6 +500,7 @@ struct ProductionPlaybackMoreMenu: View {
                     isSelected: item.isSelected,
                     select: {
                         recordReachability("menu.item.\(item.id)")
+                        reportPresentation(false)
                         item.action()
                     }
                 )

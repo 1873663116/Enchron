@@ -558,6 +558,16 @@ public final class PlaybackSessionModel {
     }
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
+        if windowSecondaryMenuIsPresented {
+            windowSecondaryMenuIsPresented = false
+            setControlsFocused(false, at: date)
+            SurfaceInputProbes.record(
+                "controlsVisibility event=surface-tap-closed-secondary-menu state=\(showControls ? "shown" : "hidden")",
+                retention: .evidence
+            )
+            registerControlsInteraction(at: date)
+            return
+        }
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")
         debugSurfaceTapTrace = "toggled:\(showControls ? "shown" : "hidden")"

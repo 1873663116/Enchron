@@ -39,7 +39,6 @@ public enum WindowPlaybackSurfaceGeometry {
         thickness: Float,
         frontOffset: Float
     ) -> PlaybackWindowInteractionRegion? {
-        guard occlusion.secondaryMenuIsPresented == false else { return nil }
         let resolvedSize = screenSize.x > 0 && screenSize.y > 0
             ? screenSize
             : defaultSurfaceSize

@@ -312,7 +312,6 @@ public struct WindowPlaybackRootView<
     private let preferredInitialSize: CGSize?
     private let freeformSizeOnDisappear: @MainActor () -> CGSize?
     private let showsWindowChrome: Bool
-    private let hidesSurfaceFromAccessibility: Bool
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
     private let onTopChromeOcclusionChange: (@MainActor (Float) -> Void)?
@@ -325,7 +324,6 @@ public struct WindowPlaybackRootView<
         preferredInitialSize: CGSize? = nil,
         freeformSizeOnDisappear: @escaping @MainActor () -> CGSize? = { nil },
         showsWindowChrome: Bool,
-        hidesSurfaceFromAccessibility: Bool = false,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
         onGeometryRefresh: @escaping @MainActor (
             WindowPlaybackGeometryRefreshEvent
@@ -339,7 +337,6 @@ public struct WindowPlaybackRootView<
         self.preferredInitialSize = preferredInitialSize
         self.freeformSizeOnDisappear = freeformSizeOnDisappear
         self.showsWindowChrome = showsWindowChrome
-        self.hidesSurfaceFromAccessibility = hidesSurfaceFromAccessibility
         self.onWindowSceneChange = onWindowSceneChange
         self.onGeometryRefresh = onGeometryRefresh
         self.onTopChromeOcclusionChange = onTopChromeOcclusionChange
@@ -440,7 +437,6 @@ public struct WindowPlaybackRootView<
                     .accessibilityLabel("Playback surface")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityIdentifier("PlayerUI-window-playback-surface")
-                    .accessibilityHidden(hidesSurfaceFromAccessibility)
             }
     }
 

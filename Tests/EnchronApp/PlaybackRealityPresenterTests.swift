@@ -866,7 +866,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testWindowInteractionSurfaceYieldsEveryHitToAPresentedSecondaryMenu() {
+    func testWindowInteractionSurfaceKeepsItsColliderWhileASecondaryMenuIsPresented() throws {
         let videoEntity = Entity()
         let store = PlaybackVideoEntityStore()
         let interactionSurface = store.windowInteractionSurface
@@ -882,8 +882,13 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             )
         )
 
-        XCTAssertNil(interactionSurface.components[InputTargetComponent.self])
-        XCTAssertNil(interactionSurface.components[CollisionComponent.self])
+        XCTAssertNotNil(interactionSurface.components[InputTargetComponent.self])
+        let collision = try XCTUnwrap(interactionSurface.components[CollisionComponent.self])
+        let shape = try XCTUnwrap(collision.shapes.first)
+        XCTAssertEqual(
+            shape.bounds.extents,
+            [2.4, 0.8, PlaybackWindowInteractionSurface.thickness]
+        )
     }
 
     @MainActor

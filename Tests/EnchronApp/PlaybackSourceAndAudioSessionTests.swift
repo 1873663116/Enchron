@@ -42,6 +42,23 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testTheFirstSurfaceTapAfterASecondaryMenuOnlyClosesTheMenu() {
+        let appModel = PlaybackSessionModel()
+        let moment = Date(timeIntervalSinceReferenceDate: 3_000)
+        appModel.toggleControlsFromPlaybackSurface(at: moment)
+        appModel.setWindowSecondaryMenuPresented(true)
+        appModel.setControlsFocused(true, at: moment)
+
+        appModel.toggleControlsFromPlaybackSurface(at: moment.addingTimeInterval(1))
+        XCTAssertTrue(appModel.showControls)
+        XCTAssertFalse(appModel.windowSecondaryMenuIsPresented)
+        XCTAssertFalse(appModel.isControlsFocused)
+
+        appModel.toggleControlsFromPlaybackSurface(at: moment.addingTimeInterval(2))
+        XCTAssertFalse(appModel.showControls)
+    }
+
+    @MainActor
     func testEverySurfaceInputSourceUsesTheSameStableToggleAction() {
         let windowModel = PlaybackSessionModel()
         let spatialTapModel = PlaybackSessionModel()
