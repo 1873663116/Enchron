@@ -405,7 +405,10 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                 suppliedAsset: asset,
                 sourceInformation: sourceInformation
             ), let bridgeFormat {
-                let sourceAsset = asset?.value ?? AVURLAsset(url: url)
+                let sourceAsset = asset?.value ?? AVURLAsset(
+                    url: url,
+                    options: Self.avFoundationAssetOptions(for: sourceInformation)
+                )
                 let sourceFormat: CMFormatDescription?
                 do {
                     sourceFormat = try await Self.uniqueSourceVideoFormatDescription(
@@ -420,11 +423,16 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                 }
                 let appleImmersiveClassificationFormat: CMFormatDescription?
                 if sourceFormat == nil, asset == nil {
-                    appleImmersiveClassificationFormat = try await Self
-                        .uniqueAppleImmersiveSourceFormatMetadata(
-                            in: sourceAsset,
-                            matching: bridgeFormat
-                        )
+                    do {
+                        appleImmersiveClassificationFormat = try await Self
+                            .uniqueAppleImmersiveSourceFormatMetadata(
+                                in: sourceAsset,
+                                matching: bridgeFormat
+                            )
+                    } catch {
+                        if openedInfo.isMVHEVC { throw error }
+                        appleImmersiveClassificationFormat = nil
+                    }
                 } else {
                     appleImmersiveClassificationFormat = nil
                 }
@@ -620,6 +628,15 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     ) -> Bool {
         suppliedAsset != nil ||
             sourceInformation?.containerSupportsSourceFormatDescription == true
+    }
+
+    static func avFoundationAssetOptions(
+        for sourceInformation: MediaSourceInformation?
+    ) -> [String: Any] {
+        guard sourceInformation?.containerSupportsSourceFormatDescription == true else {
+            return [:]
+        }
+        return [AVURLAssetOverrideMIMETypeKey: "video/mp4"]
     }
 
     private static func uniqueAppleImmersiveSourceFormatMetadata(

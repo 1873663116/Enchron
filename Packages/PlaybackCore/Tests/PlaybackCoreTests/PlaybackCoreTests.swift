@@ -41,6 +41,26 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(information([.subtitle]).playbackMediaKind == .unsupported)
 }
 
+@Test func avFoundationAssetOptionsDeclareVideoMP4OnlyForTheMovFamily() {
+    let movFamily = MediaSourceInformation(
+        containerFormat: "mov,mp4,m4a,3gp,3g2,mj2",
+        durationSeconds: 1,
+        streams: [],
+        containerSupportsSourceFormatDescription: true
+    )
+    let matroska = MediaSourceInformation(
+        containerFormat: "matroska,webm",
+        durationSeconds: 1,
+        streams: [],
+        containerSupportsSourceFormatDescription: false
+    )
+
+    let movOptions = FFmpegSampleProvider.avFoundationAssetOptions(for: movFamily)
+    #expect(movOptions[AVURLAssetOverrideMIMETypeKey] as? String == "video/mp4")
+    #expect(FFmpegSampleProvider.avFoundationAssetOptions(for: matroska).isEmpty)
+    #expect(FFmpegSampleProvider.avFoundationAssetOptions(for: nil).isEmpty)
+}
+
 @Test func audioSpectrumAnalyzerDistinguishesSignalFromSilence() {
     let silence = AudioSpectrumAnalyzer.analyze(Array(repeating: 0, count: 256))
     let sine = (0..<256).map { index in

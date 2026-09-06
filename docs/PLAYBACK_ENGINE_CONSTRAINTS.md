@@ -148,3 +148,11 @@ PlaybackCore 判定一个编码"可渲染"，靠的是它的四字符码能否�
 - 被探测的轴是 `Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c` 的 `codec_type()`——它是决定什么能到达渲染器的唯一一处；被它映射到 0 的编码过不了 `compressed_codec_is_renderable`，根本到不了 VideoToolbox，探测它等于在测平台而不是测这个产品。
 
 相关用例：`Tests/EnchronApp/VideoDecoderAvailabilityTests.swift` 与 `Tests/EnchronApp/ProResDecodeOnDeviceTests.swift`（真机 lane 专有；模拟器上按构造失败）。
+
+## AVFoundation 打开无扩展名来源要靠 provider 自报的 MIME
+
+AVFoundation 判断一个 HTTP 或本地文件资源属于什么容器，靠的是 URL 的路径扩展名或显式声明的 MIME；两者都缺时 `AVURLAsset` 打开失败于 `AVErrorFileFormatNotRecognized`（-11828，底层 -12847，"Cannot Open"），即使字节本身合法、Range 请求也答得正确。loopback 字节流服务器与 Emby 的媒体源名称都落在这个空档：Emby 的 `MediaSources[].Name` 本就没有扩展名，服务器对每个响应发送的 `Content-Type` 是固定的 `application/octet-stream`。
+
+`VideoSampleProvider` 在决定要不要向 AVFoundation 求证格式之前，已经从 FFmpeg 读出了容器判定——`MediaSourceInformation.containerSupportsSourceFormatDescription`，对应 demuxer 名 `mov,mp4,m4a,3gp,3g2,mj2`。构造 `AVURLAsset` 时把这个判定转成 `AVURLAssetOverrideMIMETypeKey: "video/mp4"`，覆盖掉 URL 扩展名与服务器 Content-Type 两条信号——这是唯一同时知道 FFmpeg 判定、又要把结果交给 AVFoundation 的地方，不需要 loopback 服务器或 Emby 桥接层就文件名达成任何约定。断言见 `avFoundationAssetOptionsDeclareVideoMP4OnlyForTheMovFamily`。
+
+Apple Immersive Video 的分类查询是建议性的，不是权威判定。它与旁边的 `uniqueSourceVideoFormatDescription` 面对同一个 AVFoundation 资源，原先却不对称：后者的探测失败被吞掉，前者直接上抛。任何一次探测失败——包括上面这类原本打不开的资源，或者一次瞬时的网络故障——因此都会让整次 open 变成 "Cannot Open"，即使 FFmpeg 一侧已经成功建立了压缩样本读取。现在两者对齐：探测错误一律当作"没有沉浸式元数据"处理，仅当来源已知是 MVHEVC 时才上抛。集成断言见 `extensionlessHTTPMovFamilySourceOpensThroughTheRealVideoProvider`（无扩展名 loopback 服务器 + 真实 provider 路径）。

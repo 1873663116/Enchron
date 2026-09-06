@@ -2,6 +2,7 @@ import Foundation
 import PlaybackFFmpegBridge
 import Testing
 import CryptoKit
+@testable import PlaybackCore
 
 private final class RecordingRangeServer: @unchecked Sendable {
     private let payload: Data
@@ -292,6 +293,17 @@ private let resilienceFixture = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .appendingPathComponent("TestMedia/TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv")
+
+private let movFamilyLoopbackFixture = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent(
+        "TestMedia/TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4"
+    )
 
 @_silgen_name("av_log_set_level")
 private func setFFmpegLogLevel(_ level: Int32)
@@ -961,4 +973,27 @@ private final class DrainOutcome: @unchecked Sendable {
     #expect(rangesAfterSourceOpen.allSatisfy { $0.hasSuffix("-") })
     #expect(server.ranges.allSatisfy { $0.hasSuffix("-") })
     #expect(bytesAfterVideoSample >= bytesBeforeVideoSample)
+}
+
+@Test func extensionlessHTTPMovFamilySourceOpensThroughTheRealVideoProvider() async throws {
+    setFFmpegLogLevel(-8)
+    let server = try RecordingRangeServer(
+        serving: try Data(contentsOf: movFamilyLoopbackFixture)
+    )
+    defer { server.stop() }
+    let provider = FFmpegSampleProvider()
+    defer { provider.cancel() }
+
+    do {
+        try await provider.prepare(url: server.url, asset: nil, startTime: .zero)
+    } catch {
+        Issue.record(
+            Comment(rawValue: "expected the mov-family source to open over the "
+                + "extensionless loopback URL, got \(error)")
+        )
+        return
+    }
+
+    #expect(provider.info.containerFormat == "mov,mp4,m4a,3gp,3g2,mj2")
+    #expect(provider.info.formatSignaling.provenance == "AVAssetTrack.sourceFormatDescription")
 }
