@@ -2042,6 +2042,57 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("a scrub drag renders and commits the gesture, never the panel's stale local progress")
+    func scrubDragRendersAndCommitsTheGesture() {
+        let staleLocalProgress: CGFloat = 0.45
+        let livePosition: CGFloat = 0.10
+        let drag = PlaybackSeekPresentation.scrubDrag(
+            beginningAt: 100,
+            displayProgress: livePosition
+        )
+
+        // The first dragging frame shows the seeded playhead, not 0.45.
+        #expect(drag.startProgress == livePosition)
+        #expect(
+            PlaybackSeekPresentation.displayProgress(
+                isDragging: true,
+                isTimelineDragging: false,
+                localProgress: drag.startProgress,
+                pendingTarget: nil,
+                liveProgress: livePosition
+            ) == livePosition
+        )
+
+        // A drag that delivered no intermediate sample still commits where
+        // it was released, from the gesture alone.
+        let committed = PlaybackSeekPresentation.progress(
+            of: drag,
+            at: 400,
+            travelWidth: 600
+        )
+        #expect(committed == 0.60)
+        #expect(committed != staleLocalProgress)
+        #expect(committed != livePosition)
+
+        // Mid-drag rendering and the release commit agree for one location.
+        #expect(
+            PlaybackSeekPresentation.progress(of: drag, at: 250, travelWidth: 600)
+                == PlaybackSeekPresentation.progress(of: drag, at: 250, travelWidth: 600)
+        )
+        #expect(
+            PlaybackSeekPresentation.progress(of: drag, at: 250, travelWidth: 600)
+                == livePosition + (250 - 100) / 600
+        )
+
+        // Clamping and a degenerate track.
+        #expect(PlaybackSeekPresentation.progress(of: drag, at: -1_000, travelWidth: 600) == 0)
+        #expect(PlaybackSeekPresentation.progress(of: drag, at: 10_000, travelWidth: 600) == 1)
+        #expect(PlaybackSeekPresentation.progress(of: drag, at: 400, travelWidth: 0) == livePosition)
+        #expect(
+            PlaybackSeekPresentation.scrubDrag(beginningAt: 0, displayProgress: 1.4).startProgress == 1
+        )
+    }
+
     @Test("progress track clicks map the scrubber travel to seek targets")
     func progressTrackClicksMapToSeekTargets() {
         let travelWidth: CGFloat = 660

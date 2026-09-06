@@ -218,6 +218,32 @@ enum PlaybackSeekPresentation {
         if let pendingTarget { return pendingTarget }
         return liveProgress ?? localProgress
     }
+
+    struct ScrubDrag: Equatable {
+        var startProgress: CGFloat
+        var startLocationX: CGFloat
+    }
+
+    static func scrubDrag(
+        beginningAt locationX: CGFloat,
+        displayProgress: CGFloat
+    ) -> ScrubDrag {
+        ScrubDrag(
+            startProgress: clampedTarget(displayProgress),
+            startLocationX: locationX
+        )
+    }
+
+    static func progress(
+        of drag: ScrubDrag,
+        at locationX: CGFloat,
+        travelWidth: CGFloat
+    ) -> CGFloat {
+        guard travelWidth > 0 else { return drag.startProgress }
+        return clampedTarget(
+            drag.startProgress + (locationX - drag.startLocationX) / travelWidth
+        )
+    }
 }
 
 private enum PlaybackControlPanelSurface {
@@ -401,8 +427,8 @@ public struct FusedPlayerPanel: View {
     @State private var isTimelineDragging = false
     @State private var isProgressHovered = false
     @State private var scrubberActivation: ScrubberActivation = .idle
-    @State private var seekOrigin: CGPoint?
-    @State private var dragStartProgress: CGFloat = 0.45
+    @State private var scrubDrag: PlaybackSeekPresentation.ScrubDrag?
+    @State private var lastScrubInteractionUptime: TimeInterval = 0
     @State private var pendingSeekTarget: CGFloat?
     @State private var scrubFeedbackTrigger = 0
     @State private var scrubReleaseTrigger = 0
@@ -504,7 +530,7 @@ public struct FusedPlayerPanel: View {
             isDragging = false
             isTimelineDragging = false
             scrubberActivation = .idle
-            seekOrigin = nil
+            scrubDrag = nil
             pendingSeekTarget = nil
         }
     }
@@ -1602,17 +1628,14 @@ public struct FusedPlayerPanel: View {
                 switch scrubberActivation {
                 case .idle:
                     guard isThumbHit(value.startLocation, thumbX: thumbX) else { return }
-                    beginScrubbing(at: value.location)
+                    beginScrubbing(at: value.startLocation)
+                    updateProgress(at: value.location.x, width: width)
                 case .seeking:
-                    guard let seekOrigin else { return }
-                    updateProgress(
-                        forTranslation: value.location.x - seekOrigin.x,
-                        width: width
-                    )
+                    updateProgress(at: value.location.x, width: width)
                 }
             }
             .onEnded { value in
-                guard case .seeking = scrubberActivation else {
+                guard case .seeking = scrubberActivation, let scrubDrag else {
                     resetScrubberActivation()
                     return
                 }
@@ -1621,11 +1644,20 @@ public struct FusedPlayerPanel: View {
                     resetScrubberActivation()
                     return
                 }
-                let target = PlaybackSeekPresentation.clampedTarget(progress)
+                let target = PlaybackSeekPresentation.progress(
+                    of: scrubDrag,
+                    at: value.location.x,
+                    travelWidth: width
+                )
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) { progress = target }
                 armPendingSeek(for: target)
                 scrubReleaseTrigger += 1
                 endScrubbing()
                 live?.onSeek(target)
+                live?.onReachabilityAction("progress.seekDrag")
+                onInteraction()
             }
     }
 
@@ -1643,11 +1675,19 @@ public struct FusedPlayerPanel: View {
     }
 
     private func beginScrubbing(at location: CGPoint) {
-        seekOrigin = location
-        dragStartProgress = displayProgress
-        scrubBoundary = EnchronScrubBoundary.from(normalized: Double(displayProgress))
+        let start = displayProgress
+        scrubDrag = PlaybackSeekPresentation.scrubDrag(
+            beginningAt: location.x,
+            displayProgress: start
+        )
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) { progress = start }
+        scrubBoundary = EnchronScrubBoundary.from(normalized: Double(start))
         scrubberActivation = .seeking
         isDragging = true
+        lastScrubInteractionUptime = ProcessInfo.processInfo.systemUptime
+        onInteraction()
     }
 
     private func armPendingSeek(for target: CGFloat) {
@@ -1665,24 +1705,29 @@ public struct FusedPlayerPanel: View {
     }
 
     private func resetScrubberActivation() {
-        seekOrigin = nil
+        scrubDrag = nil
         withAnimation(DesignTokens.AnimationToken.selection) {
             scrubberActivation = .idle
             isDragging = false
         }
     }
 
-    private func progressValue(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {
-        guard width > 0 else { return progress }
-        return min(max(dragStartProgress + translationX / width, 0), 1)
-    }
-
-    private func updateProgress(forTranslation translationX: CGFloat, width: CGFloat) {
-        let nextProgress = progressValue(forTranslation: translationX, width: width)
+    private func updateProgress(at locationX: CGFloat, width: CGFloat) {
+        guard let scrubDrag else { return }
+        let nextProgress = PlaybackSeekPresentation.progress(
+            of: scrubDrag,
+            at: locationX,
+            travelWidth: width
+        )
         scrubBoundary = EnchronScrubBoundary.from(normalized: Double(nextProgress))
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) { progress = nextProgress }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        if uptime - lastScrubInteractionUptime >= 1 {
+            lastScrubInteractionUptime = uptime
+            onInteraction()
+        }
     }
 
     private func adjustProgressForAccessibility(_ direction: AccessibilityAdjustmentDirection) {
