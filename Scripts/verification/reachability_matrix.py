@@ -5774,6 +5774,21 @@ class ReachabilityRun:
                 return identifier
         return identifiers[0] if identifiers else None
 
+    def answer_resume_decision(self, presentation: str) -> None:
+        prompt = self.controller(
+            "snapshot",
+            "--identifier", "PlayerUI-resumeDecision-primary",
+            "--no-screenshot",
+        )
+        if not isinstance(prompt.get("matchedElement"), dict):
+            return
+        self.tap(
+            presentation,
+            "PlayerUI-resumeDecision-primary",
+            operation_id="accessibility:PlayerUI-resumeDecision-primary",
+        )
+        self.hold("pace", 0.5)
+
     def emby_content_scenario(self) -> None:
         if not self.ensure_emby_sign_in():
             return
@@ -5877,6 +5892,7 @@ class ReachabilityRun:
                 ):
                     return
             else:
+                self.answer_resume_decision(presentation)
                 control = self.wait_for_identifier(
                     "PlayerUI-window-control-plane"
                 )
