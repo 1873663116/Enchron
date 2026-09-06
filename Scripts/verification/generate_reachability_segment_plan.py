@@ -181,7 +181,7 @@ def probe_plan() -> dict:
             segments.extend(browser_segments(scenarios, operations, by_id))
         else:
             segments.append(segment(f"probe-{context}", context, scenarios, operations))
-    return {"segments": segments}
+    return {"mode": "probe", "segments": segments}
 
 
 def probe_results(results: list[Path]) -> dict[str, dict]:
@@ -227,7 +227,7 @@ def final_plan(results: list[Path], steps: int) -> tuple[dict, list[tuple[str, s
             for cell_context, operation in decisions
         ]
         segments.append(entry)
-    return {"segments": segments}, sorted(wanted - claimed)
+    return {"mode": "final", "segments": segments}, sorted(wanted - claimed)
 
 
 def validate(plan: dict) -> list[str]:

@@ -3176,7 +3176,7 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
         self.assertFalse(replay["sessionAligned"])
         self.assertFalse(cells[("window", operation)]["applicationReceived"])
 
-    def test_segment_with_undriven_planned_decisions_reports_incomplete(self) -> None:
+    def _segment_run_with_one_undriven_decision(self, mode: str):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.lane = "device"
         run.segment = {
@@ -3206,15 +3206,33 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
         run.policy = matrix.RecoveryPolicy()
         run.service_hosts = {}
         run.service_receipts = {}
+        run.segment_plan_mode = mode
         output = Path(TemporaryDirectory().name)
         output.mkdir(parents=True, exist_ok=True)
         run.output = output
+        return run, output
+
+    def test_a_final_segment_with_undriven_planned_decisions_is_incomplete(self) -> None:
+        run, output = self._segment_run_with_one_undriven_decision("final")
 
         exit_code = run.finish_segment("complete")
 
         document = json.loads((output / "results.json").read_text())
         self.assertEqual(exit_code, 2)
         self.assertEqual(document["status"], "incomplete")
+        self.assertEqual(
+            document["plannedButNotDrivenCells"],
+            [{"context": "window", "operation": "accessibility:PlayerUI-menu-audio"}],
+        )
+
+    def test_a_probe_segment_reports_its_undriven_decisions_without_failing(self) -> None:
+        run, output = self._segment_run_with_one_undriven_decision("probe")
+
+        exit_code = run.finish_segment("complete")
+
+        document = json.loads((output / "results.json").read_text())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(document["status"], "complete")
         self.assertEqual(
             document["plannedButNotDrivenCells"],
             [{"context": "window", "operation": "accessibility:PlayerUI-menu-audio"}],

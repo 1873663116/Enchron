@@ -1201,6 +1201,9 @@ class ReachabilityRun:
         self.channel_health: dict[str, dict[str, Any]] = {}
         self.channel_failures: list[dict[str, Any]] = []
         self.segment: dict[str, Any] | None = getattr(arguments, "segment_spec", None)
+        self.segment_plan_mode = str(
+            (getattr(arguments, "segment_plan_document", None) or {}).get("mode", "")
+        )
         self.sequence = 0
         self.probe_offset = 0
         self.deferred_deliveries: list[dict[str, Any]] = []
@@ -8431,7 +8434,11 @@ class ReachabilityRun:
             {"context": context, "operation": operation}
             for context, operation in sorted(planned - self.driven_cells)
         ]
-        if status == "complete" and planned_not_driven:
+        if (
+            status == "complete"
+            and planned_not_driven
+            and self.segment_plan_mode == "final"
+        ):
             status = "incomplete"
         controller_transfer_calls = sum(
             int(event.get("transportCallCount", 0) or 0)

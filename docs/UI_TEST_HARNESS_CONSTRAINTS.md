@@ -102,7 +102,7 @@ App 侧测试通道的复位不是"删掉一切"：
 
 ## 段的完整与基线的重新证明
 
-段的 `status` 由计划与实测的差集决定：`finish_segment` 把段计划里的 decision 与本段实际驱动出的 cell 相减，差集非空则 `complete` 降级为 `incomplete`，差集写进结果的 `plannedButNotDrivenCells`。在此之前，场景中途的静默 `return`／`continue` 不改变段的状态，一个几乎什么都没驱动的段照样报 `complete`。
+段的 `status` 由计划与实测的差集决定：`finish_segment` 把段计划里的 decision 与本段实际驱动出的 cell 相减，差集写进结果的 `plannedButNotDrivenCells`；计划由 `--mode final` 生成时，差集非空则 `complete` 降级为 `incomplete`。probe 计划把一个 context 的全部 cell 声明给它的每个 lane 段，差集是它要测量的东西而不是缺陷，因此只记录不降级；plan 文档的 `mode` 字段承载这一区分。在此之前，场景中途的静默 `return`／`continue` 不改变段的状态，一个几乎什么都没驱动的段照样报 `complete`。
 
 `--require-baseline-coverage` 对基线里的 `known-defect` cell 与 `reachable` cell 一视同仁：本轮未重新驱动的 `known-defect` 记为 `old-known-defect-not-redriven` 并否决接受。缺这一条时 `known-defect` 是吸收态——cell 进得去、出不来，判定可以逐轮继承而永远不被重新证明。
 
