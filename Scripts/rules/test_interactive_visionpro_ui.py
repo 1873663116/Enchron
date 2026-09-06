@@ -1090,8 +1090,6 @@ class ReadyTimeoutTests(unittest.TestCase):
         self.assertTrue(any("diagnostics.md" in source for source in sources))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AlertsFromHierarchyTests(unittest.TestCase):
@@ -1124,3 +1122,6 @@ class AlertsFromHierarchyTests(unittest.TestCase):
     def test_a_hierarchy_without_alerts_yields_an_empty_list(self) -> None:
         lines = [line for line in self.HIERARCHY.splitlines() if "Alert" not in line and "conversion" not in line]
         self.assertEqual(controller.alerts_from_hierarchy("\n".join(lines)), [])
+
+if __name__ == "__main__":
+    unittest.main()

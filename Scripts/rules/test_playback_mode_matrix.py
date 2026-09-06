@@ -60,8 +60,6 @@ class ProbeCursorTests(unittest.TestCase):
         self.assertEqual(delta, [])
         self.assertEqual(next_cursor.line_count, 1)
         self.assertEqual(error, "Probe line count moved backwards from 2 to 1.")
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ProductErrorGateTests(HarnessContainerTests):
@@ -93,3 +91,6 @@ class ProductErrorGateTests(HarnessContainerTests):
             result, delta, _ = matrix._wait_for_immersive_settlement_harness(instruments=self._instruments, cell_directory=self._tmp, expected="docked", probe_cursor=matrix.ProbeCursor(None, 0), client=None, target_started_at=matrix.datetime.now(matrix.timezone.utc))
         self.assertEqual(result["verdict"], matrix.PRODUCT_ERROR)
         self.assertEqual(delta, lines)
+
+if __name__ == "__main__":
+    unittest.main()

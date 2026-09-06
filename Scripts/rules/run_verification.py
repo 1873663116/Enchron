@@ -198,6 +198,7 @@ STRUCTURE_CHECKS = (
         "verify_organic_architecture_xcode.sh",
     ),
     StructureCheck("swiftlint", "verify_swiftlint.py"),
+    StructureCheck("unittest-main-guard", "verify_unittest_main_guard.py"),
     StructureCheck(
         "bootstrap-freeze",
         "verify_bootstrap_freeze.py",

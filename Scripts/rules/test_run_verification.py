@@ -225,8 +225,6 @@ class InterpreterFloorTests(unittest.TestCase):
             verification.interpreter_refusal = original
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TreeHygieneTests(unittest.TestCase):
@@ -243,3 +241,5 @@ class TreeHygieneTests(unittest.TestCase):
         self.assertIn("controller_timings.device.json", result.detail)
         self.assertIn("Scripts/x.py", result.detail)
 
+if __name__ == "__main__":
+    unittest.main()

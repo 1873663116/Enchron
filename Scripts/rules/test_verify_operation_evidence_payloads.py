@@ -103,8 +103,6 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(checker.failures(), [])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ComparisonTests(unittest.TestCase):
@@ -193,3 +191,6 @@ def _sample_1(self, arguments, context):
 ''', outputs=())
 
         self.assertEqual(found, [])
+
+if __name__ == "__main__":
+    unittest.main()

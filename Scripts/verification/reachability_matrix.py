@@ -148,6 +148,18 @@ REACHABILITY_LIBRARY_FOLDER = "Reachability Fixture"
 LIBRARY_GRID_CARD_PREFIX = "MediaLibrary-grid-"
 LIBRARY_LIST_CONTAINER_IDENTIFIER = "FileBrowsing-FilesScreen-list"
 LIBRARY_EMPTY_STATE_IDENTIFIER = "FileBrowsing-FilesScreen-emptyState"
+LIBRARY_VIEW_MODE_IDENTIFIER = "FileBrowsing-FilesScreen-viewMode"
+LIBRARY_VIEW_MODE_PATTERN = re.compile(
+    r"identifier: '" + LIBRARY_VIEW_MODE_IDENTIFIER + r"'[^\n]*?, value: (?P<mode>[a-z]+)"
+)
+
+
+def library_view_mode(document: dict[str, Any]) -> str | None:
+    hierarchy = document.get("hierarchy")
+    if not isinstance(hierarchy, str):
+        return None
+    match = LIBRARY_VIEW_MODE_PATTERN.search(hierarchy)
+    return match.group("mode") if match is not None else None
 TEST_MEDIA = ROOT.parent / "TestMedia"
 FIXTURE_SOURCES = {
     "furyroad-stripped.mkv":
@@ -3928,7 +3940,13 @@ class ReachabilityRun:
         )
         list_container = LIBRARY_LIST_CONTAINER_IDENTIFIER in identifiers
         empty_state = LIBRARY_EMPTY_STATE_IDENTIFIER in identifiers
-        if list_container or not (grid_cards or empty_state):
+        view_mode = library_view_mode(document)
+        grid_mode = (
+            view_mode == "grid"
+            if view_mode is not None
+            else not list_container and bool(grid_cards or empty_state)
+        )
+        if not grid_mode:
             last = self.events[-1] if self.events else None
             evidence = (
                 last.get("evidence", "raw/snapshot.json")
@@ -3942,6 +3960,7 @@ class ReachabilityRun:
                     "evidence": evidence,
                     "listContainerPresent": list_container,
                     "emptyStatePresent": empty_state,
+                    "viewModeValue": view_mode,
                     "gridCardCount": len(grid_cards),
                     "gridCards": grid_cards[:8],
                     "diagnosis": (
@@ -5187,15 +5206,13 @@ class ReachabilityRun:
     def ensure_emby_sign_in(self) -> bool:
         self.provable("main-window-browser", "accessibility:Emby-Connection-Connect")
         credentials_path = getattr(self.arguments, "emby_credentials", None)
-        if credentials_path is None:
-            return True
-        credentials_path = Path(credentials_path)
-        if not credentials_path.is_file():
+        if credentials_path is None or not Path(credentials_path).is_file():
             self.events.append({"at": utc_now(), "action": "embySignIn", "success": False, "detail": "credential file missing", "evidence": "raw/embySignIn.json"})
             failure_key = ("main-window-browser", "accessibility:Emby-Connection-Connect")
             if failure_key in self.cells:
                 self.cells[failure_key]["reason"] = "embySignIn refused: credential file missing"
             return False
+        credentials_path = Path(credentials_path)
         current = self.controller("app-command", "--verb", "embyServerIdentityDigest", "--no-screenshot")
         payload = current.get("payload") if isinstance(current, dict) else None
         if current.get("success") is True and current.get("ok") is True and isinstance(payload, list) and len(payload) == 1 and isinstance(payload[0], str) and len(payload[0]) == 64 and all(c in "0123456789abcdef" for c in payload[0]):

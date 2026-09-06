@@ -9,6 +9,7 @@ import plistlib
 import struct
 import subprocess
 import sys
+import tempfile
 from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
@@ -423,8 +424,6 @@ class BootstrapFreezeTests(unittest.TestCase):
         self.assertEqual(verify_bootstrap_freeze.main(), 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BootstrapRejectionTests(unittest.TestCase):
@@ -474,6 +473,20 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
     that command is running under. The matrix reported drive-error on
     ensure-session for exactly this reason.
     """
+
+    def setUp(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(root / "Scripts/verification"))
+        import interactive_visionpro_ui as controller
+        self.timings = tempfile.TemporaryDirectory(prefix="bootstrap-freeze-timings-")
+        path = Path(self.timings.name) / "controller_timings.device.json"
+        path.write_text('{"verbs": {}}\n', encoding="utf-8")
+        self.patched_path = mock.patch.object(controller, "TIMINGS_DEVICE_PATH", path)
+        self.patched_path.start()
+
+    def tearDown(self) -> None:
+        self.patched_path.stop()
+        self.timings.cleanup()
 
     def record(self, **environment):
         root = Path(__file__).resolve().parents[2]
@@ -526,3 +539,6 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
             self.assertIn(b"probe-action", controller.TIMINGS_DEVICE_PATH.read_bytes())
         finally:
             controller.TIMINGS_DEVICE_PATH.write_bytes(original)
+
+if __name__ == "__main__":
+    unittest.main()

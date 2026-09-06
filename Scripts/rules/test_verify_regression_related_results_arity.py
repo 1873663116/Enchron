@@ -91,8 +91,6 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(checker.failures(), [])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CaseGuardedSlotTests(unittest.TestCase):
@@ -143,3 +141,6 @@ class CaseGuardedSlotTests(unittest.TestCase):
                 checker.failures(),
                 ["rubric:r@1: reads relatedResults[2] while call:j:s:06 inlines 2"],
             )
+
+if __name__ == "__main__":
+    unittest.main()

@@ -3205,8 +3205,6 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
             run.run_segment()
         stop_calls = [c for c in run.controller.call_args_list if c.args and c.args[0] == "stop"]
         self.assertFalse(stop_calls)
-if __name__ == "__main__":
-    unittest.main()
 
 
 class LibraryGridModeTests(unittest.TestCase):
@@ -3225,9 +3223,40 @@ class LibraryGridModeTests(unittest.TestCase):
         run = self._run_with_hierarchy("MediaLibrary-grid-folder-Reachability Round 2")
         run.require_library_grid_mode("main-window-browser", chain="browser-navigation")
 
+    def test_the_view_mode_control_decides_when_it_states_its_mode(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.events = [{"evidence": "raw/001-snapshot.json"}]
+        def hierarchy(mode, *identifiers):
+            lines = [f"Other, 0x1, {{{{0.0, 0.0}}, {{1.0, 1.0}}}}, identifier: 'FileBrowsing-FilesScreen-viewMode', label: 'View Mode', value: {mode}"]
+            lines += [f"Other, 0x2, {{{{0.0, 0.0}}, {{1.0, 1.0}}}}, identifier: '{name}'" for name in identifiers]
+            return "\n".join(lines)
+        run.controller = lambda *a, **k: {"success": True, "hierarchy": hierarchy("grid", "FileBrowsing-FilesScreen-emptyState")}
+        run.require_library_grid_mode("main-window-browser", chain="browser-navigation")
+        run.controller = lambda *a, **k: {"success": True, "hierarchy": hierarchy("list", "MediaLibrary-grid-video-a.mkv")}
+        with self.assertRaises(matrix.InstrumentFault) as caught:
+            run.require_library_grid_mode("main-window-browser", chain="browser-navigation")
+        self.assertEqual(caught.exception.evidence["viewModeValue"], "list")
+
     def test_a_list_container_or_a_bare_screen_is_refused(self) -> None:
         with self.assertRaises(matrix.InstrumentFault):
             self._run_with_hierarchy("FileBrowsing-FilesScreen-list", "MediaLibrary-grid-video-a.mkv").require_library_grid_mode("main-window-browser", chain="x")
         with self.assertRaises(matrix.InstrumentFault):
             self._run_with_hierarchy("FileBrowsing-FilesScreen-viewMode").require_library_grid_mode("main-window-browser", chain="x")
 
+
+class EmbyCredentialRefusalTests(unittest.TestCase):
+    def test_missing_credentials_refuse_instead_of_assuming_a_session(self) -> None:
+        from types import SimpleNamespace
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.arguments = SimpleNamespace(emby_credentials=None)
+        run.events = []
+        key = ("main-window-browser", "accessibility:Emby-Connection-Connect")
+        run.cells = {key: {"verdict": "unmeasured"}}
+        run.provable = Mock()
+        run.controller = Mock(side_effect=AssertionError("no controller call without credentials"))
+        self.assertFalse(run.ensure_emby_sign_in())
+        self.assertEqual(run.events[-1]["action"], "embySignIn")
+        self.assertEqual(run.cells[key]["reason"], "embySignIn refused: credential file missing")
+
+if __name__ == "__main__":
+    unittest.main()

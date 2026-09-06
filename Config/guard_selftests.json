@@ -807,6 +807,22 @@
           "the text scrim is no longer the ultra-thick material"
         ]
       }
+    },
+    {
+      "id": "unittest-main-guard-rejects-a-test-class-after-the-guard",
+      "guard": "Scripts/rules/verify_unittest_main_guard.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/rules/test_run_verification.py",
+        "find": "if __name__ == \"__main__\":\n    unittest.main()\n",
+        "replaceWith": "if __name__ == '__main__':\n    unittest.main()\n\n\nclass LateTests(unittest.TestCase):\n    def test_late(self) -> None:\n        pass\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "follows the __main__ guard"
+        ]
+      }
     }
   ],
   "externalSubject": [

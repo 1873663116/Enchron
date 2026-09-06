@@ -242,8 +242,6 @@ class CurrentRepositoryFiles(unittest.TestCase):
         self.assertEqual(errors, [f"docs/generated-output.md: {missing_path} does not exist"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class EvidencePopulationTests(unittest.TestCase):
@@ -273,3 +271,6 @@ class EvidencePopulationTests(unittest.TestCase):
             "Regression/operations/playback-seek-v2.md",
         ):
             self.assertEqual(self.population_of(relative), "instruction", relative)
+
+if __name__ == "__main__":
+    unittest.main()

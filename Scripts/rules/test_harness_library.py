@@ -602,8 +602,6 @@ class RecoveryPolicyTests(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TimingsDirectoryEnvironmentTests(unittest.TestCase):
@@ -621,3 +619,5 @@ class TimingsDirectoryEnvironmentTests(unittest.TestCase):
                 del os.environ["ENCHRON_TIMINGS_DIRECTORY"]
                 importlib.reload(module)
 
+if __name__ == "__main__":
+    unittest.main()
