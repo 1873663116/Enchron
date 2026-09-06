@@ -74,6 +74,46 @@ struct WebDAVDataSourceAdapterTests {
         #expect(credentials.loadedSourceIDs == [info.credentialSourceID])
     }
 
+    @Test("listing the source root asks for the validated collection with its trailing slash")
+    func rootListingKeepsTheCollectionSlash() async throws {
+        let recorder = WebDAVRequestRecorder()
+        WebDAVTestURLProtocol.setHandler { request in
+            recorder.record(request)
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 207,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/xml"]
+                  ) else {
+                throw URLError(.badURL)
+            }
+            return (response, Data(Self.directoryListing.utf8))
+        }
+        defer { WebDAVTestURLProtocol.setHandler(nil) }
+        let adapter = WebDAVDataSourceAdapter(
+            credentialStore: RecordingWebDAVCredentialStore(
+                credential: .init(username: "viewer", password: "secret")
+            ),
+            session: Self.makeSession()
+        )
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "https://media.example.test/dav/library",
+            username: "viewer"
+        )
+
+        try await adapter.connect(with: info)
+        _ = try await adapter.listContents(at: "/")
+        _ = try await adapter.listFolders(at: "/")
+
+        let requestedPaths = recorder.requests.compactMap { request in
+            request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.path }
+        }
+        #expect(requestedPaths.count == 3)
+        #expect(requestedPaths.allSatisfy { $0 == "/dav/library/" }, "\(requestedPaths)")
+    }
+
     @Test("WebDAV preserves a byte-range request on its resolved HTTP media URL")
     func rangeRequestOnResolvedURL() async throws {
         let recorder = WebDAVRequestRecorder()

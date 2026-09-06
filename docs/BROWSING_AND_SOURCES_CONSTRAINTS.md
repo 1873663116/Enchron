@@ -76,6 +76,7 @@
 
 - SMB 连接后**共享在根一级仍然表现为文件夹**，服务器本身是来源根；以 `$` 结尾的管理/隐藏共享被过滤掉。
 - 从完整的 rootPath 路径换算到相对共享的路径，是这两个适配器与来源根之间唯一的坐标转换。
+- **WebDAV 集合路径的尾斜杠是身份的一部分**：严格的服务器对 `/dav/regression` 回 404、对 `/dav/regression/` 回 207。适配器把 `"/"` 换算成已验证基地址时要用 `URLComponents.path`，`URL.path` 会丢掉尾斜杠。断言见 `WebDAVDataSourceAdapterTests` 的 `rootListingKeepsTheCollectionSlash`。
 
 ## 卡片时长的来源
 

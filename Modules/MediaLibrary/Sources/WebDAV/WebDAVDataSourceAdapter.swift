@@ -345,12 +345,13 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
 
     private func buildRequestURL(baseURL: URL, path: String) throws -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        let basePath = components?.path ?? baseURL.path
         let requestedPath = normalizedPath(path)
-        let baseComparablePath = normalizedComparablePath(baseURL.path)
+        let baseComparablePath = normalizedComparablePath(basePath)
         let requestedComparablePath = normalizedComparablePath(requestedPath)
 
         if requestedPath == "/" {
-            components?.path = normalizedPath(baseURL.path)
+            components?.path = normalizedPath(basePath)
         } else if requestedComparablePath == baseComparablePath {
             components?.path = requestedPath
         } else if baseComparablePath == "/" || requestedComparablePath.hasPrefix(baseComparablePath + "/") {
