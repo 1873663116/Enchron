@@ -243,6 +243,10 @@
     "expires": "2026-10-01",
     "seconds": 60
   },
+  "wake-device": {
+    "expires": "2026-10-01",
+    "seconds": 180
+  },
   "wedge": {
     "expires": "2026-10-01",
     "seconds": 60

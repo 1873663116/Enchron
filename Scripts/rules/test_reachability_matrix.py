@@ -3258,6 +3258,38 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
             [{"context": "window", "operation": "accessibility:PlayerUI-menu-audio"}],
         )
 
+    def test_a_device_session_wakes_the_target_before_asking_for_one(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
+        run.events = []
+        run.local_call = Mock(
+            return_value=SimpleNamespace(returncode=0, stdout="", stderr="")
+        )
+        run.controller = Mock(
+            return_value={"success": True, "sessionID": "runner-1"}
+        )
+
+        with patch.object(matrix.enchron_target, "is_simulator", return_value=False):
+            self.assertTrue(run.ensure_session())
+
+        self.assertEqual(run.local_call.call_args.args[0], "wake-device")
+        self.assertEqual(run.events[0]["action"], "wakeTargetDevice")
+        self.assertTrue(run.events[0]["success"])
+
+    def test_a_simulator_session_does_not_launch_anything_first(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "simulator"
+        run.events = []
+        run.local_call = Mock()
+        run.controller = Mock(
+            return_value={"success": True, "sessionID": "runner-1"}
+        )
+
+        with patch.object(matrix.enchron_target, "is_simulator", return_value=True):
+            self.assertTrue(run.ensure_session())
+
+        run.local_call.assert_not_called()
+
     def test_segment_without_keep_session_stops_runner(self) -> None:
         import uuid as uuid_module
         fixed = uuid_module.UUID("11111111-2222-3333-4444-555555555555")

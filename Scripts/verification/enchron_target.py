@@ -294,6 +294,32 @@ def list_container_file(
     )
 
 
+def launch_app(
+    *,
+    target: str,
+    bundle_id: str,
+    developer_dir: str | None = None,
+    budget_seconds: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if not target:
+        raise ValueError("launch target must not be empty")
+    if is_simulator(target):
+        command = ["xcrun", "simctl", "launch", target, bundle_id]
+    else:
+        command = [
+            "xcrun", "devicectl", "device", "process", "launch",
+            "--device", target, "--terminate-existing", bundle_id,
+        ]
+    env = None
+    if developer_dir is not None:
+        env = {"DEVELOPER_DIR": developer_dir, "PATH": "/usr/bin:/bin"}
+    return subprocess.run(
+        command,
+        env=env,
+        capture_output=True, text=True, timeout=budget_seconds, check=False,
+    )
+
+
 def uninstall_app(
     *,
     target: str,

@@ -2839,7 +2839,32 @@ class ReachabilityRun:
 
     out_of_context_observations: dict[tuple[str, str], int] = {}
 
+    def wake_target_device(self) -> None:
+        if enchron_target.is_simulator(DEVICE):
+            return
+        launched = self.local_call(
+            "wake-device",
+            lambda budget: enchron_target.launch_app(
+                target=DEVICE,
+                bundle_id=APP_BUNDLE,
+                developer_dir=DEVELOPER_DIR,
+                budget_seconds=budget.seconds,
+            ),
+        )
+        self.events.append({
+            "at": utc_now(),
+            "action": "wakeTargetDevice",
+            "success": launched is not None and launched.returncode == 0,
+            "detail": (
+                ""
+                if launched is None
+                else (launched.stderr or launched.stdout or "").strip()[:200]
+            ),
+            "evidence": self.events[-1]["evidence"] if self.events else "",
+        })
+
     def ensure_session(self) -> bool:
+        self.wake_target_device()
         for attempt in range(2):
             ready = self.controller(
                 "ensure-session",
