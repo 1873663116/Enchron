@@ -2135,6 +2135,7 @@ extension SampleBufferPlaybackSession {
                 capturedVideoDeliveryGeneration: nil
             )
         }
+        endPlaybackWhenInputEndsBeforeActivation()
         rendererSink.observeRenderingEventsAfterFinishedEnqueuing(
             handler: rendererInputEventHandler()
         )
@@ -2319,13 +2320,69 @@ extension SampleBufferPlaybackSession {
         observeDeliveryContinuityAfterMediaDelivery()
     }
 
-    func targetEpochEndedBeforeVideoPresentation(_ targetSeconds: Double) -> Bool {
+    func endPlaybackWhenInputEndsBeforeActivation() {
+        guard isPrerolling, timelineStartRate > 0, requestedTimelineStart.isNumeric else { return }
+        let nothingLeftToPlay = maximumAcceptedVideoPresentationTime
+            .map { $0.seconds <= requestedTimelineStart.seconds } ?? true
+        guard nothingLeftToPlay, claimEndReport() else { return }
+        let endSeconds = diagnostics.durationSeconds > 0
+            ? diagnostics.durationSeconds
+            : (acceptedVideoPresentationEndSeconds ?? requestedTimelineStart.seconds)
+        let endTime = CMTime(seconds: endSeconds, preferredTimescale: 60_000)
+        isPrerolling = false
+        timelineStartRate = 0
+        clearPrerollRequirement()
+        setTimelineStopped(at: endTime, reason: .seekToEnd)
+        diagnostics.currentSeconds = endSeconds
+        updateLifecycle(.ended)
+        recordTimelineControlState()
+        publishDiagnostics(at: endTime, force: true)
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "timeline.ended",
+            outcome: .succeeded,
+            details: [
+                "reason": "inputEndedBeforeActivation",
+                "requestedSeconds": String(requestedTimelineStart.seconds),
+                "endSeconds": String(endSeconds)
+            ]
+        )
+        onStatusChange?(.ended(.seekToEnd))
+    }
+
+    func claimEndReport() -> Bool {
         endStateLock.withLock {
-            guard endState.videoProviderEnded else { return false }
-            guard let presentationEnd = endState.videoPresentationEnd,
-                  presentationEnd.isNumeric else { return true }
-            return presentationEnd.seconds < targetSeconds
+            guard !endState.isClosed, !endState.didReportEnd else { return false }
+            endState.didReportEnd = true
+            return true
         }
+    }
+
+    func acceptedVideoCoversTarget(_ targetSeconds: Double) -> Bool {
+        endStateLock.withLock {
+            if let maximum = endState.maximumVideoPresentationTime,
+               maximum.isNumeric,
+               maximum.seconds >= targetSeconds {
+                return true
+            }
+            if let presentationEnd = endState.videoPresentationEnd,
+               presentationEnd.isNumeric,
+               presentationEnd.seconds >= targetSeconds {
+                return true
+            }
+            return false
+        }
+    }
+
+    var acceptedVideoPresentationEndSeconds: Double? {
+        endStateLock.withLock {
+            endState.videoPresentationEnd.flatMap { $0.isNumeric ? $0.seconds : nil }
+        }
+    }
+
+    var audioProviderHasEnded: Bool {
+        endStateLock.withLock { endState.audioProviderEnded }
     }
 
     func recordAudioPresentationEnd(_ presentationEnd: CMTime) {

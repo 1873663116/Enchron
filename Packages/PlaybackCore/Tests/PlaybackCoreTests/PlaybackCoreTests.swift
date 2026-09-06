@@ -979,7 +979,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(session.debugSnapshot().lastCompletedOperation?.targetTimeSeconds == 5)
 }
 
-@Test func seekFailsImmediatelyWhenTargetEpochEndsBeforeTarget() async throws {
+@Test func seekPastTheDeliveredVideoEndsPlaybackInsteadOfFailing() async throws {
     for expectedLastPTS in [1.0, nil] as [Double?] {
         let events: [VideoSampleProviderEvent]
         if let expectedLastPTS {
@@ -994,36 +994,77 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         }
         let lastPTSLabel = expectedLastPTS.map { String($0) } ?? "none"
         let session = SampleBufferPlaybackSession(
-            traceID: "seek-target-unavailable-\(lastPTSLabel)",
+            traceID: "seek-past-delivered-video-\(lastPTSLabel)",
             provider: FakeVideoSampleProvider(events: events, durationSeconds: 10),
             rendererSink: FakeRendererInputSink()
         )
+        let statuses = LockedBox<[PlaybackStatus]>([])
+        session.onStatusChange = { status in
+            statuses.withLock { $0.append(status) }
+        }
         try await session.prepare(url: URL(fileURLWithPath: "/fixtures/short.mov"))
         try session.start()
         if expectedLastPTS != nil {
             try await waitForSampleCount(1, in: session)
         }
+        statuses.withLock { $0.removeAll() }
 
         let startedAt = ContinuousClock.now
-        do {
-            try await session.seek(
-                to: CMTime(seconds: 5, preferredTimescale: 600),
-                startsPaused: false
-            )
-            Issue.record("Expected target-epoch EOF to reject the seek")
-        } catch CorePlaybackError.seekTargetUnavailable(let target, let lastPTS) {
-            #expect(target == 5)
-            #expect(lastPTS == expectedLastPTS)
-        } catch {
-            Issue.record("Expected seekTargetUnavailable, got \(error)")
-        }
+        try await session.seek(
+            to: CMTime(seconds: 5, preferredTimescale: 600),
+            startsPaused: false
+        )
+
         #expect(startedAt.duration(to: .now) < .seconds(1))
         let snapshot = session.debugSnapshot()
-        #expect(snapshot.lastFailure?.stage == "control.seek.targetUnavailable")
+        #expect(snapshot.lifecycle == .ended)
         #expect(snapshot.lastCompletedOperation?.kind == .seek)
-        #expect(snapshot.lastCompletedOperation?.state == .failed)
+        #expect(snapshot.lastCompletedOperation?.state == .completed)
+        #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
+        #expect(abs(session.currentTime().seconds - 10) < 0.001)
         await session.closeAndWait()
     }
+}
+
+@Test func seekInsideTheLastFrameCompletesWhenTheInputEnds() async throws {
+    let frame = 1.0 / 30
+    let decodeOrder: [Double] = [1.0, 1.0 + 2 * frame, 1.0 + frame]
+    let samples = try decodeOrder.enumerated().map { decodeIndex, presentation in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: presentation,
+            decodeTimeSeconds: 1.0 + Double(decodeIndex) * frame,
+            durationSeconds: frame
+        )
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-inside-last-frame",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end],
+            durationSeconds: 1.0 + 3 * frame + 0.5
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/last-frame.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try session.pause()
+
+    let lastFrame = 1.0 + 2 * frame
+    let target = lastFrame + frame / 2
+    let startedAt = ContinuousClock.now
+    try await session.seek(
+        to: CMTime(seconds: target, preferredTimescale: 60_000),
+        startsPaused: true
+    )
+
+    #expect(startedAt.duration(to: .now) < .seconds(1))
+    #expect(session.debugSnapshot().lifecycle == .paused)
+    #expect(session.debugSnapshot().lastCompletedOperation?.state == .completed)
+    #expect(
+        abs(session.currentTime().seconds - lastFrame) < 0.002,
+        "seek inside the last frame settled at \(session.currentTime().seconds)"
+    )
 }
 
 @MainActor
@@ -1555,6 +1596,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     session.onDiagnosticsChange = { diagnostics in
         reported.append(diagnostics.currentSeconds)
     }
+    try await Task.sleep(for: .milliseconds(100))
+    reported.removeAll()
     let target = 1.0 + 1.5 * frame
     let coveringFrame = 1.0 + frame
     try await controller.seek(to: CMTime(seconds: target, preferredTimescale: 600), after: .pause)
@@ -1584,6 +1627,10 @@ private final class ReportedPositions: @unchecked Sendable {
 
     var values: [Double] {
         lock.withLock { storage }
+    }
+
+    func removeAll() {
+        lock.withLock { storage.removeAll() }
     }
 }
 
@@ -2383,6 +2430,85 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     #expect(session.debugSnapshot().lifecycle == .ended)
     #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
     #expect(session.renderer.displayedPixelBuffer() == nil)
+}
+
+@MainActor
+@Test func seekWithTheEndIntentEndsPlaybackWithoutMatchingTheDuration() async throws {
+    let frame = 1.0 / 30
+    let samples = try [1.0, 1.0 + frame, 1.0 + 2 * frame].map {
+        try makeCompressedH264Sample(presentationTimeSeconds: $0, durationSeconds: frame)
+    }
+    let provider = FakeVideoSampleProvider(
+        events: samples.map { .sample($0) } + [.end],
+        durationSeconds: 10
+    )
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: provider,
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/end-intent.mkv"),
+        startsPaused: true
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    let startCount = provider.startCount
+    statuses.withLock { $0.removeAll() }
+
+    try await controller.seek(to: CMTime(seconds: 9.9, preferredTimescale: 600), after: .end)
+
+    #expect(provider.startCount == startCount)
+    #expect(session.debugSnapshot().lifecycle == .ended)
+    #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
+    #expect(abs(session.currentTime().seconds - 10) < 0.001)
+}
+
+@MainActor
+@Test func playingSeekIntoTheLastFrameEndsWhenTheInputEnds() async throws {
+    let frame = 1.0 / 30
+    let samples = try [1.0, 1.0 + frame, 1.0 + 2 * frame].map {
+        try makeCompressedH264Sample(presentationTimeSeconds: $0, durationSeconds: frame)
+    }
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: samples.map { .sample($0) } + [.end],
+                durationSeconds: 1.5
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(URL(fileURLWithPath: "/fixtures/last-frame-playing.mkv"))
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    statuses.withLock { $0.removeAll() }
+
+    let target = 1.0 + 2 * frame + frame / 2
+    let startedAt = ContinuousClock.now
+    try await controller.seek(to: CMTime(seconds: target, preferredTimescale: 60_000), after: .play)
+    while session.debugSnapshot().lifecycle != .ended, startedAt.duration(to: .now) < .seconds(2) {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    #expect(session.debugSnapshot().lifecycle == .ended)
+    #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
+    #expect(session.debugSnapshot().lastError == nil)
+    #expect(abs(session.currentTime().seconds - 1.5) < 0.001)
+    #expect(abs(session.diagnostics.currentSeconds - 1.5) < 0.001)
 }
 
 @Test func seekClampsFiniteTargetsToTheKnownMediaRange() async throws {
@@ -5408,7 +5534,6 @@ private final class LockedBox<Value>: @unchecked Sendable {
         return body(&value)
     }
 }
-
 
 private let audioSwitchTestMedia = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()

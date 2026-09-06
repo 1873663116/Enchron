@@ -7,11 +7,17 @@ extension SampleBufferPlaybackSession {
         to time: CMTime,
         startsPaused: Bool,
         removingDisplayedImage: Bool = true,
-        requiresAudioTarget: Bool = true
+        requiresAudioTarget: Bool = true,
+        endsPlayback: Bool = false
     ) async throws {
         guard !isClosed, let sourceURL else { return }
         if mediaKind == .audioOnly {
-            try await seekAudioOnly(to: time, startsPaused: startsPaused, sourceURL: sourceURL)
+            try await seekAudioOnly(
+                to: time,
+                startsPaused: startsPaused,
+                sourceURL: sourceURL,
+                endsPlayback: endsPlayback
+            )
             return
         }
         let target = try clampedSeekTime(time).seconds
@@ -106,39 +112,11 @@ extension SampleBufferPlaybackSession {
             ]
         )
 
-        let seeksToKnownEnd = diagnostics.durationSeconds > 0
-            && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000
+        let seeksToKnownEnd = endsPlayback
+            || (diagnostics.durationSeconds > 0
+                && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000)
         if seeksToKnownEnd {
-            let endTime = CMTime(
-                seconds: diagnostics.durationSeconds,
-                preferredTimescale: 60_000
-            )
-            deliveryQueue.sync {
-                timelineStartRate = 0
-                requestedTimelineStart = endTime
-                hasStartedTimeline = true
-                isPrerolling = false
-                isResetting = false
-            }
-            setTimelineStopped(at: endTime, reason: .seekToEnd)
-            diagnostics.currentSeconds = diagnostics.durationSeconds
-            updateLifecycle(.ended)
-            recordRendererState(at: endTime)
-            publishDiagnostics(at: endTime, force: true)
-            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
-            debugStore.emit(
-                mediaSessionID: traceID,
-                node: .rendererInputCoordination,
-                kind: "control.seek.completedAtEnd",
-                outcome: .succeeded,
-                details: [
-                    "targetSeconds": String(target),
-                    "streamEpoch": String(streamEpoch),
-                    "endReason": PlaybackEndReason.seekToEnd.rawValue
-                ]
-            )
-            finishActiveOperation(.completed)
-            onStatusChange?(.ended(.seekToEnd))
+            completeSeekAtEnd(target: target, subtitleSeekEpoch: subtitleSeekEpoch)
             return
         }
 
@@ -290,21 +268,31 @@ extension SampleBufferPlaybackSession {
                 }
                 if let endEvent = snapshot.lastMediaEvent,
                    endEvent.kind == .end,
-                   endEvent.streamEpoch == expectedEpoch,
-                   targetEpochEndedBeforeVideoPresentation(target) {
-                    let lastPTS = snapshot.lastVideoSample.flatMap { sample in
-                        sample.streamEpoch == expectedEpoch
-                            ? sample.presentationTimeSeconds
-                            : nil
+                   endEvent.streamEpoch == expectedEpoch {
+                    guard acceptedVideoCoversTarget(target) else {
+                        completeSeekAtEnd(target: target, subtitleSeekEpoch: subtitleSeekEpoch)
+                        return
                     }
-                    let error = CorePlaybackError.seekTargetUnavailable(target, lastPTS)
-                    recordFailure(
-                        error,
-                        node: .rendererInputCoordination,
-                        kind: "control.seek.targetUnavailable"
-                    )
-                    onStatusChange?(.failed(error.localizedDescription))
-                    throw error
+                    if audioReady || audioProviderHasEnded {
+                        debugStore.emit(
+                            mediaSessionID: traceID,
+                            kind: "control.seek.completedAtInputEnd",
+                            outcome: .succeeded,
+                            details: [
+                                "targetSeconds": String(target),
+                                "streamEpoch": String(expectedEpoch),
+                                "audioReady": String(audioReady)
+                            ]
+                        )
+                        completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+                        finishActiveOperation(.completed)
+                        if preservedRate == 0 {
+                            publishTargetTimelineState(
+                                at: CMTime(seconds: target, preferredTimescale: 60_000)
+                            )
+                        }
+                        return
+                    }
                 }
                 if let error = snapshot.lastError,
                    snapshot.lastFailure?.recoverability
@@ -365,7 +353,8 @@ extension SampleBufferPlaybackSession {
     private func seekAudioOnly(
         to time: CMTime,
         startsPaused: Bool,
-        sourceURL: URL
+        sourceURL: URL,
+        endsPlayback: Bool
     ) async throws {
         let target = try clampedSeekTime(time).seconds
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedBySeek)
@@ -383,8 +372,9 @@ extension SampleBufferPlaybackSession {
         resetEndState(requiresAudio: true)
         audioStreamEpoch += 1
 
-        let seeksToKnownEnd = diagnostics.durationSeconds > 0
-            && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000
+        let seeksToKnownEnd = endsPlayback
+            || (diagnostics.durationSeconds > 0
+                && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000)
         if seeksToKnownEnd {
             let endTime = CMTime(seconds: diagnostics.durationSeconds, preferredTimescale: 60_000)
             timelineStartRate = 0
@@ -486,8 +476,48 @@ extension SampleBufferPlaybackSession {
         }
         return CMTime(
             seconds: boundedSeconds,
-            preferredTimescale: max(time.timescale, 600)
+            preferredTimescale: max(time.timescale, 60_000)
         )
+    }
+
+    private func completeSeekAtEnd(target: Double, subtitleSeekEpoch: UInt64) {
+        let endSeconds = diagnostics.durationSeconds > 0
+            ? diagnostics.durationSeconds
+            : (acceptedVideoPresentationEndSeconds ?? target)
+        let endTime = CMTime(seconds: endSeconds, preferredTimescale: 60_000)
+        let reportsEnd = claimEndReport()
+        if reportsEnd {
+            deliveryQueue.sync {
+                timelineStartRate = 0
+                requestedTimelineStart = endTime
+                hasStartedTimeline = true
+                isPrerolling = false
+                isResetting = false
+            }
+            setTimelineStopped(at: endTime, reason: .seekToEnd)
+            diagnostics.currentSeconds = endSeconds
+            updateLifecycle(.ended)
+            recordRendererState(at: endTime)
+            publishDiagnostics(at: endTime, force: true)
+        }
+        completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "control.seek.completedAtEnd",
+            outcome: .succeeded,
+            details: [
+                "targetSeconds": String(target),
+                "endSeconds": String(endSeconds),
+                "streamEpoch": String(streamEpoch),
+                "endReason": PlaybackEndReason.seekToEnd.rawValue,
+                "reportedEnd": String(reportsEnd)
+            ]
+        )
+        finishActiveOperation(.completed)
+        if reportsEnd {
+            onStatusChange?(.ended(.seekToEnd))
+        }
     }
 
     func samplePresentationCoversTarget(

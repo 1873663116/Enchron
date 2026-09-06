@@ -541,8 +541,10 @@ final class PlaybackMediaSessionDriver {
         switch intent {
         case .preserveCurrentPlaybackIntent:
             .preserveCurrentPauseState
-        case .pause, .ended:
+        case .pause:
             .pause
+        case .ended:
+            .end
         }
     }
 }

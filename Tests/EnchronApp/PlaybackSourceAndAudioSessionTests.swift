@@ -716,6 +716,109 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testSeekingToTheEndEndsPlaybackWhilePlayingAndWhilePaused() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "TestMedia/TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+            )
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("The multi-audio playback fixture is not available in this test process.")
+        }
+        let runtime = PlaybackRuntime()
+        addTeardownBlock { @MainActor in
+            await runtime.stopAndWait()
+        }
+        try await runtime.open(
+            PlaybackLaunchRequest(
+                url: fixture,
+                displayName: fixture.lastPathComponent
+            )
+        )
+        let logicalSessionID = try XCTUnwrap(runtime.activeSessionID)
+        let sourceSession = try XCTUnwrap(runtime.activeSessionForVerification())
+        let sourceEntity = Entity()
+        PlaybackRealityPresenter.configure(
+            sourceEntity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let sourceViewHost = try PlaybackRealityViewTestHost(entity: sourceEntity)
+        defer { sourceViewHost.close() }
+        try await sourceViewHost.waitUntilReady()
+        try runtime.attach(
+            entityID: "seek-to-end-video-entity",
+            realityViewID: "seek-to-end-reality-view",
+            presentation: .window
+        )
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "seek-to-end-video-entity"
+        )
+        runtime.videoRendererTargetDidBind(
+            revision: runtime.videoComponentRevision,
+            entityID: "seek-to-end-video-entity"
+        )
+        try await runtime.beginPlaybackForPresentationSettlement(
+            mediaSessionID: logicalSessionID
+        )
+        _ = try await waitUntilPlaybackAdvances(runtime, sourceSession, beyond: .zero)
+        let duration = runtime.playbackPosition.duration
+        XCTAssertGreaterThan(duration, 29)
+
+        func describe(_ step: String) -> String {
+            "\(step): lifecycle=\(runtime.productLifecycle) session=\(sourceSession.debugSnapshot().lifecycle) "
+                + "position=\(runtime.playbackPosition.seconds) issue=\(String(describing: runtime.userVisibleIssue)) "
+                + "lastError=\(String(describing: sourceSession.debugSnapshot().lastError))"
+        }
+
+        runtime.seek(to: duration, event: .progressBar)
+        do {
+            try await waitUntilPlaybackLifecycle(runtime, equals: .ended)
+        } catch {
+            XCTFail(describe("playing seek to the duration did not end"))
+            throw error
+        }
+        XCTAssertNil(runtime.userVisibleIssue)
+        XCTAssertEqual(runtime.playbackPosition.seconds, duration, accuracy: 0.002)
+
+        runtime.seek(to: 5, event: .progressBar)
+        do {
+            try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
+            try await waitUntilSeekCompletes(runtime)
+        } catch {
+            XCTFail(describe("seek back from ended did not pause"))
+            throw error
+        }
+        XCTAssertNil(runtime.userVisibleIssue)
+
+        runtime.seek(to: duration, event: .precisionTimeline)
+        do {
+            try await waitUntilPlaybackLifecycle(runtime, equals: .ended)
+        } catch {
+            XCTFail(describe("paused seek to the duration did not end"))
+            throw error
+        }
+        XCTAssertNil(runtime.userVisibleIssue)
+
+        runtime.seek(to: 5, event: .progressBar)
+        try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
+        try await waitUntilSeekCompletes(runtime)
+        let insideTheLastFrame = duration - 0.0005
+        runtime.seek(to: insideTheLastFrame, event: .progressBar)
+        try await waitUntilSeekCompletes(runtime)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(runtime.productLifecycle, .paused, describe("paused seek inside the last frame"))
+        XCTAssertGreaterThan(runtime.playbackPosition.seconds, duration - 0.1, describe("landing"))
+        XCTAssertNil(runtime.userVisibleIssue)
+        XCTAssertNil(sourceSession.debugSnapshot().lastError)
+    }
+
+    @MainActor
     func testSeekAndFrameStepPublishTheRequestedPositionUntilTheyLand() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

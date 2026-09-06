@@ -4,6 +4,9 @@ import Testing
 @Test func explicitAfterSeekBehaviorSelectsPlayOrPause() {
     #expect(PlaybackAfterSeekBehavior.play.resolvesStartsPaused(for: .paused) == false)
     #expect(PlaybackAfterSeekBehavior.pause.resolvesStartsPaused(for: .playing) == true)
+    #expect(PlaybackAfterSeekBehavior.end.resolvesStartsPaused(for: .playing) == true)
+    #expect(PlaybackAfterSeekBehavior.end.endsPlayback)
+    #expect(PlaybackAfterSeekBehavior.pause.endsPlayback == false)
 }
 
 @Test func preservingAfterSeekPauseStateTreatsEndedAsHavingNoPlayingIntent() {

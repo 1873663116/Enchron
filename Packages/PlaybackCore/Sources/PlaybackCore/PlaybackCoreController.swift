@@ -709,7 +709,8 @@ public final class PlaybackCoreController {
                 to: time,
                 startsPaused: paused,
                 removingDisplayedImage: removingDisplayedImage,
-                requiresAudioTarget: requiresAudioTarget
+                requiresAudioTarget: requiresAudioTarget,
+                endsPlayback: behavior.endsPlayback
             )
         }
         activeSeekTask = task

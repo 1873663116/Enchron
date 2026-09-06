@@ -613,7 +613,19 @@ extension SampleBufferPlaybackSession {
     }
 
     func reportedPositionSeconds(timelineSeconds: Double) -> Double {
-        guard isPrerolling, requestedTimelineStart.isNumeric else { return timelineSeconds }
+        if endStateLock.withLock({ endState.didReportEnd }) {
+            return timelineSeconds
+        }
+        if let operation = activeOperation,
+           operation.kind == .seek,
+           let target = operation.targetTimeSeconds,
+           target.isFinite {
+            return target
+        }
+        guard isPrerolling || !hasStartedTimeline,
+              requestedTimelineStart.isNumeric else {
+            return timelineSeconds
+        }
         return requestedTimelineStart.seconds
     }
 

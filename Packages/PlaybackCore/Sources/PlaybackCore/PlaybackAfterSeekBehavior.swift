@@ -2,6 +2,9 @@ public enum PlaybackAfterSeekBehavior: Sendable, Equatable {
     case preserveCurrentPauseState
     case play
     case pause
+    case end
+
+    var endsPlayback: Bool { self == .end }
 
     func resolvesStartsPaused(for status: PlaybackStatus) -> Bool {
         switch self {
@@ -14,7 +17,7 @@ public enum PlaybackAfterSeekBehavior: Sendable, Equatable {
             }
         case .play:
             false
-        case .pause:
+        case .pause, .end:
             true
         }
     }
