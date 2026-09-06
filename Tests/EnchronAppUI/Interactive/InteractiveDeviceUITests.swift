@@ -205,7 +205,7 @@ private final class InteractiveDeviceUIChannel {
                     nil
                 )
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (
                     false,
                     "tapFirstMatch stopped at [\(position)] \(identifier): the element is not hittable.",
@@ -233,7 +233,7 @@ private final class InteractiveDeviceUIChannel {
             return (false, "tapFirstMatch found \(count) matching public elements.", nil)
         }
         let element = matches.element(boundBy: 0)
-        guard element.isHittable else {
+        guard hittability(of: element) else {
             return (false, "The matching public element is not currently hittable.", nil)
         }
         let observation = matchedElementObservation(for: element)
@@ -254,7 +254,7 @@ private final class InteractiveDeviceUIChannel {
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             element.tap()
@@ -267,7 +267,7 @@ private final class InteractiveDeviceUIChannel {
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             element.doubleTap()
@@ -276,7 +276,7 @@ private final class InteractiveDeviceUIChannel {
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             guard let duration = command.duration, duration >= 0 else {
@@ -288,7 +288,7 @@ private final class InteractiveDeviceUIChannel {
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             guard let position = command.normalizedX,
@@ -304,7 +304,7 @@ private final class InteractiveDeviceUIChannel {
             guard let element = textInputElement(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
             element.tap()
@@ -330,7 +330,7 @@ private final class InteractiveDeviceUIChannel {
             } else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard surface.isHittable else {
+            guard hittability(of: surface) else {
                 return (false, "The requested swipe surface is not currently hittable.")
             }
             switch command.action {
@@ -356,7 +356,7 @@ private final class InteractiveDeviceUIChannel {
             } else {
                 return (false, "No current coordinate surface matches the requested identifier and index.")
             }
-            guard surface.isHittable else {
+            guard hittability(of: surface) else {
                 return (false, "The requested coordinate surface is not currently hittable.")
             }
             surface.coordinate(
@@ -424,7 +424,7 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (
                     false,
                     "tapSequence stopped at label \(label): the element is not hittable.",
@@ -452,7 +452,7 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (
                     false,
                     "tapSequence stopped at [\(position)] \(identifier): the element is not hittable.",
@@ -487,7 +487,7 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            guard element.isHittable else {
+            guard hittability(of: element) else {
                 return (
                     false,
                     "tapSequence stopped at trailing label \(trailingLabel): the element is not hittable.",
@@ -533,7 +533,7 @@ private final class InteractiveDeviceUIChannel {
                 identifier: identifier,
                 exists: exists,
                 isEnabled: exists && element.isEnabled,
-                isHittable: exists && element.isHittable,
+                isHittable: exists && hittability(of: element),
                 label: exists ? element.label : ""
             )
         }
@@ -682,6 +682,18 @@ private final class InteractiveDeviceUIChannel {
         return element.value.map { String(describing: $0) }
     }
 
+    private func hittability(of element: XCUIElement) -> Bool {
+        guard let frame = (try? element.snapshot())?.frame else { return false }
+        return hittability(of: element, frame: frame)
+    }
+
+    private func hittability(of element: XCUIElement, frame: CGRect) -> Bool {
+        guard frame.width > 0, frame.height > 0 else { return false }
+        let activationPoint = CGPoint(x: frame.midX, y: frame.midY)
+        guard app.frame.contains(activationPoint) else { return false }
+        return element.isHittable
+    }
+
     private func matchedElementObservation(
         for element: XCUIElement
     ) -> InteractiveDeviceUIElementObservation? {
@@ -693,7 +705,7 @@ private final class InteractiveDeviceUIChannel {
             value: fullValue(of: element, snapshot: snapshot),
             elementType: String(describing: snapshot.elementType),
             isEnabled: snapshot.isEnabled,
-            isHittable: element.isHittable,
+            isHittable: hittability(of: element, frame: frame),
             isSelected: snapshot.isSelected,
             frame: .init(
                 x: Double(frame.origin.x),
