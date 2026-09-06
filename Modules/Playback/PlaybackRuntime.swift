@@ -296,6 +296,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var technicalSessionMediaFormatInterpretation: EffectiveMediaFormatInterpretation?
     private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
     private var seekIntentGeneration: UInt64 = 0
+    private var pendingFrameStepDelta = 0
+    private var frameStepTask: Task<Void, Never>?
+    private var frameStepGeneration: UInt64 = 0
     private var activeSourceReadFailureSequence: UInt64 = 0
     private var loadingStateMachine = PlaybackLoadingStateMachine()
 
@@ -417,6 +420,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         rendererTransferCoordinator.resetBindingHistoryForPlaybackPreparation()
         publishRendererTransferObservation()
         invalidatePendingDisplayedImageClear()
+        resetFrameStepping()
     }
 
     public func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata) {
@@ -1305,6 +1309,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     generation: playbackObservationGeneration
                 )
                 try rendererTransferCoordinator.play()
+            } catch let error as PlaybackControlError {
+                if case .seekSuperseded = error { return }
+                fail(error)
             } catch {
                 fail(error)
             }
@@ -1930,6 +1937,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         generation += 1
         startsWhenAttached = false
+        resetFrameStepping()
         detach()
         let sourceAccess = releasingSourceAccess
             ? currentLaunchRequest?.sourceAccess
@@ -2479,29 +2487,54 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func frameStep(direction: Double) {
+        pendingFrameStepDelta += direction > 0 ? 1 : -1
+        guard frameStepTask == nil else { return }
         updateLoadingState { $0.clearStarvation() }
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
         let playbackObservationGeneration = observationGeneration
-        Task { [weak self] in
+        frameStepGeneration &+= 1
+        let generation = frameStepGeneration
+        frameStepTask = Task { [weak self] in
+            defer { self?.finishFrameStepping(generation: generation) }
             guard let self else { return }
-            do {
-                let landing = try await rendererTransferCoordinator.stepFrame(
-                    direction > 0 ? .forward : .backward
-                )
-                emitPlaybackObservation(
-                    .seekCompleted(positionSeconds: landing.seconds),
-                    generation: playbackObservationGeneration
-                )
-            } catch let error as RendererTransferCoordinator.TransferError {
-                fail(runtimeError(for: error))
-            } catch let error as PlaybackControlError {
-                if case .seekSuperseded = error { return }
-                fail(error)
-            } catch {
-                fail(error)
+            while self.frameStepGeneration == generation, self.pendingFrameStepDelta != 0 {
+                let delta = self.pendingFrameStepDelta
+                self.pendingFrameStepDelta = 0
+                do {
+                    let landing = try await self.rendererTransferCoordinator.stepFrames(
+                        by: delta
+                    )
+                    self.emitPlaybackObservation(
+                        .seekCompleted(positionSeconds: landing.seconds),
+                        generation: playbackObservationGeneration
+                    )
+                } catch let error as RendererTransferCoordinator.TransferError {
+                    self.fail(self.runtimeError(for: error))
+                    return
+                } catch let error as PlaybackControlError {
+                    if case .seekSuperseded = error { return }
+                    self.fail(error)
+                    return
+                } catch {
+                    self.fail(error)
+                    return
+                }
             }
         }
+    }
+
+    private func finishFrameStepping(generation: UInt64) {
+        guard frameStepGeneration == generation else { return }
+        frameStepTask = nil
+        pendingFrameStepDelta = 0
+    }
+
+    private func resetFrameStepping() {
+        frameStepGeneration &+= 1
+        frameStepTask?.cancel()
+        frameStepTask = nil
+        pendingFrameStepDelta = 0
     }
 
     private func updateLoadingState(

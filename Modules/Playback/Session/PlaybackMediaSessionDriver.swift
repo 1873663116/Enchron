@@ -263,8 +263,8 @@ final class PlaybackMediaSessionDriver {
         try await controller.seek(by: offset, after: behavior)
     }
 
-    func stepFrame(_ direction: PlaybackFrameStepDirection) async throws -> CMTime {
-        try await controller.stepFrame(direction)
+    func stepFrames(by delta: Int) async throws -> CMTime {
+        try await controller.stepFrames(by: delta)
     }
 
     func setRate(_ rate: Float) throws {

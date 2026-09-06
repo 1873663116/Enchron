@@ -752,25 +752,38 @@ public final class PlaybackCoreController {
     }
 
     @discardableResult
-    public func stepFrame(_ direction: PlaybackFrameStepDirection) async throws -> CMTime {
+    public func stepFrames(by delta: Int) async throws -> CMTime {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
         }
-        try rejectIfSeekIsInProgress()
-        if direction == .forward,
-           case .advanced(let landing) = session.stepForwardOneFrame() {
-            return landing
+        if activeFormatOverrideTask != nil {
+            throw PlaybackControlError.operationInProgress(.setFormatOverrides)
+        }
+        var remaining = delta
+        var advancedLanding: CMTime?
+        while remaining > 0,
+              activeSeekTask == nil,
+              case .advanced(let landing) = session.stepForwardOneFrame() {
+            advancedLanding = landing
+            remaining -= 1
+        }
+        if remaining == 0 {
+            return advancedLanding ?? latestRequestedSeekTime ?? session.currentTime()
         }
         let rate = session.diagnostics.nominalFrameRate
         let frameSeconds = rate > 0 ? 1 / rate : 1.0 / 30
         let base = latestRequestedSeekTime ?? session.currentTime()
         let target = CMTime(
-            seconds: base.seconds
-                + (direction == .forward ? frameSeconds : -frameSeconds),
+            seconds: base.seconds + Double(remaining) * frameSeconds,
             preferredTimescale: 60_000
         )
         try await seek(to: target, after: .pause)
         return target
+    }
+
+    @discardableResult
+    public func stepFrame(_ direction: PlaybackFrameStepDirection) async throws -> CMTime {
+        try await stepFrames(by: direction == .forward ? 1 : -1)
     }
 
     @available(*, deprecated, message: "Use seek(to:after:) with PlaybackAfterSeekBehavior.")

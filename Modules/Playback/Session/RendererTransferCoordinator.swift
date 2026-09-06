@@ -1264,8 +1264,8 @@ extension RendererTransferCoordinator {
         try await requireActiveDriver().seek(by: offset, after: intent)
     }
 
-    func stepFrame(_ direction: PlaybackFrameStepDirection) async throws -> CMTime {
-        try await requireActiveDriver().stepFrame(direction)
+    func stepFrames(by delta: Int) async throws -> CMTime {
+        try await requireActiveDriver().stepFrames(by: delta)
     }
 
     func selectAudioTrack(streamIndex: Int) async throws {

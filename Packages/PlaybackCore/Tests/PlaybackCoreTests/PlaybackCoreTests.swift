@@ -1219,6 +1219,157 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(abs(finalTarget - (baseSeconds + 20)) < 0.001)
 }
 
+@MainActor
+@Test func frameStepDuringInFlightSeekSupersedesInsteadOfRejecting() async throws {
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let steppedSample = try makeCompressedH264Sample(presentationTimeSeconds: 5 + 1.0 / 30.0)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 6)
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(steppedSample),
+                    .sample(holdingSample),
+                    .end
+                ],
+                seekPrepareDelay: .milliseconds(150)
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/fake.mov"),
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "visionOSSimulator",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+
+    let firstSeek = Task {
+        try await controller.seek(to: CMTime(seconds: 5, preferredTimescale: 600))
+    }
+    try await Task.sleep(for: .milliseconds(20))
+    let step = Task {
+        try await controller.stepFrame(.forward)
+    }
+
+    do {
+        try await firstSeek.value
+        Issue.record("Expected the in-flight seek to be superseded by the frame step")
+    } catch let error as PlaybackControlError {
+        guard case .seekSuperseded(let target) = error else {
+            Issue.record("Expected seekSuperseded, got \(error)")
+            return
+        }
+        #expect(target == 5)
+    }
+
+    let landing = try await step.value
+    let expectedLanding = 5 + 1.0 / 30.0
+    #expect(abs(landing.seconds - expectedLanding) < 0.001)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lastCompletedOperation?.kind == .seek)
+    #expect(snapshot.lastCompletedOperation?.state == .completed)
+    let landedTarget = try #require(snapshot.lastCompletedOperation?.targetTimeSeconds)
+    #expect(abs(landedTarget - expectedLanding) < 0.001)
+}
+
+@MainActor
+@Test func stepFramesByDeltaLandsMultipleFrameDurationsFromBase() async throws {
+    let initialSample = try makeCompressedH264Sample()
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 1.0)
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [
+                    .sample(initialSample),
+                    .sample(holdingSample),
+                    .end
+                ]
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/fake.mov"),
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "visionOSSimulator",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try controller.pause()
+    session.discardVideoFramesInFlight()
+    let baseSeconds = session.currentTime().seconds
+
+    let forwardLanding = try await controller.stepFrames(by: 3)
+    #expect(abs(forwardLanding.seconds - (baseSeconds + 3.0 / 30.0)) < 0.001)
+
+    let baseAfterForward = session.currentTime().seconds
+    let backwardLanding = try await controller.stepFrames(by: -2)
+    #expect(abs(backwardLanding.seconds - (baseAfterForward - 2.0 / 30.0)) < 0.001)
+}
+
+@MainActor
+@Test func forwardStepBurstDrainsFramesInFlightWithoutSeeking() async throws {
+    let samples = try [0.0, 0.033, 0.066, 0.1].map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0,
+            decodeTimeSeconds: $0,
+            durationSeconds: 0.033
+        )
+    }
+    let sink = FakeRendererInputSink()
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: samples.map { .sample($0) } + [.end],
+                eventDelay: .milliseconds(20)
+            ),
+            rendererSink: sink
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/frame-step-burst.mp4"),
+        startsPaused: true
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "visionOSSimulator",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(4, in: session)
+    let flushesBeforeStep = sink.flushCount
+
+    let landing = try await controller.stepFrames(by: 2)
+
+    #expect(abs(landing.seconds - 0.066) < 0.005)
+    #expect(sink.flushCount == flushesBeforeStep)
+    #expect(session.debugSnapshot().lastCompletedOperation?.kind != .seek)
+    #expect(abs(session.currentTime().seconds - landing.seconds) < 0.001)
+
+    let noOp = try await controller.stepFrames(by: 0)
+
+    #expect(abs(noOp.seconds - landing.seconds) < 0.001)
+    #expect(sink.flushCount == flushesBeforeStep)
+}
+
 @Test func injectedProviderProducesMediaEventSampleAndRendererIntent() async throws {
     let sample = try makeCompressedH264Sample()
     try expectCompressedH264Contract(sample)

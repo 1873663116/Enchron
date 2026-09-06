@@ -715,6 +715,104 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testRapidFrameStepBurstCoalescesIntoOneFurtherStepAndNeverAlerts() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "TestMedia/TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4"
+            )
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("The video-only playback fixture is not available in this test process.")
+        }
+        let runtime = PlaybackRuntime()
+        addTeardownBlock { @MainActor in
+            await runtime.stopAndWait()
+        }
+        try await runtime.open(
+            PlaybackLaunchRequest(
+                url: fixture,
+                displayName: fixture.lastPathComponent
+            )
+        )
+        let logicalSessionID = try XCTUnwrap(runtime.activeSessionID)
+        let sourceSession = try XCTUnwrap(runtime.activeSessionForVerification())
+        let sourceEntity = Entity()
+        PlaybackRealityPresenter.configure(
+            sourceEntity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let sourceViewHost = try PlaybackRealityViewTestHost(entity: sourceEntity)
+        defer { sourceViewHost.close() }
+        try await sourceViewHost.waitUntilReady()
+        try runtime.attach(
+            entityID: "frame-step-burst-video-entity",
+            realityViewID: "frame-step-burst-reality-view",
+            presentation: .window
+        )
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "frame-step-burst-video-entity"
+        )
+        runtime.videoRendererTargetDidBind(
+            revision: runtime.videoComponentRevision,
+            entityID: "frame-step-burst-video-entity"
+        )
+        try await runtime.beginPlaybackForPresentationSettlement(
+            mediaSessionID: logicalSessionID
+        )
+        _ = try await waitUntilPlaybackAdvances(runtime, sourceSession, beyond: .zero)
+        runtime.pause()
+        try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
+
+        let basePositionSeconds = sourceSession.currentTime().seconds
+        let nominalFrameRate = runtime.diagnostics.nominalFrameRate
+        let frameSeconds = nominalFrameRate > 0 ? 1 / nominalFrameRate : 1.0 / 30
+
+        var completedPositions: [Double] = []
+        runtime.onPlaybackObservation = { observation in
+            if case .seekCompleted(let positionSeconds) = observation.event {
+                completedPositions.append(positionSeconds)
+            }
+        }
+        defer { runtime.onPlaybackObservation = nil }
+
+        runtime.frameStepForward()
+        await Task.yield()
+        runtime.frameStepForward()
+        runtime.frameStepForward()
+        runtime.frameStepForward()
+        runtime.frameStepForward()
+
+        let firstFrameAfterBase = (floor(basePositionSeconds / frameSeconds + 0.001) + 1) * frameSeconds
+        let expectedFinalPosition = firstFrameAfterBase + 4 * frameSeconds
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        while completedPositions.last.map({
+            abs($0 - expectedFinalPosition) > 0.002
+        }) ?? true {
+            guard clock.now - startedAt < PlaybackRuntime.presentationSettlementDeadline else {
+                throw PlaybackRealityViewTestHostError.seekDidNotComplete
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(completedPositions.count, 2)
+        XCTAssertEqual(
+            sourceSession.currentTime().seconds,
+            expectedFinalPosition,
+            accuracy: 0.002
+        )
+        XCTAssertNil(runtime.userVisibleIssue)
+        XCTAssertEqual(sourceSession.debugSnapshot().lastError, nil)
+    }
+
+    @MainActor
     func testTechnicalSessionEndingAfterCutoverRebasesAtTheFinalFrame()
         async throws {
         let fixture = URL(
