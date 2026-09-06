@@ -881,6 +881,98 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testTheSameFileReachesThePlaybackCoreIdenticallyThroughTheLiveShares() async throws {
+        let workspace = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let services = workspace.appendingPathComponent("test-services")
+        guard let webDAV = try LiveWebDAVIdentity.load(from: services),
+              let smb = try LiveSMBIdentity.load(from: services) else {
+            throw XCTSkip(
+                "Run Scripts/verification/ensure_test_services.py so test-services/{webdav,smb}/runtime.json exist."
+            )
+        }
+        let name = "sdr-bframe-aggregate-30s.mkv"
+        let fixture = workspace.appendingPathComponent(
+            "TestMedia/TestVectors/Enchron/PlaybackBehavior/\(name)"
+        )
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("The aggregate playback fixture is not available in this test process.")
+        }
+        ServerTrustPolicy.shared.approvalHandler = { _ in true }
+        defer { ServerTrustPolicy.shared.approvalHandler = nil }
+        CleartextExposurePolicy.shared.approvalHandler = { _ in true }
+        defer { CleartextExposurePolicy.shared.approvalHandler = nil }
+
+        let local = try await observePlaybackRoute(
+            PlaybackLaunchRequest(url: fixture, displayName: name)
+        )
+        XCTAssertGreaterThan(local.audioTracks.count, 1)
+        XCTAssertFalse(local.subtitleTracks.isEmpty)
+        XCTAssertNotEqual(local.dimensions, "—")
+
+        let credentials = ParityCredentialStore()
+        let webDAVInfo = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: webDAV.address,
+            username: webDAV.user
+        )
+        try credentials.saveCredential(
+            for: webDAVInfo.credentialSourceID,
+            credential: StorageCredential(username: webDAV.user, password: webDAV.password)
+        )
+        let webDAVAdapter = WebDAVDataSourceAdapter(credentialStore: credentials)
+        try await webDAVAdapter.connect(with: webDAVInfo)
+        defer { webDAVAdapter.disconnect() }
+        let webDAVListing = try await webDAVAdapter.listContents(at: webDAVInfo.rootPath)
+        let webDAVFile = try XCTUnwrap(
+            webDAVListing.first { $0.name == name },
+            "the WebDAV regression collection does not serve \(name)"
+        )
+        let webDAVSource = try await webDAVAdapter.resolvePlayableSource(for: webDAVFile)
+        defer {
+            webDAVSource.byteStreamHandle?.release()
+            webDAVSource.accessLease?.release()
+        }
+        let overWebDAV = try await observePlaybackRoute(PlaybackLaunchRequest(
+            source: PlaybackAddress(byteStreamHandle: try XCTUnwrap(webDAVSource.byteStreamHandle)),
+            displayName: webDAVFile.name
+        ))
+        XCTAssertEqual(overWebDAV, local, "the live WebDAV route diverged for \(name)")
+
+        let smbInfo = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: smb.address,
+            username: smb.user
+        )
+        try credentials.saveCredential(
+            for: smbInfo.credentialSourceID,
+            credential: StorageCredential(username: smb.user, password: smb.password)
+        )
+        let smbAdapter = SMBDataSourceAdapter(credentialStore: credentials)
+        try await smbAdapter.connect(with: smbInfo)
+        defer { smbAdapter.disconnect() }
+        let smbFolder = "/\(smb.shareName)/TestVectors/Enchron/PlaybackBehavior"
+        let smbListing = try await smbAdapter.listContents(at: smbFolder)
+        let smbFile = try XCTUnwrap(
+            smbListing.first { $0.name == name },
+            "the SMB share does not list \(name) under \(smbFolder)"
+        )
+        let smbSource = try await smbAdapter.resolvePlayableSource(for: smbFile)
+        defer {
+            smbSource.byteStreamHandle?.release()
+            smbSource.accessLease?.release()
+        }
+        let overSMB = try await observePlaybackRoute(PlaybackLaunchRequest(
+            source: PlaybackAddress(byteStreamHandle: try XCTUnwrap(smbSource.byteStreamHandle)),
+            displayName: smbFile.name
+        ))
+        XCTAssertEqual(overSMB, local, "the live SMB route diverged for \(name)")
+    }
+
+    @MainActor
     private func observePlaybackRoute(
         _ request: PlaybackLaunchRequest
     ) async throws -> PlaybackRouteObservation {
@@ -1564,5 +1656,47 @@ nonisolated private final class ParityEmbyURLProtocol: URLProtocol {
                 "Content-Type": "application/octet-stream"
             ]
         ).map { ($0, Data(body)) }
+    }
+}
+
+private struct LiveWebDAVIdentity: Decodable {
+    let address: String
+    let user: String
+    let password: String
+
+    static func load(from services: URL) throws -> LiveWebDAVIdentity? {
+        let file = services.appendingPathComponent("webdav/runtime.json")
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        return try JSONDecoder().decode(LiveWebDAVIdentity.self, from: Data(contentsOf: file))
+    }
+}
+
+private struct LiveSMBIdentity: Decodable {
+    let address: String
+    let user: String
+    let password: String
+    let shareName: String
+
+    static func load(from services: URL) throws -> LiveSMBIdentity? {
+        let file = services.appendingPathComponent("smb/runtime.json")
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        return try JSONDecoder().decode(LiveSMBIdentity.self, from: Data(contentsOf: file))
+    }
+}
+
+nonisolated private final class ParityCredentialStore: CredentialStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var credentials: [String: StorageCredential] = [:]
+
+    func saveCredential(for sourceID: String, credential: StorageCredential) throws {
+        lock.withLock { credentials[sourceID] = credential }
+    }
+
+    func loadCredential(for sourceID: String) throws -> StorageCredential? {
+        lock.withLock { credentials[sourceID] }
+    }
+
+    func deleteCredential(for sourceID: String) throws {
+        lock.withLock { credentials[sourceID] = nil }
     }
 }

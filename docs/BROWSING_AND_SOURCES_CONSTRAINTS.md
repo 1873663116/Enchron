@@ -70,7 +70,7 @@
 
 - **流地址不带容器扩展名**：`/Videos/{id}/stream?Static=true&MediaSourceId=…`。Emby 对带扩展名与不带扩展名的地址回同一份字节（在真实服务器上核对过一部正常 MP4 与一部 Container 标成 mpegts 的 M2TS），带上扩展名只会把服务器自述的容器名塞进地址；`MediaSources[].Container` 会错，播放核心自己从内容判定容器，所以它在 `EmbyMediaSource` 上只是展示信息，缺失也不阻止播放。
 - **服务器自述的视频编码不预先拒绝播放**。以前 `EmbyPlaybackBridge` 用 Emby 报的 codec 名对照一张自己的白名单，在打开之前就抛错；那张表与播放核心的解码判定是两份会漂移的真相，而且自述可以错。现在编码是否可放由播放核心打开字节后判定，Emby 与本地文件走同一条路、得到同一种 "Unable to Play"。断言见 `Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift` 的 `declaredCodecDoesNotGatePlayback`。
-- **同一个文件经本地、共享（SMB／WebDAV 登记真实文件名）、Emby（登记无扩展名的服务器名字、经 `EmbyMediaByteSource` 取字节）三种形态送进播放核心，核心报出的编码、尺寸、时长、帧率、音轨、字幕轨、起播与 seek 落点必须完全一致**。任何一条路和本地不一样，就是中转链掉了东西。断言见 `Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift` 的 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute`（MKV 多轨与 MP4 各跑三条路）。
+- **同一个文件经本地、共享（SMB／WebDAV 登记真实文件名）、Emby（登记无扩展名的服务器名字、经 `EmbyMediaByteSource` 取字节）三种形态送进播放核心，核心报出的编码、尺寸、时长、帧率、音轨、字幕轨、起播与 seek 落点必须完全一致**。任何一条路和本地不一样，就是中转链掉了东西。断言见 `Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift` 的 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute`（MKV 多轨与 MP4 各跑三条路，不依赖外部服务）与 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughTheLiveShares`（真实的 WebDAV 与 SMB 测试服务：读 `test-services/{webdav,smb}/runtime.json` 的身份，经 `WebDAVDataSourceAdapter`／`SMBDataSourceAdapter` 连接、列目录、取播放源，用 WebDAV 回归集合与 SMB 共享都持有的 `sdr-bframe-aggregate-30s.mkv`；两个 runtime.json 缺一即跳过，服务由 `Scripts/verification/ensure_test_services.py` 维护）。
 
 ## SMB 与 WebDAV 的形状
 
