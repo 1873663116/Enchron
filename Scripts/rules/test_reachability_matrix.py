@@ -1046,18 +1046,19 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
 
 
 class DeferredSegmentEvidenceTests(unittest.TestCase):
-    def test_system_alert_field_uses_debug_binding_without_claiming_a_target(self) -> None:
+    def _alert_field_run(self, controller: Mock):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.lane = "device"
         run.mark_driven = Mock()
+        run.mark_observation = Mock()
         run.app_command = Mock(return_value={"success": True})
+        run.controller = controller
         run.copy_probe = Mock(side_effect=[
             [],
             ["reachability files delivered action=newFolder.name"],
         ])
         run.delivered = Mock()
         run.events = [{"evidence": "raw/alert-field.json"}]
-
         run.set_file_browser_alert_field(
             presentation="main-window-browser",
             operation="accessibility:MediaLibrary-NewFolder-name",
@@ -1065,6 +1066,25 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             value="Round 13",
             evidence_label="new-folder-name",
         )
+        return run
+
+    def test_alert_field_typed_through_its_placeholder_claims_a_target(self) -> None:
+        run = self._alert_field_run(Mock(side_effect=[
+            {"success": True, "matchedElement": {"isHittable": True}},
+            {"success": True},
+        ]))
+
+        run.app_command.assert_not_called()
+        self.assertEqual(
+            run.controller.call_args.args[:3],
+            ("replaceText", "--label", "Folder name"),
+        )
+        self.assertTrue(
+            run.delivered.call_args.kwargs["has_accessibility_target"]
+        )
+
+    def test_alert_field_without_a_visible_target_falls_back_to_the_binding(self) -> None:
+        run = self._alert_field_run(Mock(return_value={"success": True}))
 
         run.app_command.assert_called_once_with(
             "setFileBrowserAlertField",

@@ -2647,6 +2647,8 @@ class ReachabilityRun:
             )
         return target, listing, selected
 
+    FOLDER_ALERT_PLACEHOLDER = "Folder name"
+
     def set_file_browser_alert_field(
         self,
         *,
@@ -2659,11 +2661,37 @@ class ReachabilityRun:
         before = self.copy_probe(f"{evidence_label}-before")
         offset = len(before)
         self.mark_driven(presentation, operation)
-        response = self.app_command(
-            "setFileBrowserAlertField",
-            field=field,
-            value=value,
+        visible = self.controller(
+            "snapshot",
+            "--label", self.FOLDER_ALERT_PLACEHOLDER,
+            "--no-screenshot",
         )
+        matched = visible.get("matchedElement")
+        typed_into_the_field = isinstance(matched, dict)
+        if typed_into_the_field:
+            self.mark_observation(
+                presentation,
+                operation,
+                exists=True,
+                hittable=matched.get("isHittable") is True,
+                evidence=self.events[-1]["evidence"],
+                reason=(
+                    "The alert field answered to its placeholder; the visionOS "
+                    "alert bridge drops the product accessibility identifier."
+                ),
+            )
+            response = self.controller(
+                "replaceText",
+                "--label", self.FOLDER_ALERT_PLACEHOLDER,
+                "--text", value,
+                "--no-screenshot",
+            )
+        else:
+            response = self.app_command(
+                "setFileBrowserAlertField",
+                field=field,
+                value=value,
+            )
         probe = self.copy_probe(evidence_label)
         action = (
             "newFolder.name"
@@ -2678,10 +2706,18 @@ class ReachabilityRun:
                 presentation,
                 operation,
                 self.events[-1]["evidence"],
-                "The DEBUG command wrote the same Binding used by the visible "
-                "SwiftUI alert field. The visionOS system alert bridge does not "
-                "export that field's product accessibility identifier.",
-                has_accessibility_target=False,
+                (
+                    "Typing into the visible alert field changed the product "
+                    "Binding the field is bound to."
+                )
+                if typed_into_the_field
+                else (
+                    "The DEBUG command wrote the same Binding used by the "
+                    "visible SwiftUI alert field. The visionOS system alert "
+                    "bridge does not export that field's product accessibility "
+                    "identifier."
+                ),
+                has_accessibility_target=typed_into_the_field,
             )
         return response, probe
 
@@ -4549,6 +4585,14 @@ class ReachabilityRun:
 
             before = self.copy_probe("round13-rename-cancel-before")
             offset = len(before)
+            renamed_identifier = (
+                f"MediaLibrary-grid-folder-{REACHABILITY_LIBRARY_FOLDER} Round 13"
+            )
+            if isinstance(
+                self.wait_for_identifier(renamed_identifier).get("matchedElement"),
+                dict,
+            ):
+                folder_identifier = renamed_identifier
             self.controller(
                 "press", "--identifier", folder_identifier,
                 "--duration", "1.2", "--no-screenshot",

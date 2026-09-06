@@ -549,9 +549,15 @@ private final class InteractiveDeviceUIChannel {
             matches = descendants.matching(identifier: identifier)
         } else if let label = command.label,
                   label.isEmpty == false {
-            matches = descendants.matching(
-                NSPredicate(format: "label == %@", label)
-            )
+            let index = command.index ?? 0
+            for format in ["label == %@", "placeholderValue == %@"] {
+                let candidates = descendants.matching(
+                    NSPredicate(format: format, label)
+                )
+                let candidate = candidates.element(boundBy: index)
+                if candidate.exists { return candidate }
+            }
+            return nil
         } else {
             return nil
         }
