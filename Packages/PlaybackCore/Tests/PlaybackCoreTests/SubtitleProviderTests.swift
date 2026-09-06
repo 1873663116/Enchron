@@ -1,4 +1,5 @@
 import CoreMedia
+import CoreText
 import Foundation
 import Testing
 @testable import PlaybackCore
@@ -338,6 +339,31 @@ import Testing
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ) == nil)
+}
+
+@Test func assSubtitleRendererDrawsHanCharactersInsteadOfMissingGlyphBoxes() async throws {
+    let fixture = try hanASSSubtitleFixtureURL()
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    #expect(track.codecName == "ass")
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    #expect(renderer is FFmpegSubtitleFrameRenderer)
+    var glyphs: [Data] = []
+    for second in 1...5 {
+        let frame = try #require(try renderer.frame(
+            at: CMTime(seconds: Double(second) + 0.25, preferredTimescale: 600),
+            viewportWidth: 1_920,
+            viewportHeight: 1_080
+        ))
+        #expect(frame.kind == .libass)
+        #expect(visibleGlyphsWithInkInTheirCentre(in: frame) == 1)
+        glyphs.append(frame.premultipliedBGRA)
+    }
+    #expect(Set(glyphs).count == 5)
 }
 
 @Test func textSubtitleRendererKeepsOneFramePerCueTextAndFollowsIngestedCues() async throws {
@@ -907,6 +933,34 @@ private func visibleGlyphsWithInkInTheirCentre(in frame: PlaybackSubtitleFrame) 
         let innerRows = top + (bottom - top) / 3 ... bottom - (bottom - top) / 3
         return innerRows.contains { y in innerColumns.contains { x in occupied(x, y) } }
     }.count
+}
+
+private func hanASSSubtitleFixtureURL() throws -> URL {
+    let script = """
+    [Script Info]
+    ScriptType: v4.00+
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, \
+    Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, \
+    Alignment, MarginL, MarginR, MarginV, Encoding
+    Style: Default,Helvetica Neue,64,&H00FFFFFF,&H000000FF,&H00101010,&H80000000,0,0,0,0,100,100,0,0,1,3,0,2,80,80,54,1
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:01.50,Default,,0,0,0,,验
+    Dialogue: 0,0:00:02.00,0:00:02.50,Default,,0,0,0,,证
+    Dialogue: 0,0:00:03.00,0:00:03.50,Default,,0,0,0,,字
+    Dialogue: 0,0:00:04.00,0:00:04.50,Default,,0,0,0,,日
+    Dialogue: 0,0:00:05.00,0:00:05.50,Default,,0,0,0,,體
+    """
+    let fixture = FileManager.default.temporaryDirectory
+        .appendingPathComponent("han-\(UUID().uuidString)")
+        .appendingPathExtension("ass")
+    try script.write(to: fixture, atomically: true, encoding: .utf8)
+    return fixture
 }
 
 private func externalSubtitleFixtureURL() throws -> URL {

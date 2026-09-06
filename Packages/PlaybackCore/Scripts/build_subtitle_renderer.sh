@@ -11,7 +11,7 @@ HARFBUZZ_VERSION="14.2.0"
 FRIBIDI_VERSION="1.0.16"
 FREETYPE_VERSION="2.14.3"
 FREETYPE_HVF_COMMIT="c39ca391b34ca8afe2dc3a8fed51be216f77588d"
-REVISION="libass-0.17.4-freetype-hvf-c39ca391"
+REVISION="libass-0.17.4-freetype-hvf-c39ca391-visionos-slices"
 JOBS="${JOBS:-$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 
 download() {
@@ -62,13 +62,15 @@ build_slice() {
   export PKG_CONFIG_PATH="$PKG_CONFIG_LIBDIR"
 
   local freetype_source="$BUILD_ROOT/freetype-$FREETYPE_VERSION"
-  if [[ "$sdk" == "xros" ]]; then
+  local uses_hvf_freetype=false
+  if [[ "$sdk" == "xros" || "$sdk" == "xrsimulator" ]]; then
     freetype_source="$BUILD_ROOT/freetype-$FREETYPE_HVF_COMMIT"
+    uses_hvf_freetype=true
   fi
 
   mkdir -p "$build/freetype"
   if [[ ! -f "$prefix/lib/libfreetype.a" ]]; then
-    if [[ "$sdk" == "xros" ]]; then
+    if [[ "$uses_hvf_freetype" == true ]]; then
       cmake -G Ninja \
         -S "$freetype_source" \
         -B "$build/freetype" \
