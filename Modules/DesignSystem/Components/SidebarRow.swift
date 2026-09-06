@@ -200,11 +200,17 @@ public struct EditableSourceSidebarRow: View {
         let rowShape = SourceSidebarRowGeometry.shape
 
         return ZStack {
-            deleteActionBackground(revealWidth: deleteRevealWidth)
-                .allowsHitTesting(isSwipeExpanded)
+            if isDeletable, allowsSwipe {
+                deleteActionBackground(revealWidth: deleteRevealWidth)
+                    .allowsHitTesting(isSwipeExpanded)
+                    .accessibilityHidden(!isSwipeExpanded)
+            }
 
             rowSurface
                 .offset(x: offset)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(.isButton)
         }
         .frame(height: DesignTokens.SourceSidebar.rowHeight)
         .clipShape(rowShape)
