@@ -715,6 +715,7 @@ private struct EmbyHomeScreen: View {
             await viewModel.refresh()
             initialRefreshCompleted = true
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Home")
     }
 

@@ -4632,6 +4632,8 @@ class ReachabilityRun:
             "Settings-menu-resume-strategy",
             operation_id="accessibility:Settings-menu-{id}",
         )
+        self.relaunch()
+        self.tap(presentation, "Navigation-Ornament-tab-settings")
         for family in (
             "resume-strategy",
             "end-behavior",
@@ -5440,6 +5442,61 @@ class ReachabilityRun:
         except Exception as error:
             return {"success": False, "detail": str(error)[:200]}
 
+    def prove_cleartext_exposure_prompt(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
+        host = f"emby-{self.session_id.split('-')[0].lower()}.regression.test"
+        for identifier, text in (
+            ("Emby-Connection-Address", f"http://{host}:8096"),
+            ("Emby-Connection-Username", "reachability"),
+            ("Emby-Connection-Password", "reachability"),
+        ):
+            self.controller(
+                "replaceText", "--identifier", identifier,
+                "--text", text, "--no-screenshot",
+            )
+        for action in ("cancel", "proceed"):
+            operation = f"accessibility:FileBrowsing-CleartextExposure-{action}"
+            self.tap(presentation, "Emby-Connection-Connect")
+            prompt = self.wait_for_identifier(
+                f"FileBrowsing-CleartextExposure-{action}"
+            )
+            matched = prompt.get("matchedElement")
+            if not isinstance(matched, dict):
+                self.events.append({
+                    "at": utc_now(),
+                    "action": "cleartextExposurePromptMissing",
+                    "success": False,
+                    "detail": f"Signing in to http://{host}:8096 raised no cleartext prompt.",
+                    "evidence": self.events[-1]["evidence"] if self.events else "",
+                })
+                return
+            self.mark_observation(
+                presentation,
+                operation,
+                exists=True,
+                hittable=matched.get("isHittable") is True,
+                evidence=self.events[-1]["evidence"],
+                reason="The cleartext prompt exposed its product action.",
+            )
+            answered = self.tap(
+                presentation,
+                f"FileBrowsing-CleartextExposure-{action}",
+                operation_id=operation,
+            )
+            if answered.get("success") is True:
+                self.mark_observation(
+                    presentation,
+                    operation,
+                    received=True,
+                    evidence=self.events[-1]["evidence"],
+                    reason=(
+                        "The cleartext prompt resolved the product approval "
+                        f"with {action}."
+                    ),
+                )
+            self.hold("pace", 0.5)
+        self.wait_for_identifier("Emby-Connection-Error")
+
     def emby_session_recovery_scenario(self) -> None:
         if not self.ensure_emby_sign_in():
             return
@@ -5549,7 +5606,7 @@ class ReachabilityRun:
                 hittable=matched.get("isHittable") is True,
                 evidence=self.events[-1]["evidence"],
                 reason=(
-                    "XCTest selected the non-delete child of the shared sidebar row; "
+                    "XCTest selected the shared sidebar row; "
                     "product delivery is judged separately."
                 ),
             )
@@ -5569,6 +5626,8 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "Sign Out reached the session handler and exposed the connection form.",
             )
+
+        self.prove_cleartext_exposure_prompt()
 
         for field, key in (
             ("Address", "address"),
