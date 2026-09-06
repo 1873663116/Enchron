@@ -1170,13 +1170,26 @@ final class PlaybackSubtitleSurface {
         }
 
         guard let texture else { return }
-        var material = UnlitMaterial(texture: texture)
-        material.blending = .transparent(opacity: .init(scale: 1))
         entity.name = "Enchron.ActiveSubtitleFrame.\(frame.kind.rawValue)"
-        entity.components.set(ModelComponent(
-            mesh: .generatePlane(width: nextLayout.size.x, height: nextLayout.size.y),
-            materials: [material]
-        ))
+        if frameChanged || layout?.size != nextLayout.size {
+            var material = UnlitMaterial(texture: texture)
+            material.blending = .transparent(opacity: .init(scale: 1))
+            material.writesDepth = false
+            entity.components.set(ModelComponent(
+                mesh: .generatePlane(width: nextLayout.size.x, height: nextLayout.size.y),
+                materials: [material]
+            ))
+        }
+        if presentation.usesMainWindow {
+            entity.components.set(
+                ModelSortGroupComponent(
+                    group: .planarUIInline,
+                    order: WindowPlaybackSurfaceGeometry.subtitleSortOrder
+                )
+            )
+        } else {
+            entity.components.remove(ModelSortGroupComponent.self)
+        }
         if entity.parent !== videoEntity {
             videoEntity.addChild(entity)
         }
@@ -1193,6 +1206,7 @@ final class PlaybackSubtitleSurface {
     func remove(emitEnablementWrite: (String) -> Void = { _ in }) {
         entity.removeFromParent()
         entity.components.remove(ModelComponent.self)
+        entity.components.remove(ModelSortGroupComponent.self)
         setEnabled(
             false,
             writer: "PlaybackSubtitleSurface.remove",

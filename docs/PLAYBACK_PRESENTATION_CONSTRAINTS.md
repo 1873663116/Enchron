@@ -36,6 +36,7 @@
 - **每一档是目标面积，不是外接盒**。外接盒自带一个形状，会饿死不共享该形状的一方——mono 源上的并排覆盖曾经因此要求一个几千点高的窗口。高度永远由宽度与视频自身比例导出，两个夹取都缩放整个矩形，窗口因此不可能与画面不一致而挣得一条空玻璃带。
 - **每个能拥有窗口的表面各自声明自己的范围，没有一个在离场时恢复系统默认**。这样"一个表面消失"与"下一个出现"的先后就不会留下一个无约束的窗口。浏览页没有视频可匹配，形状固定 16:9，不欠播放任何东西；Portal 同样锁在视频的比例档上，它自己没有尺寸规则。
 - **窗口视频网格与 Window 的 SwiftUI 平面共面**，并带 `ModelSortGroup.planarUIInline`——按 z 排序而不是按视图树。画在视频之上的 chrome 因此需要一个向前的位移，否则网格赢下平局、chrome 永不出现。这个位移**只能**用在布局边界落在窗口圆角以内的视图上：整窗偏移会离开 2D 裁切，显示为围着玻璃的一圈尖角矩形。
+- **字幕平面不写深度，并且自己声明排序组**。`UnlitMaterial(texture:)` 默认 `writesDepth == true`，透明纹素也在平面的 z 上写深度；字幕实体又是视频实体的子实体，而 `ModelSortGroupComponent` 不随父实体继承——子实体上没有就是没有——平面与视频网格谁先画由渲染器决定。平面先画时整块矩形里的视频被深度测试拒绝，透出窗口背景：2026-09-06 实测暂停、控件升起、字幕上移时字幕后面出现深灰或棕色方块（颜色随环境变）。因此 `PlaybackSubtitleSurface` 的材质 `writesDepth = false`，窗口呈现里字幕实体带 `ModelSortGroupComponent(.planarUIInline, order: subtitleSortOrder)` 排在视频之后；纯粹的位置变化只改 `position`，网格与材质只在贴图对象或尺寸变化时重建。断言在 `PlaybackPresentationTests`：`subtitleSurfaceBlendsOverTheVideoWithoutOwningDepth`。
 - **Portal 需要它的 Window scene 里有空间厚度**。取值是 SwiftUI 场景单位，对齐 Apple 沉浸媒体 PlayerWindow 契约；零厚度的宿主会让组件停在 loading。
 
 ## 沉浸空间的几何与输入

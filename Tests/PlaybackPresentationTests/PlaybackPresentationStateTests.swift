@@ -396,6 +396,83 @@ struct PlaybackPresentationStateTests {
         #expect(PlaybackRealityViewTopologyWritePolicy.entity(root, isHostedUnder: video) == false)
     }
 
+    @Test("The subtitle plane blends over the video without owning depth or leaving its draw order to the renderer")
+    func subtitleSurfaceBlendsOverTheVideoWithoutOwningDepth() throws {
+        let video = Entity()
+        let surface = PlaybackSubtitleSurface()
+        let frame = Self.subtitleFrame(changeIdentifier: 1)
+        let screenSize = SIMD2<Float>(16.0 / 9.0, 1)
+
+        surface.update(
+            on: video,
+            presentation: .window,
+            screenSize: screenSize,
+            reservedBottomFraction: 0,
+            frame: frame
+        )
+
+        let model = try #require(surface.entity.components[ModelComponent.self])
+        let material = try #require(model.materials.first as? UnlitMaterial)
+        #expect(material.writesDepth == false)
+        guard case .transparent = material.blending else {
+            Issue.record("The subtitle material must blend its transparent texels over the video")
+            return
+        }
+        let sortGroup = try #require(surface.entity.components[ModelSortGroupComponent.self])
+        #expect(sortGroup.group == .planarUIInline)
+        #expect(sortGroup.order > WindowPlaybackSurfaceGeometry.backgroundSortOrder)
+        let restingPosition = surface.entity.position
+
+        surface.update(
+            on: video,
+            presentation: .window,
+            screenSize: screenSize,
+            reservedBottomFraction: 0.32,
+            frame: frame
+        )
+
+        let lifted = try #require(surface.entity.components[ModelComponent.self])
+        #expect(lifted.mesh === model.mesh)
+        #expect(surface.entity.position.y > restingPosition.y)
+        #expect(surface.entity.position.z == restingPosition.z)
+
+        surface.update(
+            on: video,
+            presentation: .panorama,
+            screenSize: screenSize,
+            reservedBottomFraction: 0,
+            frame: frame
+        )
+        #expect(surface.entity.isEnabled == false)
+    }
+
+    private static func subtitleFrame(changeIdentifier: UInt64) -> PlaybackSubtitleFrame {
+        let width = 64
+        let height = 16
+        var pixels = Data(count: width * 4 * height)
+        for y in 4..<12 {
+            for x in 8..<56 {
+                let offset = (y * width + x) * 4
+                pixels[offset] = 255
+                pixels[offset + 1] = 255
+                pixels[offset + 2] = 255
+                pixels[offset + 3] = 255
+            }
+        }
+        return PlaybackSubtitleFrame(
+            kind: .coreText,
+            canvasWidth: 1_920,
+            canvasHeight: 1_080,
+            contentX: 928,
+            contentY: 1_000,
+            contentWidth: width,
+            contentHeight: height,
+            bytesPerRow: width * 4,
+            premultipliedBGRA: pixels,
+            changeIdentifier: changeIdentifier
+        )
+    }
+
     @Test("RealityView scheduling retains one trailing update")
     func realityViewUpdateSchedulingState() {
         var state = PlaybackRealityViewUpdateSchedulingState()
