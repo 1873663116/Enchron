@@ -2077,6 +2077,7 @@ struct PlaybackPresentationStateTests {
                 isDragging: false,
                 isTimelineDragging: false,
                 localProgress: 0.82,
+                pendingTarget: nil,
                 liveProgress: 0.18
             ) == 0.18
         )
@@ -2085,6 +2086,7 @@ struct PlaybackPresentationStateTests {
                 isDragging: false,
                 isTimelineDragging: false,
                 localProgress: 0.82,
+                pendingTarget: nil,
                 liveProgress: nil
             ) == 0.82
         )
@@ -2099,6 +2101,73 @@ struct PlaybackPresentationStateTests {
                 for: 0.5,
                 duration: 0
             ) == nil
+        )
+    }
+
+    @Test("the committed target holds until the reported position reaches it, then follows live")
+    func committedTargetHoldsUntilTheReportedPositionCatchesUp() {
+        let target = PlaybackSeekPresentation.pendingTarget(for: 0.62, livePositionAvailable: true)
+        #expect(target == 0.62)
+        #expect(PlaybackSeekPresentation.pendingTarget(for: 0.62, livePositionAvailable: false) == nil)
+
+        // Right after release the reported position is still the pre-seek value,
+        // so the panel renders the committed target rather than snapping back.
+        #expect(
+            PlaybackSeekPresentation.displayProgress(
+                isDragging: false,
+                isTimelineDragging: false,
+                localProgress: target ?? 0,
+                pendingTarget: target,
+                liveProgress: 0.30
+            ) == 0.62
+        )
+
+        // The latch releases in seconds, not a fraction of duration: a two-hour
+        // title tolerates the same absolute gap a thirty-second clip does.
+        #expect(
+            !PlaybackSeekPresentation.pendingTargetHasSettled(
+                0.62,
+                observedProgress: 0.30,
+                durationSeconds: 7200
+            )
+        )
+        #expect(
+            PlaybackSeekPresentation.pendingTargetHasSettled(
+                0.62,
+                observedProgress: 0.62,
+                durationSeconds: 7200
+            )
+        )
+        // One frame of drift at 7200 s is far inside the 0.25 s tolerance.
+        #expect(
+            PlaybackSeekPresentation.pendingTargetHasSettled(
+                0.62,
+                observedProgress: 0.62 - (1.0 / 24.0) / 7200,
+                durationSeconds: 7200
+            )
+        )
+        // A gap that reads as under a quarter second on a short clip is far larger
+        // than a quarter second on a long one, so duration must scale the test.
+        #expect(
+            PlaybackSeekPresentation.pendingTargetHasSettled(
+                0.62,
+                observedProgress: 0.58,
+                durationSeconds: 5
+            )
+        )
+        #expect(
+            !PlaybackSeekPresentation.pendingTargetHasSettled(
+                0.62,
+                observedProgress: 0.58,
+                durationSeconds: 30
+            )
+        )
+        #expect(
+            !PlaybackSeekPresentation.pendingTargetHasSettled(
+                0.62,
+                observedProgress: nil,
+                durationSeconds: 30
+            )
         )
     }
 
@@ -2118,6 +2187,7 @@ struct PlaybackPresentationStateTests {
                 isDragging: true,
                 isTimelineDragging: false,
                 localProgress: drag.startProgress,
+                pendingTarget: nil,
                 liveProgress: livePosition
             ) == livePosition
         )
