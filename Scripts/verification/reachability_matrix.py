@@ -3739,38 +3739,36 @@ class ReachabilityRun:
         if not source_identifiers:
             return
         for source_identifier in source_identifiers:
-            for index in (1, 2):
-                before = self.copy_probe("source-sidebar-remote-before")
-                offset = len(before)
-                self.mark_driven(presentation, operation_id)
-                selected = self.controller(
-                    "tap",
-                    "--identifier", source_identifier,
-                    "--index", str(index),
-                    "--no-screenshot",
+            before = self.copy_probe("source-sidebar-remote-before")
+            offset = len(before)
+            self.mark_driven(presentation, operation_id)
+            selected = self.controller(
+                "tap",
+                "--identifier", source_identifier,
+                "--no-screenshot",
+            )
+            matched = selected.get("matchedElement")
+            if isinstance(matched, dict):
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="The connected source row was addressable by its own identifier.",
                 )
-                matched = selected.get("matchedElement")
-                if isinstance(matched, dict):
-                    self.mark_observation(
-                        presentation,
-                        operation_id,
-                        exists=True,
-                        hittable=matched.get("isHittable") is True,
-                        evidence=self.events[-1]["evidence"],
-                        reason="The non-delete child of the connected source row was addressable.",
-                    )
-                probe = self.copy_probe("source-sidebar-remote-selected")
-                if selected.get("success") is True and any(
-                    "reachability files delivered action=sidebar.select." in line
-                    for line in probe[offset:]
-                ):
-                    self.delivered(
-                        presentation,
-                        operation_id,
-                        self.events[-1]["evidence"],
-                        "The connected source row reached FilesScreen.select without activating its delete control.",
-                    )
-                    break
+            probe = self.copy_probe("source-sidebar-remote-selected")
+            if selected.get("success") is True and any(
+                "reachability files delivered action=sidebar.select." in line
+                for line in probe[offset:]
+            ):
+                self.delivered(
+                    presentation,
+                    operation_id,
+                    self.events[-1]["evidence"],
+                    "The connected source row reached FilesScreen.select.",
+                )
+                break
         if not self.connected_remote_source_identifiers():
             self.events.append({
                 "at": utc_now(),
@@ -3885,19 +3883,11 @@ class ReachabilityRun:
         if entered.get("success") is not True:
             return
         for identifier in self.connected_remote_source_identifiers():
-            checked = self.controller(
+            self.controller(
                 "tap",
                 "--identifier", identifier,
-                "--index", "1",
                 "--no-screenshot",
             )
-            if not isinstance(checked.get("matchedElement"), dict):
-                self.controller(
-                    "tap",
-                    "--identifier", identifier,
-                    "--index", "2",
-                    "--no-screenshot",
-                )
         trashed = self.controller(
             "tap", "--label", "Delete selected sources", "--no-screenshot"
         )
@@ -4686,6 +4676,7 @@ class ReachabilityRun:
                     "probe confirmed delivery.",
                 )
         self.select_settings_category()
+        self.wait_for_identifier("Settings-action-clear-progress")
         before = self.copy_probe("settings-action-before")
         offset = len(before)
         action = self.tap(
@@ -4719,7 +4710,6 @@ class ReachabilityRun:
             presentation,
             "Settings-category-storagePrivacy",
             operation_id="accessibility:Settings-category-{item.id}",
-            index=2,
         )
         probe = self.copy_probe("round13-settings-category-selected")
         if category.get("success") is True and any(
@@ -4880,64 +4870,62 @@ class ReachabilityRun:
     ) -> bool:
         operation_id = "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}"
         for source_identifier in source_identifiers:
-            for index in (1, 2):
-                before = self.copy_probe(f"{evidence_prefix}-source-before")
-                offset = len(before)
-                self.mark_driven(presentation, operation_id)
-                selected = self.controller(
-                    "tap",
-                    "--identifier", source_identifier,
-                    "--index", str(index),
-                    "--no-screenshot",
+            before = self.copy_probe(f"{evidence_prefix}-source-before")
+            offset = len(before)
+            self.mark_driven(presentation, operation_id)
+            selected = self.controller(
+                "tap",
+                "--identifier", source_identifier,
+                "--no-screenshot",
+            )
+            matched = selected.get("matchedElement")
+            if isinstance(matched, dict):
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    exists=True,
+                    hittable=matched.get("isHittable") is True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="The existing source row was addressable by its own identifier.",
                 )
-                matched = selected.get("matchedElement")
-                if isinstance(matched, dict):
-                    self.mark_observation(
-                        presentation,
-                        operation_id,
-                        exists=True,
-                        hittable=matched.get("isHittable") is True,
-                        evidence=self.events[-1]["evidence"],
-                        reason="The non-delete child of the existing source row was addressable.",
-                    )
-                probe = self.copy_probe(f"{evidence_prefix}-source-selected")
-                if selected.get("success") is True and any(
-                    "reachability files delivered action=sidebar.select." in line
-                    for line in probe[offset:]
-                ):
-                    self.mark_observation(
-                        presentation,
-                        operation_id,
-                        received=True,
-                        evidence=self.events[-1]["evidence"],
-                        reason="The existing source row reached FilesScreen.select without activating its delete control.",
-                    )
-                    has_browseable_content = False
-                    remote_identifiers: set[str] = set()
-                    for _ in range(4):
-                        remote_state = self.controller("snapshot", "--no-screenshot")
-                        remote_identifiers = self.hierarchy_identifiers(remote_state)
-                        has_browseable_content = any(
-                            identifier.startswith(
-                                (
-                                    "FileBrowsing-grid-folder-",
-                                    "FileBrowsing-grid-video-",
-                                )
+            probe = self.copy_probe(f"{evidence_prefix}-source-selected")
+            if selected.get("success") is True and any(
+                "reachability files delivered action=sidebar.select." in line
+                for line in probe[offset:]
+            ):
+                self.mark_observation(
+                    presentation,
+                    operation_id,
+                    received=True,
+                    evidence=self.events[-1]["evidence"],
+                    reason="The existing source row reached FilesScreen.select.",
+                )
+                has_browseable_content = False
+                remote_identifiers: set[str] = set()
+                for _ in range(4):
+                    remote_state = self.controller("snapshot", "--no-screenshot")
+                    remote_identifiers = self.hierarchy_identifiers(remote_state)
+                    has_browseable_content = any(
+                        identifier.startswith(
+                            (
+                                "FileBrowsing-grid-folder-",
+                                "FileBrowsing-grid-video-",
                             )
-                            for identifier in remote_identifiers
                         )
-                        if (
-                            has_browseable_content
-                            or "FileBrowsing-FilesScreen-loadingState"
-                            not in remote_identifiers
-                        ):
-                            break
-                    if "FileBrowsing-error-secondary" in remote_identifiers:
-                        self.tap(presentation, "FileBrowsing-error-secondary")
-                        continue
-                    if has_browseable_content:
-                        return True
-                    break
+                        for identifier in remote_identifiers
+                    )
+                    if (
+                        has_browseable_content
+                        or "FileBrowsing-FilesScreen-loadingState"
+                        not in remote_identifiers
+                    ):
+                        break
+                if "FileBrowsing-error-secondary" in remote_identifiers:
+                    self.tap(presentation, "FileBrowsing-error-secondary")
+                    continue
+                if has_browseable_content:
+                    return True
+                break
         return False
 
     def ensure_remote_episode_playback(self, presentation: str, context: str) -> bool:
@@ -5547,7 +5535,6 @@ class ReachabilityRun:
         signed_out = self.controller(
             "tap",
             "--identifier", "Emby-SignOut",
-            "--index", "1",
             "--no-screenshot",
         )
         matched = signed_out.get("matchedElement")
@@ -5902,8 +5889,7 @@ class ReachabilityRun:
         )
         if library_identifier is not None:
             self.controller(
-                "tap", "--identifier", library_identifier,
-                "--index", "2", "--no-screenshot",
+                "tap", "--identifier", library_identifier, "--no-screenshot",
             )
             sort = self.wait_for_identifier("Emby-Library-Sort")
             matched = sort.get("matchedElement")

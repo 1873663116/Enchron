@@ -416,7 +416,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "reachability top actions delivered action=menu.item.off",
         )
 
-    def test_remote_source_selection_skips_the_delete_child(self) -> None:
+    def test_remote_source_selection_taps_the_row_element(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.lane = "device"
         run.events = [{"evidence": "raw/source.json"}]
@@ -448,8 +448,6 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             "tap",
             "--identifier",
             "FileBrowsing-SourcesSidebar-source-remote",
-            "--index",
-            "1",
             "--no-screenshot",
         )
 
