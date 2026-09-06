@@ -1370,6 +1370,87 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(sink.flushCount == flushesBeforeStep)
 }
 
+@MainActor
+@Test func pausedSeekLandsOnTheFrameThatCoversTheTarget() async throws {
+    let frame = 1.0 / 30
+    let decodeOrder: [(presentation: Double, decode: Double)] = [
+        (1.0, 1.0),
+        (1.0 + 3 * frame, 1.0 + 3 * frame),
+        (1.0 + frame, 1.0),
+        (1.0 + 2 * frame, 1.0 + frame),
+        (1.0 + 6 * frame, 1.0 + 2 * frame),
+        (1.0 + 4 * frame, 1.0 + 3 * frame),
+        (1.0 + 5 * frame, 1.0 + 4 * frame),
+        (1.0 + 9 * frame, 1.0 + 5 * frame),
+        (1.0 + 7 * frame, 1.0 + 6 * frame),
+        (1.0 + 8 * frame, 1.0 + 7 * frame),
+        (1.0 + 12 * frame, 1.0 + 8 * frame)
+    ]
+    let initialSample = try makeCompressedH264Sample()
+    let reorderedSamples = try decodeOrder.map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0.presentation,
+            decodeTimeSeconds: $0.decode,
+            durationSeconds: frame
+        )
+    }
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
+                seekPrepareDelay: .milliseconds(20)
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/reordered.mp4"),
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "visionOSSimulator",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try controller.pause()
+
+    let target = 1.0 + 1.5 * frame
+    let coveringFrame = 1.0 + frame
+    try await controller.seek(to: CMTime(seconds: target, preferredTimescale: 600), after: .pause)
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while abs(session.currentTime().seconds - coveringFrame) > 0.002,
+          clock.now - startedAt < .seconds(3) {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    #expect(
+        abs(session.currentTime().seconds - coveringFrame) < 0.002,
+        "paused seek to \(target) settled at \(session.currentTime().seconds)"
+    )
+    #expect(session.synchronizer.rate == 0)
+
+    let boundaryFrame = 1.0 + 7 * frame
+    let justBelowBoundary = boundaryFrame - 0.0003
+    try await controller.seek(
+        to: CMTime(seconds: justBelowBoundary, preferredTimescale: 60_000),
+        after: .pause
+    )
+    let secondStartedAt = clock.now
+    while abs(session.currentTime().seconds - boundaryFrame) > 0.002,
+          clock.now - secondStartedAt < .seconds(3) {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    #expect(
+        abs(session.currentTime().seconds - boundaryFrame) < 0.002,
+        "paused seek to \(justBelowBoundary) settled at \(session.currentTime().seconds)"
+    )
+}
+
 @Test func injectedProviderProducesMediaEventSampleAndRendererIntent() async throws {
     let sample = try makeCompressedH264Sample()
     try expectCompressedH264Contract(sample)

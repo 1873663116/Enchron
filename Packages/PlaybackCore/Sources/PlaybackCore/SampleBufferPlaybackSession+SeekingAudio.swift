@@ -197,6 +197,8 @@ extension SampleBufferPlaybackSession {
                 preferredTimescale: 60_000
             )
             hasStartedTimeline = false
+            prerollCoveringPresentationTime = nil
+            pausedSeekAwaitsCoverage = preservedRate == 0
             isPrerolling = false
             lastSourceEventID = "none"
             didRecordFormat = false
@@ -416,6 +418,8 @@ extension SampleBufferPlaybackSession {
         timelineStartRate = preservedRate
         requestedTimelineStart = targetTime
         hasStartedTimeline = false
+        prerollCoveringPresentationTime = nil
+        pausedSeekAwaitsCoverage = false
         isPrerolling = false
         recordTimelineControlState()
         startAudioDelivery()
@@ -695,6 +699,8 @@ extension SampleBufferPlaybackSession {
             timelineStartRate = rate
             requestedTimelineStart = time
             hasStartedTimeline = false
+            prerollCoveringPresentationTime = nil
+            pausedSeekAwaitsCoverage = false
             isPrerolling = false
             if rearmsVideoDelivery {
                 lastSourceEventID = "none"

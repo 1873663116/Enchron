@@ -631,6 +631,55 @@ extension SampleBufferPlaybackSession {
         return firstDisplayablePresentationTime
     }
 
+    static let pausedSeekMinimumReorderFrames = 2
+    static let pausedSeekCoverageToleranceSeconds = 0.001
+
+    func pausedSeekCoverageIsSettled(target: CMTime) -> Bool {
+        guard target.isNumeric,
+              let latest = activationObservation.latestAcceptedVideoPresentationTime(
+                epoch: streamEpoch
+              ) else {
+            return false
+        }
+        let rate = diagnostics.nominalFrameRate
+        let frameSeconds = rate > 0 ? 1 / rate : 1.0 / 30
+        let outputLagFrames = max(diagnostics.videoReorderDepth, Self.pausedSeekMinimumReorderFrames) + 1
+        return latest.seconds >= target.seconds + Double(outputLagFrames) * frameSeconds
+    }
+
+    func recordPausedSeekCoverageCandidate(_ presentationTime: CMTime) {
+        guard requestedTimelineStart.isNumeric,
+              presentationTime.seconds
+                <= requestedTimelineStart.seconds + Self.pausedSeekCoverageToleranceSeconds,
+              prerollCoveringPresentationTime.map({ presentationTime > $0 }) ?? true else {
+            return
+        }
+        prerollCoveringPresentationTime = presentationTime
+    }
+
+    func activatePausedSeekTimeline(
+        fallback presentationTime: CMTime,
+        capturedVideoDeliveryGeneration: UInt64?
+    ) {
+        let activationTime = pausedTimelineActivationTime(
+            target: prerollCoveringPresentationTime
+                ?? targetTimelineTime(fallback: presentationTime),
+            firstDisplayablePresentationTime: activationObservation
+                .earliestAcceptedVideoPresentationTime(epoch: streamEpoch)
+                ?? presentationTime
+        )
+        setTimelineStopped(
+            at: activationTime,
+            reason: .decoderBootstrap,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration
+        )
+        isPrerolling = false
+        pausedSeekAwaitsCoverage = false
+        clearPrerollRequirement()
+        recordTimelineControlState()
+        publishDiagnostics(at: activationTime, force: true)
+    }
+
     func resetDecoderBootstrap() {
         decoderBootstrapLock.withLock {
             decoderBootstrapComplete = false

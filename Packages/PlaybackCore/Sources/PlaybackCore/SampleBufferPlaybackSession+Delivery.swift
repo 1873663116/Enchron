@@ -501,6 +501,7 @@ extension SampleBufferPlaybackSession {
                 decodeTime: decodeTime,
                 presentationEnd: presentationEnd
             )
+            recordPausedSeekCoverageCandidate(presentationTime)
             let bootstrap = recordAcceptedDecoderBootstrapSample(
                 decodeTime: decodeTime,
                 target: decoderBootstrapTarget,
@@ -514,24 +515,20 @@ extension SampleBufferPlaybackSession {
             let targetReached = requiredVideoEnd.isNumeric == false
                 || presentationTime >= requiredVideoEnd
                 || presentationEnd >= requiredVideoEnd
-            if isPrerolling, bootstrap.complete, targetReached {
-                if timelineStartRate == 0 {
-                    if activeOperation?.kind == .seek {
-                        let activationTime = pausedTimelineActivationTime(
-                            target: targetTimelineTime(fallback: presentationTime),
-                            firstDisplayablePresentationTime: presentationTime
-                        )
-                        setTimelineStopped(
-                            at: activationTime,
-                            reason: .decoderBootstrap,
-                            capturedVideoDeliveryGeneration: generation
-                        )
-                        isPrerolling = false
-                        clearPrerollRequirement()
-                        recordTimelineControlState()
-                        publishDiagnostics(at: activationTime, force: true)
-                    }
-                } else if synchronizer.rate == timelineStartRate {
+            let isPausedSeekPreroll = isPrerolling
+                && timelineStartRate == 0
+                && pausedSeekAwaitsCoverage
+            if isPausedSeekPreroll {
+                if pausedSeekCoverageIsSettled(
+                    target: targetTimelineTime(fallback: presentationTime)
+                ) {
+                    activatePausedSeekTimeline(
+                        fallback: presentationTime,
+                        capturedVideoDeliveryGeneration: generation
+                    )
+                }
+            } else if isPrerolling, timelineStartRate > 0, bootstrap.complete, targetReached {
+                if synchronizer.rate == timelineStartRate {
                     isPrerolling = false
                     clearPrerollRequirement()
                     recordTimelineControlState()
@@ -2153,6 +2150,12 @@ extension SampleBufferPlaybackSession {
 
     func finishDelivery() {
         markVideoProviderEnded()
+        if isPrerolling, timelineStartRate == 0, pausedSeekAwaitsCoverage {
+            activatePausedSeekTimeline(
+                fallback: targetTimelineTime(fallback: .zero),
+                capturedVideoDeliveryGeneration: nil
+            )
+        }
         rendererSink.observeRenderingEventsAfterFinishedEnqueuing(
             handler: rendererInputEventHandler()
         )
