@@ -1,5 +1,6 @@
 import CoreMedia
 import Foundation
+@testable import Emby
 @testable import MediaLibrary
 import MediaSource
 import PlaybackCore
@@ -813,6 +814,139 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute() async throws {
+        let vectors = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestMedia/TestVectors/Enchron/PlaybackBehavior")
+        let fixtures = [
+            "sdr-bframe-multiaudio-subtitles-30s.mkv",
+            "sdr-bframe-video-only-15s.mp4"
+        ].map { vectors.appendingPathComponent($0) }
+        guard fixtures.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else {
+            throw XCTSkip("The playback behavior fixtures are not available in this test process.")
+        }
+        for fixture in fixtures {
+            let name = fixture.lastPathComponent
+            let size = Int64(try XCTUnwrap(
+                try FileManager.default.attributesOfItem(atPath: fixture.path)[.size] as? NSNumber
+            ).int64Value)
+            let local = try await observePlaybackRoute(
+                PlaybackLaunchRequest(url: fixture, displayName: name)
+            )
+            XCTAssertNotEqual(local.dimensions, "—", name)
+            XCTAssertTrue(local.seekLandedWithinOneSecond, name)
+            if fixture.pathExtension == "mkv" {
+                XCTAssertGreaterThan(local.audioTracks.count, 1, name)
+                XCTAssertFalse(local.subtitleTracks.isEmpty, name)
+            }
+
+            let shareHandle = try await MediaByteStreamServer.shared.register(
+                source: ParityFileByteRangeSource(fileURL: fixture, length: size),
+                filename: name,
+                preferredBufferDepth: .automatic
+            )
+            defer { shareHandle.release() }
+            let share = try await observePlaybackRoute(PlaybackLaunchRequest(
+                source: PlaybackAddress(byteStreamHandle: shareHandle),
+                displayName: name
+            ))
+            XCTAssertEqual(share, local, "the SMB/WebDAV shape diverged for \(name)")
+
+            ParityEmbyURLProtocol.serve(fixture, token: "parity-token")
+            defer { ParityEmbyURLProtocol.serve(nil, token: "") }
+            let embyHandle = try await MediaByteStreamServer.shared.register(
+                source: EmbyMediaByteSource(
+                    streamURL: try XCTUnwrap(URL(
+                        string: "https://emby.parity.test/emby/Videos/1/stream?Static=true&MediaSourceId=source"
+                    )),
+                    accessToken: "parity-token",
+                    contentLength: size,
+                    session: ParityEmbyURLProtocol.makeSession()
+                ),
+                filename: fixture.deletingPathExtension().lastPathComponent,
+                preferredBufferDepth: .automatic
+            )
+            defer { embyHandle.release() }
+            let emby = try await observePlaybackRoute(PlaybackLaunchRequest(
+                source: PlaybackAddress(byteStreamHandle: embyHandle),
+                displayName: fixture.deletingPathExtension().lastPathComponent,
+                initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: size, overview: nil),
+                viewingStateAuthority: .mediaServer
+            ))
+            XCTAssertEqual(emby, local, "the Emby shape diverged for \(name)")
+        }
+    }
+
+    @MainActor
+    private func observePlaybackRoute(
+        _ request: PlaybackLaunchRequest
+    ) async throws -> PlaybackRouteObservation {
+        let runtime = PlaybackRuntime()
+        defer { Task { @MainActor in await runtime.stopAndWait() } }
+        try await runtime.open(request)
+        let logicalSessionID = try XCTUnwrap(runtime.activeSessionID)
+        let session = try XCTUnwrap(runtime.activeSessionForVerification())
+        let entity = Entity()
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let host = try PlaybackRealityViewTestHost(entity: entity)
+        defer { host.close() }
+        try await host.waitUntilReady()
+        try runtime.attach(
+            entityID: "route-video-entity",
+            realityViewID: "route-reality-view",
+            presentation: .window
+        )
+        try runtime.claimRendererConsumer(presentation: .window, entityID: "route-video-entity")
+        runtime.videoRendererTargetDidBind(
+            revision: runtime.videoComponentRevision,
+            entityID: "route-video-entity"
+        )
+        try await runtime.beginPlaybackForPresentationSettlement(mediaSessionID: logicalSessionID)
+        _ = try await waitUntilPlaybackAdvances(runtime, session, beyond: .zero)
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        while runtime.diagnostics.dimensions == "—" {
+            guard clock.now - startedAt < PlaybackRuntime.presentationSettlementDeadline else {
+                throw PlaybackRealityViewTestHostError.playbackDidNotAdvance
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        let diagnostics = runtime.diagnostics
+        let seekTarget = min(8, max(1, diagnostics.durationSeconds - 3))
+        runtime.seek(to: seekTarget, event: .progressBar)
+        try await waitUntilSeekCompletes(runtime)
+        let landed = try await waitUntilPlaybackAdvances(
+            runtime,
+            session,
+            beyond: CMTime(seconds: seekTarget - 0.5, preferredTimescale: 600)
+        )
+        let observation = PlaybackRouteObservation(
+            codecName: diagnostics.codecName,
+            dimensions: diagnostics.dimensions,
+            durationTenths: Int((diagnostics.durationSeconds * 10).rounded()),
+            nominalFrameRateHundredths: Int((diagnostics.nominalFrameRate * 100).rounded()),
+            audioTracks: runtime.availableAudioTracks.map {
+                "\($0.id)|\($0.languageCode ?? "-")|\($0.displayName)"
+            },
+            subtitleTracks: runtime.availableSubtitleTracks.map {
+                "\($0.id)|\($0.languageCode ?? "-")|\($0.displayName)"
+            },
+            seekLandedWithinOneSecond: abs(landed.seconds - seekTarget) < 1,
+            userVisibleIssue: runtime.userVisibleIssue.map { String(describing: $0) }
+        )
+        await runtime.stopAndWait()
+        return observation
+    }
+
+    @MainActor
     func testTechnicalSessionEndingAfterCutoverRebasesAtTheFinalFrame()
         async throws {
         let fixture = URL(
@@ -1310,5 +1444,125 @@ private final class SuspendedPlaybackAudioSession: PlaybackAudioSessionManaging 
         activationContinuation?.resume()
         activationContinuation = nil
         isActivationSuspended = false
+    }
+}
+
+private struct PlaybackRouteObservation: Equatable {
+    let codecName: String
+    let dimensions: String
+    let durationTenths: Int
+    let nominalFrameRateHundredths: Int
+    let audioTracks: [String]
+    let subtitleTracks: [String]
+    let seekLandedWithinOneSecond: Bool
+    let userVisibleIssue: String?
+}
+
+nonisolated private final class ParityFileByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
+    private let fileURL: URL
+    private let length: Int64
+
+    init(fileURL: URL, length: Int64) {
+        self.fileURL = fileURL
+        self.length = length
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: length,
+            supportsSeeking: true,
+            isLive: false
+        )
+    }
+
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+        let start = min(range.lowerBound, length)
+        let end = min(range.upperBound, length)
+        try handle.seek(toOffset: UInt64(start))
+        let data = end > start ? try handle.read(upToCount: Int(end - start)) ?? Data() : Data()
+        return MediaByteRangeRead(data: data, contentLength: length, supportsSeeking: true)
+    }
+}
+
+nonisolated private final class ParityEmbyServedFile: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data: Data?
+    private var token = ""
+
+    func serve(_ url: URL?, token: String) {
+        let data = url.flatMap { try? Data(contentsOf: $0) }
+        lock.withLock {
+            self.data = data
+            self.token = token
+        }
+    }
+
+    func current() -> (Data, String)? {
+        lock.withLock { data.map { ($0, token) } }
+    }
+}
+
+nonisolated private final class ParityEmbyURLProtocol: URLProtocol {
+    private static let served = ParityEmbyServedFile()
+
+    static func serve(_ url: URL?, token: String) {
+        served.serve(url, token: token)
+    }
+
+    static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ParityEmbyURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool { true }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let (bytes, token) = Self.served.current(),
+              request.value(forHTTPHeaderField: "X-Emby-Token") == token,
+              let rangeHeader = request.value(forHTTPHeaderField: "Range"),
+              rangeHeader.hasPrefix("bytes="),
+              let response = Self.response(url: url, rangeHeader: rangeHeader, bytes: bytes) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response.0, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: response.1)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+
+    private static func response(
+        url: URL,
+        rangeHeader: String,
+        bytes: Data
+    ) -> (HTTPURLResponse, Data)? {
+        let bounds = rangeHeader.dropFirst("bytes=".count).split(separator: "-", omittingEmptySubsequences: false)
+        guard bounds.count == 2, let start = Int64(bounds[0]) else { return nil }
+        let total = Int64(bytes.count)
+        guard start < total else {
+            return HTTPURLResponse(
+                url: url,
+                statusCode: 416,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Range": "bytes */\(total)"]
+            ).map { ($0, Data()) }
+        }
+        let end = min(Int64(bounds[1]) ?? total - 1, total - 1)
+        let body = bytes[Int(start)...Int(end)]
+        return HTTPURLResponse(
+            url: url,
+            statusCode: 206,
+            httpVersion: "HTTP/1.1",
+            headerFields: [
+                "Content-Range": "bytes \(start)-\(end)/\(total)",
+                "Content-Length": "\(body.count)",
+                "Content-Type": "application/octet-stream"
+            ]
+        ).map { ($0, Data(body)) }
     }
 }

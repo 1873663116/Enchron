@@ -107,7 +107,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             return .credentialsRejected
         case .invalidImageSize, .invalidResponse, .httpStatus, .missingRequiredField,
              .childrenUnavailable, .directPlayUnavailable, .externalSubtitleUnavailable,
-             .mediaSourceUnavailable, .unsupportedVideoCodec, .notAuthenticated:
+             .mediaSourceUnavailable, .notAuthenticated:
             return nil
         }
     }
@@ -625,13 +625,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         guard let id = source.id, id.isEmpty == false else {
             throw EmbyError.missingRequiredField("MediaSources[].Id")
         }
-        guard let container = source.container, container.isEmpty == false else {
-            throw EmbyError.missingRequiredField("MediaSources[].Container")
-        }
         let itemID = item.metadata.id
         let directPlayURL = try url(
             address: server.baseAddress,
-            path: "/Videos/\(itemID.rawValue)/stream.\(container)",
+            path: "/Videos/\(itemID.rawValue)/stream",
             queryItems: [
                 URLQueryItem(name: "Static", value: "true"),
                 URLQueryItem(name: "MediaSourceId", value: id),
@@ -645,8 +642,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             id: EmbyMediaSourceID(rawValue: id),
             displayName: source.name?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? source.path?.lastPathComponentFromServerPath
-                ?? container.uppercased(),
-            container: container,
+                ?? source.container?.uppercased()
+                ?? "Video",
+            container: source.container,
             sizeInBytes: Self.positiveByteCount(source.size),
             mediaStreams: streams,
             defaultStreamIndexes: EmbyDefaultStreamIndexes(

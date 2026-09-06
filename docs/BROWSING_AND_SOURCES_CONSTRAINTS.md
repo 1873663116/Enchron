@@ -66,6 +66,12 @@
 - **图片先完成原子磁盘写，再在内存里暴露**，避免读者看到半张图。
 - **产品在来源被添加时收到一次地址，此后在它打开的会话存续期间一直向那个路径发请求**。移动端点的激活会由产品已绑定的会话应答，注入的每一个故障因此都会带上同一个签名。见 `Scripts/rules/test_regression_remote_source.py`。
 
+## Emby 交给播放核心的只有字节
+
+- **流地址不带容器扩展名**：`/Videos/{id}/stream?Static=true&MediaSourceId=…`。Emby 对带扩展名与不带扩展名的地址回同一份字节（在真实服务器上核对过一部正常 MP4 与一部 Container 标成 mpegts 的 M2TS），带上扩展名只会把服务器自述的容器名塞进地址；`MediaSources[].Container` 会错，播放核心自己从内容判定容器，所以它在 `EmbyMediaSource` 上只是展示信息，缺失也不阻止播放。
+- **服务器自述的视频编码不预先拒绝播放**。以前 `EmbyPlaybackBridge` 用 Emby 报的 codec 名对照一张自己的白名单，在打开之前就抛错；那张表与播放核心的解码判定是两份会漂移的真相，而且自述可以错。现在编码是否可放由播放核心打开字节后判定，Emby 与本地文件走同一条路、得到同一种 "Unable to Play"。断言见 `Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift` 的 `declaredCodecDoesNotGatePlayback`。
+- **同一个文件经本地、共享（SMB／WebDAV 登记真实文件名）、Emby（登记无扩展名的服务器名字、经 `EmbyMediaByteSource` 取字节）三种形态送进播放核心，核心报出的编码、尺寸、时长、帧率、音轨、字幕轨、起播与 seek 落点必须完全一致**。任何一条路和本地不一样，就是中转链掉了东西。断言见 `Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift` 的 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute`（MKV 多轨与 MP4 各跑三条路）。
+
 ## SMB 与 WebDAV 的形状
 
 - SMB 连接后**共享在根一级仍然表现为文件夹**，服务器本身是来源根；以 `$` 结尾的管理/隐藏共享被过滤掉。

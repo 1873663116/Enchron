@@ -598,7 +598,7 @@ public struct EmbyDefaultStreamIndexes: Equatable, Hashable, Sendable {
 public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
     public let id: EmbyMediaSourceID
     public let displayName: String
-    public let container: String
+    public let container: String?
     public let sizeInBytes: Int64?
     public let mediaStreams: [EmbyMediaStream]
     public let defaultStreamIndexes: EmbyDefaultStreamIndexes
@@ -608,7 +608,7 @@ public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
     public init(
         id: EmbyMediaSourceID,
         displayName: String,
-        container: String,
+        container: String?,
         sizeInBytes: Int64?,
         mediaStreams: [EmbyMediaStream],
         defaultStreamIndexes: EmbyDefaultStreamIndexes,
@@ -674,7 +674,6 @@ public enum EmbyError: Error, Equatable, Sendable {
     case directPlayUnavailable(EmbyItemID)
     case externalSubtitleUnavailable(Int)
     case mediaSourceUnavailable(EmbyItemID, EmbyMediaSourceID)
-    case unsupportedVideoCodec(String)
     case notAuthenticated
 }
 
@@ -699,18 +698,8 @@ extension EmbyError: LocalizedError {
             "Emby did not provide external subtitle track \(index)."
         case .mediaSourceUnavailable:
             "The selected Emby media source is unavailable."
-        case let .unsupportedVideoCodec(codec):
-            "This video uses \(Self.videoCodecDisplayName(codec)), which Enchron does not support."
         case .notAuthenticated:
             "Sign in to the Emby server before playing this item."
-        }
-    }
-
-    private static func videoCodecDisplayName(_ codec: String) -> String {
-        switch codec.lowercased() {
-        case "vc1": "VC-1 video"
-        case "mpeg2video": "MPEG-2 video"
-        default: "\(codec.uppercased()) video"
         }
     }
 }

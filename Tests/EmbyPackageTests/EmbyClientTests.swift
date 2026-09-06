@@ -430,7 +430,7 @@ struct EmbyClientTests {
         #expect(source.mediaStreams[2].deliveryURL == "/subtitle")
         let directURL = try #require(URLComponents(url: source.directPlayURL, resolvingAgainstBaseURL: false))
         let directQuery = Dictionary(uniqueKeysWithValues: (directURL.queryItems ?? []).map { ($0.name, $0.value) })
-        #expect(directURL.path == "/emby/Videos/movie-1/stream.mkv")
+        #expect(directURL.path == "/emby/Videos/movie-1/stream")
         #expect(directQuery["Static"] == "true")
         #expect(directQuery["MediaSourceId"] == "source-1")
         #expect(directQuery["api_key"] == "token")

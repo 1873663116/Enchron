@@ -6,8 +6,8 @@ import Testing
 @testable import Emby
 
 struct EmbyPlaybackBridgeTests {
-    @Test("an unsupported declared video codec is rejected before playback starts")
-    func unsupportedVideoCodec() async throws {
+    @Test("a codec the server declares is left for the playback core to judge from the bytes")
+    func declaredCodecDoesNotGatePlayback() async throws {
         let item = movie(id: "movie", resumeTicks: 0)
         let source = mediaSource(
             id: "source",
@@ -25,17 +25,14 @@ struct EmbyPlaybackBridgeTests {
         )
         let bridge = EmbyPlaybackBridge(client: client, server: server)
 
-        await #expect(throws: EmbyError.unsupportedVideoCodec("vc1")) {
-            try await bridge.request(for: EmbyPlaybackSelection(
-                item: item,
-                mediaSourceID: source.id,
-                startAction: .fromBeginning
-            ))
-        }
-        #expect(
-            EmbyError.unsupportedVideoCodec("vc1").localizedDescription
-                == "This video uses VC-1 video, which Enchron does not support."
-        )
+        let request = try await bridge.request(for: EmbyPlaybackSelection(
+            item: item,
+            mediaSourceID: source.id,
+            startAction: .fromBeginning
+        ))
+
+        #expect(request.url.host == "127.0.0.1")
+        #expect(request.source.byteStreamHandle != nil)
     }
 
     @Test("playback requests use fresh server state and the selected direct-play source")

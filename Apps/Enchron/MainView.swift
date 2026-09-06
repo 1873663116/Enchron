@@ -302,12 +302,6 @@ public struct MainView: View {
             let request = try await embySession.playbackRequest(for: selection)
             SurfaceInputProbes.record("openRequestForwarded")
             playbackLauncher.requestPlayback(request)
-        } catch EmbyError.unsupportedVideoCodec(let codec) {
-            playbackRuntime.setUserVisibleIssue(
-                .unsupportedVideoCodec(
-                    PlaybackUnsupportedVideoCodec(codecName: codec)
-                )
-            )
         } catch {
             logger.error(
                 "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
