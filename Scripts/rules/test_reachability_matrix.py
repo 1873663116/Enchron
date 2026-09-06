@@ -2565,10 +2565,15 @@ class SegmentedDeliveryTests(unittest.TestCase):
             operation="accessibility:old-reachable",
             verdict="reachable",
         )
+        redriven_defect = self.segment(
+            name="defect",
+            operation="accessibility:candidate",
+            verdict="known-defect",
+        )
 
         delivery = matrix.merge_segment_delivery(
             self.baseline,
-            [candidate],
+            [candidate, redriven_defect],
             require_baseline_coverage=True,
             no_regression_cells={
                 ("portal", "accessibility:uncovered"),
@@ -2580,6 +2585,37 @@ class SegmentedDeliveryTests(unittest.TestCase):
         self.assertEqual(
             delivery["noRegressionCoveredCells"],
             [{"context": "portal", "operation": "accessibility:uncovered"}],
+        )
+
+    def test_an_old_known_defect_cell_must_be_redriven(self) -> None:
+        candidate = self.segment(
+            name="candidate",
+            operation="accessibility:old-reachable",
+            verdict="reachable",
+        )
+
+        delivery = matrix.merge_segment_delivery(
+            self.baseline,
+            [candidate],
+            require_baseline_coverage=True,
+            no_regression_cells={
+                ("portal", "accessibility:uncovered"),
+            },
+        )
+
+        self.assertFalse(delivery["accepted"])
+        self.assertEqual(
+            delivery["uncoveredKnownDefectCells"],
+            [
+                {
+                    "context": "main-window-browser",
+                    "operation": "accessibility:candidate",
+                }
+            ],
+        )
+        self.assertEqual(
+            [failure["reason"] for failure in delivery["failures"]],
+            ["old-known-defect-not-redriven"],
         )
 
     def test_no_regression_evidence_cannot_hide_device_defect_evidence(self) -> None:
@@ -3141,6 +3177,50 @@ class EvidenceSessionAdoptionTests(unittest.TestCase):
         self.assertFalse(replay["passed"])
         self.assertFalse(replay["sessionAligned"])
         self.assertFalse(cells[("window", operation)]["applicationReceived"])
+
+    def test_segment_with_undriven_planned_decisions_reports_incomplete(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
+        run.segment = {
+            "id": "window-01",
+            "context": "window",
+            "scenarios": [],
+            "decisions": [
+                {"context": "window", "operation": "accessibility:PlayerUI-play"},
+                {"context": "window", "operation": "accessibility:PlayerUI-menu-audio"},
+            ],
+        }
+        run.session_id = "runner-1"
+        run.evidence_session = "evidence-1"
+        run.operations = {}
+        run.cells = {}
+        run.driven_cells = {("window", "accessibility:PlayerUI-play")}
+        run.tapped_cells = set()
+        run.events = []
+        run.channel_failures = []
+        run.channel_health = {}
+        run.deferred_command_ids = set()
+        run.deferred_deliveries = []
+        run.probe_status = {"passed": True, "byteLimit": 196608}
+        run.direct_transfer_calls = 0
+        run.probe_retrieval_count = 0
+        run.evidence_retrieval_transfer_calls = 0
+        run.policy = matrix.RecoveryPolicy()
+        run.service_hosts = {}
+        run.service_receipts = {}
+        output = Path(TemporaryDirectory().name)
+        output.mkdir(parents=True, exist_ok=True)
+        run.output = output
+
+        exit_code = run.finish_segment("complete")
+
+        document = json.loads((output / "results.json").read_text())
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(document["status"], "incomplete")
+        self.assertEqual(
+            document["plannedButNotDrivenCells"],
+            [{"context": "window", "operation": "accessibility:PlayerUI-menu-audio"}],
+        )
 
     def test_segment_without_keep_session_stops_runner(self) -> None:
         import uuid as uuid_module

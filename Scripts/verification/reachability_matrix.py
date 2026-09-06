@@ -1018,6 +1018,22 @@ def merge_segment_delivery(
             "reason": "old-reachable-not-driven",
         } for cell in uncovered_reachable_cells)
 
+    uncovered_known_defect_cells = [
+        {
+            "context": str(cell["context"]),
+            "operation": str(cell["operation"]),
+        }
+        for cell in baseline_cells
+        if cell.get("verdict") == "known-defect"
+        and (str(cell["context"]), str(cell["operation"])) not in covered_keys
+    ]
+    if require_baseline_coverage:
+        failures.extend({
+            "context": cell["context"],
+            "operation": cell["operation"],
+            "reason": "old-known-defect-not-redriven",
+        } for cell in uncovered_known_defect_cells)
+
     return {
         "accepted": bool(accepted_segments) and not failures,
         "acceptedSegments": accepted_segments,
@@ -1032,6 +1048,7 @@ def merge_segment_delivery(
         ],
         "failures": failures,
         "uncoveredReachableCells": uncovered_reachable_cells,
+        "uncoveredKnownDefectCells": uncovered_known_defect_cells,
         "unassessedLegacyDrivenCells": unassessed_legacy_driven_cells,
         "candidateCells": [
             candidate_by_key[(str(cell["context"]), str(cell["operation"]))]
@@ -8424,6 +8441,12 @@ class ReachabilityRun:
             {"context": context, "operation": operation}
             for context, operation in sorted(self.tapped_cells)
         ]
+        planned_not_driven = [
+            {"context": context, "operation": operation}
+            for context, operation in sorted(planned - self.driven_cells)
+        ]
+        if status == "complete" and planned_not_driven:
+            status = "incomplete"
         controller_transfer_calls = sum(
             int(event.get("transportCallCount", 0) or 0)
             for event in self.events
@@ -8500,6 +8523,7 @@ class ReachabilityRun:
                 for cell in driven
                 if (cell["context"], cell["operation"]) not in planned
             ],
+            "plannedButNotDrivenCells": planned_not_driven,
             "stepCount": len(self.events),
             "timingSamples": timing_samples_summary(self.output),
             "serviceHosts": getattr(self, "service_hosts", {}),
