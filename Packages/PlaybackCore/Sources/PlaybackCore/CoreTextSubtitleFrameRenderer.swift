@@ -6,15 +6,6 @@ import Foundation
 final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
     static let canvasWidth = 1_920
     static let canvasHeight = 1_080
-    static let fontName = "Helvetica Neue"
-    static let lineHeight: CGFloat = 64
-    static let horizontalMargin: CGFloat = 80
-    static let bottomMargin: CGFloat = 54
-    static let outlineWidth: CGFloat = 3
-    static let shadowOffset: CGFloat = 1
-    static let fillColor = CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)
-    static let outlineColor = CGColor(srgbRed: 0.063, green: 0.063, blue: 0.063, alpha: 1)
-    static let shadowColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.5)
     static let codecNames: Set<String> = ["subrip", "srt", "webvtt", "mov_text", "text", "tx3g"]
 
     static func rendersTextTrack(codecName: String) -> Bool {
@@ -23,16 +14,47 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
 
     private let source: FFmpegSubtitleFrameRenderer
     private let track: PlaybackSubtitleTrack
+    private let resolveStyle: @Sendable () -> CoreTextSubtitleStyle
     private let lock = NSLock()
+    private var style: CoreTextSubtitleStyle
     private var cues: [PlaybackSubtitleCue]
     private var lastText: String?
     private var lastFrame: PlaybackSubtitleFrame?
     private var changeIdentifier: UInt64 = 0
+    private var settingsObserver: NSObjectProtocol?
 
-    init(source: FFmpegSubtitleFrameRenderer, track: PlaybackSubtitleTrack) throws {
+    init(
+        source: FFmpegSubtitleFrameRenderer,
+        track: PlaybackSubtitleTrack,
+        style: @escaping @Sendable () -> CoreTextSubtitleStyle = CoreTextSubtitleStyle.captionAppearance
+    ) throws {
         self.source = source
         self.track = track
+        resolveStyle = style
+        self.style = style()
         cues = try source.textCues(for: track)
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: CoreTextSubtitleStyle.settingsChangedNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            self?.reloadStyle()
+        }
+    }
+
+    deinit {
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+        }
+    }
+
+    func reloadStyle() {
+        let next = resolveStyle()
+        lock.withLock {
+            style = next
+            lastText = nil
+            lastFrame = nil
+        }
     }
 
     func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
@@ -65,38 +87,51 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
             changeIdentifier &+= 1
             lastFrame = text.isEmpty
                 ? nil
-                : Self.rasterize(text, changeIdentifier: changeIdentifier)
+                : Self.rasterize(text, changeIdentifier: changeIdentifier, style: style)
             return lastFrame
         }
     }
 
     static func rasterize(
         _ text: String,
-        changeIdentifier: UInt64
+        changeIdentifier: UInt64,
+        style: CoreTextSubtitleStyle = CoreTextSubtitleStyle()
     ) -> PlaybackSubtitleFrame? {
         guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        let font = Self.font()
+        let emSize = style.emSize(canvasHeight: canvasHeight)
+        let font = style.font(emSize: emSize)
+        let outlineWidth = style.outlineWidth(emSize: emSize)
+        var lineAdvance = style.lineAdvance(emSize: emSize)
         var alignment = CTTextAlignment.center
         let settings = [
             CTParagraphStyleSetting(
                 spec: .alignment,
                 valueSize: MemoryLayout<CTTextAlignment>.size,
                 value: &alignment
+            ),
+            CTParagraphStyleSetting(
+                spec: .minimumLineHeight,
+                valueSize: MemoryLayout<CGFloat>.size,
+                value: &lineAdvance
+            ),
+            CTParagraphStyleSetting(
+                spec: .maximumLineHeight,
+                valueSize: MemoryLayout<CGFloat>.size,
+                value: &lineAdvance
             )
         ]
         let paragraph = CTParagraphStyleCreate(settings, settings.count)
-        let pointSize = CTFontGetSize(font)
-        let outlineStrokePercent = outlineWidth * 2 / pointSize * 100
+        let outlineStrokePercent = outlineWidth * 2 / emSize * 100
         let outlineAttributes: [CFString: Any] = [
             kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: outlineColor,
+            kCTForegroundColorAttributeName: CoreTextSubtitleStyle.outlineColor,
             kCTStrokeWidthAttributeName: outlineStrokePercent as CFNumber,
-            kCTStrokeColorAttributeName: outlineColor,
+            kCTStrokeColorAttributeName: CoreTextSubtitleStyle.outlineColor,
             kCTParagraphStyleAttributeName: paragraph
         ]
         let fillAttributes: [CFString: Any] = [
             kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: fillColor,
+            kCTForegroundColorAttributeName: style.fillColor,
             kCTParagraphStyleAttributeName: paragraph
         ]
         guard let outlined = CFAttributedStringCreate(
@@ -110,6 +145,8 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
         ) else { return nil }
         let outlineFramesetter = CTFramesetterCreateWithAttributedString(outlined)
         let fillFramesetter = CTFramesetterCreateWithAttributedString(filled)
+        let horizontalMargin = CoreTextSubtitleStyle.horizontalMargin(canvasWidth: canvasWidth)
+        let bottomMargin = CoreTextSubtitleStyle.bottomMargin(canvasHeight: canvasHeight)
         let blockWidth = CGFloat(canvasWidth) - horizontalMargin * 2
         let suggested = CTFramesetterSuggestFrameSizeWithConstraints(
             fillFramesetter,
@@ -118,11 +155,12 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
             CGSize(width: blockWidth, height: CGFloat(canvasHeight)),
             nil
         )
-        let padding = outlineWidth + shadowOffset + 2
-        let blockHeight = min(
-            CGFloat(canvasHeight) - bottomMargin,
-            ceil(suggested.height) + padding * 2
-        )
+        let padding = ceil(outlineWidth + style.shadowExtent(emSize: emSize) + 2)
+        let textHeight = ceil(min(
+            suggested.height,
+            lineAdvance * CGFloat(CoreTextSubtitleStyle.maximumLines) + 0.5
+        ))
+        let blockHeight = textHeight + padding * 2
         let width = Int(ceil(blockWidth))
         let height = Int(ceil(blockHeight))
         guard width > 0, height > 0 else { return nil }
@@ -144,17 +182,19 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
                     x: 0,
                     y: padding,
                     width: blockWidth,
-                    height: blockHeight - padding
+                    height: textHeight
                 ),
                 transform: nil
             )
             let range = CFRange(location: 0, length: 0)
             context.saveGState()
-            context.setShadow(
-                offset: CGSize(width: shadowOffset, height: -shadowOffset),
-                blur: 0,
-                color: shadowColor
-            )
+            if let shadowOffset = style.shadowOffset(emSize: emSize) {
+                context.setShadow(
+                    offset: shadowOffset,
+                    blur: style.shadowBlur(emSize: emSize),
+                    color: CoreTextSubtitleStyle.shadowColor
+                )
+            }
             CTFrameDraw(CTFramesetterCreateFrame(outlineFramesetter, range, path, nil), context)
             context.restoreGState()
             CTFrameDraw(CTFramesetterCreateFrame(fillFramesetter, range, path, nil), context)
@@ -194,12 +234,5 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
             premultipliedBGRA: cropped,
             changeIdentifier: changeIdentifier
         )
-    }
-
-    static func font() -> CTFont {
-        let nominal = CTFontCreateWithName(fontName as CFString, lineHeight, nil)
-        let cellHeight = CTFontGetAscent(nominal) + CTFontGetDescent(nominal)
-        guard cellHeight > 0 else { return nominal }
-        return CTFontCreateWithName(fontName as CFString, lineHeight * lineHeight / cellHeight, nil)
     }
 }

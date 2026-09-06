@@ -328,7 +328,10 @@ import Testing
     #expect(frame.kind == .coreText)
     #expect(frame.canvasWidth == 1_920)
     #expect(frame.canvasHeight == 1_080)
-    #expect(frame.contentY + frame.contentHeight <= 1_080 - 54)
+    #expect(
+        frame.contentY + frame.contentHeight
+            <= 1_080 - Int(CoreTextSubtitleStyle.bottomMargin(canvasHeight: 1_080))
+    )
     #expect(frame.premultipliedBGRA.count == frame.bytesPerRow * frame.contentHeight)
     let glyphs = visibleGlyphFingerprints(in: frame)
     #expect(glyphs.count == 4)
@@ -339,6 +342,88 @@ import Testing
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ) == nil)
+}
+
+@Test func subtitleStyleDerivesFromTheCanvasAndTheCaptionFont() throws {
+    let style = CoreTextSubtitleStyle()
+    let emSize = style.emSize(canvasHeight: 1_080)
+    #expect(emSize == 54)
+    #expect(abs(style.lineAdvance(emSize: emSize) - 64.8) < 0.001)
+    #expect(abs(style.outlineWidth(emSize: emSize) - 3.24) < 0.001)
+    #expect(CoreTextSubtitleStyle.horizontalMargin(canvasWidth: 1_920) == 96)
+    #expect(CoreTextSubtitleStyle.bottomMargin(canvasHeight: 1_080) == 54)
+    #expect(style.edgeShadow == .none)
+    #expect(style.shadowOffset(emSize: emSize) == nil)
+    #expect(CoreTextSubtitleStyle.edgeShadow(for: .uniform) == .none)
+    #expect(CoreTextSubtitleStyle.edgeShadow(for: .raised) == .raised)
+    #expect(CoreTextSubtitleStyle.edgeShadow(for: .dropShadow) == .dropShadow)
+    for candidate in [style, CoreTextSubtitleStyle.captionAppearance()] {
+        let font = candidate.font(emSize: emSize)
+        #expect(CTFontGetSize(font) == emSize)
+        let traits = CTFontCopyTraits(font) as NSDictionary
+        let weight = traits[kCTFontWeightTrait] as? Double ?? 0
+        #expect(weight > 0)
+    }
+    let appearance = CoreTextSubtitleStyle.captionAppearance()
+    #expect(appearance.relativeCharacterSize > 0)
+    #expect(appearance.fillColor.alpha > 0)
+}
+
+@Test func subtitleStyleScalesWithTheUserCaptionCharacterSize() throws {
+    let regular = try #require(CoreTextSubtitleFrameRenderer.rasterize(
+        "字幕",
+        changeIdentifier: 1,
+        style: CoreTextSubtitleStyle(relativeCharacterSize: 1)
+    ))
+    let large = try #require(CoreTextSubtitleFrameRenderer.rasterize(
+        "字幕",
+        changeIdentifier: 2,
+        style: CoreTextSubtitleStyle(relativeCharacterSize: 1.5)
+    ))
+    #expect(abs(Double(large.contentHeight) - Double(regular.contentHeight) * 1.5) <= 4)
+    #expect(abs(Double(large.contentWidth) - Double(regular.contentWidth) * 1.5) <= 6)
+    #expect(large.contentX >= Int(CoreTextSubtitleStyle.horizontalMargin(canvasWidth: 1_920)))
+    #expect(
+        large.contentY + large.contentHeight
+            <= 1_080 - Int(CoreTextSubtitleStyle.bottomMargin(canvasHeight: 1_080))
+    )
+}
+
+@Test func subtitleBlockNeverExceedsThreeLines() throws {
+    let style = CoreTextSubtitleStyle()
+    let emSize = style.emSize(canvasHeight: 1_080)
+    let lineAdvance = style.lineAdvance(emSize: emSize)
+    let padding = ceil(style.outlineWidth(emSize: emSize) + 2)
+    let three = try #require(CoreTextSubtitleFrameRenderer.rasterize(
+        (1...3).map { "第\($0)行" }.joined(separator: "\n"),
+        changeIdentifier: 1,
+        style: style
+    ))
+    let six = try #require(CoreTextSubtitleFrameRenderer.rasterize(
+        (1...6).map { "第\($0)行" }.joined(separator: "\n"),
+        changeIdentifier: 2,
+        style: style
+    ))
+    #expect(Double(three.contentHeight) > Double(lineAdvance) * 2)
+    #expect(Double(six.contentHeight) <= Double(lineAdvance) * 3 + Double(padding) * 2)
+    #expect(abs(six.contentHeight - three.contentHeight) <= 2)
+}
+
+@Test func subtitleDefaultStyleDrawsNoShadowUnlessTheUserPicksAnEdgeStyle() throws {
+    let plain = try #require(CoreTextSubtitleFrameRenderer.rasterize(
+        "字幕",
+        changeIdentifier: 1,
+        style: CoreTextSubtitleStyle()
+    ))
+    let shadowed = try #require(CoreTextSubtitleFrameRenderer.rasterize(
+        "字幕",
+        changeIdentifier: 2,
+        style: CoreTextSubtitleStyle(edgeShadow: .dropShadow)
+    ))
+    let shadowOffset = CoreTextSubtitleStyle().emSize(canvasHeight: 1_080)
+        * CoreTextSubtitleStyle.shadowOffsetEmFraction
+    #expect(Double(shadowed.contentHeight - plain.contentHeight) >= Double(shadowOffset))
+    #expect(shadowed.contentWidth >= plain.contentWidth)
 }
 
 @Test func assSubtitleRendererDrawsHanCharactersInsteadOfMissingGlyphBoxes() async throws {

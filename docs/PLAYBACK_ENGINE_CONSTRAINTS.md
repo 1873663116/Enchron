@@ -110,6 +110,10 @@ visionOS 上 CoreText 为汉字回退选出的系统字体是 `PingFangUI.ttc`�
 
 落点：文本类字幕（subrip、webvtt、mov_text、text）的帧由 `CoreTextSubtitleFrameRenderer` 用 CoreText 光栅化，系统字体回退由 CoreText 完成；libass 只服务 ASS／SSA 与位图字幕，ASS 样式点名的字体缺席时由 libass 的 CoreText provider 回退到 PingFang。断言在 `PlaybackCoreTests`：`assSubtitleRendererDrawsHanCharactersInsteadOfMissingGlyphBoxes`（五个单字帧两两不同，缺字方框彼此相同；只在 visionOS 模拟器通道上有区分度）、`textSubtitleRendererDrawsDistinctCJKCharactersInsteadOfMissingGlyphBoxes`。
 
+## 文本字幕的默认样式来自画布分数与系统字幕外观
+
+`CoreTextSubtitleFrameRenderer` 的样式是 `CoreTextSubtitleStyle`：画布分数与 Media Accessibility 用户域字幕外观（`MACaptionAppearance*`，`.user`）的合成，不再是绝对像素常数。字号 = 画布高的 5% × `RelativeCharacterSize`（默认 1.0，系统的 "Outline Text" 1.5、"Large Text" 1.75），字体来自 `CopyFontDescriptorForStyle(.default)`（visionOS 27 与 macOS 27 上都是系统字体 Medium；描述符不带字号，5% 由应用负责），填充色与不透明度来自 `CopyForegroundColor`／`GetForegroundOpacity`；边缘始终有 0.06 em 的纯黑外描边，只在用户选了 Raised／Depressed／Drop Shadow 时按 WebKit 的几何（±0.1 em 偏移、0.16 em 模糊）加阴影；行距 1.2 em，左右与底边距各为画布的 5%，块高最多三行，超出的行不画。汉字仍由 CoreText 级联回退到 PingFang。这组数字落在主流播放器的带宽内：mpv 5.28%H、描边 4.3% em、无阴影；VLC 6.25%H、描边 4% 字高；FFmpeg 给 SRT 的 libass 头 5.56%H、描边 6.25% em、无阴影；Apple 自己的渲染器（WebKit）5% 最小边 × 字符比例、SF Medium、默认无描边。`MACaptionAppearanceGetDisplayType` 只管字幕是否自动开启，不参与样式。用户改字幕外观时 `kMACaptionAppearanceSettingsChangedNotification` 让渲染器重解析样式并作废缓存帧，下一帧带新的 `changeIdentifier`。`default_ass_header`（只给无头 ASS 流的 libass 样式）保持同一组数字。断言在 `PlaybackCoreTests`：`subtitleStyleDerivesFromTheCanvasAndTheCaptionFont`、`subtitleStyleScalesWithTheUserCaptionCharacterSize`、`subtitleBlockNeverExceedsThreeLines`、`subtitleDefaultStyleDrawsNoShadowUnlessTheUserPicksAnEdgeStyle`。
+
 ## 换音轨要走 seek 的重新武装路径
 
 换音轨时会话停住时间线、冲掉音频渲染器并重新打开音频 provider；共享 demux 来源同时需要 seek 回当前位置并重新打开视频 provider。此后直接 `setRate(rate, time:)` 恢复速率，在 visionOS 上得到的是请求速率为 1 而实际时基为 0 的时间线（见"visionOS 的时基与速率激活"）：新音轨还没有 preroll，同步器不会启动，画面停住而 UI 仍显示播放。正确的恢复与 seek 相同——`hasStartedTimeline = false`、`timelineStartRate = rate`、`requestedTimelineStart = 当前时间`、重置 decoder bootstrap 并冲掉视频渲染器（保留已显示的画面）——让 bootstrap 与音频 preroll 之后的 `setRateAtHostTime` 激活时间线。断言在 `PlaybackCoreTests`：`audioTrackSelectionWhilePlayingRestartsTheTimelineThroughPreroll`。
