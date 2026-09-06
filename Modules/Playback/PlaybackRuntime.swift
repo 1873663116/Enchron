@@ -994,6 +994,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     "explicit Play kept running while displayed-frame identity awaits visual evidence"
                 )
             }
+            if continuity == .supersededByPause {
+                PlaybackTrace.event("runtime.resume.supersededByPause")
+                return
+            }
             PlaybackTrace.event("runtime.resume.completed")
         }
 

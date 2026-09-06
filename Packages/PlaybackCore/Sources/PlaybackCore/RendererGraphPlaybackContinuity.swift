@@ -25,10 +25,11 @@ public enum RendererGraphPlaybackContinuity: String, Codable, Equatable, Sendabl
     case awaitingAcceptedSample
     case awaitingActualTimebaseRate
     case awaitingDisplayedFrameAdvance
+    case supersededByPause
 
     public var explicitPlayMayContinue: Bool {
         switch self {
-        case .ready, .awaitingDisplayedFrameAdvance:
+        case .ready, .awaitingDisplayedFrameAdvance, .supersededByPause:
             true
         case .wrongGraphRevision, .awaitingAcceptedSample,
                 .awaitingActualTimebaseRate:

@@ -408,8 +408,10 @@ public final class PlaybackCoreController {
                 requiredGraphRevision: baseline.graphRevision
             )
             if result == .ready { return .ready }
+            if activeSession.currentRate() == 0 { return .supersededByPause }
             try await Task.sleep(for: .milliseconds(25))
         }
+        if activeSession.currentRate() == 0 { return .supersededByPause }
         return RendererGraphPlaybackContinuity.evaluate(
             baseline: baseline,
             current: activeSession.rendererGraphPlaybackObservation(),

@@ -105,6 +105,10 @@ Profile 7 把配置记录放在**增强流**而不是被解码的基础层上，
 
 `Tools/RemoteMediaProbe` 的跨度限制一律从**第一个 presentation time** 起算，而不是从零。Apple 的 projected-media 示例首样本的时间戳接近十秒，按绝对界计量时它们在交付第二帧之前就已满足要求。
 
+## 连续播放证明与用户暂停
+
+`playAndVerifyRendererGraphContinuity` 在 play 之后最多等三秒，要求 accepted input、实际时基速率、显示进度三者都前进。这三秒里用户可以再按一次暂停：时基速率归零是用户的意图，不是渲染器的故障。证明因此在每轮采样先看 `currentRate()`，速率为零即返回 `supersededByPause`，`explicitPlayMayContinue` 为真，运行时不报 `Playback Error`。断言在 `PlaybackCoreTests`：`explicitPauseDuringTheContinuityProofSupersedesTheProofInsteadOfFailingIt`。
+
 ## 显示证据为什么要两次身份变化
 
 一个非空的 displayed pixel buffer 只证明存在一张图像。同一个 IOSurface 身份可以在后续帧写入时被复用，因此"这个 renderer graph 呈现了更晚的帧"要由 Core Video 身份的变化来记，且转移门要求两次这样的变化。`RendererGraphPlaybackContinuity` 刻意把 accepted input、同步器的实际速率、显示进度三者分开，就是因为其中任何一条单独都不足以判定。

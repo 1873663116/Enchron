@@ -2600,6 +2600,45 @@ func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() asy
     #expect(result != .ready)
 }
 
+@MainActor
+@Test
+func explicitPauseDuringTheContinuityProofSupersedesTheProofInsteadOfFailingIt() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let session = SampleBufferPlaybackSession(
+        traceID: "pause-during-continuity-proof",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    let controller = PlaybackCoreController(
+        sessionFactory: { _ in session },
+        debugRecorderMode: .disabledForVerification
+    )
+    defer { session.close() }
+
+    _ = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/pause-during-continuity-proof.mov")
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try await setRateWhenTimelineIsReady(1, in: session)
+    try controller.pause()
+
+    let proof = Task {
+        try await controller.playAndVerifyRendererGraphContinuity(timeout: .seconds(2))
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    try controller.pause()
+    let started = ContinuousClock.now
+    let result = try await proof.value
+
+    #expect(result == .supersededByPause)
+    #expect(result.explicitPlayMayContinue)
+    #expect(ContinuousClock.now - started < .seconds(1))
+    #expect(controller.status == .paused)
+}
+
 @Test
 func liveProjectionOverrideKeepsImmutableRendererGraphAndTimeline() async throws {
     let sourceProjection = kCMFormatDescriptionProjectionKind_Equirectangular as String
@@ -5030,3 +5069,4 @@ private final class LockedBox<Value>: @unchecked Sendable {
         return body(&value)
     }
 }
+
