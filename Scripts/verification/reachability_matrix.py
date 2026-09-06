@@ -5765,6 +5765,15 @@ class ReachabilityRun:
                 "Connect reached the product handler and restored the same authenticated server identity.",
             )
 
+    def first_hittable_identifier(self, identifiers: list[str]) -> str | None:
+        for identifier in identifiers[:8]:
+            matched = self.controller(
+                "snapshot", "--identifier", identifier, "--no-screenshot",
+            ).get("matchedElement")
+            if isinstance(matched, dict) and matched.get("isHittable") is True:
+                return identifier
+        return identifiers[0] if identifiers else None
+
     def emby_content_scenario(self) -> None:
         if not self.ensure_emby_sign_in():
             return
@@ -5779,12 +5788,11 @@ class ReachabilityRun:
 
         def open_card(prefix: str, operation_id: str) -> tuple[str | None, dict[str, Any]]:
             home = emby_home_snapshot()
-            identifier = next(
-                (
-                    value for value in sorted(self.hierarchy_identifiers(home))
+            identifier = self.first_hittable_identifier(
+                sorted(
+                    value for value in self.hierarchy_identifiers(home)
                     if value.startswith(prefix)
-                ),
-                None,
+                )
             )
             if identifier is None:
                 return None, home
