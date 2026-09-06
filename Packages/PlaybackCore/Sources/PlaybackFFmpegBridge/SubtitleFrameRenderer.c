@@ -24,6 +24,14 @@ typedef struct PBSubtitleTextCue {
     CFStringRef text;
 } PBSubtitleTextCue;
 
+// Identity of a packet already folded into the renderer. A shared demux
+// source re-reads packets after every seek, so ingestion has to be
+// idempotent per packet rather than per pass.
+typedef struct PBSubtitlePacketIdentity {
+    int64_t timestamp;
+    int size;
+} PBSubtitlePacketIdentity;
+
 struct PBSubtitleFrameRenderer {
     enum AVCodecID codecID;
     AVCodecContext *decoder;
@@ -45,6 +53,15 @@ struct PBSubtitleFrameRenderer {
     uint64_t lastHash;
     uint64_t changeIdentifier;
     bool hadFrame;
+    // Incremental ingestion over a shared demux source. NULL for a renderer
+    // that owns its own format context and scanned the file at creation.
+    PBFFmpegDemuxSource *demuxSource;
+    int streamIndex;
+    AVRational streamTimeBase;
+    int64_t streamStartTimestamp;
+    AVPacket *ingestPacket;
+    PBSubtitlePacketIdentity *ingestedPackets;
+    size_t ingestedPacketCount;
 };
 
 static const char *default_ass_header =
@@ -222,10 +239,52 @@ static bool append_packet(
     renderer->packets = packets;
     AVPacket *copy = av_packet_clone(packet);
     if (!copy) return false;
-    renderer->packets[renderer->packetCount++] = (PBSubtitlePacket) {
+    // Bitmap frames are decoded sequentially by presentation time, so a
+    // packet that arrives after a backward seek is inserted in order and
+    // the sequential decode restarts when it lands before the cursor.
+    size_t index = renderer->packetCount;
+    while (index > 0 && renderer->packets[index - 1].startSeconds > startSeconds) {
+        renderer->packets[index] = renderer->packets[index - 1];
+        index--;
+    }
+    renderer->packets[index] = (PBSubtitlePacket) {
         .packet = copy,
         .startSeconds = startSeconds,
     };
+    renderer->packetCount++;
+    if (index < renderer->nextPacketIndex) {
+        avcodec_flush_buffers(renderer->decoder);
+        renderer->nextPacketIndex = 0;
+        clear_bitmap_frame(renderer);
+    }
+    return true;
+}
+
+static bool packet_was_ingested(
+    const PBSubtitleFrameRenderer *renderer,
+    int64_t timestamp,
+    int size
+) {
+    for (size_t index = 0; index < renderer->ingestedPacketCount; index++) {
+        const PBSubtitlePacketIdentity *identity = &renderer->ingestedPackets[index];
+        if (identity->timestamp == timestamp && identity->size == size) return true;
+    }
+    return false;
+}
+
+static bool remember_ingested_packet(
+    PBSubtitleFrameRenderer *renderer,
+    int64_t timestamp,
+    int size
+) {
+    PBSubtitlePacketIdentity *identities = realloc(
+        renderer->ingestedPackets,
+        (renderer->ingestedPacketCount + 1) * sizeof(*identities)
+    );
+    if (!identities) return false;
+    renderer->ingestedPackets = identities;
+    renderer->ingestedPackets[renderer->ingestedPacketCount++] =
+        (PBSubtitlePacketIdentity) { .timestamp = timestamp, .size = size };
     return true;
 }
 
@@ -362,6 +421,60 @@ static bool process_text_packet(
     return storedCue;
 }
 
+// Folds one packet of the renderer's stream into the cue and frame state.
+// Packets of other streams and packets seen before are ignored, so the same
+// routine serves the one-pass scan of an owned format context and the
+// repeated pumps of a shared demux source.
+static bool ingest_packet(
+    PBSubtitleFrameRenderer *renderer,
+    AVPacket *packet
+) {
+    if (packet->stream_index != renderer->streamIndex ||
+        packet->size <= 0 || !packet->data) return true;
+    int64_t timestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
+    if (packet_was_ingested(renderer, timestamp, packet->size)) return true;
+    double startSeconds = timestamp != AV_NOPTS_VALUE
+        ? (timestamp - renderer->streamStartTimestamp) * av_q2d(renderer->streamTimeBase)
+        : 0;
+    bool succeeded = is_text_codec(renderer->codecID)
+        ? process_text_packet(renderer, packet, startSeconds)
+        : append_packet(renderer, packet, startSeconds);
+    if (!succeeded) return false;
+    return remember_ingested_packet(renderer, timestamp, packet->size);
+}
+
+// Drains every packet the shared demux source has queued for the subtitle
+// stream without waiting for more. Returns the number of packets folded in,
+// or -1 with an error message.
+static int ingest_available_packets(
+    PBSubtitleFrameRenderer *renderer,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!renderer->demuxSource || !renderer->ingestPacket) return 0;
+    int ingested = 0;
+    while (true) {
+        int result = PBFFmpegDemuxSourceCopyNextPacketIfAvailable(
+            renderer->demuxSource,
+            renderer->streamIndex,
+            renderer->ingestPacket
+        );
+        if (result == AVERROR(EAGAIN) || result == AVERROR_EOF) break;
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Read shared subtitle packet", result);
+            return -1;
+        }
+        bool succeeded = ingest_packet(renderer, renderer->ingestPacket);
+        av_packet_unref(renderer->ingestPacket);
+        if (!succeeded) {
+            set_error(errorBuffer, errorBufferSize, "Decode subtitle frame packet");
+            return -1;
+        }
+        ingested++;
+    }
+    return ingested;
+}
+
 static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     AVFormatContext *format,
     PBFFmpegDemuxSource *demuxSource,
@@ -401,6 +514,8 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
         return NULL;
     }
     renderer->codecID = codecID;
+    renderer->streamIndex = streamIndex;
+    renderer->streamTimeBase = stream->time_base;
     renderer->lastRequestSeconds = -INFINITY;
     renderer->bitmapStartSeconds = INFINITY;
     renderer->bitmapEndSeconds = -INFINITY;
@@ -487,7 +602,7 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
         }
     }
 
-    int64_t startTimestamp = stream_start_timestamp(format, stream);
+    renderer->streamStartTimestamp = stream_start_timestamp(format, stream);
     AVPacket *packet = av_packet_alloc();
     if (!packet) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle frame packet");
@@ -495,26 +610,28 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
-    while ((result = demuxSource
-            ? PBFFmpegDemuxSourceCopyNextPacket(demuxSource, streamIndex, packet)
-            : av_read_frame(format, packet)) >= 0) {
-        if (packet->stream_index == streamIndex && packet->size > 0 && packet->data) {
-            int64_t timestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
-            double startSeconds = timestamp != AV_NOPTS_VALUE
-                ? (timestamp - startTimestamp) * av_q2d(stream->time_base)
-                : 0;
-            bool succeeded = is_text_codec(codecID)
-                ? process_text_packet(renderer, packet, startSeconds)
-                : append_packet(renderer, packet, startSeconds);
-            if (!succeeded) {
-                av_packet_free(&packet);
-                if (ownsFormat) avformat_close_input(&format);
-                set_error(errorBuffer, errorBufferSize, "Decode subtitle frame packet");
-                PBSubtitleFrameRendererDestroy(renderer);
-                return NULL;
-            }
+    if (demuxSource) {
+        // The shared source feeds live playback and only advances at the
+        // playhead's pace, so the renderer takes what is queued now and
+        // folds in the rest through PBSubtitleFrameRendererIngestAvailablePackets.
+        renderer->demuxSource = demuxSource;
+        renderer->ingestPacket = packet;
+        if (ingest_available_packets(renderer, errorBuffer, errorBufferSize) < 0) {
+            PBSubtitleFrameRendererDestroy(renderer);
+            return NULL;
         }
+        return renderer;
+    }
+    while ((result = av_read_frame(format, packet)) >= 0) {
+        bool succeeded = ingest_packet(renderer, packet);
         av_packet_unref(packet);
+        if (!succeeded) {
+            av_packet_free(&packet);
+            if (ownsFormat) avformat_close_input(&format);
+            set_error(errorBuffer, errorBufferSize, "Decode subtitle frame packet");
+            PBSubtitleFrameRendererDestroy(renderer);
+            return NULL;
+        }
     }
     av_packet_free(&packet);
     if (ownsFormat) avformat_close_input(&format);
@@ -577,12 +694,31 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
         errorBuffer,
         errorBufferSize
     );
-    PBFFmpegDemuxSourceUnsubscribe(source, streamIndex);
+    // The subscription lives as long as the renderer: the source keeps
+    // queueing the stream and the renderer drains it on every ingest.
+    if (!renderer) PBFFmpegDemuxSourceUnsubscribe(source, streamIndex);
     return renderer;
+}
+
+int PBSubtitleFrameRendererIngestAvailablePackets(
+    PBSubtitleFrameRenderer *renderer,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!renderer) {
+        set_error(errorBuffer, errorBufferSize, "Invalid subtitle ingest call");
+        return -1;
+    }
+    return ingest_available_packets(renderer, errorBuffer, errorBufferSize);
 }
 
 void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
     if (!renderer) return;
+    if (renderer->demuxSource) {
+        PBFFmpegDemuxSourceUnsubscribe(renderer->demuxSource, renderer->streamIndex);
+    }
+    av_packet_free(&renderer->ingestPacket);
+    free(renderer->ingestedPackets);
     clear_bitmap_frame(renderer);
     for (size_t index = 0; index < renderer->packetCount; index++) {
         av_packet_free(&renderer->packets[index].packet);

@@ -46,18 +46,234 @@ import Testing
     let information = try await loader.load(from: fixture)
     let track = try #require(information.playbackSubtitleTracks.first)
 
-    let cues = try await provider.cues(in: fixture, asset: nil, track: track)
-    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
+    // On the shared source the selection returns what is queued and the rest
+    // arrives as the reader passes it; neither step reopens the file.
+    var cues = try await provider.cues(in: fixture, asset: nil, track: track)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
         track: track
     ))
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, cues.count < 2 {
+        cues += try renderer.ingestPendingCues(for: track)
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
     #expect(try renderer.frame(
         at: CMTime(seconds: 1, preferredTimescale: 600),
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ) != nil)
+}
+
+@Test func sharedSourceSubtitleRendererIngestsOnDemandInsteadOfScanningTheSource() async throws {
+    let fixture = try subtitleFixtureURL()
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let loader = SystemMediaSourceInformationLoader(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let provider = FFmpegSubtitleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let information = try await loader.load(from: fixture)
+    let track = try #require(information.playbackSubtitleTracks.first)
+
+    func readFrameCount() throws -> UInt64 {
+        try #require(demuxSession.bufferDiagnostics()).readFrameCount
+    }
+    func readFrameCountOnceSettled() async throws -> UInt64 {
+        var previous = try readFrameCount()
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(150))
+            let current = try readFrameCount()
+            if current == previous { return current }
+            previous = current
+        }
+        Issue.record("The shared reader never settled")
+        return previous
+    }
+
+    // Selecting the track takes what the shared source has queued and
+    // returns; it must not read the source to its end.
+    var cues = try await provider.cues(in: fixture, asset: nil, track: track)
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    let readFramesAfterSelection = try await readFrameCountOnceSettled()
+
+    // The renderer keeps its stream subscription and folds in packets as the
+    // reader passes them; each ingest lets the reader move on.
+    let cueDeadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < cueDeadline, cues.count < 2 {
+        cues += try renderer.ingestPendingCues(for: track)
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
+    #expect(cues.map(\.id) == ["ffmpeg.subtitle.1.cue.0", "ffmpeg.subtitle.1.cue.1"])
+    let readFramesAfterIngest = try await readFrameCountOnceSettled()
+    #expect(readFramesAfterIngest > readFramesAfterSelection)
+    #expect(try renderer.frame(
+        at: CMTime(seconds: 1, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) != nil)
+
+    // After a backward seek the source re-reads the same packets; the
+    // renderer recognises them and produces no duplicate cues.
+    try demuxSession.seek(to: 0)
+    var duplicates: [PlaybackSubtitleCue] = []
+    let seekDeadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < seekDeadline {
+        duplicates += try renderer.ingestPendingCues(for: track)
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(duplicates.isEmpty)
+    #expect(try renderer.ingestPendingCues(for: track).isEmpty)
+}
+
+@Test func reselectingASubtitleTrackAfterTheSharedReaderEndedKeepsItsFrames() async throws {
+    let fixture = try subtitleFixtureURL()
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let videoProvider = FFmpegSampleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "shared-subtitle-reselect",
+        provider: videoProvider,
+        subtitleProvider: FFmpegSubtitleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    try await session.prepare(url: fixture)
+    try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1")
+    try videoProvider.start()
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline {
+        let event = try await videoProvider.nextEvent()
+        session.publishSubtitleCues(at: .zero)
+        if case .end = event { break }
+    }
+    func cueTexts() -> [String] {
+        session.subtitleStateLock.withLock { session.subtitleState.cues.map(\.text) }
+    }
+    func frame(at seconds: Double) throws -> PlaybackSubtitleFrame? {
+        let renderer = session.subtitleStateLock.withLock { session.subtitleState.frameRenderer }
+        return try renderer?.frame(
+            at: CMTime(seconds: seconds, preferredTimescale: 600),
+            viewportWidth: 1_920,
+            viewportHeight: 1_080
+        )
+    }
+    #expect(cueTexts() == ["第一行\n第二行", "再见"])
+    #expect(try frame(at: 1) != nil)
+
+    try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.2")
+    #expect(cueTexts() == ["English subtitle"])
+
+    try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1")
+    #expect(cueTexts() == ["第一行\n第二行", "再见"])
+    #expect(try frame(at: 1) != nil)
+    #expect(session.activeSubtitleCues(
+        at: CMTime(seconds: 1, preferredTimescale: 600)
+    ).map(\.text) == ["第一行\n第二行"])
+
+    videoProvider.cancel()
+    session.close()
+}
+
+@Test func sharedSourceSubtitleSelectionCommitsWhileVideoIsStillQueued() async throws {
+    let fixture = try subtitleFixtureURL()
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let videoProvider = FFmpegSampleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "shared-subtitle-incremental",
+        provider: videoProvider,
+        subtitleProvider: FFmpegSubtitleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    // prepare subscribes the video stream on the shared source and nothing
+    // drains it until the test pulls samples itself, so the shared reader
+    // parks a second or so past the playhead, the way it parks behind 4K
+    // video that playback has not consumed yet.
+    try await session.prepare(url: fixture)
+    #expect(session.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+    ])
+
+    let selection = Task { try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1") }
+    let selectionDeadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < selectionDeadline,
+          session.selectedSubtitleTrackID == nil {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(session.selectedSubtitleTrackID == "ffmpeg.subtitle.1")
+    guard session.selectedSubtitleTrackID != nil else {
+        Issue.record("The selection waited for the shared source to end instead of committing")
+        session.close()
+        return
+    }
+    try await selection.value
+
+    func ingestedCueTexts() -> [String] {
+        session.subtitleStateLock.withLock { session.subtitleState.cues.map(\.text) }
+    }
+    func drainVideoToTheEnd() async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            let event = try await videoProvider.nextEvent()
+            session.publishSubtitleCues(at: .zero)
+            if case .end = event { return }
+        }
+        Issue.record("Timed out draining the fixture video")
+    }
+
+    try videoProvider.start()
+    try await drainVideoToTheEnd()
+    #expect(ingestedCueTexts() == ["第一行\n第二行", "再见"])
+    #expect(session.activeSubtitleCues(
+        at: CMTime(seconds: 1, preferredTimescale: 600)
+    ).map(\.text) == ["第一行\n第二行"])
+    #expect(session.activeSubtitleCues(
+        at: CMTime(seconds: 3.5, preferredTimescale: 600)
+    ).map(\.text) == ["再见"])
+
+    // A backward seek makes the shared source re-read the same packets; the
+    // renderer folds each packet in once.
+    try demuxSession.seek(to: 0)
+    try await drainVideoToTheEnd()
+    #expect(ingestedCueTexts() == ["第一行\n第二行", "再见"])
+
+    videoProvider.cancel()
+    session.close()
 }
 
 @Test func libassRendererProducesPremultipliedSubtitleFrameAtCueTime() async throws {
@@ -76,7 +292,7 @@ import Testing
         viewportHeight: 1_080
     )
     let frame = try #require(renderedFrame)
-    #expect(frame.kind == .libass)
+    #expect(frame.kind == .coreText)
     #expect(frame.canvasWidth == 1_920)
     #expect(frame.canvasHeight == 1_080)
     #expect(frame.contentWidth > 0)
@@ -93,7 +309,7 @@ import Testing
     ) == nil)
 }
 
-@Test func libassRendererDrawsDistinctCJKCharactersInsteadOfRepeatedMissingGlyphBoxes() async throws {
+@Test func textSubtitleRendererDrawsDistinctCJKCharactersInsteadOfMissingGlyphBoxes() async throws {
     let fixture = try cjkSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
     let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
@@ -102,16 +318,73 @@ import Testing
         asset: nil,
         track: track
     ))
-
+    #expect(renderer is CoreTextSubtitleFrameRenderer)
     let frame = try #require(try renderer.frame(
         at: CMTime(seconds: 1, preferredTimescale: 600),
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ))
+    #expect(frame.kind == .coreText)
+    #expect(frame.canvasWidth == 1_920)
+    #expect(frame.canvasHeight == 1_080)
+    #expect(frame.contentY + frame.contentHeight <= 1_080 - 54)
+    #expect(frame.premultipliedBGRA.count == frame.bytesPerRow * frame.contentHeight)
     let glyphs = visibleGlyphFingerprints(in: frame)
-
     #expect(glyphs.count == 4)
     #expect(Set(glyphs).count == 4)
+    #expect(visibleGlyphsWithInkInTheirCentre(in: frame) == 4)
+    #expect(try renderer.frame(
+        at: CMTime(seconds: 2.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) == nil)
+}
+
+@Test func textSubtitleRendererKeepsOneFramePerCueTextAndFollowsIngestedCues() async throws {
+    let fixture = try subtitleFixtureURL()
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let loader = SystemMediaSourceInformationLoader(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let provider = FFmpegSubtitleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let information = try await loader.load(from: fixture)
+    let track = try #require(information.playbackSubtitleTracks.first)
+    _ = try await provider.cues(in: fixture, asset: nil, track: track)
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    #expect(renderer is CoreTextSubtitleFrameRenderer)
+    var arrived = 0
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, arrived < 2 {
+        arrived += try renderer.ingestPendingCues(for: track).count
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    let first = try #require(try renderer.frame(
+        at: CMTime(seconds: 1, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ))
+    let again = try #require(try renderer.frame(
+        at: CMTime(seconds: 1.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ))
+    #expect(again.changeIdentifier == first.changeIdentifier)
+    let second = try #require(try renderer.frame(
+        at: CMTime(seconds: 3.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ))
+    #expect(second.changeIdentifier != first.changeIdentifier)
+    #expect(visibleGlyphsWithInkInTheirCentre(in: second) >= 1)
 }
 
 @Test func bitmapSubtitleRendererPreservesDecodedPixelsAndCanvasPlacement() async throws {
@@ -604,6 +877,36 @@ private func visibleGlyphFingerprints(in frame: PlaybackSubtitleFrame) -> [Data]
         }
         return fingerprint
     }
+}
+
+private func visibleGlyphsWithInkInTheirCentre(in frame: PlaybackSubtitleFrame) -> Int {
+    let alphaThreshold: UInt8 = 32
+    func occupied(_ x: Int, _ y: Int) -> Bool {
+        frame.premultipliedBGRA[y * frame.bytesPerRow + x * 4 + 3] > alphaThreshold
+    }
+    let occupiedColumns = (0..<frame.contentWidth).map { x in
+        (0..<frame.contentHeight).contains { y in occupied(x, y) }
+    }
+    var ranges: [Range<Int>] = []
+    var rangeStart: Int?
+    for (column, isOccupied) in occupiedColumns.enumerated() {
+        if isOccupied {
+            if rangeStart == nil { rangeStart = column }
+        } else if let existingStart = rangeStart {
+            ranges.append(existingStart..<column)
+            rangeStart = nil
+        }
+    }
+    if let rangeStart { ranges.append(rangeStart..<frame.contentWidth) }
+    return ranges.filter { range in
+        let rows = (0..<frame.contentHeight).filter { y in
+            range.contains { x in occupied(x, y) }
+        }
+        guard let top = rows.first, let bottom = rows.last, bottom > top else { return false }
+        let innerColumns = range.lowerBound + range.count / 3 ..< range.upperBound - range.count / 3
+        let innerRows = top + (bottom - top) / 3 ... bottom - (bottom - top) / 3
+        return innerRows.contains { y in innerColumns.contains { x in occupied(x, y) } }
+    }.count
 }
 
 private func externalSubtitleFixtureURL() throws -> URL {

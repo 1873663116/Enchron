@@ -5,6 +5,7 @@ import PlaybackFFmpegBridge
 public enum PlaybackSubtitleFrameKind: String, Sendable, Equatable {
     case libass
     case bitmap
+    case coreText
 }
 
 public struct PlaybackSubtitleFrame: Sendable, Equatable {
@@ -46,11 +47,18 @@ public struct PlaybackSubtitleFrame: Sendable, Equatable {
 
 protocol SubtitleFrameRendering: AnyObject, Sendable {
     func frame(at time: CMTime, viewportWidth: Int, viewportHeight: Int) throws -> PlaybackSubtitleFrame?
+    func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue]
+}
+
+extension SubtitleFrameRendering {
+    func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] { [] }
 }
 
 final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
     private let renderer: OpaquePointer
     private let lock = NSLock()
+    private let demuxSession: FFmpegDemuxSession?
+    private var exportedTextCueCount = 0
 
     init(url: URL, track: PlaybackSubtitleTrack) throws {
         var error = [CChar](repeating: 0, count: 512)
@@ -66,6 +74,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
             throw SubtitleProviderError.open(Self.errorMessage(error))
         }
         self.renderer = renderer
+        demuxSession = nil
     }
 
     init(
@@ -86,6 +95,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
             throw SubtitleProviderError.open(Self.errorMessage(error))
         }
         self.renderer = renderer
+        self.demuxSession = demuxSession
     }
 
     deinit {
@@ -141,7 +151,34 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
     func textCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
         try lock.withLock {
             let count = Int(PBSubtitleFrameRendererGetTextCueCount(renderer))
-            return try (0..<count).map { index in
+            exportedTextCueCount = count
+            return try textCues(for: track, in: 0..<count)
+        }
+    }
+
+    func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
+        guard demuxSession != nil else { return [] }
+        return try lock.withLock {
+            var error = [CChar](repeating: 0, count: 512)
+            guard PBSubtitleFrameRendererIngestAvailablePackets(
+                renderer,
+                &error,
+                error.count
+            ) >= 0 else {
+                throw SubtitleProviderError.read(Self.errorMessage(error))
+            }
+            let count = Int(PBSubtitleFrameRendererGetTextCueCount(renderer))
+            guard count > exportedTextCueCount else { return [] }
+            defer { exportedTextCueCount = count }
+            return try textCues(for: track, in: exportedTextCueCount..<count)
+        }
+    }
+
+    private func textCues(
+        for track: PlaybackSubtitleTrack,
+        in indices: Range<Int>
+    ) throws -> [PlaybackSubtitleCue] {
+        try indices.map { index in
                 var startSeconds = 0.0
                 var durationSeconds = 0.0
                 var text: Unmanaged<CFString>?
@@ -166,7 +203,6 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
                         .replacingOccurrences(of: "\r\n", with: "\n")
                         .replacingOccurrences(of: "\r", with: "\n")
                 )
-            }
         }
     }
 

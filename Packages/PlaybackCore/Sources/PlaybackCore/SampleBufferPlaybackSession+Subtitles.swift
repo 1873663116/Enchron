@@ -188,6 +188,16 @@ extension SampleBufferPlaybackSession {
         }
         recordSubtitleState(at: synchronizer.currentTime())
         publishSubtitleCues(at: synchronizer.currentTime())
+        debugStore.emit(
+            mediaSessionID: traceID,
+            kind: "subtitle.selection.started",
+            outcome: .succeeded,
+            details: [
+                "trackID": selection.0.id,
+                "generation": String(selection.2),
+                "subtitleEpoch": String(selection.3)
+            ]
+        )
         do {
             let cues = try await subtitleProvider.cues(
                 in: selection.1,
@@ -290,7 +300,54 @@ extension SampleBufferPlaybackSession {
         debugStore.recordSubtitleState(record)
     }
 
+    func ingestPendingSubtitleCues() {
+        let snapshot = subtitleStateLock.withLock {
+            () -> (SubtitleFrameRendering, PlaybackSubtitleTrack, UInt64)? in
+            guard !subtitleState.isClosed,
+                  let trackID = subtitleState.selectedTrackID,
+                  let renderer = subtitleState.frameRenderer,
+                  let track = subtitleState.availableTracks.first(where: { $0.id == trackID })
+            else { return nil }
+            return (renderer, track, subtitleState.selectionGeneration)
+        }
+        guard let (renderer, track, generation) = snapshot else { return }
+        let arrived: [PlaybackSubtitleCue]
+        do {
+            arrived = try renderer.ingestPendingCues(for: track)
+        } catch {
+            debugStore.emit(
+                mediaSessionID: traceID,
+                kind: "subtitle.cues.ingestFailed",
+                outcome: .failed,
+                details: ["trackID": track.id, "error": error.localizedDescription]
+            )
+            return
+        }
+        guard !arrived.isEmpty else { return }
+        let total = subtitleStateLock.withLock { () -> Int? in
+            guard subtitleState.selectionGeneration == generation,
+                  subtitleState.selectedTrackID == track.id else { return nil }
+            subtitleState.cues.append(contentsOf: arrived)
+            subtitleState.cues.sort {
+                CMTimeCompare($0.timeRange.start, $1.timeRange.start) < 0
+            }
+            return subtitleState.cues.count
+        }
+        guard let total else { return }
+        debugStore.emit(
+            mediaSessionID: traceID,
+            kind: "subtitle.cues.ingested",
+            outcome: .succeeded,
+            details: [
+                "trackID": track.id,
+                "arrived": String(arrived.count),
+                "total": String(total)
+            ]
+        )
+    }
+
     func publishSubtitleCues(at time: CMTime) {
+        ingestPendingSubtitleCues()
         let cues = subtitleStateLock.withLock { () -> [PlaybackSubtitleCue]? in
             let activeCues = Self.activeSubtitleCues(in: subtitleState, at: time)
             let cueIDs = activeCues.map(\.id)
@@ -321,7 +378,20 @@ extension SampleBufferPlaybackSession {
                 at: time,
                 viewportWidth: 1_920,
                 viewportHeight: 1_080
-            )
+            ).map { rendered in
+                PlaybackSubtitleFrame(
+                    kind: rendered.kind,
+                    canvasWidth: rendered.canvasWidth,
+                    canvasHeight: rendered.canvasHeight,
+                    contentX: rendered.contentX,
+                    contentY: rendered.contentY,
+                    contentWidth: rendered.contentWidth,
+                    contentHeight: rendered.contentHeight,
+                    bytesPerRow: rendered.bytesPerRow,
+                    premultipliedBGRA: rendered.premultipliedBGRA,
+                    changeIdentifier: (snapshot.1 << 32) | (rendered.changeIdentifier & 0xFFFF_FFFF)
+                )
+            }
         } catch {
             debugStore.emit(
                 mediaSessionID: traceID,

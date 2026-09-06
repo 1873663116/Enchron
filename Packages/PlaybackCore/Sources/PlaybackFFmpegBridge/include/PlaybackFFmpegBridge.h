@@ -408,6 +408,15 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
     char *errorBuffer,
     size_t errorBufferSize
 );
+// Folds in every packet the shared demux source has queued for the
+// renderer's stream since creation or the previous call, without waiting.
+// Returns the number of packets ingested, or -1 with an error message.
+// A renderer created from a path scanned its file at creation and returns 0.
+int PBSubtitleFrameRendererIngestAvailablePackets(
+    PBSubtitleFrameRenderer *renderer,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
 int PBSubtitleFrameRendererGetTextCueCount(
     const PBSubtitleFrameRenderer *renderer
 );

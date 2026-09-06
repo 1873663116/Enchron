@@ -770,6 +770,29 @@ static void unsubscribe_from_demux_stream(
     pthread_mutex_unlock(&source->lock);
 }
 
+static void dequeue_demux_packet_locked(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue,
+    AVPacket *packet
+) {
+    PBFFmpegPacketNode *node = queue->head;
+    queue->head = node->next;
+    if (!queue->head) queue->tail = NULL;
+    queue->summedDurationMicroseconds -= node->durationMicroseconds;
+    if (queue->summedDurationMicroseconds < 0) {
+        queue->summedDurationMicroseconds = 0;
+    }
+    queue->bufferedByteCount -= node->byteCount;
+    source->forwardBufferedByteCount -= node->byteCount;
+    if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
+    if (source->forwardBufferedByteCount < 0) {
+        source->forwardBufferedByteCount = 0;
+    }
+    update_packet_queue_buffered_duration(queue);
+    av_packet_move_ref(packet, &node->packet);
+    return_packet_node(source, node);
+}
+
 static int copy_next_demux_packet(
     PBFFmpegDemuxSource *source,
     int streamIndex,
@@ -801,22 +824,40 @@ static int copy_next_demux_packet(
         pthread_mutex_unlock(&source->lock);
         return result;
     }
-    PBFFmpegPacketNode *node = queue->head;
-    queue->head = node->next;
-    if (!queue->head) queue->tail = NULL;
-    queue->summedDurationMicroseconds -= node->durationMicroseconds;
-    if (queue->summedDurationMicroseconds < 0) {
-        queue->summedDurationMicroseconds = 0;
+    dequeue_demux_packet_locked(source, queue, packet);
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+    return 0;
+}
+
+// Returns the next queued packet without waiting: AVERROR(EAGAIN) when the
+// queue is empty and the source is still reading, the read result or
+// AVERROR_EOF once the source has ended. Subscribers that ingest a sparse
+// stream beside live playback (subtitles) use it so they never park the
+// caller behind the playhead.
+static int copy_next_demux_packet_if_available(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    AVPacket *packet
+) {
+    if (!source || !packet || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return AVERROR(EINVAL);
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    if (!queue->head) {
+        int result;
+        if (source->reachedEnd) {
+            result = source->readResult < 0 ? source->readResult : AVERROR_EOF;
+        } else if (!start_demux_source_read_thread(source)) {
+            result = AVERROR(ENOMEM);
+        } else {
+            result = AVERROR(EAGAIN);
+            pthread_cond_broadcast(&source->changed);
+        }
+        pthread_mutex_unlock(&source->lock);
+        return result;
     }
-    queue->bufferedByteCount -= node->byteCount;
-    source->forwardBufferedByteCount -= node->byteCount;
-    if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
-    if (source->forwardBufferedByteCount < 0) {
-        source->forwardBufferedByteCount = 0;
-    }
-    update_packet_queue_buffered_duration(queue);
-    av_packet_move_ref(packet, &node->packet);
-    return_packet_node(source, node);
+    dequeue_demux_packet_locked(source, queue, packet);
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
     return 0;
@@ -941,6 +982,14 @@ int PBFFmpegDemuxSourceCopyNextPacket(
     AVPacket *packet
 ) {
     return copy_next_demux_packet(source, streamIndex, NULL, packet);
+}
+
+int PBFFmpegDemuxSourceCopyNextPacketIfAvailable(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    AVPacket *packet
+) {
+    return copy_next_demux_packet_if_available(source, streamIndex, packet);
 }
 
 bool PBFFmpegDemuxSourceSubscribe(

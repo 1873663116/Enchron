@@ -12,6 +12,11 @@ int PBFFmpegDemuxSourceCopyNextPacket(
     int streamIndex,
     AVPacket *packet
 );
+int PBFFmpegDemuxSourceCopyNextPacketIfAvailable(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    AVPacket *packet
+);
 bool PBFFmpegDemuxSourceSubscribe(
     PBFFmpegDemuxSource *source,
     int streamIndex

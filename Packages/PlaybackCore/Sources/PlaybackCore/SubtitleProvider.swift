@@ -147,15 +147,14 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         var error = [CChar](repeating: 0, count: 512)
         let source = FFmpegSourceLocator.argument(for: url)
         if let demuxSession, demuxSession.isOpen(for: source) {
-            let renderer = try rendererLock.withLock {
-                if let renderer = sharedRenderers[track.id] { return renderer }
-                let renderer = try FFmpegSubtitleFrameRenderer(
-                    demuxSession: demuxSession,
-                    source: source,
-                    track: track
-                )
+            let existing = rendererLock.withLock { sharedRenderers[track.id] }
+            let renderer = try existing ?? FFmpegSubtitleFrameRenderer(
+                demuxSession: demuxSession,
+                source: source,
+                track: track
+            )
+            rendererLock.withLock {
                 sharedRenderers[track.id] = renderer
-                return renderer
             }
             return try renderer.textCues(for: track)
         }
@@ -222,10 +221,17 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         track: PlaybackSubtitleTrack
     ) async throws -> SubtitleFrameRendering? {
         let source = FFmpegSourceLocator.argument(for: url)
+        let renderer: FFmpegSubtitleFrameRenderer?
         if let demuxSession, demuxSession.isOpen(for: source) {
-            return rendererLock.withLock { sharedRenderers[track.id] }
+            renderer = rendererLock.withLock { sharedRenderers[track.id] }
+        } else {
+            renderer = try FFmpegSubtitleFrameRenderer(url: url, track: track)
         }
-        return try FFmpegSubtitleFrameRenderer(url: url, track: track)
+        guard let renderer else { return nil }
+        if CoreTextSubtitleFrameRenderer.rendersTextTrack(codecName: track.codecName) {
+            return try CoreTextSubtitleFrameRenderer(source: renderer, track: track)
+        }
+        return renderer
     }
 
     private static func string(_ buffer: [CChar]) -> String? {
