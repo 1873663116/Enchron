@@ -120,6 +120,7 @@ public struct ViewModeCapsuleControl: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(selection == 0 ? "grid" : "list")
         .accessibilityHint("Tap left half for grid, right half for list")
     }
 
