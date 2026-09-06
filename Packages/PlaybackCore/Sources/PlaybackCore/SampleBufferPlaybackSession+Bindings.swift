@@ -4,7 +4,8 @@ import OSLog
 
 extension SampleBufferPlaybackSession {
     func interruptionRecoveryRate() -> Float {
-        mediaSessionRecord?.lifecycle == .playing ? preferredPlaybackRate : 0
+        if mediaSessionRecord?.lifecycle == .playing { return preferredPlaybackRate }
+        return hasStartedTimeline ? 0 : timelineStartRate
     }
 
     public func debugEvents() -> AsyncStream<PlaybackDebugEvent> {

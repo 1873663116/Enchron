@@ -2996,12 +2996,19 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
     defer { session.close() }
 
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/two-audio.mp4"))
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/two-audio.mp4"),
+        startTime: CMTime(seconds: 12, preferredTimescale: 600)
+    )
     #expect(session.availableAudioTracks.map(\.streamIndex) == [1, 2])
     #expect(audio.preparedStreamIndices == [nil])
     let videoEpochBeforeSelection = session.debugSnapshot().streamEpoch
 
     try await session.selectAudioTrack(streamIndex: 2)
+    let controlState = try #require(session.debugSnapshot().timelineControlState)
+    #expect(controlState.timelineStartRate == 1)
+    #expect(controlState.requestedTimelineStartSeconds == 12)
+    #expect(session.debugSnapshot().sampleCount == 0)
     try session.setVolume(0.35)
     session.setMuted(true)
 
@@ -5070,3 +5077,120 @@ private final class LockedBox<Value>: @unchecked Sendable {
     }
 }
 
+
+private let audioSwitchTestMedia = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent("TestMedia")
+
+@Test func audioTrackSelectionWhilePlayingRestartsTheTimelineThroughPreroll() async throws {
+    let fixture = audioSwitchTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-switch-while-playing",
+        provider: FFmpegSampleProvider(sourceReadMeter: meter, demuxSession: demuxSession),
+        audioProvider: FFmpegAudioSampleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession,
+        rendererSink: FakeRendererInputSink()
+    )
+    try await session.prepare(url: fixture)
+    try session.start()
+    func actualTimebaseRate() -> Float {
+        session.debugSnapshot().rendererState?.actualTimebaseRate ?? 0
+    }
+    func currentTimeSeconds() -> Double {
+        session.debugSnapshot().rendererState?.currentTimeSeconds ?? 0
+    }
+    var deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline,
+          actualTimebaseRate() <= 0 || currentTimeSeconds() < 0.5 {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(actualTimebaseRate() > 0)
+    let tracks = session.availableAudioTracks
+    let replacement = try #require(
+        tracks.first { $0.streamIndex != session.selectedAudioStreamIndex }
+    )
+
+    try await session.selectAudioTrack(streamIndex: replacement.streamIndex)
+
+    deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, actualTimebaseRate() <= 0 {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.rendererState?.actualTimebaseRate ?? 0 > 0)
+    #expect(snapshot.lifecycle == .playing)
+    #expect(session.currentRate() == 1)
+    #expect(session.selectedAudioStreamIndex == replacement.streamIndex)
+    #expect(snapshot.audioTrack?.rawStreamIndex == replacement.streamIndex)
+    #expect(snapshot.timelineControlState?.lastRateActivation?.reason == .decoderBootstrap)
+    await session.closeAndWait()
+}
+
+@Test func audioTrackRestoreWhileOpeningKeepsTheRequestedStartRateAndPosition() async throws {
+    let fixture = audioSwitchTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-restore-while-opening",
+        provider: FFmpegSampleProvider(sourceReadMeter: meter, demuxSession: demuxSession),
+        audioProvider: FFmpegAudioSampleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession,
+        rendererSink: FakeRendererInputSink()
+    )
+    try await session.prepare(
+        url: fixture,
+        startTime: CMTime(seconds: 8, preferredTimescale: 600),
+        initialRate: 0.5
+    )
+    try session.start()
+    let replacement = try #require(
+        session.availableAudioTracks.first { $0.streamIndex != session.selectedAudioStreamIndex }
+    )
+
+    try await session.selectAudioTrack(streamIndex: replacement.streamIndex)
+
+    let controlState = try #require(session.debugSnapshot().timelineControlState)
+    #expect(controlState.timelineStartRate == 0.5)
+    #expect(controlState.requestedTimelineStartSeconds == 8)
+    func actualTimebaseRate() -> Float {
+        session.debugSnapshot().rendererState?.actualTimebaseRate ?? 0
+    }
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, actualTimebaseRate() <= 0 {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.rendererState?.actualTimebaseRate ?? 0 > 0.4)
+    #expect(snapshot.rendererState?.currentTimeSeconds ?? 0 >= 7.9)
+    #expect(session.selectedAudioStreamIndex == replacement.streamIndex)
+    await session.closeAndWait()
+}

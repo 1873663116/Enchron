@@ -537,24 +537,60 @@ extension SampleBufferPlaybackSession {
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         let previousStreamIndex = selectedAudioStreamIndex
         let previouslyHadAudio = hasAudio
-        let time = currentTime()
+        let deliveryHasStarted = deliveryQueue.sync { hasRequestedVideoData }
+        let time = hasStartedTimeline || !requestedTimelineStart.isNumeric
+            ? currentTime()
+            : requestedTimelineStart
         let rate = interruptionRecoveryRate()
-        setTimelineStopped(reason: .audioTrackSelection)
+        if deliveryHasStarted {
+            setTimelineStopped(reason: .audioTrackSelection)
+        }
         stopAudioDelivery()
         audioDeliveryQueue.sync { audioProvider.cancel() }
         audioRendererSink.flush()
         resetAudioEndState(requiresAudio: previouslyHadAudio)
+        let rearmsVideoDelivery = deliveryHasStarted
+            && demuxSession != nil
+            && mediaKind == .video
         if let demuxSession {
             try demuxSession.seek(to: time.seconds)
             if mediaKind == .video {
-                stopVideoDelivery()
-                deliveryQueue.sync { provider.cancel() }
-                try await provider.prepare(
-                    url: sourceURL,
-                    asset: sourceAsset,
-                    startTime: time
-                )
-                try provider.start()
+                if rearmsVideoDelivery {
+                    stopVideoDelivery()
+                    discardPendingVideoSample()
+                    deliveryQueue.sync {
+                        isResetting = true
+                        provider.cancel()
+                    }
+                    await rendererSink.flush(removingDisplayedImage: false)
+                    discardVideoFramesInFlight()
+                    resetDecoderBootstrap()
+                    streamEpoch += 1
+                    flushCount += 1
+                    recordRendererState(at: time)
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .rendererInputCoordination,
+                        kind: "renderer.flushedForAudioTrackSelection",
+                        outcome: .succeeded,
+                        details: ["streamEpoch": String(streamEpoch)]
+                    )
+                } else {
+                    deliveryQueue.sync { provider.cancel() }
+                }
+                do {
+                    try await provider.prepare(
+                        url: sourceURL,
+                        asset: sourceAsset,
+                        startTime: time
+                    )
+                    if rearmsVideoDelivery {
+                        try provider.start()
+                    }
+                } catch {
+                    deliveryQueue.sync { isResetting = false }
+                    throw error
+                }
             }
         }
         do {
@@ -596,17 +632,13 @@ extension SampleBufferPlaybackSession {
             hasAudio = previouslyHadAudio
             resetAudioEndState(requiresAudio: previouslyHadAudio)
             audioStreamEpoch += 1
-            if hasAudio {
-                startAudioDelivery()
+            if deliveryHasStarted {
+                rearmTimelineAfterAudioTrackChange(
+                    rate: rate,
+                    at: time,
+                    rearmsVideoDelivery: rearmsVideoDelivery
+                )
             }
-            if demuxSession != nil, mediaKind == .video {
-                startVideoDelivery()
-            }
-            setTimelineRateForDiscontinuity(
-                rate,
-                at: time,
-                reason: .audioTrackRollback
-            )
             recordAudioRendererState()
             debugStore.emit(
                 mediaSessionID: traceID,
@@ -638,17 +670,13 @@ extension SampleBufferPlaybackSession {
             ))
         }
         audioStreamEpoch += 1
-        startAudioDelivery()
-        if demuxSession != nil {
-            if mediaKind == .video {
-                startVideoDelivery()
-            }
+        if deliveryHasStarted {
+            rearmTimelineAfterAudioTrackChange(
+                rate: rate,
+                at: time,
+                rearmsVideoDelivery: rearmsVideoDelivery
+            )
         }
-        setTimelineRateForDiscontinuity(
-            rate,
-            at: time,
-            reason: .audioTrackSelection
-        )
         recordAudioRendererState()
         debugStore.emit(
             mediaSessionID: traceID,
@@ -656,6 +684,39 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: ["streamIndex": String(streamIndex)]
         )
+    }
+
+    private func rearmTimelineAfterAudioTrackChange(
+        rate: Float,
+        at time: CMTime,
+        rearmsVideoDelivery: Bool
+    ) {
+        deliveryQueue.sync {
+            timelineStartRate = rate
+            requestedTimelineStart = time
+            hasStartedTimeline = false
+            isPrerolling = false
+            if rearmsVideoDelivery {
+                lastSourceEventID = "none"
+                didRecordFormat = false
+                isResetting = false
+            }
+        }
+        prerollRequirementLock.withLock {
+            prerollRequirement = rate > 0
+                ? PlaybackBufferingPolicy.seekRequirement(
+                    target: time,
+                    durationSeconds: diagnostics.durationSeconds
+                )
+                : nil
+        }
+        recordTimelineControlState()
+        if hasAudio {
+            startAudioDelivery()
+        }
+        if rearmsVideoDelivery {
+            startVideoDelivery()
+        }
     }
 
     static func milliseconds(

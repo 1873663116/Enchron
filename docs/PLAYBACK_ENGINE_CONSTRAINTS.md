@@ -108,6 +108,10 @@ visionOS 上 CoreText 为 zh-Hans 选出的系统字体是 `PingFangUI.ttc`（`/
 
 落点：文本类字幕（subrip、webvtt、mov_text、text）的帧由 `CoreTextSubtitleFrameRenderer` 用 CoreText 光栅化，系统字体回退由 CoreText 完成；`FFmpegSubtitleFrameRenderer` 只负责从流中取包与累积文本 cue，libass 只服务 ASS／SSA 与位图字幕。ASS 轨道里的中文在 visionOS 上仍是已知缺口，需要文件内嵌字体或随应用附带字体才能画出。断言在 `PlaybackCoreTests`：`textSubtitleRendererDrawsDistinctCJKCharactersInsteadOfMissingGlyphBoxes`（要求每个字的中心区域有墨迹，缺字方框是空心的）。
 
+## 换音轨要走 seek 的重新武装路径
+
+换音轨时会话停住时间线、冲掉音频渲染器并重新打开音频 provider；共享 demux 来源同时需要 seek 回当前位置并重新打开视频 provider。此后直接 `setRate(rate, time:)` 恢复速率，在 visionOS 上得到的是请求速率为 1 而实际时基为 0 的时间线（见"visionOS 的时基与速率激活"）：新音轨还没有 preroll，同步器不会启动，画面停住而 UI 仍显示播放。正确的恢复与 seek 相同——`hasStartedTimeline = false`、`timelineStartRate = rate`、`requestedTimelineStart = 当前时间`、重置 decoder bootstrap 并冲掉视频渲染器（保留已显示的画面）——让 bootstrap 与音频 preroll 之后的 `setRateAtHostTime` 激活时间线。断言在 `PlaybackCoreTests`：`audioTrackSelectionWhilePlayingRestartsTheTimelineThroughPreroll`。
+
 ## 诊断工具的时间基准
 
 `Tools/RemoteMediaProbe` 的跨度限制一律从**第一个 presentation time** 起算，而不是从零。Apple 的 projected-media 示例首样本的时间戳接近十秒，按绝对界计量时它们在交付第二帧之前就已满足要求。
