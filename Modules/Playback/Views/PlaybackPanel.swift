@@ -480,6 +480,28 @@ public struct FusedPlayerPanel: View {
         )
     }
 
+    private var glassScale: CGSize {
+        guard let revealSize, let shellSize, shellSize.width > 0, shellSize.height > 0 else {
+            return CGSize(width: 1, height: 1)
+        }
+        let paddedShell = CGSize(
+            width: shellSize.width + DesignTokens.ControlBar.paddingH * 2,
+            height: shellSize.height + DesignTokens.ControlBar.paddingV * 2
+        )
+        return CGSize(
+            width: min((revealSize.width + DesignTokens.ControlBar.paddingH * 2) / paddedShell.width, 1),
+            height: min((revealSize.height + DesignTokens.ControlBar.paddingV * 2) / paddedShell.height, 1)
+        )
+    }
+
+    private var glassPlate: some View {
+        Color.clear
+            .enchronGlassBackground(
+                in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+            )
+            .scaleEffect(x: glassScale.width, y: glassScale.height)
+    }
+
     private func contentDidLayout(_ size: CGSize) {
         guard let previous = settledContentSize else {
             settledContentSize = size
@@ -530,7 +552,7 @@ public struct FusedPlayerPanel: View {
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
-        .enchronGlassBackground(in: shape)
+        .background { glassPlate }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
 #if DEBUG
@@ -2053,11 +2075,12 @@ nonisolated struct PlaybackPanelRevealShape: InsettableShape {
             width: size.width,
             height: size.height
         ).insetBy(dx: insetAmount, dy: insetAmount)
-        return RoundedRectangle(
-            cornerRadius: max(cornerRadius - insetAmount, 0),
-            style: .continuous
+        let corner = CGSize(
+            width: max(cornerRadius * (rect.width > 0 ? size.width / rect.width : 1) - insetAmount, 0),
+            height: max(cornerRadius * (rect.height > 0 ? size.height / rect.height : 1) - insetAmount, 0)
         )
-        .path(in: frame)
+        return RoundedRectangle(cornerSize: corner, style: .continuous)
+            .path(in: frame)
     }
 
     func inset(by amount: CGFloat) -> PlaybackPanelRevealShape {

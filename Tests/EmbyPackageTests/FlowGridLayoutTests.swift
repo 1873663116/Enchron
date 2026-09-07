@@ -1,5 +1,6 @@
 import CoreGraphics
 import DesignSystem
+import SwiftUI
 import Testing
 
 struct FlowGridLayoutTests {
@@ -29,23 +30,10 @@ struct FlowGridLayoutTests {
         #expect(narrow.origins[2] == CGPoint(x: 0, y: 60))
     }
 
-    @Test("the layout reports the widest row, not the proposed width, so a grid can be centred")
-    func usedWidthIsTheWidestRow() {
-        let card = CGSize(width: 100, height: 50)
-        let arrangement = FlowGridLayout.arrange(
-            sizes: Array(repeating: card, count: 5),
-            width: 370,
-            spacing: 10
-        )
-        #expect(arrangement.usedWidth == 320)
-        #expect(FlowGridLayout.arrange(sizes: [], width: 370, spacing: 10).usedWidth == 0)
-    }
-
-    @Test("a partial row still reports the full row width so it stays left-aligned inside a centred block")
-    func partialRowKeepsTheFullRowWidth() {
-        let card = CGSize(width: 100, height: 50)
-        let partial = FlowGridLayout.arrange(sizes: Array(repeating: card, count: 2), width: 370, spacing: 10)
-        #expect(partial.usedWidth == 320)
-        #expect(partial.origins == [CGPoint(x: 0, y: 0), CGPoint(x: 110, y: 0)])
+    @Test("columns stretch so the rows fill the width exactly and never shrink below the minimum")
+    func columnsFillTheWidth() {
+        #expect(CardGrid<EmptyView>.columnWidth(filling: 1_024, minimumCardWidth: 224, spacing: 16) == 244)
+        #expect(abs(CardGrid<EmptyView>.columnWidth(filling: 744, minimumCardWidth: 180, spacing: 16) - 712 / 3) < 0.001)
+        #expect(CardGrid<EmptyView>.columnWidth(filling: 100, minimumCardWidth: 224, spacing: 16) == 224)
     }
 }

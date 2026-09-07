@@ -860,7 +860,7 @@ private struct EmbyPosterGrid: View {
     var body: some View {
         ScrollView {
             if isLoading == false {
-                CardGrid {
+                CardGrid(minimumCardWidth: DesignTokens.Card.posterWidth) {
                     ForEach(items, id: \.metadata.id) { item in
                         posterCard(item, session: session, onSelect: onSelect)
                     }

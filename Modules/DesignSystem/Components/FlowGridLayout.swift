@@ -25,8 +25,10 @@ public struct FlowGridLayout: Layout {
         cache: inout Cache
     ) -> CGSize {
         let width = proposal.width ?? cache.sizes.map(\.width).max() ?? 0
-        let arrangement = Self.arrange(sizes: cache.sizes, width: width, spacing: spacing)
-        return CGSize(width: arrangement.usedWidth, height: arrangement.totalHeight)
+        return CGSize(
+            width: width,
+            height: Self.arrange(sizes: cache.sizes, width: width, spacing: spacing).totalHeight
+        )
     }
 
     public func placeSubviews(
@@ -48,7 +50,6 @@ public struct FlowGridLayout: Layout {
     public struct Arrangement: Equatable {
         public var origins: [CGPoint]
         public var totalHeight: CGFloat
-        public var usedWidth: CGFloat
     }
 
     public static func arrange(sizes: [CGSize], width: CGFloat, spacing: CGFloat) -> Arrangement {
@@ -67,16 +68,6 @@ public struct FlowGridLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
-        return Arrangement(
-            origins: origins,
-            totalHeight: sizes.isEmpty ? 0 : y + rowHeight,
-            usedWidth: fullRowWidth(sizes: sizes, width: width, spacing: spacing)
-        )
-    }
-
-    static func fullRowWidth(sizes: [CGSize], width: CGFloat, spacing: CGFloat) -> CGFloat {
-        guard let cardWidth = sizes.map(\.width).max(), cardWidth > 0 else { return 0 }
-        let columns = max(Int(((width + spacing) / (cardWidth + spacing)).rounded(.down)), 1)
-        return min(CGFloat(columns) * cardWidth + CGFloat(columns - 1) * spacing, max(width, cardWidth))
+        return Arrangement(origins: origins, totalHeight: sizes.isEmpty ? 0 : y + rowHeight)
     }
 }
