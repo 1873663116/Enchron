@@ -114,3 +114,7 @@ App 侧测试通道的复位不是"删掉一切"：
 
 - **`git branch --merged` 对在另一个 worktree 里检出的分支加 "+" 前缀而不是 "*"**，解析它的输出会把每一个这样的分支静默报成未合并。`Scripts/verification/worktree_audit.py` 改为用 `git merge-base --is-ancestor` 直接问祖先关系。
 - **`du` 报的是逻辑大小，而 APFS 上各 worktree 通过写时复制共享块**，删掉它们释放的空间少于各自大小之和。2026-08-15 实测：15 个 worktree 的 du 合计 7.80 GB，删除后 df 只多出 4 GB。`Scripts/verification/worktree_audit.py` 打印的可回收量是上界，实际以 df 为准。
+
+## `isHittable` 的失败会终结会话，护栏要接住它
+
+`XCUIElement.isHittable` 对激活点落在可命中区域之外、又给不出替代命中点的元素不返回 false，而是记录一条 "Failed to determine hittability … Activation point invalid and no suggested hit points based on element frame" 的 XCTIssue；即便 `continueAfterFailure = true`，这条 issue 也会让 `testInteractiveDeviceSession` 结束，runner 离开自动化范围，段以 `channel-continuity-failed` 收场（2026-09-06 与 09-07 真机各一次，都在 `Emby-StillCard-3762`）。按窗口框预判活动点挡不住它：这张卡的中心 (2064, 284) 在 1536×864 的主窗口之外，却落在同一 app 的一个 2130×1396 的窗口框内。把 `isHittable` 包进 `XCTExpectFailure` 只能让这条 issue 不计失败，测试仍然在它之后立刻 Tear Down（2026-09-07 第三次真机复现：matcher accepted，随后 passed (129 s)，段照样 runner-gone）——UI Automation Failure 终结当前测试，与 `continueAfterFailure` 和 expected failure 无关。护栏因此改为**不去问**：从 `app.debugDescription` 解析 `Window (Main)` 的框（每条命令缓存一次），活动点不在主窗口框内直接判不可命中，`isHittable` 只对主窗口内的点调用；解析不到主窗口时才退回任一窗口框。`XCTExpectFailure` 包装保留为最后一道网。（`recordIssue:` 的 Swift 重写在本 SDK 上报 does not override，三种签名都试过。）

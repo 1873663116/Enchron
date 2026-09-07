@@ -244,6 +244,7 @@ private final class InteractiveDeviceUIChannel {
     private func execute(
         _ command: InteractiveDeviceUICommand
     ) -> (success: Bool, message: String) {
+        mainWindowFrameCache = nil
         switch command.action {
         case .snapshot:
             return (true, "Current UI state captured.")
@@ -687,14 +688,57 @@ private final class InteractiveDeviceUIChannel {
         return hittability(of: element, frame: frame)
     }
 
+    private var mainWindowFrameCache: CGRect??
+
+    private func mainWindowFrame() -> CGRect? {
+        if let cached = mainWindowFrameCache { return cached }
+        let pattern = #"Window \(Main\), 0x[0-9a-f]+, \{\{(-?[\d.]+), (-?[\d.]+)\}, \{(-?[\d.]+), (-?[\d.]+)\}\}"#
+        var frame: CGRect?
+        if let regex = try? NSRegularExpression(pattern: pattern) {
+            let description = app.debugDescription
+            let range = NSRange(description.startIndex..., in: description)
+            if let match = regex.firstMatch(in: description, range: range) {
+                let values = (1...4).compactMap { index -> CGFloat? in
+                    guard let bounds = Range(match.range(at: index), in: description) else { return nil }
+                    return Double(description[bounds]).map { CGFloat($0) }
+                }
+                if values.count == 4 {
+                    frame = CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
+                }
+            }
+        }
+        mainWindowFrameCache = .some(frame)
+        return frame
+    }
+
     private func hittability(of element: XCUIElement, frame: CGRect) -> Bool {
         guard frame.width > 0, frame.height > 0 else { return false }
         let activationPoint = CGPoint(x: frame.midX, y: frame.midY)
-        let windows = app.windows.allElementsBoundByIndex
-        guard windows.contains(where: { $0.frame.contains(activationPoint) }) else {
-            return false
+        if let mainWindow = mainWindowFrame() {
+            guard mainWindow.contains(activationPoint) else { return false }
+        } else {
+            let windows = app.windows.allElementsBoundByIndex
+            guard windows.contains(where: { $0.frame.contains(activationPoint) }) else {
+                return false
+            }
         }
-        return element.isHittable
+        var queryFailed = false
+        let options = XCTExpectedFailure.Options()
+        options.isStrict = false
+        options.issueMatcher = { issue in
+            guard issue.compactDescription.contains("Failed to determine hittability") else {
+                return false
+            }
+            queryFailed = true
+            return true
+        }
+        let hittable = XCTExpectFailure(
+            "hittability query for an element outside the reachable region",
+            options: options
+        ) {
+            element.isHittable
+        }
+        return hittable && queryFailed == false
     }
 
     private func matchedElementObservation(
