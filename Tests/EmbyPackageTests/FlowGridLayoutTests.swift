@@ -1,6 +1,5 @@
 import CoreGraphics
 import DesignSystem
-import SwiftUI
 import Testing
 
 struct FlowGridLayoutTests {
@@ -30,10 +29,19 @@ struct FlowGridLayoutTests {
         #expect(narrow.origins[2] == CGPoint(x: 0, y: 60))
     }
 
-    @Test("columns stretch so the rows fill the width exactly and never shrink below the minimum")
-    func columnsFillTheWidth() {
-        #expect(CardGrid<EmptyView>.columnWidth(filling: 1_024, minimumCardWidth: 224, spacing: 16) == 244)
-        #expect(abs(CardGrid<EmptyView>.columnWidth(filling: 744, minimumCardWidth: 180, spacing: 16) - 712 / 3) < 0.001)
-        #expect(CardGrid<EmptyView>.columnWidth(filling: 100, minimumCardWidth: 224, spacing: 16) == 224)
+    @Test("a full row is justified: the remainder widens the gaps and the last card ends at the width")
+    func fullRowsAreJustified() {
+        let card = CGSize(width: 100, height: 50)
+        let arrangement = FlowGridLayout.arrange(sizes: Array(repeating: card, count: 5), width: 370, spacing: 10)
+        #expect(arrangement.origins[2].x == 270)
+        #expect(arrangement.origins[3] == CGPoint(x: 0, y: 60))
+        #expect(arrangement.origins[4].x == 135)
+    }
+
+    @Test("gaps never shrink below the base spacing and a single column stays at the leading edge")
+    func gapsKeepTheBaseSpacing() {
+        let card = CGSize(width: 100, height: 50)
+        #expect(FlowGridLayout.arrange(sizes: Array(repeating: card, count: 2), width: 210, spacing: 10).origins[1].x == 110)
+        #expect(FlowGridLayout.arrange(sizes: Array(repeating: card, count: 2), width: 150, spacing: 10).origins[1] == CGPoint(x: 0, y: 60))
     }
 }

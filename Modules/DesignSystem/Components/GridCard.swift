@@ -1,7 +1,6 @@
 import SwiftUI
 
 public struct GridCard: View {
-    @Environment(\.cardColumnWidth) private var columnWidth
     private enum Variant {
         case video(
             artworkURL: URL?,
@@ -338,10 +337,6 @@ public struct GridCard: View {
     }
 
     private var cardWidth: CGFloat {
-        columnWidth ?? designWidth
-    }
-
-    private var designWidth: CGFloat {
         switch variant {
         case .episode:
             DesignTokens.Card.stillWidth
@@ -353,7 +348,7 @@ public struct GridCard: View {
     }
 
     private var thumbnailHeight: CGFloat {
-        let designHeight: CGFloat = switch variant {
+        switch variant {
         case .poster:
             DesignTokens.Card.posterWidth * 3 / 2
         case .episode:
@@ -361,7 +356,6 @@ public struct GridCard: View {
         case .video, .folder:
             DesignTokens.Card.thumbnailHeight
         }
-        return designHeight * cardWidth / designWidth
     }
 
     private var captionBelowThumbnail: String? {

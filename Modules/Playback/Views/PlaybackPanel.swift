@@ -435,7 +435,8 @@ public struct FusedPlayerPanel: View {
     @State private var settledContentSize: CGSize?
     @State private var shellSize: CGSize?
     @State private var revealSize: CGSize?
-    @State private var revealStartsFrom: CGSize?
+    @State private var revealOrigin: CGSize?
+    @State private var revealGeneration = 0
     @Namespace private var hoverNamespace
 
     private enum ScrubberActivation: Equatable {
@@ -503,26 +504,22 @@ public struct FusedPlayerPanel: View {
     }
 
     private func contentDidLayout(_ size: CGSize) {
-        guard let previous = settledContentSize else {
-            settledContentSize = size
-            return
-        }
-        guard size != previous else { return }
         settledContentSize = size
-        guard let from = revealStartsFrom else { return }
-        revealStartsFrom = nil
+        guard let origin = revealOrigin else { return }
+        revealOrigin = nil
+        let generation = revealGeneration
         var stillTransaction = Transaction()
         stillTransaction.disablesAnimations = true
         withTransaction(stillTransaction) {
             shellSize = CGSize(
-                width: max(from.width, size.width),
-                height: max(from.height, size.height)
+                width: max(shellSize?.width ?? origin.width, size.width),
+                height: max(shellSize?.height ?? origin.height, size.height)
             )
         }
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+        withAnimation(DesignTokens.AnimationToken.panelSpring, completionCriteria: .removed) {
             revealSize = size
         } completion: {
-            guard revealSize == size else { return }
+            guard generation == revealGeneration else { return }
             withTransaction(stillTransaction) {
                 shellSize = nil
                 revealSize = nil
@@ -600,7 +597,8 @@ public struct FusedPlayerPanel: View {
                     expansion = PlaybackPanelExpansion()
                     shellSize = nil
                     revealSize = nil
-                    revealStartsFrom = nil
+                    revealOrigin = nil
+                    revealGeneration += 1
                 }
                 videoFormatEditing.discard()
                 return
@@ -872,14 +870,17 @@ public struct FusedPlayerPanel: View {
 
     private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
         guard expansion.layout != layout else { return }
-        revealStartsFrom = revealSize ?? settledContentSize
-        if shellSize == nil, let settledContentSize {
+        let origin = revealSize ?? settledContentSize
+        if revealSize == nil, let origin {
             var stillTransaction = Transaction()
             stillTransaction.disablesAnimations = true
             withTransaction(stillTransaction) {
-                shellSize = settledContentSize
+                shellSize = origin
+                revealSize = origin
             }
         }
+        revealOrigin = origin
+        revealGeneration += 1
         withAnimation(DesignTokens.AnimationToken.panelSpring) {
             expansion.request(layout)
         }
