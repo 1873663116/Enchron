@@ -3128,17 +3128,6 @@ class SimulatorLaneFixesTests(unittest.TestCase):
         run.mark_observation = Mock()
         self.assertTrue(True)
 
-    def test_source_sidebar_add_uses_debug_fallback(self) -> None:
-        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
-        run.lane = "device"
-        run.tap = Mock(side_effect=[{"success": False}, {"success": True}, {"success": True}])
-        run.select_debug_menu_item = Mock(return_value=(None, {"success": True}, {"success": True}))
-        run.copy_probe = Mock(return_value=["reachability files delivered action=sidebar.add.local"])
-        run.delivered_by_debug_menu_selection = Mock(return_value=True)
-        run.events = [{"evidence": "raw/mock.json"}]
-        self.assertTrue(True)
-
-
 class ReachabilityActionMatching(unittest.TestCase):
     def test_a_longer_action_does_not_answer_for_a_shorter_one(self) -> None:
         probe = ["reachability top actions delivered action=dock.openMenu"]

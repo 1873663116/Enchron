@@ -71,7 +71,6 @@
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-HDRFallback",
           "PlayerUI-VideoFormat-apply"
         ]
       },
@@ -83,7 +82,6 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "includeHDRFallback": true,
         "minimumIntervalMillis": 1000,
         "relatedResults": [
           "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:05/tappedIdentifiers"
@@ -134,7 +132,6 @@
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-HDRFallback",
           "PlayerUI-VideoFormat-apply"
         ]
       },
@@ -146,7 +143,6 @@
       "arguments": {
         "context": "window",
         "count": 3,
-        "includeHDRFallback": true,
         "minimumIntervalMillis": 1000,
         "relatedResults": [
           "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:11/tappedIdentifiers"
@@ -193,9 +189,6 @@
     },
     {
       "arguments": {
-        "assertAbsent": [
-          "PlayerUI-VideoFormat-HDRFallback"
-        ],
         "context": "window",
         "identifiers": [
           "PlayerUI-window-playback-surface",
@@ -213,7 +206,7 @@
         "count": 3,
         "minimumIntervalMillis": 1000,
         "relatedResults": [
-          "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17/assertAbsentObservations"
+          "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17/tappedIdentifiers"
         ]
       },
       "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:18",

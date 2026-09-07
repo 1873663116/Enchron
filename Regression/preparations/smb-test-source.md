@@ -59,7 +59,6 @@
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
-          "FileBrowsing-SourcesSidebar-add",
           "FileBrowsing-SourcesSidebar-addSMB"
         ]
       },

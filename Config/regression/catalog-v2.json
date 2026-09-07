@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:b7c4c06e7ea0d37607f277aeda5138ac00080c675fd3bf104765bd0642a887cd",
+  "contentDigest": "sha256:5d476d6bf2342a0f7c6f9faf3d5062dc51eae004c1d1001f8708b1ac622b7d49",
   "copyDocuments": [
     {
       "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
@@ -1097,12 +1097,12 @@
     {
       "criteria": [
         "The bound artifact contains exactly one three-frame Playing sequence at 1000 ms minimum intervals with stable session and revision, increasing position, distinct content attachments, non-none pixel formats, and no issue.",
-        "The bound capture matches the registered case: profile-8-hdr10={relatedResults[0] tappedIdentifiers PlayerUI-window-playback-surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-HDRFallback→PlayerUI-VideoFormat-apply, includeHDRFallback true, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=1, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed 2084/PQ set, source format atoms preserved}; profile-8-hlg={the same transaction and includeHDRFallback, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=4, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed HLG/B67 set, source format atoms preserved}; profile-5-no-fallback={relatedResults[0] assertAbsentObservations after PlayerUI-TopAction-videoFormat with PlayerUI-VideoFormat-HDRFallback exists=false, no fallback mutation after cancel, dolbyVisionProfile=5, dolbyVisionCrossCompatibilityID=0, dolbyVisionHasEnhancementLayer=false, source and renderer Dolby Vision atom facts retained}."
+        "The bound capture matches the registered case: profile-8-hdr10={relatedResults[0] tappedIdentifiers PlayerUI-window-playback-surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-apply, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=1, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed 2084/PQ set, source format atoms preserved}; profile-8-hlg={the same transaction, dolbyVisionProfile=8, dolbyVisionCrossCompatibilityID=4, dolbyVisionHasEnhancementLayer=false, rendererTransferFunction in the closed HLG/B67 set, source format atoms preserved}; profile-5-no-fallback={relatedResults[0] tappedIdentifiers PlayerUI-window-playback-surface→PlayerUI-TopAction-videoFormat→PlayerUI-VideoFormat-cancel, no format mutation after cancel, dolbyVisionProfile=5, dolbyVisionCrossCompatibilityID=0, dolbyVisionHasEnhancementLayer=false, source and renderer Dolby Vision atom facts retained}."
       ],
       "filename": "rubric-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.dolby-vision-cross-compatibility-switch.o01@1",
       "negativeControls": [
-        "A relatedResults path, source tuple, renderer transfer, or format-atom row that differs from the bound case, HDRFallback offered for Profile 5 (assertAbsentObservations after videoFormat with exists or isHittable true), fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
+        "A relatedResults path, source tuple, renderer transfer, or format-atom row that differs from the bound case, a Profile 5 capture whose format state changed after cancel, fewer than three valid frames, repeated attachments, or non-advancing playback fails the bound case."
       ],
       "title": "Dolby Vision Cross Compatibility Switch"
     },
@@ -1796,7 +1796,7 @@
     {
       "criteria": [
         "In the current media segment, defined as the latest media.open call through the bound format.apply producer, the request matches the registered case: equirectangular-180={deadlineSeconds: 30, projection: equirectangular180, stereoLayout: sideBySide}; equirectangular-360={deadlineSeconds: 30, projection: equirectangular360, stereoLayout: mono}; custom-angle-200 and custom-angle-240={deadlineSeconds: 30, projection: customAngle, horizontalCoverageDegrees: 200 and 240 respectively, stereoLayout: mono}. operationOutput.requested equals the bound format.apply arguments.",
-        "The bound format.apply formatObservation.observed tuple matches its registered case: equirectangular-180=portal/equirectangular180/180/sideBySide, equirectangular-360=portal/equirectangular360/360/mono, custom-angle-200=portal/customAngle/200/mono, and custom-angle-240=portal/customAngle/240/mono. operationOutput.captureRequest is exactly {context: portal, count: 3, minimumIntervalMillis: 1000}. The two custom-angle cases additionally carry the declared route for a Picker row SwiftUI gives no identifier: operationOutput.customAnglePicker is one tapSequence of PlayerUI-TopAction-videoFormat then PlayerUI-VideoFormat-CustomAngle, operationOutput.customAngleSelection.listing enumerates the playerUI customAngle family and .selection reports the selected id equal to the requested degrees, and operationOutput.customAngleDismissal closes the open menu by that row's own label. No PlayerUI-VideoFormat-CustomAngle-<degrees> identifier is addressed anywhere in the bound transcript.",
+        "The bound format.apply formatObservation.observed tuple matches its registered case: equirectangular-180=portal/equirectangular180/180/sideBySide, equirectangular-360=portal/equirectangular360/360/mono, custom-angle-200=portal/customAngle/200/mono, and custom-angle-240=portal/customAngle/240/mono. operationOutput.captureRequest is exactly {context: portal, count: 3, minimumIntervalMillis: 1000}. The two custom-angle cases additionally carry the declared route for a slider whose detents SwiftUI gives no identifiers: operationOutput.customAnglePicker is one tapSequence of PlayerUI-TopAction-videoFormat then PlayerUI-VideoFormat-CustomAngle, and operationOutput.customAngleSelection.listing enumerates the playerUI customAngle family and .selection reports the selected id equal to the requested degrees. No PlayerUI-VideoFormat-CustomAngle-<degrees> identifier is addressed anywhere in the bound transcript.",
         "Every frame in the bound artifact has playbackState.available and controlPlane.available true and controlPlane.fields with formatProvenance userOverride, presentation portal, effectiveContentIsPanoramic true, and the registered case's projection, horizontalFieldOfViewDegrees, and stereoLayout. The equirectangular-180 case additionally has rendererProjectionKind HalfEquirectangular, rendererViewPackingKind SideBySide, windowComponentContentType halfEquirectangular, and actualViewingMode stereo; equirectangular-360 and the custom-angle cases have rendererProjectionKind Equirectangular, rendererViewPackingKind none, windowComponentContentType equirectangular, and actualViewingMode mono; the bound case has actualImmersiveMode portal.",
         "The bound frame indices are exactly 0, 1, and 2, adjacent capturedAtMonotonicMillis values differ by at least 1000, session and streamEpoch remain non-none and unchanged, lifecycle is Playing, displayedPixel is true, error is none, and each content-bound screenshot is nonblank and changing while retaining the wrapped geometry declared by the structured state."
       ],
@@ -1959,7 +1959,7 @@
     },
     {
       "criteria": [
-        "The certificate alert of the first connect replaced the WebDAV form rather than overlaying it, and the reopened form shows exactly which draft survived. Both bound artifacts inline call 13, the More/Add/WebDAV reopen taken after the Cancel of call 12: its tappedIdentifiers are FileBrowsing-SourcesSidebar-sourceMore, -add and -addWebDAV in that order, and its assertAbsentObservations report both FileBrowsing-CertificateTrust-cancel and FileBrowsing-SourceConnection-webDAV-password with exists false after step FileBrowsing-SourcesSidebar-sourceMore and again after step FileBrowsing-SourcesSidebar-add -- neither the cancelled form nor the resolved alert was still in the hierarchy when the reopen began. Both also inline call 14's inspect of the reopened form: its matchedElement is FileBrowsing-SourceConnection-webDAV-password carrying no typed secret -- its value is empty or the Password prompt, never a masked non-empty entry -- while its response hierarchy carries FileBrowsing-SourceConnection-webDAV-name, -address and -username still holding what calls 08, 09 and 10 typed, with -cancel and -connect present and no certificate alert above them. Those three calls' postActionState are inlined as well, and what each one typed is its elementAfterAction -- the second reading of the field, taken once replaceText returned -- never its matchedElement, which the runner takes before it acts and which therefore holds whatever stood in the field beforehand. So the retained address and username -- which calls 09 and 10 type out of the host credential file and no criterion could otherwise witness -- are decided against the values actually entered. Password cleared, the other three retained, is the whole draft-state boundary.",
+        "The certificate alert of the first connect replaced the WebDAV form rather than overlaying it, and the reopened form shows exactly which draft survived. Both bound artifacts inline call 13, the More/WebDAV reopen taken after the Cancel of call 12: its tappedIdentifiers are FileBrowsing-SourcesSidebar-sourceMore and -addWebDAV in that order, and its assertAbsentObservations report both FileBrowsing-CertificateTrust-cancel and FileBrowsing-SourceConnection-webDAV-password with exists false after step FileBrowsing-SourcesSidebar-sourceMore -- neither the cancelled form nor the resolved alert was still in the hierarchy when the reopen began. Both also inline call 14's inspect of the reopened form: its matchedElement is FileBrowsing-SourceConnection-webDAV-password carrying no typed secret -- its value is empty or the Password prompt, never a masked non-empty entry -- while its response hierarchy carries FileBrowsing-SourceConnection-webDAV-name, -address and -username still holding what calls 08, 09 and 10 typed, with -cancel and -connect present and no certificate alert above them. Those three calls' postActionState are inlined as well, and what each one typed is its elementAfterAction -- the second reading of the field, taken once replaceText returned -- never its matchedElement, which the runner takes before it acts and which therefore holds whatever stood in the field beforehand. So the retained address and username -- which calls 09 and 10 type out of the host credential file and no criterion could otherwise witness -- are decided against the values actually entered. Password cleared, the other three retained, is the whole draft-state boundary.",
         "Each obligation's producer stands at the post-state its name claims, in one attempt, and the two are different readings. For obligation o01:cancelled-form the producer is call 15, taken after the reopen and its inspect and before the password retype of call 16: read from call 06's baseline cursor its certificateBoundary reports exactly one complete attempt -- promptCount, dismissCount, presentedCount and decisionCount all 1, decisions [false], connectionPhases [true], orderedAttempts [true], validityBoundaries [true], playbackPromptCount 0 -- so nothing has been trusted, no source exists yet and no playback has begun. For obligation o01:connected-trace the producer is call 22, taken after Trust, after 以后, after the source was created and after playback reached Playing: read from the same baseline cursor its certificateBoundary reports exactly two complete attempts with decisions [false, true], connectionPhases [true, true], orderedAttempts [true, true], dismissCount 2 -- the second dismissal is the reopened form giving way to the second prompt -- and oneStableFingerprint true, and its inlined call-15 cursorToken is strictly earlier in that same stream than its own cursorToken, so the cancelled-form reading precedes the trusted one within one attempt. Only the password was typed again between the two connects; name, address and username were never retyped, and the trusted connect opened the registered aggregate fixture and reached Playing.",
         "The bound trace binds the baseline cursor, the cancelled-form product binding, the host generation and the certificate fingerprint in one ordered sequence, and no certificate trust prompt occurs during playback reconnection: in the bound artifact's own certificateBoundary every entry of orderedAttempts is true, every entry of connectionPhases is true, every entry of validityBoundaries is true, playbackPromptCount is 0, and every fingerprint is present and equal. Its remoteObservation is bound to call 01's generationToken, and it carries the call-13 reopen observations and the call-14 reading and the call 08, 09 and 10 postActionState that criterion 1 reads. For o01:connected-trace the product delivery is in the same artifact: playback of sdr-bframe-aggregate-30s.mkv through the created WebDAV source, reached after the Trust decision and before this probe, with no prompt raised in the playback phase."
       ],
@@ -1973,13 +1973,13 @@
     },
     {
       "criteria": [
-        "relatedResults[0] is call 06's alsoInspected trace: one resident tapSequence whose afterStep values are FileBrowsing-SourcesSidebar-sourceMore, then FileBrowsing-SourcesSidebar-add, then FileBrowsing-SourcesSidebar-addWebDAV in that order, with FileBrowsing-SourceConnection-webDAV-name exists=false after the first two steps and exists=true only after addWebDAV, so the form opens at the end of that single transaction and no field could be typed before it.",
+        "relatedResults[0] is call 06's alsoInspected trace: one resident tapSequence whose afterStep values are FileBrowsing-SourcesSidebar-sourceMore, then FileBrowsing-SourcesSidebar-addWebDAV in that order, with FileBrowsing-SourceConnection-webDAV-name exists=false after the first step and exists=true only after addWebDAV, so the form opens at the end of that single transaction and no field could be typed before it.",
         "relatedResults[1] and relatedResults[2] are call 11's alsoInspected and identifierResponse: one succeeded tapSequence whose afterStep values are FileBrowsing-SourceConnection-webDAV-connect then FileBrowsing-CertificateTrust-trust in that order, with FileBrowsing-CertificateTrust-trust exists=false after the trust step; relatedResults[3] is call 12's 以后 label tap reporting success; relatedResults[4] is call 13's interactionTrace measured from the call 05 baseline cursor and contains reachability files delivered action=sidebar.add.webDAV, reachability files delivered action=sourceConnection.webDAV.connect, and certificateBoundary decision approved=true, so the product delivered both activations rather than the controller merely reporting them; and the bound accessibility tree returns FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv as matchedElement with the registered WebDAV source present in its hierarchy."
       ],
       "filename": "rubric-webdav-source-lifecycle-webdav-add-source-o01-1.md",
       "id": "rubric:webdav-source-lifecycle.webdav-add-source.o01@1",
       "negativeControls": [
-        "Opening addWebDAV directly, splitting the nested source-menu route across controllers, or leaving the 以后 prompt unresolved is not the declared user route.",
+        "Opening addWebDAV directly, splitting the source-menu route across controllers, or leaving the 以后 prompt unresolved is not the declared user route.",
         "A controller-only success — succeeded tapSequence responses with no matching product delivery line in the bound interactionTrace — a source created by direct state injection, an absent or null matchedElement, or a password value echoed in evidence cannot satisfy the rubric."
       ],
       "title": "Webdav Add Source"
@@ -4587,14 +4587,12 @@
           "arguments": {
             "alsoInspect": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV",
               "FileBrowsing-SourceConnection-webDAV-name"
             ],
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
@@ -5005,7 +5003,6 @@
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
@@ -5085,7 +5082,6 @@
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
@@ -7242,7 +7238,6 @@
             "identifiers": [
               "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-videoFormat",
-              "PlayerUI-VideoFormat-HDRFallback",
               "PlayerUI-VideoFormat-apply"
             ]
           },
@@ -7254,7 +7249,6 @@
           "arguments": {
             "context": "window",
             "count": 3,
-            "includeHDRFallback": true,
             "minimumIntervalMillis": 1000,
             "relatedResults": [
               "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:05/tappedIdentifiers"
@@ -7305,7 +7299,6 @@
             "identifiers": [
               "PlayerUI-window-playback-surface",
               "PlayerUI-TopAction-videoFormat",
-              "PlayerUI-VideoFormat-HDRFallback",
               "PlayerUI-VideoFormat-apply"
             ]
           },
@@ -7317,7 +7310,6 @@
           "arguments": {
             "context": "window",
             "count": 3,
-            "includeHDRFallback": true,
             "minimumIntervalMillis": 1000,
             "relatedResults": [
               "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:11/tappedIdentifiers"
@@ -7364,9 +7356,6 @@
         },
         {
           "arguments": {
-            "assertAbsent": [
-              "PlayerUI-VideoFormat-HDRFallback"
-            ],
             "context": "window",
             "identifiers": [
               "PlayerUI-window-playback-surface",
@@ -7384,7 +7373,7 @@
             "count": 3,
             "minimumIntervalMillis": 1000,
             "relatedResults": [
-              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17/assertAbsentObservations"
+              "result://call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:17/tappedIdentifiers"
             ]
           },
           "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:18",
@@ -14947,7 +14936,6 @@
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
@@ -15061,7 +15049,6 @@
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
@@ -15174,7 +15161,6 @@
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },
@@ -15287,7 +15273,6 @@
             "context": "main-window-browser",
             "identifiers": [
               "FileBrowsing-SourcesSidebar-sourceMore",
-              "FileBrowsing-SourcesSidebar-add",
               "FileBrowsing-SourcesSidebar-addWebDAV"
             ]
           },

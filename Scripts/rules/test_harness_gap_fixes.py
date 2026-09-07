@@ -32,14 +32,17 @@ class WindowPlaybackControlsNoRegressionTests(unittest.TestCase):
         self.assertIn("if effect_delivered:", snippet)
         self.assertIn("EnvironmentCard-effect", snippet[snippet.find("if effect_delivered"): snippet.find("if effect_delivered")+2000])
 
-    def test_video_format_custom_angle_has_pacing_before_cancel(self) -> None:
+    def test_video_format_custom_angle_credits_without_a_menu_row_tap(self) -> None:
         text = (Path(__file__).resolve().parents[2] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
         idx = text.find("def video_format_editor_scenario")
         snippet = text[idx: idx + 12000]
         self.assertIn("CustomAngle", snippet)
-        self.assertIn("hold(\"pace\", 0.5)", snippet)
-        self.assertIn("hold(\"pace\", 0.3)", snippet)
-        self.assertIn("cancel_editor()", snippet)
+        start = snippet.find("-CustomAngle")
+        block = snippet[start: snippet.find("cancel_editor()", start)]
+        self.assertIn("family=\"customAngle\"", block)
+        self.assertIn("delivered_by_debug_menu_selection", block)
+        self.assertNotIn("--label", block)
+        self.assertNotIn("hold(\"pace\"", block)
 
     def test_window_scenario_still_observes_playback_controls(self) -> None:
         text = (Path(__file__).resolve().parents[2] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")

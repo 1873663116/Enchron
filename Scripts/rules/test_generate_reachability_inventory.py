@@ -496,7 +496,6 @@ class ProofContextInventoryTests(unittest.TestCase):
                 "FileBrowsing-Sidebar-row-local",
                 "FileBrowsing-Sidebar-row-{ds.id}",
                 "PlayerPanel-VideoFormat-CustomAngle",
-                "PlayerPanel-VideoFormat-HDRFallback",
                 "PlayerPanel-VideoFormat-apply",
                 "PlayerPanel-VideoFormat-automatic",
                 "PlayerPanel-VideoFormat-cancel",

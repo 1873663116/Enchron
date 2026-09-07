@@ -1165,7 +1165,6 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         scenarios = {item["id"]: item for item in self.blueprint["scenarios"]}
         source_route = [
             "FileBrowsing-SourcesSidebar-sourceMore",
-            "FileBrowsing-SourcesSidebar-add",
             "FileBrowsing-SourcesSidebar-addWebDAV",
         ]
         for scenario_id in (

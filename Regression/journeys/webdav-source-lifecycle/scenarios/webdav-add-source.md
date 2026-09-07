@@ -68,14 +68,12 @@
       "arguments": {
         "alsoInspect": [
           "FileBrowsing-SourcesSidebar-sourceMore",
-          "FileBrowsing-SourcesSidebar-add",
           "FileBrowsing-SourcesSidebar-addWebDAV",
           "FileBrowsing-SourceConnection-webDAV-name"
         ],
         "context": "main-window-browser",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
-          "FileBrowsing-SourcesSidebar-add",
           "FileBrowsing-SourcesSidebar-addWebDAV"
         ]
       },

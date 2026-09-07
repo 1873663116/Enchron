@@ -184,16 +184,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
       "verdict": "reachable"
     },
@@ -489,11 +479,6 @@
     },
     {
       "context": "window",
-      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
-      "verdict": "reachable"
-    },
-    {
-      "context": "window",
       "operation": "accessibility:PlayerUI-VideoFormat-apply",
       "verdict": "reachable"
     },
@@ -615,11 +600,6 @@
     {
       "context": "portal",
       "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
-      "verdict": "reachable"
-    },
-    {
-      "context": "portal",
-      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
       "verdict": "reachable"
     },
     {
@@ -1086,11 +1066,6 @@
       "context": "main-window-browser",
       "operation": "accessibility:FileBrowsing-CleartextExposure-proceed",
       "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:FileBrowsing-SourcesSidebar-add",
-      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",

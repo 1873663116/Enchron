@@ -424,7 +424,6 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
     restored_generation = arguments.get("restoredGenerationToken")
     product_binding = arguments.get("productBindingDigest")
     artwork_expectation = arguments.get("artworkExpectation")
-    include_hdr_fallback = arguments.get("includeHDRFallback")
     related_manifests = arguments.get("relatedFrameManifests", [])
     assert isinstance(related_manifests, list)
     for manifest in related_manifests:
@@ -446,8 +445,6 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             raise OperationAdapterError(
                 "relatedFrameManifests contain the wrong closed shape"
             )
-    if include_hdr_fallback is not None and include_hdr_fallback is not True:
-        raise OperationAdapterError("includeHDRFallback may only request true")
     artwork_key = arguments.get("artworkKey")
     if artwork_key is not None and artwork_expectation is None:
         raise OperationAdapterError(
@@ -462,7 +459,6 @@ def _capture_frames(arguments: Mapping[str, object]) -> None:
             or expectation is not None
             or generation is not None
             or product_binding is not None
-            or include_hdr_fallback is not None
         ):
             raise OperationAdapterError(
                 "artwork exit capture requires the exact four-frame local variant"
@@ -2763,7 +2759,6 @@ def _specs() -> tuple[OperationSpec, ...]:
                     choices=_choices("exit-replaces-current-frame"),
                 ),
                 _field("artworkKey", string, required=False),
-                _field("includeHDRFallback", boolean, required=False),
                 _field("relatedFrameManifests", strings, required=False),
             ),
             (("visual.frames", "frame-sequence@2"),),
@@ -4105,14 +4100,6 @@ class ResidentOperationBackend:
             if artwork_before is not None
             else None
         )
-        hdr_fallback = (
-            capture_state(
-                "PlayerUI-VideoFormat-HDRFallback",
-                include_screenshot=False,
-            )
-            if arguments.get("includeHDRFallback") is True
-            else None
-        )
         current_manifest = {
             "context": arguments["context"],
             "frames": frames,
@@ -4156,7 +4143,6 @@ class ResidentOperationBackend:
             ),
             "fields": frames[-1]["playbackState"]["fields"],
             "response": frames[-1]["playbackState"]["response"],
-            **({"hdrFallback": hdr_fallback} if hdr_fallback is not None else {}),
             "remoteObservation": remote_observation,
             "artworkObservation": (
                 {
@@ -7894,7 +7880,6 @@ class ResidentOperationBackend:
         )
         editor_sequence = None
         coverage_selection = None
-        coverage_dismissal = None
         if projection_value == "customAngle":
             coverage = int(arguments.get("horizontalCoverageDegrees", 200))
 
@@ -7930,13 +7915,6 @@ class ResidentOperationBackend:
             )
             self._require_success(selection, "custom angle selection")
             coverage_selection = {"listing": listing, "selection": selection}
-            coverage_dismissal = self._controller(
-                context,
-                "tap",
-                "--label",
-                f"{coverage}°",
-            )
-            self._require_success(coverage_dismissal, "custom angle dismissal")
             identifiers = (
                 stereo,
                 "PlayerUI-VideoFormat-apply",
@@ -7991,7 +7969,6 @@ class ResidentOperationBackend:
             "summon": summon,
             "customAnglePicker": editor_sequence,
             "customAngleSelection": coverage_selection,
-            "customAngleDismissal": coverage_dismissal,
             "action": action,
             "settlement": settlement,
             "after": after,

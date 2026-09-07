@@ -868,7 +868,6 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     "context": "main-window-browser",
                     "identifiers": [
                         "FileBrowsing-SourcesSidebar-sourceMore",
-                        "FileBrowsing-SourcesSidebar-add",
                         "FileBrowsing-SourcesSidebar-addWebDAV",
                     ],
                 },
@@ -980,7 +979,6 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                         "context": "main-window-browser",
                         "identifiers": [
                             "FileBrowsing-SourcesSidebar-sourceMore",
-                            "FileBrowsing-SourcesSidebar-add",
                             "FileBrowsing-SourcesSidebar-addSMB",
                         ],
                     },

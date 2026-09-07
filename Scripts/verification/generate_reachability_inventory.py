@@ -161,11 +161,8 @@ for identifier, family, target in (
     ("MediaLibrary-Manage-addFolder", "manage", "addFolder"),
     ("MediaLibrary-Manage-newFolder", "manage", "newFolder"),
     ("MediaLibrary-Manage-selectMultiple", "manage", "selectMultiple"),
-    ("FileBrowsing-SourcesSidebar-addFiles", "sourceAdd", "local"),
-    ("FileBrowsing-SourcesSidebar-addFolder", "sourceAdd", "folder"),
     ("FileBrowsing-SourcesSidebar-addWebDAV", "sourceAdd", "webDAV"),
     ("FileBrowsing-SourcesSidebar-addSMB", "sourceAdd", "smb"),
-    ("FileBrowsing-SourcesSidebar-add", "sourceAction", "add"),
     ("FileBrowsing-SourcesSidebar-refresh", "sourceAction", "refresh"),
     ("FileBrowsing-SourcesSidebar-delete", "sourceAction", "delete"),
 ):
@@ -176,8 +173,6 @@ for identifier, family, target in (
         "parentOperation": (
             "accessibility:FileBrowsing-Manage-button"
             if family == "manage"
-            else "accessibility:FileBrowsing-SourcesSidebar-add"
-            if family == "sourceAdd"
             else "accessibility:FileBrowsing-SourcesSidebar-sourceMore"
         ),
     }
@@ -780,7 +775,6 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-proceed",
             "-automatic",
             "-customangle",
-            "-hdrfallback",
             "-resume",
             "-detail-play",
             "-primary",

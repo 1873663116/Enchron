@@ -723,11 +723,11 @@ class AssertAbsentFlagTests(unittest.TestCase):
                 "PlayerUI-TopAction-videoFormat",
                 "PlayerUI-VideoFormat-cancel",
                 "--assert-absent",
-                "PlayerUI-VideoFormat-HDRFallback",
+                "PlayerUI-VideoFormat-CustomAngle",
             ]
         )
         self.assertEqual(
-            arguments.assertAbsent, ["PlayerUI-VideoFormat-HDRFallback"]
+            arguments.assertAbsent, ["PlayerUI-VideoFormat-CustomAngle"]
         )
         self.assertEqual(
             arguments.identifiers,

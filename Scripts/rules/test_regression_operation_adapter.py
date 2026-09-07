@@ -1285,14 +1285,14 @@ class OperationAllowlistTests(unittest.TestCase):
                 "PlayerUI-TopAction-videoFormat",
                 "PlayerUI-VideoFormat-cancel",
             ],
-            "assertAbsent": ["PlayerUI-VideoFormat-HDRFallback"],
+            "assertAbsent": ["PlayerUI-VideoFormat-CustomAngle"],
         }
         validated = spec.validate("device", arguments)
         observations = [
             {
                 "afterStep": step,
                 "exists": False,
-                "identifier": "PlayerUI-VideoFormat-HDRFallback",
+                "identifier": "PlayerUI-VideoFormat-CustomAngle",
                 "isEnabled": False,
                 "isHittable": False,
                 "label": "",
@@ -1325,7 +1325,7 @@ class OperationAllowlistTests(unittest.TestCase):
             "--identifiers",
             *arguments["identifiers"],
             "--assert-absent",
-            "PlayerUI-VideoFormat-HDRFallback",
+            "PlayerUI-VideoFormat-CustomAngle",
         )
         with self.assertRaisesRegex(adapter.OperationAdapterError, "assertAbsent"):
             spec.validate(
@@ -1335,7 +1335,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     "identifiers": ["PlayerUI-window-playback-surface"],
                     "gesture": "press",
                     "durationMillis": 1000,
-                    "assertAbsent": ["PlayerUI-VideoFormat-HDRFallback"],
+                    "assertAbsent": ["PlayerUI-VideoFormat-CustomAngle"],
                 },
             )
 
@@ -2724,7 +2724,6 @@ class OperationAllowlistTests(unittest.TestCase):
             "count": 3,
             "minimumIntervalMillis": 1000,
             "context": "portal",
-            "includeHDRFallback": True,
         }
         playback_states = [
             {
@@ -2858,7 +2857,6 @@ class OperationAllowlistTests(unittest.TestCase):
             )
         self.assertEqual(result["frames"][1]["playbackState"]["fields"]["error"], "decodeFailed")
         self.assertEqual(result["frames"][1]["controlPlane"]["fields"]["projection"], "flat")
-        self.assertFalse(result["hdrFallback"]["available"])
         self.assertEqual(
             controller.call_args_list,
             [
@@ -2879,15 +2877,6 @@ class OperationAllowlistTests(unittest.TestCase):
                         "--no-screenshot",
                     ),
                 )
-            ]
-            + [
-                mock.call(
-                    self.device,
-                    "snapshot",
-                    "--identifier",
-                    "PlayerUI-VideoFormat-HDRFallback",
-                    "--no-screenshot",
-                )
             ],
         )
 
@@ -2898,7 +2887,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 {
                     "afterStep": "PlayerUI-TopAction-videoFormat",
                     "exists": False,
-                    "identifier": "PlayerUI-VideoFormat-HDRFallback",
+                    "identifier": "PlayerUI-VideoFormat-CustomAngle",
                     "isEnabled": False,
                     "isHittable": False,
                     "label": "",
@@ -2995,10 +2984,6 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(dict(spec.validate("device", arguments)), arguments)
         for invalid in (
             {**arguments, "remoteExpectation": "finite-backoff"},
-            {
-                **VALID_ARGUMENTS["operation:evidence.capture-frames@1"],
-                "includeHDRFallback": False,
-            },
             {
                 key: value
                 for key, value in arguments.items()
@@ -3698,7 +3683,7 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(result["settlement"]["terminal"], terminal)
         self.assertEqual(result["after"], terminal_observation)
         self.assertEqual(
-            controller.call_args_list[1:4],
+            controller.call_args_list[1:3],
             [
                 mock.call(
                     self.device,
@@ -3707,7 +3692,6 @@ class OperationAllowlistTests(unittest.TestCase):
                     "PlayerUI-TopAction-videoFormat",
                     "PlayerUI-VideoFormat-CustomAngle",
                 ),
-                mock.call(self.device, "tap", "--label", "240°"),
                 mock.call(
                     self.device,
                     "tapSequence",
@@ -5771,7 +5755,6 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                     "context": "main-window-browser",
                     "identifiers": [
                         "FileBrowsing-SourcesSidebar-sourceMore",
-                        "FileBrowsing-SourcesSidebar-add",
                         "FileBrowsing-SourcesSidebar-addWebDAV",
                     ],
                 },
@@ -5783,7 +5766,6 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "tapSequence",
             "--identifiers",
             "FileBrowsing-SourcesSidebar-sourceMore",
-            "FileBrowsing-SourcesSidebar-add",
             "FileBrowsing-SourcesSidebar-addWebDAV",
         )
         self.assertIs(result["interaction"], response)
@@ -6373,7 +6355,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         ]
         self.assertNotIn("PlayerUI-VideoFormat-CustomAngle-240", addressed)
         self.assertEqual(
-            controller.call_args_list[1:4],
+            controller.call_args_list[1:3],
             [
                 mock.call(
                     self.device,
@@ -6382,7 +6364,6 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                     "PlayerUI-TopAction-videoFormat",
                     "PlayerUI-VideoFormat-CustomAngle",
                 ),
-                mock.call(self.device, "tap", "--label", "240°"),
                 mock.call(
                     self.device,
                     "tapSequence",

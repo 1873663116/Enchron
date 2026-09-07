@@ -962,7 +962,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             plan.calls[6].arguments["identifiers"],
             [
                 "FileBrowsing-SourcesSidebar-sourceMore",
-                "FileBrowsing-SourcesSidebar-add",
                 "FileBrowsing-SourcesSidebar-addWebDAV",
             ],
         )
@@ -1063,7 +1062,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
             plan.calls[6].arguments["identifiers"],
             [
                 "FileBrowsing-SourcesSidebar-sourceMore",
-                "FileBrowsing-SourcesSidebar-add",
                 "FileBrowsing-SourcesSidebar-addSMB",
             ],
         )
@@ -1161,7 +1159,6 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                         and call.arguments.get("identifiers")
                         == [
                             "FileBrowsing-SourcesSidebar-sourceMore",
-                            "FileBrowsing-SourcesSidebar-add",
                             "FileBrowsing-SourcesSidebar-addWebDAV",
                         ]
                     ]

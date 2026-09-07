@@ -117,7 +117,6 @@ SEGMENT_SCENARIO_NAMES = {
     "source-sidebar",
     "window-playback",
     "window-dv-format-round11",
-    "window-hdr-fallback-round12",
     "window-media-information-round12",
     "window-top-menu-round12",
     "window-environment-round11",
@@ -3726,8 +3725,6 @@ class ReachabilityRun:
     def source_sidebar_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
         for identifier, family, target, expected_action in (
-            ("addFiles", "sourceAdd", "local", "sidebar.add.local"),
-            ("addFolder", "sourceAdd", "folder", "sidebar.addFolder"),
             ("refresh", "sourceAction", "refresh", "sidebar.refresh"),
             ("delete", "sourceAction", "delete", "sourceSidebar.delete"),
         ):
@@ -3764,35 +3761,6 @@ class ReachabilityRun:
                     "The named source menu was hittable; the DEBUG equivalent reached "
                     "the FilesScreen handler and appended its product action probe.",
                 )
-
-        self.relaunch()
-        self.tap(presentation, "Navigation-Ornament-tab-files")
-        before = self.copy_probe("source-sidebar-add-before")
-        offset = len(before)
-        chip = self.tap(presentation, "FileBrowsing-SourcesSidebar-add")
-        if chip.get("success") is not True:
-            self.tap(presentation, "FileBrowsing-SourcesSidebar-sourceMore")
-            chip = self.tap(presentation, "FileBrowsing-SourcesSidebar-add")
-        _, _, added = self.select_debug_menu_item(
-            presentation=presentation,
-            host="files",
-            family="sourceAdd",
-            preferred=("local",),
-            driven_operations=("accessibility:FileBrowsing-SourcesSidebar-add",),
-        )
-        probe = self.copy_probe("source-sidebar-add")
-        if chip.get("success") is True and added.get("success") is True and any(
-            "reachability files delivered action=sidebar.add.local" in line
-            for line in probe[offset:]
-        ):
-            self.delivered_by_debug_menu_selection(
-                presentation,
-                "accessibility:FileBrowsing-SourcesSidebar-add",
-                "accessibility:FileBrowsing-SourcesSidebar-add",
-                self.events[-1]["evidence"],
-                "The Add chip supplied hierarchy and hittability evidence; the DEBUG "
-                "equivalent ran a product action it holds and appended its probe.",
-            )
 
         self.relaunch()
         self.tap(presentation, "Navigation-Ornament-tab-files")
@@ -6351,44 +6319,10 @@ class ReachabilityRun:
                     f"accessibility:{identifier_prefix}-CustomAngle",
                     f"accessibility:{identifier_prefix}-CustomAngle",
                     self.events[-1]["evidence"],
-                    "The named custom-angle Picker was hittable; the DEBUG "
+                    "The named custom-angle slider was hittable; the DEBUG "
                     "equivalent changed the same editor binding and its existing "
                     "product probe confirmed delivery.",
                 )
-            self.hold("pace", 0.5)
-            self.controller(
-                "tap", "--label", "180°", "--no-screenshot"
-            )
-            self.hold("pace", 0.3)
-            cancel_editor()
-
-        if open_editor():
-            fallback = self.wait_for_identifier(
-                f"{identifier_prefix}-HDRFallback"
-            )
-            if isinstance(fallback.get("matchedElement"), dict):
-                before = self.copy_probe(
-                    f"{identifier_prefix}-hdr-fallback-before"
-                )
-                offset = len(before)
-                toggled = self.tap(
-                    presentation, f"{identifier_prefix}-HDRFallback"
-                )
-                probe = self.wait_for_probe(
-                    f"{identifier_prefix}-hdr-fallback",
-                    offset,
-                    f"{probe_prefix}videoFormat.hdrFallback",
-                )
-                if toggled.get("success") is True and any(
-                    f"{probe_prefix}videoFormat.hdrFallback" in line
-                    for line in probe[offset:]
-                ):
-                    self.delivered(
-                        presentation,
-                        f"accessibility:{identifier_prefix}-HDRFallback",
-                        self.events[-1]["evidence"],
-                        "The HDR fallback toggle changed its editor binding and appended a probe.",
-                    )
             cancel_editor()
 
         if open_editor():
@@ -6560,56 +6494,6 @@ class ReachabilityRun:
             "PlayerUI-VideoFormat",
             "reachability top actions delivered action=",
         )
-
-    def window_hdr_fallback_scenario(self) -> None:
-        presentation = "window"
-        if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
-            return
-        if not self.ensure_window_projection("Flat"):
-            return
-
-        opened, before = self.tap_with_fresh_controls(
-            presentation,
-            "PlayerUI-TopAction-videoFormat",
-            probe_label="window-hdr-open-before",
-        )
-        offset = len(before)
-        fallback = self.wait_for_identifier(
-            "PlayerUI-VideoFormat-HDRFallback"
-        )
-        probe = self.copy_probe("window-hdr-opened")
-        if (
-            opened.get("success") is True
-            and isinstance(fallback.get("matchedElement"), dict)
-            and video_format_open_was_delivered(probe, offset=offset)
-        ):
-            self.delivered(
-                presentation,
-                "accessibility:PlayerUI-TopAction-videoFormat",
-                self.events[-1]["evidence"],
-                "The Window format host ran its open handler and exposed HDR Fallback.",
-            )
-
-        before = probe
-        offset = len(before)
-        toggled = self.tap(
-            presentation, "PlayerUI-VideoFormat-HDRFallback"
-        )
-        probe = self.wait_for_probe(
-            "window-hdr-fallback",
-            offset,
-            "reachability top actions delivered action=videoFormat.hdrFallback",
-        )
-        if toggled.get("success") is True and any(
-            "reachability top actions delivered action=videoFormat.hdrFallback"
-            in line for line in probe[offset:]
-        ):
-            self.delivered(
-                presentation,
-                "accessibility:PlayerUI-VideoFormat-HDRFallback",
-                self.events[-1]["evidence"],
-                "The HDR fallback toggle changed its editor binding and appended a probe.",
-            )
 
     def window_menu_scenario(self) -> None:
         if self.open_local_media("furyroad-with-dv.mkv").get("success") is not True:
@@ -8291,7 +8175,6 @@ class ReachabilityRun:
             "source-sidebar": self.source_sidebar_scenario,
             "window-playback": self.window_scenario,
             "window-dv-format-round11": self.window_dv_format_scenario,
-            "window-hdr-fallback-round12": self.window_hdr_fallback_scenario,
             "window-media-information-round12": self.window_media_information_scenario,
             "window-top-menu-round12": self.window_top_menu_scenario,
             "window-environment-round11": self.window_environment_scenario,
