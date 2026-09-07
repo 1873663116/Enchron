@@ -107,7 +107,7 @@
 
 ## 面板的交叉淡变展开
 
-面板的每一次切换（信息、设置、时间轴，以及它们的收起）是一次叠加动作：离开的内容在 `panelContentExit`（0.12 s）内淡出，进入的内容同时以 `panelContentEntrance` 淡入，而且从第一帧起就按自己的最终尺寸排版；外壳以 `panelSpring` 从旧尺寸行进到新尺寸，超出外壳的部分被 `clipShape` 裁掉、随外壳放大逐渐露出（Apple TV 的展开方式）。实现是 `FusedPlayerPanel.body` 里按 `expansion.layout` 取 `.id` 的内容层带不对称 opacity transition；外壳尺寸不量测、不另起事务，就是布局切换本身在 `panelSpring` 事务里的尺寸动画，内容层 `fixedSize(vertical:)` 保证它不被行进中的外壳压扁。曾用 `onGeometryChange` 量出进入内容的尺寸再在回调里 `withAnimation` 驱动外壳：那条路径让 ornament 宿主按缩放位图的方式过渡，中途整块模糊且圆角丢失成直角（2026-09-07 模拟器）。原先的三步序列（内容退场→空外壳行进→内容入场）让新内容要等缩放结束才出现，2026-09-07 被否决。
+面板的每一次切换（信息、设置、时间轴，以及它们的收起）是一次叠加动作：离开的内容在 `panelContentExit`（0.12 s）内淡出，进入的内容同时以 `panelContentEntrance` 淡入，而且从第一帧起就按自己的最终尺寸排版；外壳以 `panelSpring` 从旧尺寸行进到新尺寸，超出外壳的部分被 `clipShape` 裁掉、随外壳放大逐渐露出（Apple TV 的展开方式）。实现是 `FusedPlayerPanel.body` 里按 `expansion.layout` 取 `.id` 的内容层带不对称 opacity transition。glass 的 bounds 与形状都不能做动画：让外壳 frame 动画，系统在中途按矩形 bounds 画 glass、圆角只在起点终点出现；把可动画的 Shape 交给 `glassBackgroundEffect(in:)`，形状不逐帧更新，直接跳到终点（2026-09-07 模拟器与真机）。合成器逐帧处理的只有变换，所以切换时外壳先无动画钉在两个尺寸中较大的那个，整块 glass 视图按揭示尺寸与外壳尺寸之比做 `scaleEffect`，内容在 glass 内部反向缩放抵消，圆角随变换成椭圆但从不消失。内容必须留在 glass 视图内部：把 glass 做成兄弟层的板子会让内部的材质失去 glass 的 vibrancy 而发淡。揭示尺寸的起点在切换前无动画地钉为当前尺寸，落定用 `.removed` 完成条件，弹簧落稳后再清状态。原先的三步序列（内容退场→空外壳行进→内容入场）让新内容要等缩放结束才出现，2026-09-07 被否决。
 
 控件整体隐藏（点画面）时面板保持当时的形态一起淡出，不在 `controlsVisible` 变 false 时重置 `expansion`——重置会让时间轴瞬间消失、普通控件先出现再淡出。重置发生在控件再次可见的那一刻（`disablesAnimations` 事务内），窗口 ornament 因为随 chrome 一起卸载本来就会拿到新状态，沉浸空间的 dock attachment 只是 opacity 归零、状态常驻，这一步对它是必需的。
 

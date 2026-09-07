@@ -471,14 +471,8 @@ public struct FusedPlayerPanel: View {
             : DesignTokens.ControlBar.contentWidth
     }
 
-    private var shape: PlaybackPanelRevealShape {
-        let inner = revealSize ?? settledContentSize ?? .zero
-        return PlaybackPanelRevealShape(
-            cornerRadius: DesignTokens.Radius.card,
-            width: inner.width + DesignTokens.ControlBar.paddingH * 2,
-            height: inner.height + DesignTokens.ControlBar.paddingV * 2,
-            isActive: revealSize != nil
-        )
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
     }
 
     private var glassScale: CGSize {
@@ -493,14 +487,6 @@ public struct FusedPlayerPanel: View {
             width: min((revealSize.width + DesignTokens.ControlBar.paddingH * 2) / paddedShell.width, 1),
             height: min((revealSize.height + DesignTokens.ControlBar.paddingV * 2) / paddedShell.height, 1)
         )
-    }
-
-    private var glassPlate: some View {
-        Color.clear
-            .enchronGlassBackground(
-                in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-            )
-            .scaleEffect(x: glassScale.width, y: glassScale.height)
     }
 
     private func contentDidLayout(_ size: CGSize) {
@@ -546,10 +532,12 @@ public struct FusedPlayerPanel: View {
                 .transition(panelContentTransition)
         }
         .frame(width: shellSize?.width, height: shellSize?.height)
+        .scaleEffect(x: 1 / glassScale.width, y: 1 / glassScale.height)
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
-        .background { glassPlate }
+        .enchronGlassBackground(in: shape)
+        .scaleEffect(x: glassScale.width, y: glassScale.height)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
 #if DEBUG
@@ -975,7 +963,7 @@ public struct FusedPlayerPanel: View {
             )
         }
         .frame(width: width, height: DesignTokens.Layout.playbackMediaInfoHeight)
-        .background(.thickMaterial, in: shape)
+        .background(.ultraThickMaterial, in: shape)
         .overlay {
             shape.stroke(.white.opacity(0.08), lineWidth: DesignTokens.Stroke.subtle)
         }
@@ -2049,44 +2037,4 @@ private struct PlaybackMediaMetadataRow: View {
         )
     }
     .padding(DesignTokens.Spacing.xxl)
-}
-
-nonisolated struct PlaybackPanelRevealShape: InsettableShape {
-    var cornerRadius: CGFloat
-    var width: CGFloat
-    var height: CGFloat
-    var isActive: Bool
-    var insetAmount: CGFloat = 0
-
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(width, height) }
-        set {
-            width = newValue.first
-            height = newValue.second
-        }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let size = isActive
-            ? CGSize(width: min(width, rect.width), height: min(height, rect.height))
-            : rect.size
-        let frame = CGRect(
-            x: rect.midX - size.width / 2,
-            y: rect.midY - size.height / 2,
-            width: size.width,
-            height: size.height
-        ).insetBy(dx: insetAmount, dy: insetAmount)
-        let corner = CGSize(
-            width: max(cornerRadius * (rect.width > 0 ? size.width / rect.width : 1) - insetAmount, 0),
-            height: max(cornerRadius * (rect.height > 0 ? size.height / rect.height : 1) - insetAmount, 0)
-        )
-        return RoundedRectangle(cornerSize: corner, style: .continuous)
-            .path(in: frame)
-    }
-
-    func inset(by amount: CGFloat) -> PlaybackPanelRevealShape {
-        var copy = self
-        copy.insetAmount += amount
-        return copy
-    }
 }
