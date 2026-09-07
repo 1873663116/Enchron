@@ -433,6 +433,7 @@ public struct FusedPlayerPanel: View {
     @State private var selectedSpeed = "1×"
     @State private var panelContentSize: CGSize?
     @State private var timeBubbleWidth: CGFloat = 0
+    @State private var mediaInformationContentHeight: CGFloat = 0
     @Namespace private var hoverNamespace
 
     private enum ScrubberActivation: Equatable {
@@ -672,12 +673,10 @@ public struct FusedPlayerPanel: View {
     private static let placementTitleWidth: CGFloat = 100
     private static let placementReadoutWidth: CGFloat = 64
     private static let placementRowSpacing: CGFloat = DesignTokens.Spacing.md
-    private static let placementPanelPadding: CGFloat = DesignTokens.Spacing.lg
 
     private var placementTrackWidth: CGFloat {
         max(
             clusterWidth
-                - Self.placementPanelPadding * 2
                 - Self.placementTitleWidth
                 - Self.placementReadoutWidth
                 - Self.placementRowSpacing * 2,
@@ -686,12 +685,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.element,
-            style: .continuous
-        )
-
-        return VStack(spacing: DesignTokens.Spacing.sm) {
+        VStack(spacing: DesignTokens.Spacing.sm) {
             DockedPlacementSliderRow(
                 title: "Screen Size",
                 liveValue: live.screenScale,
@@ -735,9 +729,7 @@ public struct FusedPlayerPanel: View {
                 }
             )
         }
-        .padding(Self.placementPanelPadding)
         .frame(width: clusterWidth)
-        .background(.thickMaterial, in: shape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-DockedPlacement")
     }
@@ -750,6 +742,7 @@ public struct FusedPlayerPanel: View {
             canApplyFormat: live.canApplyFormat,
             mediaFormatProvenance: live.mediaFormatProvenance,
             sourceMediaFormatSummary: live.sourceMediaFormatSummary,
+            contentWidth: clusterWidth,
             identifierPrefix: "PlayerPanel-VideoFormat",
             onCancel: cancelVideoFormatEditing,
             onApply: applyVideoFormatEditing,
@@ -938,17 +931,27 @@ public struct FusedPlayerPanel: View {
         return parts.joined(separator: ". ")
     }
 
+    private var expandedMediaInformationHeight: CGFloat {
+        min(
+            max(
+                mediaInformationContentHeight,
+                DesignTokens.Layout.expandedMediaInformationMinimumHeight
+            ),
+            DesignTokens.Layout.expandedMediaInformationMaximumHeight
+        )
+    }
+
     private var expandedMediaInformation: some View {
         ZStack(alignment: .topLeading) {
             ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                     Text(live?.mediaName ?? "Unknown")
-                        .font(DesignTokens.Typography.headline)
+                        .font(DesignTokens.Typography.title)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let overview = live?.overview, overview.isEmpty == false {
                         Text(overview)
-                            .font(DesignTokens.Typography.metadata)
+                            .font(DesignTokens.Typography.selectionHeader)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("PlayerPanel-media-information-overview")
                     }
@@ -978,9 +981,19 @@ public struct FusedPlayerPanel: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, DesignTokens.Spacing.xl)
-                .padding(.leading, DesignTokens.Spacing.xl + DesignTokens.Interactive.large)
+                .padding(
+                    .leading,
+                    DesignTokens.Spacing.md + DesignTokens.Interactive.large + DesignTokens.Spacing.sm
+                )
                 .padding(.trailing, DesignTokens.Spacing.xl)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    mediaInformationContentHeight = $0
+                }
             }
+            .scrollDisabled(
+                mediaInformationContentHeight
+                    <= DesignTokens.Layout.expandedMediaInformationMaximumHeight
+            )
 
             CircleIconButton.back(
                 accessibilityLabel: "Back",
@@ -991,7 +1004,7 @@ public struct FusedPlayerPanel: View {
             .padding(.vertical, DesignTokens.Spacing.md)
             .padding(.leading, DesignTokens.Spacing.md)
         }
-        .frame(width: clusterWidth, height: 420)
+        .frame(width: clusterWidth, height: expandedMediaInformationHeight)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }

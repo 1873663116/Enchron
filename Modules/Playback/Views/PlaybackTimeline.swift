@@ -78,7 +78,7 @@ struct PrecisionTimelineZoomSlider: View {
         let litWidth = rightEdge - leftEdge
         let litCenterX = (leftEdge + rightEdge) / 2
 
-        return HStack(spacing: DesignTokens.Spacing.md) {
+        return HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: "minus.magnifyingglass")
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
@@ -101,9 +101,7 @@ struct PrecisionTimelineZoomSlider: View {
                 .accessibilityHidden(true)
         }
         .font(.body)
-        .padding(.horizontal, DesignTokens.Spacing.lg)
         .frame(height: DesignTokens.Interactive.large)
-        .background(.thickMaterial, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("DesignSystem-PrecisionTimeline-zoom")
         .accessibilityLabel("Timeline zoom")

@@ -205,6 +205,7 @@ struct PlaybackVideoFormatEditor: View {
     let canApplyFormat: Bool
     let mediaFormatProvenance: MediaFormatProvenance
     let sourceMediaFormatSummary: String
+    let contentWidth: CGFloat
     let identifierPrefix: String
     let onCancel: () -> Void
     let onApply: () -> Void
@@ -306,17 +307,20 @@ struct PlaybackVideoFormatEditor: View {
 #endif
     }
 
-    private static let customAngleTitleWidth: CGFloat = 100
-    private static let customAngleReadoutWidth: CGFloat = 56
-    private static let customAngleTrackWidth: CGFloat = 292
-
     private var customAngleRow: some View {
         let isCustom = projection == .customAngle
-        return HStack(spacing: DesignTokens.Spacing.md) {
-            Text("Custom Angle")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(isCustom ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                .frame(width: Self.customAngleTitleWidth, alignment: .leading)
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            HStack {
+                Text("Custom Angle")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text("\(horizontalFieldOfViewDegrees)°")
+                    .font(DesignTokens.Typography.metadata.monospacedDigit())
+                    .foregroundStyle(
+                        isCustom ? AnyShapeStyle(DesignTokens.Theme.accent) : AnyShapeStyle(.secondary)
+                    )
+            }
 
             DetentedRangeSlider(
                 value: customAngleSelection,
@@ -326,16 +330,9 @@ struct PlaybackVideoFormatEditor: View {
                 accessibilityLabel: "Custom Angle",
                 accessibilityValue: "\(horizontalFieldOfViewDegrees)°",
                 accessibilityIdentifier: "\(identifierPrefix)-CustomAngle",
-                trackWidth: Self.customAngleTrackWidth
+                trackWidth: contentWidth
             )
             .opacity(isCustom ? 1 : DesignTokens.Interactive.inactiveSelectionOpacity)
-
-            Text("\(horizontalFieldOfViewDegrees)°")
-                .font(DesignTokens.Typography.metadata.monospacedDigit())
-                .foregroundStyle(
-                    isCustom ? AnyShapeStyle(DesignTokens.Theme.accent) : AnyShapeStyle(.secondary)
-                )
-                .frame(minWidth: Self.customAngleReadoutWidth, alignment: .trailing)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Custom Angle")
@@ -413,7 +410,7 @@ struct PlaybackVideoFormatEditor: View {
                             }
                             .contentShape(.interaction, Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(EnchronPressFeedbackButtonStyle(.control))
                     .enchronHoverContentShape(Capsule())
                     .enchronHoverEffect(.automatic)
                     .contentShape(.interaction, Capsule())
@@ -764,6 +761,7 @@ public struct PlaybackTopActions: View {
             canApplyFormat: canApplyFormat,
             mediaFormatProvenance: mediaFormatProvenance,
             sourceMediaFormatSummary: sourceMediaFormatSummary,
+            contentWidth: DesignTokens.Layout.videoFormatEditorWidth - DesignTokens.Spacing.lg * 2,
             identifierPrefix: "PlayerUI-VideoFormat",
             onCancel: cancelVideoFormat,
             onApply: applyVideoFormat,
@@ -773,7 +771,7 @@ public struct PlaybackTopActions: View {
             }
         )
         .padding(DesignTokens.Spacing.lg)
-        .frame(width: 520)
+        .frame(width: DesignTokens.Layout.videoFormatEditorWidth)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-VideoFormat")

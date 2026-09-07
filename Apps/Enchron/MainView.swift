@@ -100,6 +100,8 @@ public struct MainView: View {
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
 
     @State private var controlsTimer: Task<Void, Never>?
+    @State private var playbackDeckIsMounted = false
+    @State private var playbackDeckOpacity: Double = 0
     @State private var reapplyVerificationSnapshotTick = 0
     private let playbackSurfaceIsEnabled: Bool
 
@@ -250,7 +252,7 @@ public struct MainView: View {
                 attachmentAnchor: .scene(.bottom)
             ) {
                 ZStack {
-                    if showsPlaybackChrome {
+                    if playbackDeckIsMounted {
                         WindowPlayerDeckView(
                             presentationOverride: hostedPlaybackPresentation
                         )
@@ -259,13 +261,35 @@ public struct MainView: View {
                             onRetry: playbackLauncher.retryPlayback,
                             onClose: playbackLauncher.stopPlayback
                         )
-                        .transition(.opacity)
+                        .opacity(playbackDeckOpacity)
+                        .allowsHitTesting(playbackDeckOpacity > 0)
                     }
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                     playbackSession.setWindowControlsOrnamentHeight($0)
                 }
+                .onChange(of: showsPlaybackChrome, initial: true) { _, shows in
+                    setPlaybackDeckPresented(shows)
+                }
             }
+    }
+
+    private func setPlaybackDeckPresented(_ presented: Bool) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        if presented {
+            withTransaction(transaction) { playbackDeckIsMounted = true }
+            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                playbackDeckOpacity = 1
+            }
+        } else {
+            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                playbackDeckOpacity = 0
+            } completion: {
+                guard showsPlaybackChrome == false else { return }
+                withTransaction(transaction) { playbackDeckIsMounted = false }
+            }
+        }
     }
 
     private var primaryContent: some View {

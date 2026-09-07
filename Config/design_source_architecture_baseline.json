@@ -263,12 +263,6 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/PlaybackPanel.swift",
-      "signature": ".frame(width: clusterWidth, height: 420)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".padding(.top, 6)",
       "count": 2
     },
@@ -300,12 +294,6 @@
       "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/PlaybackTopActions.swift",
       "signature": ".frame(width: 48, height: 48)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackTopActions.swift",
-      "signature": ".frame(width: 520)",
       "count": 1
     },
     {

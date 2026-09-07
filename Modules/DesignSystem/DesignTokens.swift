@@ -45,7 +45,7 @@ public enum DesignTokens {
 
     public enum AnimationToken {
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
-        public static let panelSpring: Animation = .spring(duration: 0.35, bounce: 0.15)
+        public static let panelSpring: Animation = .spring(duration: 0.4, bounce: 0.15)
         public static let panelContentExit: Animation = .easeOut(duration: 0.12)
         public static let panelContentEntrance: Animation = .easeIn(duration: 0.18)
         public static let menuPopup: Animation = .spring(duration: 0.35, bounce: 0.15)
@@ -268,6 +268,10 @@ public enum DesignTokens {
         public static let playbackMediaInfoHeight: CGFloat = 72
         public static let ornamentGap: CGFloat = 20
         public static let windowEdgeFadeHeight: CGFloat = 64
+        public static let expandedMediaInformationMinimumHeight: CGFloat =
+            playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.xxl
+        public static let expandedMediaInformationMaximumHeight: CGFloat = 420
+        public static let videoFormatEditorWidth: CGFloat = 520
     }
 
     public enum Typography {

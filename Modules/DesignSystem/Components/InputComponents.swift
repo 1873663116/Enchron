@@ -223,7 +223,7 @@ public struct GlassSliderRail: View {
 
     public var body: some View {
         Capsule()
-            .fill(DesignTokens.Surface.elevated)
+            .fill(.thickMaterial)
             .frame(width: trackWidth, height: trackHeight)
             .overlay(alignment: .center) {
                 Capsule()
