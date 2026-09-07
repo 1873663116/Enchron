@@ -473,8 +473,9 @@ public enum DesignTokens {
     }
 
     public enum PlaybackEdge {
-        public static let depth: CGFloat = 168
-        public static let holdFraction: CGFloat = 0.25
+        public static let depth: CGFloat = 240
+        public static let holdFraction: CGFloat = 0.1
+        public static let peakOpacity: CGFloat = 0.85
     }
 
     public enum ProgressBar {

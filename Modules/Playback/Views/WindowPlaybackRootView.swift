@@ -388,11 +388,6 @@ public struct WindowPlaybackRootView<
         surfaceContent
             .overlay {
                 chromeBackdrop
-                    .clipShape(ContainerRelativeShape())
-                    .enchronSpatialFrame(depth: 0)
-                    .enchronSpatialOffset(
-                        z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
-                    )
                     .opacity(showsWindowChrome ? 1 : 0)
                     .animation(
                         DesignTokens.AnimationToken.controlsTransition,

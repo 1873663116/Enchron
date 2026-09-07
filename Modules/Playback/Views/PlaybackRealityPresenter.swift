@@ -956,7 +956,7 @@ enum PlaybackRealityPresenter {
         if presentation.usesMainWindow {
             entity.components.set(
                 ModelSortGroupComponent(
-                    group: .planarUIInline,
+                    group: .planarUIAlwaysBehind,
                     order: WindowPlaybackSurfaceGeometry.backgroundSortOrder
                 )
             )

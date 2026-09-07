@@ -91,7 +91,8 @@ final class PlaybackChromeBackdropSampler {
         gradient.point0 = CGPoint(x: 0, y: 0)
         gradient.point1 = CGPoint(x: 0, y: target.height * (1 - hold))
         gradient.color0 = CIColor(red: 0, green: 0, blue: 0, alpha: 0)
-        gradient.color1 = CIColor(red: 1, green: 1, blue: 1, alpha: 1)
+        let peak = DesignTokens.PlaybackEdge.peakOpacity
+        gradient.color1 = CIColor(red: 1, green: 1, blue: 1, alpha: peak)
         guard let mask = gradient.outputImage?.cropped(to: target) else { return nil }
 
         let masked = CIFilter.blendWithAlphaMask()
