@@ -940,11 +940,11 @@ public final class SpatialPlatformEffectCoordinator {
                 to: presentation
             )
         }
-        let mainWindowIsReady = await restorePlaybackWindow(
+        let windowRestorationBegan = await beginPlaybackWindowRestoration(
             for: windowTransition,
             execution: execution
         )
-        guard mainWindowIsReady else {
+        guard windowRestorationBegan else {
             rebaseTask.cancel()
             _ = try? await rebaseTask.value
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
@@ -974,6 +974,25 @@ public final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+        guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
+            return
+        }
+        let mainWindowIsReady = await waitForMainWindowToBecomeForeground(
+            execution: execution
+        )
+        guard mainWindowIsReady else {
+            lastPlatformOperation = "main-window-appearance-failed"
+            guard executionIsLive(execution) else { return }
+            guard setRuntimeIssue(
+                .presentationConversionFailed,
+                execution: execution
+            ) else { return }
+            _ = await complete(
+                execution,
+                outcome: .failed(.mainWindowUnavailable)
+            )
+            return
+        }
         if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
             for: windowTransition
         ) {
@@ -994,9 +1013,6 @@ public final class SpatialPlatformEffectCoordinator {
                 )
                 return
             }
-        }
-        guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
-            return
         }
         guard let settled = await waitUntilPresentationSettled(
             to: presentation,
@@ -1183,6 +1199,17 @@ public final class SpatialPlatformEffectCoordinator {
         for transition: SpatialPlatformPlaybackWindowTransition,
         execution: Execution
     ) async -> Bool {
+        guard await beginPlaybackWindowRestoration(
+            for: transition,
+            execution: execution
+        ) else { return false }
+        return await waitForMainWindowToBecomeForeground(execution: execution)
+    }
+
+    private func beginPlaybackWindowRestoration(
+        for transition: SpatialPlatformPlaybackWindowTransition,
+        execution: Execution
+    ) async -> Bool {
         let action = SpatialPlatformPlaybackWindowPolicy.action(
             for: transition,
             residentWindowState: residentWindowState
@@ -1191,13 +1218,12 @@ public final class SpatialPlatformEffectCoordinator {
         case .pushResidentWindow:
             return false
         case .dismissResidentWindow:
-            guard await dismissWindowAndWaitForDisappearance(
+            return await dismissWindowAndWaitForDisappearance(
                 .immersivePlaybackResident,
                 execution: execution
-            ) else { return false }
-            return await waitForMainWindowToBecomeForeground(execution: execution)
+            )
         case .retainMainWindow:
-            return await waitForMainWindowToBecomeForeground(execution: execution)
+            return true
         }
     }
 
