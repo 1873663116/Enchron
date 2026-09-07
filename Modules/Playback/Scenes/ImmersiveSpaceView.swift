@@ -666,6 +666,11 @@ public struct ImmersiveSpaceView: View {
     }()
     @State private var world = WorldSceneState()
     @State private var subtitleSurface = PlaybackSubtitleSurface()
+    @State private var subtitleHeadAnchor: Entity = {
+        let anchor = AnchorEntity(.head, trackingMode: .continuous)
+        anchor.name = "EnchronSubtitle.headAnchor"
+        return anchor
+    }()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var surfaceAccessibilityActivation =
@@ -1349,8 +1354,9 @@ public struct ImmersiveSpaceView: View {
             entityIsInRealityView: content.entities.contains { $0 === entity }
         )
         appModel.recordSpatialPlaybackSurfacePreparationStage("componentConfigured")
+        installSubtitleHeadAnchor(in: content, active: presentation == .panorama)
         subtitleSurface.update(
-            on: entity,
+            on: subtitleParent(for: presentation),
             presentation: presentation,
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
@@ -1358,6 +1364,19 @@ public struct ImmersiveSpaceView: View {
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         attachSpatialSurfaceIfReady()
+    }
+
+    private func subtitleParent(for presentation: PlaybackPresentation) -> Entity {
+        presentation == .panorama ? subtitleHeadAnchor : videoEntity
+    }
+
+    private func installSubtitleHeadAnchor(in content: RealityViewContent, active: Bool) {
+        let installed = content.entities.contains { $0 === subtitleHeadAnchor }
+        if active, installed == false {
+            content.add(subtitleHeadAnchor)
+        } else if active == false, installed {
+            content.remove(subtitleHeadAnchor)
+        }
     }
 
     @MainActor
@@ -1368,7 +1387,7 @@ public struct ImmersiveSpaceView: View {
             return
         }
         subtitleSurface.update(
-            on: videoEntity,
+            on: subtitleParent(for: presentation),
             presentation: presentation,
             screenSize: videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
@@ -1963,6 +1982,7 @@ public struct ImmersiveSpaceView: View {
         displayLinkProbe.reset()
         appModel.clearSpatialPlaybackSurfaceObservation()
         panoramaInteractionSurface.removeFromParent()
+        subtitleHeadAnchor.removeFromParent()
 #if DEBUG
         headInputProbe.removeFromParent()
         removeDockedHitTestProbes()

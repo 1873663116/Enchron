@@ -447,9 +447,30 @@ struct PlaybackPresentationStateTests {
         #expect(surface.entity.components[ModelSortGroupComponent.self] == nil)
         #expect(surface.entity.position.z == PlaybackSubtitlePlacement.panoramaScreenCenter.z)
         #expect(surface.entity.position.y < PlaybackSubtitlePlacement.panoramaScreenCenter.y)
+        #expect(surface.entity.position.x == 0)
+
+        let offCentre = PlaybackSubtitlePlacement.resolve(
+            frame: Self.subtitleFrame(changeIdentifier: 2, contentX: 1_400),
+            presentation: .portal,
+            screenSize: screenSize,
+            reservedBottomFraction: 0
+        )
+        let windowed = PlaybackSubtitlePlacement.resolve(
+            frame: Self.subtitleFrame(changeIdentifier: 2, contentX: 1_400),
+            presentation: .window,
+            screenSize: screenSize,
+            reservedBottomFraction: 0
+        )
+        #expect(offCentre.position.x == 0)
+        #expect(windowed.position.x > 0)
+        #expect(offCentre.position.y < 0)
+        #expect(offCentre.position.y > -screenSize.y / 2)
     }
 
-    private static func subtitleFrame(changeIdentifier: UInt64) -> PlaybackSubtitleFrame {
+    private static func subtitleFrame(
+        changeIdentifier: UInt64,
+        contentX: Int = 928
+    ) -> PlaybackSubtitleFrame {
         let width = 64
         let height = 16
         var pixels = Data(count: width * 4 * height)
@@ -466,7 +487,7 @@ struct PlaybackPresentationStateTests {
             kind: .coreText,
             canvasWidth: 1_920,
             canvasHeight: 1_080,
-            contentX: 928,
+            contentX: contentX,
             contentY: 1_000,
             contentWidth: width,
             contentHeight: height,

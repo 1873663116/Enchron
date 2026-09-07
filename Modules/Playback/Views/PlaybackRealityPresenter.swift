@@ -1077,6 +1077,11 @@ enum PlaybackSubtitlePlacement {
     static let panoramaScreenSize = SIMD2<Float>(16.0 / 9.0 * 1.6, 1.6)
     static let panoramaScreenCenter = SIMD3<Float>(0, -0.3, -3)
     static let planeLift: Float = 0.015
+    static let pinnedBottomFraction: Float = 0.08
+
+    static func pinsToLowerCenter(_ presentation: PlaybackPresentation) -> Bool {
+        presentation == .portal || presentation == .panorama
+    }
 
     static func resolve(
         frame: PlaybackSubtitleFrame,
@@ -1099,10 +1104,19 @@ enum PlaybackSubtitlePlacement {
         let canvasHeight = Float(frame.canvasHeight)
         let contentWidth = resolvedScreenSize.x * Float(frame.contentWidth) / canvasWidth
         let contentHeight = resolvedScreenSize.y * Float(frame.contentHeight) / canvasHeight
-        let centerX = -resolvedScreenSize.x / 2 +
-            resolvedScreenSize.x * (Float(frame.contentX) + Float(frame.contentWidth) / 2) / canvasWidth
-        let centerY = resolvedScreenSize.y / 2 -
-            resolvedScreenSize.y * (Float(frame.contentY) + Float(frame.contentHeight) / 2) / canvasHeight
+        let centerX: Float
+        let centerY: Float
+        if pinsToLowerCenter(presentation) {
+            centerX = 0
+            centerY = -resolvedScreenSize.y / 2
+                + resolvedScreenSize.y * pinnedBottomFraction
+                + contentHeight / 2
+        } else {
+            centerX = -resolvedScreenSize.x / 2 +
+                resolvedScreenSize.x * (Float(frame.contentX) + Float(frame.contentWidth) / 2) / canvasWidth
+            centerY = resolvedScreenSize.y / 2 -
+                resolvedScreenSize.y * (Float(frame.contentY) + Float(frame.contentHeight) / 2) / canvasHeight
+        }
         let contentBottomY = centerY - contentHeight / 2
         let safeBottomY = -resolvedScreenSize.y / 2 +
             resolvedScreenSize.y * min(max(reservedBottomFraction, 0), 0.5)
