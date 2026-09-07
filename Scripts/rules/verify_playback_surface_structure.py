@@ -523,14 +523,33 @@ def main() -> int:
     require(
         order(
             platform_executor,
+            "let windowRestorationBegan = await beginPlaybackWindowRestoration(",
+            "let mainWindowIsReady = await waitForMainWindowToBecomeForeground(",
             "case .retainMainWindow:",
-            "return await waitForMainWindowToBecomeForeground(execution: execution)",
+            "return true",
             "if windowObservation.residency(for: .main) != .open {",
             "recordWindowResidency(.open, for: .main)",
             "preferMainWindowCapability()",
         ),
         "leaving the immersive space without a resident window no longer waits "
         "for the main window to return to the foreground before rebinding",
+    )
+    require(
+        order(
+            platform_executor,
+            "forName: UIScene.didDisconnectNotification,",
+            "sessionIdentifier == mainWindowSceneSessionIdentifier else {",
+            "recordWindowResidency(.closed, for: .main)",
+            "onMainWindowClosedByWearer?()",
+        )
+        and order(
+            application,
+            "spatialPlatformEffectCoordinator.onMainWindowClosedByWearer = {",
+            "SpatialPlatformMainWindowClosurePolicy.stopsPlayback(",
+            "launcher?.stopPlayback()",
+        ),
+        "closing the main window from the window bar no longer stops playback "
+        "hosted in that window",
     )
     require(
         order(
