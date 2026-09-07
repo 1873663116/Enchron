@@ -417,6 +417,21 @@ int PBSubtitleFrameRendererIngestAvailablePackets(
     char *errorBuffer,
     size_t errorBufferSize
 );
+
+// Folds every subtitle packet the source holds from the start of the stream
+// into the renderer, independent of the shared demux's current read position.
+// A renderer created over a shared demux only sees packets queued from the
+// live playhead forward, so a cue that began before a mid-stream selection or
+// a forward seek would never arrive; this scans the source's subtitle stream
+// alone (every other stream is discarded at the demuxer) and ingests the
+// backlog, deduplicated against whatever the live subscription already folded
+// in. Returns the number of packets ingested, or -1 with an error message.
+int PBSubtitleFrameRendererPreloadBacklogFromPath(
+    PBSubtitleFrameRenderer *renderer,
+    const char *path,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
 int PBSubtitleFrameRendererGetTextCueCount(
     const PBSubtitleFrameRenderer *renderer
 );

@@ -698,6 +698,64 @@ int PBSubtitleFrameRendererIngestAvailablePackets(
     return ingest_available_packets(renderer, errorBuffer, errorBufferSize);
 }
 
+int PBSubtitleFrameRendererPreloadBacklogFromPath(
+    PBSubtitleFrameRenderer *renderer,
+    const char *path,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!renderer || !path) {
+        set_error(errorBuffer, errorBufferSize, "Invalid subtitle backlog call");
+        return -1;
+    }
+    AVFormatContext *format = NULL;
+    int result = avformat_open_input(&format, path, NULL, NULL);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open subtitle backlog source", result);
+        return -1;
+    }
+    result = avformat_find_stream_info(format, NULL);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Read subtitle backlog stream information", result);
+        avformat_close_input(&format);
+        return -1;
+    }
+    if (renderer->streamIndex >= (int)format->nb_streams) {
+        avformat_close_input(&format);
+        set_error(errorBuffer, errorBufferSize, "Subtitle backlog stream index is unavailable");
+        return -1;
+    }
+    for (unsigned int index = 0; index < format->nb_streams; index++) {
+        format->streams[index]->discard =
+            (int)index == renderer->streamIndex ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
+    }
+    AVPacket *packet = av_packet_alloc();
+    if (!packet) {
+        avformat_close_input(&format);
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle backlog packet");
+        return -1;
+    }
+    int ingested = 0;
+    bool failed = false;
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == renderer->streamIndex) {
+            if (!ingest_packet(renderer, packet)) {
+                set_error(errorBuffer, errorBufferSize, "Decode subtitle backlog packet");
+                failed = true;
+                av_packet_unref(packet);
+                break;
+            }
+            ingested++;
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    avformat_close_input(&format);
+    if (failed) return -1;
+    if (is_text_codec(renderer->codecID)) avcodec_flush_buffers(renderer->decoder);
+    return ingested;
+}
+
 void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
     if (!renderer) return;
     if (renderer->demuxSource) {

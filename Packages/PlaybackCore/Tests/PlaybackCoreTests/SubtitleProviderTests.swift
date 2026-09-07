@@ -68,7 +68,7 @@ import Testing
     ) != nil)
 }
 
-@Test func sharedSourceSubtitleRendererIngestsOnDemandInsteadOfScanningTheSource() async throws {
+@Test func sharedSourceSubtitleRendererPreloadsItsBacklogWithoutDrainingTheVideo() async throws {
     let fixture = try subtitleFixtureURL()
     let meter = PlaybackSourceReadMeter()
     let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
@@ -83,50 +83,28 @@ import Testing
     let information = try await loader.load(from: fixture)
     let track = try #require(information.playbackSubtitleTracks.first)
 
-    func readFrameCount() throws -> UInt64 {
-        try #require(demuxSession.bufferDiagnostics()).readFrameCount
-    }
-    func readFrameCountOnceSettled() async throws -> UInt64 {
-        var previous = try readFrameCount()
-        let deadline = ContinuousClock.now + .seconds(5)
-        while ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(150))
-            let current = try readFrameCount()
-            if current == previous { return current }
-            previous = current
-        }
-        Issue.record("The shared reader never settled")
-        return previous
-    }
-
-    // Selecting the track takes what the shared source has queued and
-    // returns; it must not read the source to its end.
-    var cues = try await provider.cues(in: fixture, asset: nil, track: track)
+    // Selecting the track preloads the whole subtitle backlog through a
+    // subtitle-only scan, so both cues are present without waiting for the
+    // shared reader to pass them.
+    let cues = try await provider.cues(in: fixture, asset: nil, track: track)
+    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
+    #expect(cues.map(\.id) == ["ffmpeg.subtitle.1.cue.0", "ffmpeg.subtitle.1.cue.1"])
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
         track: track
     ))
-    let readFramesAfterSelection = try await readFrameCountOnceSettled()
-
-    // The renderer keeps its stream subscription and folds in packets as the
-    // reader passes them; each ingest lets the reader move on.
-    let cueDeadline = ContinuousClock.now + .seconds(5)
-    while ContinuousClock.now < cueDeadline, cues.count < 2 {
-        cues += try renderer.ingestPendingCues(for: track)
-        try await Task.sleep(for: .milliseconds(10))
-    }
-    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
-    #expect(cues.map(\.id) == ["ffmpeg.subtitle.1.cue.0", "ffmpeg.subtitle.1.cue.1"])
-    let readFramesAfterIngest = try await readFrameCountOnceSettled()
-    #expect(readFramesAfterIngest > readFramesAfterSelection)
     #expect(try renderer.frame(
         at: CMTime(seconds: 1, preferredTimescale: 600),
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ) != nil)
 
-    // After a backward seek the source re-reads the same packets; the
+    // The backlog scan discards every non-subtitle stream, so it never forces
+    // the live playhead forward: the shared video reader stays at the start.
+    #expect(try #require(demuxSession.bufferDiagnostics()).readFrameCount < 60)
+
+    // After a backward seek the shared source re-reads the same packets; the
     // renderer recognises them and produces no duplicate cues.
     try demuxSession.seek(to: 0)
     var duplicates: [PlaybackSubtitleCue] = []
@@ -137,6 +115,41 @@ import Testing
     }
     #expect(duplicates.isEmpty)
     #expect(try renderer.ingestPendingCues(for: track).isEmpty)
+}
+
+@Test func aSubtitleRendererCreatedAfterAForwardSeekStillCarriesEarlierCues() async throws {
+    let fixture = try subtitleFixtureURL()
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let loader = SystemMediaSourceInformationLoader(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let provider = FFmpegSubtitleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let information = try await loader.load(from: fixture)
+    let track = try #require(information.playbackSubtitleTracks.first)
+
+    // Advance the shared source past the first cue before any renderer exists,
+    // the way a mid-stream presentation switch starts a fresh technical session.
+    try demuxSession.seek(to: 2.5)
+
+    // Selecting the track over the seeked source must still recover the cue at
+    // one second: the renderer preloads the backlog the live subscription skips.
+    let cues = try await provider.cues(in: fixture, asset: nil, track: track)
+    #expect(cues.map(\.text).contains("第一行\n第二行"))
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    #expect(try renderer.frame(
+        at: CMTime(seconds: 1, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) != nil)
 }
 
 @Test func reselectingASubtitleTrackAfterTheSharedReaderEndedKeepsItsFrames() async throws {
