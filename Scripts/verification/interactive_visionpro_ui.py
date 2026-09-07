@@ -785,8 +785,10 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "duration",
         "normalizedX",
         "normalizedY",
+        "count",
+        "intervalMilliseconds",
     ):
-        value = getattr(arguments, key)
+        value = getattr(arguments, key, None)
         if value is not None:
             command[key] = value
     text = resolve_command_text(arguments)
@@ -860,6 +862,24 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
             if not copied:
                 raise RuntimeError("The UI response arrived, but its screenshot could not be copied.")
             response["localScreenshotPath"] = str(screenshot_path)
+        attachments = response.get("attachmentRelativePaths") or []
+        if attachments:
+            output_directory = Path(arguments.output_directory).expanduser().resolve()
+            burst_directory = output_directory / f"{command_id}-burst"
+            burst_directory.mkdir(parents=True, exist_ok=True)
+            local_paths: list[str] = []
+            for relative_path in attachments:
+                local_path = burst_directory / Path(str(relative_path)).name
+                copied = copy_from_device(
+                    device=arguments.device,
+                    runner_bundle_id=arguments.runner_bundle_id,
+                    remote_path=f"{CHANNEL_ROOT}/{relative_path}",
+                    local_path=local_path,
+                    quiet=True,
+                )
+                if copied:
+                    local_paths.append(str(local_path))
+            response["localAttachmentPaths"] = local_paths
         return response
 
 
@@ -1468,6 +1488,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
             "halt",
             "ensure-session",
             "app-command",
+            "screenshotBurst",
         ),
     )
     parser.add_argument(
@@ -1487,6 +1508,8 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--label")
     parser.add_argument("--trailing-label", dest="trailingLabel")
     parser.add_argument("--index", type=int)
+    parser.add_argument("--count", type=int)
+    parser.add_argument("--interval-milliseconds", dest="intervalMilliseconds", type=int)
     text_source = parser.add_mutually_exclusive_group()
     text_source.add_argument("--text")
     text_source.add_argument("--text-file", dest="text_file", type=Path)

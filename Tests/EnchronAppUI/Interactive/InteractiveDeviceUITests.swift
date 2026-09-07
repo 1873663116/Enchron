@@ -251,6 +251,33 @@ private final class InteractiveDeviceUIChannel {
         case .activate:
             app.activate()
             return (true, "Application activated.")
+        case .screenshotBurst:
+            if let identifier = command.identifier, identifier.isEmpty == false {
+                guard let element = element(for: command) else {
+                    return (false, "No current element matches the requested identifier and index.")
+                }
+                guard hittability(of: element) else {
+                    return (false, "The requested element exists but is not currently hittable.")
+                }
+                element.tap()
+            }
+            let count = max(1, command.count ?? 20)
+            let interval = max(0, command.intervalMilliseconds ?? 0)
+            let startedAt = Date()
+            var relativePaths: [String] = []
+            for index in 0..<count {
+                let png = capturedScreenPNG()
+                let millis = Int(Date().timeIntervalSince1970 * 1_000)
+                let name = "\(command.id)-burst-\(String(format: "%03d", index))-\(millis).png"
+                try? png.write(to: responsesURL.appending(path: name), options: .atomic)
+                relativePaths.append("responses/\(name)")
+                if interval > 0 {
+                    Thread.sleep(forTimeInterval: Double(interval) / 1_000)
+                }
+            }
+            burstAttachmentRelativePaths = relativePaths
+            let elapsed = Int(Date().timeIntervalSince(startedAt) * 1_000)
+            return (true, "Captured \(relativePaths.count) frames over \(elapsed) ms.")
         case .tap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -611,6 +638,8 @@ private final class InteractiveDeviceUIChannel {
         assertAbsentObservations: [InteractiveDeviceUIInspectedElement] = [],
         routeElements: [InteractiveDeviceUIElementObservation] = []
     ) throws {
+        let attachmentRelativePaths = burstAttachmentRelativePaths
+        burstAttachmentRelativePaths = []
         let screenshotName: String?
         if command.includeScreenshot == false {
             screenshotName = nil
@@ -633,7 +662,8 @@ private final class InteractiveDeviceUIChannel {
             screenshotRelativePath: screenshotName,
             alsoInspected: alsoInspected,
             assertAbsentObservations: assertAbsentObservations,
-            routeElements: routeElements
+            routeElements: routeElements,
+            attachmentRelativePaths: attachmentRelativePaths
         )
         let responseURL = responsesURL.appending(
             path: "\(command.id).json"
@@ -689,6 +719,8 @@ private final class InteractiveDeviceUIChannel {
     }
 
     private var mainWindowFrameCache: CGRect??
+
+    private var burstAttachmentRelativePaths: [String] = []
 
     private func mainWindowFrame() -> CGRect? {
         if let cached = mainWindowFrameCache { return cached }
@@ -800,6 +832,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case relaunch
         case terminate
         case stop
+        case screenshotBurst
     }
 
     let id: String
@@ -818,6 +851,8 @@ private struct InteractiveDeviceUICommand: Codable {
     let normalizedX: Double?
     let normalizedY: Double?
     let includeScreenshot: Bool?
+    let count: Int?
+    let intervalMilliseconds: Int?
 }
 
 private struct InteractiveDeviceUIResponse: Codable {
@@ -833,6 +868,7 @@ private struct InteractiveDeviceUIResponse: Codable {
     let alsoInspected: [InteractiveDeviceUIInspectedElement]
     let assertAbsentObservations: [InteractiveDeviceUIInspectedElement]
     let routeElements: [InteractiveDeviceUIElementObservation]
+    let attachmentRelativePaths: [String]
 }
 
 private struct InteractiveDeviceUIInspectedElement: Codable {
