@@ -1074,8 +1074,9 @@ struct PlaybackSubtitleLayout: Equatable {
 }
 
 enum PlaybackSubtitlePlacement {
-    static let panoramaScreenSize = SIMD2<Float>(16.0 / 9.0 * 1.6, 1.6)
-    static let panoramaScreenCenter = SIMD3<Float>(0, -0.3, -3)
+    static let panoramaScreenDistance: Float = 2.2
+    static let panoramaScreenSize = SIMD2<Float>(16.0 / 9.0 * 0.9, 0.9)
+    static let panoramaScreenCenter = SIMD3<Float>(0, -0.55, -panoramaScreenDistance)
     static let planeLift: Float = 0.015
     static let pinnedBottomFraction: Float = 0.08
     static let panoramaDockedScreenCenterY: Float = 1.44

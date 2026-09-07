@@ -193,6 +193,7 @@
 				Playback/Scenes/ImmersivePlaybackControlsAttachment.swift,
 				Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift,
 				Playback/Scenes/ImmersiveSpaceView.swift,
+				Playback/Scenes/PanoramaSubtitleFollower.swift,
 				Playback/Session/DebugProbeJournal.swift,
 				Playback/Session/PlaybackMediaSessionDriver.swift,
 				Playback/Session/PlaybackPresentationChrome.swift,

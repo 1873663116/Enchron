@@ -104,7 +104,9 @@ final class PanoramaSubtitleFollower {
         return entity
     }()
 
-    static let dockedScale: Float = 0.7 / 3
+    static let dockedScale: Float =
+        -ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
+        / PlaybackSubtitlePlacement.panoramaScreenDistance
 
     var dockTransformProvider: @MainActor () -> Transform? = { nil }
     var onDockChange: @MainActor (Bool) -> Void = { _ in }
@@ -194,15 +196,26 @@ final class PanoramaSubtitleFollower {
             dock: dockGaze.map { LazyGazeFollow.Gaze(yaw: $0.yaw, pitch: headGaze.pitch) },
             deltaTime: deltaTime
         )
+        let target: Transform
         if follow.isDocked, let dockTransform {
-            root.position = dockTransform.translation
-            root.orientation = dockTransform.rotation
-            root.scale = SIMD3(repeating: Self.dockedScale)
+            target = Transform(
+                scale: SIMD3(repeating: Self.dockedScale),
+                rotation: dockTransform.rotation,
+                translation: dockTransform.translation
+            )
         } else {
-            root.position = headPosition
-            root.orientation = follow.orientation
-            root.scale = .one
+            target = Transform(
+                scale: .one,
+                rotation: follow.orientation,
+                translation: headPosition
+            )
         }
+        let factor = 1 - exp(-max(deltaTime, 0) / LazyGazeFollow.timeConstantSeconds)
+        root.transform = Transform(
+            scale: simd_mix(root.scale, target.scale, SIMD3(repeating: factor)),
+            rotation: simd_slerp(root.orientation, target.rotation, factor),
+            translation: simd_mix(root.position, target.translation, SIMD3(repeating: factor))
+        )
         if isDocked != follow.isDocked {
             isDocked = follow.isDocked
             onDockChange(isDocked)
