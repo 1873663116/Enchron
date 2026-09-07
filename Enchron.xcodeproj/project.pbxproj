@@ -207,7 +207,6 @@
 				Playback/Views/DetentedRangeSlider.swift,
 				Playback/Views/DragRotationModifier.swift,
 				Playback/Views/EnvironmentComponents.swift,
-				Playback/Views/PlaybackChromeBackdrop.swift,
 				Playback/Views/PlaybackFormatters.swift,
 				Playback/Views/PlaybackPanel.swift,
 				Playback/Views/PlaybackRealityPresenter.swift,

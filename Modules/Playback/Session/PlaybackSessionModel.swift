@@ -204,7 +204,6 @@ public final class PlaybackSessionModel {
     public private(set) var windowTopChromeFraction: Float = 0
     private var windowControlsOrnamentHeight: CGFloat = 0
     public private(set) var windowSurfaceHeight: CGFloat = 0
-    public private(set) var windowChromeBackdropImage: CGImage?
     public private(set) var windowSecondaryMenuIsPresented = false
 #if DEBUG
     public var showBlackoutProbeWindow: Bool = false
@@ -610,11 +609,6 @@ public final class PlaybackSessionModel {
     public func setWindowControlsOrnamentHeight(_ height: CGFloat) {
         guard windowControlsOrnamentHeight != height else { return }
         windowControlsOrnamentHeight = height
-    }
-
-    public func setWindowChromeBackdropImage(_ image: CGImage?) {
-        guard windowChromeBackdropImage !== image else { return }
-        windowChromeBackdropImage = image
     }
 
     public func setWindowSurfaceHeight(_ height: CGFloat) {

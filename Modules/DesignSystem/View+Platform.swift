@@ -69,6 +69,18 @@ public extension View {
     }
 
     @ViewBuilder
+    func enchronMediaChromeShadow() -> some View {
+        background {
+            Circle()
+                .fill(Color.black.opacity(DesignTokens.MediaChromeShadow.opacity))
+                .padding(-DesignTokens.MediaChromeShadow.spread)
+                .blur(radius: DesignTokens.MediaChromeShadow.blurRadius)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
     func enchronHoverContentShape<S: Shape>(_ shape: S) -> some View {
         contentShape(.hoverEffect, shape)
     }

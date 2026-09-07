@@ -1,5 +1,4 @@
 import AVFoundation
-import DesignSystem
 import RealityKit
 import OSLog
 import PlaybackCore
@@ -202,7 +201,6 @@ public struct PlaybackVideoSurface: View {
     }
 
     @State private var subtitleSurface = PlaybackSubtitleSurface()
-    @State private var chromeBackdrop = PlaybackChromeBackdropSampler()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var surfaceAccessibilityActivation =
@@ -538,8 +536,6 @@ public struct PlaybackVideoSurface: View {
             frame: playbackRuntime.activeSubtitleFrame,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
-        chromeBackdrop.observe(in: content) { refreshChromeBackdrop() }
-        refreshChromeBackdrop()
         if needsInsertion {
             logComponentState(reason: "entityAdded")
         }
@@ -612,39 +608,6 @@ public struct PlaybackVideoSurface: View {
             layout.availableSize.y,
             Float(sceneBounds.extents.z)
         ]
-    }
-
-    private var chromeBackdropFraction: Float {
-        guard appModel.showControls, appModel.windowSurfaceHeight > 0 else { return 0 }
-        return Float(min(DesignTokens.PlaybackEdge.depth / appModel.windowSurfaceHeight, 1))
-    }
-
-    @MainActor
-    private func refreshChromeBackdrop() {
-        let fraction = chromeBackdropFraction
-        guard fraction > 0,
-              let renderer = playbackRuntime.renderer,
-              playbackRuntime.rendererConsumerPresentation?.usesMainWindow == true else {
-            if appModel.windowChromeBackdropImage != nil {
-                appModel.recordSurfaceInputProbe(
-                    "chromeBackdrop cleared fraction=\(fraction)"
-                        + " surfaceHeight=\(appModel.windowSurfaceHeight)"
-                        + " consumer=\(playbackRuntime.rendererConsumerPresentation?.rawValue ?? "none")"
-                )
-            }
-            appModel.setWindowChromeBackdropImage(nil)
-            return
-        }
-        if let image = chromeBackdrop.sample(renderer: renderer, bandFraction: fraction) {
-            let first = appModel.windowChromeBackdropImage == nil
-            appModel.setWindowChromeBackdropImage(image)
-            if first {
-                appModel.recordSurfaceInputProbe(
-                    "chromeBackdrop sampled \(image.width)x\(image.height)"
-                        + " fraction=\(fraction) surfaceHeight=\(appModel.windowSurfaceHeight)"
-                )
-            }
-        }
     }
 
     @MainActor
@@ -1001,8 +964,6 @@ public struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        chromeBackdrop.reset()
-        appModel.setWindowChromeBackdropImage(nil)
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }
@@ -1049,8 +1010,6 @@ public struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        chromeBackdrop.reset()
-        appModel.setWindowChromeBackdropImage(nil)
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }

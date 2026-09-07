@@ -289,18 +289,6 @@ public struct MainView: View {
                     }
             }
         }
-        .overlay {
-            if showsWindowPlayback, hostedPlaybackPresentation.usesMainWindow {
-                PlaybackChromeBackdropView()
-                    .clipShape(ContainerRelativeShape())
-                    .opacity(showsPlaybackChrome ? 1 : 0)
-                    .animation(
-                        DesignTokens.AnimationToken.controlsTransition,
-                        value: showsPlaybackChrome
-                    )
-                    .allowsHitTesting(false)
-            }
-        }
         .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
         .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)
     }

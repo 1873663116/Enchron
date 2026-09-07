@@ -472,10 +472,10 @@ public enum DesignTokens {
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
-    public enum PlaybackEdge {
-        public static let depth: CGFloat = 240
-        public static let holdFraction: CGFloat = 0.1
-        public static let peakOpacity: CGFloat = 0.85
+    public enum MediaChromeShadow {
+        public static let opacity: CGFloat = 0.38
+        public static let blurRadius: CGFloat = 14
+        public static let spread: CGFloat = 10
     }
 
     public enum ProgressBar {
