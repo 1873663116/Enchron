@@ -690,7 +690,10 @@ private final class InteractiveDeviceUIChannel {
     private func hittability(of element: XCUIElement, frame: CGRect) -> Bool {
         guard frame.width > 0, frame.height > 0 else { return false }
         let activationPoint = CGPoint(x: frame.midX, y: frame.midY)
-        guard app.frame.contains(activationPoint) else { return false }
+        let windows = app.windows.allElementsBoundByIndex
+        guard windows.contains(where: { $0.frame.contains(activationPoint) }) else {
+            return false
+        }
         return element.isHittable
     }
 
