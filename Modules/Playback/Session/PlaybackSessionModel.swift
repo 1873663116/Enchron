@@ -203,7 +203,7 @@ public final class PlaybackSessionModel {
     public var showControls: Bool = false
     public private(set) var windowTopChromeFraction: Float = 0
     private var windowControlsOrnamentHeight: CGFloat = 0
-    private var windowSurfaceHeight: CGFloat = 0
+    public private(set) var windowSurfaceHeight: CGFloat = 0
     public private(set) var windowSecondaryMenuIsPresented = false
 #if DEBUG
     public var showBlackoutProbeWindow: Bool = false

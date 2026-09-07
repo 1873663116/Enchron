@@ -383,14 +383,6 @@ public struct WindowPlaybackRootView<
     private var layeredContent: some View {
         surfaceContent
             .overlay(alignment: .top) {
-                edgeEmphasis
-                    .opacity(showsWindowChrome ? 1 : 0)
-                    .animation(
-                        DesignTokens.AnimationToken.controlsTransition,
-                        value: showsWindowChrome
-                    )
-            }
-            .overlay(alignment: .top) {
                 topChromePlane
                     .opacity(showsWindowChrome ? 1 : 0)
                     .animation(
@@ -436,15 +428,6 @@ public struct WindowPlaybackRootView<
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("PlayerUI-window-playback-surface")
-    }
-
-    private var edgeEmphasis: some View {
-        PlaybackEdgeEmphasis()
-            .enchronSpatialFrame(depth: 0)
-            .enchronSpatialOffset(
-                z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
-            )
-            .allowsHitTesting(false)
     }
 
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {

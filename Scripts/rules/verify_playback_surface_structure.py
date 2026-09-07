@@ -253,7 +253,7 @@ def main() -> int:
     window_surface_content = region(
         window_root,
         "private var surfaceContent: some View",
-        "private var edgeEmphasis: some View",
+        "private func updateWindowGeometry(",
     )
     require(
         "Button(" not in window_root

@@ -1,4 +1,5 @@
 import AVFoundation
+import DesignSystem
 import RealityKit
 import OSLog
 import PlaybackCore
@@ -201,6 +202,7 @@ public struct PlaybackVideoSurface: View {
     }
 
     @State private var subtitleSurface = PlaybackSubtitleSurface()
+    @State private var chromeBackdrop = PlaybackChromeBackdrop()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var surfaceAccessibilityActivation =
@@ -536,6 +538,8 @@ public struct PlaybackVideoSurface: View {
             frame: playbackRuntime.activeSubtitleFrame,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
+        chromeBackdrop.observe(in: content) { refreshChromeBackdrop() }
+        refreshChromeBackdrop()
         if needsInsertion {
             logComponentState(reason: "entityAdded")
         }
@@ -608,6 +612,27 @@ public struct PlaybackVideoSurface: View {
             layout.availableSize.y,
             Float(sceneBounds.extents.z)
         ]
+    }
+
+    private var chromeBackdropFraction: Float {
+        guard appModel.showControls, appModel.windowSurfaceHeight > 0 else { return 0 }
+        return Float(min(DesignTokens.PlaybackEdge.depth / appModel.windowSurfaceHeight, 1))
+    }
+
+    @MainActor
+    private func refreshChromeBackdrop() {
+        guard let renderer = playbackRuntime.renderer,
+              playbackRuntime.rendererConsumerPresentation?.usesMainWindow == true else {
+            chromeBackdrop.entity.isEnabled = false
+            return
+        }
+        chromeBackdrop.update(
+            on: videoEntity,
+            renderer: renderer,
+            screenSize: videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
+            bandFraction: chromeBackdropFraction,
+            usesMainWindow: true
+        )
     }
 
     @MainActor
@@ -964,6 +989,7 @@ public struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
+        chromeBackdrop.remove()
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }
@@ -1010,6 +1036,7 @@ public struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
+        chromeBackdrop.remove()
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }
