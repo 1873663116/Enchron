@@ -1078,6 +1078,7 @@ enum PlaybackSubtitlePlacement {
     static let panoramaScreenCenter = SIMD3<Float>(0, -0.3, -3)
     static let planeLift: Float = 0.015
     static let pinnedBottomFraction: Float = 0.08
+    static let panoramaControlsReservedFraction: Float = 0.4
 
     static func pinsToLowerCenter(_ presentation: PlaybackPresentation) -> Bool {
         presentation == .portal || presentation == .panorama

@@ -272,6 +272,9 @@ public struct MainView: View {
                         .transition(.opacity)
                     }
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    playbackSession.setWindowControlsOrnamentHeight($0)
+                }
             }
     }
 
@@ -496,6 +499,9 @@ public struct MainView: View {
             },
             onTopChromeOcclusionChange: {
                 playbackSession.setWindowTopChromeFraction($0)
+            },
+            onSurfaceHeightChange: {
+                playbackSession.setWindowSurfaceHeight($0)
             }
         ) {
             windowPlaybackCanvas

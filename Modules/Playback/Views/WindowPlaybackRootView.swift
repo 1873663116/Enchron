@@ -315,6 +315,7 @@ public struct WindowPlaybackRootView<
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
     private let onTopChromeOcclusionChange: (@MainActor (Float) -> Void)?
+    private let onSurfaceHeightChange: (@MainActor (CGFloat) -> Void)?
     private let videoContent: VideoContent
     private let topChrome: TopChrome
 
@@ -329,6 +330,7 @@ public struct WindowPlaybackRootView<
             WindowPlaybackGeometryRefreshEvent
         ) -> Void = { _ in },
         onTopChromeOcclusionChange: (@MainActor (Float) -> Void)? = nil,
+        onSurfaceHeightChange: (@MainActor (CGFloat) -> Void)? = nil,
         @ViewBuilder videoContent: () -> VideoContent,
         @ViewBuilder topChrome: () -> TopChrome
     ) {
@@ -340,6 +342,7 @@ public struct WindowPlaybackRootView<
         self.onWindowSceneChange = onWindowSceneChange
         self.onGeometryRefresh = onGeometryRefresh
         self.onTopChromeOcclusionChange = onTopChromeOcclusionChange
+        self.onSurfaceHeightChange = onSurfaceHeightChange
         self.videoContent = videoContent()
         self.topChrome = topChrome()
     }
@@ -399,6 +402,7 @@ public struct WindowPlaybackRootView<
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                 surfaceHeight = $0
+                onSurfaceHeightChange?($0)
             }
             .onChange(of: topChromeOcclusionFraction, initial: true) { _, fraction in
                 onTopChromeOcclusionChange?(fraction)

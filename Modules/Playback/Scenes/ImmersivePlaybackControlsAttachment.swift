@@ -68,6 +68,10 @@ final class ImmersivePlaybackControlsAttachmentController {
     static let forwardOffsetMeters: Float = -0.7
     static let verticalOffsetMeters: Float = -0.22
 
+    var lockedControlsPosition: SIMD3<Float>? {
+        placementState.isVisible ? lockedTransform?.translation : nil
+    }
+
     private weak var appModel: PlaybackSessionModel?
     private var attachmentEntity: Entity?
     private var session: ARKitSession?

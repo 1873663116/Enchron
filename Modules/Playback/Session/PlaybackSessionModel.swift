@@ -202,6 +202,8 @@ public final class PlaybackSessionModel {
 
     public var showControls: Bool = false
     public private(set) var windowTopChromeFraction: Float = 0
+    private var windowControlsOrnamentHeight: CGFloat = 0
+    private var windowSurfaceHeight: CGFloat = 0
     public private(set) var windowSecondaryMenuIsPresented = false
 #if DEBUG
     public var showBlackoutProbeWindow: Bool = false
@@ -589,6 +591,10 @@ public final class PlaybackSessionModel {
     public var windowChromeOcclusion: PlaybackWindowChromeOcclusion {
         PlaybackWindowChromeOcclusion(
             topFraction: windowTopChromeFraction,
+            bottomFraction: PlaybackWindowChromeOcclusion.bottomFraction(
+                ornamentHeight: windowControlsOrnamentHeight,
+                surfaceHeight: windowSurfaceHeight
+            ),
             secondaryMenuIsPresented: windowSecondaryMenuIsPresented
         )
     }
@@ -596,6 +602,16 @@ public final class PlaybackSessionModel {
     public func setWindowTopChromeFraction(_ fraction: Float) {
         guard windowTopChromeFraction != fraction else { return }
         windowTopChromeFraction = fraction
+    }
+
+    public func setWindowControlsOrnamentHeight(_ height: CGFloat) {
+        guard windowControlsOrnamentHeight != height else { return }
+        windowControlsOrnamentHeight = height
+    }
+
+    public func setWindowSurfaceHeight(_ height: CGFloat) {
+        guard windowSurfaceHeight != height else { return }
+        windowSurfaceHeight = height
     }
 
     public func setWindowSecondaryMenuPresented(_ presented: Bool) {

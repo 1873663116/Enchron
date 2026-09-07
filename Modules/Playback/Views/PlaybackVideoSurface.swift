@@ -179,8 +179,6 @@ private final class PlaybackVideoComponentObservation {
 }
 
 public struct PlaybackVideoSurface: View {
-    private static let subtitleControlSafeAreaFraction: Float = 0.32
-
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
@@ -533,7 +531,7 @@ public struct PlaybackVideoSurface: View {
             presentation: presentation,
             screenSize: component?.playerScreenSize ?? .zero,
             reservedBottomFraction: appModel.showControls
-                ? Self.subtitleControlSafeAreaFraction
+                ? appModel.windowChromeOcclusion.bottomFraction
                 : 0,
             frame: playbackRuntime.activeSubtitleFrame,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }

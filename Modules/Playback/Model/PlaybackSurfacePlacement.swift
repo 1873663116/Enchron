@@ -100,16 +100,30 @@ public struct WindowPlaybackSurfaceLayout: Equatable, Sendable {
 
 public struct PlaybackWindowChromeOcclusion: Equatable, Sendable {
     nonisolated public static let none = PlaybackWindowChromeOcclusion()
+    nonisolated public static let ornamentOverlapFraction: CGFloat = 0.5
+    nonisolated public static let ornamentClearanceHeight: CGFloat = 12
 
     public let topFraction: Float
+    public let bottomFraction: Float
     public let secondaryMenuIsPresented: Bool
 
     nonisolated public init(
         topFraction: Float = 0,
+        bottomFraction: Float = 0,
         secondaryMenuIsPresented: Bool = false
     ) {
         self.topFraction = topFraction.isFinite ? min(max(topFraction, 0), 1) : 0
+        self.bottomFraction = bottomFraction.isFinite ? min(max(bottomFraction, 0), 0.5) : 0
         self.secondaryMenuIsPresented = secondaryMenuIsPresented
+    }
+
+    nonisolated public static func bottomFraction(
+        ornamentHeight: CGFloat,
+        surfaceHeight: CGFloat
+    ) -> Float {
+        guard ornamentHeight > 0, surfaceHeight > 0 else { return 0 }
+        let occluded = ornamentHeight * ornamentOverlapFraction + ornamentClearanceHeight
+        return Float(min(max(occluded / surfaceHeight, 0), 0.5))
     }
 }
 

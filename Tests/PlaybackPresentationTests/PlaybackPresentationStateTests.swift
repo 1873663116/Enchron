@@ -467,6 +467,80 @@ struct PlaybackPresentationStateTests {
         #expect(offCentre.position.y > -screenSize.y / 2)
     }
 
+    @Test("A lazy gaze follow holds inside its dead zone, then eases onto the head and settles")
+    func lazyGazeFollowHoldsInsideTheDeadZoneAndEasesBeyondIt() {
+        var follow = LazyGazeFollow()
+        follow.advance(towardYaw: 0, pitch: 0, deltaTime: 1 / 90)
+        let jitter = LazyGazeFollow.deadZoneRadians * 0.5
+        follow.advance(towardYaw: jitter, pitch: 0, deltaTime: 1 / 90)
+        #expect(follow.yaw == 0)
+        #expect(follow.isChasing == false)
+
+        let turn = LazyGazeFollow.deadZoneRadians * 4
+        follow.advance(towardYaw: turn, pitch: 0, deltaTime: 1 / 90)
+        #expect(follow.isChasing)
+        #expect(follow.yaw > 0)
+        #expect(follow.yaw < turn * 0.1)
+
+        for _ in 0..<270 {
+            follow.advance(towardYaw: turn, pitch: 0, deltaTime: 1 / 90)
+        }
+        #expect(abs(follow.yaw - turn) < LazyGazeFollow.settleRadians)
+        #expect(follow.isChasing == false)
+
+        let gaze = LazyGazeFollow.gaze(of: [0, 0, -1])
+        #expect(gaze.yaw == 0)
+        #expect(gaze.pitch == 0)
+        let left = LazyGazeFollow.gaze(of: [-1, 0, 0])
+        #expect(abs(left.yaw - .pi / 2) < 0.0001)
+    }
+
+    @Test("With controls up the follow docks above them, releases past the wider cone, and re-docks on return")
+    func lazyGazeFollowDocksOnTheControlsWithHysteresis() {
+        typealias Gaze = LazyGazeFollow.Gaze
+        let dock = Gaze(yaw: 10 * .pi / 180, pitch: -0.2)
+        var follow = LazyGazeFollow()
+        follow.advance(head: Gaze(yaw: 0, pitch: 0), dock: nil, deltaTime: 1 / 90)
+
+        for _ in 0..<270 {
+            follow.advance(head: Gaze(yaw: 0, pitch: 0), dock: dock, deltaTime: 1 / 90)
+        }
+        #expect(follow.isDocked)
+        #expect(abs(follow.yaw - dock.yaw) < LazyGazeFollow.settleRadians)
+        #expect(abs(follow.pitch - dock.pitch) < LazyGazeFollow.settleRadians)
+
+        let insideRelease = Gaze(yaw: dock.yaw + LazyGazeFollow.dockReleaseRadians * 0.8, pitch: dock.pitch)
+        follow.advance(head: insideRelease, dock: dock, deltaTime: 1 / 90)
+        #expect(follow.isDocked)
+        #expect(abs(follow.yaw - dock.yaw) < LazyGazeFollow.settleRadians)
+
+        let away = Gaze(yaw: dock.yaw + LazyGazeFollow.dockReleaseRadians * 2, pitch: dock.pitch)
+        for _ in 0..<270 {
+            follow.advance(head: away, dock: dock, deltaTime: 1 / 90)
+        }
+        #expect(follow.isDocked == false)
+        #expect(abs(follow.yaw - away.yaw) < LazyGazeFollow.settleRadians)
+
+        let back = Gaze(yaw: dock.yaw + LazyGazeFollow.dockCaptureRadians * 0.5, pitch: dock.pitch)
+        for _ in 0..<270 {
+            follow.advance(head: back, dock: dock, deltaTime: 1 / 90)
+        }
+        #expect(follow.isDocked)
+        #expect(abs(follow.yaw - dock.yaw) < LazyGazeFollow.settleRadians)
+    }
+
+    @Test("The bottom chrome occlusion follows the ornament's overlap of the window")
+    func bottomChromeOcclusionFollowsTheOrnamentOverlap() {
+        #expect(PlaybackWindowChromeOcclusion.bottomFraction(ornamentHeight: 0, surfaceHeight: 800) == 0)
+        #expect(PlaybackWindowChromeOcclusion.bottomFraction(ornamentHeight: 120, surfaceHeight: 0) == 0)
+        let fraction = PlaybackWindowChromeOcclusion.bottomFraction(
+            ornamentHeight: 120,
+            surfaceHeight: 600
+        )
+        #expect(abs(fraction - Float((60 + 12) / 600.0)) < 0.0001)
+        #expect(PlaybackWindowChromeOcclusion.bottomFraction(ornamentHeight: 2_000, surfaceHeight: 100) == 0.5)
+    }
+
     private static func subtitleFrame(
         changeIdentifier: UInt64,
         contentX: Int = 928
