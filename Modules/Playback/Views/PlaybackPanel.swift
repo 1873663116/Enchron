@@ -433,7 +433,6 @@ public struct FusedPlayerPanel: View {
     @State private var selectedSpeed = "1×"
     @State private var panelContentSize: CGSize?
     @State private var timeBubbleWidth: CGFloat = 0
-    @State private var mediaInformationContentHeight: CGFloat = 0
     @Namespace private var hoverNamespace
 
     private enum ScrubberActivation: Equatable {
@@ -598,6 +597,14 @@ public struct FusedPlayerPanel: View {
         }
     }
 
+    private var timelineZoomComponentWidth: CGFloat {
+        clusterWidth
+            - DesignTokens.Interactive.large
+            - DesignTokens.Spacing.xxxl
+            - DesignTokens.Interactive.large * 3
+            - DesignTokens.ControlBar.buttonSpacing * 3
+    }
+
     private var timelineLayout: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
@@ -607,11 +614,14 @@ public struct FusedPlayerPanel: View {
                     accessibilityIdentifier: "PlayerPanel-precision-timeline-back"
                 )
                 .keyboardShortcut(.escape, modifiers: [])
+                .padding(.trailing, DesignTokens.Spacing.xxxl - DesignTokens.ControlBar.buttonSpacing)
                 windowTransportControls
-                Spacer(minLength: 0)
                 PrecisionTimelineZoomSlider(
                     pixelsPerSecond: $pixelsPerSecond,
-                    duration: timelineDuration
+                    duration: timelineDuration,
+                    trackWidth: PrecisionTimelineZoomSlider.railWidth(
+                        fitting: timelineZoomComponentWidth
+                    )
                 )
             }
             .frame(width: clusterWidth)
@@ -931,18 +941,15 @@ public struct FusedPlayerPanel: View {
         return parts.joined(separator: ". ")
     }
 
-    private var expandedMediaInformationHeight: CGFloat {
-        min(
-            max(
-                mediaInformationContentHeight,
-                DesignTokens.Layout.expandedMediaInformationMinimumHeight
-            ),
-            DesignTokens.Layout.expandedMediaInformationMaximumHeight
-        )
-    }
-
     private var expandedMediaInformation: some View {
-        ZStack(alignment: .topLeading) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            CircleIconButton.back(
+                accessibilityLabel: "Back",
+                action: toggleMediaInformation,
+                accessibilityIdentifier: "PlayerPanel-media-information-close"
+            )
+            .keyboardShortcut(.escape, modifiers: [])
+
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                     Text(live?.mediaName ?? "Unknown")
@@ -980,31 +987,20 @@ public struct FusedPlayerPanel: View {
                     .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, DesignTokens.Spacing.xl)
-                .padding(
-                    .leading,
-                    DesignTokens.Spacing.md + DesignTokens.Interactive.large + DesignTokens.Spacing.sm
-                )
-                .padding(.trailing, DesignTokens.Spacing.xl)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                    mediaInformationContentHeight = $0
-                }
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .padding(.bottom, DesignTokens.Spacing.xl)
             }
-            .scrollDisabled(
-                mediaInformationContentHeight
-                    <= DesignTokens.Layout.expandedMediaInformationMaximumHeight
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(
+                minHeight: DesignTokens.Layout.expandedMediaInformationMinimumHeight
+                    - DesignTokens.Interactive.large
+                    - DesignTokens.Spacing.sm,
+                maxHeight: DesignTokens.Layout.expandedMediaInformationMaximumHeight
+                    - DesignTokens.Interactive.large
+                    - DesignTokens.Spacing.sm
             )
-
-            CircleIconButton.back(
-                accessibilityLabel: "Back",
-                action: toggleMediaInformation,
-                accessibilityIdentifier: "PlayerPanel-media-information-close"
-            )
-            .keyboardShortcut(.escape, modifiers: [])
-            .padding(.vertical, DesignTokens.Spacing.md)
-            .padding(.leading, DesignTokens.Spacing.md)
         }
-        .frame(width: clusterWidth, height: expandedMediaInformationHeight)
+        .frame(width: clusterWidth)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
@@ -1822,6 +1818,7 @@ public struct FusedPlayerPanel: View {
 
     private func closeTimeline() {
         changeExpansion(to: .collapsed)
+        live?.onReachabilityAction("precisionTimeline.close")
         onInteraction()
     }
 

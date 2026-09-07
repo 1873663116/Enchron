@@ -11,7 +11,7 @@ public struct CardGrid<Content: View>: View {
         FlowGridLayout(spacing: DesignTokens.Card.gridSpacing) {
             content
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
         .environment(\.artworkLoadsWhenVisible, true)
     }
 }

@@ -578,8 +578,7 @@ public struct FilesScreen: View {
             }
             filesBody
         }
-        .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
-        .padding(.trailing, DesignTokens.Spacing.xxl)
+        .padding(.horizontal, DesignTokens.Spacing.xxl)
         .padding(.vertical, DesignTokens.Spacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())

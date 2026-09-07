@@ -248,7 +248,7 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: hostsPlaybackOrnament ? .visible : .hidden,
+                visibility: hostsPlaybackOrnament && playbackDeckIsMounted ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
             ) {
                 ZStack {
@@ -279,8 +279,11 @@ public struct MainView: View {
         transaction.disablesAnimations = true
         if presented {
             withTransaction(transaction) { playbackDeckIsMounted = true }
-            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                playbackDeckOpacity = 1
+            Task { @MainActor in
+                guard showsPlaybackChrome else { return }
+                withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                    playbackDeckOpacity = 1
+                }
             }
         } else {
             withAnimation(DesignTokens.AnimationToken.controlsTransition) {

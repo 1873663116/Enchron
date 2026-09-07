@@ -54,13 +54,18 @@ enum PrecisionTimelineZoomScale {
 struct PrecisionTimelineZoomSlider: View {
     @Binding var pixelsPerSecond: CGFloat
     let duration: Double
+    let trackWidth: CGFloat
+
+    static func railWidth(fitting componentWidth: CGFloat) -> CGFloat {
+        max(componentWidth - (DesignTokens.Spacing.xl + DesignTokens.Spacing.sm) * 2, 0)
+    }
 
     @State private var isDraggingZoom = false
     @State private var zoomPressTrigger = 0
     @State private var zoomReleaseTrigger = 0
     @State private var zoomBoundary: EnchronScrubBoundary = .none
 
-    private var zoomTrackWidth: CGFloat { DesignTokens.PrecisionTimeline.zoomRailWidth }
+    private var zoomTrackWidth: CGFloat { trackWidth }
     private var zoomTrackHeight: CGFloat { DesignTokens.PrecisionTimeline.zoomRailHeight }
     private var zoomKnobSize: CGFloat { DesignTokens.PrecisionTimeline.zoomRailThumbSize }
 
@@ -81,6 +86,7 @@ struct PrecisionTimelineZoomSlider: View {
         return HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: "minus.magnifyingglass")
                 .foregroundStyle(.secondary)
+                .frame(width: DesignTokens.Spacing.xl)
                 .accessibilityHidden(true)
 
             GlassSliderRail(
@@ -98,6 +104,7 @@ struct PrecisionTimelineZoomSlider: View {
 
             Image(systemName: "plus.magnifyingglass")
                 .foregroundStyle(.secondary)
+                .frame(width: DesignTokens.Spacing.xl)
                 .accessibilityHidden(true)
         }
         .font(.body)

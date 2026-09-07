@@ -111,6 +111,6 @@
 
 控件整体隐藏（点画面）时面板保持当时的形态一起淡出，不在 `controlsVisible` 变 false 时重置 `expansion`——重置会让时间轴瞬间消失、普通控件先出现再淡出。重置发生在控件再次可见的那一刻（`disablesAnimations` 事务内），窗口 ornament 因为随 chrome 一起卸载本来就会拿到新状态，沉浸空间的 dock attachment 只是 opacity 归零、状态常驻，这一步对它是必需的。
 
-窗口 ornament 在控件隐藏时不再保留一块透明占位（原 `collapsedWindowControlsOrnamentHeight`）：占位把系统 window bar 顶得离窗口很远（2026-09-07 真机），现在 ornament 内容随 chrome 卸载而归零，window bar 在召唤/收起时跟着上下移动是接受的代价。
+窗口 ornament 在控件隐藏时不再保留一块透明占位（原 `collapsedWindowControlsOrnamentHeight`）：占位把系统 window bar 顶得离窗口很远（2026-09-07 真机）。ornament 的尺寸变化会被系统动画成从角落滑入，所以 deck 的出现与消失都在尺寸不变的状态下完成：出现时先在无动画事务里装入并把 ornament 置为 `.visible`、下一轮再以 `controlsTransition` 淡入；消失时先淡出、淡完再卸载并把 ornament 置为 `.hidden`。window bar 在装入/卸载那一刻移动，是接受的代价。
 
 时间轴形态在窗口与沉浸空间统一为两行：第一行返回按钮、逐帧播放控制、缩放滑块（`PrecisionTimelineZoomSlider`，thickMaterial 胶囊），第二行只有胶片视口（`PrecisionTimelineView`，ultraThickMaterial），播放头时码作为胶囊贴在视口顶部中央；不再有整块列表材质、信息栏与 dock 的设置按钮。dock 的设置形态是第一行返回与恢复默认两个圆形按钮、其下三个放置滑块坐在一块 thickMaterial 上；信息栏展开后是左上返回按钮、标题、详情正文（无详情留空）与技术信息行，没有图片与其他按钮。次序断言见 `Tests/PlaybackPresentationTests/PlaybackPanelExpansionTests.swift`。

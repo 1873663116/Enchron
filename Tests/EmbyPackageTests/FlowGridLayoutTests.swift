@@ -28,4 +28,16 @@ struct FlowGridLayoutTests {
         #expect(narrow.totalHeight == 110)
         #expect(narrow.origins[2] == CGPoint(x: 0, y: 60))
     }
+
+    @Test("the layout reports the widest row, not the proposed width, so a grid can be centred")
+    func usedWidthIsTheWidestRow() {
+        let card = CGSize(width: 100, height: 50)
+        let arrangement = FlowGridLayout.arrange(
+            sizes: Array(repeating: card, count: 5),
+            width: 370,
+            spacing: 10
+        )
+        #expect(arrangement.usedWidth == 320)
+        #expect(FlowGridLayout.arrange(sizes: [], width: 370, spacing: 10).usedWidth == 0)
+    }
 }
