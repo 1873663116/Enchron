@@ -185,6 +185,21 @@ struct PlaybackPresentationStateTests {
         #expect(SpatialPlatformWindowIdentity.allCases == [.main, .immersivePlaybackResident])
     }
 
+    @Test("The resident window takes the main window's size so push and dismiss align without an offset")
+    func residentWindowMatchesTheMainWindowSize() {
+        #expect(
+            SpatialPlatformResidentWindowPolicy.contentSize(
+                matching: CGSize(width: 1_280, height: 720)
+            ) == CGSize(width: 1_280, height: 720)
+        )
+        #expect(SpatialPlatformResidentWindowPolicy.contentSize(matching: nil) == nil)
+        #expect(
+            SpatialPlatformResidentWindowPolicy.contentSize(
+                matching: CGSize(width: 0, height: 720)
+            ) == nil
+        )
+    }
+
     @Test("Immersive playback exit reveals the Main Window only after spatial teardown and target activation")
     func immersivePlaybackExitWaitsToRevealActivatedWindowTarget() {
         #expect(
@@ -286,14 +301,6 @@ struct PlaybackPresentationStateTests {
                     targetEnvironment: .none
                 )
             ) == false
-        )
-        #expect(
-            SpatialPlatformImmersiveExitWindowRevealPolicy
-                .lastFrameBridgeOpacity(targetIsRevealed: false) == 1
-        )
-        #expect(
-            SpatialPlatformImmersiveExitWindowRevealPolicy
-                .lastFrameBridgeOpacity(targetIsRevealed: true) == 0
         )
     }
 

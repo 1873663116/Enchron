@@ -6,7 +6,6 @@ import Observation
 import OSLog
 import SwiftUI
 import UIKit
-import VideoToolbox
 
 enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
     static func shouldRecordDisappearance(
@@ -51,6 +50,17 @@ enum SpatialPlatformPresentationFailurePolicy {
     }
 }
 
+public enum SpatialPlatformResidentWindowPolicy {
+    public static func contentSize(matching mainWindowSize: CGSize?) -> CGSize? {
+        guard let mainWindowSize,
+              mainWindowSize.width > 0,
+              mainWindowSize.height > 0 else {
+            return nil
+        }
+        return mainWindowSize
+    }
+}
+
 public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldRevealMainWindow(
         sourceRendererIsReleased: Bool,
@@ -80,10 +90,6 @@ public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
         guard let transition else { return false }
         return transition.previousPresentation.usesImmersiveSpace
             && transition.targetPresentation.usesMainWindow
-    }
-
-    public static func lastFrameBridgeOpacity(targetIsRevealed: Bool) -> Double {
-        targetIsRevealed ? 0 : 1
     }
 }
 
@@ -193,6 +199,7 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var residentWindowState = SpatialPlatformResidentWindowState.absent
 
+    public private(set) var residentWindowContentSize: CGSize?
     public private(set) var lastPlatformOperation = "none"
     public private(set) var lastExecutionCheckpoint = "none"
     public private(set) var executionAttemptCount: UInt64 = 0
@@ -870,12 +877,6 @@ public final class SpatialPlatformEffectCoordinator {
             return
         }
 
-        let lastFrameBridge = family == .panoramic
-            ? portalExitLastFrameBridge()
-            : nil
-        appModel.setPortalExitLastFrame(lastFrameBridge)
-        defer { appModel.setPortalExitLastFrame(nil) }
-
         guard executionIsLive(execution),
               appModel.allowPresentationSourceRendererRelease(),
               detachPlaybackSurface(execution: execution) else {
@@ -1166,8 +1167,16 @@ public final class SpatialPlatformEffectCoordinator {
             return false
         }
         residentWindowState = .opening
+        residentWindowContentSize = SpatialPlatformResidentWindowPolicy.contentSize(
+            matching: connectedMainWindowScene?.effectiveGeometry.coordinateSpace.bounds.size
+        )
         markVisibleSpatialSideEffect(execution)
         lastPlatformOperation = "immersivePlaybackResident-window-pushed"
+        appModel.recordSurfaceInputProbe(
+            "immersivePlaybackResident-window-size"
+                + " width=\(residentWindowContentSize?.width ?? 0)"
+                + " height=\(residentWindowContentSize?.height ?? 0)"
+        )
         actions.pushWindow(id: residentWindow.rawValue)
 
         let clock = ContinuousClock()
@@ -1679,55 +1688,6 @@ public final class SpatialPlatformEffectCoordinator {
                 + " targetSessionActivated=true"
                 + " immersiveSpaceDismissed=\(immersiveSpaceWasDismissed)"
         )
-    }
-
-    private func portalExitLastFrameBridge() -> CGImage? {
-        guard let pixelBuffer = playbackRuntime.renderer?.displayedPixelBuffer()
-        else {
-            appModel.recordSurfaceInputProbe(
-                "portalLastFrameBridge captured=false reason=noDisplayedPixel"
-            )
-            return nil
-        }
-        var image: CGImage?
-        guard VTCreateCGImageFromCVPixelBuffer(
-            pixelBuffer,
-            options: nil,
-            imageOut: &image
-        ) == noErr, var image else {
-            appModel.recordSurfaceInputProbe(
-                "portalLastFrameBridge captured=false reason=conversionFailed"
-            )
-            return nil
-        }
-        switch playbackRuntime.effectiveStereoLayout {
-        case .topBottom:
-            image = image.cropping(
-                to: CGRect(
-                    x: 0,
-                    y: CGFloat(image.height) / 2,
-                    width: CGFloat(image.width),
-                    height: CGFloat(image.height) / 2
-                )
-            ) ?? image
-        case .sideBySide:
-            image = image.cropping(
-                to: CGRect(
-                    x: 0,
-                    y: 0,
-                    width: CGFloat(image.width) / 2,
-                    height: CGFloat(image.height)
-                )
-            ) ?? image
-        case .mono, .multiview:
-            break
-        }
-        appModel.recordSurfaceInputProbe(
-            "portalLastFrameBridge captured=true width=\(image.width)"
-                + " height=\(image.height)"
-                + " stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)"
-        )
-        return image
     }
 
     private func waitUntilRendererConsumerIsReleased(

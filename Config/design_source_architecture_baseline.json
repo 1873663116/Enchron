@@ -11,12 +11,6 @@
     {
       "rule": "production-hardcoded-visual",
       "path": "Apps/Enchron/EnchronApp.swift",
-      "signature": ".frame(width: 520, height: 300)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/EnchronApp.swift",
       "signature": ".padding(48)",
       "count": 2
     },

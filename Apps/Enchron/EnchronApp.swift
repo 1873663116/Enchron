@@ -109,7 +109,7 @@ struct EnchronApp: App {
                 .persistentSystemOverlays(.hidden)
         }
         .windowStyle(.plain)
-        .defaultSize(width: 520, height: 300)
+        .defaultSize(ImmersiveResidentWindowLayout.fallbackSize)
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
@@ -193,11 +193,18 @@ struct EnchronApp: App {
 private struct ImmersivePlaybackResidentRoot: View {
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(SpatialPlatformEffectCoordinator.self)
+    private var spatialPlatformEffectCoordinator
     @State private var isStoppingPlayback = false
+
+    private var contentSize: CGSize {
+        spatialPlatformEffectCoordinator.residentWindowContentSize
+            ?? ImmersiveResidentWindowLayout.fallbackSize
+    }
 
     var body: some View {
         Color.clear
-            .frame(width: 520, height: 300)
+            .frame(width: contentSize.width, height: contentSize.height)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .background {

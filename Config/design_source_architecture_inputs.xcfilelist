@@ -138,7 +138,6 @@ $(SRCROOT)/Modules/Playback/Views/PlaybackTimeline.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackTopActions.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackVideoSurface.swift
 $(SRCROOT)/Modules/Playback/Views/PlayerInfoBarView.swift
-$(SRCROOT)/Modules/Playback/Views/PortalExitBridgeView.swift
 $(SRCROOT)/Modules/Playback/Views/SenseZoneVolumeRoot.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlaybackRootView.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlayerDeck.swift

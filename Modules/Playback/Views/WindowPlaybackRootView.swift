@@ -92,6 +92,10 @@ public enum BrowserWindowLayout {
     static let maximumSize = CGSize(width: 1_808, height: 1_017)
 }
 
+public enum ImmersiveResidentWindowLayout {
+    public static let fallbackSize = CGSize(width: 520, height: 300)
+}
+
 extension View {
     public func windowSceneReporting(
         _ onWindowSceneChange: @escaping @MainActor (UIWindowScene?) -> Void

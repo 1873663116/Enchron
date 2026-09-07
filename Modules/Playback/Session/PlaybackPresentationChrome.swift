@@ -101,10 +101,6 @@ public enum PlaybackPresentationTransitionAppearance {
         transition == nil && hostedPresentation == settledPresentation
     }
 
-    public static var targetFadeAnimation: Animation {
-        .easeInOut(duration: targetFadeDuration)
-    }
-
     public static func animation(for targetOpacity: Double) -> Animation {
         .easeInOut(
             duration: targetOpacity == 0

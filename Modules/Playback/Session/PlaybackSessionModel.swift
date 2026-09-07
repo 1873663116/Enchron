@@ -197,7 +197,6 @@ public final class PlaybackSessionModel {
     public private(set) var presentationTargetRendererMayBind = false
     public private(set) var presentationVisualCutoverMayBegin = false
     public private(set) var presentationTargetWindowIsForeground = false
-    public private(set) var portalExitLastFrame: CGImage?
     public private(set) var lastPresentationConversionDiagnostic: String?
     private var presentationTransitionStartedAt: Date?
 
@@ -503,10 +502,6 @@ public final class PlaybackSessionModel {
     func finishPresentationVisualCutover() {
         guard presentationVisualCutoverMayBegin else { return }
         showControls = false
-    }
-
-    func setPortalExitLastFrame(_ image: CGImage?) {
-        portalExitLastFrame = image
     }
 
     func presentationTransitionRemainingTime(

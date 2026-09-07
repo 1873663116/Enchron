@@ -582,11 +582,6 @@ public struct MainView: View {
                 )
             }
 
-            PortalExitBridgeView(
-                frame: playbackSession.portalExitLastFrame,
-                targetIsRevealed: playbackSession.presentationVisualCutoverMayBegin
-            )
-
             #if DEBUG
             if ProcessInfo.processInfo.environment[
                 "ENCHRON_REAL_VIDEO_AAC_DIAGNOSTIC"
