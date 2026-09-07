@@ -3,20 +3,7 @@ import SwiftUI
 public extension View {
 
     func enchronButtonSurface<S: InsettableShape>(in shape: S) -> some View {
-        background(.thickMaterial, in: shape)
-            .overlay {
-                shape.stroke(
-                    DesignTokens.Surface.chromeBorder,
-                    lineWidth: DesignTokens.Stroke.subtle
-                )
-            }
-    }
-
-    // Over video there is no window glass to composite the material against
-    // and materials never sample RealityKit content, so a control that floats
-    // on media carries its own system glass; the stroke stays the same.
-    func enchronMediaButtonSurface<S: InsettableShape>(in shape: S) -> some View {
-        glassBackgroundEffect(in: shape)
+        background(.ultraThickMaterial, in: shape)
             .overlay {
                 shape.stroke(
                     DesignTokens.Surface.chromeBorder,
@@ -108,16 +95,5 @@ public extension View {
 
     func enchronGlassSidebar() -> some View {
         self
-    }
-}
-
-private struct EnchronHostedOverMediaKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-public extension EnvironmentValues {
-    var enchronHostedOverMedia: Bool {
-        get { self[EnchronHostedOverMediaKey.self] }
-        set { self[EnchronHostedOverMediaKey.self] = newValue }
     }
 }

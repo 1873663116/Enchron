@@ -263,7 +263,6 @@ public struct WindowPlaybackTopChrome<
                 )
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .environment(\.enchronHostedOverMedia, true)
         .zIndex(1)
     }
 }
