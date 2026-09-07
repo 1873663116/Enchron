@@ -250,7 +250,6 @@ public struct WindowPlaybackTopChrome<
     public var body: some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
             navigationControl
-                .enchronMediaChromeOutline()
                 .enchronSpatialFrame(depth: 0)
                 .enchronSpatialOffset(
                     z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
@@ -258,13 +257,13 @@ public struct WindowPlaybackTopChrome<
             spatialActions
                 .frame(maxWidth: .infinity)
             moreControl
-                .enchronMediaChromeOutline()
                 .enchronSpatialFrame(depth: 0)
                 .enchronSpatialOffset(
                     z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
                 )
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        .environment(\.enchronHostedOverMedia, true)
         .zIndex(1)
     }
 }
@@ -287,14 +286,12 @@ struct WindowPlaybackSpatialActions<
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             dockControl
-                .enchronMediaChromeOutline()
                 .enchronSpatialFrame(depth: 0)
                 .enchronSpatialOffset(
                     z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
                 )
             Spacer(minLength: DesignTokens.Spacing.xl)
             formatControl
-                .enchronMediaChromeOutline()
                 .enchronSpatialFrame(depth: 0)
                 .enchronSpatialOffset(
                     z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth

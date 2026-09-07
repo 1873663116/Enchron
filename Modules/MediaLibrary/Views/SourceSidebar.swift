@@ -208,7 +208,7 @@ public struct SourceSidebar: View {
     }
 
     private var sourceMoreMenu: some View {
-        GlassCircleIconMenu(
+        CircleIconMenu(
             systemName: "ellipsis",
             accessibilityLabel: "More source actions",
             accessibilityIdentifier: "\(identifierPrefix)-sourceMore",

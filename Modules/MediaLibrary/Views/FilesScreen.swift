@@ -774,7 +774,7 @@ public struct FilesScreen: View {
             }
             .onAppear { recordReachability(.manageOpened) }
         } label: {
-            GlassCircleIconLabel(
+            CircleIconLabel(
                 systemName: "ellipsis",
                 accessibilityLabel: "Manage media library",
                 iconColor: .secondary

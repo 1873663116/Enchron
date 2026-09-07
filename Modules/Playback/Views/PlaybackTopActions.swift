@@ -562,7 +562,7 @@ public struct PlaybackTopActions: View {
     private var topButtonRow: some View {
         WindowPlaybackSpatialActions {
             if topActionsComposition.showsPanoramaEntry {
-                GlassCircleIconButton.expandVertically(
+                CircleIconButton.expandVertically(
                     accessibilityLabel: "Enter Panorama",
                     action: {
                         onReachabilityAction("enterPanorama")
@@ -827,7 +827,7 @@ private struct PlaybackTopSecondaryPanelButton: View {
 
     var body: some View {
         Button(action: action) {
-            GlassCircleIconLabel(
+            CircleIconLabel(
                 systemName: systemName,
                 accessibilityLabel: accessibilityLabel,
                 iconTier: iconTier

@@ -10,7 +10,7 @@ public struct SidebarToggleButton: View {
     }
 
     public var body: some View {
-        GlassCircleIconButton(
+        CircleIconButton(
             systemName: isVisible ? "sidebar.leading" : "sidebar.left",
             accessibilityLabel: isVisible ? "Hide sidebar" : "Show sidebar",
             action: { isVisible.toggle() },

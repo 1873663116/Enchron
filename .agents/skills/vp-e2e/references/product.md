@@ -55,7 +55,7 @@ SwiftUI 只在系统容器把内容提升为一等 action 时保留 `.accessibil
 | `Menu` | `Toggle` 行 | 丢弃 |
 | `Menu` 中的 `Section` | 其中任何行 | 丢弃 |
 
-自定义 `View` 包装（如 `MenuSelectionRow`）与自定义菜单宿主（如 `GlassCircleIconMenu`）都不影响保留与否，同一菜单内的三种变体对照已确认这一点。结论是：菜单行一律写为 `Button`，分组以 `Divider()` 实现，代价是对勾落于标题之前并把标题右推。`Modules/DesignSystem/Components/MenuSelectionRow.swift` 是唯一正确写法，新菜单直接复用它。
+自定义 `View` 包装（如 `MenuSelectionRow`）与自定义菜单宿主（如 `CircleIconMenu`）都不影响保留与否，同一菜单内的三种变体对照已确认这一点。结论是：菜单行一律写为 `Button`，分组以 `Divider()` 实现，代价是对勾落于标题之前并把标题右推。`Modules/DesignSystem/Components/MenuSelectionRow.swift` 是唯一正确写法，新菜单直接复用它。
 
 alert 中的 TextField 按 label 或 placeholder 命中。控制器的 `element(for:)` 支持 `--label`；`textInputElement` 依次尝试 identifier、label、placeholderValue。
 

@@ -472,10 +472,6 @@ public enum DesignTokens {
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
-    public enum MediaChromeOutline {
-        public static let color: Color = .white.opacity(0.55)
-        public static let lineWidth: CGFloat = Stroke.regular
-    }
 
     public enum ProgressBar {
         public static let inactiveTrackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 0.75

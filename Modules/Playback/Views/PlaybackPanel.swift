@@ -793,7 +793,7 @@ public struct FusedPlayerPanel: View {
                         if PlaybackPanelSettingsPolicy.settingsAreAvailable(
                             for: live.presentation
                         ) {
-                            GlassCircleIconButton.settings(
+                            CircleIconButton.settings(
                                 isExpanded: expansion.isShowing(.settings),
                                 accessibilityLabel: expansion.isShowing(.settings) ? "Close Advanced Settings" : "Open Advanced Settings",
                                 action: toggleSettings,
@@ -943,7 +943,7 @@ public struct FusedPlayerPanel: View {
                 .padding(.trailing, DesignTokens.Interactive.large)
             }
 
-            GlassCircleIconButton.close(
+            CircleIconButton.close(
                 accessibilityLabel: "Close Media Information",
                 action: toggleMediaInformation,
                 accessibilityIdentifier: "PlayerPanel-media-information-close"
@@ -1015,14 +1015,14 @@ public struct FusedPlayerPanel: View {
     @ViewBuilder
     private func returnToWindowButton(_ live: FusedPlayerPanelLive) -> some View {
         if live.presentation == .panorama {
-            GlassCircleIconButton.collapseVertically(
+            CircleIconButton.collapseVertically(
                 accessibilityLabel: "Return to Portal",
                 action: live.onExitSpatial,
                 accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
             )
             .keyboardShortcut(.escape, modifiers: [])
         } else if live.presentation == .docked {
-            GlassCircleIconButton.collapse(
+            CircleIconButton.collapse(
                 accessibilityLabel: "Return to Window",
                 action: live.onExitSpatial,
                 accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
@@ -1067,7 +1067,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var windowPlayButton: some View {
-        GlassCircleIconButton(
+        CircleIconButton(
             systemName: primaryPlayIcon,
             accessibilityLabel: primaryPlayLabel,
             action: {
@@ -1124,7 +1124,7 @@ public struct FusedPlayerPanel: View {
         iconTier: ButtonIconTier = .standard
     ) -> some View {
         if expansion.layout == .timeline {
-            GlassCircleIconButton(
+            CircleIconButton(
                 systemName: expandedSystemName,
                 accessibilityLabel: accessibilityLabel,
                 action: action,
@@ -1173,7 +1173,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var moreMenu: some View {
-        GlassCircleIconMenu(
+        CircleIconMenu(
             systemName: "ellipsis",
             accessibilityLabel: "More",
             accessibilityIdentifier: "PlayerPanel-menu-more"
@@ -1202,7 +1202,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var playButton: some View {
-        GlassCircleIconButton(
+        CircleIconButton(
             systemName: primaryPlayIcon,
             accessibilityLabel: primaryPlayLabel,
             action: {

@@ -68,25 +68,6 @@ public extension View {
         glassBackgroundEffect(displayMode: displayMode)
     }
 
-    // Outlines the visible glass circle of a standard-size icon control that
-    // floats over video, where the subtle chrome border cannot be read.
-    @ViewBuilder
-    func enchronMediaChromeOutline(
-        visualSize: CGFloat = DesignTokens.Interactive.regular,
-        targetSize: CGFloat = DesignTokens.Interactive.large
-    ) -> some View {
-        overlay {
-            Circle()
-                .inset(by: (targetSize - visualSize) / 2)
-                .stroke(
-                    DesignTokens.MediaChromeOutline.color,
-                    lineWidth: DesignTokens.MediaChromeOutline.lineWidth
-                )
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-
     @ViewBuilder
     func enchronHoverContentShape<S: Shape>(_ shape: S) -> some View {
         contentShape(.hoverEffect, shape)

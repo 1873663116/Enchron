@@ -38,7 +38,7 @@ public struct SortMenuButton: View {
     }
 
     public var body: some View {
-        GlassCircleIconMenu(
+        CircleIconMenu(
             systemName: "arrow.up.arrow.down",
             accessibilityLabel: "Sort",
             accessibilityIdentifier: accessibilityIdentifier,

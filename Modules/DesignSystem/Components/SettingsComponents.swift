@@ -55,8 +55,21 @@ public struct GlassCapsuleIconLabelButton: View {
     }
 }
 
-public struct GlassCircleIconLabel: View {
+private struct CircleIconSurface: ViewModifier {
+    let hostedOverMedia: Bool
+
+    func body(content: Content) -> some View {
+        if hostedOverMedia {
+            content.enchronMediaButtonSurface(in: Circle())
+        } else {
+            content.enchronButtonSurface(in: Circle())
+        }
+    }
+}
+
+public struct CircleIconLabel: View {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.enchronHostedOverMedia) private var hostedOverMedia
 
     let systemName: String
     let accessibilityLabel: String
@@ -90,7 +103,7 @@ public struct GlassCircleIconLabel: View {
             .foregroundStyle(iconColor)
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
-            .enchronButtonSurface(in: Circle())
+            .modifier(CircleIconSurface(hostedOverMedia: hostedOverMedia))
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
             .accessibilityLabel(accessibilityLabel)
@@ -99,7 +112,7 @@ public struct GlassCircleIconLabel: View {
     }
 }
 
-public struct GlassCircleIconButton: View {
+public struct CircleIconButton: View {
     private enum SymbolState {
         case expandCollapse(isExpanded: Bool)
 
@@ -230,7 +243,7 @@ public struct GlassCircleIconButton: View {
 
     public var body: some View {
         Button(action: action) {
-            GlassCircleIconLabel(
+            CircleIconLabel(
                 systemName: renderedSystemName,
                 accessibilityLabel: accessibilityLabel,
                 visualSize: visualSize,
@@ -268,8 +281,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Back",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "chevron.left",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -281,8 +294,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Expand",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "arrow.up.left.and.arrow.down.right",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -294,8 +307,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Collapse",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "arrow.down.forward.and.arrow.up.backward",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -308,8 +321,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String,
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             symbolState: .expandCollapse(isExpanded: isExpanded),
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -321,8 +334,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Environment",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "mountain.2.fill",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -336,8 +349,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Settings",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "gear",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -353,8 +366,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Expand Vertically",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "rectangle.arrowtriangle.2.outward",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -366,8 +379,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Collapse Vertically",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "rectangle.arrowtriangle.2.inward",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -379,8 +392,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "More",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "ellipsis",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -392,8 +405,8 @@ public struct GlassCircleIconButton: View {
         accessibilityLabel: String = "Close",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
-    ) -> GlassCircleIconButton {
-        GlassCircleIconButton(
+    ) -> CircleIconButton {
+        CircleIconButton(
             systemName: "xmark",
             accessibilityLabel: accessibilityLabel,
             action: action,
@@ -402,7 +415,7 @@ public struct GlassCircleIconButton: View {
     }
 }
 
-public struct GlassCircleIconMenu<Content: View>: View {
+public struct CircleIconMenu<Content: View>: View {
     let systemName: String
     let accessibilityLabel: String
     var accessibilityIdentifier: String?
@@ -436,7 +449,7 @@ public struct GlassCircleIconMenu<Content: View>: View {
         Menu {
             content()
         } label: {
-            GlassCircleIconLabel(
+            CircleIconLabel(
                 systemName: systemName,
                 accessibilityLabel: accessibilityLabel,
                 iconColor: iconColor,

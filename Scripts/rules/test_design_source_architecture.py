@@ -88,7 +88,7 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             "import DesignSystem\n"
             "import SwiftUI\n"
             "struct PlayerControls: View {\n"
-            "    var body: some View { GlassCircleIconButton.environment() }\n"
+            "    var body: some View { CircleIconButton.environment() }\n"
             "}\n",
         )
         result = self.invoke()

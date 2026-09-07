@@ -153,7 +153,7 @@ public struct EnvironmentCard: View {
                     )
                 }
                 Spacer()
-                GlassCircleIconButton.expandCollapse(
+                CircleIconButton.expandCollapse(
                     isExpanded: isEnvironmentActive,
                     accessibilityLabel: isEnvironmentActive
                         ? "Close environment"

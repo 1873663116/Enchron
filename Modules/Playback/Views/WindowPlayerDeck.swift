@@ -397,7 +397,7 @@ struct ProductionPlaybackMoreMenu: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var body: some View {
-        GlassCircleIconMenu(
+        CircleIconMenu(
             systemName: "ellipsis",
             accessibilityLabel: "More",
             accessibilityIdentifier: "PlayerUI-TopAction-more"

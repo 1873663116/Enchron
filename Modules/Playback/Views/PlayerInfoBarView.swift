@@ -22,7 +22,7 @@ public struct PlayerInfoBarView: View {
 
     public var body: some View {
         WindowPlaybackTopChrome {
-            GlassCircleIconButton.back(
+            CircleIconButton.back(
                 accessibilityLabel: "Back",
                 action: {
 #if DEBUG
