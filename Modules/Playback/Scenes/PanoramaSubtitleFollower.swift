@@ -109,13 +109,13 @@ final class PanoramaSubtitleFollower {
         / PlaybackSubtitlePlacement.panoramaScreenDistance
 
     static let dockedSubtitleBottomAboveControlsMeters: Float = 0.10
-    static let dockTransitionSeconds: Float = 0.45
+    static let dockTransitionSpeedMetersPerSecond: Float = 3.9
+    static let minimumDockTransitionSeconds: Float = 0.12
 
     var dockTransformProvider: @MainActor () -> Transform? = { nil }
 
     private var wasDocked = false
-    private var transitionStart: Transform?
-    private var transitionElapsed: Float = 0
+    private var transitionTimeConstant: Float = LazyGazeFollow.timeConstantSeconds
 
     private var follow = LazyGazeFollow()
     private var session: ARKitSession?
@@ -154,8 +154,7 @@ final class PanoramaSubtitleFollower {
         generation = UUID()
         follow = LazyGazeFollow()
         wasDocked = false
-        transitionStart = nil
-        transitionElapsed = 0
+        transitionTimeConstant = LazyGazeFollow.timeConstantSeconds
         root.scale = .one
         root.removeFromParent()
     }
@@ -203,6 +202,11 @@ final class PanoramaSubtitleFollower {
         )
     }
 
+    static func screenCenterWorld(of root: Transform) -> SIMD3<Float> {
+        root.translation
+            + root.rotation.act(PlaybackSubtitlePlacement.panoramaScreenCenter * root.scale)
+    }
+
     private func step(deltaTime: Float) {
         guard trackingIsRunning,
               let provider,
@@ -235,23 +239,20 @@ final class PanoramaSubtitleFollower {
         }
         if follow.isDocked != wasDocked {
             wasDocked = follow.isDocked
-            transitionStart = root.transform
-            transitionElapsed = 0
+            let travel = simd_distance(
+                Self.screenCenterWorld(of: root.transform),
+                Self.screenCenterWorld(of: target)
+            )
+            transitionTimeConstant = max(
+                travel / Self.dockTransitionSpeedMetersPerSecond,
+                Self.minimumDockTransitionSeconds
+            )
         }
-        guard let start = transitionStart else {
-            root.transform = target
-            return
-        }
-        transitionElapsed += max(deltaTime, 0)
-        let progress = min(transitionElapsed / Self.dockTransitionSeconds, 1)
-        let eased = progress * progress * (3 - 2 * progress)
+        let factor = 1 - exp(-max(deltaTime, 0) / transitionTimeConstant)
         root.transform = Transform(
-            scale: simd_mix(start.scale, target.scale, SIMD3(repeating: eased)),
-            rotation: simd_slerp(start.rotation, target.rotation, eased),
-            translation: simd_mix(start.translation, target.translation, SIMD3(repeating: eased))
+            scale: simd_mix(root.scale, target.scale, SIMD3(repeating: factor)),
+            rotation: simd_slerp(root.orientation, target.rotation, factor),
+            translation: simd_mix(root.position, target.translation, SIMD3(repeating: factor))
         )
-        if progress >= 1 {
-            transitionStart = nil
-        }
     }
 }
