@@ -109,7 +109,7 @@ final class PanoramaSubtitleFollower {
         / PlaybackSubtitlePlacement.panoramaScreenDistance
 
     static let dockedSubtitleBottomAboveControlsMeters: Float = 0.10
-    static let dockTransitionSpeedMetersPerSecond: Float = 3.9
+    static let dockTransitionSpeedMetersPerSecond: Float = 6.3
     static let minimumDockTransitionSeconds: Float = 0.12
     static let dockArcHeightMeters: Float = 0.35
 
