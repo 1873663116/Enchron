@@ -1079,7 +1079,6 @@ enum PlaybackSubtitlePlacement {
     static let panoramaScreenCenter = SIMD3<Float>(0, -0.55, -panoramaScreenDistance)
     static let planeLift: Float = 0.015
     static let pinnedBottomFraction: Float = 0.08
-    static let panoramaDockedScreenCenterY: Float = 1.44
 
     static func pinsToLowerCenter(_ presentation: PlaybackPresentation) -> Bool {
         presentation == .portal || presentation == .panorama
@@ -1089,16 +1088,13 @@ enum PlaybackSubtitlePlacement {
         frame: PlaybackSubtitleFrame,
         presentation: PlaybackPresentation,
         screenSize: SIMD2<Float>,
-        reservedBottomFraction: Float,
-        dockedToControls: Bool = false
+        reservedBottomFraction: Float
     ) -> PlaybackSubtitleLayout {
         let resolvedScreenSize: SIMD2<Float>
         let screenCenter: SIMD3<Float>
         if presentation == .panorama {
             resolvedScreenSize = panoramaScreenSize
-            screenCenter = dockedToControls
-                ? [0, panoramaDockedScreenCenterY, 0]
-                : panoramaScreenCenter
+            screenCenter = panoramaScreenCenter
         } else {
             resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
                 ? screenSize
@@ -1148,7 +1144,6 @@ final class PlaybackSubtitleSurface {
         screenSize: SIMD2<Float>,
         reservedBottomFraction: Float,
         frame: PlaybackSubtitleFrame?,
-        dockedToControls: Bool = false,
         emitEnablementWrite: (String) -> Void = { _ in }
     ) {
         guard let frame,
@@ -1171,8 +1166,7 @@ final class PlaybackSubtitleSurface {
             frame: frame,
             presentation: presentation,
             screenSize: screenSize,
-            reservedBottomFraction: reservedBottomFraction,
-            dockedToControls: dockedToControls
+            reservedBottomFraction: reservedBottomFraction
         )
         let frameChanged = changeIdentifier != frame.changeIdentifier
         guard frameChanged || layout != nextLayout else { return }

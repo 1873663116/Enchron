@@ -466,16 +466,25 @@ struct PlaybackPresentationStateTests {
         #expect(offCentre.position.y < 0)
         #expect(offCentre.position.y > -screenSize.y / 2)
 
-        let docked = PlaybackSubtitlePlacement.resolve(
+        let controls = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0.3, axis: [0, 1, 0]),
+            translation: [0.2, 1.1, -0.6]
+        )
+        let dockedRoot = PanoramaSubtitleFollower.dockedRootTransform(controls: controls)
+        let panorama = PlaybackSubtitlePlacement.resolve(
             frame: frame,
             presentation: .panorama,
             screenSize: screenSize,
-            reservedBottomFraction: 0,
-            dockedToControls: true
+            reservedBottomFraction: 0
         )
-        #expect(docked.position.z == 0)
-        #expect(docked.position.x == 0)
-        #expect(docked.position.y > 0)
+        let subtitleBottomLocal = panorama.position - [0, panorama.size.y / 2, 0]
+        let subtitleBottomWorld = dockedRoot.translation
+            + dockedRoot.rotation.act(subtitleBottomLocal * dockedRoot.scale)
+        let aboveControls = controls.rotation.inverse.act(subtitleBottomWorld - controls.translation)
+        #expect(abs(aboveControls.x) < 0.001)
+        #expect(abs(aboveControls.z) < 0.001)
+        #expect(abs(aboveControls.y - PanoramaSubtitleFollower.dockedSubtitleBottomAboveControlsMeters) < 0.001)
     }
 
     @Test("A lazy gaze follow holds inside its dead zone, then eases onto the head and settles")

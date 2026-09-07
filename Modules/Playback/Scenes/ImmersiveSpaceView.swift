@@ -1354,7 +1354,6 @@ public struct ImmersiveSpaceView: View {
         subtitleFollower.dockTransformProvider = { [controlsAttachmentController] in
             controlsAttachmentController.lockedControlsTransform
         }
-        subtitleFollower.onDockChange = { _ in refreshSubtitleSurface() }
         subtitleFollower.setActive(presentation == .panorama, in: content)
         subtitleSurface.update(
             on: subtitleParent(for: presentation),
@@ -1362,7 +1361,6 @@ public struct ImmersiveSpaceView: View {
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
             frame: playbackRuntime.activeSubtitleFrame,
-            dockedToControls: presentation == .panorama && subtitleFollower.isDocked,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         attachSpatialSurfaceIfReady()
@@ -1385,7 +1383,6 @@ public struct ImmersiveSpaceView: View {
             screenSize: videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
             frame: playbackRuntime.activeSubtitleFrame,
-            dockedToControls: presentation == .panorama && subtitleFollower.isDocked,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
     }

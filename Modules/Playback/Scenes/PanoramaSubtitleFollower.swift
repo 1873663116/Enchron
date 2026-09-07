@@ -108,9 +108,9 @@ final class PanoramaSubtitleFollower {
         -ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
         / PlaybackSubtitlePlacement.panoramaScreenDistance
 
+    static let dockedSubtitleBottomAboveControlsMeters: Float = 0.10
+
     var dockTransformProvider: @MainActor () -> Transform? = { nil }
-    var onDockChange: @MainActor (Bool) -> Void = { _ in }
-    private(set) var isDocked = false
 
     private var follow = LazyGazeFollow()
     private var session: ARKitSession?
@@ -148,7 +148,6 @@ final class PanoramaSubtitleFollower {
         trackingIsRunning = false
         generation = UUID()
         follow = LazyGazeFollow()
-        isDocked = false
         root.scale = .one
         root.removeFromParent()
     }
@@ -176,6 +175,26 @@ final class PanoramaSubtitleFollower {
         }
     }
 
+    // The subtitle keeps its free-floating local layout while docked; the root
+    // is placed so that layout lands on the controls' plane with the pinned
+    // subtitle bottom a fixed distance above the controls' centre.
+    static func dockedRootTransform(controls: Transform) -> Transform {
+        let scale = dockedScale
+        let screenCenter = PlaybackSubtitlePlacement.panoramaScreenCenter
+        let screenSize = PlaybackSubtitlePlacement.panoramaScreenSize
+        let subtitleBottomBelowScreenCenter =
+            screenSize.y / 2 - screenSize.y * PlaybackSubtitlePlacement.pinnedBottomFraction
+        let screenCenterAboveControls =
+            dockedSubtitleBottomAboveControlsMeters + subtitleBottomBelowScreenCenter * scale
+        let screenCenterWorld = controls.translation
+            + controls.rotation.act([0, screenCenterAboveControls, 0])
+        return Transform(
+            scale: SIMD3(repeating: scale),
+            rotation: controls.rotation,
+            translation: screenCenterWorld - controls.rotation.act(screenCenter * scale)
+        )
+    }
+
     private func step(deltaTime: Float) {
         guard trackingIsRunning,
               let provider,
@@ -198,11 +217,7 @@ final class PanoramaSubtitleFollower {
         )
         let target: Transform
         if follow.isDocked, let dockTransform {
-            target = Transform(
-                scale: SIMD3(repeating: Self.dockedScale),
-                rotation: dockTransform.rotation,
-                translation: dockTransform.translation
-            )
+            target = Self.dockedRootTransform(controls: dockTransform)
         } else {
             target = Transform(
                 scale: .one,
@@ -216,9 +231,5 @@ final class PanoramaSubtitleFollower {
             rotation: simd_slerp(root.orientation, target.rotation, factor),
             translation: simd_mix(root.position, target.translation, SIMD3(repeating: factor))
         )
-        if isDocked != follow.isDocked {
-            isDocked = follow.isDocked
-            onDockChange(isDocked)
-        }
     }
 }
