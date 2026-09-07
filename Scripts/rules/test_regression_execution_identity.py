@@ -63,6 +63,7 @@ def _macho(
     *,
     platform: int | None = None,
     build_version_count: int = 1,
+    file_type: int = 0x6,
 ) -> bytes:
     packed_sdk = 27 << 16
     build_command = struct.pack(
@@ -115,7 +116,7 @@ def _macho(
         0xFEEDFACF,
         0x0100000C,
         0,
-        6,
+        file_type,
         build_version_count + 1,
         command_bytes,
         0,
@@ -306,7 +307,7 @@ class ExecutionIdentityTests(unittest.TestCase):
         code.write_bytes(_macho(stamp.read_bytes(), lane))
         (runner / "Runner").write_bytes(f"{lane.value}-runner".encode())
         (test_bundle / "EnchronAppUITests").write_bytes(
-            f"{lane.value}-tests".encode()
+            _macho(stamp.read_bytes(), lane, file_type=0x8)
         )
         dependency = shared / "Shared"
         dependency.write_bytes(f"{lane.value}-dependent-product".encode())
