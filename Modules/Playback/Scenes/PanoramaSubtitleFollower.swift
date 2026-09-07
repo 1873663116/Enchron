@@ -109,8 +109,13 @@ final class PanoramaSubtitleFollower {
         / PlaybackSubtitlePlacement.panoramaScreenDistance
 
     static let dockedSubtitleBottomAboveControlsMeters: Float = 0.10
+    static let dockTransitionSeconds: Float = 0.45
 
     var dockTransformProvider: @MainActor () -> Transform? = { nil }
+
+    private var wasDocked = false
+    private var transitionStart: Transform?
+    private var transitionElapsed: Float = 0
 
     private var follow = LazyGazeFollow()
     private var session: ARKitSession?
@@ -148,6 +153,9 @@ final class PanoramaSubtitleFollower {
         trackingIsRunning = false
         generation = UUID()
         follow = LazyGazeFollow()
+        wasDocked = false
+        transitionStart = nil
+        transitionElapsed = 0
         root.scale = .one
         root.removeFromParent()
     }
@@ -225,11 +233,25 @@ final class PanoramaSubtitleFollower {
                 translation: headPosition
             )
         }
-        let factor = 1 - exp(-max(deltaTime, 0) / LazyGazeFollow.timeConstantSeconds)
+        if follow.isDocked != wasDocked {
+            wasDocked = follow.isDocked
+            transitionStart = root.transform
+            transitionElapsed = 0
+        }
+        guard let start = transitionStart else {
+            root.transform = target
+            return
+        }
+        transitionElapsed += max(deltaTime, 0)
+        let progress = min(transitionElapsed / Self.dockTransitionSeconds, 1)
+        let eased = progress * progress * (3 - 2 * progress)
         root.transform = Transform(
-            scale: simd_mix(root.scale, target.scale, SIMD3(repeating: factor)),
-            rotation: simd_slerp(root.orientation, target.rotation, factor),
-            translation: simd_mix(root.position, target.translation, SIMD3(repeating: factor))
+            scale: simd_mix(start.scale, target.scale, SIMD3(repeating: eased)),
+            rotation: simd_slerp(start.rotation, target.rotation, eased),
+            translation: simd_mix(start.translation, target.translation, SIMD3(repeating: eased))
         )
+        if progress >= 1 {
+            transitionStart = nil
+        }
     }
 }
