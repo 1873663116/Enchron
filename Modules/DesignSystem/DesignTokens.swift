@@ -473,9 +473,8 @@ public enum DesignTokens {
     }
 
     public enum MediaChromeShadow {
-        public static let opacity: CGFloat = 0.38
-        public static let blurRadius: CGFloat = 14
-        public static let spread: CGFloat = 10
+        public static let opacity: CGFloat = 0.32
+        public static let spread: CGFloat = 22
     }
 
     public enum ProgressBar {
