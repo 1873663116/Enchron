@@ -113,9 +113,9 @@ private extension CIContext {
     nonisolated(unsafe) static let shared = CIContext(options: [.cacheIntermediates: false])
 }
 
-// The window-shaped edge only exists in SwiftUI: a full-window overlay
-// clipped by the container shape inherits the window's corners with no
-// inset to infer, and the coincident z offset keeps it over the video mesh.
+// A plain window clips nothing: the video's rounded corners are the
+// component's own screen, so the band rounds its top corners itself with
+// the radius that screen uses.
 public struct PlaybackChromeBackdropView: View {
     @Environment(PlaybackSessionModel.self) private var appModel
 
@@ -130,7 +130,15 @@ public struct PlaybackChromeBackdropView: View {
                         .scaledToFill()
                         .frame(maxWidth: .infinity)
                         .frame(height: DesignTokens.PlaybackEdge.depth)
-                        .clipped()
+                        .clipShape(
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: DesignTokens.PlaybackEdge.screenCornerRadius,
+                                bottomLeadingRadius: 0,
+                                bottomTrailingRadius: 0,
+                                topTrailingRadius: DesignTokens.PlaybackEdge.screenCornerRadius,
+                                style: .continuous
+                            )
+                        )
                 }
             }
             .allowsHitTesting(false)
