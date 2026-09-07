@@ -46,12 +46,13 @@ public enum WindowPlaybackSurfaceGeometry {
         let fill = verticalFill.isFinite && verticalFill > 0
             ? min(verticalFill, 1)
             : 1
-        let occludedHeight = resolvedSize.y * min(occlusion.topFraction / fill, 1)
-        let height = resolvedSize.y - occludedHeight
+        let topOccluded = resolvedSize.y * min(occlusion.topFraction / fill, 1)
+        let bottomOccluded = resolvedSize.y * min(occlusion.bottomFraction / fill, 1)
+        let height = resolvedSize.y - topOccluded - bottomOccluded
         guard height > 0 else { return nil }
         return PlaybackWindowInteractionRegion(
             size: [resolvedSize.x, height, thickness],
-            center: [0, -occludedHeight / 2, frontOffset]
+            center: [0, (bottomOccluded - topOccluded) / 2, frontOffset]
         )
     }
 

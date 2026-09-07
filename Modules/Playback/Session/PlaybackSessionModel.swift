@@ -591,10 +591,12 @@ public final class PlaybackSessionModel {
     public var windowChromeOcclusion: PlaybackWindowChromeOcclusion {
         PlaybackWindowChromeOcclusion(
             topFraction: windowTopChromeFraction,
-            bottomFraction: PlaybackWindowChromeOcclusion.bottomFraction(
-                ornamentHeight: windowControlsOrnamentHeight,
-                surfaceHeight: windowSurfaceHeight
-            ),
+            bottomFraction: showControls
+                ? PlaybackWindowChromeOcclusion.bottomFraction(
+                    ornamentHeight: windowControlsOrnamentHeight,
+                    surfaceHeight: windowSurfaceHeight
+                )
+                : 0,
             secondaryMenuIsPresented: windowSecondaryMenuIsPresented
         )
     }

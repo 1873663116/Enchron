@@ -554,6 +554,32 @@ struct PlaybackPresentationStateTests {
         #expect(abs(follow.yaw - dock.yaw) < LazyGazeFollow.settleRadians)
     }
 
+    @Test("The interaction collider gives up the strips under the top chrome and the bottom ornament")
+    func interactionRegionCarvesOutBothChromeStrips() throws {
+        let size = SIMD2<Float>(16.0 / 9.0, 1)
+        let open = try #require(WindowPlaybackSurfaceGeometry.interactionRegion(
+            screenSize: size,
+            verticalFill: 1,
+            occlusion: .none,
+            thickness: 0.01,
+            frontOffset: 0.01
+        ))
+        #expect(open.size.y == 1)
+        #expect(open.center.y == 0)
+
+        let framed = try #require(WindowPlaybackSurfaceGeometry.interactionRegion(
+            screenSize: size,
+            verticalFill: 1,
+            occlusion: PlaybackWindowChromeOcclusion(topFraction: 0.1, bottomFraction: 0.3),
+            thickness: 0.01,
+            frontOffset: 0.01
+        ))
+        #expect(abs(framed.size.y - 0.6) < 0.0001)
+        #expect(abs(framed.center.y - 0.1) < 0.0001)
+        #expect(abs((framed.center.y - framed.size.y / 2) - (-0.5 + 0.3)) < 0.0001)
+        #expect(abs((framed.center.y + framed.size.y / 2) - (0.5 - 0.1)) < 0.0001)
+    }
+
     @Test("The bottom chrome occlusion follows the ornament's overlap of the window")
     func bottomChromeOcclusionFollowsTheOrnamentOverlap() {
         #expect(PlaybackWindowChromeOcclusion.bottomFraction(ornamentHeight: 0, surfaceHeight: 800) == 0)

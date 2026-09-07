@@ -236,9 +236,10 @@ def main() -> int:
     require(
         "guard occlusion.secondaryMenuIsPresented" not in interaction_region
         and "resolvedSize.y * min(occlusion.topFraction / fill, 1)" in interaction_region
+        and "resolvedSize.y * min(occlusion.bottomFraction / fill, 1)" in interaction_region
         and "size: [resolvedSize.x, height, thickness]" in interaction_region
-        and "center: [0, -occludedHeight / 2, frontOffset]" in interaction_region,
-        "the window interaction region must subtract chrome from the video area and must not vanish for a presented menu",
+        and "center: [0, (bottomOccluded - topOccluded) / 2, frontOffset]" in interaction_region,
+        "the window interaction region must subtract both chrome strips from the video area and must not vanish for a presented menu",
     )
     require(
         "PlaybackWindowInteractionSurface.install(" in surface
