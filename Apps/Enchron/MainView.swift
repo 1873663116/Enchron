@@ -278,10 +278,7 @@ public struct MainView: View {
                             onClose: playbackLauncher.stopPlayback
                         )
                         .opacity(playbackDeckOpacity)
-                        .allowsHitTesting(
-                            playbackDeckOpacity > 0
-                                && playbackSession.presentationTransition == nil
-                        )
+                        .allowsHitTesting(playbackDeckOpacity > 0)
                     }
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
