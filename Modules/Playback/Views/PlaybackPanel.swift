@@ -431,7 +431,6 @@ public struct FusedPlayerPanel: View {
     @State private var forwardIconAnimationTrigger = 0
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     @State private var selectedSpeed = "1×"
-    @State private var panelContentSize: CGSize?
     @State private var timeBubbleWidth: CGFloat = 0
     @Namespace private var hoverNamespace
 
@@ -483,15 +482,9 @@ public struct FusedPlayerPanel: View {
             panelContent
                 .frame(width: clusterWidth)
                 .fixedSize(horizontal: false, vertical: true)
-                .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-                    withAnimation(DesignTokens.AnimationToken.panelSpring) {
-                        panelContentSize = size
-                    }
-                }
                 .id(expansion.layout)
                 .transition(panelContentTransition)
         }
-        .frame(width: panelContentSize?.width, height: panelContentSize?.height)
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
@@ -541,7 +534,6 @@ public struct FusedPlayerPanel: View {
                 transaction.disablesAnimations = true
                 withTransaction(transaction) {
                     expansion = PlaybackPanelExpansion()
-                    panelContentSize = nil
                 }
                 videoFormatEditing.discard()
                 return
