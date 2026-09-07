@@ -187,9 +187,6 @@ final class PanoramaSubtitleFollower {
         }
     }
 
-    // The subtitle keeps its free-floating local layout while docked; the root
-    // is placed so that layout lands on the controls' plane with the pinned
-    // subtitle bottom a fixed distance above the controls' centre.
     static func dockedRootTransform(controls: Transform) -> Transform {
         let scale = dockedScale
         let screenCenter = PlaybackSubtitlePlacement.panoramaScreenCenter
