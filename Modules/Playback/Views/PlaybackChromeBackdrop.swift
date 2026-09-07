@@ -113,9 +113,9 @@ private extension CIContext {
     nonisolated(unsafe) static let shared = CIContext(options: [.cacheIntermediates: false])
 }
 
-// A plain window clips nothing: the video's rounded corners are the
-// component's own screen, so the band rounds its top corners itself with
-// the radius that screen uses.
+// The band is hosted on the window root, where ContainerRelativeShape
+// resolves to the window's own corners; hosted any deeper, the shape is
+// inset by that view's offset and the corners drift.
 public struct PlaybackChromeBackdropView: View {
     @Environment(PlaybackSessionModel.self) private var appModel
 
@@ -130,15 +130,7 @@ public struct PlaybackChromeBackdropView: View {
                         .scaledToFill()
                         .frame(maxWidth: .infinity)
                         .frame(height: DesignTokens.PlaybackEdge.depth)
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: DesignTokens.PlaybackEdge.screenCornerRadius,
-                                bottomLeadingRadius: 0,
-                                bottomTrailingRadius: 0,
-                                topTrailingRadius: DesignTokens.PlaybackEdge.screenCornerRadius,
-                                style: .continuous
-                            )
-                        )
+                        .clipped()
                 }
             }
             .allowsHitTesting(false)

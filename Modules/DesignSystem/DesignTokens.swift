@@ -476,7 +476,6 @@ public enum DesignTokens {
         public static let depth: CGFloat = 240
         public static let holdFraction: CGFloat = 0.1
         public static let peakOpacity: CGFloat = 0.85
-        public static let screenCornerRadius: CGFloat = Radius.panel
     }
 
     public enum ProgressBar {
