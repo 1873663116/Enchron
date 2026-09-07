@@ -185,6 +185,75 @@ struct PlaybackPresentationStateTests {
         #expect(SpatialPlatformWindowIdentity.allCases == [.main, .immersivePlaybackResident])
     }
 
+    @Test("The window video entity appears in one step when a space hands back to the window")
+    func windowVideoEntityRevealsWithoutAnimationAfterASpace() {
+        #expect(
+            PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(
+                transition: PlaybackPresentationTransition(
+                    previousPresentation: .panorama,
+                    targetPresentation: .portal,
+                    previousEnvironment: .none,
+                    targetEnvironment: .none
+                )
+            ) == false
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(
+                transition: PlaybackPresentationTransition(
+                    previousPresentation: .docked,
+                    targetPresentation: .window,
+                    previousEnvironment: .none,
+                    targetEnvironment: .none
+                )
+            ) == false
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(
+                transition: PlaybackPresentationTransition(
+                    previousPresentation: .window,
+                    targetPresentation: .docked,
+                    previousEnvironment: .none,
+                    targetEnvironment: .none
+                )
+            )
+        )
+        #expect(PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(transition: nil))
+    }
+
+    @Test("The window chrome mounts once the returning window's video is proven")
+    func windowChromeMountsWithTheRevealedVideo() {
+        #expect(WindowChromeHostingPolicy.hostsPlaybackOrnament(
+            showsWindowPlayback: true,
+            settledPresentationUsesMainWindow: true,
+            isRevealingMainWindow: false,
+            visualCutoverMayBegin: false
+        ))
+        #expect(WindowChromeHostingPolicy.hostsPlaybackOrnament(
+            showsWindowPlayback: true,
+            settledPresentationUsesMainWindow: false,
+            isRevealingMainWindow: true,
+            visualCutoverMayBegin: false
+        ) == false)
+        #expect(WindowChromeHostingPolicy.hostsPlaybackOrnament(
+            showsWindowPlayback: true,
+            settledPresentationUsesMainWindow: false,
+            isRevealingMainWindow: true,
+            visualCutoverMayBegin: true
+        ))
+        #expect(WindowChromeHostingPolicy.hostsPlaybackOrnament(
+            showsWindowPlayback: false,
+            settledPresentationUsesMainWindow: true,
+            isRevealingMainWindow: false,
+            visualCutoverMayBegin: true
+        ) == false)
+        #expect(WindowChromeHostingPolicy.hostsPlaybackOrnament(
+            showsWindowPlayback: true,
+            settledPresentationUsesMainWindow: false,
+            isRevealingMainWindow: false,
+            visualCutoverMayBegin: true
+        ) == false)
+    }
+
     @Test("The resident window takes the main window's size so push and dismiss align without an offset")
     func residentWindowMatchesTheMainWindowSize() {
         #expect(
@@ -224,8 +293,7 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: nil,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true,
-                targetWindowIsForeground: true
+                targetSurfacePixelIdentityIsCurrent: true
             ) == false
         )
         let panoramaExit = PlaybackPresentationTransition(
@@ -238,24 +306,14 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: panoramaExit,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: false,
-                targetWindowIsForeground: true
+                targetSurfacePixelIdentityIsCurrent: false
             ) == false
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: panoramaExit,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true,
-                targetWindowIsForeground: false
-            ) == false
-        )
-        #expect(
-            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
-                transition: panoramaExit,
-                surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true,
-                targetWindowIsForeground: true
+                targetSurfacePixelIdentityIsCurrent: true
             )
         )
         let dockedExit = PlaybackPresentationTransition(
@@ -268,16 +326,14 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: dockedExit,
                 surfacePresentation: .window,
-                targetSurfacePixelIdentityIsCurrent: true,
-                targetWindowIsForeground: true
+                targetSurfacePixelIdentityIsCurrent: true
             )
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: dockedExit,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true,
-                targetWindowIsForeground: true
+                targetSurfacePixelIdentityIsCurrent: true
             ) == false
         )
         #expect(

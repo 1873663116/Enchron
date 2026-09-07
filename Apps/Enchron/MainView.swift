@@ -70,6 +70,19 @@ enum WindowPlaybackLoadingVisibility {
     }
 }
 
+enum WindowChromeHostingPolicy {
+    static func hostsPlaybackOrnament(
+        showsWindowPlayback: Bool,
+        settledPresentationUsesMainWindow: Bool,
+        isRevealingMainWindow: Bool,
+        visualCutoverMayBegin: Bool
+    ) -> Bool {
+        guard showsWindowPlayback else { return false }
+        return settledPresentationUsesMainWindow
+            || (isRevealingMainWindow && visualCutoverMayBegin)
+    }
+}
+
 enum WindowGlassPolicy {
     static func showsGlass(
         showsWindowPlayback: Bool,
@@ -215,7 +228,13 @@ public struct MainView: View {
     }
 
     private var hostsPlaybackOrnament: Bool {
-        showsWindowPlayback && playbackSession.playbackPresentation.usesMainWindow
+        WindowChromeHostingPolicy.hostsPlaybackOrnament(
+            showsWindowPlayback: showsWindowPlayback,
+            settledPresentationUsesMainWindow: playbackSession.playbackPresentation.usesMainWindow,
+            isRevealingMainWindow: SpatialPlatformImmersiveExitWindowRevealPolicy
+                .isRevealingMainWindow(transition: playbackSession.presentationTransition),
+            visualCutoverMayBegin: playbackSession.presentationVisualCutoverMayBegin
+        )
     }
 
     private var showsPlaybackChrome: Bool {
@@ -259,7 +278,10 @@ public struct MainView: View {
                             onClose: playbackLauncher.stopPlayback
                         )
                         .opacity(playbackDeckOpacity)
-                        .allowsHitTesting(playbackDeckOpacity > 0)
+                        .allowsHitTesting(
+                            playbackDeckOpacity > 0
+                                && playbackSession.presentationTransition == nil
+                        )
                     }
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {

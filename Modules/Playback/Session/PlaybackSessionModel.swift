@@ -196,7 +196,6 @@ public final class PlaybackSessionModel {
     public private(set) var presentationSourceRendererMayRelease = false
     public private(set) var presentationTargetRendererMayBind = false
     public private(set) var presentationVisualCutoverMayBegin = false
-    public private(set) var presentationTargetWindowIsForeground = false
     public private(set) var lastPresentationConversionDiagnostic: String?
     private var presentationTransitionStartedAt: Date?
 
@@ -301,7 +300,6 @@ public final class PlaybackSessionModel {
         presentationSourceRendererMayRelease = false
         presentationTargetRendererMayBind = false
         presentationVisualCutoverMayBegin = false
-        presentationTargetWindowIsForeground = false
         presentationTransitionStartedAt = Date()
         if transition.targetPresentation == .panorama,
            transition.previousEnvironment.environment != nil,
@@ -480,16 +478,6 @@ public final class PlaybackSessionModel {
     }
 
     @discardableResult
-    func recordPresentationTargetWindowForeground() -> Bool {
-        guard presentationTransition != nil,
-              presentationTargetRendererMayBind else {
-            return false
-        }
-        presentationTargetWindowIsForeground = true
-        return true
-    }
-
-    @discardableResult
     func beginPresentationVisualCutover() -> Bool {
         guard presentationTransition != nil,
               presentationTargetRendererMayBind else {
@@ -519,7 +507,6 @@ public final class PlaybackSessionModel {
         presentationSourceRendererMayRelease = false
         presentationTargetRendererMayBind = false
         presentationVisualCutoverMayBegin = false
-        presentationTargetWindowIsForeground = false
         presentationTransitionStartedAt = nil
     }
 

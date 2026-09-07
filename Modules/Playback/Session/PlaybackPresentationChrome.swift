@@ -93,6 +93,17 @@ public enum PlaybackPresentationTransitionAppearance {
         )
     }
 
+    static func animatesWindowVideoEntity(
+        transition: PlaybackPresentationTransition?
+    ) -> Bool {
+        guard let transition,
+              transition.previousPresentation.usesImmersiveSpace,
+              transition.targetPresentation.usesMainWindow else {
+            return true
+        }
+        return false
+    }
+
     public static func acceptsInput(
         for hostedPresentation: PlaybackPresentation,
         settledPresentation: PlaybackPresentation,

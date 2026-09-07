@@ -271,9 +271,6 @@ public struct PlaybackVideoSurface: View {
         .onChange(of: appModel.presentationTransition?.id) {
             componentRevision &+= 1
         }
-        .onChange(of: appModel.presentationTargetWindowIsForeground) {
-            surfaceRefreshTick &+= 1
-        }
         .onDisappear {
             realityViewUpdateScheduler.cancel()
             releaseSurface()
@@ -517,6 +514,9 @@ public struct PlaybackVideoSurface: View {
             of: videoEntity,
             to: Float(videoEntityOpacity),
             animated: videoEntity.components[OpacityComponent.self] != nil
+                && PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(
+                    transition: appModel.presentationTransition
+                )
         )
         surfaceAccessibilityActivation.observe(
             in: content,
@@ -688,8 +688,7 @@ public struct PlaybackVideoSurface: View {
             if SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: appModel.presentationTransition,
                 surfacePresentation: presentation,
-                targetSurfacePixelIdentityIsCurrent: currentPixelIdentityWasAccepted,
-                targetWindowIsForeground: appModel.presentationTargetWindowIsForeground
+                targetSurfacePixelIdentityIsCurrent: currentPixelIdentityWasAccepted
             ), appModel.presentationVisualCutoverMayBegin == false,
                appModel.beginPresentationVisualCutover() {
                 appModel.recordSurfaceInputProbe(
@@ -697,7 +696,6 @@ public struct PlaybackVideoSurface: View {
                         + " technicalSession=\(reportedTechnicalSessionID ?? "none")"
                         + " videoComponentRevision=\(reportedVideoComponentRevision)"
                         + " streamEpoch=\(reportedStreamEpoch.map(String.init) ?? "none")"
-                        + " animated=true"
                 )
             }
             if presentation == .portal,
