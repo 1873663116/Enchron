@@ -104,7 +104,11 @@ final class PanoramaSubtitleFollower {
         return entity
     }()
 
-    var dockPositionProvider: @MainActor () -> SIMD3<Float>? = { nil }
+    static let dockedScale: Float = 0.7 / 3
+
+    var dockTransformProvider: @MainActor () -> Transform? = { nil }
+    var onDockChange: @MainActor (Bool) -> Void = { _ in }
+    private(set) var isDocked = false
 
     private var follow = LazyGazeFollow()
     private var session: ARKitSession?
@@ -142,6 +146,8 @@ final class PanoramaSubtitleFollower {
         trackingIsRunning = false
         generation = UUID()
         follow = LazyGazeFollow()
+        isDocked = false
+        root.scale = .one
         root.removeFromParent()
     }
 
@@ -179,15 +185,27 @@ final class PanoramaSubtitleFollower {
         let forward = -SIMD3(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z)
         let headPosition = SIMD3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
         let headGaze = LazyGazeFollow.gaze(of: forward)
-        let dockGaze = dockPositionProvider().map { dockPosition in
-            LazyGazeFollow.gaze(of: dockPosition - headPosition)
+        let dockTransform = dockTransformProvider()
+        let dockGaze = dockTransform.map { dock in
+            LazyGazeFollow.gaze(of: dock.translation - headPosition)
         }
         follow.advance(
             head: LazyGazeFollow.Gaze(yaw: headGaze.yaw, pitch: headGaze.pitch),
             dock: dockGaze.map { LazyGazeFollow.Gaze(yaw: $0.yaw, pitch: $0.pitch) },
             deltaTime: deltaTime
         )
-        root.position = headPosition
-        root.orientation = follow.orientation
+        if follow.isDocked, let dockTransform {
+            root.position = dockTransform.translation
+            root.orientation = dockTransform.rotation
+            root.scale = SIMD3(repeating: Self.dockedScale)
+        } else {
+            root.position = headPosition
+            root.orientation = follow.orientation
+            root.scale = .one
+        }
+        if isDocked != follow.isDocked {
+            isDocked = follow.isDocked
+            onDockChange(isDocked)
+        }
     }
 }

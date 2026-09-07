@@ -1078,7 +1078,7 @@ enum PlaybackSubtitlePlacement {
     static let panoramaScreenCenter = SIMD3<Float>(0, -0.3, -3)
     static let planeLift: Float = 0.015
     static let pinnedBottomFraction: Float = 0.08
-    static let panoramaControlsReservedFraction: Float = 0.4
+    static let panoramaDockedScreenCenterY: Float = 1.44
 
     static func pinsToLowerCenter(_ presentation: PlaybackPresentation) -> Bool {
         presentation == .portal || presentation == .panorama
@@ -1088,13 +1088,16 @@ enum PlaybackSubtitlePlacement {
         frame: PlaybackSubtitleFrame,
         presentation: PlaybackPresentation,
         screenSize: SIMD2<Float>,
-        reservedBottomFraction: Float
+        reservedBottomFraction: Float,
+        dockedToControls: Bool = false
     ) -> PlaybackSubtitleLayout {
         let resolvedScreenSize: SIMD2<Float>
         let screenCenter: SIMD3<Float>
         if presentation == .panorama {
             resolvedScreenSize = panoramaScreenSize
-            screenCenter = panoramaScreenCenter
+            screenCenter = dockedToControls
+                ? [0, panoramaDockedScreenCenterY, 0]
+                : panoramaScreenCenter
         } else {
             resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
                 ? screenSize
@@ -1144,6 +1147,7 @@ final class PlaybackSubtitleSurface {
         screenSize: SIMD2<Float>,
         reservedBottomFraction: Float,
         frame: PlaybackSubtitleFrame?,
+        dockedToControls: Bool = false,
         emitEnablementWrite: (String) -> Void = { _ in }
     ) {
         guard let frame,
@@ -1166,7 +1170,8 @@ final class PlaybackSubtitleSurface {
             frame: frame,
             presentation: presentation,
             screenSize: screenSize,
-            reservedBottomFraction: reservedBottomFraction
+            reservedBottomFraction: reservedBottomFraction,
+            dockedToControls: dockedToControls
         )
         let frameChanged = changeIdentifier != frame.changeIdentifier
         guard frameChanged || layout != nextLayout else { return }

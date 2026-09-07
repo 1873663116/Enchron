@@ -465,6 +465,17 @@ struct PlaybackPresentationStateTests {
         #expect(windowed.position.x > 0)
         #expect(offCentre.position.y < 0)
         #expect(offCentre.position.y > -screenSize.y / 2)
+
+        let docked = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: .panorama,
+            screenSize: screenSize,
+            reservedBottomFraction: 0,
+            dockedToControls: true
+        )
+        #expect(docked.position.z == 0)
+        #expect(docked.position.x == 0)
+        #expect(docked.position.y > 0)
     }
 
     @Test("A lazy gaze follow holds inside its dead zone, then eases onto the head and settles")

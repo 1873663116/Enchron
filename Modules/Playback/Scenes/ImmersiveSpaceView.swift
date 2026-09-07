@@ -1351,16 +1351,18 @@ public struct ImmersiveSpaceView: View {
             entityIsInRealityView: content.entities.contains { $0 === entity }
         )
         appModel.recordSpatialPlaybackSurfacePreparationStage("componentConfigured")
-        subtitleFollower.dockPositionProvider = { [controlsAttachmentController] in
-            controlsAttachmentController.lockedControlsPosition
+        subtitleFollower.dockTransformProvider = { [controlsAttachmentController] in
+            controlsAttachmentController.lockedControlsTransform
         }
+        subtitleFollower.onDockChange = { _ in refreshSubtitleSurface() }
         subtitleFollower.setActive(presentation == .panorama, in: content)
         subtitleSurface.update(
             on: subtitleParent(for: presentation),
             presentation: presentation,
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
-            reservedBottomFraction: subtitleReservedBottomFraction(for: presentation),
+            reservedBottomFraction: 0,
             frame: playbackRuntime.activeSubtitleFrame,
+            dockedToControls: presentation == .panorama && subtitleFollower.isDocked,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         attachSpatialSurfaceIfReady()
@@ -1368,14 +1370,6 @@ public struct ImmersiveSpaceView: View {
 
     private func subtitleParent(for presentation: PlaybackPresentation) -> Entity {
         presentation == .panorama ? subtitleFollower.root : videoEntity
-    }
-
-    private func subtitleReservedBottomFraction(
-        for presentation: PlaybackPresentation
-    ) -> Float {
-        presentation == .panorama && immersiveControlsAreVisible
-            ? PlaybackSubtitlePlacement.panoramaControlsReservedFraction
-            : 0
     }
 
     @MainActor
@@ -1389,8 +1383,9 @@ public struct ImmersiveSpaceView: View {
             on: subtitleParent(for: presentation),
             presentation: presentation,
             screenSize: videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
-            reservedBottomFraction: subtitleReservedBottomFraction(for: presentation),
+            reservedBottomFraction: 0,
             frame: playbackRuntime.activeSubtitleFrame,
+            dockedToControls: presentation == .panorama && subtitleFollower.isDocked,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
     }
