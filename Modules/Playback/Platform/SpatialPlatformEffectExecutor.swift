@@ -50,11 +50,6 @@ enum SpatialPlatformPresentationFailurePolicy {
     }
 }
 
-@MainActor
-final class SpatialPlatformTaskCompletion {
-    var isComplete = false
-}
-
 public enum SpatialPlatformResidentWindowPolicy {
     public static func contentSize(matching mainWindowSize: CGSize?) -> CGSize? {
         guard let mainWindowSize,
@@ -213,7 +208,6 @@ public final class SpatialPlatformEffectCoordinator {
     private static let immersiveSpaceLifecycleConfirmationTimeout =
         Duration.seconds(5)
     private static let windowLifecycleConfirmationTimeout = Duration.seconds(5)
-    private static let backgroundRevealReadinessBudget = Duration.milliseconds(1_500)
     public init(
         session: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
@@ -941,23 +935,10 @@ public final class SpatialPlatformEffectCoordinator {
             immersiveSpaceWasDismissed: mode.dismissesImmersiveSpace
         )
 
-        let rebaseCompletion = SpatialPlatformTaskCompletion()
         let rebaseTask = Task { @MainActor [playbackRuntime] in
-            defer { rebaseCompletion.isComplete = true }
             try await playbackRuntime.rebaseActivatedTechnicalSessionReplacement(
                 to: presentation
             )
-        }
-        switch await waitUntilWindowRevealIsReady(
-            execution,
-            rebaseCompletion: rebaseCompletion
-        ) {
-        case .ready, .notReady:
-            break
-        case .failed:
-            rebaseTask.cancel()
-            _ = try? await rebaseTask.value
-            return
         }
         let mainWindowIsReady = await restorePlaybackWindow(
             for: windowTransition,
@@ -1670,61 +1651,6 @@ public final class SpatialPlatformEffectCoordinator {
         )
         guard executionIsLive(execution) else { return nil }
         return settled
-    }
-
-    private enum WindowRevealReadiness {
-        case ready
-        case notReady
-        case failed
-    }
-
-    private func waitUntilWindowRevealIsReady(
-        _ execution: Execution,
-        rebaseCompletion: SpatialPlatformTaskCompletion
-    ) async -> WindowRevealReadiness {
-        let clock = ContinuousClock()
-        let startedAt = clock.now
-        let deadline = startedAt.advanced(by: Self.backgroundRevealReadinessBudget)
-        var playbackIntentRestored = false
-        var readiness = WindowRevealReadiness.notReady
-        while clock.now < deadline {
-            guard executionIsLive(execution) else {
-                readiness = .failed
-                break
-            }
-            if rebaseCompletion.isComplete {
-                if playbackIntentRestored == false {
-                    guard await restoreTargetPlaybackIntentBeforeSettlement(
-                        execution,
-                        restoresMainWindowOnFailure: true
-                    ) else {
-                        readiness = .failed
-                        break
-                    }
-                    playbackIntentRestored = true
-                }
-                if appModel.presentationVisualCutoverMayBegin {
-                    readiness = .ready
-                    break
-                }
-            }
-            do {
-                try await Task.sleep(for: .milliseconds(25))
-            } catch {
-                readiness = .failed
-                break
-            }
-        }
-        let waited = clock.now - startedAt
-        appModel.recordSurfaceInputProbe(
-            "windowRevealReadiness outcome=\(readiness)"
-                + " waitedMillis=\(waited.components.seconds * 1_000 + waited.components.attoseconds / 1_000_000_000_000_000)"
-                + " rebaseComplete=\(rebaseCompletion.isComplete)"
-                + " playbackIntentRestored=\(playbackIntentRestored)"
-                + " attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")"
-                + " cutover=\(appModel.presentationVisualCutoverMayBegin)"
-        )
-        return readiness
     }
 
     private func recordMainWindowRevealGate(

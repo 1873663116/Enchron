@@ -372,7 +372,7 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("every Panorama exit refreshes the retained Portal viewport")
+    @Test("only a system-closure collapse refreshes the retained Portal viewport")
     func portalViewportRefreshPolicy() {
         #expect(
             PortalPlaybackViewportRefreshPolicy.requiresRefresh(
@@ -387,7 +387,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PortalPlaybackViewportRefreshPolicy.requiresRefresh(
                 for: .exitImmersivePlayback(.panoramic)
-            )
+            ) == false
         )
         #expect(
             PortalPlaybackViewportRefreshPolicy.requiresRefresh(

@@ -338,7 +338,6 @@ enum PortalPlaybackViewportRefreshPolicy {
         for transition: SpatialPlatformPlaybackWindowTransition
     ) -> Bool {
         transition == .collapseImmersivePlayback(.panoramic)
-            || transition == .exitImmersivePlayback(.panoramic)
     }
 }
 
