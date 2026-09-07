@@ -474,12 +474,7 @@ public enum DesignTokens {
 
     public enum PlaybackEdge {
         public static let depth: CGFloat = 168
-        public static let blurRadius: CGFloat = 18
-        public static let peakOpacity: CGFloat = 0.38
-        public static let midLocation: CGFloat = 0.42
-        public static let midOpacity: CGFloat = 0.14
-        public static let sideFadeWidth: CGFloat = blurRadius + Spacing.md
-        public static let spatialInset: CGFloat = Radius.panel
+        public static let holdFraction: CGFloat = 0.25
     }
 
     public enum ProgressBar {

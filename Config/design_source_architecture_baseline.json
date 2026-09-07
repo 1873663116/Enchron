@@ -244,12 +244,6 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Playback/Views/PlaybackEdgeEmphasis.swift",
-      "signature": "color: .white.opacity(",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/Playback/Views/PlaybackPanel.swift",
       "signature": ".frame(minWidth: 64, alignment: .trailing)",
       "count": 1

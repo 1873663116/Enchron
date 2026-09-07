@@ -6,51 +6,31 @@ struct PlaybackEdgeEmphasis: View {
 
     var body: some View {
         Rectangle()
-            .fill(.black)
+            .fill(.thickMaterial)
             .mask(verticalFade)
-            .mask(horizontalFade)
-            .opacity(DesignTokens.PlaybackEdge.peakOpacity)
-            .blur(radius: DesignTokens.PlaybackEdge.blurRadius)
-            .padding(DesignTokens.PlaybackEdge.blurRadius)
             .frame(maxWidth: .infinity)
             .frame(height: DesignTokens.PlaybackEdge.depth)
+            .clipShape(ContainerRelativeShape())
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 
     private var verticalFade: LinearGradient {
         LinearGradient(
-            stops: [
-                .init(color: .white, location: 0),
-                .init(
-                    color: .white.opacity(
-                        DesignTokens.PlaybackEdge.midOpacity
-                            / max(DesignTokens.PlaybackEdge.peakOpacity, 0.001)
-                    ),
-                    location: DesignTokens.PlaybackEdge.midLocation
-                ),
-                .init(color: .clear, location: 1)
-            ],
+            stops: Self.easedStops,
             startPoint: .top,
             endPoint: .bottom
         )
     }
 
-    private var horizontalFade: some View {
-        HStack(spacing: 0) {
-            LinearGradient(
-                colors: [.clear, .white],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: DesignTokens.PlaybackEdge.sideFadeWidth)
-            Color.white
-            LinearGradient(
-                colors: [.white, .clear],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: DesignTokens.PlaybackEdge.sideFadeWidth)
+    static let easedStops: [Gradient.Stop] = {
+        let hold = DesignTokens.PlaybackEdge.holdFraction
+        let samples = 12
+        return (0...samples).map { index in
+            let location = CGFloat(index) / CGFloat(samples)
+            let progress = min(max((location - hold) / (1 - hold), 0), 1)
+            let eased = progress * progress * (3 - 2 * progress)
+            return .init(color: .white.opacity(1 - eased), location: location)
         }
-    }
+    }()
 }

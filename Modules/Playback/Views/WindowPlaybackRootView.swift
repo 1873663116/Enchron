@@ -444,8 +444,6 @@ public struct WindowPlaybackRootView<
             .enchronSpatialOffset(
                 z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
             )
-            .padding(.horizontal, DesignTokens.PlaybackEdge.spatialInset)
-            .padding(.top, DesignTokens.Spacing.xxs)
             .allowsHitTesting(false)
     }
 

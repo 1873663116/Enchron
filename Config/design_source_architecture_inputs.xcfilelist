@@ -117,6 +117,7 @@ $(SRCROOT)/Modules/Playback/PlaybackRuntime.swift
 $(SRCROOT)/Modules/Playback/Scenes/ImmersivePlaybackControlsAttachment.swift
 $(SRCROOT)/Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift
 $(SRCROOT)/Modules/Playback/Scenes/ImmersiveSpaceView.swift
+$(SRCROOT)/Modules/Playback/Scenes/PanoramaSubtitleFollower.swift
 $(SRCROOT)/Modules/Playback/Session/DebugProbeJournal.swift
 $(SRCROOT)/Modules/Playback/Session/PlaybackMediaSessionDriver.swift
 $(SRCROOT)/Modules/Playback/Session/PlaybackPresentationChrome.swift
