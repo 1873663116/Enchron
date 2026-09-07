@@ -625,11 +625,25 @@ public struct PlaybackVideoSurface: View {
         guard fraction > 0,
               let renderer = playbackRuntime.renderer,
               playbackRuntime.rendererConsumerPresentation?.usesMainWindow == true else {
+            if appModel.windowChromeBackdropImage != nil {
+                appModel.recordSurfaceInputProbe(
+                    "chromeBackdrop cleared fraction=\(fraction)"
+                        + " surfaceHeight=\(appModel.windowSurfaceHeight)"
+                        + " consumer=\(playbackRuntime.rendererConsumerPresentation?.rawValue ?? "none")"
+                )
+            }
             appModel.setWindowChromeBackdropImage(nil)
             return
         }
         if let image = chromeBackdrop.sample(renderer: renderer, bandFraction: fraction) {
+            let first = appModel.windowChromeBackdropImage == nil
             appModel.setWindowChromeBackdropImage(image)
+            if first {
+                appModel.recordSurfaceInputProbe(
+                    "chromeBackdrop sampled \(image.width)x\(image.height)"
+                        + " fraction=\(fraction) surfaceHeight=\(appModel.windowSurfaceHeight)"
+                )
+            }
         }
     }
 
