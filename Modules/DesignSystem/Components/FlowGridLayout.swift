@@ -57,7 +57,6 @@ public struct FlowGridLayout: Layout {
         var x: CGFloat = 0
         var y: CGFloat = 0
         var rowHeight: CGFloat = 0
-        var usedWidth: CGFloat = 0
         for size in sizes {
             if x > 0, x + size.width > width {
                 x = 0
@@ -65,14 +64,19 @@ public struct FlowGridLayout: Layout {
                 rowHeight = 0
             }
             origins.append(CGPoint(x: x, y: y))
-            usedWidth = max(usedWidth, x + size.width)
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
         return Arrangement(
             origins: origins,
             totalHeight: sizes.isEmpty ? 0 : y + rowHeight,
-            usedWidth: usedWidth
+            usedWidth: fullRowWidth(sizes: sizes, width: width, spacing: spacing)
         )
+    }
+
+    static func fullRowWidth(sizes: [CGSize], width: CGFloat, spacing: CGFloat) -> CGFloat {
+        guard let cardWidth = sizes.map(\.width).max(), cardWidth > 0 else { return 0 }
+        let columns = max(Int(((width + spacing) / (cardWidth + spacing)).rounded(.down)), 1)
+        return min(CGFloat(columns) * cardWidth + CGFloat(columns - 1) * spacing, max(width, cardWidth))
     }
 }

@@ -432,6 +432,10 @@ public struct FusedPlayerPanel: View {
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     @State private var selectedSpeed = "1×"
     @State private var timeBubbleWidth: CGFloat = 0
+    @State private var settledContentSize: CGSize?
+    @State private var shellSize: CGSize?
+    @State private var revealSize: CGSize?
+    @State private var revealStartsFrom: CGSize?
     @Namespace private var hoverNamespace
 
     private enum ScrubberActivation: Equatable {
@@ -466,8 +470,42 @@ public struct FusedPlayerPanel: View {
             : DesignTokens.ControlBar.contentWidth
     }
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+    private var shape: PlaybackPanelRevealShape {
+        let inner = revealSize ?? settledContentSize ?? .zero
+        return PlaybackPanelRevealShape(
+            cornerRadius: DesignTokens.Radius.card,
+            width: inner.width + DesignTokens.ControlBar.paddingH * 2,
+            height: inner.height + DesignTokens.ControlBar.paddingV * 2,
+            isActive: revealSize != nil
+        )
+    }
+
+    private func contentDidLayout(_ size: CGSize) {
+        guard let previous = settledContentSize else {
+            settledContentSize = size
+            return
+        }
+        guard size != previous else { return }
+        settledContentSize = size
+        guard let from = revealStartsFrom else { return }
+        revealStartsFrom = nil
+        var stillTransaction = Transaction()
+        stillTransaction.disablesAnimations = true
+        withTransaction(stillTransaction) {
+            shellSize = CGSize(
+                width: max(from.width, size.width),
+                height: max(from.height, size.height)
+            )
+        }
+        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+            revealSize = size
+        } completion: {
+            guard revealSize == size else { return }
+            withTransaction(stillTransaction) {
+                shellSize = nil
+                revealSize = nil
+            }
+        }
     }
 
     private var panelContentTransition: AnyTransition {
@@ -482,9 +520,13 @@ public struct FusedPlayerPanel: View {
             panelContent
                 .frame(width: clusterWidth)
                 .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                    contentDidLayout(size)
+                }
                 .id(expansion.layout)
                 .transition(panelContentTransition)
         }
+        .frame(width: shellSize?.width, height: shellSize?.height)
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
@@ -534,6 +576,9 @@ public struct FusedPlayerPanel: View {
                 transaction.disablesAnimations = true
                 withTransaction(transaction) {
                     expansion = PlaybackPanelExpansion()
+                    shellSize = nil
+                    revealSize = nil
+                    revealStartsFrom = nil
                 }
                 videoFormatEditing.discard()
                 return
@@ -804,6 +849,15 @@ public struct FusedPlayerPanel: View {
     }
 
     private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
+        guard expansion.layout != layout else { return }
+        revealStartsFrom = revealSize ?? settledContentSize
+        if shellSize == nil, let settledContentSize {
+            var stillTransaction = Transaction()
+            stillTransaction.disablesAnimations = true
+            withTransaction(stillTransaction) {
+                shellSize = settledContentSize
+            }
+        }
         withAnimation(DesignTokens.AnimationToken.panelSpring) {
             expansion.request(layout)
         }
@@ -1972,4 +2026,43 @@ private struct PlaybackMediaMetadataRow: View {
         )
     }
     .padding(DesignTokens.Spacing.xxl)
+}
+
+nonisolated struct PlaybackPanelRevealShape: InsettableShape {
+    var cornerRadius: CGFloat
+    var width: CGFloat
+    var height: CGFloat
+    var isActive: Bool
+    var insetAmount: CGFloat = 0
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(width, height) }
+        set {
+            width = newValue.first
+            height = newValue.second
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let size = isActive
+            ? CGSize(width: min(width, rect.width), height: min(height, rect.height))
+            : rect.size
+        let frame = CGRect(
+            x: rect.midX - size.width / 2,
+            y: rect.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        ).insetBy(dx: insetAmount, dy: insetAmount)
+        return RoundedRectangle(
+            cornerRadius: max(cornerRadius - insetAmount, 0),
+            style: .continuous
+        )
+        .path(in: frame)
+    }
+
+    func inset(by amount: CGFloat) -> PlaybackPanelRevealShape {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
 }

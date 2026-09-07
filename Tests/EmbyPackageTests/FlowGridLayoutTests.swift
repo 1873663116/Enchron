@@ -40,4 +40,12 @@ struct FlowGridLayoutTests {
         #expect(arrangement.usedWidth == 320)
         #expect(FlowGridLayout.arrange(sizes: [], width: 370, spacing: 10).usedWidth == 0)
     }
+
+    @Test("a partial row still reports the full row width so it stays left-aligned inside a centred block")
+    func partialRowKeepsTheFullRowWidth() {
+        let card = CGSize(width: 100, height: 50)
+        let partial = FlowGridLayout.arrange(sizes: Array(repeating: card, count: 2), width: 370, spacing: 10)
+        #expect(partial.usedWidth == 320)
+        #expect(partial.origins == [CGPoint(x: 0, y: 0), CGPoint(x: 110, y: 0)])
+    }
 }
