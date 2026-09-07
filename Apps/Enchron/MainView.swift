@@ -268,9 +268,9 @@ public struct MainView: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                     playbackSession.setWindowControlsOrnamentHeight($0)
                 }
-                .onChange(of: showsPlaybackChrome, initial: true) { _, shows in
-                    setPlaybackDeckPresented(shows)
-                }
+            }
+            .onChange(of: showsPlaybackChrome, initial: true) { _, shows in
+                setPlaybackDeckPresented(shows)
             }
     }
 
