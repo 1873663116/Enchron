@@ -344,6 +344,20 @@ enum PlaybackSurfaceInputOwnership {
 }
 
 @MainActor
+enum PlaybackSurfaceAccessibility {
+    static let label: LocalizedStringResource = "Playback surface"
+
+    static func install(on entity: Entity) {
+        var accessibility = AccessibilityComponent()
+        accessibility.isAccessibilityElement = true
+        accessibility.label = label
+        accessibility.traits = [.button]
+        accessibility.systemActions = [.activate]
+        entity.components.set(accessibility)
+    }
+}
+
+@MainActor
 public enum PlaybackWindowInteractionSurface {
     static let entityName = "EnchronWindowInput.surface"
     static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
@@ -398,6 +412,7 @@ public enum PlaybackWindowInteractionSurface {
             entity.position = [0, 0, frontOffset]
             entity.components.remove(InputTargetComponent.self)
             entity.components.remove(CollisionComponent.self)
+            entity.components.remove(AccessibilityComponent.self)
             return
         }
         entity.position = region.center
@@ -405,6 +420,7 @@ public enum PlaybackWindowInteractionSurface {
         entity.components.set(
             CollisionComponent(shapes: [.generateBox(size: region.size)])
         )
+        PlaybackSurfaceAccessibility.install(on: entity)
     }
 
     static func contains(_ entity: Entity) -> Bool {
@@ -457,6 +473,7 @@ enum PlaybackDockedInteractionSurface {
                 shapes: [.generateBox(size: [size.x, size.y, thickness])]
             )
         )
+        PlaybackSurfaceAccessibility.install(on: entity)
     }
 
     static func contains(_ entity: Entity) -> Bool {
@@ -595,6 +612,7 @@ enum PlaybackPanoramaInteractionSurface {
             panel.components.set(
                 CollisionComponent(shapes: [.generateBox(size: configuration.size)])
             )
+            PlaybackSurfaceAccessibility.install(on: panel)
             root.addChild(panel)
         }
     }
@@ -607,29 +625,24 @@ enum PlaybackPanoramaInteractionSurface {
 @MainActor
 final class PlaybackSurfaceAccessibilityActivationObservation {
     private var subscription: EventSubscription?
-    private var observedEntityID: ObjectIdentifier?
+    private var accepts: (@MainActor (Entity) -> Bool)?
     private var onActivate: (@MainActor () -> Void)?
 
     func observe<Content: RealityViewContentProtocol>(
-        _ entity: Entity,
         in content: Content,
+        accepts: @escaping @MainActor (Entity) -> Bool,
         onActivate: @escaping @MainActor () -> Void
     ) {
-        let nextEntityID = ObjectIdentifier(entity)
-        guard observedEntityID != nextEntityID else {
-            self.onActivate = onActivate
-            return
-        }
-        cancel()
-        observedEntityID = nextEntityID
+        self.accepts = accepts
         self.onActivate = onActivate
+        guard subscription == nil else { return }
         subscription = content.subscribe(
-            to: AccessibilityEvents.Activate.self,
-            on: entity
+            to: AccessibilityEvents.Activate.self
         ) { [weak self] event in
-            guard event.entity === entity else { return }
+            let entity = event.entity
             Task { @MainActor [weak self] in
-                self?.onActivate?()
+                guard let self, self.accepts?(entity) == true else { return }
+                self.onActivate?()
             }
         }
     }
@@ -637,7 +650,7 @@ final class PlaybackSurfaceAccessibilityActivationObservation {
     func cancel() {
         subscription?.cancel()
         subscription = nil
-        observedEntityID = nil
+        accepts = nil
         onActivate = nil
     }
 }
@@ -924,9 +937,6 @@ final class PlaybackModeRequestRetry {
 
 @MainActor
 enum PlaybackRealityPresenter {
-    static let playbackSurfaceAccessibilityLabel: LocalizedStringResource =
-        "Playback surface"
-
     static func configure(
         _ entity: Entity,
         renderer: AVSampleBufferVideoRenderer,
@@ -955,11 +965,7 @@ enum PlaybackRealityPresenter {
         }
         entity.components.remove(InputTargetComponent.self)
         entity.components.remove(CollisionComponent.self)
-        var accessibility = AccessibilityComponent()
-        accessibility.isAccessibilityElement = true
-        accessibility.label = playbackSurfaceAccessibilityLabel
-        accessibility.systemActions = [.activate]
-        entity.components.set(accessibility)
+        entity.components.remove(AccessibilityComponent.self)
     }
 
     static func isBound(
@@ -1068,14 +1074,27 @@ struct PlaybackSubtitleLayout: Equatable {
 }
 
 enum PlaybackSubtitlePlacement {
+    static let panoramaScreenSize = SIMD2<Float>(16.0 / 9.0 * 1.6, 1.6)
+    static let panoramaScreenCenter = SIMD3<Float>(0, -0.3, -3)
+    static let planeLift: Float = 0.015
+
     static func resolve(
         frame: PlaybackSubtitleFrame,
+        presentation: PlaybackPresentation,
         screenSize: SIMD2<Float>,
         reservedBottomFraction: Float
     ) -> PlaybackSubtitleLayout {
-        let resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
-            ? screenSize
-            : SIMD2<Float>(16.0 / 9.0, 1)
+        let resolvedScreenSize: SIMD2<Float>
+        let screenCenter: SIMD3<Float>
+        if presentation == .panorama {
+            resolvedScreenSize = panoramaScreenSize
+            screenCenter = panoramaScreenCenter
+        } else {
+            resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
+                ? screenSize
+                : SIMD2<Float>(16.0 / 9.0, 1)
+            screenCenter = [0, 0, planeLift]
+        }
         let canvasWidth = Float(frame.canvasWidth)
         let canvasHeight = Float(frame.canvasHeight)
         let contentWidth = resolvedScreenSize.x * Float(frame.contentWidth) / canvasWidth
@@ -1090,7 +1109,7 @@ enum PlaybackSubtitlePlacement {
         let safeCenterY = centerY + max(0, safeBottomY - contentBottomY)
         return PlaybackSubtitleLayout(
             size: [contentWidth, contentHeight],
-            position: [centerX, safeCenterY, 0.015]
+            position: screenCenter + [centerX, safeCenterY, 0]
         )
     }
 }
@@ -1112,13 +1131,12 @@ final class PlaybackSubtitleSurface {
         frame: PlaybackSubtitleFrame?,
         emitEnablementWrite: (String) -> Void = { _ in }
     ) {
-        guard presentation != .panorama,
-              let frame,
+        guard let frame,
               frame.contentWidth > 0,
               frame.contentHeight > 0,
-            frame.canvasWidth > 0,
-            frame.canvasHeight > 0 else {
-            if frame == nil || presentation == .panorama {
+              frame.canvasWidth > 0,
+              frame.canvasHeight > 0 else {
+            if frame == nil {
                 setEnabled(
                     false,
                     writer: "PlaybackSubtitleSurface.update.noFrame",
@@ -1131,6 +1149,7 @@ final class PlaybackSubtitleSurface {
         }
         let nextLayout = PlaybackSubtitlePlacement.resolve(
             frame: frame,
+            presentation: presentation,
             screenSize: screenSize,
             reservedBottomFraction: reservedBottomFraction
         )

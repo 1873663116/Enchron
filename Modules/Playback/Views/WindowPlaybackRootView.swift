@@ -430,14 +430,8 @@ public struct WindowPlaybackRootView<
     private var surfaceContent: some View {
         videoContent
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                Color.clear
-                    .allowsHitTesting(false)
-                    .accessibilityElement()
-                    .accessibilityLabel("Playback surface")
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityIdentifier("PlayerUI-window-playback-surface")
-            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("PlayerUI-window-playback-surface")
     }
 
     private var edgeEmphasis: some View {

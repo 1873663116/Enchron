@@ -781,6 +781,9 @@ public struct ImmersiveSpaceView: View {
         .onChange(of: playbackRuntime.videoComponentRevision) {
             surfaceRefreshTick &+= 1
         }
+        .onChange(of: playbackRuntime.activeSubtitleFrame?.changeIdentifier) {
+            refreshSubtitleSurface()
+        }
         .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
             appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")
         }
@@ -1258,9 +1261,18 @@ public struct ImmersiveSpaceView: View {
                 )
             }
         )
-        surfaceAccessibilityActivation.observe(entity, in: content) {
-            toggleControlsFromSpatialSurface(.accessibilityActivate)
-        }
+        surfaceAccessibilityActivation.observe(
+            in: content,
+            accepts: { candidate in
+                PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                    candidate,
+                    for: presentation
+                )
+            },
+            onActivate: {
+                toggleControlsFromSpatialSurface(.accessibilityActivate)
+            }
+        )
         if let dockedAnchor {
             positionDockedVideo(
                 entity,
@@ -1346,6 +1358,23 @@ public struct ImmersiveSpaceView: View {
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
         )
         attachSpatialSurfaceIfReady()
+    }
+
+    @MainActor
+    private func refreshSubtitleSurface() {
+        let presentation = requestedPresentation
+        guard presentation.usesImmersiveSpace,
+              playbackRuntime.rendererConsumerPresentation == presentation else {
+            return
+        }
+        subtitleSurface.update(
+            on: videoEntity,
+            presentation: presentation,
+            screenSize: videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
+            reservedBottomFraction: 0,
+            frame: playbackRuntime.activeSubtitleFrame,
+            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
+        )
     }
 
     @MainActor

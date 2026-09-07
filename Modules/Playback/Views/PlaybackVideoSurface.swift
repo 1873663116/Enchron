@@ -523,9 +523,11 @@ public struct PlaybackVideoSurface: View {
                             appModel.presentationVisualCutoverMayBegin
                     )
         )
-        surfaceAccessibilityActivation.observe(videoEntity, in: content) {
-            toggleControlsFromAccessibilityActivation()
-        }
+        surfaceAccessibilityActivation.observe(
+            in: content,
+            accepts: { PlaybackWindowInteractionSurface.contains($0) },
+            onActivate: { toggleControlsFromAccessibilityActivation() }
+        )
         subtitleSurface.update(
             on: videoEntity,
             presentation: presentation,

@@ -257,16 +257,25 @@ def main() -> int:
     require(
         "Button(" not in window_root
         and ".allowsHitTesting" not in vision_surface
+        and "Color.clear" not in window_surface_content
+        and ".allowsHitTesting" not in window_surface_content
         and order(
             window_surface_content,
             "videoContent",
-            "Color.clear",
-            ".allowsHitTesting(false)",
+            ".accessibilityElement(children: .contain)",
             '.accessibilityIdentifier("PlayerUI-window-playback-surface")',
-        )
-        and window_surface_content.count(".allowsHitTesting") == 1,
-        "the window video surface is not a hit-testable RealityView under an"
-        " input-transparent accessibility node",
+        ),
+        "the window video surface is not a RealityView whose accessibility"
+        " container carries the surface identifier while the interaction"
+        " entity carries the button",
+    )
+    require(
+        reality_presenter.count("PlaybackSurfaceAccessibility.install(on: entity)") == 2
+        and "PlaybackSurfaceAccessibility.install(on: panel)" in reality_presenter
+        and "entity.components.remove(AccessibilityComponent.self)" in reality_presenter
+        and "accessibility.traits = [.button]" in reality_presenter,
+        "the playback surface button lives on the interaction colliders, not on"
+        " the video entity",
     )
     require(
         "content.cameraTarget = presentation == .docked ? videoEntity : nil" in surface,

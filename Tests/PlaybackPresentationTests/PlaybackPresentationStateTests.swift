@@ -443,7 +443,10 @@ struct PlaybackPresentationStateTests {
             reservedBottomFraction: 0,
             frame: frame
         )
-        #expect(surface.entity.isEnabled == false)
+        #expect(surface.entity.isEnabled)
+        #expect(surface.entity.components[ModelSortGroupComponent.self] == nil)
+        #expect(surface.entity.position.z == PlaybackSubtitlePlacement.panoramaScreenCenter.z)
+        #expect(surface.entity.position.y < PlaybackSubtitlePlacement.panoramaScreenCenter.y)
     }
 
     private static func subtitleFrame(changeIdentifier: UInt64) -> PlaybackSubtitleFrame {
