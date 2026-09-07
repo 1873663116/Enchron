@@ -83,6 +83,15 @@ enum WindowChromeHostingPolicy {
     }
 }
 
+enum WindowSystemOverlayPolicy {
+    static func visibility(
+        showsWindowPlayback: Bool,
+        showsPlaybackChrome: Bool
+    ) -> Visibility {
+        showsWindowPlayback && showsPlaybackChrome == false ? .hidden : .automatic
+    }
+}
+
 enum WindowGlassPolicy {
     static func showsGlass(
         showsWindowPlayback: Bool,
@@ -109,7 +118,6 @@ public struct MainView: View {
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
 
     @State private var controlsTimer: Task<Void, Never>?
-    @State private var playbackDeckIsMounted = false
     @State private var playbackDeckOpacity: Double = 0
     @State private var reapplyVerificationSnapshotTick = 0
     private let playbackSurfaceIsEnabled: Bool
@@ -264,51 +272,28 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: hostsPlaybackOrnament && playbackDeckIsMounted ? .visible : .hidden,
+                visibility: showsWindowPlayback ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
             ) {
-                ZStack {
-                    if playbackDeckIsMounted {
-                        WindowPlayerDeckView(
-                            presentationOverride: hostedPlaybackPresentation
-                        )
-                        .playbackIssueAlert(
-                            at: .playerDeck,
-                            onRetry: playbackLauncher.retryPlayback,
-                            onClose: playbackLauncher.stopPlayback
-                        )
-                        .opacity(playbackDeckOpacity)
-                        .allowsHitTesting(playbackDeckOpacity > 0)
-                    }
-                }
+                WindowPlayerDeckView(
+                    presentationOverride: hostedPlaybackPresentation
+                )
+                .playbackIssueAlert(
+                    at: .playerDeck,
+                    onRetry: playbackLauncher.retryPlayback,
+                    onClose: playbackLauncher.stopPlayback
+                )
+                .opacity(playbackDeckOpacity)
+                .allowsHitTesting(playbackDeckOpacity > 0)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                     playbackSession.setWindowControlsOrnamentHeight($0)
                 }
             }
             .onChange(of: showsPlaybackChrome, initial: true) { _, shows in
-                setPlaybackDeckPresented(shows)
-            }
-    }
-
-    private func setPlaybackDeckPresented(_ presented: Bool) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        if presented {
-            withTransaction(transaction) { playbackDeckIsMounted = true }
-            Task { @MainActor in
-                guard showsPlaybackChrome else { return }
                 withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                    playbackDeckOpacity = 1
+                    playbackDeckOpacity = shows ? 1 : 0
                 }
             }
-        } else {
-            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                playbackDeckOpacity = 0
-            } completion: {
-                guard showsPlaybackChrome == false else { return }
-                withTransaction(transaction) { playbackDeckIsMounted = false }
-            }
-        }
     }
 
     private var primaryContent: some View {
@@ -323,7 +308,12 @@ public struct MainView: View {
             }
         }
         .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
-        .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)
+        .persistentSystemOverlays(
+            WindowSystemOverlayPolicy.visibility(
+                showsWindowPlayback: showsWindowPlayback,
+                showsPlaybackChrome: showsPlaybackChrome
+            )
+        )
     }
 
     private func launchEmbySelection(_ selection: EmbyPlaybackSelection) async {
@@ -494,12 +484,12 @@ public struct MainView: View {
             geometryPolicy: geometryPolicy,
             geometryRefreshRevision: spatialPlatformEffectCoordinator
                 .mainWindowPlaybackSurfaceRefreshRevision,
-            freeformSizeOnDisappear: {
+            freeformSizeOnDisappear: { rememberedBrowserSize in
                 BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
                     hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
                     transitionIsActive: playbackSession.presentationTransition != nil,
                     immersiveSpaceResidency: playbackSession.immersiveSpaceResidency
-                ) ? WindowPlaybackLayout.fallback.defaultSize : nil
+                ) ? BrowserWindowLayout.restoredSize(remembering: rememberedBrowserSize) : nil
             },
             showsWindowChrome: showsPlaybackChrome
                 && hostedPlaybackPresentation.usesMainWindow,

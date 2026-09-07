@@ -568,10 +568,16 @@ def main() -> int:
             "guard showsWindowPlayback else { return true }",
             "return presentationState != .videoVisible",
             "        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n"
-            "        .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)",
+            "        .persistentSystemOverlays(\n"
+            "            WindowSystemOverlayPolicy.visibility(\n"
+            "                showsWindowPlayback: showsWindowPlayback,\n"
+            "                showsPlaybackChrome: showsPlaybackChrome\n"
+            "            )\n"
+            "        )",
         ),
         "the main window draws glass behind visible video, hides the system "
-        "overlays while browsing, splits the view by scene role again, or hosts "
+        "overlays while browsing or shows them while playback controls are "
+        "hidden, splits the view by scene role again, or hosts "
         "the glass on a background color whose platform view swallows the hit "
         "test of every pure SwiftUI control above it",
     )

@@ -751,6 +751,30 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("Leaving playback restores the browser window size it had, clamped to the browser layout")
+    func browserWindowSizeIsRestoredAfterPlayback() {
+        #expect(
+            BrowserWindowLayout.restoredSize(remembering: CGSize(width: 1_400, height: 800))
+                == CGSize(width: 1_400, height: 800)
+        )
+        #expect(BrowserWindowLayout.restoredSize(remembering: nil) == BrowserWindowLayout.defaultSize)
+        #expect(
+            BrowserWindowLayout.restoredSize(remembering: CGSize(width: 640, height: 360))
+                == BrowserWindowLayout.defaultSize
+        )
+        #expect(
+            BrowserWindowLayout.restoredSize(remembering: CGSize(width: 2_400, height: 1_300))
+                == BrowserWindowLayout.defaultSize
+        )
+    }
+
+    @Test("The window bar and resize handle follow the playback controls")
+    func systemOverlaysFollowPlaybackChrome() {
+        #expect(WindowSystemOverlayPolicy.visibility(showsWindowPlayback: false, showsPlaybackChrome: false) == .automatic)
+        #expect(WindowSystemOverlayPolicy.visibility(showsWindowPlayback: true, showsPlaybackChrome: false) == .hidden)
+        #expect(WindowSystemOverlayPolicy.visibility(showsWindowPlayback: true, showsPlaybackChrome: true) == .automatic)
+    }
+
     @Test("The main window keeps its glass until video is visible, except while it returns from a space")
     func mainWindowGlassLeavesOnlyForVisibleVideo() {
         #expect(WindowGlassPolicy.showsGlass(

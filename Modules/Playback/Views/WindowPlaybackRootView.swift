@@ -90,6 +90,17 @@ public enum BrowserWindowLayout {
     static let minimumSize = CGSize(width: 1_088, height: 612)
     public static let defaultSize = CGSize(width: 1_536, height: 864)
     static let maximumSize = CGSize(width: 1_808, height: 1_017)
+
+    public static func restoredSize(remembering rememberedSize: CGSize?) -> CGSize {
+        guard let rememberedSize,
+              rememberedSize.width >= minimumSize.width,
+              rememberedSize.height >= minimumSize.height,
+              rememberedSize.width <= maximumSize.width,
+              rememberedSize.height <= maximumSize.height else {
+            return defaultSize
+        }
+        return rememberedSize
+    }
 }
 
 public enum ImmersiveResidentWindowLayout {
@@ -308,13 +319,14 @@ public struct WindowPlaybackRootView<
     TopChrome: View
 >: View {
     @State private var owningWindowScene: UIWindowScene?
+    @State private var windowSizeBeforePlayback: CGSize?
     @State private var lastGeometryRefreshRevision: UInt64 = 0
     @State private var surfaceHeight: CGFloat = 0
     @State private var topChromeHeight: CGFloat = 0
     private let geometryPolicy: WindowPlaybackGeometryPolicy
     private let geometryRefreshRevision: UInt64
     private let preferredInitialSize: CGSize?
-    private let freeformSizeOnDisappear: @MainActor () -> CGSize?
+    private let freeformSizeOnDisappear: @MainActor (CGSize?) -> CGSize?
     private let showsWindowChrome: Bool
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
@@ -327,7 +339,7 @@ public struct WindowPlaybackRootView<
         geometryPolicy: WindowPlaybackGeometryPolicy,
         geometryRefreshRevision: UInt64 = 0,
         preferredInitialSize: CGSize? = nil,
-        freeformSizeOnDisappear: @escaping @MainActor () -> CGSize? = { nil },
+        freeformSizeOnDisappear: @escaping @MainActor (CGSize?) -> CGSize? = { _ in nil },
         showsWindowChrome: Bool,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
         onGeometryRefresh: @escaping @MainActor (
@@ -365,6 +377,10 @@ public struct WindowPlaybackRootView<
                 WindowPlaybackSceneReader { windowScene in
                     guard owningWindowScene !== windowScene else { return }
                     owningWindowScene = windowScene
+                    if windowSizeBeforePlayback == nil, let windowScene {
+                        windowSizeBeforePlayback = windowScene.effectiveGeometry
+                            .coordinateSpace.bounds.size
+                    }
                     onWindowSceneChange?(windowScene)
                     updateWindowGeometry(in: windowScene)
                     requestGeometryRefreshIfNeeded(in: windowScene)
@@ -379,7 +395,7 @@ public struct WindowPlaybackRootView<
             .onDisappear {
                 restoreFreeformWindowGeometry(
                     in: owningWindowScene,
-                    size: freeformSizeOnDisappear()
+                    size: freeformSizeOnDisappear(windowSizeBeforePlayback)
                 )
             }
     }
