@@ -119,7 +119,6 @@ public enum FilesScreenReachabilityAction: Equatable, Sendable {
     case mediaLibraryErrorDismiss
     case sidebarSelect(String)
     case sidebarAddSource(SourceConnectionKind)
-    case sidebarAddFolder
     case sidebarRefresh
     case sourceSidebar(String)
     case navigate(FilesScreenNavigationDirection)
@@ -162,8 +161,6 @@ public enum FilesScreenReachabilityAction: Equatable, Sendable {
             "sidebar.select.\(id)"
         case .sidebarAddSource(let kind):
             "sidebar.add.\(kind.rawValue)"
-        case .sidebarAddFolder:
-            "sidebar.addFolder"
         case .sidebarRefresh:
             "sidebar.refresh"
         case .sourceSidebar(let action):

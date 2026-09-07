@@ -855,7 +855,14 @@ struct SettingListGroupRow: View {
             return DesignTokens.Spacing.lg
         }
     }
-    private var usesRowHover: Bool { usesWholeRowButton }
+    private var rowActivationGroup: EnchronHoverGroup? {
+        guard let hoverNamespace else { return nil }
+        return EnchronHoverGroup(
+            id: "listGroupRow\(index)",
+            in: hoverNamespace,
+            behavior: .activatesGroup
+        )
+    }
     private var usesWholeRowButton: Bool {
         if case .automatic = accessory {
             return true
@@ -870,7 +877,7 @@ struct SettingListGroupRow: View {
             count: count,
             cornerRadius: cornerRadius,
             hoverNamespace: hoverNamespace,
-            showsHighlight: usesRowHover,
+            showsHighlight: true,
             isInteractive: usesWholeRowButton,
             accessibilityLabel: title,
             accessibilityValue: rowAccessibilityValue,
@@ -979,6 +986,7 @@ struct SettingListGroupRow: View {
             Spacer(minLength: DesignTokens.Spacing.lg)
 
             trailingAccessory
+                .enchronHoverActivation(in: rowActivationGroup)
         }
         .padding(.horizontal, DesignTokens.Spacing.lg)
         .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)

@@ -357,10 +357,6 @@ public struct FilesScreen: View {
                 recordReachability(.sidebarAddSource(type))
                 presentConnection(for: type)
             },
-            onImportFolder: {
-                recordReachability(.sidebarAddFolder)
-                presentFolderImporter()
-            },
             onRefresh: {
                 recordReachability(.sidebarRefresh)
                 Task { await viewModel.loadFiles() }

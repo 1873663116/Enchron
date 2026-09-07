@@ -56,7 +56,7 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 
 ## 注视 hover 的跨行协调
 
-**visionOS 不向 app 代码暴露注视状态**。因此"某一行被注视时，它两侧的分隔线一起淡入"这类跨行效果，只能靠一个共享的 `@Namespace` hover group 实现：行激活自己的组，分隔线（以及尾随元数据）跟随该组，由系统在同一合成阶段、同一时序里一起完成。列表组的分隔线因此跟随它上下两行中的任意一行。
+**visionOS 不向 app 代码暴露注视状态**。因此"某一行被注视时，它两侧的分隔线一起淡入"这类跨行效果，只能靠一个共享的 `@Namespace` hover group 实现：行激活自己的组，分隔线（以及尾随元数据）跟随该组，由系统在同一合成阶段、同一时序里一起完成。列表组的分隔线因此跟随它上下两行中的任意一行。设置列表的每一行都有行级 highlight，带按钮（菜单胶囊、动作胶囊、开关）的行也不例外：行不是 Button 时 `ListGroupRowShell` 仍给它 `.highlight`，尾随控件经 `enchronHoverActivation(in:)` 激活同一个行组，注视到控件时控件自己的 hover 叠在行高亮之上。
 
 同一约束下，行高亮的圆角只圆外侧角（与容器裁切一致），内侧对着分隔线的一侧保持方角。
 
@@ -87,7 +87,7 @@ Files 与 Emby 的侧栏都经 `SidebarSplitLayout`：内容区宽度随侧栏�
 
 `.accessibilityIdentifier` 只保留在菜单当作一等 action 采纳的行上。`Picker` 行与 `Toggle` 行都是菜单自行布局的内容，二者到达 accessibility 树时**完全没有标识符**，任何东西都寻址不到它们，覆盖率检查也不会因此变红；`Button` 行保留标识符。三者在 2026-08-21 于设备上同一构建里实测。
 
-代价是勾选标记的位置：`Picker` 把它画在尾缘，`MenuSelectionRow` 画在前缘，标题因此位移。这就是"这一行可被寻址"的全部价格。
+代价是勾选标记的位置：`Picker` 把它画在尾缘，`MenuSelectionRow` 画在前缘。未选中行不能没有图标，否则标题相对选中行左移一个图标位；`MenuCheckmark.image(isSelected:)` 给未选中行一张 `.alwaysOriginal` 的透明 checkmark（`UIImage.withTintColor(.clear)`），菜单为每一行保留图标列，标题对齐。`.hidden()`／`.opacity(0)` 在 SwiftUI→UIMenu 桥接时会被丢弃，所以必须是一张真实的透明图。
 
 ## 系统拥有的表面
 

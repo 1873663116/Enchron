@@ -349,23 +349,6 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.stereoLayout == .sideBySide)
     }
 
-    @Test("every custom-angle row preserves its editor host identifier")
-    func customAngleAccessibilityIdentifiers() {
-        for identifierPrefix in [
-            "PlayerUI-VideoFormat",
-            "PlayerPanel-VideoFormat"
-        ] {
-            for degrees in PanoramaHorizontalCoverage.selectableAngles {
-                #expect(
-                    PlaybackVideoFormatEditor.customAngleAccessibilityIdentifier(
-                        for: degrees,
-                        identifierPrefix: identifierPrefix
-                    ) == "\(identifierPrefix)-CustomAngle-\(degrees)"
-                )
-            }
-        }
-    }
-
     @Test("Portal top actions include Enter Panorama and Video Format")
     func portalTopActionsIncludePanoramaEntryAndVideoFormat() {
         let composition = PlaybackTopActionsComposition(
@@ -385,7 +368,6 @@ struct WindowPlaybackPageGeometryTests {
         state.projection = .customAngle
         state.horizontalFieldOfViewDegrees = 240
         state.stereoLayout = .topBottom
-        state.usesDolbyVisionFallback = true
 
         let committed = state.commit()
 
@@ -393,8 +375,7 @@ struct WindowPlaybackPageGeometryTests {
             committed == PlaybackVideoFormatSelection(
                 projection: .customAngle,
                 horizontalFieldOfViewDegrees: 240,
-                stereoLayout: .topBottom,
-                usesDolbyVisionFallback: true
+                stereoLayout: .topBottom
             )
         )
 
@@ -406,7 +387,6 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.projection == .customAngle)
         #expect(state.horizontalFieldOfViewDegrees == 240)
         #expect(state.stereoLayout == .topBottom)
-        #expect(state.usesDolbyVisionFallback)
     }
 
     @Test("committed Video Format synchronization waits for editing to finish")

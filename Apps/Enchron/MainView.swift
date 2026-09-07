@@ -250,16 +250,6 @@ public struct MainView: View {
                 attachmentAnchor: .scene(.bottom)
             ) {
                 ZStack {
-                    Color.clear
-                        .frame(
-                            width: DesignTokens.ControlBar.outerWidth,
-                            height: hostsPlaybackOrnament
-                                ? collapsedWindowControlsOrnamentHeight
-                                : .zero
-                        )
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-
                     if showsPlaybackChrome {
                         WindowPlayerDeckView(
                             presentationOverride: hostedPlaybackPresentation
@@ -291,13 +281,6 @@ public struct MainView: View {
         }
         .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
         .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)
-    }
-
-    private var collapsedWindowControlsOrnamentHeight: CGFloat {
-        DesignTokens.Layout.playbackMediaInfoHeight
-            + DesignTokens.Spacing.sm
-            + DesignTokens.ProgressBar.hitHeight
-            + DesignTokens.ControlBar.paddingV * 2
     }
 
     private func launchEmbySelection(_ selection: EmbyPlaybackSelection) async {

@@ -14,8 +14,6 @@ public struct FusedPlayerPanelLive {
     var projection: PlaybackModel.ProjectionType
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
-    var usesDolbyVisionFallback: Bool = false
-    var showsDolbyVisionFallback: Bool = false
     var mediaFormatSummary: String?
     var overview: String?
     var unmetCapabilities: [UnmetCapability] = []
@@ -46,8 +44,7 @@ public struct FusedPlayerPanelLive {
     var onApplyFormat: (
         PlaybackModel.ProjectionType,
         Int?,
-        PlaybackModel.StereoLayout,
-        Bool
+        PlaybackModel.StereoLayout
     ) -> Void
     var onRestoreAutomaticFormat: () -> Void
     var onReachabilityAction: (String) -> Void = { _ in }
@@ -69,8 +66,6 @@ public struct FusedPlayerPanelLive {
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int,
         stereoLayout: PlaybackModel.StereoLayout,
-        usesDolbyVisionFallback: Bool = false,
-        showsDolbyVisionFallback: Bool = false,
         mediaFormatSummary: String? = nil,
         overview: String? = nil,
         unmetCapabilities: [UnmetCapability] = [],
@@ -98,7 +93,7 @@ public struct FusedPlayerPanelLive {
         onSetScreenDistance: @escaping @MainActor @Sendable (Double) -> Void,
         onSetScreenElevation: @escaping @MainActor @Sendable (Double) -> Void,
         onResetDockedPlacement: @escaping () -> Void,
-        onApplyFormat: @escaping ( PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout, Bool ) -> Void,
+        onApplyFormat: @escaping ( PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout ) -> Void,
         onRestoreAutomaticFormat: @escaping () -> Void,
         onReachabilityAction: @escaping (String) -> Void = { _ in },
         subtitlesEnabled: Bool = true,
@@ -118,8 +113,6 @@ public struct FusedPlayerPanelLive {
         self.projection = projection
         self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.stereoLayout = stereoLayout
-        self.usesDolbyVisionFallback = usesDolbyVisionFallback
-        self.showsDolbyVisionFallback = showsDolbyVisionFallback
         self.mediaFormatSummary = mediaFormatSummary
         self.overview = overview
         self.unmetCapabilities = unmetCapabilities
@@ -365,7 +358,6 @@ public struct FusedPlayerPanel: View {
                 horizontalFieldOfViewDegrees: live?.horizontalFieldOfViewDegrees
                     ?? PanoramaHorizontalCoverage.defaultCustomAngle,
                 stereoLayout: live?.stereoLayout ?? .mono,
-                usesDolbyVisionFallback: live?.usesDolbyVisionFallback ?? false,
                 beginsEditing: initialExpansion == .settings
                     && resolvedSurface == .playerControlDock
                     && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
@@ -399,7 +391,6 @@ public struct FusedPlayerPanel: View {
                 projection: live.projection,
                 horizontalFieldOfViewDegrees: live.horizontalFieldOfViewDegrees,
                 stereoLayout: live.stereoLayout,
-                usesDolbyVisionFallback: live.usesDolbyVisionFallback,
                 beginsEditing: initialExpansion == .settings
                     && surface == .playerControlDock
                     && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
@@ -440,7 +431,8 @@ public struct FusedPlayerPanel: View {
     @State private var forwardIconAnimationTrigger = 0
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     @State private var selectedSpeed = "1×"
-    @State private var placementTrackWidth: CGFloat = 280
+    @State private var panelContentSize: CGSize?
+    @State private var timeBubbleWidth: CGFloat = 0
     @Namespace private var hoverNamespace
 
     private enum ScrubberActivation: Equatable {
@@ -479,13 +471,27 @@ public struct FusedPlayerPanel: View {
         RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
     }
 
+    private var panelContentTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.animation(DesignTokens.AnimationToken.panelContentEntrance),
+            removal: .opacity.animation(DesignTokens.AnimationToken.panelContentExit)
+        )
+    }
+
     public var body: some View {
-        Group {
+        ZStack {
             panelContent
+                .frame(width: clusterWidth)
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                    withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                        panelContentSize = size
+                    }
+                }
+                .id(expansion.layout)
+                .transition(panelContentTransition)
         }
-        .opacity(expansion.contentIsVisible ? 1 : 0)
-        .allowsHitTesting(expansion.contentIsVisible)
-        .frame(width: clusterWidth)
+        .frame(width: panelContentSize?.width, height: panelContentSize?.height)
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
@@ -530,9 +536,16 @@ public struct FusedPlayerPanel: View {
             videoFormatEditing.synchronizeCommittedVideoFormat(selection)
         }
         .onChange(of: controlsVisible) { _, isVisible in
-            guard isVisible == false else { return }
-            expansion = PlaybackPanelExpansion()
-            videoFormatEditing.discard()
+            if isVisible {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    expansion = PlaybackPanelExpansion()
+                    panelContentSize = nil
+                }
+                videoFormatEditing.discard()
+                return
+            }
             isDragging = false
             isTimelineDragging = false
             scrubberActivation = .idle
@@ -543,9 +556,19 @@ public struct FusedPlayerPanel: View {
 
     @ViewBuilder
     private var panelContent: some View {
-        if expansion.layout == .mediaInformation {
+        switch expansion.layout {
+        case .mediaInformation:
             expandedMediaInformation
-        } else {
+        case .timeline:
+            timelineLayout
+        case .settings:
+            switch surface {
+            case .windowOrnament:
+                windowOrnamentContent
+            case .playerControlDock:
+                dockSettingsLayout
+            }
+        case .collapsed:
             switch surface {
             case .windowOrnament:
                 windowOrnamentContent
@@ -557,15 +580,11 @@ public struct FusedPlayerPanel: View {
 
     private var windowOrnamentContent: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            if expansion.layout == .timeline {
-                timelineBlock
-            } else {
-                progressBar(width: compactProgressBarWidth)
-            }
+            mediaInformationWell(width: clusterWidth)
 
             HStack(spacing: DesignTokens.Spacing.sm) {
                 windowTransportControls
-                mediaInformationWell(width: windowMediaInformationWidth)
+                progressBar(width: windowProgressBarWidth)
             }
         }
     }
@@ -574,11 +593,63 @@ public struct FusedPlayerPanel: View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             mediaInformationWell(width: clusterWidth)
             playerControlDockControls
+            progressBar(width: clusterWidth)
+        }
+    }
 
-            if expansion.layout == .settings, let live {
-                if PlaybackPanelSettingsPolicy.showsPlacementControls(
-                    for: live.presentation
-                ) {
+    private var timelineLayout: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                CircleIconButton.back(
+                    accessibilityLabel: "Close Timeline",
+                    action: closeTimeline,
+                    accessibilityIdentifier: "PlayerPanel-precision-timeline-back"
+                )
+                .keyboardShortcut(.escape, modifiers: [])
+                windowTransportControls
+                Spacer(minLength: 0)
+                PrecisionTimelineZoomSlider(
+                    pixelsPerSecond: $pixelsPerSecond,
+                    duration: timelineDuration
+                )
+            }
+            .frame(width: clusterWidth)
+
+            timelineBlock
+        }
+    }
+
+    @ViewBuilder
+    private var dockSettingsLayout: some View {
+        if let live {
+            let showsPlacementControls = PlaybackPanelSettingsPolicy.showsPlacementControls(
+                for: live.presentation
+            )
+            VStack(spacing: DesignTokens.Spacing.sm) {
+                HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                    CircleIconButton.back(
+                        accessibilityLabel: "Close Advanced Settings",
+                        action: toggleSettings,
+                        accessibilityIdentifier: "PlayerPanel-DockedPlacement-back"
+                    )
+                    .keyboardShortcut(.escape, modifiers: [])
+                    Spacer(minLength: 0)
+                    if showsPlacementControls {
+                        CircleIconButton(
+                            systemName: "arrow.counterclockwise",
+                            accessibilityLabel: "Restore Defaults",
+                            action: {
+                                onInteraction()
+                                live.onReachabilityAction("dockedPlacement.reset")
+                                live.onResetDockedPlacement()
+                            },
+                            accessibilityIdentifier: "PlayerPanel-DockedPlacement-reset"
+                        )
+                    }
+                }
+                .frame(width: clusterWidth)
+
+                if showsPlacementControls {
                     dockedPlacementControls(live)
                 } else if PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
                     for: live.presentation
@@ -586,30 +657,39 @@ public struct FusedPlayerPanel: View {
                     videoFormatEditor(live)
                 }
             }
-
-            if expansion.layout == .timeline {
-                timelineBlock
-            } else {
-                progressBar(width: compactProgressBarWidth)
-            }
+        } else {
+            playerControlDockContent
         }
     }
 
-    private var windowMediaInformationWidth: CGFloat {
+    private var windowProgressBarWidth: CGFloat {
         clusterWidth
             - DesignTokens.Interactive.large * 3
             - DesignTokens.ControlBar.buttonSpacing * 2
             - DesignTokens.Spacing.sm
     }
 
-    private var compactProgressBarWidth: CGFloat {
-        clusterWidth
+    private static let placementTitleWidth: CGFloat = 100
+    private static let placementReadoutWidth: CGFloat = 64
+    private static let placementRowSpacing: CGFloat = DesignTokens.Spacing.md
+    private static let placementPanelPadding: CGFloat = DesignTokens.Spacing.lg
+
+    private var placementTrackWidth: CGFloat {
+        max(
+            clusterWidth
+                - Self.placementPanelPadding * 2
+                - Self.placementTitleWidth
+                - Self.placementReadoutWidth
+                - Self.placementRowSpacing * 2,
+            160
+        )
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
-        let titleWidth: CGFloat = 100
-        let readoutWidth: CGFloat = 64
-        let rowSpacing = DesignTokens.Spacing.md
+        let shape = RoundedRectangle(
+            cornerRadius: DesignTokens.Radius.element,
+            style: .continuous
+        )
 
         return VStack(spacing: DesignTokens.Spacing.sm) {
             DockedPlacementSliderRow(
@@ -654,34 +734,10 @@ public struct FusedPlayerPanel: View {
                     live.onSetScreenElevation(value)
                 }
             )
-            HStack {
-                Spacer()
-                Button("Restore Defaults") {
-                    onInteraction()
-                    live.onReachabilityAction("dockedPlacement.reset")
-                    live.onResetDockedPlacement()
-                }
-                .buttonStyle(.borderless)
-                .accessibilityIdentifier("PlayerPanel-DockedPlacement-reset")
-            }
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear {
-                        placementTrackWidth = max(
-                            proxy.size.width - titleWidth - readoutWidth - rowSpacing * 2,
-                            160
-                        )
-                    }
-                    .onChange(of: proxy.size.width) { _, width in
-                        placementTrackWidth = max(
-                            width - titleWidth - readoutWidth - rowSpacing * 2,
-                            160
-                        )
-                    }
-            }
-        }
+        .padding(Self.placementPanelPadding)
+        .frame(width: clusterWidth)
+        .background(.thickMaterial, in: shape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-DockedPlacement")
     }
@@ -691,11 +747,9 @@ public struct FusedPlayerPanel: View {
             projection: $videoFormatEditing.projection,
             horizontalFieldOfViewDegrees: $videoFormatEditing.horizontalFieldOfViewDegrees,
             stereoLayout: $videoFormatEditing.stereoLayout,
-            usesDolbyVisionFallback: $videoFormatEditing.usesDolbyVisionFallback,
             canApplyFormat: live.canApplyFormat,
             mediaFormatProvenance: live.mediaFormatProvenance,
             sourceMediaFormatSummary: live.sourceMediaFormatSummary,
-            showsDolbyVisionFallback: live.showsDolbyVisionFallback,
             identifierPrefix: "PlayerPanel-VideoFormat",
             onCancel: cancelVideoFormatEditing,
             onApply: applyVideoFormatEditing,
@@ -715,8 +769,7 @@ public struct FusedPlayerPanel: View {
             horizontalFieldOfViewDegrees: live.projection == .customAngle
                 ? live.horizontalFieldOfViewDegrees
                 : nil,
-            stereoLayout: live.stereoLayout,
-            usesDolbyVisionFallback: live.usesDolbyVisionFallback
+            stereoLayout: live.stereoLayout
         )
     }
 
@@ -739,8 +792,7 @@ public struct FusedPlayerPanel: View {
         live.onApplyFormat(
             selection.projection,
             selection.horizontalFieldOfViewDegrees,
-            selection.stereoLayout,
-            selection.usesDolbyVisionFallback
+            selection.stereoLayout
         )
     }
 
@@ -757,22 +809,8 @@ public struct FusedPlayerPanel: View {
     }
 
     private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
-        withAnimation(DesignTokens.AnimationToken.panelContentExit) {
+        withAnimation(DesignTokens.AnimationToken.panelSpring) {
             expansion.request(layout)
-        } completion: {
-            advanceExpansion(from: .contentLeaving)
-        }
-    }
-
-    private func advanceExpansion(from completed: PlaybackPanelExpansion.Phase) {
-        let animation = completed == .contentLeaving
-            ? DesignTokens.AnimationToken.panelSpring
-            : DesignTokens.AnimationToken.panelContentEntrance
-        withAnimation(animation) {
-            expansion.advance(from: completed)
-        } completion: {
-            guard completed == .contentLeaving else { return }
-            advanceExpansion(from: .resizing)
         }
     }
 
@@ -901,7 +939,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var expandedMediaInformation: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .topLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     Text(live?.mediaName ?? "Unknown")
@@ -939,17 +977,19 @@ public struct FusedPlayerPanel: View {
                     .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(DesignTokens.Spacing.xl)
-                .padding(.trailing, DesignTokens.Interactive.large)
+                .padding(.vertical, DesignTokens.Spacing.xl)
+                .padding(.leading, DesignTokens.Spacing.xl + DesignTokens.Interactive.large)
+                .padding(.trailing, DesignTokens.Spacing.xl)
             }
 
-            CircleIconButton.close(
-                accessibilityLabel: "Close Media Information",
+            CircleIconButton.back(
+                accessibilityLabel: "Back",
                 action: toggleMediaInformation,
                 accessibilityIdentifier: "PlayerPanel-media-information-close"
             )
             .keyboardShortcut(.escape, modifiers: [])
-            .padding(DesignTokens.Spacing.xl)
+            .padding(.vertical, DesignTokens.Spacing.md)
+            .padding(.leading, DesignTokens.Spacing.md)
         }
         .frame(width: clusterWidth, height: 420)
         .accessibilityElement(children: .contain)
@@ -1290,10 +1330,10 @@ public struct FusedPlayerPanel: View {
                 guard let live else { return }
                 activateMenuItem(item, live: live)
             } label: {
-                if item.isSelected {
-                    Label(item.title, systemImage: "checkmark")
-                } else {
+                Label {
                     Text(item.title)
+                } icon: {
+                    MenuCheckmark.image(isSelected: item.isSelected)
                 }
             }
             .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
@@ -1375,9 +1415,9 @@ public struct FusedPlayerPanel: View {
         )
         .frame(
             width: clusterWidth,
-            height: DesignTokens.PrecisionTimeline.expandedHeight
+            height: DesignTokens.PrecisionTimeline.rulerHeight
+                + DesignTokens.PrecisionTimeline.filmStripHeight
         )
-        .transition(.opacity)
         .contentShape(Rectangle())
         .simultaneousGesture(TapGesture(count: 2).onEnded { closeTimeline() })
     }
@@ -1471,8 +1511,11 @@ public struct FusedPlayerPanel: View {
             )
 
             timeBubble
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                    timeBubbleWidth = $0
+                }
                 .position(
-                    x: thumbX,
+                    x: min(max(thumbX, timeBubbleWidth / 2), overlayWidth - timeBubbleWidth / 2),
                     y: DesignTokens.ProgressBar.hitHeight / 2 + DesignTokens.ProgressBar.timeBubbleOffset
                 )
                 .enchronHoverOpacity(

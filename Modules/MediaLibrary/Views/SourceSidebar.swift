@@ -48,7 +48,6 @@ public struct SourceSidebar: View {
     var identifierPrefix: String = "SourceSidebar"
     var onSelectSource: ((SidebarSourceItem.ID) -> Void)?
     var onAddSource: ((FileBrowsingDomain.SourceType) -> Void)?
-    var onImportFolder: (() -> Void)?
     var onRefresh: (() -> Void)?
     var onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)?
     var onReachabilityAction: ((String) -> Void)?
@@ -215,43 +214,6 @@ public struct SourceSidebar: View {
             iconColor: .secondary
         ) {
             Group {
-                Menu {
-                    Button {
-                        performAddSource(.local)
-                    } label: {
-                        Label("Files", systemImage: "folder")
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix)-addFiles")
-                    if onImportFolder != nil {
-                        Button(action: performImportFolder) {
-                            Label("Folder", systemImage: "folder.badge.plus")
-                        }
-                        .accessibilityIdentifier("\(identifierPrefix)-addFolder")
-                    }
-                    Button {
-                        performAddSource(.webDAV)
-                    } label: {
-                        Label("WebDAV", systemImage: "cloud.fill")
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
-                    Button {
-                        performAddSource(.smb)
-                    } label: {
-                        Label("SMB", systemImage: "server.rack")
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix)-addSMB")
-                    if onAddSource == nil {
-                        Button {
-                            addDebugSource()
-                        } label: {
-                            Label("Add One", systemImage: "plus.circle")
-                        }
-                        .accessibilityIdentifier("DesignSystem-SourcesSidebar-addDebug")
-                    }
-                } label: {
-                    Label("Add", systemImage: "plus")
-                }
-                .accessibilityIdentifier("\(identifierPrefix)-add")
                 Button {
                     performRefresh()
                 } label: {
@@ -265,6 +227,26 @@ public struct SourceSidebar: View {
                 }
                 .disabled(!hasDeletableSources)
                 .accessibilityIdentifier("\(identifierPrefix)-delete")
+                Button {
+                    performAddSource(.webDAV)
+                } label: {
+                    Label("WebDAV", systemImage: "cloud.fill")
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
+                Button {
+                    performAddSource(.smb)
+                } label: {
+                    Label("SMB", systemImage: "server.rack")
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-addSMB")
+                if onAddSource == nil {
+                    Button {
+                        addDebugSource()
+                    } label: {
+                        Label("Add One", systemImage: "plus.circle")
+                    }
+                    .accessibilityIdentifier("DesignSystem-SourcesSidebar-addDebug")
+                }
             }
             .onAppear { onReachabilityAction?("sourceMore") }
         }
@@ -272,10 +254,6 @@ public struct SourceSidebar: View {
 
     private func performAddSource(_ type: FileBrowsingDomain.SourceType) {
         onAddSource?(type)
-    }
-
-    private func performImportFolder() {
-        onImportFolder?()
     }
 
     private func performRefresh() {
@@ -294,38 +272,24 @@ public struct SourceSidebar: View {
         guard request.host == .files else { return }
         switch request.family {
         case .sourceAdd:
-            var items = [
-                DebugMenuSelectionItem(
-                    id: "local",
-                    title: "Files",
-                    isSelected: false,
-                    select: { performAddSource(.local) }
-                ),
-                DebugMenuSelectionItem(
-                    id: "webDAV",
-                    title: "WebDAV",
-                    isSelected: false,
-                    select: { performAddSource(.webDAV) }
-                ),
-                DebugMenuSelectionItem(
-                    id: "smb",
-                    title: "SMB",
-                    isSelected: false,
-                    select: { performAddSource(.smb) }
-                )
-            ]
-            if onImportFolder != nil {
-                items.insert(
+            request.handle(
+                host: .files,
+                family: .sourceAdd,
+                items: [
                     DebugMenuSelectionItem(
-                        id: "folder",
-                        title: "Folder",
+                        id: "webDAV",
+                        title: "WebDAV",
                         isSelected: false,
-                        select: { performImportFolder() }
+                        select: { performAddSource(.webDAV) }
                     ),
-                    at: 1
-                )
-            }
-            request.handle(host: .files, family: .sourceAdd, items: items)
+                    DebugMenuSelectionItem(
+                        id: "smb",
+                        title: "SMB",
+                        isSelected: false,
+                        select: { performAddSource(.smb) }
+                    )
+                ]
+            )
         case .sourceAction:
             var items = [
                 DebugMenuSelectionItem(
@@ -627,7 +591,6 @@ public struct SourceSidebar: View {
         identifierPrefix: String = "SourceSidebar",
         onSelectSource: ((SidebarSourceItem.ID) -> Void)? = nil,
         onAddSource: ((FileBrowsingDomain.SourceType) -> Void)? = nil,
-        onImportFolder: (() -> Void)? = nil,
         onRefresh: (() -> Void)? = nil,
         onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)? = nil,
         onReachabilityAction: ((String) -> Void)? = nil,
@@ -639,7 +602,6 @@ public struct SourceSidebar: View {
         self.identifierPrefix = identifierPrefix
         self.onSelectSource = onSelectSource
         self.onAddSource = onAddSource
-        self.onImportFolder = onImportFolder
         self.onRefresh = onRefresh
         self.onDeleteSources = onDeleteSources
         self.onReachabilityAction = onReachabilityAction

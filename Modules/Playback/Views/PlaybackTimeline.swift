@@ -15,18 +15,46 @@ public struct DeckMenuItem: Identifiable {
         self.action = action
     }
 }
-struct PrecisionTimelineView: View {
-    @Binding var currentTime: Double
+enum PrecisionTimelineZoomScale {
+    static var availableTimelineWidth: CGFloat {
+        DesignTokens.Layout.expandedPlayerControlsContentWidth
+    }
+
+    static func minimumPixelsPerSecond(duration: Double) -> CGFloat {
+        guard duration > 0 else {
+            return DesignTokens.PrecisionTimeline.minPixelsPerSecond
+        }
+        let fitToViewport = availableTimelineWidth / CGFloat(duration)
+        return max(DesignTokens.PrecisionTimeline.minPixelsPerSecond, fitToViewport)
+    }
+
+    static func clamped(_ value: CGFloat, duration: Double) -> CGFloat {
+        min(
+            max(value, minimumPixelsPerSecond(duration: duration)),
+            DesignTokens.PrecisionTimeline.maxPixelsPerSecond
+        )
+    }
+
+    static func normalized(_ pixelsPerSecond: CGFloat, duration: Double) -> CGFloat {
+        let minValue = log(Double(minimumPixelsPerSecond(duration: duration)))
+        let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
+        let current = log(Double(clamped(pixelsPerSecond, duration: duration)))
+        guard maxValue > minValue else { return 0 }
+        return CGFloat(min(max((current - minValue) / (maxValue - minValue), 0), 1))
+    }
+
+    static func pixelsPerSecond(forNormalized normalized: CGFloat, duration: Double) -> CGFloat {
+        let minValue = log(Double(minimumPixelsPerSecond(duration: duration)))
+        let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
+        let value = minValue + (maxValue - minValue) * Double(normalized)
+        return clamped(CGFloat(exp(value)), duration: duration)
+    }
+}
+
+struct PrecisionTimelineZoomSlider: View {
     @Binding var pixelsPerSecond: CGFloat
-
     let duration: Double
-    let framesPerSecond: Double
-    var onSeekBegan: () -> Void = {}
-    var onSeekEnded: (Double) -> Void = { _ in }
 
-    @GestureState private var gestureStartPixelsPerSecond: CGFloat?
-    @State private var isDraggingTimeline = false
-    @State private var dragStartTime: Double = 0
     @State private var isDraggingZoom = false
     @State private var zoomPressTrigger = 0
     @State private var zoomReleaseTrigger = 0
@@ -36,44 +64,11 @@ struct PrecisionTimelineView: View {
     private var zoomTrackHeight: CGFloat { DesignTokens.PrecisionTimeline.zoomRailHeight }
     private var zoomKnobSize: CGFloat { DesignTokens.PrecisionTimeline.zoomRailThumbSize }
 
+    private var normalizedZoom: CGFloat {
+        PrecisionTimelineZoomScale.normalized(pixelsPerSecond, duration: duration)
+    }
+
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            zoomSlider
-            timecodeLabel
-            rulerAndFilmStrip
-        }
-        .padding(.horizontal, DesignTokens.PrecisionTimeline.panelPadding)
-        .padding(.vertical, DesignTokens.Spacing.sm)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .enchronListGroupSurface()
-        .contentShape(DesignTokens.ShapeToken.card)
-        .gesture(zoomGesture)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerPanel-precision-timeline")
-        .accessibilityLabel("Precision timeline")
-        .enchronScrubSensoryFeedback(
-            pressTrigger: zoomPressTrigger,
-            releaseTrigger: zoomReleaseTrigger,
-            boundary: zoomBoundary,
-            boundariesEnabled: isDraggingZoom
-        )
-        .onAppear(perform: syncZoomBoundary)
-        .onChange(of: pixelsPerSecond) { _, _ in
-            if !isDraggingZoom {
-                syncZoomBoundary()
-            }
-        }
-    }
-
-    private var timecodeLabel: some View {
-        Text(PrecisionTimelineFormatter.timecode(currentTime, framesPerSecond: framesPerSecond))
-            .font(DesignTokens.Typography.headline)
-            .monospacedDigit()
-            .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
-            .accessibilityIdentifier("DesignSystem-PrecisionTimeline-timecode")
-    }
-
-    private var zoomSlider: some View {
         let travel = zoomTrackWidth - zoomKnobSize
         let normalized = normalizedZoom
         let knobOffsetX = -travel / 2 + normalized * travel
@@ -106,10 +101,25 @@ struct PrecisionTimelineView: View {
                 .accessibilityHidden(true)
         }
         .font(.body)
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .frame(height: DesignTokens.Interactive.large)
+        .background(.thickMaterial, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("DesignSystem-PrecisionTimeline-zoom")
         .accessibilityLabel("Timeline zoom")
         .accessibilityValue("\(Int(normalized * 100))%")
+        .enchronScrubSensoryFeedback(
+            pressTrigger: zoomPressTrigger,
+            releaseTrigger: zoomReleaseTrigger,
+            boundary: zoomBoundary,
+            boundariesEnabled: isDraggingZoom
+        )
+        .onAppear(perform: syncZoomBoundary)
+        .onChange(of: pixelsPerSecond) { _, _ in
+            if !isDraggingZoom {
+                syncZoomBoundary()
+            }
+        }
     }
 
     private var zoomSliderGesture: some Gesture {
@@ -125,7 +135,10 @@ struct PrecisionTimelineView: View {
                 let travel = max(zoomTrackWidth - zoomKnobSize, 1)
                 let localX = value.location.x - zoomKnobSize / 2
                 let normalized = min(max(localX / travel, 0), 1)
-                pixelsPerSecond = zoomValue(forNormalized: normalized)
+                pixelsPerSecond = PrecisionTimelineZoomScale.pixelsPerSecond(
+                    forNormalized: normalized,
+                    duration: duration
+                )
                 zoomBoundary = EnchronScrubBoundary.from(normalized: Double(normalized))
             }
             .onEnded { _ in
@@ -136,7 +149,25 @@ struct PrecisionTimelineView: View {
             }
     }
 
-    private var rulerAndFilmStrip: some View {
+    private func syncZoomBoundary() {
+        zoomBoundary = EnchronScrubBoundary.from(normalized: Double(normalizedZoom))
+    }
+}
+
+struct PrecisionTimelineView: View {
+    @Binding var currentTime: Double
+    @Binding var pixelsPerSecond: CGFloat
+
+    let duration: Double
+    let framesPerSecond: Double
+    var onSeekBegan: () -> Void = {}
+    var onSeekEnded: (Double) -> Void = { _ in }
+
+    @GestureState private var gestureStartPixelsPerSecond: CGFloat?
+    @State private var isDraggingTimeline = false
+    @State private var dragStartTime: Double = 0
+
+    var body: some View {
         GeometryReader { proxy in
             let viewportWidth = max(proxy.size.width, 1)
             let safePixelsPerSecond = clampedPixelsPerSecond(pixelsPerSecond)
@@ -145,16 +176,7 @@ struct PrecisionTimelineView: View {
 
             ZStack(alignment: .topLeading) {
                 shape
-                    .fill(DesignTokens.PrecisionTimeline.viewportFill)
-
-                shape
-                    .stroke(
-                        DesignTokens.PrecisionTimeline.viewportInnerShadow,
-                        lineWidth: DesignTokens.PrecisionTimeline.viewportInnerShadowWidth
-                    )
-                    .blur(radius: DesignTokens.PrecisionTimeline.viewportInnerShadowRadius)
-                    .offset(y: DesignTokens.PrecisionTimeline.viewportInnerShadowOffsetY)
-                    .mask(shape)
+                    .fill(.ultraThickMaterial)
 
                 timelineRuler(
                     viewportWidth: viewportWidth,
@@ -183,12 +205,37 @@ struct PrecisionTimelineView: View {
                     lineWidth: DesignTokens.Stroke.subtle
                 )
             }
-            .brightness(DesignTokens.PrecisionTimeline.viewportRestingBrightness)
+            .overlay(alignment: .top) {
+                timecodeLabel
+                    .padding(.top, DesignTokens.Spacing.xs)
+            }
             .enchronHoverContentShape(shape)
             .enchronHoverEffect(.automatic)
             .contentShape(shape)
             .gesture(timelineDragGesture(pixelsPerSecond: safePixelsPerSecond))
         }
+        .gesture(zoomGesture)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-precision-timeline")
+        .accessibilityLabel("Precision timeline")
+    }
+
+    private var timecodeLabel: some View {
+        Text(PrecisionTimelineFormatter.timecode(currentTime, framesPerSecond: framesPerSecond))
+            .font(DesignTokens.Typography.metadata)
+            .monospacedDigit()
+            .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
+            .padding(.horizontal, DesignTokens.Spacing.xs)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .background(
+                .thickMaterial,
+                in: RoundedRectangle(
+                    cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius,
+                    style: .continuous
+                )
+            )
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("DesignSystem-PrecisionTimeline-timecode")
     }
 
     private func timelineRuler(
@@ -269,15 +316,6 @@ struct PrecisionTimelineView: View {
                 radius: DesignTokens.PrecisionTimeline.playheadShadowRadius,
                 x: DesignTokens.PrecisionTimeline.playheadShadowOffsetX
             )
-            .overlay(alignment: .top) {
-                Circle()
-                    .fill(DesignTokens.PrecisionTimeline.playheadAccent)
-                    .frame(
-                        width: DesignTokens.Spacing.sm,
-                        height: DesignTokens.Spacing.sm
-                    )
-                    .offset(y: -DesignTokens.Spacing.xs)
-            }
             .position(
                 x: x,
                 y: height / 2
@@ -315,10 +353,6 @@ struct PrecisionTimelineView: View {
                 isDraggingTimeline = false
                 onSeekEnded(currentTime)
             }
-    }
-
-    private func syncZoomBoundary() {
-        zoomBoundary = EnchronScrubBoundary.from(normalized: Double(normalizedZoom))
     }
 
     private func drawTicks(
@@ -553,31 +587,6 @@ struct PrecisionTimelineView: View {
         ]
     }
 
-    private var zoomLabel: String {
-        let secondsInView = Double(availableTimelineWidth / max(clampedPixelsPerSecond(pixelsPerSecond), 0.001))
-        return "\(PrecisionTimelineFormatter.clock(secondsInView)) visible"
-    }
-
-    private var availableTimelineWidth: CGFloat {
-        DesignTokens.Layout.expandedPlayerControlsContentWidth
-            - DesignTokens.PrecisionTimeline.panelPadding * 2
-    }
-
-    private var normalizedZoom: CGFloat {
-        let minValue = log(Double(effectiveMinPixelsPerSecond))
-        let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
-        let current = log(Double(clampedPixelsPerSecond(pixelsPerSecond)))
-        guard maxValue > minValue else { return 0 }
-        return CGFloat(min(max((current - minValue) / (maxValue - minValue), 0), 1))
-    }
-
-    private func zoomValue(forNormalized normalized: CGFloat) -> CGFloat {
-        let minValue = log(Double(effectiveMinPixelsPerSecond))
-        let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
-        let value = minValue + (maxValue - minValue) * Double(normalized)
-        return clampedPixelsPerSecond(CGFloat(exp(value)))
-    }
-
     private var frameDuration: Double {
         1 / max(framesPerSecond, 1)
     }
@@ -592,19 +601,8 @@ struct PrecisionTimelineView: View {
         min(max(time, 0), duration)
     }
 
-    private var effectiveMinPixelsPerSecond: CGFloat {
-        guard duration > 0 else {
-            return DesignTokens.PrecisionTimeline.minPixelsPerSecond
-        }
-        let fitToViewport = availableTimelineWidth / CGFloat(duration)
-        return max(DesignTokens.PrecisionTimeline.minPixelsPerSecond, fitToViewport)
-    }
-
     private func clampedPixelsPerSecond(_ value: CGFloat) -> CGFloat {
-        min(
-            max(value, effectiveMinPixelsPerSecond),
-            DesignTokens.PrecisionTimeline.maxPixelsPerSecond
-        )
+        PrecisionTimelineZoomScale.clamped(value, duration: duration)
     }
 }
 

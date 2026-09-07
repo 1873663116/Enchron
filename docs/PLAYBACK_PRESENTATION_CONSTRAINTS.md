@@ -105,6 +105,12 @@
 - **`ViewingStatePolicy.mutation` 删除时长低于 `minimumContentDurationSeconds = 15 * 60` 的条目的观看状态**（`Modules/Playback/Domain/ViewingState.swift:50-56`）。只有长过这个常数的条目，退出后才留下可续播的状态。
 - **local-aggregate 固件集里最长的一条是 120.064 s，整集都落在该常数之下**。`generated-viewing-storage-h264-16m01s-v1` 以 898 KB 承载 961.0 s，是集合里唯一在常数之上的条目，automatic-play-next-resume-policy 依赖它。见 `Scripts/verification/regression_preparation_adapter.py`。
 
-## 面板的三步展开
+## 面板的交叉淡变展开
 
-面板的每一次切换分三步：内容退场（外壳仍持有正在离开的尺寸）、空外壳行进到进入的尺寸、内容入场。中途到达的请求**重定向**这次变化而不是排在它后面，改主意的佩戴者因此不必坐等一次已被放弃的变化走完；外壳已空时再次进入 `contentLeaving` 在屏幕上不花任何代价，却让实现免于逐阶段的特例。每一步的完成启动下一步，所以次序跟随动画本身，而不是在这里重复一份可能与 `DesignTokens` 漂移的时长。按钮的选中态跟随"正在落定的块"而不是当前 layout，否则它会在内容退场那段时间里闪回。次序断言见 `Tests/PlaybackPresentationTests/PlaybackPanelExpansionTests.swift`。
+面板的每一次切换（信息、设置、时间轴，以及它们的收起）是一次叠加动作：离开的内容在 `panelContentExit`（0.12 s）内淡出，进入的内容同时以 `panelContentEntrance` 淡入，而且从第一帧起就按自己的最终尺寸排版；外壳以 `panelSpring` 从旧尺寸行进到新尺寸，超出外壳的部分被 `clipShape` 裁掉、随外壳放大逐渐露出（Apple TV 的展开方式）。实现是 `FusedPlayerPanel.body` 里按 `expansion.layout` 取 `.id` 的内容层带不对称 opacity transition，外壳的尺寸来自进入内容的 `onGeometryChange` 量测（`panelContentSize`），内容层 `fixedSize(vertical:)` 保证它不被行进中的外壳压扁。原先的三步序列（内容退场→空外壳行进→内容入场）让新内容要等缩放结束才出现，2026-09-07 被否决。
+
+控件整体隐藏（点画面）时面板保持当时的形态一起淡出，不在 `controlsVisible` 变 false 时重置 `expansion`——重置会让时间轴瞬间消失、普通控件先出现再淡出。重置发生在控件再次可见的那一刻（`disablesAnimations` 事务内），窗口 ornament 因为随 chrome 一起卸载本来就会拿到新状态，沉浸空间的 dock attachment 只是 opacity 归零、状态常驻，这一步对它是必需的。
+
+窗口 ornament 在控件隐藏时不再保留一块透明占位（原 `collapsedWindowControlsOrnamentHeight`）：占位把系统 window bar 顶得离窗口很远（2026-09-07 真机），现在 ornament 内容随 chrome 卸载而归零，window bar 在召唤/收起时跟着上下移动是接受的代价。
+
+时间轴形态在窗口与沉浸空间统一为两行：第一行返回按钮、逐帧播放控制、缩放滑块（`PrecisionTimelineZoomSlider`，thickMaterial 胶囊），第二行只有胶片视口（`PrecisionTimelineView`，ultraThickMaterial），播放头时码作为胶囊贴在视口顶部中央；不再有整块列表材质、信息栏与 dock 的设置按钮。dock 的设置形态是第一行返回与恢复默认两个圆形按钮、其下三个放置滑块坐在一块 thickMaterial 上；信息栏展开后是左上返回按钮、标题、详情正文（无详情留空）与技术信息行，没有图片与其他按钮。次序断言见 `Tests/PlaybackPresentationTests/PlaybackPanelExpansionTests.swift`。

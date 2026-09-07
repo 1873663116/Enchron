@@ -40,6 +40,7 @@ public enum DesignTokens {
         public static let xl: CGFloat = 64
         public static let rowHeight: CGFloat = 60
         public static let buttonSpacing: CGFloat = 16
+        public static let inactiveSelectionOpacity: Double = 0.6
     }
 
     public enum AnimationToken {
@@ -472,7 +473,6 @@ public enum DesignTokens {
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
-
     public enum ProgressBar {
         public static let inactiveTrackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 0.75
         public static let trackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 1.25
@@ -495,10 +495,8 @@ public enum DesignTokens {
 
     public enum PrecisionTimeline {
         public static let expandedWidth: CGFloat = 1152
-        public static let expandedHeight: CGFloat = 220
         public static let expansionGap: CGFloat = Spacing.lg
         public static let dismissMargin: CGFloat = Spacing.xxxl
-        public static let panelPadding: CGFloat = Spacing.lg
         public static let headerHeight: CGFloat = 64
         public static let rulerHeight: CGFloat = 44
         public static let filmStripHeight: CGFloat = 72
@@ -533,13 +531,6 @@ public enum DesignTokens {
         public static let minorTickColor: Color = .white.opacity(0.22)
         public static let majorTickColor: Color = .white.opacity(0.46)
         public static let playheadColor: Color = .white.opacity(0.95)
-        public static let playheadAccent: Color = Theme.accent
-        public static let viewportFill: Color = .white.opacity(0.025)
-        public static let viewportRestingBrightness: Double = 0.06
-        public static let viewportInnerShadow: Color = .black.opacity(0.09)
-        public static let viewportInnerShadowWidth: CGFloat = 3
-        public static let viewportInnerShadowRadius: CGFloat = 1.5
-        public static let viewportInnerShadowOffsetY: CGFloat = 1
         public static let playheadShadow: Color = .black.opacity(0.5)
         public static let playheadShadowRadius: CGFloat = 0.5
         public static let playheadShadowOffsetX: CGFloat = 1.5
