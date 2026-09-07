@@ -13,8 +13,8 @@ struct LazyGazeFollow: Equatable {
     static let deadZoneRadians: Float = 8 * .pi / 180
     static let settleRadians: Float = 0.75 * .pi / 180
     static let timeConstantSeconds: Float = 0.4
-    static let dockCaptureRadians: Float = 12 * .pi / 180
-    static let dockReleaseRadians: Float = 22 * .pi / 180
+    static let dockCaptureRadians: Float = 15 * .pi / 180
+    static let dockReleaseRadians: Float = 25 * .pi / 180
 
     private(set) var yaw: Float = 0
     private(set) var pitch: Float = 0
@@ -52,7 +52,7 @@ struct LazyGazeFollow: Equatable {
             return
         }
         if let dock {
-            let headToDock = Self.distance(from: head, to: dock)
+            let headToDock = abs(Self.wrapped(dock.yaw - head.yaw))
             if isDocked {
                 isDocked = headToDock < Self.dockReleaseRadians
             } else {
@@ -191,7 +191,7 @@ final class PanoramaSubtitleFollower {
         }
         follow.advance(
             head: LazyGazeFollow.Gaze(yaw: headGaze.yaw, pitch: headGaze.pitch),
-            dock: dockGaze.map { LazyGazeFollow.Gaze(yaw: $0.yaw, pitch: $0.pitch) },
+            dock: dockGaze.map { LazyGazeFollow.Gaze(yaw: $0.yaw, pitch: headGaze.pitch) },
             deltaTime: deltaTime
         )
         if follow.isDocked, let dockTransform {

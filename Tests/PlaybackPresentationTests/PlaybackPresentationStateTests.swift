@@ -513,6 +513,11 @@ struct PlaybackPresentationStateTests {
         var follow = LazyGazeFollow()
         follow.advance(head: Gaze(yaw: 0, pitch: 0), dock: nil, deltaTime: 1 / 90)
 
+        var lookingUp = LazyGazeFollow()
+        lookingUp.advance(head: Gaze(yaw: 0, pitch: 0.5), dock: nil, deltaTime: 1 / 90)
+        lookingUp.advance(head: Gaze(yaw: 0, pitch: 0.5), dock: dock, deltaTime: 1 / 90)
+        #expect(lookingUp.isDocked)
+
         for _ in 0..<270 {
             follow.advance(head: Gaze(yaw: 0, pitch: 0), dock: dock, deltaTime: 1 / 90)
         }
