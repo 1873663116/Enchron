@@ -1894,11 +1894,41 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.immersiveSpaceStyleRevision == 1)
     }
 
+    @Test("A hidden window column binds nothing while a space owns the settled presentation")
+    func hiddenWindowColumnBindsNothingOutsideItsSettledPresentation() {
+        for (hosted, settled) in [
+            (PlaybackPresentation.portal, PlaybackPresentation.panorama),
+            (.window, .docked)
+        ] {
+            #expect(
+                PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                    for: hosted,
+                    settledPresentation: settled,
+                    previousPresentation: nil,
+                    targetPresentation: nil,
+                    sourceRendererMayRelease: false,
+                    targetRendererMayBind: false
+                ) == false
+            )
+            #expect(
+                PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                    for: hosted,
+                    settledPresentation: hosted,
+                    previousPresentation: nil,
+                    targetPresentation: nil,
+                    sourceRendererMayRelease: false,
+                    targetRendererMayBind: false
+                )
+            )
+        }
+    }
+
     @Test("Window keeps its renderer while the source fades")
     func windowSourceKeepsRendererUntilTransferBegins() {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .window,
                 previousPresentation: .window,
                 targetPresentation: .panorama,
                 sourceRendererMayRelease: false,
@@ -1908,6 +1938,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .window,
                 previousPresentation: .window,
                 targetPresentation: .panorama,
                 sourceRendererMayRelease: true,
@@ -1917,6 +1948,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .window,
                 previousPresentation: .window,
                 targetPresentation: .docked,
                 sourceRendererMayRelease: false,
@@ -1926,6 +1958,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .window,
                 previousPresentation: .window,
                 targetPresentation: .docked,
                 sourceRendererMayRelease: true,
@@ -1997,6 +2030,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .panorama,
                 previousPresentation: .panorama,
                 targetPresentation: .window,
                 sourceRendererMayRelease: false,
@@ -2006,6 +2040,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .panorama,
                 previousPresentation: .panorama,
                 targetPresentation: .window,
                 sourceRendererMayRelease: true,
@@ -2015,6 +2050,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .window,
+                settledPresentation: .panorama,
                 previousPresentation: .panorama,
                 targetPresentation: .window,
                 sourceRendererMayRelease: true,
@@ -2028,6 +2064,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .portal,
+                settledPresentation: .portal,
                 previousPresentation: .portal,
                 targetPresentation: .panorama,
                 sourceRendererMayRelease: false,
@@ -2037,6 +2074,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .panorama,
+                settledPresentation: .portal,
                 previousPresentation: .portal,
                 targetPresentation: .panorama,
                 sourceRendererMayRelease: false,
@@ -2046,6 +2084,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .portal,
+                settledPresentation: .portal,
                 previousPresentation: .portal,
                 targetPresentation: .panorama,
                 sourceRendererMayRelease: true,
@@ -2055,6 +2094,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .panorama,
+                settledPresentation: .portal,
                 previousPresentation: .portal,
                 targetPresentation: .panorama,
                 sourceRendererMayRelease: true,
@@ -2064,6 +2104,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .portal,
+                settledPresentation: .panorama,
                 previousPresentation: .panorama,
                 targetPresentation: .portal,
                 sourceRendererMayRelease: false,
@@ -2073,6 +2114,7 @@ struct PlaybackPresentationStateTests {
         #expect(
             PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: .portal,
+                settledPresentation: .panorama,
                 previousPresentation: .panorama,
                 targetPresentation: .portal,
                 sourceRendererMayRelease: true,
@@ -2087,6 +2129,7 @@ struct PlaybackPresentationStateTests {
             #expect(
                 PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                     for: .window,
+                    settledPresentation: .window,
                     previousPresentation: .window,
                     targetPresentation: .portal,
                     sourceRendererMayRelease: sourceRendererMayRelease,
@@ -2096,6 +2139,7 @@ struct PlaybackPresentationStateTests {
             #expect(
                 PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                     for: .portal,
+                    settledPresentation: .window,
                     previousPresentation: .window,
                     targetPresentation: .portal,
                     sourceRendererMayRelease: sourceRendererMayRelease,

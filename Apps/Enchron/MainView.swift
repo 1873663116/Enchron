@@ -34,12 +34,6 @@ private enum PlaybackRegressionIdentity {
     }
 }
 
-enum PlaybackSurfaceMountPolicy {
-    static func shouldMount(showsWindowPlayback: Bool) -> Bool {
-        showsWindowPlayback
-    }
-}
-
 enum BrowserWindowSurfacePolicy {
     static func showsBrowser(
         hasActivePlaybackRequest: Bool,
@@ -122,8 +116,6 @@ public struct MainView: View {
 
     private var showsWindowPlayback: Bool {
         playbackRuntime.hasActivePlaybackRequest
-            && (playbackSession.playbackPresentation.usesMainWindow
-                || playbackSession.presentationTransition?.targetPresentation.usesMainWindow == true)
     }
 
     private var windowSurfaceIsActive: Bool {
@@ -132,6 +124,7 @@ public struct MainView: View {
             && showsWindowPlayback
             && PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
                 for: hostedPlaybackPresentation,
+                settledPresentation: playbackSession.playbackPresentation,
                 previousPresentation: transition?.previousPresentation,
                 targetPresentation: transition?.targetPresentation,
                 sourceRendererMayRelease:
@@ -547,6 +540,7 @@ public struct MainView: View {
             value: windowPlaybackOpacity
         )
         .allowsHitTesting(windowPlaybackAcceptsInput)
+        .accessibilityHidden(windowPlaybackOpacity == 0)
         .task {
             guard reapplyVerificationIsEnabled else { return }
             while !Task.isCancelled {
@@ -653,9 +647,10 @@ public struct MainView: View {
            target.usesMainWindow {
             return target
         }
-        return playbackSession.playbackPresentation.usesMainWindow
-            ? playbackSession.playbackPresentation
-            : .window
+        let settled = playbackSession.playbackPresentation
+        return settled.usesMainWindow
+            ? settled
+            : settled.contentFamily.mainWindowPresentation
     }
 
     private var isLeavingWindowPresentation: Bool {

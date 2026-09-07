@@ -1125,6 +1125,7 @@ public struct ImmersiveSpaceView: View {
         let videoComponentRevision = playbackRuntime.videoComponentRevision
         guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
             for: presentation,
+            settledPresentation: appModel.playbackPresentation,
             previousPresentation: appModel.presentationTransition?.previousPresentation,
             targetPresentation: appModel.presentationTransition?.targetPresentation,
             sourceRendererMayRelease: appModel.presentationSourceRendererMayRelease,

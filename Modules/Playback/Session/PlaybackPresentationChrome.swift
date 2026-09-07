@@ -3,6 +3,7 @@ import SwiftUI
 public enum PlaybackPresentationRendererBindingPolicy {
     public static func shouldBindRenderer(
         for presentation: PlaybackPresentation,
+        settledPresentation: PlaybackPresentation,
         previousPresentation: PlaybackPresentation?,
         targetPresentation: PlaybackPresentation?,
         sourceRendererMayRelease: Bool,
@@ -11,7 +12,7 @@ public enum PlaybackPresentationRendererBindingPolicy {
         guard let previousPresentation,
               let targetPresentation,
               previousPresentation != targetPresentation else {
-            return true
+            return presentation == settledPresentation
         }
 
         let crossesRealityViewRoots =

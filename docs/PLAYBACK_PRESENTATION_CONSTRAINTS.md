@@ -64,6 +64,7 @@
 ## 主窗口列在哪些呈现里还在
 
 - **window 与 portal 保留主窗口列，panorama 与 docked 不保留**。窗口 chrome 只能在这两种呈现里由表面点击召唤，格式菜单也只在召唤之后才接受点击；沉浸式呈现下窗口已经空了，表面点击没有落点。见 `Scripts/verification/playback_transition_stress.py`。
+- **主窗口的播放根视图在整个播放请求期间常驻，沉浸态下只是 opacity 0**。原先 `showsWindowPlayback` 在落定为 panorama／docked 时为假，`WindowPlaybackRootView` 被卸载、浏览器（`Color.clear`）顶上；从空间返回时根视图重建，`@State` 归零，旧的 viewport refresh revision 被当作新请求再发一次同尺寸 `requestGeometryUpdate`，`onDisappear` 的 freeform 几何又在还原动画里被 aspect-lock 覆盖（2026-09-07 真机：还原期间 revision 4 重发）。现在只要 `hasActivePlaybackRequest` 就挂载，`windowSceneHostOpacity` 在落定沉浸态下给 0，`allowsHitTesting` 与 `accessibilityHidden` 一起关掉，辅助功能树里没有 `PlayerUI-window-control-plane`，与卸载时一致。托管呈现取落定呈现所在家族的主窗口呈现（panorama→portal、docked→window），几何策略在进入空间时就切到返回后的那套，返回时不再改。`PlaybackPresentationRendererBindingPolicy.shouldBindRenderer` 多一个 `settledPresentation`：没有转换时只在托管呈现等于落定呈现才绑定，否则常驻的窗口表面会在 panorama 期间认领渲染器。
 - **投影只在主窗口列里改变**。panorama 与 docked 两个格子因此只有"退出空间呈现"这一条边，从 panorama 直接 apply-flat 是一条同时改投影与改呈现的对角边。见 `Scripts/verification/playback_transition_stress.py`。
 - **被来源信令标注为全景的内容，在有人请求 panorama 之前落在 portal**。只把 window 当作合法落点，集合里每一个空间片都会走到超时。见 `Scripts/verification/playback_open_sweep.py`。
 
