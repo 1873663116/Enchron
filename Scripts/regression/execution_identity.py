@@ -58,6 +58,7 @@ _LANES = (BoundLane.SIMULATOR, BoundLane.DEVICE)
 _MACHO_MAGIC_64_LE = 0xFEEDFACF
 _CPU_TYPE_ARM64 = 0x0100000C
 _MH_DYLIB = 0x6
+_MH_BUNDLE = 0x8
 _LC_SEGMENT_64 = 0x19
 _LC_BUILD_VERSION = 0x32
 _MACHO_PLATFORM = {BoundLane.DEVICE: 11, BoundLane.SIMULATOR: 12}
@@ -1608,10 +1609,15 @@ def _packed_sdk_tuple(value: int) -> tuple[int, int, int]:
 
 
 def _parse_macho(
-    source: bytes, lane: BoundLane, expected_toolchain: ToolchainIdentity
+    source: bytes,
+    lane: BoundLane,
+    expected_toolchain: ToolchainIdentity,
+    *,
+    expected_file_type: int = _MH_DYLIB,
+    label: str = "Enchron.debug.dylib",
 ) -> _ParsedMachO:
     if len(source) < 32:
-        raise ExecutionIdentityError("Enchron.debug.dylib has a truncated Mach-O header")
+        raise ExecutionIdentityError(f"{label} has a truncated Mach-O header")
     (
         magic,
         cpu_type,
@@ -1624,14 +1630,15 @@ def _parse_macho(
     ) = struct.unpack_from("<8I", source, 0)
     if magic != _MACHO_MAGIC_64_LE:
         raise ExecutionIdentityError(
-            "Enchron.debug.dylib must be thin little-endian 64-bit Mach-O"
+            f"{label} must be thin little-endian 64-bit Mach-O"
         )
     if cpu_type != _CPU_TYPE_ARM64:
-        raise ExecutionIdentityError("Enchron.debug.dylib must contain arm64 code")
-    if file_type != _MH_DYLIB:
-        raise ExecutionIdentityError("Enchron.debug.dylib must be an MH_DYLIB")
+        raise ExecutionIdentityError(f"{label} must contain arm64 code")
+    if file_type != expected_file_type:
+        expected_name = "MH_DYLIB" if expected_file_type == _MH_DYLIB else "MH_BUNDLE"
+        raise ExecutionIdentityError(f"{label} must be an {expected_name}")
     if command_count == 0 or command_count > 65535:
-        raise ExecutionIdentityError("Enchron.debug.dylib has invalid load commands")
+        raise ExecutionIdentityError(f"{label} has invalid load commands")
     commands_end = 32 + command_bytes
     if command_bytes < command_count * 8 or commands_end > len(source):
         raise ExecutionIdentityError("Enchron.debug.dylib load commands are out of bounds")
@@ -1707,20 +1714,20 @@ def _parse_macho(
         offset += command_size
     if offset != commands_end:
         raise ExecutionIdentityError(
-            "Enchron.debug.dylib load-command size does not match its header"
+            f"{label} load-command size does not match its header"
         )
     if len(build_versions) != 1:
         raise ExecutionIdentityError(
-            "Enchron.debug.dylib must contain exactly one LC_BUILD_VERSION"
+            f"{label} must contain exactly one LC_BUILD_VERSION"
         )
     if len(provenance_ranges) != 1:
         raise ExecutionIdentityError(
-            "Enchron.debug.dylib must contain exactly one __TEXT,__enchsrc section"
+            f"{label} must contain exactly one __TEXT,__enchsrc section"
         )
     platform, _minimum_os, packed_sdk = build_versions[0]
     if platform != _MACHO_PLATFORM[lane]:
         raise ExecutionIdentityError(
-            f"{lane.value} Enchron.debug.dylib has the wrong Mach-O platform"
+            f"{lane.value} {label} has the wrong Mach-O platform"
         )
     sdk_text = (
         expected_toolchain.visionos_simulator_sdk_version
@@ -1731,7 +1738,7 @@ def _parse_macho(
     actual_sdk = _packed_sdk_tuple(packed_sdk)
     if actual_sdk != expected_sdk:
         raise ExecutionIdentityError(
-            f"{lane.value} Enchron.debug.dylib SDK differs from the toolchain"
+            f"{lane.value} {label} SDK differs from the toolchain"
         )
     start, end = provenance_ranges[0]
     provenance = _parse_build_provenance(source[start:end])
@@ -1799,6 +1806,23 @@ def _bind_lane(
         if macho.provenance != expected_provenance:
             raise ExecutionIdentityError(
                 f"{lane.value} embedded build provenance is stale or cross-bound"
+            )
+        test_code, _ = _read_regular_at(
+            products_descriptor,
+            parsed.test_bundle / "EnchronAppUITests",
+            "EnchronAppUITests.xctest executable",
+        )
+        test_macho = _parse_macho(
+            test_code,
+            lane,
+            toolchain,
+            expected_file_type=_MH_BUNDLE,
+            label="EnchronAppUITests.xctest",
+        )
+        if test_macho.provenance != expected_provenance:
+            raise ExecutionIdentityError(
+                f"{lane.value} EnchronAppUITests.xctest embedded build provenance "
+                "is stale or cross-bound"
             )
         artifact = LaneBuildArtifact(
             lane,

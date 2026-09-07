@@ -55,7 +55,7 @@ def _fixed_name(value: str) -> bytes:
     return source + b"\0" * (16 - len(source))
 
 
-def _macho(stamp: bytes, lane: BoundLane) -> bytes:
+def _macho(stamp: bytes, lane: BoundLane, *, file_type: int = 6) -> bytes:
     packed_sdk = 27 << 16
     build_command = struct.pack(
         "<6I",
@@ -105,7 +105,7 @@ def _macho(stamp: bytes, lane: BoundLane) -> bytes:
         0xFEEDFACF,
         0x0100000C,
         0,
-        6,
+        file_type,
         2,
         command_bytes,
         0,
@@ -246,12 +246,41 @@ class BootstrapFreezeTests(unittest.TestCase):
         code = app / "Enchron.debug.dylib"
         code.write_bytes(_macho(stamp.read_bytes(), lane))
         (runner / "Runner").write_bytes(f"{lane.value}-runner".encode())
-        (test_bundle / "EnchronAppUITests").write_bytes(f"{lane.value}-tests".encode())
+        (test_bundle / "EnchronAppUITests").write_bytes(
+            _macho(stamp.read_bytes(), lane, file_type=8)
+        )
         dependency = shared / "Shared"
         dependency.write_bytes(f"{lane.value}-dependent-product".encode())
         xctestrun = prefix / f"Enchron-{lane.value}.xctestrun"
         xctestrun.write_bytes(plistlib.dumps(self.xctestrun_payload(lane), sort_keys=True))
         return {"root": prefix, "code": code, "xctestrun": xctestrun}
+
+    def test_a_stale_ui_test_bundle_refuses_to_freeze(self) -> None:
+        stamp = json.loads(
+            (self.artifact / "build-provenance" / "simulator.json").read_text(encoding="utf-8")
+        )
+        stamp["sourceTreeDigest"] = "sha256:" + "f" * 64
+        stale = (json.dumps(stamp, separators=(",", ":"), sort_keys=True) + "\n").encode()
+        test_bundle = (
+            self.products[BoundLane.SIMULATOR]["code"].parent.parent
+            / "EnchronAppUITests-Runner.app"
+            / "PlugIns"
+            / "EnchronAppUITests.xctest"
+        )
+        (test_bundle / "EnchronAppUITests").write_bytes(
+            _macho(stale, BoundLane.SIMULATOR, file_type=8)
+        )
+        with self.boundaries():
+            with self.assertRaisesRegex(
+                ExecutionIdentityError, "EnchronAppUITests.xctest embedded build provenance"
+            ):
+                freeze_execution_input(
+                    self.repository,
+                    self.artifact,
+                    {BoundLane.SIMULATOR: "SIM-UDID", BoundLane.DEVICE: "DEVICE-UDID"},
+                    "gpt-5",
+                    bootstrap=True,
+                )
 
     def test_bootstrap_freeze_bypasses_missing_configuration_receipt(self) -> None:
         (self.artifact / "configuration-receipt.json").unlink()

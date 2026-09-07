@@ -118,3 +118,9 @@ App 侧测试通道的复位不是"删掉一切"：
 ## `isHittable` 的失败会终结会话，护栏要接住它
 
 `XCUIElement.isHittable` 对激活点落在可命中区域之外、又给不出替代命中点的元素不返回 false，而是记录一条 "Failed to determine hittability … Activation point invalid and no suggested hit points based on element frame" 的 XCTIssue；即便 `continueAfterFailure = true`，这条 issue 也会让 `testInteractiveDeviceSession` 结束，runner 离开自动化范围，段以 `channel-continuity-failed` 收场（2026-09-06 与 09-07 真机各一次，都在 `Emby-StillCard-3762`）。按窗口框预判活动点挡不住它：这张卡的中心 (2064, 284) 在 1536×864 的主窗口之外，却落在同一 app 的一个 2130×1396 的窗口框内。把 `isHittable` 包进 `XCTExpectFailure` 只能让这条 issue 不计失败，测试仍然在它之后立刻 Tear Down（2026-09-07 第三次真机复现：matcher accepted，随后 passed (129 s)，段照样 runner-gone）——UI Automation Failure 终结当前测试，与 `continueAfterFailure` 和 expected failure 无关。护栏因此改为**不去问**：从 `app.debugDescription` 解析 `Window (Main)` 的框（每条命令缓存一次），活动点不在主窗口框内直接判不可命中，`isHittable` 只对主窗口内的点调用；解析不到主窗口时才退回任一窗口框。`XCTExpectFailure` 包装保留为最后一道网。（`recordIssue:` 的 Swift 重写在本 SDK 上报 does not override，三种签名都试过。）
+
+## 冻结核对测试包的来源，段在通道丢失处立刻结束
+
+- **`freeze` 同时核对 app 与 UI 测试包的内嵌来源**。2026-09-07 两次 UI 测试 target 编译失败后，`Enchron.debug.dylib` 因产品代码未变而带着当前树摘要，旧的 `EnchronAppUITests.xctest` 却没有任何来源标记，冻结照样通过，两段真机回归跑在旧 runner 上。`EnchronAppUITests` target 现在也链接 `$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)`，`_bind_lane` 解析 `EnchronAppUITests.xctest/EnchronAppUITests` 的 `__TEXT,__enchsrc`，与当前树摘要不一致即拒绝冻结（`test_bootstrap_freeze.test_a_stale_ui_test_bundle_refuses_to_freeze`）。编译失败的产物从此冻不进去。
+- **段在场景阶段一旦通道丢失就结束当前场景**。原先 `run_segment` 只在场景之间检查 `channel_failures`，场景内部的每一步都还会得到"already failed"的拒绝文档并继续走完；runner 在第 31 步消失，段又发了二十多条注定失败的命令。现在 `controller` 在场景阶段（`scenario_phase`）遇到通道拒绝时抛 `SegmentChannelLost`，场景循环捕获后直接进入收尾；收尾阶段（probeStatus、拷贝、健康检查）不受影响。
+- **每一步之后写 `progress.json`**。段输出目录下的这份文件只有几行：步数、最近一步与其成败、通道失败数、是否已停、结束状态。盯段的人读它，不读层级树。

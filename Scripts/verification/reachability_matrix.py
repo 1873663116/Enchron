@@ -213,6 +213,10 @@ def timing_samples_summary(output_directory: Path) -> dict[str, object]:
     return {"path": TIMING_SAMPLES_FILENAME, "count": count}
 
 
+class SegmentChannelLost(Exception):
+    """The segment's controller channel is gone; no further scenario step can answer."""
+
+
 def refuse_when_detached() -> None:
     if os.getppid() != 1:
         return
@@ -1323,6 +1327,27 @@ class ReachabilityRun:
             ),
         )
 
+    def write_progress(self, status: str | None = None) -> None:
+        output = getattr(self, "output", None)
+        if output is None:
+            return
+        events = getattr(self, "events", [])
+        last = events[-1] if events else {}
+        document = {
+            "stepCount": getattr(self, "sequence", 0),
+            "lastAction": last.get("action"),
+            "lastSuccess": last.get("success"),
+            "channelFailures": len(getattr(self, "channel_failures", [])),
+            "halted": bool(getattr(self, "halted", False)),
+            "status": status,
+            "updatedAt": utc_now(),
+        }
+        Path(output).mkdir(parents=True, exist_ok=True)
+        (Path(output) / "progress.json").write_text(
+            json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
     def channel_refuses(self, action: str) -> bool:
         if action in RECOVERY_VERBS:
             return False
@@ -1607,6 +1632,9 @@ class ReachabilityRun:
                 "elapsedSeconds": 0.0,
             })
             self.last_controller_document = document
+            self.write_progress()
+            if getattr(self, "scenario_phase", False):
+                raise SegmentChannelLost(action)
             return document
         self.policy.record_action()
         started = datetime.now(timezone.utc)
@@ -1674,6 +1702,7 @@ class ReachabilityRun:
             self.history.clear()
         elif not self.halted:
             self.record_instrument_fault(action, fault, evidence=f"raw/{name}")
+        self.write_progress()
         return document
 
     def app_command(
@@ -8431,14 +8460,20 @@ class ReachabilityRun:
             self.prove_navigation_tab("files")
         if "settings-menus" in planned_scenarios:
             self.prove_navigation_tab("settings")
-        for scenario in self.segment["scenarios"]:
-            try:
-                self.run_named_segment_scenario(str(scenario))
-            except InstrumentFault as fault:
-                self.record_instrument_fault(f"scenario:{scenario}", fault)
-                break
-            if self.channel_failures:
-                break
+        self.scenario_phase = True
+        try:
+            for scenario in self.segment["scenarios"]:
+                try:
+                    self.run_named_segment_scenario(str(scenario))
+                except InstrumentFault as fault:
+                    self.record_instrument_fault(f"scenario:{scenario}", fault)
+                    break
+                except SegmentChannelLost:
+                    break
+                if self.channel_failures:
+                    break
+        finally:
+            self.scenario_phase = False
 
         self.salvaging = True
         status_document = self.read_probe_status()
@@ -8569,6 +8604,7 @@ class ReachabilityRun:
 
     def finish_segment(self, status: str) -> int:
         assert self.segment is not None
+        self.write_progress(status)
         ordered_cells = [
             self.cells[(context, operation_id)]
             for context in PROOF_CONTEXTS

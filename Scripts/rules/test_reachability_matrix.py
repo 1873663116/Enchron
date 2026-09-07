@@ -1503,6 +1503,37 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             ["retryAfterInstrumentFault", "tap", "tap"],
         )
 
+    def test_a_lost_channel_ends_the_scenario_at_the_next_step(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory))
+            run.segment = {"scenarios": []}
+            run.scenario_phase = True
+            run.channel_failures = [{"action": "tap", "error": "runner-gone"}]
+            run.client = self._scripted_client([])
+
+            with self.assertRaises(matrix.SegmentChannelLost):
+                run.controller("tap", "--identifier", "x")
+
+        self.assertEqual(run.events[-1]["action"], "tap")
+        self.assertFalse(run.events[-1]["success"])
+        self.assertEqual(run.sequence, 1)
+
+    def test_progress_is_written_after_every_step(self) -> None:
+        with TemporaryDirectory() as directory:
+            run = self._timing_out_run(Path(directory) / "raw")
+            run.output = Path(directory)
+            run.raw.mkdir(parents=True, exist_ok=True)
+            run.client = self._scripted_client([{"success": True}])
+
+            run.controller("tap", "--identifier", "x")
+            progress = json.loads((Path(directory) / "progress.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(progress["stepCount"], 1)
+        self.assertEqual(progress["lastAction"], "tap")
+        self.assertTrue(progress["lastSuccess"])
+        self.assertEqual(progress["channelFailures"], 0)
+        self.assertIsNone(progress["status"])
+
     def test_a_runner_that_stopped_answering_ends_the_run(self) -> None:
         with TemporaryDirectory() as directory:
             run = self._timing_out_run(Path(directory))
