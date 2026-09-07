@@ -775,6 +775,15 @@ struct PlaybackPresentationStateTests {
         #expect(WindowSystemOverlayPolicy.visibility(showsWindowPlayback: true, showsPlaybackChrome: true) == .automatic)
     }
 
+    @Test("The x button destroys the main window scene only while it hosts playback")
+    func mainWindowDestroysOnDismissalOnlyDuringPlayback() {
+        #expect(SpatialPlatformMainWindowDestructionPolicy.conditions(hostsPlayback: false).isEmpty)
+        #expect(
+            SpatialPlatformMainWindowDestructionPolicy.conditions(hostsPlayback: true)
+                == [.userInitiatedDismissal]
+        )
+    }
+
     @Test("Closing the main window stops playback only while the window hosts it")
     func mainWindowClosureStopsHostedPlayback() {
         typealias Policy = SpatialPlatformMainWindowClosurePolicy

@@ -294,6 +294,9 @@ public struct MainView: View {
                     playbackDeckOpacity = shows ? 1 : 0
                 }
             }
+            .onChange(of: showsWindowPlayback, initial: true) { _, hostsPlayback in
+                spatialPlatformEffectCoordinator.setMainWindowHostsPlayback(hostsPlayback)
+            }
     }
 
     private var primaryContent: some View {

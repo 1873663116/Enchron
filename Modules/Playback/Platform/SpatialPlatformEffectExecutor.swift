@@ -74,6 +74,14 @@ public enum SpatialPlatformMainWindowClosurePolicy {
     }
 }
 
+public enum SpatialPlatformMainWindowDestructionPolicy {
+    public static func conditions(
+        hostsPlayback: Bool
+    ) -> Set<UIScene.DestructionCondition> {
+        hostsPlayback ? [.userInitiatedDismissal] : []
+    }
+}
+
 public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldRevealMainWindow(
         sourceRendererIsReleased: Bool,
@@ -197,6 +205,8 @@ public final class SpatialPlatformEffectCoordinator {
     private var mainWindowSceneSessionIdentifier: String?
     @ObservationIgnored
     private var residentWindowSceneSessionIdentifier: String?
+    @ObservationIgnored
+    private var mainWindowHostsPlayback = false
     @ObservationIgnored
     private var sceneDisconnectObserver: (any NSObjectProtocol)?
     @ObservationIgnored
@@ -434,9 +444,30 @@ public final class SpatialPlatformEffectCoordinator {
         case .main:
             mainWindowScene = windowScene
             mainWindowSceneSessionIdentifier = windowScene.session.persistentIdentifier
+            applyMainWindowDestructionConditions()
         case .immersivePlaybackResident:
             residentWindowSceneSessionIdentifier = windowScene.session.persistentIdentifier
         }
+    }
+
+    public func setMainWindowHostsPlayback(_ hostsPlayback: Bool) {
+        guard mainWindowHostsPlayback != hostsPlayback else { return }
+        mainWindowHostsPlayback = hostsPlayback
+        applyMainWindowDestructionConditions()
+    }
+
+    private func applyMainWindowDestructionConditions() {
+        guard let mainWindowScene else { return }
+        let conditions = SpatialPlatformMainWindowDestructionPolicy.conditions(
+            hostsPlayback: mainWindowHostsPlayback
+        )
+        guard mainWindowScene.destructionConditions != conditions else { return }
+        mainWindowScene.destructionConditions = conditions
+        appModel.recordSurfaceInputProbe(
+            "mainWindowDestruction userInitiatedDismissal="
+                + "\(conditions.contains(.userInitiatedDismissal))",
+            retention: .evidence
+        )
     }
 
     private var residentWindowSceneHasDisconnected: Bool {
