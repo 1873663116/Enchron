@@ -11,7 +11,7 @@ final class PlaybackChromeBackdrop {
     static let sampleWidth = 160
     static let blurRadius: Double = 6
     static let refreshInterval: TimeInterval = 1.0 / 24
-    static let planeLift: Float = 0.01
+    static let planeLift: Float = 0
 
     let entity: Entity = {
         let entity = Entity()
