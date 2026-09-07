@@ -7,24 +7,13 @@ import RealityKit
 import SwiftUI
 
 @MainActor
-final class PlaybackChromeBackdrop {
+final class PlaybackChromeBackdropSampler {
     static let sampleWidth = 160
     static let blurRadius: Double = 6
     static let refreshInterval: TimeInterval = 1.0 / 24
-    static let planeLift: Float = 0
 
-    let entity: Entity = {
-        let entity = Entity()
-        entity.name = "Enchron.ChromeBackdrop"
-        return entity
-    }()
-
-    private let context = CIContext(options: [.cacheIntermediates: false])
-    private var texture: TextureResource?
-    private var textureSize = SIMD2<Int>(repeating: 0)
     private var lastSampledBuffer: CVPixelBuffer?
     private var lastSampledAt: TimeInterval = 0
-    private var planeSize: SIMD2<Float>?
     private var subscription: EventSubscription?
 
     func observe<Content: RealityViewContentProtocol>(
@@ -37,92 +26,34 @@ final class PlaybackChromeBackdrop {
         }
     }
 
-    func update(
-        on videoEntity: Entity,
-        renderer: AVSampleBufferVideoRenderer,
-        screenSize: SIMD2<Float>,
-        bandFraction: Float,
-        usesMainWindow: Bool
-    ) {
-        guard bandFraction > 0, screenSize.x > 0, screenSize.y > 0 else {
-            entity.isEnabled = false
-            return
-        }
-        let size = SIMD2<Float>(screenSize.x, screenSize.y * bandFraction)
-        if entity.parent !== videoEntity {
-            videoEntity.addChild(entity)
-        }
-        entity.position = [0, screenSize.y / 2 - size.y / 2, Self.planeLift]
-        if usesMainWindow {
-            entity.components.set(
-                ModelSortGroupComponent(
-                    group: .planarUIInline,
-                    order: WindowPlaybackSurfaceGeometry.chromeBackdropSortOrder
-                )
-            )
-        } else {
-            entity.components.remove(ModelSortGroupComponent.self)
-        }
+    // Returns a new band only when the displayed frame changed and the
+    // refresh interval elapsed; nil means "keep what you have".
+    func sample(renderer: AVSampleBufferVideoRenderer, bandFraction: Float) -> CGImage? {
+        guard bandFraction > 0 else { return nil }
         let now = CACurrentMediaTime()
-        if now - lastSampledAt >= Self.refreshInterval,
-           let buffer = renderer.displayedPixelBuffer(),
-           buffer !== lastSampledBuffer {
-            lastSampledAt = now
-            if let image = Self.blurredBand(of: buffer, bandFraction: bandFraction),
-               replaceTexture(with: image) {
-                lastSampledBuffer = buffer
-            }
+        guard now - lastSampledAt >= Self.refreshInterval,
+              let buffer = renderer.displayedPixelBuffer(),
+              buffer !== lastSampledBuffer else {
+            return nil
         }
-        guard let texture else {
-            entity.isEnabled = false
-            return
+        lastSampledAt = now
+        guard let image = Self.blurredBand(of: buffer, bandFraction: bandFraction) else {
+            return nil
         }
-        if planeSize != size || entity.components[ModelComponent.self] == nil {
-            var material = UnlitMaterial(texture: texture)
-            material.blending = .transparent(opacity: .init(scale: 1))
-            material.writesDepth = false
-            entity.components.set(ModelComponent(
-                mesh: .generatePlane(width: size.x, height: size.y),
-                materials: [material]
-            ))
-            planeSize = size
-        }
-        entity.isEnabled = true
+        lastSampledBuffer = buffer
+        return image
     }
 
-    func remove() {
+    func reset() {
         subscription?.cancel()
         subscription = nil
-        entity.removeFromParent()
-        entity.components.remove(ModelComponent.self)
-        entity.components.remove(ModelSortGroupComponent.self)
-        entity.isEnabled = false
-        texture = nil
-        textureSize = .zero
-        planeSize = nil
         lastSampledBuffer = nil
         lastSampledAt = 0
     }
 
-    private func replaceTexture(with image: CGImage) -> Bool {
-        let nextSize = SIMD2(image.width, image.height)
-        do {
-            if let texture, textureSize == nextSize {
-                try texture.replace(withImage: image, options: .init(semantic: .color))
-            } else {
-                texture = try TextureResource(image: image, options: .init(semantic: .color))
-                textureSize = nextSize
-                planeSize = nil
-            }
-            return true
-        } catch {
-            return false
-        }
-    }
-
     // The band samples the top of the displayed frame, shrinks it to a
     // thumbnail, blurs it, and bakes the eased fade into its alpha so the
-    // plane dissolves into the sharp video below it.
+    // image dissolves into the sharp video below it.
     private static func blurredBand(
         of buffer: CVPixelBuffer,
         bandFraction: Float
@@ -179,4 +110,29 @@ final class PlaybackChromeBackdrop {
 
 private extension CIContext {
     nonisolated(unsafe) static let shared = CIContext(options: [.cacheIntermediates: false])
+}
+
+// The window-shaped edge only exists in SwiftUI: a full-window overlay
+// clipped by the container shape inherits the window's corners with no
+// inset to infer, and the coincident z offset keeps it over the video mesh.
+public struct PlaybackChromeBackdropView: View {
+    @Environment(PlaybackSessionModel.self) private var appModel
+
+    public init() {}
+
+    public var body: some View {
+        Color.clear
+            .overlay(alignment: .top) {
+                if let image = appModel.windowChromeBackdropImage {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: DesignTokens.PlaybackEdge.depth)
+                        .clipped()
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }

@@ -7,8 +7,7 @@ public enum WindowPlaybackSurfaceGeometry {
     nonisolated public static let flatWindowDepth: CGFloat = 0
     nonisolated public static let projectedPortalDepth: CGFloat = 1
     nonisolated public static let backgroundSortOrder: Int32 = 0
-    nonisolated public static let chromeBackdropSortOrder: Int32 = backgroundSortOrder + 1
-    nonisolated public static let subtitleSortOrder: Int32 = chromeBackdropSortOrder + 1
+    nonisolated public static let subtitleSortOrder: Int32 = backgroundSortOrder + 1
     nonisolated public static let coincidentChromeDepth: CGFloat = .ulpOfOne
 
     nonisolated public static func realityViewDepth(

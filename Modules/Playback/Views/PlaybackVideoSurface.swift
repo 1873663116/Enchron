@@ -202,7 +202,7 @@ public struct PlaybackVideoSurface: View {
     }
 
     @State private var subtitleSurface = PlaybackSubtitleSurface()
-    @State private var chromeBackdrop = PlaybackChromeBackdrop()
+    @State private var chromeBackdrop = PlaybackChromeBackdropSampler()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var surfaceAccessibilityActivation =
@@ -621,18 +621,16 @@ public struct PlaybackVideoSurface: View {
 
     @MainActor
     private func refreshChromeBackdrop() {
-        guard let renderer = playbackRuntime.renderer,
+        let fraction = chromeBackdropFraction
+        guard fraction > 0,
+              let renderer = playbackRuntime.renderer,
               playbackRuntime.rendererConsumerPresentation?.usesMainWindow == true else {
-            chromeBackdrop.entity.isEnabled = false
+            appModel.setWindowChromeBackdropImage(nil)
             return
         }
-        chromeBackdrop.update(
-            on: videoEntity,
-            renderer: renderer,
-            screenSize: videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
-            bandFraction: chromeBackdropFraction,
-            usesMainWindow: true
-        )
+        if let image = chromeBackdrop.sample(renderer: renderer, bandFraction: fraction) {
+            appModel.setWindowChromeBackdropImage(image)
+        }
     }
 
     @MainActor
@@ -989,7 +987,8 @@ public struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        chromeBackdrop.remove()
+        chromeBackdrop.reset()
+        appModel.setWindowChromeBackdropImage(nil)
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }
@@ -1036,7 +1035,8 @@ public struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        chromeBackdrop.remove()
+        chromeBackdrop.reset()
+        appModel.setWindowChromeBackdropImage(nil)
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }

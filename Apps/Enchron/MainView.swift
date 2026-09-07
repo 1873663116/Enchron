@@ -505,6 +505,8 @@ public struct MainView: View {
             }
         ) {
             windowPlaybackCanvas
+        } chromeBackdrop: {
+            PlaybackChromeBackdropView()
         } topChrome: {
             PlayerInfoBarView(
                 controlsVisible: showsPlaybackChrome,

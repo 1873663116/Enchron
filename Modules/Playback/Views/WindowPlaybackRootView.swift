@@ -301,6 +301,7 @@ struct WindowPlaybackSpatialActions<
 
 public struct WindowPlaybackRootView<
     VideoContent: View,
+    ChromeBackdrop: View,
     TopChrome: View
 >: View {
     @State private var owningWindowScene: UIWindowScene?
@@ -317,6 +318,7 @@ public struct WindowPlaybackRootView<
     private let onTopChromeOcclusionChange: (@MainActor (Float) -> Void)?
     private let onSurfaceHeightChange: (@MainActor (CGFloat) -> Void)?
     private let videoContent: VideoContent
+    private let chromeBackdrop: ChromeBackdrop
     private let topChrome: TopChrome
 
     public init(
@@ -332,6 +334,7 @@ public struct WindowPlaybackRootView<
         onTopChromeOcclusionChange: (@MainActor (Float) -> Void)? = nil,
         onSurfaceHeightChange: (@MainActor (CGFloat) -> Void)? = nil,
         @ViewBuilder videoContent: () -> VideoContent,
+        @ViewBuilder chromeBackdrop: () -> ChromeBackdrop,
         @ViewBuilder topChrome: () -> TopChrome
     ) {
         self.geometryPolicy = geometryPolicy
@@ -344,6 +347,7 @@ public struct WindowPlaybackRootView<
         self.onTopChromeOcclusionChange = onTopChromeOcclusionChange
         self.onSurfaceHeightChange = onSurfaceHeightChange
         self.videoContent = videoContent()
+        self.chromeBackdrop = chromeBackdrop()
         self.topChrome = topChrome()
     }
 
@@ -382,6 +386,20 @@ public struct WindowPlaybackRootView<
 
     private var layeredContent: some View {
         surfaceContent
+            .overlay {
+                chromeBackdrop
+                    .clipShape(ContainerRelativeShape())
+                    .enchronSpatialFrame(depth: 0)
+                    .enchronSpatialOffset(
+                        z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                    )
+                    .opacity(showsWindowChrome ? 1 : 0)
+                    .animation(
+                        DesignTokens.AnimationToken.controlsTransition,
+                        value: showsWindowChrome
+                    )
+                    .allowsHitTesting(false)
+            }
             .overlay(alignment: .top) {
                 topChromePlane
                     .opacity(showsWindowChrome ? 1 : 0)
