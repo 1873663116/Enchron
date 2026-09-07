@@ -159,6 +159,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func suspendVideoSampleDelivery(flushingRenderer: Bool = false) async {
+        cancelFirstVideoFrameDeadline()
         let task = deliveryTaskLock.withLock {
             videoSampleDeliverySuspended = true
             videoDeliveryGeneration &+= 1
@@ -178,6 +179,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func allowVideoSampleDeliveryRestart() {
+        cancelFirstVideoFrameDeadline()
         deliveryTaskLock.withLock {
             videoSampleDeliverySuspended = false
         }

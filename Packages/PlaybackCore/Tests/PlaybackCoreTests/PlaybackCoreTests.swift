@@ -4161,6 +4161,32 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
 }
 
+@Test func rendererHandoffCancelsAnArmedFirstFrameDeadline() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "handoff-cancels-first-frame-deadline-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameDeadline: .milliseconds(40),
+        firstVideoFrameObservation: { false }
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/handoff.mp4"),
+        startsPaused: true
+    )
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try session.play()
+    await session.suspendVideoSampleDelivery()
+    session.allowVideoSampleDeliveryRestart()
+    try await Task.sleep(for: .milliseconds(80))
+
+    #expect(session.debugSnapshot().lifecycle != .failed)
+    #expect(session.debugSnapshot().lastFailure == nil)
+}
+
 @Test func externallyManagedFirstFrameDeadlineDoesNotFailPlayback() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
