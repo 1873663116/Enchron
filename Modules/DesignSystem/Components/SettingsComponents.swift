@@ -58,12 +58,12 @@ public struct GlassCapsuleIconLabelButton: View {
 private struct CircleIconSurface: ViewModifier {
     let hostedOverMedia: Bool
 
+    // glassBackgroundEffect inside a Button label did not render on device
+    // (2026-09-07: back, dock and format vanished while the Menu-hosted
+    // label kept its glass), so every host draws the material surface until
+    // that is understood.
     func body(content: Content) -> some View {
-        if hostedOverMedia {
-            content.enchronMediaButtonSurface(in: Circle())
-        } else {
-            content.enchronButtonSurface(in: Circle())
-        }
+        content.enchronButtonSurface(in: Circle())
     }
 }
 
