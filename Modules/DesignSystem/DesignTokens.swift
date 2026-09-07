@@ -472,9 +472,9 @@ public enum DesignTokens {
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
-    public enum MediaChromeShadow {
-        public static let opacity: CGFloat = 0.32
-        public static let spread: CGFloat = 22
+    public enum MediaChromeOutline {
+        public static let color: Color = .white.opacity(0.55)
+        public static let lineWidth: CGFloat = Stroke.regular
     }
 
     public enum ProgressBar {
