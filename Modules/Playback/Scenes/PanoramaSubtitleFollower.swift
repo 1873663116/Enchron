@@ -111,11 +111,14 @@ final class PanoramaSubtitleFollower {
     static let dockedSubtitleBottomAboveControlsMeters: Float = 0.10
     static let dockTransitionSpeedMetersPerSecond: Float = 3.9
     static let minimumDockTransitionSeconds: Float = 0.12
+    static let dockArcHeightMeters: Float = 0.35
 
     var dockTransformProvider: @MainActor () -> Transform? = { nil }
 
     private var wasDocked = false
     private var transitionTimeConstant: Float = LazyGazeFollow.timeConstantSeconds
+    private var transitionTravel: Float = 0
+    private var arcLift: Float = 0
 
     private var follow = LazyGazeFollow()
     private var session: ARKitSession?
@@ -155,6 +158,8 @@ final class PanoramaSubtitleFollower {
         follow = LazyGazeFollow()
         wasDocked = false
         transitionTimeConstant = LazyGazeFollow.timeConstantSeconds
+        transitionTravel = 0
+        arcLift = 0
         root.scale = .one
         root.removeFromParent()
     }
@@ -237,22 +242,38 @@ final class PanoramaSubtitleFollower {
                 translation: headPosition
             )
         }
+        let unliftedRoot = Transform(
+            scale: root.scale,
+            rotation: root.orientation,
+            translation: root.position - [0, arcLift, 0]
+        )
         if follow.isDocked != wasDocked {
             wasDocked = follow.isDocked
-            let travel = simd_distance(
-                Self.screenCenterWorld(of: root.transform),
+            transitionTravel = simd_distance(
+                Self.screenCenterWorld(of: unliftedRoot),
                 Self.screenCenterWorld(of: target)
             )
             transitionTimeConstant = max(
-                travel / Self.dockTransitionSpeedMetersPerSecond,
+                transitionTravel / Self.dockTransitionSpeedMetersPerSecond,
                 Self.minimumDockTransitionSeconds
             )
         }
         let factor = 1 - exp(-max(deltaTime, 0) / transitionTimeConstant)
+        let eased = Transform(
+            scale: simd_mix(unliftedRoot.scale, target.scale, SIMD3(repeating: factor)),
+            rotation: simd_slerp(unliftedRoot.rotation, target.rotation, factor),
+            translation: simd_mix(unliftedRoot.translation, target.translation, SIMD3(repeating: factor))
+        )
+        let remaining = simd_distance(
+            Self.screenCenterWorld(of: eased),
+            Self.screenCenterWorld(of: target)
+        )
+        let progress = transitionTravel > 0 ? 1 - min(remaining / transitionTravel, 1) : 1
+        arcLift = Self.dockArcHeightMeters * sin(progress * .pi)
         root.transform = Transform(
-            scale: simd_mix(root.scale, target.scale, SIMD3(repeating: factor)),
-            rotation: simd_slerp(root.orientation, target.rotation, factor),
-            translation: simd_mix(root.position, target.translation, SIMD3(repeating: factor))
+            scale: eased.scale,
+            rotation: eased.rotation,
+            translation: eased.translation + [0, arcLift, 0]
         )
     }
 }
