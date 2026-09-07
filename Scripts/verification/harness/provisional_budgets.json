@@ -42,6 +42,11 @@
     "expires": "2026-10-01",
     "seconds": 60
   },
+  "doubleTap": {
+    "expires": "2026-10-01",
+    "floorSeconds": 75,
+    "seconds": 60
+  },
   "emby-aggregate": {
     "expires": "2026-10-01",
     "seconds": 120

@@ -7,7 +7,7 @@
 - **测试宿主的 stdout 既不进 xcodebuild 日志，也不进设备上的 result bundle**。app 容器进得去（经 devicectl），所以测量报告写进容器而不是打印出来。解码能力矩阵就落在容器里的 `video-decoder-matrix.tsv`。
 - **`XCUIScreen.main` 在当前 visionOS 构建上返回 1×1 图像**，读起来像一张黑帧而不是一次抓取失败。application element 仍然能抓，所以退化的屏幕图像要回退到它。
 - **模拟器截图 lane 没有点进模拟器的通道**，想看的那一屏必须在启动时就可达；启动参数因此是到达某一屏的唯一途径。
-- **精确时间轴由 scrubber 的双击打开**，合成 tap 复现不了双击，所以逐帧步进按钮在测试里除了走测试通道之外不可达。
+- **精确时间轴由 scrubber 的双击打开**，合成的单次 tap 打不开它。runner 的 `doubleTap` 动词发出 `XCUIElement.doubleTap()`，`Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift` 以它断言时间轴展开；`Scripts/verification/reachability_matrix.py` 的 `precision_timeline_scenario` 走同一条路径，在四个呈现上到达展开后的 `PlayerPanel-precision-timeline-back` 并按 `precisionTimeline.close` 探针判定。逐帧步进按钮不带 accessibility identifier，仍然只能走测试通道的 `frameStep`。
 - **真机的进程表按可执行文件路径列出进程，bundle id 不出现在其中**。`…/Enchron.app/Enchron` 与 `…/EnchronAppUITests-Runner.app/…` 都含有 `Enchron`，所以 `Scripts/verification/interactive_visionpro_ui.py` 用这一个 marker 同时匹配 app 与 runner。
 - **模拟器上 `launchctl list` 按 bundle id 标注 app，而不是按可执行文件路径**，同一次进程观察的 marker 集合因此随 transport 变化。`Scripts/verification/interactive_visionpro_ui.py` 在模拟器上要在路径 marker 之外再加上 app 与 runner 的 bundle id。
 - **`devicectl device copy` 以目录为单位整体复制**，而 deferred 应答批次就是一个目录。`Scripts/verification/enchron_target.py` 的模拟器分支必须整树复制来对齐这一行为；只复制文件会把每一条批量应答留在模拟器容器里。

@@ -179,6 +179,49 @@ class LaneValidationTests(unittest.TestCase):
         for op, segs in owners.items():
             self.assertEqual(segs, ["probe-docked-reset-media-information"], f"{op} must belong to exactly one segment")
 
+    def test_panel_back_buttons_each_land_in_one_existing_segment(self) -> None:
+        probe = plan.probe_plan()
+        wanted = {
+            ("window", "accessibility:PlayerPanel-precision-timeline-back"),
+            ("portal", "accessibility:PlayerPanel-precision-timeline-back"),
+            ("panorama", "accessibility:PlayerPanel-precision-timeline-back"),
+            ("docked", "accessibility:PlayerPanel-precision-timeline-back"),
+            ("docked", "accessibility:PlayerPanel-DockedPlacement-back"),
+        }
+        owners = {key: [] for key in wanted}
+        for seg in probe["segments"]:
+            for dec in seg["decisions"]:
+                key = (dec["context"], dec["operation"])
+                if key in owners:
+                    owners[key].append(seg["id"])
+        self.assertEqual(owners[("window", "accessibility:PlayerPanel-precision-timeline-back")], ["probe-window"])
+        self.assertEqual(owners[("portal", "accessibility:PlayerPanel-precision-timeline-back")], ["probe-portal"])
+        self.assertEqual(owners[("panorama", "accessibility:PlayerPanel-precision-timeline-back")], ["probe-panorama"])
+        self.assertEqual(owners[("docked", "accessibility:PlayerPanel-precision-timeline-back")], ["probe-docked"])
+        self.assertEqual(
+            owners[("docked", "accessibility:PlayerPanel-DockedPlacement-back")],
+            ["probe-docked-reset-media-information"],
+        )
+
+    def test_the_docked_settings_close_follows_the_settings_open_into_the_reset_segment(
+        self,
+    ) -> None:
+        """docked_settings_scenario is the only route to both buttons.
+
+        probe-docked returns before it, so a cell declared there is planned and
+        never driven.
+        """
+        self.assertIn(
+            "accessibility:PlayerPanel-DockedPlacement-back",
+            plan.DOCKED_RESET_OPERATIONS,
+        )
+        probe = plan.probe_plan()
+        docked = next(s for s in probe["segments"] if s["id"] == "probe-docked")
+        self.assertNotIn(
+            "accessibility:PlayerPanel-DockedPlacement-back",
+            {d["operation"] for d in docked["decisions"]},
+        )
+
     def test_probe_docked_does_not_claim_fault_step(self) -> None:
         probe = plan.probe_plan()
         docked = next(s for s in probe["segments"] if s["id"] == "probe-docked")

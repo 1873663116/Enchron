@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 
 import sys
@@ -781,6 +782,69 @@ class ProductInventoryInteractiveTests(unittest.TestCase):
         roles = {record["template"]: record["role"] for record in built["identifiers"]}
 
         self.assertEqual(roles["PlayerPanel-media-information"], "operation")
+
+    def test_the_panel_back_buttons_derive_the_contexts_that_render_them(self) -> None:
+        built = inventory.build_inventory()
+        contexts = {
+            str(operation["id"]): [str(value) for value in operation["proofContexts"]]
+            for operation in built["operations"]
+        }
+
+        self.assertEqual(
+            contexts["accessibility:PlayerPanel-precision-timeline-back"],
+            ["window", "portal", "panorama", "docked"],
+        )
+        self.assertEqual(
+            contexts["accessibility:PlayerPanel-DockedPlacement-back"],
+            ["docked"],
+        )
+
+
+class CommittedMatrixBaselineTests(unittest.TestCase):
+    def test_the_committed_baseline_covers_every_derived_cell(self) -> None:
+        built = inventory.build_inventory()
+        baseline = json.loads(
+            inventory.MATRIX_BASELINE.read_text(encoding="utf-8")
+        )
+        expected = {
+            (str(context), str(operation["id"]))
+            for operation in built["operations"]
+            for context in operation["proofContexts"]
+        }
+        actual = {
+            (str(cell.get("context")), str(cell.get("operation")))
+            for cell in baseline["cells"]
+            if isinstance(cell, dict)
+        }
+
+        self.assertEqual(actual, expected)
+
+    def test_the_panel_back_button_cells_enter_as_known_defects(self) -> None:
+        """A cell no physical run has driven cannot claim a device verdict.
+
+        --extend-baseline-known-defects seats them so the coverage gate passes
+        while the matrix still owes each one a run.
+        """
+        baseline = json.loads(
+            inventory.MATRIX_BASELINE.read_text(encoding="utf-8")
+        )
+        verdicts = {
+            (str(cell["context"]), str(cell["operation"])): str(cell["verdict"])
+            for cell in baseline["cells"]
+        }
+
+        for context in ("window", "portal", "panorama", "docked"):
+            with self.subTest(context=context):
+                self.assertEqual(
+                    verdicts[
+                        (context, "accessibility:PlayerPanel-precision-timeline-back")
+                    ],
+                    "known-defect",
+                )
+        self.assertEqual(
+            verdicts[("docked", "accessibility:PlayerPanel-DockedPlacement-back")],
+            "known-defect",
+        )
 
 
 if __name__ == "__main__":

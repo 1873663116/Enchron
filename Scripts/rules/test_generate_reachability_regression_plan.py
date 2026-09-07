@@ -110,6 +110,67 @@ class RegressionPlanTests(unittest.TestCase):
         self.assertIsNotNone(route)
         self.assertEqual(route.scenarios, ("docked-exit-command-round11",))
 
+    def test_every_panel_back_button_cell_has_a_route_to_schedule_it(self) -> None:
+        """The five new cells enter the baseline as known defects.
+
+        A known-defect cell reaches a regression run only as an additional
+        cell, and build_plan raises when one has no route, so each of the five
+        needs either an explicit additional-cell route or a context fallback.
+        """
+        expected = {
+            generator.CellKey(
+                "window", "accessibility:PlayerPanel-precision-timeline-back"
+            ): ("window-playback",),
+            generator.CellKey(
+                "portal", "accessibility:PlayerPanel-precision-timeline-back"
+            ): ("portal",),
+            generator.CellKey(
+                "panorama", "accessibility:PlayerPanel-precision-timeline-back"
+            ): ("panorama",),
+            generator.CellKey(
+                "docked", "accessibility:PlayerPanel-precision-timeline-back"
+            ): ("docked-transport-issues",),
+            generator.CellKey(
+                "docked", "accessibility:PlayerPanel-DockedPlacement-back"
+            ): ("docked-reset-media-information",),
+        }
+        for key, scenarios in expected.items():
+            with self.subTest(cell=key):
+                route = generator.current_route_for_additional_cell(
+                    key
+                ) or generator.current_route_for_unmapped_cell(key)
+                self.assertIsNotNone(route)
+                self.assertEqual(route.scenarios, scenarios)
+
+    def test_the_new_cells_schedule_without_historical_segment_data(self) -> None:
+        additional = {
+            generator.CellKey(
+                "docked", "accessibility:PlayerPanel-DockedPlacement-back"
+            ),
+            generator.CellKey(
+                "panorama", "accessibility:PlayerPanel-precision-timeline-back"
+            ),
+        }
+
+        plan = generator.build_plan(
+            baseline={"cells": [
+                {
+                    "context": key.context,
+                    "operation": key.operation,
+                    "verdict": "known-defect",
+                }
+                for key in additional
+            ]},
+            driven_routes={},
+            planned_routes={},
+            additional_cells=additional,
+        )
+
+        self.assertEqual(plan["requiredReachableBaselineCells"], 0)
+        self.assertEqual(
+            sum(len(segment["decisions"]) for segment in plan["segments"]), 2
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

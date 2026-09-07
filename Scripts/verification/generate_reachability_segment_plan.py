@@ -65,6 +65,7 @@ DOCKED_RESET_SEGMENT = "probe-docked-reset-media-information"
 DOCKED_RESET_SCENARIO = "docked-reset-media-information"
 DOCKED_RESET_OPERATIONS = {
     "accessibility:PlayerPanel-button-settings",
+    "accessibility:PlayerPanel-DockedPlacement-back",
     "accessibility:PlayerPanel-DockedPlacement-reset",
     "accessibility:PlayerPanel-media-information",
     "accessibility:PlayerPanel-media-information-close",

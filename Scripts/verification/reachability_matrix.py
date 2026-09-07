@@ -6702,6 +6702,38 @@ class ReachabilityRun:
                 presentation, operation_id, evidence,
                 "The DEBUG verb reached the same PlaybackRuntime seek pipeline.",
             )
+        self.precision_timeline_scenario(presentation)
+
+    def precision_timeline_scenario(self, presentation: str) -> None:
+        self.show_controls(presentation)
+        before = self.copy_probe(f"{presentation}-precision-timeline-before")
+        offset = len(before)
+        opened = self.controller(
+            "doubleTap",
+            "--identifier", "PlayerPanel-progress",
+            "--no-screenshot",
+        )
+        if opened.get("success") is not True:
+            return
+        expanded = self.wait_for_identifier("PlayerPanel-precision-timeline-back")
+        if not isinstance(expanded.get("matchedElement"), dict):
+            return
+        closed = self.tap(presentation, "PlayerPanel-precision-timeline-back")
+        probe = self.wait_for_probe(
+            f"{presentation}-precision-timeline-close",
+            offset,
+            "reachability playerPanel delivered action=precisionTimeline.close",
+        )
+        if closed.get("success") is True and any(
+            "reachability playerPanel delivered action=precisionTimeline.close" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation,
+                "accessibility:PlayerPanel-precision-timeline-back",
+                self.events[-1]["evidence"],
+                "Close Timeline collapsed the expanded precision timeline and appended its action-specific application probe.",
+            )
 
     def top_menu_scenario(self, presentation: str) -> None:
         opened, before = self.tap_with_fresh_controls(
@@ -7159,6 +7191,19 @@ class ReachabilityRun:
                 presentation, "accessibility:PlayerPanel-DockedPlacement-reset",
                 self.events[-1]["evidence"],
                 "Restore Defaults reached the shared Docked placement reset handler.",
+            )
+        before = probe
+        offset = len(before)
+        collapsed = self.tap(presentation, "PlayerPanel-DockedPlacement-back")
+        probe = self.copy_probe("docked-settings-close")
+        if collapsed.get("success") is True and any(
+            "reachability playerPanel delivered action=settings.close" in line
+            for line in probe[offset:]
+        ):
+            self.delivered(
+                presentation, "accessibility:PlayerPanel-DockedPlacement-back",
+                self.events[-1]["evidence"],
+                "Close Advanced Settings collapsed the Docked placement controls and appended a probe.",
             )
 
 

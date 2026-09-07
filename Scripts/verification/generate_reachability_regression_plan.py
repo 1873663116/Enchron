@@ -182,6 +182,15 @@ def current_route_for_additional_cell(key: CellKey) -> Route | None:
         CellKey(
             "docked", "accessibility:PlayerPanel-button-exit-spatial"
         ): "docked-exit-command-round11",
+        CellKey(
+            "docked", "accessibility:PlayerPanel-DockedPlacement-back"
+        ): "docked-reset-media-information",
+        CellKey(
+            "docked", "accessibility:PlayerPanel-precision-timeline-back"
+        ): "docked-transport-issues",
+        CellKey(
+            "panorama", "accessibility:PlayerPanel-precision-timeline-back"
+        ): "panorama",
     }
     scenario = scenarios.get(key)
     if scenario is None:

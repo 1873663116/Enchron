@@ -1852,6 +1852,146 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             ],
         )
 
+    def precision_timeline_run(
+        self,
+        *,
+        expanded: dict[str, object],
+        probe_lines: list[str],
+    ) -> matrix.ReachabilityRun:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
+        run.events = [{"evidence": "raw/121-tap.json"}]
+        run.show_controls = Mock()
+        run.copy_probe = Mock(return_value=[])
+        run.controller = Mock(return_value={"success": True})
+        run.wait_for_identifier = Mock(return_value=expanded)
+        run.tap = Mock(return_value={"success": True})
+        run.wait_for_probe = Mock(return_value=probe_lines)
+        run.delivered = Mock()
+        return run
+
+    def test_the_precision_timeline_close_is_credited_after_the_scrubber_expands_it(
+        self,
+    ) -> None:
+        """The timeline only opens on a double tap of the scrubber.
+
+        A synthetic single tap cannot reproduce that gesture, so the back
+        button has no route to the hierarchy until the doubleTap verb runs and
+        the expanded row is observed.
+        """
+        run = self.precision_timeline_run(
+            expanded={"matchedElement": {"identifier": "PlayerPanel-precision-timeline-back"}},
+            probe_lines=["reachability playerPanel delivered action=precisionTimeline.close"],
+        )
+
+        run.precision_timeline_scenario("panorama")
+
+        self.assertEqual(
+            run.controller.call_args.args,
+            ("doubleTap", "--identifier", "PlayerPanel-progress", "--no-screenshot"),
+        )
+        self.assertEqual(
+            run.tap.call_args.args,
+            ("panorama", "PlayerPanel-precision-timeline-back"),
+        )
+        self.assertEqual(
+            [call.args[1] for call in run.delivered.call_args_list],
+            ["accessibility:PlayerPanel-precision-timeline-back"],
+        )
+
+    def test_a_timeline_that_never_expands_credits_nothing(self) -> None:
+        run = self.precision_timeline_run(
+            expanded={},
+            probe_lines=["reachability playerPanel delivered action=precisionTimeline.close"],
+        )
+
+        run.precision_timeline_scenario("window")
+
+        run.tap.assert_not_called()
+        run.delivered.assert_not_called()
+
+    def test_a_close_the_panel_never_reported_is_not_credited(self) -> None:
+        run = self.precision_timeline_run(
+            expanded={"matchedElement": {"identifier": "PlayerPanel-precision-timeline-back"}},
+            probe_lines=["reachability playerPanel delivered action=precisionTimeline.open"],
+        )
+
+        run.precision_timeline_scenario("portal")
+
+        run.tap.assert_called_once()
+        run.delivered.assert_not_called()
+
+    def test_the_seek_scenario_drives_the_precision_timeline_close(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
+        run.events = [{"evidence": "raw/090-app-command.json"}]
+        run.app_command = Mock(return_value={"success": True})
+        run.delivered = Mock()
+        run.precision_timeline_scenario = Mock()
+
+        run.seek_scenario("portal", "0.4")
+
+        run.precision_timeline_scenario.assert_called_once_with("portal")
+
+    def test_docked_settings_credits_the_close_after_restore_defaults(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
+        run.events = [{"evidence": "raw/210-tap.json"}]
+        run.show_controls = Mock()
+        run.tap = Mock(return_value={"success": True})
+        opened = "reachability playerPanel delivered action=settings.open"
+        reset = "reachability playerPanel delivered action=dockedPlacement.reset"
+        closed = "reachability playerPanel delivered action=settings.close"
+        run.copy_probe = Mock(side_effect=[
+            [],
+            [opened],
+            [opened, reset],
+            [opened, reset, closed],
+        ])
+        run.delivered = Mock()
+
+        run.docked_settings_scenario()
+
+        self.assertEqual(
+            [call.args[1] for call in run.tap.call_args_list],
+            [
+                "PlayerPanel-button-settings",
+                "PlayerPanel-DockedPlacement-reset",
+                "PlayerPanel-DockedPlacement-back",
+            ],
+        )
+        self.assertEqual(
+            [call.args[1] for call in run.delivered.call_args_list],
+            [
+                "accessibility:PlayerPanel-button-settings",
+                "accessibility:PlayerPanel-DockedPlacement-reset",
+                "accessibility:PlayerPanel-DockedPlacement-back",
+            ],
+        )
+
+    def test_a_settings_close_the_panel_never_reported_is_not_credited(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.lane = "device"
+        run.events = [{"evidence": "raw/210-tap.json"}]
+        run.show_controls = Mock()
+        run.tap = Mock(return_value={"success": True})
+        opened = "reachability playerPanel delivered action=settings.open"
+        reset = "reachability playerPanel delivered action=dockedPlacement.reset"
+        run.copy_probe = Mock(side_effect=[
+            [],
+            [opened],
+            [opened, reset],
+            [opened, reset],
+        ])
+        run.delivered = Mock()
+
+        run.docked_settings_scenario()
+
+        self.assertNotIn(
+            "accessibility:PlayerPanel-DockedPlacement-back",
+            [call.args[1] for call in run.delivered.call_args_list],
+        )
+
     def test_app_command_retries_the_lost_command_file_race(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.lane = "device"

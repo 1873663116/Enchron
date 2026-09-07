@@ -1071,6 +1071,31 @@
       "context": "main-window-browser",
       "operation": "accessibility:Emby-Detail-Play",
       "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerPanel-precision-timeline-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "portal",
+      "operation": "accessibility:PlayerPanel-precision-timeline-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "panorama",
+      "operation": "accessibility:PlayerPanel-precision-timeline-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-DockedPlacement-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerPanel-precision-timeline-back",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",
