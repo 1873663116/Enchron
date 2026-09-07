@@ -61,6 +61,19 @@ public enum SpatialPlatformResidentWindowPolicy {
     }
 }
 
+public enum SpatialPlatformMainWindowClosurePolicy {
+    public static func stopsPlayback(
+        hasActivePlaybackRequest: Bool,
+        presentation: PlaybackPresentation,
+        transition: PlaybackPresentationTransition?
+    ) -> Bool {
+        guard hasActivePlaybackRequest else { return false }
+        guard let transition else { return presentation.usesMainWindow }
+        return transition.previousPresentation.usesMainWindow
+            || transition.targetPresentation.usesMainWindow
+    }
+}
+
 public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldRevealMainWindow(
         sourceRendererIsReleased: Bool,
@@ -185,6 +198,10 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var residentWindowSceneSessionIdentifier: String?
     @ObservationIgnored
+    private var sceneDisconnectObserver: (any NSObjectProtocol)?
+    @ObservationIgnored
+    public var onMainWindowClosedByWearer: (@MainActor () -> Void)?
+    @ObservationIgnored
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
     private var residentWindowState = SpatialPlatformResidentWindowState.absent
@@ -225,6 +242,38 @@ public final class SpatialPlatformEffectCoordinator {
         appModel.setSpatialPlatformEffectReplacementHandler { [weak self] in
             self?.requestDrain()
         }
+        observeSceneDisconnections()
+    }
+
+    private func observeSceneDisconnections() {
+        sceneDisconnectObserver = NotificationCenter.default.addObserver(
+            forName: UIScene.didDisconnectNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            nonisolated(unsafe) let object = notification.object
+            let identifier = MainActor.assumeIsolated {
+                (object as? UIScene)?.session.persistentIdentifier
+            }
+            Task { @MainActor [weak self] in
+                self?.windowSceneDidDisconnect(sessionIdentifier: identifier)
+            }
+        }
+    }
+
+    private func windowSceneDidDisconnect(sessionIdentifier: String?) {
+        guard let sessionIdentifier,
+              sessionIdentifier == mainWindowSceneSessionIdentifier else {
+            return
+        }
+        mainWindowScene = nil
+        mainWindowSceneSessionIdentifier = nil
+        recordWindowResidency(.closed, for: .main)
+        appModel.recordSurfaceInputProbe(
+            "mainWindowScene disconnected trigger=wearer",
+            retention: .evidence
+        )
+        onMainWindowClosedByWearer?()
     }
 
     public func recordMainWindowPlaybackSurfaceRefreshApplied(_ revision: UInt64) {

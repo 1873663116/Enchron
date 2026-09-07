@@ -1078,6 +1078,22 @@ final class TestCommandChannel {
                 payload: [String(playbackSession.showControls)]
             )
 #if DEBUG
+        case "closeMainWindow":
+            guard let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.session.role == .windowApplication
+                    && $0.activationState == .foregroundActive }) else {
+                throw CommandError(message: "closeMainWindow found no foreground Window scene.")
+            }
+            SurfaceInputProbes.record(
+                "testcmd closeMainWindow session=\(windowScene.session.persistentIdentifier)",
+                retention: .evidence
+            )
+            UIApplication.shared.requestSceneSessionDestruction(
+                windowScene.session,
+                options: nil
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: [])
         case "setWindowSize":
             return try setWindowSize(request)
         case "openEnvironmentCard":

@@ -775,6 +775,37 @@ struct PlaybackPresentationStateTests {
         #expect(WindowSystemOverlayPolicy.visibility(showsWindowPlayback: true, showsPlaybackChrome: true) == .automatic)
     }
 
+    @Test("Closing the main window stops playback only while the window hosts it")
+    func mainWindowClosureStopsHostedPlayback() {
+        typealias Policy = SpatialPlatformMainWindowClosurePolicy
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: false, presentation: .window, transition: nil) == false)
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .window, transition: nil))
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .portal, transition: nil))
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .docked, transition: nil) == false)
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .panorama, transition: nil) == false)
+        let toDocked = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .docked,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .window, transition: toDocked))
+        let backToPortal = PlaybackPresentationTransition(
+            previousPresentation: .panorama,
+            targetPresentation: .portal,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .panorama, transition: backToPortal))
+        let betweenSpaces = PlaybackPresentationTransition(
+            previousPresentation: .docked,
+            targetPresentation: .panorama,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(Policy.stopsPlayback(hasActivePlaybackRequest: true, presentation: .docked, transition: betweenSpaces) == false)
+    }
+
     @Test("The main window keeps its glass until video is visible, except while it returns from a space")
     func mainWindowGlassLeavesOnlyForVisibleVideo() {
         #expect(WindowGlassPolicy.showsGlass(
