@@ -464,6 +464,16 @@ public struct PlaybackVideoSurface: View {
             contentTypeSessionID: contentTypeScope?.technicalSessionID,
             onChange: { reason in
                 logComponentState(reason: reason)
+                appModel.recordSurfaceInputProbe(
+                    "windowVideoEvent reason=\(reason)"
+                        + " presentation=\(presentation.rawValue)"
+                        + " actualImmersiveMode=\(actualImmersiveViewingMode ?? "none")"
+                        + " actualViewingMode="
+                        + "\(component.map { String(describing: $0.viewingMode) } ?? "none")"
+                        + " rendering="
+                        + "\(component.map { String(describing: $0.currentRenderingStatus) } ?? "none")"
+                        + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+                )
                 componentRevision &+= 1
             },
             onContentTypeDidChange: { contentType, eventSessionID in
@@ -482,13 +492,22 @@ public struct PlaybackVideoSurface: View {
         if needsInsertion {
             content.add(videoEntity)
         }
-        PlaybackRealityPresenter.configure(
+        let componentWrite = PlaybackRealityPresenter.configure(
             videoEntity,
             renderer: renderer,
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode,
             requestsProgressiveImmersiveViewingMode: false
         )
+        if componentWrite != .unchanged {
+            appModel.recordSurfaceInputProbe(
+                "windowVideoComponent write=\(componentWrite.rawValue)"
+                    + " presentation=\(presentation.rawValue)"
+                    + " spatialVideoMode=\(playbackRuntime.requestsSpatialVideoMode)"
+                    + " contentKind=\(playbackRuntime.sourceVideoContentKind.rawValue)"
+                    + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+            )
+        }
         let installedOcclusion = appModel.windowChromeOcclusion
         PlaybackWindowInteractionSurface.install(
             playbackVideoEntityStore.windowInteractionSurface,
@@ -510,13 +529,23 @@ public struct PlaybackVideoSurface: View {
             transition: appModel.presentationTransition,
             visualCutoverMayBegin: appModel.presentationVisualCutoverMayBegin
         )
+        let currentOpacity = videoEntity.components[OpacityComponent.self]?.opacity
+        let animatesOpacity = currentOpacity != nil
+            && PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(
+                transition: appModel.presentationTransition
+            )
+        if currentOpacity != Float(videoEntityOpacity) {
+            appModel.recordSurfaceInputProbe(
+                "windowVideoOpacity target=\(videoEntityOpacity)"
+                    + " current=\(currentOpacity.map { String($0) } ?? "none")"
+                    + " animated=\(animatesOpacity)"
+                    + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+            )
+        }
         PlaybackRealityPresenter.setOpacity(
             of: videoEntity,
             to: Float(videoEntityOpacity),
-            animated: videoEntity.components[OpacityComponent.self] != nil
-                && PlaybackPresentationTransitionAppearance.animatesWindowVideoEntity(
-                    transition: appModel.presentationTransition
-                )
+            animated: animatesOpacity
         )
         surfaceAccessibilityActivation.observe(
             in: content,
@@ -638,6 +667,13 @@ public struct PlaybackVideoSurface: View {
             case .none:
                 break
             case .requestModesAgain:
+                appModel.recordSurfaceInputProbe(
+                    "windowVideoComponent write=modesReapplied"
+                        + " presentation=\(presentation.rawValue)"
+                        + " actualImmersiveMode=\(actualImmersiveViewingMode ?? "none")"
+                        + " actualSpatialMode=\(actualSpatialVideoMode ?? "none")"
+                        + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+                )
                 PlaybackRealityPresenter.reapplyDesiredModesAfterSceneActivation(
                     videoEntity,
                     presentation: presentation,

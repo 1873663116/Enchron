@@ -935,15 +935,22 @@ final class PlaybackModeRequestRetry {
 
 @MainActor
 enum PlaybackRealityPresenter {
+    enum VideoComponentWrite: String {
+        case unchanged
+        case updated
+        case created
+    }
+
+    @discardableResult
     static func configure(
         _ entity: Entity,
         renderer: AVSampleBufferVideoRenderer,
         presentation: PlaybackPresentation,
         requestsSpatialVideoMode: Bool,
         requestsProgressiveImmersiveViewingMode: Bool = false
-    ) {
+    ) -> VideoComponentWrite {
         entity.components.remove(ModelComponent.self)
-        configureVideoPlayer(
+        let write = configureVideoPlayer(
             entity,
             renderer: renderer,
             presentation: presentation,
@@ -964,6 +971,7 @@ enum PlaybackRealityPresenter {
         entity.components.remove(InputTargetComponent.self)
         entity.components.remove(CollisionComponent.self)
         entity.components.remove(AccessibilityComponent.self)
+        return write
     }
 
     static func isBound(
@@ -1023,7 +1031,7 @@ enum PlaybackRealityPresenter {
         presentation: PlaybackPresentation,
         requestsSpatialVideoMode: Bool,
         requestsProgressiveImmersiveViewingMode: Bool
-    ) {
+    ) -> VideoComponentWrite {
         if var component = entity.components[VideoPlayerComponent.self],
            component.videoRenderer === renderer {
             var needsUpdate = false
@@ -1040,10 +1048,9 @@ enum PlaybackRealityPresenter {
             needsUpdate = needsUpdate
                 || component.desiredSpatialVideoMode != requestedSpatialVideoMode
             component.desiredSpatialVideoMode = requestedSpatialVideoMode
-            if needsUpdate {
-                entity.components.set(component)
-            }
-            return
+            guard needsUpdate else { return .unchanged }
+            entity.components.set(component)
+            return .updated
         }
         var component = VideoPlayerComponent(videoRenderer: renderer)
         component.desiredImmersiveViewingMode = immersiveViewingMode(
@@ -1053,6 +1060,7 @@ enum PlaybackRealityPresenter {
         )
         component.desiredSpatialVideoMode = requestsSpatialVideoMode ? .spatial : .screen
         entity.components.set(component)
+        return .created
     }
 
     private static func immersiveViewingMode(

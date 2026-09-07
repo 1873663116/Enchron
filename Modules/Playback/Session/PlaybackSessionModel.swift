@@ -555,6 +555,13 @@ public final class PlaybackSessionModel {
     }
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
+        guard presentationTransition == nil else {
+            SurfaceInputProbes.record(
+                "controlsVisibility event=surface-tap-ignored-during-transition",
+                retention: .evidence
+            )
+            return
+        }
         if windowSecondaryMenuIsPresented {
             windowSecondaryMenuIsPresented = false
             setControlsFocused(false, at: date)

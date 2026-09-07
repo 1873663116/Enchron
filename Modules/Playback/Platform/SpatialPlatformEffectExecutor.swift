@@ -1725,6 +1725,9 @@ public final class SpatialPlatformEffectCoordinator {
                 )
                 guard executionIsLive(execution) else { return false }
                 lastExecutionCheckpoint = "target-playback-intent-restored"
+                appModel.recordSurfaceInputProbe(
+                    "targetPlaybackIntentRestored mediaSession=\(mediaSessionID)"
+                )
                 return true
             } catch {
                 guard setRuntimeIssue(

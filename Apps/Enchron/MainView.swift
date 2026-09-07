@@ -561,7 +561,7 @@ public struct MainView: View {
             ),
             value: windowPlaybackOpacity
         )
-        .allowsHitTesting(windowPlaybackAcceptsInput)
+        .allowsHitTesting(windowPlaybackOpacity > 0)
         .accessibilityHidden(windowPlaybackOpacity == 0)
         .task {
             guard reapplyVerificationIsEnabled else { return }
