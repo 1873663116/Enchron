@@ -209,7 +209,8 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: nil,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true
+                targetSurfacePixelIdentityIsCurrent: true,
+                targetWindowIsForeground: true
             ) == false
         )
         let panoramaExit = PlaybackPresentationTransition(
@@ -222,14 +223,24 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: panoramaExit,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: false
+                targetSurfacePixelIdentityIsCurrent: false,
+                targetWindowIsForeground: true
             ) == false
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: panoramaExit,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true
+                targetSurfacePixelIdentityIsCurrent: true,
+                targetWindowIsForeground: false
+            ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                transition: panoramaExit,
+                surfacePresentation: .portal,
+                targetSurfacePixelIdentityIsCurrent: true,
+                targetWindowIsForeground: true
             )
         )
         let dockedExit = PlaybackPresentationTransition(
@@ -242,39 +253,47 @@ struct PlaybackPresentationStateTests {
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: dockedExit,
                 surfacePresentation: .window,
-                targetSurfacePixelIdentityIsCurrent: true
+                targetSurfacePixelIdentityIsCurrent: true,
+                targetWindowIsForeground: true
             )
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
                 transition: dockedExit,
                 surfacePresentation: .portal,
-                targetSurfacePixelIdentityIsCurrent: true
+                targetSurfacePixelIdentityIsCurrent: true,
+                targetWindowIsForeground: true
             ) == false
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy
-                .shouldShowLastFrameBridge(
-                    family: .panoramic,
-                    targetIsSettled: false,
-                    hasCapturedFrame: true
+                .isRevealingMainWindow(transition: panoramaExit)
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy
+                .isRevealingMainWindow(transition: dockedExit)
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy
+                .isRevealingMainWindow(transition: nil) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.isRevealingMainWindow(
+                transition: PlaybackPresentationTransition(
+                    previousPresentation: .portal,
+                    targetPresentation: .panorama,
+                    previousEnvironment: .none,
+                    targetEnvironment: .none
                 )
+            ) == false
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy
-                .shouldShowLastFrameBridge(
-                    family: .panoramic,
-                    targetIsSettled: true,
-                    hasCapturedFrame: true
-                ) == false
+                .lastFrameBridgeOpacity(targetIsRevealed: false) == 1
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy
-                .shouldShowLastFrameBridge(
-                    family: .flat,
-                    targetIsSettled: false,
-                    hasCapturedFrame: true
-                ) == false
+                .lastFrameBridgeOpacity(targetIsRevealed: true) == 0
         )
     }
 
@@ -669,21 +688,29 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("The main window keeps its glass until video is visible")
+    @Test("The main window keeps its glass until video is visible, except while it returns from a space")
     func mainWindowGlassLeavesOnlyForVisibleVideo() {
         #expect(WindowGlassPolicy.showsGlass(
             showsWindowPlayback: false,
-            presentationState: .videoVisible
+            presentationState: .videoVisible,
+            isRevealingMainWindow: false
         ))
         for state in [PlaybackRuntime.PresentationState.hidden, .placeholder, .audioVisible] {
             #expect(WindowGlassPolicy.showsGlass(
                 showsWindowPlayback: true,
-                presentationState: state
+                presentationState: state,
+                isRevealingMainWindow: false
             ))
+            #expect(WindowGlassPolicy.showsGlass(
+                showsWindowPlayback: true,
+                presentationState: state,
+                isRevealingMainWindow: true
+            ) == false)
         }
         #expect(WindowGlassPolicy.showsGlass(
             showsWindowPlayback: true,
-            presentationState: .videoVisible
+            presentationState: .videoVisible,
+            isRevealingMainWindow: false
         ) == false)
     }
 
@@ -2177,23 +2204,6 @@ struct PlaybackPresentationStateTests {
                     targetEnvironment: .none
                 )
             ) == 1
-        )
-        #expect(
-            PlaybackPresentationTransitionAppearance.shouldAnimateWindowVideoEntity(
-                transition: .init(
-                    previousPresentation: .panorama,
-                    targetPresentation: .portal,
-                    previousEnvironment: .none,
-                    targetEnvironment: .none
-                ),
-                visualCutoverMayBegin: true
-            ) == false
-        )
-        #expect(
-            PlaybackPresentationTransitionAppearance.shouldAnimateWindowVideoEntity(
-                transition: transition,
-                visualCutoverMayBegin: true
-            )
         )
         #expect(
             PlaybackPresentationTransitionAppearance.acceptsInput(

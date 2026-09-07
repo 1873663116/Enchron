@@ -79,9 +79,11 @@ enum WindowPlaybackLoadingVisibility {
 enum WindowGlassPolicy {
     static func showsGlass(
         showsWindowPlayback: Bool,
-        presentationState: PlaybackRuntime.PresentationState
+        presentationState: PlaybackRuntime.PresentationState,
+        isRevealingMainWindow: Bool
     ) -> Bool {
         guard showsWindowPlayback else { return true }
+        guard isRevealingMainWindow == false else { return false }
         return presentationState != .videoVisible
     }
 }
@@ -112,7 +114,9 @@ public struct MainView: View {
     private var showsWindowGlass: Bool {
         WindowGlassPolicy.showsGlass(
             showsWindowPlayback: showsWindowPlayback,
-            presentationState: playbackRuntime.presentationState
+            presentationState: playbackRuntime.presentationState,
+            isRevealingMainWindow: SpatialPlatformImmersiveExitWindowRevealPolicy
+                .isRevealingMainWindow(transition: playbackSession.presentationTransition)
         )
     }
 
@@ -584,21 +588,10 @@ public struct MainView: View {
                 )
             }
 
-            if let lastFrame = playbackSession.portalExitLastFrame,
-               SpatialPlatformImmersiveExitWindowRevealPolicy
-                .shouldShowLastFrameBridge(
-                    family: .panoramic,
-                    targetIsSettled:
-                        playbackSession.presentationVisualCutoverMayBegin,
-                    hasCapturedFrame: true
-                ) {
-                Image(lastFrame, scale: 1, label: Text(""))
-                    .resizable()
-                    .scaledToFit()
-                    .background(.black)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
+            PortalExitBridgeView(
+                frame: playbackSession.portalExitLastFrame,
+                targetIsRevealed: playbackSession.presentationVisualCutoverMayBegin
+            )
 
             #if DEBUG
             if ProcessInfo.processInfo.environment[

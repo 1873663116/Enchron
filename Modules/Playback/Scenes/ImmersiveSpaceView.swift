@@ -2019,7 +2019,7 @@ public struct ImmersiveSpaceView: View {
                 == entityID(for: sourcePresentation) else {
             return
         }
-        playbackVideoEntityStore.releasePlaybackComponentForRealityViewTransfer()
+        playbackVideoEntityStore.releaseInteractionSurfacesForRealityViewTransfer()
         playbackRuntime.releaseRendererConsumer(
             presentation: sourcePresentation,
             entityID: entityID(for: sourcePresentation),

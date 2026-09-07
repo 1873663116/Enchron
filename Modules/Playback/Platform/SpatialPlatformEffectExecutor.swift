@@ -62,7 +62,8 @@ public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldBeginVisualCutover(
         transition: PlaybackPresentationTransition?,
         surfacePresentation: PlaybackPresentation,
-        targetSurfacePixelIdentityIsCurrent: Bool
+        targetSurfacePixelIdentityIsCurrent: Bool,
+        targetWindowIsForeground: Bool
     ) -> Bool {
         guard let transition,
               transition.previousPresentation.usesImmersiveSpace,
@@ -70,15 +71,19 @@ public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
               transition.targetPresentation == surfacePresentation else {
             return false
         }
-        return targetSurfacePixelIdentityIsCurrent
+        return targetSurfacePixelIdentityIsCurrent && targetWindowIsForeground
     }
 
-    public static func shouldShowLastFrameBridge(
-        family: PresentationContentFamily,
-        targetIsSettled: Bool,
-        hasCapturedFrame: Bool
+    public static func isRevealingMainWindow(
+        transition: PlaybackPresentationTransition?
     ) -> Bool {
-        family == .panoramic && targetIsSettled == false && hasCapturedFrame
+        guard let transition else { return false }
+        return transition.previousPresentation.usesImmersiveSpace
+            && transition.targetPresentation.usesMainWindow
+    }
+
+    public static func lastFrameBridgeOpacity(targetIsRevealed: Bool) -> Double {
+        targetIsRevealed ? 0 : 1
     }
 }
 
@@ -987,6 +992,34 @@ public final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+        if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+            for: windowTransition
+        ) {
+            let refreshRevision = portalPlaybackViewportRefreshState.request()
+            lastPlatformOperation = "portal-viewport-refresh-requested"
+            guard await waitUntilPortalPlaybackViewportRefreshApplied(
+                refreshRevision,
+                execution: execution
+            ) else {
+                guard executionIsLive(execution),
+                      setRuntimeIssue(
+                        .surfaceAttachmentFailed,
+                        execution: execution
+                      ) else { return }
+                _ = await complete(
+                    execution,
+                    outcome: .failed(.windowPlaybackSurfaceUnavailable)
+                )
+                return
+            }
+        }
+        guard executionIsLive(execution),
+              appModel.recordPresentationTargetWindowForeground() else {
+            return
+        }
+        appModel.recordSurfaceInputProbe(
+            "portalWindowForeground transition=\(presentation.rawValue)"
+        )
         guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
             return
         }
@@ -1011,29 +1044,8 @@ public final class SpatialPlatformEffectCoordinator {
         if appModel.presentationVisualCutoverMayBegin == false {
             guard appModel.beginPresentationVisualCutover() else { return }
             appModel.recordSurfaceInputProbe(
-                "portalVisualCutover source=settlementFallback animated=false"
+                "portalVisualCutover source=settlementFallback animated=true"
             )
-        }
-        if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
-            for: windowTransition
-        ) {
-            let refreshRevision = portalPlaybackViewportRefreshState.request()
-            lastPlatformOperation = "portal-viewport-refresh-requested"
-            guard await waitUntilPortalPlaybackViewportRefreshApplied(
-                refreshRevision,
-                execution: execution
-            ) else {
-                guard executionIsLive(execution),
-                      setRuntimeIssue(
-                        .surfaceAttachmentFailed,
-                        execution: execution
-                      ) else { return }
-                _ = await complete(
-                    execution,
-                    outcome: .failed(.windowPlaybackSurfaceUnavailable)
-                )
-                return
-            }
         }
         guard await orderWindowToFront(.main, execution: execution) else {
             lastPlatformOperation = "main-window-activation-failed"

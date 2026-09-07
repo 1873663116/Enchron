@@ -214,6 +214,7 @@
 				Playback/Views/PlaybackTopActions.swift,
 				Playback/Views/PlaybackVideoSurface.swift,
 				Playback/Views/PlayerInfoBarView.swift,
+				Playback/Views/PortalExitBridgeView.swift,
 				Playback/Views/SenseZoneVolumeRoot.swift,
 				Playback/Views/WindowPlaybackRootView.swift,
 				Playback/Views/WindowPlayerDeck.swift,

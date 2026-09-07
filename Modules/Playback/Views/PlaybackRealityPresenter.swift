@@ -202,11 +202,9 @@ public final class PlaybackVideoEntityStore {
         synchronizeRealityKitContentTypeScope(nil)
     }
 
-    func releasePlaybackComponentForRealityViewTransfer() {
+    func releaseInteractionSurfacesForRealityViewTransfer() {
         dockedInteractionSurface.removeFromParent()
         windowInteractionSurface.removeFromParent()
-        entity.removeFromParent()
-        entity.components.remove(VideoPlayerComponent.self)
     }
 
     func releaseDepartingEntity() {

@@ -1325,10 +1325,10 @@ def main() -> int:
     require("public func stopPlaybackAndWait() async" in launch, "launch coordinator lacks cleanup barrier")
     require("public func stopAndWait(" in runtime, "runtime lacks cleanup barrier")
     require(
-        "releasePlaybackComponentForRealityViewTransfer()" in immersive
-        and "func releasePlaybackComponentForRealityViewTransfer()" in reality_presenter
-        and "entity.components.remove(VideoPlayerComponent.self)" in reality_presenter,
-        "immersive teardown leaves the video component attached",
+        "releaseInteractionSurfacesForRealityViewTransfer()" in immersive
+        and "func releaseInteractionSurfacesForRealityViewTransfer()" in reality_presenter
+        and "departingEntity?.components.remove(VideoPlayerComponent.self)" in reality_presenter,
+        "immersive teardown drops the departing frame before the space closes",
     )
     require("presentationObservation.cancel()" in immersive, "immersive teardown leaves observation active")
     require("releaseRendererConsumer(" in immersive, "immersive teardown leaves renderer ownership active")

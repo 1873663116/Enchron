@@ -92,25 +92,16 @@ public enum PlaybackPresentationTransitionAppearance {
         )
     }
 
-    static func shouldAnimateWindowVideoEntity(
-        transition: PlaybackPresentationTransition?,
-        visualCutoverMayBegin: Bool
-    ) -> Bool {
-        guard visualCutoverMayBegin,
-              let transition,
-              transition.previousPresentation == .panorama,
-              transition.targetPresentation.usesMainWindow else {
-            return true
-        }
-        return false
-    }
-
     public static func acceptsInput(
         for hostedPresentation: PlaybackPresentation,
         settledPresentation: PlaybackPresentation,
         transition: PlaybackPresentationTransition?
     ) -> Bool {
         transition == nil && hostedPresentation == settledPresentation
+    }
+
+    public static var targetFadeAnimation: Animation {
+        .easeInOut(duration: targetFadeDuration)
     }
 
     public static func animation(for targetOpacity: Double) -> Animation {
