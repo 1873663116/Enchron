@@ -1328,7 +1328,7 @@ def _validate_blueprint(
         "staticCases": sum(len(item["staticCases"]) for item in blueprint["scenarios"]),
     }
     _require(actual == expected, f"blueprint count mismatch: expected {expected}, found {actual}")
-    _require(actual["promises"] == 65 and actual["scenarios"] == 65, "Catalog must contain 65 Promises and 65 Scenarios")
+    _require(actual["promises"] == 65 and actual["scenarios"] == 68, "Catalog must contain 65 Promises and 68 Scenarios")
     _require(actual["operations"] == 35, "Catalog must contain 35 Operations")
     _require(actual["oracles"] == 11, "Catalog must contain 11 Oracles")
     _require(actual["journeys"] == 14, "Catalog must contain 14 Journeys")
@@ -1398,7 +1398,7 @@ def _validate_blueprint(
     )
 
     scenario_ids = {item["id"] for item in blueprint["scenarios"]}
-    _require(len(scenario_ids) == 65, "Scenario IDs must be unique")
+    _require(len(scenario_ids) == 68, "Scenario IDs must be unique")
     obligation_ids: set[str] = set()
     for scenario in blueprint["scenarios"]:
         _require(
@@ -1470,8 +1470,8 @@ def _validate_blueprint(
                 _require(scenario["blockers"], f"{scenario['id']} needs typed blockers")
 
     _require(
-        len(obligation_ids) == 149,
-        "Catalog must contain exactly 149 globally unique obligations",
+        len(obligation_ids) == 155,
+        "Catalog must contain exactly 155 globally unique obligations",
     )
 
     _validate_transition_trace_sequences(blueprint["scenarios"])

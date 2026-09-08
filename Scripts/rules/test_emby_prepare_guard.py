@@ -41,6 +41,7 @@ class EmbyPrepareGuardTests(unittest.TestCase):
         run.relaunch = Mock()
         run.tap = Mock(return_value={"success": True})
         run.segment = None
+        run.session_id = "REACH-EMBY-GUARD"
         run.copy_probe = Mock(return_value=[])
         run.wait_for_identifier = Mock(return_value={"matchedElement": {}})
         run.mark_observation = Mock()

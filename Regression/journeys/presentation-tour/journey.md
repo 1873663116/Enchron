@@ -16,7 +16,9 @@
     "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
     "scenario:presentation-tour:automatic-source-provenance",
     "scenario:presentation-tour:format-application-route",
-    "scenario:presentation-tour:spatial-controls-summon"
+    "scenario:presentation-tour:spatial-controls-summon",
+    "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
+    "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels"
   ],
   "ordering": [],
   "sharedState": [

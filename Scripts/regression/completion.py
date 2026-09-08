@@ -71,10 +71,10 @@ PREDICATE_NAMES = (
 EXPECTED_COUNTS = {
     "promises": 65,
     "journeys": 14,
-    "scenarios": 65,
+    "scenarios": 68,
     "operations": 35,
     "oracles": 11,
-    "rubrics": 97,
+    "rubrics": 103,
     "preparations": 18,
 }
 
@@ -2058,21 +2058,30 @@ def _catalog_shape(context: _CompletionContext) -> str:
     if any(item.scope is not AutomationScope.INCLUDED for item in proof.catalog.promises):
         raise CompletionError("all 65 current Promises must be included")
     if any(item.readiness is not ContractReadiness.READY for item in proof.catalog.scenarios):
-        raise CompletionError("all 65 current Scenarios must have v2 readiness ready")
+        raise CompletionError(
+            f"all {EXPECTED_COUNTS['scenarios']} current Scenarios must have v2 readiness ready"
+        )
     if any(
         item.readiness is not ContractReadiness.READY or item.blockers
         for item in proof.catalog.preparations
     ):
         raise CompletionError("all 18 current Preparations must have v2 readiness ready")
-    if proof.report.get("scenarioReadiness") != {"ready": 65}:
-        raise CompletionError("materialized Scenario readiness is not exactly 65 ready")
+    if proof.report.get("scenarioReadiness") != {"ready": EXPECTED_COUNTS["scenarios"]}:
+        raise CompletionError(
+            f"materialized Scenario readiness is not exactly {EXPECTED_COUNTS['scenarios']} ready"
+        )
     if proof.report.get("preparationReadiness") != {"ready": 18}:
         raise CompletionError("materialized Preparation readiness is not exactly 18 ready")
     if proof.report.get("scenarioReadinessGaps"):
         raise CompletionError("materialized Catalog contains Scenario readiness gaps")
     if proof.report.get("preparationReadinessGaps"):
         raise CompletionError("materialized Catalog contains Preparation readiness gaps")
-    return "65 included Promises, 14 Journeys, 65 ready Scenarios, 35 Operations, 11 Oracles, 67 Rubrics, and 18 ready Preparations match v2"
+    return (
+        f"{EXPECTED_COUNTS['promises']} included Promises, {EXPECTED_COUNTS['journeys']} Journeys, "
+        f"{EXPECTED_COUNTS['scenarios']} ready Scenarios, {EXPECTED_COUNTS['operations']} Operations, "
+        f"{EXPECTED_COUNTS['oracles']} Oracles, {EXPECTED_COUNTS['rubrics']} Rubrics, "
+        f"and {EXPECTED_COUNTS['preparations']} ready Preparations match v2"
+    )
 
 
 def _no_legacy_contracts(context: _CompletionContext) -> str:

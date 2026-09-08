@@ -1123,6 +1123,18 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
                 "byteLimit=196608",
                 "fileBytes=88201",
                 "peakFileBytes=131043",
+                "compactionCount=0",
+                "evidenceOverflowed=false",
+                "writeFailed=false",
+            ],
+        })
+        compacted = matrix.parse_probe_status_response({
+            "success": True,
+            "ok": True,
+            "payload": [
+                "byteLimit=196608",
+                "fileBytes=88201",
+                "peakFileBytes=131043",
                 "compactionCount=4",
                 "evidenceOverflowed=false",
                 "writeFailed=false",
@@ -1144,6 +1156,9 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         self.assertTrue(healthy["passed"])
         self.assertEqual(healthy["byteLimit"], 196_608)
         self.assertEqual(healthy["fileBytes"], 88_201)
+        self.assertFalse(compacted["passed"])
+        self.assertEqual(compacted["compactionCount"], 4)
+        self.assertFalse(compacted["evidenceOverflowed"])
         self.assertFalse(overflowed["passed"])
         self.assertTrue(overflowed["evidenceOverflowed"])
 

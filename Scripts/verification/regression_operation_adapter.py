@@ -4673,7 +4673,60 @@ class ResidentOperationBackend:
         status = self._app_command(context, "probeStatus")
         self._require_success(ping, "ping")
         self._require_success(status, "probeStatus")
+        self._require_healthy_probe_journal(status)
         return {"succeeded": True, "ping": ping, "probeStatus": status}
+
+    def _require_healthy_probe_journal(self, status: Mapping[str, object]) -> None:
+        """Fail closed on evidence the on-device DEBUG probe journal already
+        lost data, even when the app's own ``ok`` flag stayed true.
+
+        ``probeStatus`` only flips its ``ok`` flag false for a byte-limit
+        overflow, ``evidenceOverflowed``, or a write failure (see
+        ``TestCommandChannel.execute`` case "probeStatus"); a nonzero
+        ``compactionCount`` alone still reports ``ok: true`` there. A
+        compaction means the journal already trimmed events under
+        settlement noise (docked/panorama entry, an episode switch) before
+        overflowing outright, so evidence captured during that Scenario
+        attempt cannot be trusted even though the call "succeeded".
+        """
+        values: dict[str, str] = {}
+        payload = status.get("payload")
+        if isinstance(payload, list):
+            for entry in payload:
+                if isinstance(entry, str) and "=" in entry:
+                    key, value = entry.split("=", 1)
+                    values[key] = value
+
+        def boolean(key: str) -> bool | None:
+            value = values.get(key)
+            if value == "true":
+                return True
+            if value == "false":
+                return False
+            return None
+
+        def integer(key: str) -> int | None:
+            value = values.get(key)
+            return int(value) if value is not None and value.isdecimal() else None
+
+        evidence_overflowed = boolean("evidenceOverflowed")
+        compaction_count = integer("compactionCount")
+        if evidence_overflowed is None or compaction_count is None:
+            raise OperationAdapterError(
+                "probeStatus did not report evidenceOverflowed/compactionCount; "
+                f"the DEBUG probe journal could not be verified healthy: {dict(status)}"
+            )
+        if evidence_overflowed is True:
+            raise OperationAdapterError(
+                "the DEBUG probe journal reported evidenceOverflowed=true: "
+                "device evidence for this Scenario attempt was lost"
+            )
+        if compaction_count != 0:
+            raise OperationAdapterError(
+                f"the DEBUG probe journal compacted {compaction_count} time(s) "
+                "during this Scenario attempt; treat its evidence as untrustworthy "
+                "even though probeStatus.ok was true"
+            )
 
     def _harness_reset_product_state_2(self, arguments, context):
         command = () if "rootFolderName" not in arguments else (f"libraryFolder={arguments['rootFolderName']}",)

@@ -318,8 +318,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        case .retainMainWindow:\n            return await waitForMainWindowToBecomeForeground(execution: execution)\n",
-        "replaceWith": "        case .retainMainWindow:\n            _ = openWindow(id: SpatialPlatformWindowIdentity.main.rawValue, execution: execution)\n            return await waitForMainWindowToBecomeForeground(execution: execution)\n"
+        "find": "        case .retainMainWindow:\n            return true\n",
+        "replaceWith": "        case .retainMainWindow:\n            _ = openWindow(id: SpatialPlatformWindowIdentity.main.rawValue, execution: execution)\n            return true\n"
       },
       "expected": {
         "exitCode": 1,
@@ -350,8 +350,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        case .retainMainWindow:\n            return await waitForMainWindowToBecomeForeground(execution: execution)\n",
-        "replaceWith": "        case .retainMainWindow:\n            return executionIsLive(execution)\n"
+        "find": "        let mainWindowIsReady = await waitForMainWindowToBecomeForeground(\n",
+        "replaceWith": "        let mainWindowIsReady = executionIsLive(execution) || await waitForMainWindowToBecomeForeground(\n"
       },
       "expected": {
         "exitCode": 1,
@@ -446,7 +446,7 @@
       "defect": {
         "type": "replace-text",
         "file": "Apps/Enchron/MainView.swift",
-        "find": "        .persistentSystemOverlays(showsWindowPlayback ? .hidden : .automatic)\n",
+        "find": "        .persistentSystemOverlays(\n            WindowSystemOverlayPolicy.visibility(\n                showsWindowPlayback: showsWindowPlayback,\n                showsPlaybackChrome: showsPlaybackChrome\n            )\n        )\n",
         "replaceWith": "        .persistentSystemOverlays(.hidden)\n"
       },
       "expected": {

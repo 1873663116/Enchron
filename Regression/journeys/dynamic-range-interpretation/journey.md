@@ -7,7 +7,8 @@
   "scenarioRefs": [
     "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
     "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
-    "scenario:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch"
+    "scenario:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch",
+    "scenario:dynamic-range-interpretation:docked-hlg-audio-integrity"
   ],
   "ordering": [],
   "sharedState": [

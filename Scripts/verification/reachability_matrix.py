@@ -493,7 +493,7 @@ def parse_probe_status_response(document: dict[str, Any]) -> dict[str, Any]:
         and file_bytes <= byte_limit
         and peak_file_bytes is not None
         and peak_file_bytes <= byte_limit
-        and compaction_count is not None
+        and compaction_count == 0
         and evidence_overflowed is False
         and write_failed is False
     )
