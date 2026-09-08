@@ -1501,6 +1501,19 @@ extension SampleBufferPlaybackSession {
         incident: PlaybackTimelineProgressIncident,
         postReading: PlaybackTimelineClockReading
     ) {
+        let mediaState = deliveryContinuityMediaState()
+        let ends = mediaState.presentationEndByLane
+            .map { "\($0.key.rawValue)=\($0.value.seconds)" }
+            .sorted()
+            .joined(separator: ",")
+        PlaybackTrace.event(
+            "session.timelineProgress outcome=\(outcome) incident=\(incident.incidentID)"
+                + " frozen=\(incident.frozenMediaTime.seconds)"
+                + " post=\(postReading.mediaTime.seconds) rate=\(postReading.effectiveRate)"
+                + " required=\(mediaState.requiredLanes.map(\.rawValue).sorted())"
+                + " ended=\(mediaState.providerEndedLanes.map(\.rawValue).sorted())"
+                + " ends=\(ends)"
+        )
         let detectionSource: PlaybackTimelineProgressDetectionSource
         let lanes: [PlaybackDeliveryLane]
         let firstReading: PlaybackTimelineClockReading
