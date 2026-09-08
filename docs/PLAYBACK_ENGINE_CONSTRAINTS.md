@@ -4,7 +4,9 @@
 
 ## 渲染器超前预算的单位
 
-`RendererLeadBudget` 按**帧数**计量交付循环可以跑在时间线前面多远：从编码器 reorder 深度加两帧的地板起步，稳定交付 1.5 秒后升到来源上限，本地 32 帧、远程 48 帧；进程可用内存跌破 512 MB 时退回地板。它不再按解码字节算。
+`RendererLeadBudget` 按**帧数**计量交付循环可以跑在时间线前面多远：从地板起步，稳定交付 1.5 秒后升到来源上限，本地 32 帧、远程 48 帧；进程可用内存跌破 512 MB 时退回地板。它不再按解码字节算。
+
+地板是 `max(reorder 深度, 2) + 2`，由停播 seek 决定：时间线在目标之后要再收到 `max(reorder 深度, 2) + 1` 帧（解码器的输出滞后加一）才落到目标上，目标帧本身也占 gate 一个名额，所以 gate 至少要放 `max(reorder 深度, 2) + 2` 帧，否则停播 seek 永远停在关键帧的时间上，位置与字幕都停在那里。`pausedSeekCoverageIsSettled` 与地板共用 `RendererLeadBudget.outputLagFrames`，断言 `theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle` 把这条关系钉住。
 
 2026-08-22 起的规则按「解码字节 ÷ 单帧解码大小」定帧数，200 MB 在 4K 十比特只给 8 帧，在 8K 只给 4 帧。2026-09-08 在 Vision Pro 上的二分与扫描证明这条规则就是掉帧的原因，并且证伪了它的前提：
 

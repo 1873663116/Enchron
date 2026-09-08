@@ -654,12 +654,13 @@ extension SampleBufferPlaybackSession {
         return firstDisplayablePresentationTime
     }
 
-    static let pausedSeekMinimumReorderFrames = 2
     static let pausedSeekCoverageToleranceSeconds = 0.001
 
     func pausedSeekCoverageIsSettled(target: CMTime) -> Bool {
         guard target.isNumeric else { return false }
-        let outputLagFrames = max(diagnostics.videoReorderDepth, Self.pausedSeekMinimumReorderFrames)
+        let outputLagFrames = RendererLeadBudget.outputLagFrames(
+            reorderDepth: diagnostics.videoReorderDepth
+        )
         return prerollFramesBeyondTarget > outputLagFrames
     }
 

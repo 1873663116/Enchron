@@ -1808,7 +1808,19 @@ private final class ReportedPositions: @unchecked Sendable {
         secondsSinceDeliveryStart: 10,
         availableMemoryBytes: RendererLeadBudget.lowMemoryFloorBytes - 1
     )
-    #expect(starved == 1 + RendererLeadBudget.schedulingSlackFrames)
+    #expect(starved == RendererLeadBudget.floorFrames(reorderDepth: 1))
+    #expect(starved < RendererLeadBudget.remoteMaximumFrames)
+}
+
+@Test func theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle() {
+    for reorderDepth in 0...16 {
+        let floor = RendererLeadBudget.floorFrames(reorderDepth: reorderDepth)
+        let framesBeyondTarget = floor - 1
+        #expect(
+            framesBeyondTarget > RendererLeadBudget.outputLagFrames(reorderDepth: reorderDepth),
+            "reorder depth \(reorderDepth)"
+        )
+    }
 }
 
 @Test func framesInFlightRetireInDisplayOrderNotDeliveryOrder() {

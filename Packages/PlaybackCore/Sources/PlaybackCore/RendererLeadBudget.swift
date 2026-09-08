@@ -5,6 +5,8 @@ import Foundation
 public enum RendererLeadBudget {
     static let schedulingSlackFrames = 2
 
+    static let minimumOutputLagFrames = 2
+
     static let localMaximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 32
 
     static let remoteMaximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 48
@@ -24,8 +26,12 @@ public enum RendererLeadBudget {
         overrideLock.withLock { fixedFramesOverride }
     }
 
+    static func outputLagFrames(reorderDepth: Int) -> Int {
+        max(reorderDepth, minimumOutputLagFrames)
+    }
+
     static func floorFrames(reorderDepth: Int) -> Int {
-        max(0, reorderDepth) + schedulingSlackFrames
+        outputLagFrames(reorderDepth: reorderDepth) + schedulingSlackFrames
     }
 
     static func maximumFrames(isRemoteSource: Bool) -> Int {
