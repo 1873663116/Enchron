@@ -974,7 +974,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             repeating: .milliseconds(500)
         )
         timer.setEventHandler { [weak self] in
-            self?.deliveryQueue.async { [weak self] in
+            guard let self else { return }
+            PlaybackTrace.event("session.watchdog.timer id=\(traceID) run=\(run.generation)")
+            deliveryQueue.async { [weak self] in
                 self?.receiveTimelineProgressWatchdogTick(run: run)
             }
         }

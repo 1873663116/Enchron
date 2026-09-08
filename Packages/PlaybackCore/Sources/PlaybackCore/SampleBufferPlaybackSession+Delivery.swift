@@ -1372,6 +1372,14 @@ extension SampleBufferPlaybackSession {
     func receiveTimelineProgressWatchdogTick(run: PlaybackTimelineProgressRun) {
         let reading = timelineClockReading()
         let mediaState = deliveryContinuityMediaState()
+        PlaybackTrace.event(
+            "session.watchdog.tick id=\(traceID) time=\(reading.mediaTime.seconds)"
+                + " rate=\(reading.effectiveRate) eligible=\(timelineProgressWatchdogIsEligible)"
+                + " activeOperation=\(activeOperation.map { String(describing: $0) } ?? "none")"
+                + " suspended=\(videoSampleDeliveryIsSuspended)"
+                + " lifecycle=\(mediaSessionRecord?.lifecycle.rawValue ?? "none")"
+                + " startRate=\(timelineStartRate)"
+        )
         let result: (
             decision: PlaybackTimelineProgressDecision,
             continuity: PlaybackDeliveryContinuityObservation?
