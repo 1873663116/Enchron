@@ -1766,60 +1766,97 @@ private final class ReportedPositions: @unchecked Sendable {
     #endif
 }
 
-@Test func theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling() {
-    let plenty = Int.max
-    let floor = RendererLeadBudget.frames(
-        reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: nil, availableMemoryBytes: plenty
-    )
-    #expect(floor == 3 + RendererLeadBudget.schedulingSlackFrames)
-
-    let halfway = RendererLeadBudget.frames(
-        reorderDepth: 3,
-        isRemoteSource: false,
-        secondsSinceDeliveryStart: RendererLeadBudget.rampSeconds / 2,
-        availableMemoryBytes: plenty
-    )
-    #expect(halfway > floor)
-    #expect(halfway < RendererLeadBudget.localMaximumFrames)
-
-    let local = RendererLeadBudget.frames(
-        reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
-    )
-    #expect(local == RendererLeadBudget.localMaximumFrames)
-
-    let remote = RendererLeadBudget.frames(
-        reorderDepth: 3, isRemoteSource: true, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
-    )
-    #expect(remote == RendererLeadBudget.remoteMaximumFrames)
-    #expect(remote > local)
-}
-
-@Test func theLeadBudgetNeverSitsBelowTheEncoderReorderDepth() {
-    let deepReorder = RendererLeadBudget.frames(
-        reorderDepth: 40, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: Int.max
-    )
-    #expect(deepReorder == 40 + RendererLeadBudget.schedulingSlackFrames)
-}
-
-@Test func theLeadBudgetFallsToTheFloorWhenMemoryRunsLow() {
-    let starved = RendererLeadBudget.frames(
-        reorderDepth: 1,
-        isRemoteSource: true,
-        secondsSinceDeliveryStart: 10,
-        availableMemoryBytes: RendererLeadBudget.lowMemoryFloorBytes - 1
-    )
-    #expect(starved == RendererLeadBudget.floorFrames(reorderDepth: 1))
-    #expect(starved < RendererLeadBudget.remoteMaximumFrames)
-}
-
-@Test func theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle() {
-    for reorderDepth in 0...16 {
-        let floor = RendererLeadBudget.floorFrames(reorderDepth: reorderDepth)
-        let framesBeyondTarget = floor - 1
-        #expect(
-            framesBeyondTarget > RendererLeadBudget.outputLagFrames(reorderDepth: reorderDepth),
-            "reorder depth \(reorderDepth)"
+@Suite(.serialized)
+struct RendererLeadBudgetTests {
+    @Test func theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling() {
+        let plenty = Int.max
+        let floor = RendererLeadBudget.frames(
+            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: nil, availableMemoryBytes: plenty
         )
+        #expect(floor == 3 + RendererLeadBudget.schedulingSlackFrames)
+
+        let halfway = RendererLeadBudget.frames(
+            reorderDepth: 3,
+            isRemoteSource: false,
+            secondsSinceDeliveryStart: RendererLeadBudget.rampSeconds / 2,
+            availableMemoryBytes: plenty
+        )
+        #expect(halfway > floor)
+        #expect(halfway < RendererLeadBudget.localMaximumFrames)
+
+        let local = RendererLeadBudget.frames(
+            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
+        )
+        #expect(local == RendererLeadBudget.localMaximumFrames)
+
+        let remote = RendererLeadBudget.frames(
+            reorderDepth: 3, isRemoteSource: true, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
+        )
+        #expect(remote == RendererLeadBudget.remoteMaximumFrames)
+        #expect(remote > local)
+    }
+
+    @Test func theLeadBudgetNeverSitsBelowTheEncoderReorderDepth() {
+        let deepReorder = RendererLeadBudget.frames(
+            reorderDepth: 40, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: Int.max
+        )
+        #expect(deepReorder == 40 + RendererLeadBudget.schedulingSlackFrames)
+    }
+
+    @Test func theLeadBudgetFallsToTheFloorWhenMemoryRunsLow() {
+        let starved = RendererLeadBudget.frames(
+            reorderDepth: 1,
+            isRemoteSource: true,
+            secondsSinceDeliveryStart: 10,
+            availableMemoryBytes: RendererLeadBudget.lowMemoryFloorBytes - 1
+        )
+        #expect(starved == RendererLeadBudget.floorFrames(reorderDepth: 1))
+        #expect(starved < RendererLeadBudget.remoteMaximumFrames)
+    }
+
+    @Test func theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle() {
+        for reorderDepth in 0...16 {
+            let floor = RendererLeadBudget.floorFrames(reorderDepth: reorderDepth)
+            let framesBeyondTarget = floor - 1
+            #expect(
+                framesBeyondTarget > RendererLeadBudget.outputLagFrames(reorderDepth: reorderDepth),
+                "reorder depth \(reorderDepth)"
+            )
+        }
+    }
+
+    @Test
+    func suspendedVideoSampleDeliveryCancelsTheLeadGateBeforeReturning() async throws {
+        let sample = try makeCompressedH264Sample(durationSeconds: 30)
+        let sink = FakeRendererInputSink()
+        let session = SampleBufferPlaybackSession(
+            traceID: "suspend-video-sample-delivery",
+            provider: FakeVideoSampleProvider(
+                events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+            ),
+            rendererSink: sink
+        )
+        RendererLeadBudget.setFixedFramesOverride(8)
+        defer {
+            RendererLeadBudget.setFixedFramesOverride(nil)
+            session.close()
+        }
+
+        try await session.prepare(url: URL(fileURLWithPath: "/fixtures/suspend.mov"))
+        try session.start()
+        try await waitForSampleCount(UInt64(session.videoLeadFrames), in: session)
+
+        await session.suspendVideoSampleDelivery(flushingRenderer: true)
+
+        #expect(session.videoSampleDeliveryIsSuspended)
+        #expect(session.debugSnapshot().sampleCount == UInt64(session.videoLeadFrames))
+        #expect(sink.flushCount == 1)
+        #expect(sink.enqueuedSampleCount == 0)
+
+        session.resumeVideoSampleDelivery()
+        try await waitForSampleCount(UInt64(session.videoLeadFrames + 1), in: session)
+        #expect(session.videoSampleDeliveryIsSuspended == false)
+        #expect((1...session.videoLeadFrames).contains(sink.enqueuedSampleCount))
     }
 }
 
@@ -2883,39 +2920,6 @@ func liveStereoOverridePublishesAcceptedRevisionsAndKeepsImmutableRendererGraph(
     #expect(acceptedFormatRevisions.withLock { $0 } == [1, 2, 3, 4])
 }
 
-@Test
-func suspendedVideoSampleDeliveryCancelsTheLeadGateBeforeReturning() async throws {
-    let sample = try makeCompressedH264Sample(durationSeconds: 30)
-    let sink = FakeRendererInputSink()
-    let session = SampleBufferPlaybackSession(
-        traceID: "suspend-video-sample-delivery",
-        provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
-        ),
-        rendererSink: sink
-    )
-    RendererLeadBudget.setFixedFramesOverride(8)
-    defer {
-        RendererLeadBudget.setFixedFramesOverride(nil)
-        session.close()
-    }
-
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/suspend.mov"))
-    try session.start()
-    try await waitForSampleCount(UInt64(session.videoLeadFrames), in: session)
-
-    await session.suspendVideoSampleDelivery(flushingRenderer: true)
-
-    #expect(session.videoSampleDeliveryIsSuspended)
-    #expect(session.debugSnapshot().sampleCount == UInt64(session.videoLeadFrames))
-    #expect(sink.flushCount == 1)
-    #expect(sink.enqueuedSampleCount == 0)
-
-    session.resumeVideoSampleDelivery()
-    try await waitForSampleCount(UInt64(session.videoLeadFrames + 1), in: session)
-    #expect(session.videoSampleDeliveryIsSuspended == false)
-    #expect((1...session.videoLeadFrames).contains(sink.enqueuedSampleCount))
-}
 
 @Test
 func rendererGraphContinuityRejectsASingleStaticFirstFrame() {
