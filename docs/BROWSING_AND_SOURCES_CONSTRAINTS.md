@@ -64,7 +64,7 @@
 - **demux 策略在来源注册为可播放时就被捕获**。非缓存模式让 demuxer 填到它较短的时长目标，除非先撞上前向字节安全上限；缓存模式的时长目标实际上无界，因此前向字节上限才是正常的停止条件，某些来源另有自己的字节上限。
 - **容器打开区间只有一个**，它结束之后的所有读取都是媒体读取。这条边界是远程读取记账的分界线。
 - **图片先完成原子磁盘写，再在内存里暴露**，避免读者看到半张图。
-- **句柄释放时，回环服务器要取消这个登记的所有传输**。服务器只在下一次 `send` 失败时才知道对端已经关闭，而 `send` 要等当前这一块（1 MiB）的来源读取返回；在慢速网盘上，一个已关闭条目留下的读取会占住共享 `URLSession` 每主机 6 个连接中的一个，直到那一块读完，下一个条目的打开就排在它后面。`unregister(token:)` 因此按 token 取消传输任务与连接，响应循环在每次读取前检查取消；`MediaByteStreamReleaseTests.releasingTheHandleCancelsAnUnansweredRead` 钉住这条契约。仍在登记内、但对端已经关闭的连接（AVFoundation 的探测请求）还是要等当前一块读完才结束，每次打开约一到两个。
+- **句柄释放时，回环服务器要取消这个登记的所有传输**。服务器只在下一次 `send` 失败时才知道对端已经关闭，而 `send` 要等当前这一块（1 MiB）的来源读取返回；在慢速网盘上，一个已关闭条目留下的读取会占住共享 `URLSession` 每主机连接上限（未设置 `httpMaximumConnectionsPerHost`，取系统默认，iOS 系为 4，未在 visionOS 上实测）中的一个，直到那一块读完，下一个条目的打开就排在它后面。`unregister(token:)` 因此按 token 取消传输任务与连接，响应循环在每次读取前检查取消；`MediaByteStreamReleaseTests.releasingTheHandleCancelsAnUnansweredRead` 钉住这条契约。仍在登记内、但对端已经关闭的连接（AVFoundation 的探测请求）还是要等当前一块读完才结束，每次打开约一到两个。
 - **产品在来源被添加时收到一次地址，此后在它打开的会话存续期间一直向那个路径发请求**。移动端点的激活会由产品已绑定的会话应答，注入的每一个故障因此都会带上同一个签名。见 `Scripts/rules/test_regression_remote_source.py`。
 
 ## Emby 交给播放核心的只有字节
