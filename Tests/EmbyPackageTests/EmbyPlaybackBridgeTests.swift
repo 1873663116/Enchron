@@ -387,7 +387,9 @@ private final class FakeEmbyClient: EmbyClientProtocol, @unchecked Sendable {
     }
 
     func externalSubtitleURL(for stream: EmbyMediaStream, on server: EmbyAuthenticatedServer) throws -> URL {
-        guard let deliveryURL = stream.deliveryURL else { throw FakeEmbyError.unexpected }
+        guard let deliveryURL = stream.deliveryURL else {
+            throw EmbyError.externalSubtitleUnavailable(stream.index)
+        }
         return URL(string: "http://example.test/emby\(deliveryURL)?api_key=token")!
     }
 

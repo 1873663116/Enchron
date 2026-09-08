@@ -688,11 +688,8 @@ nonisolated final class DebugTraceMirror: @unchecked Sendable {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("trace-probe.log")
-        if FileManager.default.fileExists(atPath: url.path) == false {
-            FileManager.default.createFile(atPath: url.path, contents: nil)
-        }
+        FileManager.default.createFile(atPath: url.path, contents: nil)
         handle = try? FileHandle(forWritingTo: url)
-        handle?.seekToEndOfFile()
     }
 
     func append(_ line: String) {

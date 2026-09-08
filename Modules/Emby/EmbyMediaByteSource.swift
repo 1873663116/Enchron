@@ -42,7 +42,9 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
     let session: URLSession
     private let lock = NSLock()
     private var serverLength: Int64?
-    private static let inflightReads = Mutex(0)
+    #if DEBUG
+        private static let inflightReads = Mutex(0)
+    #endif
 
     var currentContentLength: Int64? {
         lock.withLock { serverLength }
@@ -81,28 +83,32 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
 
         let data: Data
         let response: URLResponse
-        let inflight = Self.inflightReads.withLock { count -> Int in
-            count += 1
-            return count
-        }
-        let startedAt = Date()
-        MediaSourceDebugTrace.event(
-            "emby.read.begin offset=\(range.lowerBound) length=\(range.count) inflight=\(inflight)"
-        )
-        defer {
-            let remaining = Self.inflightReads.withLock { count -> Int in
-                count -= 1
+        #if DEBUG
+            let inflight = Self.inflightReads.withLock { count -> Int in
+                count += 1
                 return count
             }
+            let startedAt = Date()
             MediaSourceDebugTrace.event(
-                "emby.read.end offset=\(range.lowerBound)"
-                    + " ms=\(Int(Date().timeIntervalSince(startedAt) * 1000)) inflight=\(remaining)"
+                "emby.read.begin offset=\(range.lowerBound) length=\(range.count) inflight=\(inflight)"
             )
-        }
+            defer {
+                let remaining = Self.inflightReads.withLock { count -> Int in
+                    count -= 1
+                    return count
+                }
+                MediaSourceDebugTrace.event(
+                    "emby.read.end offset=\(range.lowerBound)"
+                        + " ms=\(Int(Date().timeIntervalSince(startedAt) * 1000)) inflight=\(remaining)"
+                )
+            }
+        #endif
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            MediaSourceDebugTrace.event("emby.read.error offset=\(range.lowerBound) error=\(error)")
+            #if DEBUG
+                MediaSourceDebugTrace.event("emby.read.error offset=\(range.lowerBound) error=\(error)")
+            #endif
             if let failure = MediaSourceReadFailure(classifying: error) {
                 throw failure
             }
@@ -111,9 +117,11 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
         guard let response = response as? HTTPURLResponse else {
             throw MediaSourceReadFailure.invalidData
         }
-        MediaSourceDebugTrace.event(
-            "emby.read.response offset=\(range.lowerBound) status=\(response.statusCode) bytes=\(data.count)"
-        )
+        #if DEBUG
+            MediaSourceDebugTrace.event(
+                "emby.read.response offset=\(range.lowerBound) status=\(response.statusCode) bytes=\(data.count)"
+            )
+        #endif
         if response.statusCode == 416 {
             let length = Self.unsatisfiedLength(
                 response.value(forHTTPHeaderField: "Content-Range")
