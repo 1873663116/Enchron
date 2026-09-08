@@ -424,27 +424,30 @@ public struct PlaybackVideoSurface: View {
         }
 
         let videoComponentRevision = playbackRuntime.videoComponentRevision
-        _ = playbackVideoEntityStore.entity(
-            for: renderer,
+        let acquisition = PlaybackVideoSurfaceReconciler.acquire(
+            renderer: renderer,
             presentation: presentation,
-            videoComponentRevision: videoComponentRevision
-        )
-
-        if appModel.presentationTransition == nil,
-           let departingEntity = playbackVideoEntityStore.departingEntity,
-           departingEntity !== videoEntity {
-            content.remove(departingEntity)
-            playbackVideoEntityStore.releaseDepartingEntity()
-        }
-
-        do {
-            try playbackRuntime.claimRendererConsumer(
-                presentation: presentation,
-                entityID: entityID
-            )
-        } catch PlaybackRuntime.RuntimeError.rendererTransferPending {
+            videoComponentRevision: videoComponentRevision,
+            host: .mainWindow,
+            hostIsActive: true,
+            transition: appModel.presentationTransition,
+            store: playbackVideoEntityStore,
+            runtime: playbackRuntime,
+            content: RealityViewHostContent(content: content)
+        ) { appModel.recordSurfaceInputProbe($0, retention: .evidence) }
+        switch acquisition {
+        case .ready:
+            break
+        case .transferPending, .topologyDenied:
             return false
-        } catch {
+        case .consumerBusy:
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            playbackVideoSurfaceLogger.error(
+                "renderer consumer claim failed presentation=\(presentation.rawValue, privacy: .public) error=busy"
+            )
+            releaseSurface(from: content)
+            return false
+        case .consumerFailed(let error):
             playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
             playbackVideoSurfaceLogger.error(
                 "renderer consumer claim failed presentation=\(presentation.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
@@ -686,6 +689,14 @@ public struct PlaybackVideoSurface: View {
                     videoEntity,
                     presentation: presentation,
                     requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
+                )
+            case .exhausted:
+                appModel.recordSurfaceInputProbe(
+                    "modeRequestRetry exhausted presentation=\(presentation.rawValue)"
+                        + " actualImmersiveMode=\(actualImmersiveViewingMode ?? "none")"
+                        + " actualSpatialMode=\(actualSpatialVideoMode ?? "none")"
+                        + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+                    retention: .evidence
                 )
             }
         }

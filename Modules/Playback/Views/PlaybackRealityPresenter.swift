@@ -46,6 +46,101 @@ enum PlaybackRealityViewTopologyWritePolicy {
     }
 }
 
+enum PlaybackSurfaceHost: String {
+    case mainWindow
+    case immersiveSpace
+}
+
+enum PlaybackVideoSurfaceAcquisition {
+    case ready(Entity)
+    case transferPending
+    case consumerBusy
+    case topologyDenied(PlaybackRealityViewTopologyWriteDecision)
+    case consumerFailed(any Error)
+}
+
+@MainActor
+protocol PlaybackSurfaceHostContent {
+    var hostedRoots: [Entity] { get }
+    func removeHosted(_ entity: Entity)
+}
+
+struct RealityViewHostContent<Content: RealityViewContentProtocol>: PlaybackSurfaceHostContent {
+    let content: Content
+
+    var hostedRoots: [Entity] { Array(content.entities) }
+
+    func removeHosted(_ entity: Entity) {
+        content.remove(entity)
+    }
+}
+
+@MainActor
+enum PlaybackVideoSurfaceReconciler {
+    static func acquire<Content: PlaybackSurfaceHostContent>(
+        renderer: AVSampleBufferVideoRenderer,
+        presentation: PlaybackPresentation,
+        videoComponentRevision: UInt64,
+        host: PlaybackSurfaceHost,
+        hostIsActive: Bool,
+        transition: PlaybackPresentationTransition?,
+        store: PlaybackVideoEntityStore,
+        runtime: PlaybackRuntime,
+        content: Content,
+        probe: (String) -> Void
+    ) -> PlaybackVideoSurfaceAcquisition {
+        _ = store.entity(
+            for: renderer,
+            presentation: presentation,
+            videoComponentRevision: videoComponentRevision
+        )
+        let entity = store.hostedEntity(for: presentation, during: transition)
+        if transition == nil,
+           let departingEntity = store.departingEntity,
+           departingEntity !== entity {
+            content.removeHosted(departingEntity)
+            store.releaseDepartingEntity()
+            probe(
+                "rendererOwnership.departingReleased scope=\(host.rawValue)"
+                    + " presentation=\(presentation.rawValue)"
+            )
+        }
+        let entityIsInCurrentHost = content.hostedRoots.contains { root in
+            PlaybackRealityViewTopologyWritePolicy.entity(entity, isHostedUnder: root)
+        }
+        let decision = PlaybackRealityViewTopologyWritePolicy.decision(
+            currentHostIsActive: hostIsActive,
+            entityIsActive: entity.isActive,
+            entityIsInCurrentHost: entityIsInCurrentHost
+        )
+        guard decision == .allowed else {
+            probe(
+                "spatialVideoTopology skipped reason=\(decision)"
+                    + " scope=\(host.rawValue)"
+                    + " hostActive=\(hostIsActive)"
+                    + " entity=\(ObjectIdentifier(entity))"
+                    + " entityActive=\(entity.isActive)"
+                    + " entityInCurrentHost=\(entityIsInCurrentHost)"
+                    + " attachedHost=\(runtime.attachedRealityViewID ?? "none")"
+            )
+            return .topologyDenied(decision)
+        }
+        do {
+            try runtime.claimRendererConsumer(
+                presentation: presentation,
+                entityID: store.hostedEntityID(for: presentation, during: transition)
+            )
+        } catch PlaybackRuntime.RuntimeError.rendererConsumerBusy {
+            return .consumerBusy
+        } catch PlaybackRuntime.RuntimeError.rendererTransferPending {
+            return .transferPending
+        } catch {
+            return .consumerFailed(error)
+        }
+        return .ready(entity)
+    }
+}
+
 public struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
     let sessionID: String
     let technicalSessionID: String
@@ -138,8 +233,7 @@ public final class PlaybackVideoEntityStore {
                 "rendererOwnership.entityMint reason=rendererChanged"
                     + " retired=\(PlaybackRuntime.probeEntity(retiredEntityID))"
                     + " minted=\(PlaybackRuntime.probeEntity(entityID))"
-                    + " presentation=\(presentation.rawValue)"
-            ,
+                    + " presentation=\(presentation.rawValue)",
                 retention: .evidence
             )
         }
@@ -855,9 +949,10 @@ final class PlaybackVideoRendererTargetObservation {
 }
 
 @MainActor
-enum PlaybackModeRecoveryAction {
+enum PlaybackModeRecoveryAction: Equatable {
     case none
     case requestModesAgain
+    case exhausted
 }
 
 @MainActor
@@ -870,6 +965,7 @@ final class PlaybackModeRequestRetry {
     private var firstRequestAt: Date?
     private var lastRequestAt: Date?
     private var unreportedModeSince: Date?
+    private var exhaustedSignature: String?
 
     func recoveryAction(
         entity _: Entity,
@@ -917,7 +1013,9 @@ final class PlaybackModeRequestRetry {
 
         guard let firstRequestAt,
               now.timeIntervalSince(firstRequestAt) <= Self.retryWindow else {
-            return .none
+            guard exhaustedSignature != nextSignature else { return .none }
+            exhaustedSignature = nextSignature
+            return .exhausted
         }
         if let lastRequestAt,
            now.timeIntervalSince(lastRequestAt) < Self.minimumRequestInterval {
@@ -932,6 +1030,7 @@ final class PlaybackModeRequestRetry {
         firstRequestAt = nil
         lastRequestAt = nil
         unreportedModeSince = nil
+        exhaustedSignature = nil
     }
 }
 

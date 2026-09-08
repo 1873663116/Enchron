@@ -202,8 +202,9 @@ nonisolated final class DebugProbeJournalTests: XCTestCase {
         XCTAssertTrue(try fixture.text().contains("verb=resetState"))
     }
 
+    @MainActor
     func testCompactionKeepsRecentDiagnosticsUnderEvidencePressure() throws {
-        let fixture = try ProbeJournalFixture(byteLimit: 4_096, compactionTarget: 2_048)
+        let fixture = try ProbeJournalFixture(byteLimit: 8_192, compactionTarget: 4_096)
         defer { fixture.remove() }
         let journal = DebugProbeJournal(configuration: fixture.configuration)
 
@@ -216,7 +217,7 @@ nonisolated final class DebugProbeJournalTests: XCTestCase {
 
         XCTAssertFalse(journal.status.evidenceOverflowed)
         XCTAssertGreaterThan(journal.status.compactionCount, 0)
-        XCTAssertLessThanOrEqual(try fixture.fileBytes(), 4_096)
+        XCTAssertLessThanOrEqual(try fixture.fileBytes(), 8_192)
         XCTAssertTrue(try fixture.text().contains("diagnostic 39 "))
         XCTAssertTrue(try fixture.text().contains("evidence 11 "))
     }

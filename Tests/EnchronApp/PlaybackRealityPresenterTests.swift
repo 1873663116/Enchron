@@ -568,6 +568,120 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
+    func testInPlaceRendererChangeReleasesTheRetiredEntityInEveryHost() throws {
+        for host in [PlaybackSurfaceHost.mainWindow, .immersiveSpace] {
+            let store = PlaybackVideoEntityStore()
+            let runtime = PlaybackRuntime()
+            let content = FakeSurfaceHostContent()
+            var probes: [String] = []
+            let presentation: PlaybackPresentation = host == .mainWindow ? .window : .docked
+            let first = PlaybackVideoSurfaceReconciler.acquire(
+                renderer: AVSampleBufferVideoRenderer(),
+                presentation: presentation,
+                videoComponentRevision: 1,
+                host: host,
+                hostIsActive: true,
+                transition: nil,
+                store: store,
+                runtime: runtime,
+                content: content
+            ) { probes.append($0) }
+            XCTAssertFalse(first.wasDenied, "\(host)")
+            let firstEntity = store.hostedEntity(for: presentation, during: nil)
+            content.hostedRoots.append(firstEntity)
+
+            let second = PlaybackVideoSurfaceReconciler.acquire(
+                renderer: AVSampleBufferVideoRenderer(),
+                presentation: presentation,
+                videoComponentRevision: 2,
+                host: host,
+                hostIsActive: true,
+                transition: nil,
+                store: store,
+                runtime: runtime,
+                content: content
+            ) { probes.append($0) }
+            XCTAssertFalse(second.wasDenied, "\(host)")
+            let secondEntity = store.hostedEntity(for: presentation, during: nil)
+            XCTAssertFalse(secondEntity === firstEntity, "\(host)")
+            XCTAssertNil(store.departingEntity, "\(host)")
+            XCTAssertEqual(content.removed.map { ObjectIdentifier($0) }, [ObjectIdentifier(firstEntity)], "\(host)")
+            XCTAssertTrue(
+                probes.contains { $0.hasPrefix("rendererOwnership.departingReleased scope=\(host.rawValue)") },
+                "\(host)"
+            )
+        }
+    }
+
+    @MainActor
+    func testARendererChangeDuringAHandoffKeepsTheDepartingEntityForTheOtherHost() throws {
+        let store = PlaybackVideoEntityStore()
+        let runtime = PlaybackRuntime()
+        let windowContent = FakeSurfaceHostContent()
+        _ = PlaybackVideoSurfaceReconciler.acquire(
+            renderer: AVSampleBufferVideoRenderer(),
+            presentation: .window,
+            videoComponentRevision: 1,
+            host: .mainWindow,
+            hostIsActive: true,
+            transition: nil,
+            store: store,
+            runtime: runtime,
+            content: windowContent
+        ) { _ in }
+        let windowEntity = store.hostedEntity(for: .window, during: nil)
+        windowContent.hostedRoots.append(windowEntity)
+
+        let transition = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .docked,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        let spatialContent = FakeSurfaceHostContent()
+        let outcome = PlaybackVideoSurfaceReconciler.acquire(
+            renderer: AVSampleBufferVideoRenderer(),
+            presentation: .docked,
+            videoComponentRevision: 2,
+            host: .immersiveSpace,
+            hostIsActive: true,
+            transition: transition,
+            store: store,
+            runtime: runtime,
+            content: spatialContent
+        ) { _ in }
+        XCTAssertFalse(outcome.wasDenied)
+        let dockedEntity = store.hostedEntity(for: .docked, during: transition)
+        XCTAssertFalse(dockedEntity === windowEntity)
+        XCTAssertTrue(store.departingEntity === windowEntity)
+        XCTAssertTrue(spatialContent.removed.isEmpty)
+    }
+
+    @MainActor
+    func testAnInactiveHostIsDeniedBeforeClaimingTheRenderer() {
+        let store = PlaybackVideoEntityStore()
+        let runtime = PlaybackRuntime()
+        var probes: [String] = []
+        let outcome = PlaybackVideoSurfaceReconciler.acquire(
+            renderer: AVSampleBufferVideoRenderer(),
+            presentation: .panorama,
+            videoComponentRevision: 1,
+            host: .immersiveSpace,
+            hostIsActive: false,
+            transition: nil,
+            store: store,
+            runtime: runtime,
+            content: FakeSurfaceHostContent()
+        ) { probes.append($0) }
+        guard case .topologyDenied(let decision) = outcome else {
+            return XCTFail("expected a topology denial, got \(outcome)")
+        }
+        XCTAssertEqual(decision, .inactiveHost)
+        XCTAssertTrue(probes.contains { $0.hasPrefix("spatialVideoTopology skipped reason=inactiveHost") })
+        XCTAssertNil(runtime.rendererConsumerPresentation)
+    }
+
+    @MainActor
     func testAChangedRendererCreatesANewVideoEntityWithinOneRealityView() {
         let store = PlaybackVideoEntityStore()
         let first = store.entity(for: AVSampleBufferVideoRenderer())
@@ -705,9 +819,10 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
         XCTAssertNil(entity.components[InputTargetComponent.self])
         XCTAssertNil(entity.components[CollisionComponent.self])
-        let accessibility = try XCTUnwrap(
-            entity.components[AccessibilityComponent.self]
-        )
+        XCTAssertNil(entity.components[AccessibilityComponent.self])
+        let surface = Entity()
+        PlaybackSurfaceAccessibility.install(on: surface)
+        let accessibility = try XCTUnwrap(surface.components[AccessibilityComponent.self])
         XCTAssertTrue(accessibility.isAccessibilityElement)
         XCTAssertTrue(accessibility.systemActions.contains(.activate))
         XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .window))
@@ -731,12 +846,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
         XCTAssertNil(entity.components[InputTargetComponent.self])
         XCTAssertNil(entity.components[CollisionComponent.self])
-        let accessibility = try XCTUnwrap(
-            entity.components[AccessibilityComponent.self]
-        )
-        XCTAssertTrue(accessibility.isAccessibilityElement)
-        XCTAssertNotNil(accessibility.label)
-        XCTAssertTrue(accessibility.systemActions.contains(.activate))
+        XCTAssertNil(entity.components[AccessibilityComponent.self])
         XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .docked))
     }
 
@@ -1076,4 +1186,22 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertEqual(component.desiredSpatialVideoMode, .screen)
     }
 
+}
+
+@MainActor
+private final class FakeSurfaceHostContent: PlaybackSurfaceHostContent {
+    var hostedRoots: [Entity] = []
+    private(set) var removed: [Entity] = []
+
+    func removeHosted(_ entity: Entity) {
+        removed.append(entity)
+        hostedRoots.removeAll { $0 === entity }
+    }
+}
+
+private extension PlaybackVideoSurfaceAcquisition {
+    var wasDenied: Bool {
+        if case .topologyDenied = self { return true }
+        return false
+    }
 }

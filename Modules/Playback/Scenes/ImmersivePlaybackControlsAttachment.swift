@@ -117,8 +117,7 @@ final class ImmersivePlaybackControlsAttachmentController {
                 writer: "ImmersivePlaybackControlsAttachmentController.setVisible.place"
             )
             appModel?.recordSurfaceInputProbe(
-                "immersiveControlsAttachment placementRequested revision=\(revision)"
-            ,
+                "immersiveControlsAttachment placementRequested revision=\(revision)",
                 retention: .evidence
             )
             startTrackingIfNeeded()
@@ -130,8 +129,7 @@ final class ImmersivePlaybackControlsAttachmentController {
             )
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment placementStopped"
-                    + " revision=\(lastPlacementRevision) reason=hidden"
-            ,
+                    + " revision=\(lastPlacementRevision) reason=hidden",
                 retention: .evidence
             )
         }
@@ -206,8 +204,7 @@ final class ImmersivePlaybackControlsAttachmentController {
                 atTimestamp: CACurrentMediaTime()
             )
             appModel?.recordSurfaceInputProbe(
-                "immersiveControlsAttachment headPoseQueried revision=\(revision)"
-            ,
+                "immersiveControlsAttachment headPoseQueried revision=\(revision)",
                 retention: .evidence
             )
             if let anchor, anchor.isTracked {
@@ -234,8 +231,7 @@ final class ImmersivePlaybackControlsAttachmentController {
             originFromAnchorTransform = matrix_identity_float4x4
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment placementFallback"
-                    + " reason=\(headPose.fallbackReason) revision=\(revision)"
-            ,
+                    + " reason=\(headPose.fallbackReason) revision=\(revision)",
                 retention: .evidence
             )
         }
@@ -253,14 +249,12 @@ final class ImmersivePlaybackControlsAttachmentController {
         lockedTransform = transform
         applyLockedTransform(transform, to: attachmentEntity)
         appModel?.recordSurfaceInputProbe(
-            "immersiveControlsAttachment placementApplied revision=\(revision)"
-        ,
+            "immersiveControlsAttachment placementApplied revision=\(revision)",
             retention: .evidence
         )
         appModel?.recordSurfaceInputProbe(
             "immersiveControlsAttachment placementStopped"
-                + " revision=\(revision) reason=worldLocked"
-        ,
+                + " revision=\(revision) reason=worldLocked",
             retention: .evidence
         )
     }

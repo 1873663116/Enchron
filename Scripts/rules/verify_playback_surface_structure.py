@@ -774,15 +774,32 @@ def main() -> int:
         and "ObjectIdentifier(videoEntity)" not in reality_view_id,
         "immersive RealityView identity is derived from the shared video Entity",
     )
-    topology_write_gate = region(
-        immersive,
-        "let entity = videoEntity",
-        'let desiredName = "EnchronVideo.',
+    surface_reconciler = region(
+        reality_presenter,
+        "enum PlaybackVideoSurfaceReconciler",
+        "public struct PlaybackRealityKitContentTypeScope",
     )
     require(
-        "PlaybackRealityViewTopologyWritePolicy.decision(" in topology_write_gate
-        and "presentation != .docked" not in topology_write_gate,
-        "Docked bypasses live-host topology ownership",
+        order(
+            surface_reconciler,
+            "store.releaseDepartingEntity()",
+            "PlaybackRealityViewTopologyWritePolicy.decision(",
+            "runtime.claimRendererConsumer(",
+        )
+        and "presentation != .docked" not in surface_reconciler,
+        "the shared surface reconciler no longer releases an in-place departing "
+        "entity, gates the topology write and claims the renderer consumer in that "
+        "order for every host",
+    )
+    require(
+        "host: .mainWindow," in surface
+        and "host: .immersiveSpace," in immersive
+        and surface.count("PlaybackVideoSurfaceReconciler.acquire(") == 1
+        and immersive.count("PlaybackVideoSurfaceReconciler.acquire(") == 1
+        and "releaseDepartingEntity()" not in immersive
+        and surface.count("releaseDepartingEntity()") == 1,
+        "a host acquires the shared video entity outside the surface reconciler, "
+        "or releases the departing entity on its own",
     )
     docked_interaction_surface = region(
         reality_presenter,

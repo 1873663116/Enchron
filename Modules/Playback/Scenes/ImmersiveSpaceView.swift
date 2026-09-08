@@ -1154,46 +1154,46 @@ public struct ImmersiveSpaceView: View {
             rendererTargetObservation.cancel()
             presentationObservation.prepareForReplacementEntity()
         }
-        _ = playbackVideoEntityStore.entity(
-            for: renderer,
+        let dockedAnchor: Entity?
+        if presentation == .docked {
+            guard let anchor = world.playbackSurfaceAnchor else { return }
+            dockedAnchor = anchor
+        } else {
+            dockedAnchor = nil
+        }
+        let acquisition = PlaybackVideoSurfaceReconciler.acquire(
+            renderer: renderer,
             presentation: presentation,
-            videoComponentRevision: videoComponentRevision
-        )
-        if appModel.presentationTransition == nil,
-           let departingEntity = playbackVideoEntityStore.departingEntity,
-           departingEntity !== videoEntity {
-            content.remove(departingEntity)
-            playbackVideoEntityStore.releaseDepartingEntity()
-            appModel.recordSurfaceInputProbe(
-                "rendererOwnership.departingReleased scope=immersive"
-                    + " presentation=\(presentation.rawValue)"
-            ,
-                retention: .evidence
+            videoComponentRevision: videoComponentRevision,
+            host: .immersiveSpace,
+            hostIsActive: realityViewHostMarker.isActive,
+            transition: appModel.presentationTransition,
+            store: playbackVideoEntityStore,
+            runtime: playbackRuntime,
+            content: RealityViewHostContent(content: content)
+        ) { appModel.recordSurfaceInputProbe($0, retention: .evidence) }
+        let entity: Entity
+        switch acquisition {
+        case .ready(let acquired):
+            entity = acquired
+        case .topologyDenied:
+            appModel.recordSpatialPlaybackSurfacePreparationStage("topologyWriteDenied")
+            return
+        case .consumerBusy:
+            appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerBusy")
+            logSpatialSurfaceReadiness(reason: "rendererConsumerBusy")
+            return
+        case .transferPending:
+            appModel.recordSpatialPlaybackSurfacePreparationStage("rendererTransferPending")
+            logSpatialSurfaceReadiness(reason: "rendererTransferPending")
+            return
+        case .consumerFailed(let error):
+            appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerFailed")
+            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
+            logger.error(
+                "renderer consumer claim failed error=\(error.localizedDescription, privacy: .public)"
             )
-        }
-        let entity = videoEntity
-        let entityIsInCurrentHost = content.entities.contains { root in
-            PlaybackRealityViewTopologyWritePolicy.entity(entity, isHostedUnder: root)
-        }
-        let topologyWriteDecision = PlaybackRealityViewTopologyWritePolicy.decision(
-            currentHostIsActive: realityViewHostMarker.isActive,
-            entityIsActive: entity.isActive,
-            entityIsInCurrentHost: entityIsInCurrentHost
-        )
-        guard topologyWriteDecision == .allowed else {
-            appModel.recordSpatialPlaybackSurfacePreparationStage(
-                "topologyWriteDenied"
-            )
-            appModel.recordSurfaceInputProbe(
-                "spatialVideoTopology skipped"
-                    + " reason=\(topologyWriteDecision)"
-                    + " host=\(realityViewHostIdentity)"
-                    + " hostActive=\(realityViewHostMarker.isActive)"
-                    + " entity=\(ObjectIdentifier(entity))"
-                    + " entityActive=\(entity.isActive)"
-                    + " entityInCurrentHost=\(entityIsInCurrentHost)"
-                    + " attachedHost=\(playbackRuntime.attachedRealityViewID ?? "none")"
-            )
+            logSpatialSurfaceReadiness(reason: "rendererConsumerFailed")
             return
         }
         let desiredName = "EnchronVideo.\(presentation)"
@@ -1211,36 +1211,6 @@ public struct ImmersiveSpaceView: View {
                 surfaceRefreshTick &+= 1
             }
             attachSpatialSurfaceIfReady()
-        }
-        let dockedAnchor: Entity?
-        if presentation == .docked {
-            guard let anchor = world.playbackSurfaceAnchor else { return }
-            dockedAnchor = anchor
-        } else {
-            dockedAnchor = nil
-        }
-
-        do {
-            try playbackRuntime.claimRendererConsumer(
-                presentation: presentation,
-                entityID: entityID(for: presentation)
-            )
-        } catch PlaybackRuntime.RuntimeError.rendererConsumerBusy {
-            appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerBusy")
-            logSpatialSurfaceReadiness(reason: "rendererConsumerBusy")
-            return
-        } catch PlaybackRuntime.RuntimeError.rendererTransferPending {
-            appModel.recordSpatialPlaybackSurfacePreparationStage("rendererTransferPending")
-            logSpatialSurfaceReadiness(reason: "rendererTransferPending")
-            return
-        } catch {
-            appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerFailed")
-            playbackRuntime.setUserVisibleIssue(.surfaceAttachmentFailed)
-            logger.error(
-                "renderer consumer claim failed error=\(error.localizedDescription, privacy: .public)"
-            )
-            logSpatialSurfaceReadiness(reason: "rendererConsumerFailed")
-            return
         }
         appModel.recordSpatialPlaybackSurfacePreparationStage("rendererConsumerClaimed")
         rendererTargetObservation.observe(
@@ -1476,6 +1446,16 @@ public struct ImmersiveSpaceView: View {
                     videoEntity,
                     presentation: presentation,
                     requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
+                )
+            case .exhausted:
+                appModel.recordSurfaceInputProbe(
+                    "modeRequestRetry exhausted presentation=\(presentation)"
+                        + " wantImmersive=\(String(describing: component.desiredImmersiveViewingMode))"
+                        + " gotImmersive=\(component.immersiveViewingMode.map { String(describing: $0) } ?? "none")"
+                        + " wantSpatial=\(String(describing: component.desiredSpatialVideoMode))"
+                        + " gotSpatial=\(String(describing: component.spatialVideoMode))"
+                        + " contentType=\(playbackVideoEntityStore.realityKitContentType)",
+                    retention: .evidence
                 )
             }
         }

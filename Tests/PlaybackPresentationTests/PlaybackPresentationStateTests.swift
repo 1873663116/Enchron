@@ -822,6 +822,24 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.showControls)
     }
 
+    @Test("The session hides the controls itself after the auto-hide delay unless they are focused")
+    func sessionOwnsControlsAutoHide() async throws {
+        let appModel = PlaybackSessionModel()
+        appModel.controlsAutoHideSeconds = 1
+        appModel.showControls = true
+        try await Task.sleep(for: .milliseconds(1_400))
+        #expect(appModel.showControls == false)
+
+        appModel.showControls = true
+        appModel.setControlsFocused(true)
+        try await Task.sleep(for: .milliseconds(1_400))
+        #expect(appModel.showControls)
+
+        appModel.setControlsFocused(false)
+        try await Task.sleep(for: .milliseconds(1_400))
+        #expect(appModel.showControls == false)
+    }
+
     @Test("Closing the main window stops playback only while the window hosts it")
     func mainWindowClosureStopsHostedPlayback() {
         typealias Policy = SpatialPlatformMainWindowClosurePolicy
@@ -1266,6 +1284,30 @@ struct PlaybackPresentationStateTests {
         #expect(action(at: 1) == .none)
         #expect(action(at: PlaybackModeRequestRetry.unreportedModeWindow - 0.5) == .none)
         #expect(action(at: PlaybackModeRequestRetry.unreportedModeWindow) == .requestModesAgain)
+    }
+
+    @Test("Mode re-requests report exhaustion once when the retry window closes")
+    @MainActor
+    func modeRequestExhaustionIsReportedOnce() {
+        let retry = PlaybackModeRequestRetry()
+        let entity = Entity()
+        let start = Date()
+        func action(at offset: TimeInterval) -> PlaybackModeRecoveryAction {
+            retry.recoveryAction(
+                entity: entity,
+                presentation: .panorama,
+                desiredImmersiveViewingMode: "full",
+                actualImmersiveViewingMode: "portal",
+                desiredSpatialVideoMode: "stereo",
+                actualSpatialVideoMode: "stereo",
+                now: start.addingTimeInterval(offset)
+            )
+        }
+
+        #expect(action(at: 0) == .requestModesAgain)
+        #expect(action(at: PlaybackModeRequestRetry.retryWindow + 0.5) == .exhausted)
+        #expect(action(at: PlaybackModeRequestRetry.retryWindow + 1) == .none)
+        #expect(action(at: PlaybackModeRequestRetry.retryWindow + 2) == .none)
     }
 
     @Test("A mode reported before the stall window keeps the wait intact")
