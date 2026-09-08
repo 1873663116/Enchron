@@ -775,6 +775,15 @@ struct PlaybackPresentationStateTests {
         #expect(WindowSystemOverlayPolicy.visibility(showsWindowPlayback: true, showsPlaybackChrome: true) == .automatic)
     }
 
+    @Test("A main window tree is orphaned only when a different scene has become the live one")
+    func mainWindowTreeOrphanedByNewerScene() {
+        typealias Policy = SpatialPlatformMainWindowScenePolicy
+        #expect(Policy.isOrphaned(ownSessionIdentifier: nil, liveSessionIdentifier: "b") == false)
+        #expect(Policy.isOrphaned(ownSessionIdentifier: "a", liveSessionIdentifier: nil) == false)
+        #expect(Policy.isOrphaned(ownSessionIdentifier: "a", liveSessionIdentifier: "a") == false)
+        #expect(Policy.isOrphaned(ownSessionIdentifier: "a", liveSessionIdentifier: "b"))
+    }
+
     @Test("The x button destroys the main window scene only while it hosts playback")
     func mainWindowDestroysOnDismissalOnlyDuringPlayback() {
         #expect(SpatialPlatformMainWindowDestructionPolicy.conditions(hostsPlayback: false).isEmpty)

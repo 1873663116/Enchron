@@ -82,6 +82,16 @@ public enum SpatialPlatformMainWindowDestructionPolicy {
     }
 }
 
+public enum SpatialPlatformMainWindowScenePolicy {
+    public static func isOrphaned(
+        ownSessionIdentifier: String?,
+        liveSessionIdentifier: String?
+    ) -> Bool {
+        guard let ownSessionIdentifier, let liveSessionIdentifier else { return false }
+        return ownSessionIdentifier != liveSessionIdentifier
+    }
+}
+
 public enum SpatialPlatformImmersiveExitWindowRevealPolicy {
     static func shouldRevealMainWindow(
         sourceRendererIsReleased: Bool,
@@ -203,6 +213,7 @@ public final class SpatialPlatformEffectCoordinator {
     private weak var mainWindowScene: UIWindowScene?
     @ObservationIgnored
     private var mainWindowSceneSessionIdentifier: String?
+    public private(set) var liveMainWindowSessionIdentifier: String?
     @ObservationIgnored
     private var residentWindowSceneSessionIdentifier: String?
     @ObservationIgnored
@@ -278,6 +289,7 @@ public final class SpatialPlatformEffectCoordinator {
         }
         mainWindowScene = nil
         mainWindowSceneSessionIdentifier = nil
+        liveMainWindowSessionIdentifier = nil
         recordWindowResidency(.closed, for: .main)
         appModel.recordSurfaceInputProbe(
             "mainWindowScene disconnected trigger=wearer",
@@ -442,8 +454,17 @@ public final class SpatialPlatformEffectCoordinator {
         guard let windowScene else { return }
         switch window {
         case .main:
+            guard UIApplication.shared.connectedScenes.contains(windowScene) else {
+                appModel.recordSurfaceInputProbe(
+                    "mainWindowScene reportIgnored reason=disconnected"
+                        + " session=\(windowScene.session.persistentIdentifier)",
+                    retention: .evidence
+                )
+                return
+            }
             mainWindowScene = windowScene
             mainWindowSceneSessionIdentifier = windowScene.session.persistentIdentifier
+            liveMainWindowSessionIdentifier = windowScene.session.persistentIdentifier
             applyMainWindowDestructionConditions()
         case .immersivePlaybackResident:
             residentWindowSceneSessionIdentifier = windowScene.session.persistentIdentifier

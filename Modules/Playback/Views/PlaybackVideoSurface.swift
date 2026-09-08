@@ -35,6 +35,11 @@ enum PlaybackSettlementProbeSignature {
 }
 
 @MainActor
+private final class PlaybackSurfaceHostRoot {
+    weak var entity: Entity?
+}
+
+@MainActor
 private final class PlaybackVideoComponentObservation {
     private var entityID: ObjectIdentifier?
     private var contentTypeSessionID: String?
@@ -212,6 +217,7 @@ public struct PlaybackVideoSurface: View {
     @State private var surfaceRefreshTick = 0
     @State private var validVisionLayoutViewportRefreshRevision: UInt64?
     @State private var surfaceVerticalFill: Float = 1
+    @State private var hostRoot = PlaybackSurfaceHostRoot()
 
     private var videoEntity: Entity {
         playbackVideoEntityStore.hostedEntity(
@@ -492,6 +498,7 @@ public struct PlaybackVideoSurface: View {
         if needsInsertion {
             content.add(videoEntity)
         }
+        hostRoot.entity = videoEntity.parent
         let componentWrite = PlaybackRealityPresenter.configure(
             videoEntity,
             renderer: renderer,
@@ -984,14 +991,24 @@ public struct PlaybackVideoSurface: View {
 
     private func releaseSurface<Content: RealityViewContentProtocol>(from content: Content) {
         let ownsEntity = ownsPlaybackEntity
-        if ownsEntity {
+        let hostsEntity = content.entities.contains { $0 === videoEntity }
+        if ownsEntity, hostsEntity {
             content.remove(videoEntity)
         }
-        releaseSurface(removingEntity: ownsEntity)
+        releaseSurface(removingEntity: ownsEntity, hostsEntity: hostsEntity)
     }
 
-    private func releaseSurface(removingEntity: Bool? = nil) {
+    private var hostsVideoEntity: Bool {
+        guard let root = hostRoot.entity else { return false }
+        return videoEntity.parent === root
+    }
+
+    private func releaseSurface(
+        removingEntity: Bool? = nil,
+        hostsEntity: Bool? = nil
+    ) {
         let removesEntity = removingEntity ?? ownsPlaybackEntity
+        let hostsEntity = hostsEntity ?? hostsVideoEntity
         surfaceActivation.cancel()
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
@@ -1000,6 +1017,11 @@ public struct PlaybackVideoSurface: View {
             appModel.recordSurfaceInputProbe($0)
         }
         guard removesEntity else { return }
+        appModel.recordSurfaceInputProbe(
+            "windowSurfaceRelease hostsEntity=\(hostsEntity)"
+                + " presentation=\(presentation.rawValue)"
+        )
+        guard hostsEntity else { return }
         videoEntity.removeFromParent()
         if playbackVideoEntityStore.departingEntity === videoEntity {
             playbackVideoEntityStore.releaseDepartingEntity()

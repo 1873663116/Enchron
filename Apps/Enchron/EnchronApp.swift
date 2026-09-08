@@ -27,6 +27,7 @@ struct EnchronApp: App {
             "Enchron",
             id: "main"
         ) {
+            MainWindowSceneGate {
             Group {
 #if DEBUG
                 if ProcessInfo.processInfo.environment[
@@ -46,6 +47,7 @@ struct EnchronApp: App {
             }
             .background {
                 SpatialPlatformEffectExecutor(windowIdentity: .main)
+            }
             }
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
@@ -185,6 +187,47 @@ struct EnchronApp: App {
             immersionStyle = .progressive(
                 SpatialImmersiveSpacePolicy.progressiveImmersionRange,
                 initialAmount: application.playbackSessionModel.immersiveSpaceOpeningInitialAmount
+            )
+        }
+    }
+}
+
+private struct MainWindowSceneGate<Content: View>: View {
+    @Environment(SpatialPlatformEffectCoordinator.self)
+    private var spatialPlatformEffectCoordinator
+    @State private var ownSessionIdentifier: String?
+    private let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    private var isOrphaned: Bool {
+        SpatialPlatformMainWindowScenePolicy.isOrphaned(
+            ownSessionIdentifier: ownSessionIdentifier,
+            liveSessionIdentifier: spatialPlatformEffectCoordinator.liveMainWindowSessionIdentifier
+        )
+    }
+
+    var body: some View {
+        Group {
+            if isOrphaned {
+                Color.clear
+            } else {
+                content()
+            }
+        }
+        .windowSceneReporting { windowScene in
+            if let identifier = windowScene?.session.persistentIdentifier {
+                ownSessionIdentifier = identifier
+            }
+            spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
+        }
+        .onChange(of: isOrphaned) { _, orphaned in
+            guard orphaned else { return }
+            SurfaceInputProbes.record(
+                "mainWindowScene orphaned session=\(ownSessionIdentifier ?? "none")",
+                retention: .evidence
             )
         }
     }
