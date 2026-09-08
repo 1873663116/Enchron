@@ -23,6 +23,9 @@ enum PlaybackSettlementProbeSignature {
         "audioSampleBufferCount=",
         "audioRendererEnqueuedSampleBufferCount=",
         "displayedFrameObservationCount=",
+        "droppedFrames=",
+        "totalFrames=",
+        "frameDelaySeconds=",
         "surfaceOpacity="
     ]
 
@@ -906,6 +909,12 @@ public struct PlaybackVideoSurface: View {
             "decoderBootstrapComplete=\(decoderBootstrapComplete)",
             "acceptedRendererInputCount=\(acceptedRendererInputCount)",
             "backpressureCount=\(backpressureCount)",
+            "droppedFrames=\(diagnostics.rendererDroppedFrameCount.map(String.init) ?? "none")",
+            "totalFrames=\(diagnostics.rendererTotalFrameCount.map(String.init) ?? "none")",
+            "frameDelaySeconds=\(diagnostics.rendererAccumulatedFrameDelaySeconds.map { String($0) } ?? "none")",
+            "codec=\(diagnostics.codecName)",
+            "fps=\(diagnostics.nominalFrameRate)",
+            "dimensions=\(diagnostics.dimensions)",
             "lastAudioPTS=\(debugSnapshot?.lastAudioSample.map { String($0.presentationTimeSeconds) } ?? "none")",
             "audioSampleBufferCount=\(debugSnapshot.map { String($0.audioSampleBufferCount) } ?? "none")",
             "audioRendererEnqueuedSampleBufferCount=\(audioRendererState.map { String($0.enqueuedSampleBufferCount) } ?? "none")",
