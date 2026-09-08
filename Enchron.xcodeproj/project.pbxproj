@@ -197,6 +197,7 @@
 				Playback/Session/DebugProbeJournal.swift,
 				Playback/Session/PlaybackMediaSessionDriver.swift,
 				Playback/Session/PlaybackPresentationChrome.swift,
+				Playback/Session/ProcessMemoryFootprint.swift,
 				Playback/Session/RendererTransferCoordinator.swift,
 				Playback/Session/PlaybackSessionModel.swift,
 				Playback/Session/SurfaceInputProbes.swift,
