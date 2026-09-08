@@ -1655,7 +1655,8 @@ public struct ImmersiveSpaceView: View {
             "enqueueLeadMin=\(diagnostics.videoEnqueueLeadMinSeconds.map { String($0) } ?? "none")",
             "enqueueLeadLast=\(diagnostics.videoEnqueueLeadLastSeconds.map { String($0) } ?? "none")",
             "enqueueGapMax=\(diagnostics.videoEnqueueGapMaxSeconds.map { String($0) } ?? "none")",
-            "lateEnqueues=\(diagnostics.lateVideoEnqueueCount)",
+            "lateEnqueues=\(diagnostics.lateVideoEnqueueCount)"
+        ] + ProcessMemoryFootprint.probeFields + [
             "codec=\(diagnostics.codecName)",
             "fps=\(diagnostics.nominalFrameRate)",
             "dimensions=\(diagnostics.dimensions)",
