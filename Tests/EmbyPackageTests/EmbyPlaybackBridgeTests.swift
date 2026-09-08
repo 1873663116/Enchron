@@ -89,6 +89,36 @@ struct EmbyPlaybackBridgeTests {
         #expect(resumed.externalSubtitleSources.allSatisfy { $0.byteStreamHandle != nil })
     }
 
+    @Test("an external subtitle without a delivery URL is skipped instead of failing the request")
+    func externalSubtitleWithoutDeliveryURLIsSkipped() async throws {
+        let item = movie(id: "movie", resumeTicks: 0)
+        let source = mediaSource(
+            id: "source",
+            container: "mkv",
+            streams: [
+                mediaStream(index: 7, kind: .subtitle, external: true, deliveryURL: nil),
+                mediaStream(index: 9, kind: .subtitle, external: true, deliveryURL: "/subtitle/9")
+            ]
+        )
+        let client = FakeEmbyClient(
+            items: [item.metadata.id: item],
+            playback: [item.metadata.id: EmbyPlaybackSession(
+                id: EmbyPlaySessionID(rawValue: "play-session"),
+                mediaSources: [source]
+            )]
+        )
+        let bridge = EmbyPlaybackBridge(client: client, server: server)
+
+        let request = try await bridge.request(for: EmbyPlaybackSelection(
+            item: item,
+            mediaSourceID: source.id,
+            startAction: .fromBeginning
+        ))
+
+        #expect(request.source.byteStreamHandle != nil)
+        #expect(request.externalSubtitleSources.map(\.id) == ["emby.subtitle.9"])
+    }
+
     @Test("prepared playback evidence preserves the requested action, fresh progress, and applied start")
     func preparedPlaybackEvidence() async throws {
         let item = movie(id: "movie", resumeTicks: 50_000_000)
