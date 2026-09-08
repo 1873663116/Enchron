@@ -842,6 +842,19 @@ final class TestCommandChannel {
         case "ping":
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
 #if DEBUG
+        case "setRendererLeadFrames":
+            let frames = request.args["frames"].flatMap(Int.init)
+            RendererLeadBudget.setFixedFramesOverride(frames)
+            SurfaceInputProbes.record(
+                "testcmd setRendererLeadFrames frames=\(frames.map(String.init) ?? "auto")",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [RendererLeadBudget.currentFixedFramesOverride.map(String.init) ?? "auto"]
+            )
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit

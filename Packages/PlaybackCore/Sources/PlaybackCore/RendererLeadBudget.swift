@@ -1,7 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 
-enum RendererLeadBudget {
+public enum RendererLeadBudget {
     static let schedulingSlackFrames = 2
 
     static let maximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 48
@@ -9,12 +9,26 @@ enum RendererLeadBudget {
     static let maximumDecodedBytes = environmentDouble("ENCHRON_RENDERER_LEAD_MAX_BYTES")
         ?? (200.0 * 1024.0 * 1024.0)
 
+    private static let overrideLock = NSLock()
+    nonisolated(unsafe) private static var fixedFramesOverride: Int?
+
+    public static func setFixedFramesOverride(_ frames: Int?) {
+        overrideLock.withLock { fixedFramesOverride = frames.map { max(1, $0) } }
+    }
+
+    public static var currentFixedFramesOverride: Int? {
+        overrideLock.withLock { fixedFramesOverride }
+    }
+
     static func frames(
         reorderDepth: Int,
         encodedWidth: Int,
         encodedHeight: Int,
         decodedBytesPerPixel: Double
     ) -> Int {
+        if let fixed = currentFixedFramesOverride {
+            return fixed
+        }
         let floor = max(0, reorderDepth) + schedulingSlackFrames
         let bytesPerFrame = Double(encodedWidth)
             * Double(encodedHeight)
