@@ -25,6 +25,19 @@
 
 seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测得 frames^1.8），所以上限不由稳态一次性给满，而由爬坡给：打开和每次 seek 后 `startVideoDelivery()` 重置起点，连续拖动永远停在地板附近。
 
+上限停在 32 帧的依据是 seek 的冲刷代价。2026-09-08 同一台 Vision Pro 上把预算钉住后连做五次 seek，`seekFlushMs` 是 teardown 到渲染器 flush 完成的时间，`seekTotalMs` 是到 `control.seek.completed` 的时间：
+
+| 片源 | 在飞帧 | 冲刷 | 整次 seek |
+|---|---|---|---|
+| 4K60 十比特 | 16 | 42–65 ms | 120–157 ms |
+| 同上 | 32 | 77–100 ms | 165–189 ms |
+| 同上 | 48 | 111–131 ms | 195–225 ms |
+| 同上 | 60 | 135–156 ms | 231–253 ms |
+| 4K 24p | 32 | 63–70 ms | 74–93 ms |
+| 8192x4096 60p | 32 | 166–202 ms | 264–293 ms |
+
+冲刷随在飞帧数线性增长，4K 每帧约 2.5 ms、8K 每帧约 5.5 ms；32 帧已经到达显示计数的饱和点，再往上只在每次 seek 里多付这段时间。远程来源多给到 48 帧，换传输抖动的余量。`Scripts/verification/renderer_lead_sweep.py` 在真机上按给定预算序列重复这组测量。
+
 断言在 `PlaybackCoreTests`：`theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling`、`theLeadBudgetNeverSitsBelowTheEncoderReorderDepth`、`theLeadBudgetFallsToTheFloorWhenMemoryRunsLow`。
 
 ## 交付滞后恢复的实测数字

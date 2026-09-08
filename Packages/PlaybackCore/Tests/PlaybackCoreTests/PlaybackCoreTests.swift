@@ -2882,7 +2882,11 @@ func suspendedVideoSampleDeliveryCancelsTheLeadGateBeforeReturning() async throw
         ),
         rendererSink: sink
     )
-    defer { session.close() }
+    RendererLeadBudget.setFixedFramesOverride(8)
+    defer {
+        RendererLeadBudget.setFixedFramesOverride(nil)
+        session.close()
+    }
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/suspend.mov"))
     try session.start()
