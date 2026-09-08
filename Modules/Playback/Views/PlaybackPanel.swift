@@ -1288,7 +1288,7 @@ public struct FusedPlayerPanel: View {
             accessibilityIdentifier: "PlayerPanel-menu-more"
         ) {
             if let live {
-                liveMoreMenuSections(live)
+                DeckMoreMenuSections(live: live).equatable()
             } else {
                 mockMoreMenuSections
             }
@@ -1358,59 +1358,6 @@ public struct FusedPlayerPanel: View {
                 menuOption("Episode 5 · Afterimage")
                 menuOption("Episode 6 · The Long Return")
             }
-        }
-    }
-
-    @ViewBuilder
-    private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
-        Group {
-            if !live.subtitleItems.isEmpty {
-                Menu("Subtitles") {
-                    liveMenuItems(live.subtitleItems, category: "subtitle")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
-                .disabled(!live.subtitlesEnabled)
-            }
-            if !live.audioItems.isEmpty {
-                Menu("Audio Track") {
-                    liveMenuItems(live.audioItems, category: "audio")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-audio")
-            }
-            Menu("Playback Speed") {
-                liveMenuItems(live.speedItems, category: "speed")
-            }
-            .accessibilityIdentifier("PlayerPanel-menu-speed")
-            if !live.episodeItems.isEmpty {
-                Menu("Episodes") {
-                    liveMenuItems(live.episodeItems, category: "episode")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-episodes")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func liveMenuItems(
-        _ items: [DeckMenuItem],
-        category: String
-    ) -> some View {
-        ForEach(items) { item in
-            Button {
-                guard let live else { return }
-                live.onMenuPresentationEvent(.closedAfterSelection)
-                activateMenuItem(item, live: live)
-            } label: {
-                Label {
-                    Text(item.title)
-                } icon: {
-                    MenuCheckmark.image(isSelected: item.isSelected)
-                }
-            }
-            .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
-        }
-        .onAppear {
-            live?.onReachabilityAction("menu.\(category)")
         }
     }
 
@@ -1913,6 +1860,70 @@ public struct FusedPlayerPanel: View {
 
     private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
         abs(location.x - thumbX) <= DesignTokens.ProgressBar.thumbGrabWidth / 2
+    }
+}
+
+struct DeckMoreMenuSections: View, Equatable {
+    let live: FusedPlayerPanelLive
+
+    static func == (lhs: DeckMoreMenuSections, rhs: DeckMoreMenuSections) -> Bool {
+        lhs.live.subtitlesEnabled == rhs.live.subtitlesEnabled
+            && lhs.live.subtitleItems == rhs.live.subtitleItems
+            && lhs.live.audioItems == rhs.live.audioItems
+            && lhs.live.speedItems == rhs.live.speedItems
+            && lhs.live.episodeItems == rhs.live.episodeItems
+    }
+
+    var body: some View {
+        Group {
+            if !live.subtitleItems.isEmpty {
+                Menu("Subtitles") {
+                    menuItems(live.subtitleItems, category: "subtitle")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
+                .disabled(!live.subtitlesEnabled)
+            }
+            if !live.audioItems.isEmpty {
+                Menu("Audio Track") {
+                    menuItems(live.audioItems, category: "audio")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-audio")
+            }
+            Menu("Playback Speed") {
+                menuItems(live.speedItems, category: "speed")
+            }
+            .accessibilityIdentifier("PlayerPanel-menu-speed")
+            if !live.episodeItems.isEmpty {
+                Menu("Episodes") {
+                    menuItems(live.episodeItems, category: "episode")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-episodes")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func menuItems(
+        _ items: [DeckMenuItem],
+        category: String
+    ) -> some View {
+        ForEach(items) { item in
+            Button {
+                live.onMenuPresentationEvent(.closedAfterSelection)
+                live.onReachabilityAction("menu.item.\(item.id)")
+                item.action()
+            } label: {
+                Label {
+                    Text(item.title)
+                } icon: {
+                    MenuCheckmark.image(isSelected: item.isSelected)
+                }
+            }
+            .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
+        }
+        .onAppear {
+            live.onReachabilityAction("menu.\(category)")
+        }
     }
 }
 

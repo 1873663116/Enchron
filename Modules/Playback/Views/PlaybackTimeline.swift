@@ -2,7 +2,7 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
-public struct DeckMenuItem: Identifiable {
+public struct DeckMenuItem: Identifiable, Equatable {
     public let id: String
     let title: String
     let isSelected: Bool
@@ -13,6 +13,10 @@ public struct DeckMenuItem: Identifiable {
         self.title = title
         self.isSelected = isSelected
         self.action = action
+    }
+
+    public static func == (lhs: DeckMenuItem, rhs: DeckMenuItem) -> Bool {
+        lhs.id == rhs.id && lhs.title == rhs.title && lhs.isSelected == rhs.isSelected
     }
 }
 enum PrecisionTimelineZoomScale {
