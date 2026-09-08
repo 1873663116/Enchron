@@ -18,7 +18,9 @@
     "scenario:presentation-tour:format-application-route",
     "scenario:presentation-tour:spatial-controls-summon",
     "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
-    "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels"
+    "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels",
+    "scenario:presentation-tour:window-episode-switch-lands-in-portal",
+    "scenario:presentation-tour:portal-episode-switch-lands-in-window"
   ],
   "ordering": [],
   "sharedState": [

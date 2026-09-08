@@ -208,6 +208,7 @@ STRUCTURE_CHECKS = (
     StructureCheck("one-verb-one-action", "check_one_verb_one_action.py"),
     StructureCheck("precondition-contract-alignment", "check_precondition_contract_alignment.py"),
     StructureCheck("orphan-verbs", "check_orphan_verbs.py"),
+    StructureCheck("episode-switch-captures-frames", "check_episode_switch_captures_frames.py"),
     StructureCheck("preparation-no-judgement", "check_preparation_no_judgement.py"),
     StructureCheck("readiness-gate-hidden-coverage", "check_readiness_gate_hidden_coverage.py"),
 )

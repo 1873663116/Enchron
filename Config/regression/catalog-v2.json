@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:ae9f80c690cc9808a5aebd564db2f0df1767d3497c2876c073cef315381cbe2e",
+  "contentDigest": "sha256:523c6d9929baee63fbc5c8ef44a9354be20e128c8c57b8f1ef66e81c4c6cd5d9",
   "copyDocuments": [
     {
       "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
@@ -132,9 +132,9 @@
     "oracles": 11,
     "preparations": 18,
     "promises": 65,
-    "rubrics": 103,
-    "scenarios": 68,
-    "staticCases": 118
+    "rubrics": 107,
+    "scenarios": 70,
+    "staticCases": 120
   },
   "journeys": [
     {
@@ -292,7 +292,9 @@
         "scenario:presentation-tour:format-application-route",
         "scenario:presentation-tour:spatial-controls-summon",
         "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
-        "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels"
+        "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels",
+        "scenario:presentation-tour:window-episode-switch-lands-in-portal",
+        "scenario:presentation-tour:portal-episode-switch-lands-in-window"
       ],
       "sharedState": [
         {
@@ -2347,32 +2349,6 @@
     },
     {
       "criteria": [
-        "The bound PlayerUI-spatial-state accessibility tree, read with context docked, requireMatchedElement true, summonControls true and deadlineSeconds 30 right after selecting 180_3D.mp4 from PlayerPanel-menu-more → PlayerPanel-menu-episodes (labelsAfterIdentifiers true), reports spatialState.fields.attached=docked with a rendererConsumer and playbackEntity present, proving the shell re-settled rather than staying pinned to the pre-switch surface.",
-        "spatialState.fields.mediaName (or the equivalent media identity field carried by PlayerUI-spatial-state) names 180_3D.mp4, not sdr-bframe-multiaudio-avsync-120s.mp4, so the observation is bound to the entity produced by the in-place switch and cannot be satisfied by a stale pre-switch snapshot."
-      ],
-      "filename": "rubric-presentation-tour-docked-episode-switch-settles-and-exits-o01-1.md",
-      "id": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o01@1",
-      "negativeControls": [
-        "A missing PlayerUI-spatial-state matchedElement, requireMatchedElement false, or a read taken before the episode-menu activation is Indeterminate, not Satisfied.",
-        "attached other than docked, an absent rendererConsumer/playbackEntity, or a mediaName still naming the original file (evidence of the reported in-place relaunch onto the released screen entity) fails the bound case."
-      ],
-      "title": "Docked Episode Switch Settles Again"
-    },
-    {
-      "criteria": [
-        "The window-control-plane snapshot produced by presentation.exit-spatial@1 (from=docked, deadlineSeconds=30) reports presentation=window, attached=window, and the same session identity the docked-resident probe observed, per MainView.swift:927 (`session=`) and MainView.swift:926 (`lifecycle=`).",
-        "fields.error equals none (MainView.swift:985, `error=\\(playbackRuntime.userVisibleIssue?.category.rawValue ?? \"none\")`), so the exit that used to fail with rendererReleaseUnavailable now completes without a surfaced playback issue."
-      ],
-      "filename": "rubric-presentation-tour-docked-episode-switch-settles-and-exits-o02-1.md",
-      "id": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o02@1",
-      "negativeControls": [
-        "Controller success without the application-side window-control-plane delivery is not evidence of product behavior.",
-        "attached other than window, a changed session, or a non-none fields.error (including a rendererReleaseUnavailable-class failure) fails the bound case."
-      ],
-      "title": "Docked Episode Switch Exits Without A Playback Issue"
-    },
-    {
-      "criteria": [
         "The producer requests exactly context panorama, count 3, minimumIntervalMillis 1000, and relatedResults naming call 09's matchedElement and response in that order, where call 09 read PlayerUI-spatial-state in context panorama with requireMatchedElement true right after selecting 360.mp4 from PlayerPanel-menu-more → PlayerPanel-menu-episodes.",
         "The producer returns exactly three indexed frames; every frame has a content-bound screenshot attachment, presentation is panorama, lifecycle is Playing, error is none, and adjacent capture times differ by at least 1000 ms.",
         "No frame's screenshot is blank, pure-colour, or undecodable, and at least one frame's screenshotDigest differs from frame 0's — the exact regression this closes is a black screen after switching episodes while in panorama, so uniform blankness across all three frames fails the claim regardless of the reported lifecycle."
@@ -2424,6 +2400,87 @@
         "A dominantPulseHz far from 660 Hz, a mismatched session, or a non-Playing lifecycle during the capture violates the rubric."
       ],
       "title": "Docked HLG Audio Is Audible"
+    },
+    {
+      "criteria": [
+        "The window-control-plane snapshot produced by playback.await-window-state@1 (presentation=portal, lifecycle=playing, controls=either, deadlineSeconds=45) at call 08, right after selecting 180_3D.mp4 from PlayerPanel-menu-more → PlayerPanel-menu-episodes in context docked, reports presentation=portal and attached=portal: the selected episode lands in the main-window cell of its own content family (docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md, 换片时由内容族决定去向).",
+        "fields.error equals none (MainView.swift:985, `error=\\(playbackRuntime.userVisibleIssue?.category.rawValue ?? \"none\")`) and lifecycle is playing, so the family change completed without a surfaced playback issue."
+      ],
+      "filename": "rubric-presentation-tour-docked-episode-switch-settles-and-exits-o01-2.md",
+      "id": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o01@2",
+      "negativeControls": [
+        "Controller success without the application-side window-control-plane delivery is not evidence of product behavior.",
+        "presentation or attached other than portal, a non-playing lifecycle, or a non-none fields.error fails the bound case; the 2026-09-08 escape stayed attached to the previous presentation with audio running."
+      ],
+      "title": "Docked Episode Switch Lands In Portal"
+    },
+    {
+      "criteria": [
+        "The producer requests exactly context portal, count 3, minimumIntervalMillis 1000, and relatedResults naming call 08's response, where call 08 awaited the portal window state right after the episode switch.",
+        "The producer returns exactly three indexed frames; every frame has a content-bound screenshot attachment, presentation is portal, lifecycle is Playing, error is none, and adjacent capture times differ by at least 1000 ms.",
+        "No frame's screenshot is blank, pure-colour, or undecodable, and at least one frame's screenshotDigest differs from frame 0's; the regression this closes is a black screen with audio after selecting a panoramic episode while docked, so uniform blankness across all three frames fails the claim regardless of the reported lifecycle."
+      ],
+      "filename": "rubric-presentation-tour-docked-episode-switch-settles-and-exits-o02-2.md",
+      "id": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o02@2",
+      "negativeControls": [
+        "A capture taken before the episode-menu activation, fewer than three frames, or a sub-1000 ms interval is Indeterminate, not Satisfied.",
+        "A blank, pure-colour or undecodable screenshot at any index, three identical screenshots, a non-Playing lifecycle, or a non-none error fails the bound case."
+      ],
+      "title": "Docked Episode Switch Shows Pixels In Portal"
+    },
+    {
+      "criteria": [
+        "The window-control-plane snapshot produced by playback.await-window-state@1 (presentation=portal, lifecycle=playing, controls=either, deadlineSeconds=45) at call 07, right after selecting 180_3D.mp4 from PlayerUI-TopAction-more → PlayerUI-menu-episodes in context window, reports presentation=portal and attached=portal: the selected episode lands in the main-window cell of its own content family (docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md, 换片时由内容族决定去向).",
+        "fields.error equals none (MainView.swift:985, `error=\\(playbackRuntime.userVisibleIssue?.category.rawValue ?? \"none\")`) and lifecycle is playing, so the family change completed without a surfaced playback issue."
+      ],
+      "filename": "rubric-presentation-tour-window-episode-switch-lands-in-portal-o01-1.md",
+      "id": "rubric:presentation-tour.window-episode-switch-lands-in-portal.o01@1",
+      "negativeControls": [
+        "Controller success without the application-side window-control-plane delivery is not evidence of product behavior.",
+        "presentation or attached other than portal, a non-playing lifecycle, or a non-none fields.error fails the bound case; the 2026-09-08 escape stayed attached to the previous presentation with audio running."
+      ],
+      "title": "Window Episode Switch To A Panoramic Episode Lands In Portal"
+    },
+    {
+      "criteria": [
+        "The producer requests exactly context portal, count 3, minimumIntervalMillis 1000, and relatedResults naming call 07's response, where call 07 awaited the portal window state right after the episode switch.",
+        "The producer returns exactly three indexed frames; every frame has a content-bound screenshot attachment, presentation is portal, lifecycle is Playing, error is none, and adjacent capture times differ by at least 1000 ms.",
+        "No frame's screenshot is blank, pure-colour, or undecodable, and at least one frame's screenshotDigest differs from frame 0's; the regression this closes is a stale flat surface after switching to a panoramic episode from the window, so uniform blankness across all three frames fails the claim regardless of the reported lifecycle."
+      ],
+      "filename": "rubric-presentation-tour-window-episode-switch-lands-in-portal-o02-1.md",
+      "id": "rubric:presentation-tour.window-episode-switch-lands-in-portal.o02@1",
+      "negativeControls": [
+        "A capture taken before the episode-menu activation, fewer than three frames, or a sub-1000 ms interval is Indeterminate, not Satisfied.",
+        "A blank, pure-colour or undecodable screenshot at any index, three identical screenshots, a non-Playing lifecycle, or a non-none error fails the bound case."
+      ],
+      "title": "Window To Portal Episode Switch Shows Pixels"
+    },
+    {
+      "criteria": [
+        "The window-control-plane snapshot produced by playback.await-window-state@1 (presentation=window, lifecycle=playing, controls=either, deadlineSeconds=45) at call 07, right after selecting sdr-bframe-multiaudio-avsync-120s.mp4 from PlayerUI-TopAction-more → PlayerUI-menu-episodes in context portal, reports presentation=window and attached=window: the selected episode lands in the main-window cell of its own content family (docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md, 换片时由内容族决定去向).",
+        "fields.error equals none (MainView.swift:985, `error=\\(playbackRuntime.userVisibleIssue?.category.rawValue ?? \"none\")`) and lifecycle is playing, so the family change completed without a surfaced playback issue."
+      ],
+      "filename": "rubric-presentation-tour-portal-episode-switch-lands-in-window-o01-1.md",
+      "id": "rubric:presentation-tour.portal-episode-switch-lands-in-window.o01@1",
+      "negativeControls": [
+        "Controller success without the application-side window-control-plane delivery is not evidence of product behavior.",
+        "presentation or attached other than window, a non-playing lifecycle, or a non-none fields.error fails the bound case; the 2026-09-08 escape stayed attached to the previous presentation with audio running."
+      ],
+      "title": "Portal Episode Switch To A Flat Episode Lands In Window"
+    },
+    {
+      "criteria": [
+        "The producer requests exactly context window, count 3, minimumIntervalMillis 1000, and relatedResults naming call 07's response, where call 07 awaited the window window state right after the episode switch.",
+        "The producer returns exactly three indexed frames; every frame has a content-bound screenshot attachment, presentation is window, lifecycle is Playing, error is none, and adjacent capture times differ by at least 1000 ms.",
+        "No frame's screenshot is blank, pure-colour, or undecodable, and at least one frame's screenshotDigest differs from frame 0's; the regression this closes is a stale panoramic surface after switching to a flat episode from portal, so uniform blankness across all three frames fails the claim regardless of the reported lifecycle."
+      ],
+      "filename": "rubric-presentation-tour-portal-episode-switch-lands-in-window-o02-1.md",
+      "id": "rubric:presentation-tour.portal-episode-switch-lands-in-window.o02@1",
+      "negativeControls": [
+        "A capture taken before the episode-menu activation, fewer than three frames, or a sub-1000 ms interval is Indeterminate, not Satisfied.",
+        "A blank, pure-colour or undecodable screenshot at any index, three identical screenshots, a non-Playing lifecycle, or a non-none error fails the bound case."
+      ],
+      "title": "Portal To Window Episode Switch Shows Pixels"
     }
   ],
   "scenarios": [
@@ -17001,22 +17058,22 @@
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "accessibility-tree@1",
-          "evidenceType": "accessibility.tree",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
           "id": "obligation:presentation-tour:docked-episode-switch-settles-and-exits:o01:default",
-          "oracle": "oracle:agent-structured-accessibility-tree@1",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
           "producedByCall": "call:presentation-tour:docked-episode-switch-settles-and-exits:08",
-          "rubric": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o01@1"
+          "rubric": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o01@2"
         },
         {
           "artifactClass": "coverage",
           "caseKey": "default",
-          "evidenceSchema": "window-control-plane@1",
-          "evidenceType": "window.control-plane",
+          "evidenceSchema": "frame-sequence@2",
+          "evidenceType": "visual.frames",
           "id": "obligation:presentation-tour:docked-episode-switch-settles-and-exits:o02:default",
-          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "oracle": "oracle:agent-visual@2",
           "producedByCall": "call:presentation-tour:docked-episode-switch-settles-and-exits:09",
-          "rubric": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o02@1"
+          "rubric": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o02@2"
         }
       ],
       "operations": [
@@ -17089,24 +17146,27 @@
         },
         {
           "arguments": {
-            "context": "docked",
-            "deadlineSeconds": 30,
-            "identifier": "PlayerUI-spatial-state",
-            "requireMatchedElement": true,
-            "summonControls": true
+            "controls": "either",
+            "deadlineSeconds": 45,
+            "lifecycle": "playing",
+            "presentation": "portal"
           },
           "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:08",
           "maxInvocations": 1,
-          "operation": "operation:accessibility.inspect@2"
+          "operation": "operation:playback.await-window-state@1"
         },
         {
           "arguments": {
-            "deadlineSeconds": 30,
-            "from": "docked"
+            "context": "portal",
+            "count": 3,
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:presentation-tour:docked-episode-switch-settles-and-exits:08/response"
+            ]
           },
           "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:09",
           "maxInvocations": 1,
-          "operation": "operation:presentation.exit-spatial@1"
+          "operation": "operation:evidence.capture-frames@1"
         }
       ],
       "prerequisites": [
@@ -17132,7 +17192,7 @@
           }
         ]
       },
-      "title": "Docked 内切换剧集后重新落地并安全退出"
+      "title": "Docked 内切换到全景剧集时退出 Dock 落到 portal"
     },
     {
       "applicability": {
@@ -17449,6 +17509,296 @@
         ]
       },
       "title": "HLG 文件进入 Docked 后音频保持存活"
+    },
+    {
+      "applicability": {
+        "factEquals": {
+          "fact": "fact:runtime.catalog-scope-included",
+          "value": true
+        }
+      },
+      "blockers": [],
+      "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
+      "estimatedCostMillis": 200000,
+      "id": "scenario:presentation-tour:window-episode-switch-lands-in-portal",
+      "journey": "journey:presentation-tour",
+      "lane": "device",
+      "mainGateFor": [],
+      "obligations": [
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
+          "id": "obligation:presentation-tour:window-episode-switch-lands-in-portal:o01:default",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:presentation-tour:window-episode-switch-lands-in-portal:07",
+          "rubric": "rubric:presentation-tour.window-episode-switch-lands-in-portal.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "frame-sequence@2",
+          "evidenceType": "visual.frames",
+          "id": "obligation:presentation-tour:window-episode-switch-lands-in-portal:o02:default",
+          "oracle": "oracle:agent-visual@2",
+          "producedByCall": "call:presentation-tour:window-episode-switch-lands-in-portal:08",
+          "rubric": "rubric:presentation-tour.window-episode-switch-lands-in-portal.o02@1"
+        }
+      ],
+      "operations": [
+        {
+          "arguments": {},
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:01",
+          "maxInvocations": 1,
+          "operation": "operation:app.relaunch@1"
+        },
+        {
+          "arguments": {
+            "tab": "files"
+          },
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:02",
+          "maxInvocations": 1,
+          "operation": "operation:navigation.select-tab@1"
+        },
+        {
+          "arguments": {
+            "deadlineSeconds": 45,
+            "expectedLanding": "either-main-window",
+            "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+          },
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:03",
+          "maxInvocations": 1,
+          "operation": "operation:media.open@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 45,
+            "lifecycle": "playing",
+            "presentation": "window"
+          },
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:04",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-episodes"
+            ],
+            "labels": [
+              "180_3D.mp4"
+            ],
+            "labelsAfterIdentifiers": true,
+            "summonControls": true
+          },
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:05",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {},
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:06",
+          "maxInvocations": 1,
+          "operation": "operation:harness.assert-channels@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 45,
+            "lifecycle": "playing",
+            "presentation": "portal"
+          },
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:07",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "context": "portal",
+            "count": 3,
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:presentation-tour:window-episode-switch-lands-in-portal:07/response"
+            ]
+          },
+          "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:08",
+          "maxInvocations": 1,
+          "operation": "operation:evidence.capture-frames@1"
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "presentation-fixtures-ready",
+          "schema": "fixture-set.presentation-tour@2"
+        }
+      ],
+      "promiseRefs": [
+        "promise:mode-transitions:c02"
+      ],
+      "readiness": "ready",
+      "staticCases": [
+        "default"
+      ],
+      "success": {
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:window-episode-switch-lands-in-portal:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:window-episode-switch-lands-in-portal:o02:default"
+          }
+        ]
+      },
+      "title": "窗口内切换到全景剧集时翻到 portal"
+    },
+    {
+      "applicability": {
+        "factEquals": {
+          "fact": "fact:runtime.catalog-scope-included",
+          "value": true
+        }
+      },
+      "blockers": [],
+      "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
+      "estimatedCostMillis": 200000,
+      "id": "scenario:presentation-tour:portal-episode-switch-lands-in-window",
+      "journey": "journey:presentation-tour",
+      "lane": "device",
+      "mainGateFor": [],
+      "obligations": [
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "window-control-plane@1",
+          "evidenceType": "window.control-plane",
+          "id": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o01:default",
+          "oracle": "oracle:agent-structured-window-control-plane@1",
+          "producedByCall": "call:presentation-tour:portal-episode-switch-lands-in-window:07",
+          "rubric": "rubric:presentation-tour.portal-episode-switch-lands-in-window.o01@1"
+        },
+        {
+          "artifactClass": "coverage",
+          "caseKey": "default",
+          "evidenceSchema": "frame-sequence@2",
+          "evidenceType": "visual.frames",
+          "id": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o02:default",
+          "oracle": "oracle:agent-visual@2",
+          "producedByCall": "call:presentation-tour:portal-episode-switch-lands-in-window:08",
+          "rubric": "rubric:presentation-tour.portal-episode-switch-lands-in-window.o02@1"
+        }
+      ],
+      "operations": [
+        {
+          "arguments": {},
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:01",
+          "maxInvocations": 1,
+          "operation": "operation:app.relaunch@1"
+        },
+        {
+          "arguments": {
+            "tab": "files"
+          },
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:02",
+          "maxInvocations": 1,
+          "operation": "operation:navigation.select-tab@1"
+        },
+        {
+          "arguments": {
+            "deadlineSeconds": 45,
+            "expectedLanding": "either-main-window",
+            "identifier": "MediaLibrary-grid-video-180_3D.mp4"
+          },
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:03",
+          "maxInvocations": 1,
+          "operation": "operation:media.open@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 45,
+            "lifecycle": "playing",
+            "presentation": "portal"
+          },
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:04",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "context": "portal",
+            "identifiers": [
+              "PlayerUI-TopAction-more",
+              "PlayerUI-menu-episodes"
+            ],
+            "labels": [
+              "sdr-bframe-multiaudio-avsync-120s.mp4"
+            ],
+            "labelsAfterIdentifiers": true,
+            "summonControls": true
+          },
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:05",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {},
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:06",
+          "maxInvocations": 1,
+          "operation": "operation:harness.assert-channels@2"
+        },
+        {
+          "arguments": {
+            "controls": "either",
+            "deadlineSeconds": 45,
+            "lifecycle": "playing",
+            "presentation": "window"
+          },
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:07",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "count": 3,
+            "minimumIntervalMillis": 1000,
+            "relatedResults": [
+              "result://call:presentation-tour:portal-episode-switch-lands-in-window:07/response"
+            ]
+          },
+          "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:08",
+          "maxInvocations": 1,
+          "operation": "operation:evidence.capture-frames@1"
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "presentation-fixtures-ready",
+          "schema": "fixture-set.presentation-tour@2"
+        }
+      ],
+      "promiseRefs": [
+        "promise:mode-transitions:c02"
+      ],
+      "readiness": "ready",
+      "staticCases": [
+        "default"
+      ],
+      "success": {
+        "all": [
+          {
+            "observation": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o01:default"
+          },
+          {
+            "observation": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o02:default"
+          }
+        ]
+      },
+      "title": "portal 内切换到平面剧集时翻回 window"
     }
   ],
   "schemaVersion": 2

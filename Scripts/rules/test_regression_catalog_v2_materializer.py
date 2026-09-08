@@ -344,14 +344,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "promises": 65,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 103,
+                "rubrics": 107,
                 "preparations": 18,
                 "journeys": 14,
-                "scenarios": 68,
-                "staticCases": 118,
+                "scenarios": 70,
+                "staticCases": 120,
             },
         )
-        self.assertEqual(report["obligationCount"], 155)
+        self.assertEqual(report["obligationCount"], 159)
         expected_call_count = sum(
             len(
                 preparation_adapter.build_plan(
@@ -368,7 +368,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(report["callCount"], expected_call_count)
         self.assertEqual(
             report["scenarioReadiness"],
-            {"ready": 68},
+            {"ready": 70},
         )
         self.assertEqual(
             report["preparationReadiness"],
@@ -382,7 +382,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             },
         )
         self.assertEqual(report["coreAnalysis"]["status"], "loaded-and-analyzed")
-        self.assertEqual(report["coreAnalysis"]["selectedScenarios"], 68)
+        self.assertEqual(report["coreAnalysis"]["selectedScenarios"], 70)
 
         self.assertEqual(
             {
@@ -440,7 +440,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(len(item["obligations"]) for item in tampered["scenarios"]),
-            154,
+            158,
         )
         self.assertEqual(
             {term["observation"] for term in scenario["success"]["all"]},
@@ -452,7 +452,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             blueprint_path = self._write_blueprint(root, tampered)
             with self.assertRaisesRegex(
                 MaterializationError,
-                "Catalog must contain exactly 155 globally unique obligations",
+                "Catalog must contain exactly 159 globally unique obligations",
             ):
                 materialize(
                     blueprint_path,
@@ -577,7 +577,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             self.assertTrue(STATIC_ROOT_PATHS <= set(report["expectedPaths"]))
             self.assertFalse(any(path.startswith("reviews/") for path in report["expectedPaths"]))
             self.assertNotIn("human-coverage-questions.md", report["expectedPaths"])
-            self.assertEqual(len(load_catalog(catalog).scenarios), 68)
+            self.assertEqual(len(load_catalog(catalog).scenarios), 70)
             self.assertIsNotNone(load_review_policy(catalog / "review-policy.md"))
 
             authority_payload = json.loads(
@@ -1706,6 +1706,8 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             "scenario:presentation-tour:window-docked-round-trip",
             "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
             "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels",
+            "scenario:presentation-tour:window-episode-switch-lands-in-portal",
+            "scenario:presentation-tour:portal-episode-switch-lands-in-window",
             "scenario:dynamic-range-interpretation:docked-hlg-audio-integrity",
             "scenario:presentation-tour:transition-timeout-rolls-back",
             "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
@@ -1791,7 +1793,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             if item["readiness"] == "implementation-gap"
         }
         self.assertEqual(gaps, set(GAP_SCENARIO_CAPABILITIES))
-        self.assertEqual(len(ready), 68)
+        self.assertEqual(len(ready), 70)
         operation_shapes = {
             item["id"]: item for item in operation_adapter.catalog_operation_shapes()
         }

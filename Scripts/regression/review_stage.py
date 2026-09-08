@@ -89,7 +89,7 @@ DERIVED_HUMAN_ACTOR_ID = "authority:approved-composite-design"
 DERIVED_HUMAN_RUNTIME = "semantic-authority-derivation-v1"
 _CATALOG_SCOPE_FACT = FactID("fact:runtime.catalog-scope-included")
 _EXPECTED_PROMISES = 65
-_EXPECTED_SCENARIOS = 68
+_EXPECTED_SCENARIOS = 70
 
 _CONTRACT_KIND = (
     (PromiseContract, ReviewUnitKind.PROMISE),

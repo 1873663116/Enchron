@@ -839,6 +839,22 @@
           "must not vanish for a presented menu"
         ]
       }
+    },
+    {
+      "id": "episode-switch-captures-frames-rejects-a-switch-without-pixels",
+      "guard": "Scripts/rules/check_episode_switch_captures_frames.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Config/regression/catalog-v2.json",
+        "find": "          \"callId\": \"call:presentation-tour:docked-episode-switch-settles-and-exits:09\",\n          \"maxInvocations\": 1,\n          \"operation\": \"operation:evidence.capture-frames@1\"\n",
+        "replaceWith": "          \"callId\": \"call:presentation-tour:docked-episode-switch-settles-and-exits:09\",\n          \"maxInvocations\": 1,\n          \"operation\": \"operation:accessibility.inspect@2\"\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "selects an episode without a later evidence.capture-frames call"
+        ]
+      }
     }
   ],
   "externalSubject": [

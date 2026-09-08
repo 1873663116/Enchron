@@ -50,10 +50,10 @@ EXPECTED_COUNTS = {
     "facts": 10,
     "operations": 35,
     "oracles": 11,
-    "rubrics": 103,
+    "rubrics": 107,
     "preparations": 18,
     "journeys": 14,
-    "scenarios": 68,
+    "scenarios": 70,
 }
 EXPECTED_OPERATION_IDS = frozenset(
     {
@@ -230,14 +230,14 @@ class MaterializedCatalogTests(unittest.TestCase):
                 "promises": 65,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 103,
+                "rubrics": 107,
                 "preparations": 18,
                 "journeys": 14,
-                "scenarios": 68,
-                "staticCases": 118,
+                "scenarios": 70,
+                "staticCases": 120,
             },
         )
-        self.assertEqual(report["scenarioReadiness"], {"ready": 68})
+        self.assertEqual(report["scenarioReadiness"], {"ready": 70})
         self.assertEqual(
             report["preparationReadiness"],
             {"ready": 18},
@@ -253,11 +253,11 @@ class MaterializedCatalogTests(unittest.TestCase):
         )
         self.assertEqual(
             sum(len(scenario.static_cases) for scenario in catalog.scenarios),
-            118,
+            120,
         )
         self.assertEqual(
             sum(len(scenario.obligations) for scenario in catalog.scenarios),
-            155,
+            159,
         )
         self.assertTrue(
             all(
@@ -535,8 +535,8 @@ class MaterializedCatalogTests(unittest.TestCase):
 
         gate_id = "scenario:local-media-lifecycle:clean-flat-playback-main-gate"
         self.assertEqual(len(analysis.target_promises), 65)
-        self.assertEqual(len(analysis.target_scenarios), 68)
-        self.assertEqual(len(analysis.selected_scenarios), 68)
+        self.assertEqual(len(analysis.target_scenarios), 70)
+        self.assertEqual(len(analysis.selected_scenarios), 70)
         self.assertEqual(
             {(gate.lane, str(gate.scenario_id)) for gate in analysis.main_gates},
             {

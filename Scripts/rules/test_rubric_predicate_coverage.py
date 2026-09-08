@@ -151,7 +151,7 @@ class CoverageReportTests(unittest.TestCase):
     def test_the_report_covers_the_whole_corpus(self) -> None:
         report = self.report()
 
-        self.assertEqual(103, report["rubricCount"])
+        self.assertEqual(107, report["rubricCount"])
         self.assertEqual(len(report["byRubric"]), report["rubricCount"])
         self.assertEqual(
             report["criterionCount"],

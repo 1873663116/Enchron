@@ -2,11 +2,11 @@
 {
   "schema": "enchron.regression.scenario",
   "schemaVersion": 1,
-  "id": "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
-  "title": "Docked 内切换到全景剧集时退出 Dock 落到 portal",
+  "id": "scenario:presentation-tour:portal-episode-switch-lands-in-window",
+  "title": "portal 内切换到平面剧集时翻回 window",
   "journey": "journey:presentation-tour",
   "promiseRefs": [
-    "promise:mode-transitions:c05"
+    "promise:mode-transitions:c02"
   ],
   "applicability": {
     "factEquals": {
@@ -30,7 +30,7 @@
   "operations": [
     {
       "arguments": {},
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:01",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:01",
       "maxInvocations": 1,
       "operation": "operation:app.relaunch@1"
     },
@@ -38,17 +38,17 @@
       "arguments": {
         "tab": "files"
       },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:02",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:02",
       "maxInvocations": 1,
       "operation": "operation:navigation.select-tab@1"
     },
     {
       "arguments": {
         "deadlineSeconds": 45,
-        "expectedLanding": "window",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+        "expectedLanding": "either-main-window",
+        "identifier": "MediaLibrary-grid-video-180_3D.mp4"
       },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:03",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:03",
       "maxInvocations": 1,
       "operation": "operation:media.open@2"
     },
@@ -57,41 +57,32 @@
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
-        "presentation": "window"
+        "presentation": "portal"
       },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:04",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:04",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
     {
       "arguments": {
-        "deadlineSeconds": 30,
-        "summonControls": true
-      },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:05",
-      "maxInvocations": 1,
-      "operation": "operation:presentation.enter-docked-skybox@1"
-    },
-    {
-      "arguments": {
-        "context": "docked",
+        "context": "portal",
         "identifiers": [
-          "PlayerPanel-menu-more",
-          "PlayerPanel-menu-episodes"
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-episodes"
         ],
         "labels": [
-          "180_3D.mp4"
+          "sdr-bframe-multiaudio-avsync-120s.mp4"
         ],
         "labelsAfterIdentifiers": true,
         "summonControls": true
       },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:06",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:05",
       "maxInvocations": 1,
       "operation": "operation:accessibility.activate@2"
     },
     {
       "arguments": {},
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:07",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:06",
       "maxInvocations": 1,
       "operation": "operation:harness.assert-channels@2"
     },
@@ -100,22 +91,22 @@
         "controls": "either",
         "deadlineSeconds": 45,
         "lifecycle": "playing",
-        "presentation": "portal"
+        "presentation": "window"
       },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:08",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:07",
       "maxInvocations": 1,
       "operation": "operation:playback.await-window-state@1"
     },
     {
       "arguments": {
-        "context": "portal",
+        "context": "window",
         "count": 3,
         "minimumIntervalMillis": 1000,
         "relatedResults": [
-          "result://call:presentation-tour:docked-episode-switch-settles-and-exits:08/response"
+          "result://call:presentation-tour:portal-episode-switch-lands-in-window:07/response"
         ]
       },
-      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:09",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:08",
       "maxInvocations": 1,
       "operation": "operation:evidence.capture-frames@1"
     }
@@ -126,34 +117,34 @@
       "caseKey": "default",
       "evidenceSchema": "window-control-plane@1",
       "evidenceType": "window.control-plane",
-      "id": "obligation:presentation-tour:docked-episode-switch-settles-and-exits:o01:default",
+      "id": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o01:default",
       "oracle": "oracle:agent-structured-window-control-plane@1",
-      "producedByCall": "call:presentation-tour:docked-episode-switch-settles-and-exits:08",
-      "rubric": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o01@2"
+      "producedByCall": "call:presentation-tour:portal-episode-switch-lands-in-window:07",
+      "rubric": "rubric:presentation-tour.portal-episode-switch-lands-in-window.o01@1"
     },
     {
       "artifactClass": "coverage",
       "caseKey": "default",
       "evidenceSchema": "frame-sequence@2",
       "evidenceType": "visual.frames",
-      "id": "obligation:presentation-tour:docked-episode-switch-settles-and-exits:o02:default",
+      "id": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o02:default",
       "oracle": "oracle:agent-visual@2",
-      "producedByCall": "call:presentation-tour:docked-episode-switch-settles-and-exits:09",
-      "rubric": "rubric:presentation-tour.docked-episode-switch-settles-and-exits.o02@2"
+      "producedByCall": "call:presentation-tour:portal-episode-switch-lands-in-window:08",
+      "rubric": "rubric:presentation-tour.portal-episode-switch-lands-in-window.o02@1"
     }
   ],
   "success": {
     "all": [
       {
-        "observation": "obligation:presentation-tour:docked-episode-switch-settles-and-exits:o01:default"
+        "observation": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o01:default"
       },
       {
-        "observation": "obligation:presentation-tour:docked-episode-switch-settles-and-exits:o02:default"
+        "observation": "obligation:presentation-tour:portal-episode-switch-lands-in-window:o02:default"
       }
     ]
   }
 }
 ---
-# Docked 内切换到全景剧集时退出 Dock 落到 portal
+# portal 内切换到平面剧集时翻回 window
 
 Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.
