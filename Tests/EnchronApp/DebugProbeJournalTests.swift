@@ -199,6 +199,26 @@ nonisolated final class DebugProbeJournalTests: XCTestCase {
         XCTAssertTrue(journal.status.evidenceOverflowed)
         XCTAssertLessThanOrEqual(try fixture.fileBytes(), 512)
         XCTAssertFalse(try fixture.text().contains(String(repeating: "e", count: 2_048)))
+        XCTAssertTrue(try fixture.text().contains("verb=resetState"))
+    }
+
+    func testCompactionKeepsRecentDiagnosticsUnderEvidencePressure() throws {
+        let fixture = try ProbeJournalFixture(byteLimit: 4_096, compactionTarget: 2_048)
+        defer { fixture.remove() }
+        let journal = DebugProbeJournal(configuration: fixture.configuration)
+
+        for index in 0..<12 {
+            journal.record("evidence \(index) " + String(repeating: "v", count: 120), retention: .evidence)
+        }
+        for index in 0..<40 {
+            journal.record("diagnostic \(index) " + String(repeating: "d", count: 120), retention: .diagnostic)
+        }
+
+        XCTAssertFalse(journal.status.evidenceOverflowed)
+        XCTAssertGreaterThan(journal.status.compactionCount, 0)
+        XCTAssertLessThanOrEqual(try fixture.fileBytes(), 4_096)
+        XCTAssertTrue(try fixture.text().contains("diagnostic 39 "))
+        XCTAssertTrue(try fixture.text().contains("evidence 11 "))
     }
 
     private static func sequence(from line: String) throws -> UInt64 {

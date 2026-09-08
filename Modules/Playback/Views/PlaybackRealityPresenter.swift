@@ -139,6 +139,8 @@ public final class PlaybackVideoEntityStore {
                     + " retired=\(PlaybackRuntime.probeEntity(retiredEntityID))"
                     + " minted=\(PlaybackRuntime.probeEntity(entityID))"
                     + " presentation=\(presentation.rawValue)"
+            ,
+                retention: .evidence
             )
         }
         self.renderer = renderer

@@ -118,6 +118,8 @@ final class ImmersivePlaybackControlsAttachmentController {
             )
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment placementRequested revision=\(revision)"
+            ,
+                retention: .evidence
             )
             startTrackingIfNeeded()
             placeForPendingVisibilityRiseIfPossible()
@@ -129,6 +131,8 @@ final class ImmersivePlaybackControlsAttachmentController {
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment placementStopped"
                     + " revision=\(lastPlacementRevision) reason=hidden"
+            ,
+                retention: .evidence
             )
         }
     }
@@ -203,6 +207,8 @@ final class ImmersivePlaybackControlsAttachmentController {
             )
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment headPoseQueried revision=\(revision)"
+            ,
+                retention: .evidence
             )
             if let anchor, anchor.isTracked {
                 headPose = (anchor.originFromAnchorTransform, "")
@@ -229,6 +235,8 @@ final class ImmersivePlaybackControlsAttachmentController {
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment placementFallback"
                     + " reason=\(headPose.fallbackReason) revision=\(revision)"
+            ,
+                retention: .evidence
             )
         }
 
@@ -246,10 +254,14 @@ final class ImmersivePlaybackControlsAttachmentController {
         applyLockedTransform(transform, to: attachmentEntity)
         appModel?.recordSurfaceInputProbe(
             "immersiveControlsAttachment placementApplied revision=\(revision)"
+        ,
+            retention: .evidence
         )
         appModel?.recordSurfaceInputProbe(
             "immersiveControlsAttachment placementStopped"
                 + " revision=\(revision) reason=worldLocked"
+        ,
+            retention: .evidence
         )
     }
 

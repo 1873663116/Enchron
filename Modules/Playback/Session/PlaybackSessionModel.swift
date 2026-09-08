@@ -391,7 +391,9 @@ public final class PlaybackSessionModel {
 
     func recordPresentationConversionDiagnostic(_ diagnostic: String) {
         lastPresentationConversionDiagnostic = diagnostic
-        SurfaceInputProbes.record("conversionFailed \(diagnostic)")
+        SurfaceInputProbes.record("conversionFailed \(diagnostic)",
+            retention: .evidence
+        )
     }
 
     @discardableResult

@@ -369,6 +369,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
                 + "/\(Self.probeEntity(rendererConsumerEntityID))"
                 + " renderer=\(renderer == nil ? "none" : "present")"
+        ,
+            retention: .evidence
         )
         if currentLaunchRequest == nil || currentLaunchRequest != request {
             observationGeneration &+= 1
@@ -661,6 +663,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     + " technical=\(sessionResource.sessionID)"
                     + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
                     + "/\(Self.probeEntity(rendererConsumerEntityID))"
+            ,
+                retention: .evidence
             )
             logger.info("session prepared id=\(sessionResource.sessionID, privacy: .public)")
             if mediaKind == .audioOnly {
@@ -808,6 +812,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     + "/\(Self.probeEntity(discarded.entityID))"
                     + " recordEpoch=\(discarded.recordEpoch)"
                     + " currentEpoch=\(discarded.currentEpoch)"
+            ,
+                retention: .evidence
             )
             clearVideoComponentBindingObservation()
         }
@@ -842,15 +848,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .granted:
             SurfaceInputProbes.record(
                 "rendererOwnership.claim outcome=granted \(ownershipFacts)"
+            ,
+                retention: .evidence
             )
         case .busy(let currentPresentation):
             SurfaceInputProbes.record(
                 "rendererOwnership.claim outcome=busy \(ownershipFacts)"
+            ,
+                retention: .evidence
             )
             throw RuntimeError.rendererConsumerBusy(currentPresentation)
         case .transferPending:
             SurfaceInputProbes.record(
                 "rendererOwnership.claim outcome=transferPending \(ownershipFacts)"
+            ,
+                retention: .evidence
             )
             throw RuntimeError.rendererTransferPending
         }
@@ -877,12 +889,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     + " requested=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
                     + " holder=\(previous.presentation?.rawValue ?? "none")"
                     + "/\(Self.probeEntity(previous.entityID))"
+            ,
+                retention: .evidence
             )
             return
         }
         SurfaceInputProbes.record(
             "rendererOwnership.release outcome=released"
                 + " holder=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
+        ,
+            retention: .evidence
         )
         if preservingVideoComponent == false {
             clearVideoComponentBindingObservation(for: entityID)
@@ -1936,6 +1952,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
                 + "/\(Self.probeEntity(rendererConsumerEntityID))"
                 + " renderer=\(renderer == nil ? "none" : "present")"
+        ,
+            retention: .evidence
         )
         if currentLaunchRequest != nil {
             emitPlaybackObservation(.stopped)

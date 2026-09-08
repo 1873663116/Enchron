@@ -36,6 +36,7 @@ public final class DebugProbeJournal {
         let url: URL
         let byteLimit: Int
         let compactionTarget: Int
+        var diagnosticFloor: Int { compactionTarget / 4 }
         let now: () -> Date
         let retainsLoadedEvidence: Bool
 
@@ -200,16 +201,25 @@ public final class DebugProbeJournal {
     }
 
     private func compactToTarget() {
-        let evidence = records.filter { $0.retention == .evidence }
-        let evidenceBytes = evidence.reduce(0) { $0 + $1.byteCount }
-        guard evidenceBytes <= configuration.byteLimit else {
-            records.removeAll(keepingCapacity: true)
+        var evidence = records.filter { $0.retention == .evidence }
+        var evidenceBytes = evidence.reduce(0) { $0 + $1.byteCount }
+        if evidenceBytes > configuration.compactionTarget {
             status.evidenceOverflowed = true
-            rewriteFile()
-            return
+            var kept: [DebugProbeRecord] = []
+            var keptBytes = 0
+            for record in evidence.reversed() {
+                guard keptBytes + record.byteCount <= configuration.compactionTarget else { continue }
+                kept.append(record)
+                keptBytes += record.byteCount
+            }
+            evidence = kept.reversed()
+            evidenceBytes = keptBytes
         }
 
-        let target = max(configuration.compactionTarget, evidenceBytes)
+        let target = min(
+            configuration.byteLimit,
+            max(configuration.compactionTarget, evidenceBytes + configuration.diagnosticFloor)
+        )
         var selectedSequences = Set(evidence.map(\.sequence))
         var selectedBytes = evidenceBytes
         for record in records.reversed() where record.retention == .diagnostic {

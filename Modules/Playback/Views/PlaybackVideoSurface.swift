@@ -22,7 +22,8 @@ enum PlaybackSettlementProbeSignature {
         "backpressureCount=",
         "audioSampleBufferCount=",
         "audioRendererEnqueuedSampleBufferCount=",
-        "displayedFrameObservationCount="
+        "displayedFrameObservationCount=",
+        "surfaceOpacity="
     ]
 
     static func make(fields: [String]) -> String {

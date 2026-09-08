@@ -1167,6 +1167,8 @@ public struct ImmersiveSpaceView: View {
             appModel.recordSurfaceInputProbe(
                 "rendererOwnership.departingReleased scope=immersive"
                     + " presentation=\(presentation.rawValue)"
+            ,
+                retention: .evidence
             )
         }
         let entity = videoEntity
@@ -1716,25 +1718,9 @@ public struct ImmersiveSpaceView: View {
             "retiring=\(playbackRuntime.retiringTechnicalSessionCount)"
         ]
         let settlementBreakdown = settlementFields.joined(separator: ",")
-        let fastChangingFieldPrefixes = [
-            "synchronizerTime=",
-            "timebaseSourceTime=",
-            "timebaseUltimateSourceTime=",
-            "lastVideoPTS=",
-            "lastVideoDTS=",
-            "lastAudioPTS=",
-            "enqueuedSampleCount=",
-            "acceptedRendererInputCount=",
-            "backpressureCount=",
-            "audioSampleBufferCount=",
-            "audioRendererEnqueuedSampleBufferCount=",
-            "displayedFrameObservationCount="
-        ]
-        let settlementSignature = settlementFields
-            .filter { field in
-                !fastChangingFieldPrefixes.contains { field.hasPrefix($0) }
-            }
-            .joined(separator: ",")
+        let settlementSignature = PlaybackSettlementProbeSignature.make(
+            fields: settlementFields
+        )
         if presentationObservation.shouldLogSurfaceReadiness(
             reason: "settlement",
             signature: settlementSignature,
