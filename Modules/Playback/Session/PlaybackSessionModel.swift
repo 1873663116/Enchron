@@ -565,11 +565,11 @@ public final class PlaybackSessionModel {
         if windowSecondaryMenuIsPresented {
             windowSecondaryMenuIsPresented = false
             setControlsFocused(false, at: date)
+            showControls = false
             SurfaceInputProbes.record(
-                "controlsVisibility event=surface-tap-closed-secondary-menu state=\(showControls ? "shown" : "hidden")",
+                "controlsVisibility event=surface-tap-dismissed-menu-and-controls state=hidden",
                 retention: .evidence
             )
-            registerControlsInteraction(at: date)
             return
         }
         showControls.toggle()
@@ -621,6 +621,26 @@ public final class PlaybackSessionModel {
     public func setWindowSecondaryMenuPresented(_ presented: Bool) {
         guard windowSecondaryMenuIsPresented != presented else { return }
         windowSecondaryMenuIsPresented = presented
+    }
+
+    public func systemMenuPresentationChanged(
+        _ event: PlaybackMenuPresentationEvent,
+        at date: Date = Date()
+    ) {
+        switch event {
+        case .opened:
+            guard windowSecondaryMenuIsPresented == false else { return }
+            windowSecondaryMenuIsPresented = true
+            setControlsFocused(true, at: date)
+        case .closedAfterSelection:
+            windowSecondaryMenuIsPresented = false
+            setControlsFocused(false, at: date)
+            registerControlsInteraction(at: date)
+        }
+        SurfaceInputProbes.record(
+            "controlsVisibility event=system-menu-\(event) state=\(showControls ? "shown" : "hidden")",
+            retention: .evidence
+        )
     }
 
     public var canAutoHideControls: Bool {
@@ -692,4 +712,9 @@ public final class PlaybackSessionModel {
         environmentSkyboxIsActive = false
     }
 
+}
+
+public enum PlaybackMenuPresentationEvent: Equatable, Sendable {
+    case opened
+    case closedAfterSelection
 }

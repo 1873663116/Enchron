@@ -48,6 +48,7 @@ public struct FusedPlayerPanelLive {
     ) -> Void
     var onRestoreAutomaticFormat: () -> Void
     var onReachabilityAction: (String) -> Void = { _ in }
+    var onMenuPresentationEvent: (PlaybackMenuPresentationEvent) -> Void = { _ in }
     var subtitlesEnabled: Bool = true
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
@@ -96,6 +97,7 @@ public struct FusedPlayerPanelLive {
         onApplyFormat: @escaping ( PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout ) -> Void,
         onRestoreAutomaticFormat: @escaping () -> Void,
         onReachabilityAction: @escaping (String) -> Void = { _ in },
+        onMenuPresentationEvent: @escaping (PlaybackMenuPresentationEvent) -> Void = { _ in },
         subtitlesEnabled: Bool = true,
         subtitleItems: [DeckMenuItem],
         audioItems: [DeckMenuItem],
@@ -143,6 +145,7 @@ public struct FusedPlayerPanelLive {
         self.onApplyFormat = onApplyFormat
         self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
         self.onReachabilityAction = onReachabilityAction
+        self.onMenuPresentationEvent = onMenuPresentationEvent
         self.subtitlesEnabled = subtitlesEnabled
         self.subtitleItems = subtitleItems
         self.audioItems = audioItems
@@ -1290,6 +1293,10 @@ public struct FusedPlayerPanel: View {
                 mockMoreMenuSections
             }
         }
+        .onOpen {
+            live?.onReachabilityAction("menu.more")
+            live?.onMenuPresentationEvent(.opened)
+        }
         .accessibilityLabel("More playback settings")
     }
 
@@ -1381,9 +1388,6 @@ public struct FusedPlayerPanel: View {
                 .accessibilityIdentifier("PlayerPanel-menu-episodes")
             }
         }
-        .onAppear {
-            live.onReachabilityAction("menu.more")
-        }
     }
 
     @ViewBuilder
@@ -1394,6 +1398,7 @@ public struct FusedPlayerPanel: View {
         ForEach(items) { item in
             Button {
                 guard let live else { return }
+                live.onMenuPresentationEvent(.closedAfterSelection)
                 activateMenuItem(item, live: live)
             } label: {
                 Label {

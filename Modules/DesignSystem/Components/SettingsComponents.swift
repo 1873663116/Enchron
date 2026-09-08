@@ -410,6 +410,7 @@ public struct CircleIconMenu<Content: View>: View {
     var targetSize: CGFloat = DesignTokens.Interactive.large
     var iconTier: ButtonIconTier = .standard
     var iconColor: Color = .white
+    var onOpen: (@MainActor () -> Void)?
     @ViewBuilder var content: () -> Content
 
     public init(
@@ -432,9 +433,16 @@ public struct CircleIconMenu<Content: View>: View {
         self.content = content
     }
 
+    public func onOpen(_ action: @escaping @MainActor () -> Void) -> CircleIconMenu {
+        var copy = self
+        copy.onOpen = action
+        return copy
+    }
+
     public var body: some View {
         Menu {
             content()
+                .onAppear { onOpen?() }
         } label: {
             CircleIconLabel(
                 systemName: systemName,
@@ -448,6 +456,7 @@ public struct CircleIconMenu<Content: View>: View {
             .frame(width: targetSize, height: targetSize)
             .contentShape(Circle())
         }
+        .simultaneousGesture(TapGesture().onEnded { onOpen?() })
         .buttonStyle(EnchronPressFeedbackButtonStyle.menuIcon())
         .contentShape(Circle())
         .enchronHoverContentShape(

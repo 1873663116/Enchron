@@ -196,6 +196,15 @@ public struct WindowPlayerDeckView: View {
                 )
 #endif
             },
+            onMenuPresentationEvent: { event in
+                self.appModel.systemMenuPresentationChanged(event)
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability top secondary menu event=\(event) menu=panel",
+                    retention: .evidence
+                )
+#endif
+            },
             subtitlesEnabled: playbackRuntime.mediaKind != .audioOnly,
             subtitleItems: subtitleItems,
             audioItems: audioItems,
@@ -428,13 +437,10 @@ struct ProductionPlaybackMoreMenu: View {
                     .accessibilityIdentifier("PlayerUI-menu-episodes")
                 }
             }
-            .onAppear {
-                recordReachability("menu.more")
-                reportPresentation(true)
-            }
-            .onDisappear {
-                reportPresentation(false)
-            }
+        }
+        .onOpen {
+            recordReachability("menu.more")
+            reportPresentation(.opened)
         }
         .accessibilityLabel("More playback settings")
 #if DEBUG
@@ -461,7 +467,7 @@ struct ProductionPlaybackMoreMenu: View {
                 identifier: "PlayerUI-menu-\(category)-\(item.id)"
             ) {
                 recordReachability("menu.item.\(item.id)")
-                reportPresentation(false)
+                reportPresentation(.closedAfterSelection)
                 item.action()
             }
         }
@@ -495,7 +501,7 @@ struct ProductionPlaybackMoreMenu: View {
                     isSelected: item.isSelected,
                     select: {
                         recordReachability("menu.item.\(item.id)")
-                        reportPresentation(false)
+                        reportPresentation(.closedAfterSelection)
                         item.action()
                     }
                 )
@@ -517,12 +523,11 @@ struct ProductionPlaybackMoreMenu: View {
 #endif
     }
 
-    private func reportPresentation(_ presented: Bool) {
-        appModel.setWindowSecondaryMenuPresented(presented)
-        appModel.setControlsFocused(presented)
+    private func reportPresentation(_ event: PlaybackMenuPresentationEvent) {
+        appModel.systemMenuPresentationChanged(event)
 #if DEBUG
         appModel.recordSurfaceInputProbe(
-            "reachability top secondary menu visible=\(presented) menu=more",
+            "reachability top secondary menu event=\(event) menu=more",
             retention: .evidence
         )
 #endif

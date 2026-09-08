@@ -793,6 +793,35 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("A system menu keeps the controls focused while open and a surface tap takes menu and controls away together")
+    func systemMenuPresentationDrivesControlsFocusAndDismissal() throws {
+        let appModel = PlaybackSessionModel()
+        appModel.showControls = true
+        let opened = Date(timeIntervalSince1970: 1_000)
+        appModel.systemMenuPresentationChanged(.opened, at: opened)
+        #expect(appModel.isControlsFocused)
+        #expect(appModel.windowSecondaryMenuIsPresented)
+        #expect(appModel.canAutoHideControls == false)
+
+        appModel.systemMenuPresentationChanged(.opened, at: opened.addingTimeInterval(1))
+        #expect(appModel.lastControlsInteractionAt == opened)
+
+        appModel.systemMenuPresentationChanged(.closedAfterSelection, at: opened.addingTimeInterval(2))
+        #expect(appModel.isControlsFocused == false)
+        #expect(appModel.windowSecondaryMenuIsPresented == false)
+        #expect(appModel.showControls)
+        #expect(appModel.lastControlsInteractionAt == opened.addingTimeInterval(2))
+
+        appModel.systemMenuPresentationChanged(.opened, at: opened.addingTimeInterval(4))
+        appModel.toggleControlsFromPlaybackSurface(at: opened.addingTimeInterval(6))
+        #expect(appModel.showControls == false)
+        #expect(appModel.windowSecondaryMenuIsPresented == false)
+        #expect(appModel.isControlsFocused == false)
+
+        appModel.toggleControlsFromPlaybackSurface(at: opened.addingTimeInterval(8))
+        #expect(appModel.showControls)
+    }
+
     @Test("Closing the main window stops playback only while the window hosts it")
     func mainWindowClosureStopsHostedPlayback() {
         typealias Policy = SpatialPlatformMainWindowClosurePolicy
