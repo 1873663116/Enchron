@@ -591,6 +591,10 @@ public struct MainView: View {
                 LoadingSpinner(sourceReadBytesPerSecond: {
                     playbackRuntime.outputObservation().sourceReadBytesPerSecond
                 })
+                    .enchronSpatialFrame(depth: 0)
+                    .enchronSpatialOffset(
+                        z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                    )
                     .accessibilityIdentifier("PlayerUI-loading-spinner")
                     .accessibilityLabel("Loading")
                     .allowsHitTesting(false)
