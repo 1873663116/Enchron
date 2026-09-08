@@ -892,6 +892,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     private var registrations: [String: Registration] = [:]
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var transferTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    private var transferTokens: [ObjectIdentifier: String] = [:]
     private var statistics = Statistics()
     #if DEBUG
         private let debugCounterState = OSAllocatedUnfairLock(
@@ -969,6 +970,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             registrations.removeAll()
             connections.removeAll()
             transferTasks.removeAll()
+            transferTokens.removeAll()
             return work
         }
         work.0?.cancel()
@@ -1032,7 +1034,18 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     #endif
 
     fileprivate func unregister(token: String) {
-        _ = lock.withLock { registrations.removeValue(forKey: token) }
+        let orphans = lock.withLock { () -> [(Task<Void, Never>?, NWConnection?)] in
+            registrations.removeValue(forKey: token)
+            let ids = transferTokens.filter { $0.value == token }.map(\.key)
+            return ids.map { id in
+                transferTokens.removeValue(forKey: id)
+                return (transferTasks.removeValue(forKey: id), connections.removeValue(forKey: id))
+            }
+        }
+        for (task, connection) in orphans {
+            task?.cancel()
+            connection?.cancel()
+        }
         let live = lock.withLock { (registrations.count, transferTasks.count, connections.count) }
         MediaSourceDebugTrace.event(
             "bytestream.unregister token=\(token.prefix(8)) registrations=\(live.0)"
@@ -1118,6 +1131,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     private func connectionDidEnd(_ id: ObjectIdentifier, connection: NWConnection?) {
         let task = lock.withLock {
             connections.removeValue(forKey: id)
+            transferTokens.removeValue(forKey: id)
             return transferTasks.removeValue(forKey: id)
         }
         MediaSourceDebugTrace.event(
@@ -1169,14 +1183,20 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let task = Task { [weak self, connection] in
             guard let self else { return }
             defer {
-                _ = self.lock.withLock { self.transferTasks.removeValue(forKey: id) }
+                self.lock.withLock {
+                    self.transferTasks.removeValue(forKey: id)
+                    self.transferTokens.removeValue(forKey: id)
+                }
                 MediaSourceDebugTrace.event(
                     "bytestream.transfer.end token=\(token.prefix(8)) connection=\(id.hashValue)"
                 )
             }
             await self.respond(method: method, rangeHeader: header, registration: registration, on: connection)
         }
-        lock.withLock { transferTasks[id] = task }
+        lock.withLock {
+            transferTasks[id] = task
+            transferTokens[id] = token
+        }
     }
 
     private func respond(
@@ -1305,6 +1325,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 lock.withLock { statistics.bytesRead += Int64(payload.count) }
             }
             while offset < requestedRange.upperBound {
+                try Task.checkCancellation()
                 let end = min(offset + readChunkSize, requestedRange.upperBound)
                 let readStartedAt = Date()
                 let result = try await read(offset..<end, registration: registration)
