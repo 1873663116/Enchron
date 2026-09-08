@@ -331,6 +331,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         videoRendererGraphLock.withLock { videoRendererGraph.revision }
     }
     var displayedFrameObservationCount: UInt64 = 0
+    var videoEnqueueLeadWindowMinSeconds: Double?
+    var videoEnqueueGapWindowMaxSeconds: Double?
+    var lastVideoEnqueueHostSeconds: Double?
+    var lateVideoEnqueueCount: UInt64 = 0
     var lastDisplayedFrameIdentity: UInt64?
     var stereoLayoutOverride: VideoStereoLayout?
     var projectionOverride: VideoProjectionOverride?

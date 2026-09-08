@@ -44,6 +44,12 @@ extension SampleBufferPlaybackSession {
         diagnostics.rendererStatus = currentVideoRendererStatus
         diagnostics.rendererError = currentVideoRendererError ?? "none"
         diagnostics.demuxBuffer = demuxSession?.bufferDiagnostics()
+        diagnostics.videoLeadFramesBudget = videoLeadFrames
+        diagnostics.videoEnqueueLeadMinSeconds = videoEnqueueLeadWindowMinSeconds
+        diagnostics.videoEnqueueGapMaxSeconds = videoEnqueueGapWindowMaxSeconds
+        diagnostics.lateVideoEnqueueCount = lateVideoEnqueueCount
+        videoEnqueueLeadWindowMinSeconds = nil
+        videoEnqueueGapWindowMaxSeconds = nil
         recordRendererState(at: time)
         recordAudioRendererState()
         if mediaKind == .video {

@@ -117,6 +117,11 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var rendererOptimizedCompositingFrameCount: Int?
     public var rendererAccumulatedFrameDelaySeconds: TimeInterval?
     public var rendererPerformanceMetricsObservationCount: UInt64 = 0
+    public var videoLeadFramesBudget: Int?
+    public var videoEnqueueLeadMinSeconds: Double?
+    public var videoEnqueueLeadLastSeconds: Double?
+    public var videoEnqueueGapMaxSeconds: Double?
+    public var lateVideoEnqueueCount: UInt64 = 0
     public var demuxBuffer: PlaybackDemuxBufferDiagnostics?
 
     public init() {}

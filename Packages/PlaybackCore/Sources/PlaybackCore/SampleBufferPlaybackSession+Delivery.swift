@@ -453,6 +453,7 @@ extension SampleBufferPlaybackSession {
                 outcome = try rendererSink.enqueueImmediately(input)
                 if outcome != .cancelledByFlush, isCurrentVideoDelivery(generation) {
                     recordVideoFrameInFlight(presentationEnd: presentationEnd)
+                    recordVideoEnqueueLead(presentationTime: presentationTime)
                 }
                 emitPlaybackDeliveryStage(
                     lane: "video",
@@ -1155,6 +1156,23 @@ extension SampleBufferPlaybackSession {
                 requiresFlushToResumeDecoding: nil
             ))
             return false
+        }
+    }
+
+    func recordVideoEnqueueLead(presentationTime: CMTime) {
+        let hostSeconds = CMClockGetTime(CMClockGetHostTimeClock()).seconds
+        if let last = lastVideoEnqueueHostSeconds {
+            let gap = hostSeconds - last
+            videoEnqueueGapWindowMaxSeconds = max(videoEnqueueGapWindowMaxSeconds ?? 0, gap)
+        }
+        lastVideoEnqueueHostSeconds = hostSeconds
+        let reading = timelineClockReading()
+        guard presentationTime.isNumeric, reading.mediaTime.isNumeric, reading.directRate > 0 else { return }
+        let lead = presentationTime.seconds - reading.mediaTime.seconds
+        videoEnqueueLeadWindowMinSeconds = min(videoEnqueueLeadWindowMinSeconds ?? lead, lead)
+        diagnostics.videoEnqueueLeadLastSeconds = lead
+        if lead < 0 {
+            lateVideoEnqueueCount &+= 1
         }
     }
 
