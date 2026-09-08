@@ -1410,6 +1410,37 @@ struct PlaybackPresentationStateTests {
     }
 
     @Test(
+        "A hot-replaced item is placed directly in its main-window cell until a session attaches",
+        arguments: [
+            (
+                PlaybackPresentation.portal,
+                PlaybackPresentation.window,
+                nil as PlaybackPresentation?,
+                EffectiveMediaFormatPresentationPlacement.placeDirectly(.panoramic)
+            ),
+            (.window, .portal, nil, .placeDirectly(.flat)),
+            (.portal, .window, .window, .transition(.portal)),
+            (.window, .portal, .portal, .transition(.window)),
+            (.portal, .docked, nil, .transition(.portal)),
+            (.window, .panorama, nil, .transition(.window))
+        ]
+    )
+    func effectiveMediaFormatPresentationPlacement(
+        target: PlaybackPresentation,
+        current: PlaybackPresentation,
+        attached: PlaybackPresentation?,
+        expected: EffectiveMediaFormatPresentationPlacement
+    ) {
+        #expect(
+            EffectiveMediaFormatPresentationPlacementPolicy.placement(
+                target: target,
+                current: current,
+                attachedPresentation: attached
+            ) == expected
+        )
+    }
+
+    @Test(
         "Panel format editor follows the main-window presentation column",
         arguments: [
             (PlaybackPresentation.window, true),

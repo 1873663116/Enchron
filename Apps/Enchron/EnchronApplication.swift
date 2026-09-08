@@ -30,6 +30,26 @@ enum EffectiveMediaFormatPresentationResolver {
     }
 }
 
+enum EffectiveMediaFormatPresentationPlacement: Equatable {
+    case placeDirectly(PresentationContentFamily)
+    case transition(PlaybackPresentation)
+}
+
+enum EffectiveMediaFormatPresentationPlacementPolicy {
+    static func placement(
+        target: PlaybackPresentation,
+        current: PlaybackPresentation,
+        attachedPresentation: PlaybackPresentation?
+    ) -> EffectiveMediaFormatPresentationPlacement {
+        guard attachedPresentation == nil,
+              current.usesMainWindow,
+              target.usesMainWindow else {
+            return .transition(target)
+        }
+        return .placeDirectly(target.contentFamily)
+    }
+}
+
 @MainActor
 final class ServerCertificateChangePlaybackBoundary {
     private let hasActivePlayback: () -> Bool
@@ -330,11 +350,29 @@ final class EnchronApplication {
                         }
                     }
                 case .present(let target):
-                    _ = try playbackSessionModel.requestPlaybackPresentation(
-                        target,
-                        mediaSessionID: playbackRuntime.activeSessionID,
-                        wasPlaying: playbackRuntime.productLifecycle == .playing
+                    let placement = EffectiveMediaFormatPresentationPlacementPolicy.placement(
+                        target: target,
+                        current: playbackSessionModel.playbackPresentation,
+                        attachedPresentation: playbackRuntime.attachedPresentation
                     )
+                    switch placement {
+                    case .placeDirectly(let family):
+                        SurfaceInputProbes.record(
+                            "formatPresentation placed target=\(target.rawValue)"
+                                + " from=\(playbackSessionModel.playbackPresentation.rawValue)"
+                                + " reason=sessionNotAttached",
+                            retention: .evidence
+                        )
+                        playbackSessionModel.prepareColdPlaybackLaunch(for: family)
+                    case .transition:
+                        let sessionWillPlayOnAttach = playbackRuntime.attachedPresentation == nil
+                        _ = try playbackSessionModel.requestPlaybackPresentation(
+                            target,
+                            mediaSessionID: playbackRuntime.activeSessionID,
+                            wasPlaying: sessionWillPlayOnAttach
+                                || playbackRuntime.productLifecycle == .playing
+                        )
+                    }
                 }
             } catch {
                 Self.logger.error(
