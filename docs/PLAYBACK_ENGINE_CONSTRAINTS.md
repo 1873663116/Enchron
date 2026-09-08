@@ -55,6 +55,11 @@ seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测�
 
 恢复要求为什么被帧预算封顶：交付 gate 最多持有 `leadFrames` 个 presentation end 落在时间线之后的帧；跨越 `timelineTime` 的那一帧在它之后不足一帧就结束，所以这些帧能达到的最深 end 比 `leadFrames / nominalFrameRate` 少一帧。要求整段跨度，就是提出一个 gate 永远无法满足的条件。音频有自己按媒体秒的 gate，因此不受该封顶影响——否则恰好在读取最慢的那些流上放弃实测得到的恢复储备。断言见 `deliveryLagRecoveryNeverAsksForMoreThanTheGateAdmits`。
 
+## 送帧滞后恢复就是播放中的缓冲态
+
+- 送帧落后时间线 0.5 秒时，`beginDeliveryLagRecoveryIfNeeded` 在当前时间停住时基、进入预滚、等到 1 秒领先再恢复。这一步作废时间线看门狗，所以看门狗在网络饥饿时从不开口；饥饿的可见信号只能由滞后恢复自己发出。它发布 `detectionSource = deliveryLag` 的 `starved` 观测，这份观测保存在 run 之外，停住时基不会抹掉它，下一次时基变化（恢复、seek、暂停、关闭）以 `inactive` 清除。真机上 15 秒一次的读取延迟（`setSourceReadDelay`）让《黑客帝国》在 15.1 秒停住、时基 0，修复前 25 秒内没有任何指示，就是这条链；`deliveryLagRecoveryPublishesStarvationUntilTheTimelineChanges` 与 `deliveryLagStarvationClearsOnInactive` 钉住它。
+- 读速率标签是每秒采样一次的字节增量。回环服务器按 1 MiB 整块转发，慢速后端上一块要等很久，标签在块与块之间读 0，这不表示没有在读。
+
 ## visionOS 的时基与速率激活
 
 `AVSampleBufferRenderSynchronizer` 在 visionOS 上有一条必须绕开的行为：**只设媒体时间的 setRate 可以报告出请求的速率，而底层 timebase 在渲染器已被喂入之后仍停在零**。因此速率变化统一走 `setRateAtHostTime`——把同一个媒体时间绑定到一个近未来的 host time，给同步器一条显式的恢复边。由此派生出三条：

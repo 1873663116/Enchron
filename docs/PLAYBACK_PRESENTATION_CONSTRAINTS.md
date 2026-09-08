@@ -47,6 +47,10 @@
 - **控件升起时字幕按实测遮挡抬升，不用常数**。窗口与 portal 的 PlayerPanel 是 `.scene(.bottom)` 的 ornament，中心压在窗口下边，上半覆盖画面；覆盖的**点数**基本恒定，窗口高度却随呈现变化，原先的 0.32 常数在 portal 里把字幕抬得过高。现在 `MainView` 量 ornament 高度、`WindowPlaybackRootView` 量表面高度，`PlaybackWindowChromeOcclusion.bottomFraction` = (ornament 高 × 0.5 + 12 pt) ÷ 表面高，`PlaybackVideoSurface` 在控件可见时以它为 `reservedBottomFraction`。**同一个比例也从交互碰撞体上切掉**：碰撞体原来只避开顶部 chrome 条，portal 下 ornament 压住的画面底部仍归碰撞体，注视捏合进度条会被碰撞体接走、变成一次 surface toggle 把控件关掉（2026-09-07 真机）；`interactionRegion` 现在同时减去 `bottomFraction`，控件隐藏时 `bottomFraction` 为 0，底部恢复为可点的画面。Panorama 的控件是头前 0.7 m、低 0.22 m 的 world-locked attachment，字幕的抬升由上一条的共面停靠承担。
 - **Portal 需要它的 Window scene 里有空间厚度**。取值是 SwiftUI 场景单位，对齐 Apple 沉浸媒体 PlayerWindow 契约；零厚度的宿主会让组件停在 loading。
 
+## 饥饿指示画在画面上
+
+- **播放中饥饿（`loadingStage == .starved`）只叠加转圈与读速率，不清空画面**。窗口与 Portal 由主窗口画布的 ZStack 叠加 `LoadingSpinner`，并像控件一样抬高 `coincidentChromeDepth`：不抬高时它与视频网格共面，保持住的那一帧会盖住它（2026-09-09 真机截图）。Dock 与 Panorama 由 `ImmersiveSpaceView` 的第二个 RealityView 附件承担，挂在字幕所在的父实体上：Dock 在屏幕中心前 2.5 cm，Panorama 在字幕跟随根正前 2.2 m；只在饥饿且无转场时启用，启用写入与其他实体一样进探针日志。打开阶段仍是原来的整窗加载。
+
 ## 沉浸空间的几何与输入
 
 - **Immersive Space 的原点在佩戴者脚下的地板上**。authored anchor 携带佩戴者的名义眼高，距离与仰角把屏幕放在以该点为中心的球面上。
