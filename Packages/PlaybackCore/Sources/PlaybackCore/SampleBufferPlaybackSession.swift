@@ -948,9 +948,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
     }
 
-    func invalidateTimelineProgressRecovery() {
+    func invalidateTimelineProgressRecovery(caller: String = #function) {
         let continuityObservation = timelineProgressRecoveryLock.withLock {
-            invalidateTimelineProgressRecoveryLocked()
+            invalidateTimelineProgressRecoveryLocked(caller: caller)
         }
         if let continuityObservation {
             publishDeliveryContinuity(continuityObservation)
@@ -959,13 +959,17 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     private func activateTimelineProgressRecoveryLocked(
         requestedRate: Float,
-        applicationHostTime: CMTime
+        applicationHostTime: CMTime,
+        caller: String = #function
     ) {
         let run = timelineProgressRecovery.activate(
             requestedRate: requestedRate,
             applicationHostTime: applicationHostTime,
             videoStreamEpoch: streamEpoch,
             audioStreamEpoch: audioStreamEpoch
+        )
+        PlaybackTrace.event(
+            "session.watchdog.activated id=\(traceID) run=\(run.generation) by=\(caller)"
         )
         deliveryContinuity.activate(run)
         let timer = DispatchSource.makeTimerSource(queue: timelineProgressWatchdogQueue)
@@ -984,8 +988,14 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         timer.resume()
     }
 
-    private func invalidateTimelineProgressRecoveryLocked()
-        -> PlaybackDeliveryContinuityObservation? {
+    private func invalidateTimelineProgressRecoveryLocked(
+        caller: String = #function
+    ) -> PlaybackDeliveryContinuityObservation? {
+        if let run = timelineProgressRecovery.currentRun {
+            PlaybackTrace.event(
+                "session.watchdog.invalidated id=\(traceID) run=\(run.generation) by=\(caller)"
+            )
+        }
         timelineProgressRecovery.invalidate()
         let continuityObservation = deliveryContinuity.invalidate()
         timelineProgressWatchdog?.setEventHandler {}

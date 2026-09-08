@@ -146,13 +146,14 @@ extension SampleBufferPlaybackSession {
         if shouldCancel { task.cancel() }
     }
 
-    func stopVideoDelivery() {
+    func stopVideoDelivery(caller: String = #function) {
         let task = deliveryTaskLock.withLock {
             videoDeliveryGeneration &+= 1
             let task = videoDeliveryTask
             videoDeliveryTask = nil
             return task
         }
+        PlaybackTrace.event("session.videoDelivery.stop id=\(traceID) by=\(caller) hadTask=\(task != nil)")
         task?.cancel()
     }
 
@@ -160,7 +161,8 @@ extension SampleBufferPlaybackSession {
         deliveryTaskLock.withLock { videoSampleDeliverySuspended }
     }
 
-    func suspendVideoSampleDelivery(flushingRenderer: Bool = false) async {
+    func suspendVideoSampleDelivery(flushingRenderer: Bool = false, caller: String = #function) async {
+        PlaybackTrace.event("session.videoDelivery.suspend id=\(traceID) by=\(caller) flush=\(flushingRenderer)")
         cancelFirstVideoFrameDeadline()
         let task = deliveryTaskLock.withLock {
             videoSampleDeliverySuspended = true
@@ -2204,6 +2206,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func handleProviderControlEvent(_ kind: MediaEventKind) async {
+        PlaybackTrace.event("session.providerControl id=\(traceID) kind=\(kind)")
         invalidateTimelineProgressRecovery()
         isResetting = true
         switch kind {
