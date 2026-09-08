@@ -276,6 +276,10 @@ final class EnchronApplication {
         let embyConnection = EmbyConnectionViewModel(session: embySession)
         let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)
         let embySearch = EmbySearchViewModel(client: embyClient, session: embySession)
+        playbackSessionModel.controlsTransitionAnimation = DesignTokens.AnimationToken.controlsTransition
+        playbackSessionModel.controlsAutoHideContext = { [weak playbackRuntime] in
+            (playbackRuntime?.lifecycle == .playing, String(describing: playbackRuntime?.lifecycle))
+        }
         launcher.onPlaybackModeEntryStarted = { [weak playbackSessionModel] mode, isColdLaunch in
             guard let playbackSessionModel else { return mode }
             playbackSessionModel.showControls = false

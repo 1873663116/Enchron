@@ -117,7 +117,6 @@ public struct MainView: View {
     private var spatialPlatformEffectCoordinator
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
 
-    @State private var controlsTimer: Task<Void, Never>?
     @State private var playbackDeckOpacity: Double = 0
     @State private var reapplyVerificationSnapshotTick = 0
     private let playbackSurfaceIsEnabled: Bool
@@ -161,30 +160,11 @@ public struct MainView: View {
             playbackRuntime.onPlaybackEnded = {
                 let showControls = playbackLauncher.handlePlaybackEnded {
                     playbackSession.showControls = true
-                    controlsTimer?.cancel()
                 }
                 if showControls {
                     playbackSession.showControls = true
-                    controlsTimer?.cancel()
                 }
             }
-        }
-        .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, hasActivePlaybackRequest in
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(20))
-                if hasActivePlaybackRequest {
-                    scheduleControlsAutoHide()
-                } else {
-                    controlsTimer?.cancel()
-                }
-            }
-        }
-        .onChange(of: playbackSession.lastControlsInteractionAt) { _, _ in
-            guard playbackRuntime.hasActivePlaybackRequest else { return }
-            scheduleControlsAutoHide()
-        }
-        .onDisappear {
-            controlsTimer?.cancel()
         }
         .overlay {
             if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
@@ -703,39 +683,6 @@ public struct MainView: View {
     private func retryPlayback() {
         playbackLauncher.retryPlayback()
     }
-
-    private func scheduleControlsAutoHide() {
-        controlsTimer?.cancel()
-        guard playbackSession.controlsAutoHideSeconds > 0 else { return }
-        let delay = Duration.seconds(playbackSession.controlsAutoHideSeconds)
-        let scheduledAtMillis = Int(Date().timeIntervalSince1970 * 1000)
-        SurfaceInputProbes.record(
-            "controlsVisibility event=timer-scheduled "
-                + "state=\(playbackSession.showControls ? "shown" : "hidden") "
-                + "scheduledAtMillis=\(scheduledAtMillis) "
-                + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
-                + "lifecycle=\(playbackRuntime.lifecycle)",
-            retention: .evidence
-        )
-        controlsTimer = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled,
-                  playbackSession.canAutoHideControls,
-                  playbackRuntime.lifecycle == .playing else { return }
-            withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-                playbackSession.showControls = false
-            }
-            SurfaceInputProbes.record(
-                "controlsVisibility event=auto-hide state=hidden "
-                    + "scheduledAtMillis=\(scheduledAtMillis) "
-                    + "hiddenAtMillis=\(Int(Date().timeIntervalSince1970 * 1000)) "
-                    + "delaySeconds=\(playbackSession.controlsAutoHideSeconds) "
-                    + "lifecycle=\(playbackRuntime.lifecycle)",
-                retention: .evidence
-            )
-        }
-    }
-
 }
 
 private struct WindowControlPlaneStateModifier: ViewModifier {

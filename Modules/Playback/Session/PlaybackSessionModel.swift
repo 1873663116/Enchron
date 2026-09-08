@@ -199,7 +199,21 @@ public final class PlaybackSessionModel {
     public private(set) var lastPresentationConversionDiagnostic: String?
     private var presentationTransitionStartedAt: Date?
 
-    public var showControls: Bool = false
+    public var showControls: Bool = false {
+        didSet {
+            guard showControls != oldValue else { return }
+            if showControls {
+                scheduleControlsAutoHide()
+            } else {
+                cancelControlsAutoHide()
+            }
+        }
+    }
+    @ObservationIgnored public var controlsAutoHideContext: @MainActor () -> (canHide: Bool, lifecycle: String) = {
+        (true, "unknown")
+    }
+    @ObservationIgnored public var controlsTransitionAnimation: Animation = .default
+    @ObservationIgnored private var controlsAutoHideTask: Task<Void, Never>?
     public private(set) var windowTopChromeFraction: Float = 0
     private var windowControlsOrnamentHeight: CGFloat = 0
     public private(set) var windowSurfaceHeight: CGFloat = 0
@@ -545,6 +559,46 @@ public final class PlaybackSessionModel {
 
     public func registerControlsInteraction(at date: Date = Date()) {
         lastControlsInteractionAt = date
+        if showControls {
+            scheduleControlsAutoHide()
+        }
+    }
+
+    private func scheduleControlsAutoHide() {
+        controlsAutoHideTask?.cancel()
+        guard controlsAutoHideSeconds > 0 else { return }
+        let delaySeconds = controlsAutoHideSeconds
+        let scheduledAtMillis = Int(Date().timeIntervalSince1970 * 1000)
+        SurfaceInputProbes.record(
+            "controlsVisibility event=timer-scheduled "
+                + "state=\(showControls ? "shown" : "hidden") "
+                + "scheduledAtMillis=\(scheduledAtMillis) "
+                + "delaySeconds=\(delaySeconds) "
+                + "lifecycle=\(controlsAutoHideContext().lifecycle)",
+            retention: .evidence
+        )
+        controlsAutoHideTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delaySeconds))
+            guard let self, Task.isCancelled == false, canAutoHideControls else { return }
+            let context = controlsAutoHideContext()
+            guard context.canHide else { return }
+            withAnimation(controlsTransitionAnimation) {
+                showControls = false
+            }
+            SurfaceInputProbes.record(
+                "controlsVisibility event=auto-hide state=hidden "
+                    + "scheduledAtMillis=\(scheduledAtMillis) "
+                    + "hiddenAtMillis=\(Int(Date().timeIntervalSince1970 * 1000)) "
+                    + "delaySeconds=\(delaySeconds) "
+                    + "lifecycle=\(context.lifecycle)",
+                retention: .evidence
+            )
+        }
+    }
+
+    private func cancelControlsAutoHide() {
+        controlsAutoHideTask?.cancel()
+        controlsAutoHideTask = nil
     }
 
     public var debugSurfaceTapTrace: String = "none"
