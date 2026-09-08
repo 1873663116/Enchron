@@ -308,6 +308,7 @@ public struct MainView: View {
             logger.error(
                 "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
             )
+            SurfaceInputProbes.record("emby playback request failed error=\(error)", retention: .evidence)
             playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
         }
     }

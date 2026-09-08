@@ -65,6 +65,7 @@ extension SampleBufferPlaybackSession {
             audioProvider.cancel()
             debugStore.recordCleanupStep(.audioProviderCancelled)
         }
+        PlaybackTrace.event("session.close.queuesSynced id=\(traceID)")
         subtitleStateLock.withLock {
             subtitleState.selectionGeneration &+= 1
             subtitleState.streamEpoch &+= 1

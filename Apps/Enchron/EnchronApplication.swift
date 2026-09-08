@@ -124,6 +124,10 @@ final class EnchronApplication {
     #endif
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+#if DEBUG
+        PlaybackTrace.installSink { DebugTraceMirror.shared.append("pbtrace \($0)") }
+        MediaSourceDebugTrace.installSink { DebugTraceMirror.shared.append("mstrace \($0)") }
+#endif
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
         let mediaLibraryDefaultsSuiteName = isUITesting ? "app.enchron.ui-testing" : nil
         let regressionPreferencesSuiteName = environment[
@@ -670,3 +674,32 @@ extension View {
             .environment(application.connectionSecurityPrompt)
     }
 }
+
+#if DEBUG
+nonisolated final class DebugTraceMirror: @unchecked Sendable {
+    static let shared = DebugTraceMirror()
+
+    private let lock = NSLock()
+    private let handle: FileHandle?
+    private let formatter: ISO8601DateFormatter
+
+    private init() {
+        formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("trace-probe.log")
+        if FileManager.default.fileExists(atPath: url.path) == false {
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+        handle = try? FileHandle(forWritingTo: url)
+        handle?.seekToEndOfFile()
+    }
+
+    func append(_ line: String) {
+        let stamped = "\(formatter.string(from: Date())) \(line)\n"
+        lock.withLock {
+            handle?.write(Data(stamped.utf8))
+        }
+    }
+}
+#endif

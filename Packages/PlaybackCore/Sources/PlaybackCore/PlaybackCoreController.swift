@@ -859,6 +859,12 @@ public final class PlaybackCoreController {
         subtitleSelectionGeneration &+= 1
         let closingFormatOverrideGeneration = formatOverrideGeneration
         latestRequestedSeekTime = nil
+        PlaybackTrace.event(
+            "controller.close.begin session=\(activeSession?.traceID ?? "none")"
+                + " seekTask=\(activeSeekTask != nil)"
+                + " formatTask=\(activeFormatOverrideTask != nil)"
+                + " subtitleTask=\(activeSubtitleSelectionTask != nil)"
+        )
         guard let session = activeSession else {
             activeSeekTask?.cancel()
             activeSeekTask = nil
@@ -871,6 +877,7 @@ public final class PlaybackCoreController {
             setStatus(.idle)
             await waitForPendingCleanup()
             await waitForReplacementRetirements()
+            PlaybackTrace.event("controller.close.end session=none")
             return
         }
         session.interruptSourceReadsForClose()
@@ -879,6 +886,7 @@ public final class PlaybackCoreController {
             _ = try? await activeSeekTask.value
             self.activeSeekTask = nil
         }
+        PlaybackTrace.event("controller.close.seekTaskSettled")
         if let activeFormatOverrideTask {
             activeFormatOverrideTask.cancel()
             _ = try? await activeFormatOverrideTask.value
@@ -886,16 +894,20 @@ public final class PlaybackCoreController {
                 self.activeFormatOverrideTask = nil
             }
         }
+        PlaybackTrace.event("controller.close.formatTaskSettled")
         if let activeSubtitleSelectionTask {
             activeSubtitleSelectionTask.cancel()
             _ = try? await activeSubtitleSelectionTask.value
             self.activeSubtitleSelectionTask = nil
         }
+        PlaybackTrace.event("controller.close.subtitleTaskSettled")
         if activeSession === session {
             beginPendingCleanup(for: session)
         }
         await waitForPendingCleanup()
+        PlaybackTrace.event("controller.close.cleanupSettled")
         await waitForReplacementRetirements()
+        PlaybackTrace.event("controller.close.end session=\(session.traceID)")
     }
 
     @discardableResult

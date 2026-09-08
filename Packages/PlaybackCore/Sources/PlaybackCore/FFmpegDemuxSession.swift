@@ -39,7 +39,10 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             }
             return self.source
         }
-        if let source { PBFFmpegDemuxSourceDestroy(source) }
+        guard let source else { return }
+        PlaybackTrace.event("demux.destroy.begin")
+        PBFFmpegDemuxSourceDestroy(source)
+        PlaybackTrace.event("demux.destroy.end")
     }
 
     func withSource<T>(
@@ -54,6 +57,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
                 return try body(source)
             }
             var error = [CChar](repeating: 0, count: 512)
+            PlaybackTrace.event("demux.open.begin remote=\(sourceTransport.isRemote)")
             let opened = argument.withCString {
                 PBFFmpegDemuxSourceCreate(
                     $0,
@@ -64,6 +68,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
                     error.count
                 )
             }
+            PlaybackTrace.event("demux.open.end ok=\(opened != nil)")
             guard let opened else {
                 throw FFmpegDemuxSessionError.open(ffmpegErrorMessage(error))
             }
@@ -79,12 +84,15 @@ final class FFmpegDemuxSession: @unchecked Sendable {
                 throw FFmpegDemuxSessionError.notOpen
             }
             var error = [CChar](repeating: 0, count: 512)
-            guard PBFFmpegDemuxSourceSeek(
+            PlaybackTrace.event("demux.seek.begin seconds=\(seconds)")
+            let sought = PBFFmpegDemuxSourceSeek(
                 source,
                 seconds,
                 &error,
                 error.count
-            ) else {
+            )
+            PlaybackTrace.event("demux.seek.end ok=\(sought)")
+            guard sought else {
                 throw FFmpegDemuxSessionError.seek(ffmpegErrorMessage(error))
             }
         }
@@ -92,6 +100,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
 
     func interrupt() {
         guard let source = sourceLock.withLock({ source }) else { return }
+        PlaybackTrace.event("demux.interrupt")
         PBFFmpegDemuxSourceInterrupt(source)
     }
 

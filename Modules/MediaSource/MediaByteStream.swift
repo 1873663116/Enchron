@@ -31,6 +31,23 @@ private struct MediaByteStreamDebugCounterState: Sendable {
 }
 #endif
 
+public enum MediaSourceDebugTrace {
+    public static func event(_ message: String) {
+#if DEBUG
+        sinkLock.withLock { sinkStorage }?(message)
+#endif
+    }
+
+#if DEBUG
+    private static let sinkLock = NSLock()
+    nonisolated(unsafe) private static var sinkStorage: (@Sendable (String) -> Void)?
+
+    public static func installSink(_ sink: (@Sendable (String) -> Void)?) {
+        sinkLock.withLock { sinkStorage = sink }
+    }
+#endif
+}
+
 public enum MediaByteBufferDepth: Sendable, Equatable {
     case none
     case automatic
@@ -730,6 +747,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     private final class Registration: @unchecked Sendable {
         let source: any MediaByteRangeSource
         let filename: String
+        let token: String
         let readFailureState = MediaSourceReadFailureState()
         let lock = NSLock()
         var indexSession: ContainerIndexSession?
@@ -741,6 +759,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         init(source: any MediaByteRangeSource, filename: String, token: String) {
             self.source = source
             self.filename = filename
+            self.token = token
             #if DEBUG
                 containerIndexDebugState = MediaByteStreamContainerIndexDebugState(
                     scope: "media-byte-stream:\(token.lowercased())"
@@ -904,6 +923,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let token = UUID().uuidString
         let registration = Registration(source: source, filename: filename, token: token)
         lock.withLock { registrations[token] = registration }
+        MediaSourceDebugTrace.event("bytestream.register token=\(token.prefix(8)) name=\(filename)")
         let escapedName = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "media"
         guard let url = URL(string: "http://127.0.0.1:\(port.rawValue)/\(token)/\(escapedName)") else {
             unregister(token: token)
@@ -997,6 +1017,11 @@ public final class MediaByteStreamServer: @unchecked Sendable {
 
     fileprivate func unregister(token: String) {
         _ = lock.withLock { registrations.removeValue(forKey: token) }
+        let live = lock.withLock { (registrations.count, transferTasks.count, connections.count) }
+        MediaSourceDebugTrace.event(
+            "bytestream.unregister token=\(token.prefix(8)) registrations=\(live.0)"
+                + " transfers=\(live.1) connections=\(live.2)"
+        )
     }
 
     private func ensureStarted() async throws -> NWEndpoint.Port {
@@ -1017,6 +1042,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 } catch {
                     let waiters = startupWaiters
                     startupWaiters.removeAll()
+                    MediaSourceDebugTrace.event("bytestream.listener.failed error=\(error)")
                     waiters.forEach { $0.resume(throwing: error) }
                     return false
                 }
@@ -1078,6 +1104,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             connections.removeValue(forKey: id)
             return transferTasks.removeValue(forKey: id)
         }
+        MediaSourceDebugTrace.event(
+            "bytestream.connection.end connection=\(id.hashValue) hadTransfer=\(task != nil)"
+        )
         task?.cancel()
         connection?.cancel()
     }
@@ -1117,9 +1146,18 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
         let header = Self.headers(from: request)["range"]
         let id = ObjectIdentifier(connection)
+        MediaSourceDebugTrace.event(
+            "bytestream.request token=\(token.prefix(8)) method=\(method) range=\(header ?? "none")"
+                + " connection=\(id.hashValue)"
+        )
         let task = Task { [weak self, connection] in
             guard let self else { return }
-            defer { _ = self.lock.withLock { self.transferTasks.removeValue(forKey: id) } }
+            defer {
+                _ = self.lock.withLock { self.transferTasks.removeValue(forKey: id) }
+                MediaSourceDebugTrace.event(
+                    "bytestream.transfer.end token=\(token.prefix(8)) connection=\(id.hashValue)"
+                )
+            }
             await self.respond(method: method, rangeHeader: header, registration: registration, on: connection)
         }
         lock.withLock { transferTasks[id] = task }
@@ -1252,7 +1290,13 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             }
             while offset < requestedRange.upperBound {
                 let end = min(offset + readChunkSize, requestedRange.upperBound)
+                let readStartedAt = Date()
                 let result = try await read(offset..<end, registration: registration)
+                MediaSourceDebugTrace.event(
+                    "bytestream.read token=\(registration.token.prefix(8)) offset=\(offset)"
+                        + " bytes=\(result.data.count)"
+                        + " ms=\(Int(Date().timeIntervalSince(readStartedAt) * 1000))"
+                )
                 guard result.data.isEmpty == false,
                       result.supportsSeeking,
                       result.contentLength == nil || result.contentLength == actualLength else {

@@ -526,8 +526,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         logger.info("open requested source=\(request.displayName, privacy: .public)")
 
         do {
+            PlaybackTrace.event("runtime.open.awaitClose pending=\(closingTask != nil)")
             await closingTask?.value
             closingTask = nil
+            PlaybackTrace.event("runtime.open.closeSettled")
             guard request.sourceAccess?.ensureActive() != false else {
                 throw RuntimeError.sourceAccessUnavailable
             }
@@ -1980,14 +1982,24 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
         let closeTask = Task { @MainActor in
+            PlaybackTrace.event(
+                "runtime.close.begin previous=\(previousClosingTask != nil)"
+                    + " renderer=\(rendererCloseTask != nil)"
+                    + " driver=\(openingDriver != nil)"
+                    + " hadActiveDriver=\(hadActiveDriver)"
+            )
             await previousClosingTask?.value
+            PlaybackTrace.event("runtime.close.previousSettled")
             await rendererCloseTask?.value
+            PlaybackTrace.event("runtime.close.rendererSettled")
             await openingDriver?.close(clearSource: hadActiveDriver == false)
+            PlaybackTrace.event("runtime.close.driverSettled")
             await audioSessionLifecycle.deactivate()
             sourceAccess?.release()
             for subtitleAccess in externalSubtitleAccesses {
                 subtitleAccess.release()
             }
+            PlaybackTrace.event("runtime.close.end")
         }
         closingTask = closeTask
         clearPresentation()
