@@ -187,6 +187,54 @@ class MenuSelectionEvidenceTests(unittest.TestCase):
 
         self.assertEqual(matrix.menu_selection_target(listing), "available")
 
+    def test_selected_menu_item_reads_the_current_choice(self) -> None:
+        listing = {
+            "payload": ["1.0", "0.5"],
+            "menuItems": [
+                {"id": "1.0", "title": "1×", "isSelected": True},
+                {"id": "0.5", "title": "0.5×", "isSelected": False},
+            ],
+        }
+
+        self.assertEqual(matrix.selected_menu_item(listing), "1.0")
+        self.assertIsNone(matrix.selected_menu_item({"payload": ["1.0"]}))
+
+    def test_settings_cell_restores_the_previous_choice_after_proving_delivery(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.settings_restorations = []
+        run.app_command = Mock(return_value={"success": True})
+        listing = {
+            "payload": ["1.0", "0.5"],
+            "menuItems": [
+                {"id": "1.0", "title": "1×", "isSelected": True},
+                {"id": "0.5", "title": "0.5×", "isSelected": False},
+            ],
+        }
+
+        run.restore_settings_selection("default-speed", listing, "0.5")
+
+        run.app_command.assert_called_once_with(
+            "selectMenuItem", host="settings", family="default-speed", target="1.0"
+        )
+        self.assertEqual(
+            run.settings_restorations,
+            [{"family": "default-speed", "previous": "1.0", "restored": True}],
+        )
+
+    def test_settings_cell_leaves_an_unchanged_choice_alone(self) -> None:
+        run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
+        run.settings_restorations = []
+        run.app_command = Mock(return_value={"success": True})
+        listing = {
+            "payload": ["8"],
+            "menuItems": [{"id": "8", "title": "8 s", "isSelected": True}],
+        }
+
+        run.restore_settings_selection("controls-auto-hide", listing, "8")
+
+        run.app_command.assert_not_called()
+        self.assertEqual(run.settings_restorations, [])
+
     def test_deferred_menu_target_requires_the_resolved_product_item_probe(self) -> None:
         self.assertEqual(
             matrix.menu_delivery_probe_needle("__firstUnselected"),

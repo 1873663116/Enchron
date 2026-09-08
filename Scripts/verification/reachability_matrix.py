@@ -757,6 +757,16 @@ def menu_selection_target(
     return available[0] if available else None
 
 
+def selected_menu_item(listing: dict[str, Any]) -> str | None:
+    menu_items = listing.get("menuItems")
+    if not isinstance(menu_items, list):
+        return None
+    for item in menu_items:
+        if isinstance(item, dict) and item.get("isSelected") is True and item.get("id") is not None:
+            return str(item["id"])
+    return None
+
+
 def menu_delivery_probe_needle(target: str) -> str:
     prefix = "reachability playerPanel delivered action=menu.item."
     if target in {"__firstUnselected", "__firstAvailable"}:
@@ -1228,6 +1238,7 @@ class ReachabilityRun:
         self.last_connected_webdav_source: str | None = None
         self.last_removed_remote_sources: list[str] = []
         self.out_of_context_observations = {}
+        self.settings_restorations: list[dict[str, object]] = []
         self.lane = "simulator" if enchron_target.is_simulator(DEVICE) else "device"
         self.budgets = BudgetProvider(output_directory=self.output)
         try:
@@ -4712,13 +4723,14 @@ class ReachabilityRun:
             operation_id = f"menu:settings:{family}"
             before = self.copy_probe(f"settings-{family}-before")
             offset = len(before)
-            target, _, selected = self.select_debug_menu_item(
+            target, listing, selected = self.select_debug_menu_item(
                 presentation=presentation,
                 host="settings",
                 family=family,
                 driven_operations=(operation_id,),
             )
             probe = self.copy_probe(f"settings-{family}-selected")
+            self.restore_settings_selection(family, listing, target)
             if selected.get("success") is True and target is not None and any(
                 f"reachability settings delivered action=menu.{family}" in line
                 for line in probe[offset:]
@@ -4768,6 +4780,25 @@ class ReachabilityRun:
                 self.events[-1]["evidence"],
                 "Clear All ran the product viewing-state reset and appended its probe.",
             )
+
+    def restore_settings_selection(
+        self, family: str, listing: dict[str, Any], target: str | None
+    ) -> None:
+        previous = selected_menu_item(listing)
+        if previous is None or previous == target:
+            return
+        restored = self.app_command(
+            "selectMenuItem",
+            host="settings",
+            family=family,
+            target=previous,
+        )
+        self.record_settings_restore(family, previous, restored.get("success") is True)
+
+    def record_settings_restore(self, family: str, previous: str, restored: bool) -> None:
+        self.settings_restorations.append(
+            {"family": family, "previous": previous, "restored": restored}
+        )
 
     def settings_category_scenario(self) -> None:
         presentation = MAIN_WINDOW_BROWSER_CONTEXT
@@ -8592,6 +8623,7 @@ class ReachabilityRun:
                     getattr(self, "out_of_context_observations", {}).items()
                 )
             ],
+            "settingsRestorations": getattr(self, "settings_restorations", []),
             "channelHealth": self.channel_health,
             "channelContinuity": {
                 "passed": not self.channel_failures,
