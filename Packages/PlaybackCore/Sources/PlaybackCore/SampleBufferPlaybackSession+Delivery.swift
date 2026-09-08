@@ -735,12 +735,29 @@ extension SampleBufferPlaybackSession {
         prerollRequirementLock.withLock {
             prerollRequirement = requirement
         }
+        let stoppedRun = timelineProgressRecoveryLock.withLock {
+            timelineProgressRecovery.currentRun
+        }
         setTimelineStopped(
             at: timelineTime,
             reason: .deliveryLagRecovery,
             capturedVideoDeliveryGeneration: generation
         )
         recordTimelineControlState()
+        let mediaState = deliveryContinuityMediaState()
+        let lagObservation = timelineProgressRecoveryLock.withLock {
+            deliveryContinuity.observeDeliveryLag(
+                frozenMediaTime: timelineTime,
+                mediaState: mediaState,
+                rateApplicationGeneration: stoppedRun?.generation ?? 0,
+                videoStreamEpoch: streamEpoch,
+                audioStreamEpoch: audioStreamEpoch,
+                requestedRate: timelineStartRate
+            )
+        }
+        if let lagObservation {
+            publishDeliveryContinuity(lagObservation)
+        }
         debugStore.emit(
             mediaSessionID: traceID,
             node: .rendererInputCoordination,

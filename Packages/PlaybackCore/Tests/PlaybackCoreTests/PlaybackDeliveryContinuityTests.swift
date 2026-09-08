@@ -112,6 +112,45 @@ import Testing
     #expect(continuity.isStarved)
   }
 
+  @Test func deliveryLagRecoveryPublishesStarvationUntilTheTimelineChanges() throws {
+    var continuity = PlaybackDeliveryContinuity()
+    continuity.activate(playbackDeliveryRun(generation: 6))
+
+    let observation = continuity.observeDeliveryLag(
+      frozenMediaTime: CMTime(seconds: 15.2, preferredTimescale: 600),
+      mediaState: playbackDeliveryMediaState(videoEnd: 14.6, audioEnd: 15.1),
+      rateApplicationGeneration: 6,
+      videoStreamEpoch: 2,
+      audioStreamEpoch: 3,
+      requestedRate: 1
+    )
+
+    let starved = try #require(observation)
+    #expect(starved.phase == .starved)
+    #expect(starved.evidence?.detectionSource == .deliveryLag)
+    #expect(starved.evidence?.requiredLanes == ["audio", "video"])
+    #expect(starved.evidence?.frozenMediaTimeSeconds == 15.2)
+    #expect(starved.evidence?.exhaustedPresentationEndSeconds["video"] == 14.6)
+    #expect(starved.evidence?.rateApplicationGeneration == 6)
+    #expect(continuity.isStarved)
+
+    let repeated = continuity.observeDeliveryLag(
+      frozenMediaTime: CMTime(seconds: 15.2, preferredTimescale: 600),
+      mediaState: playbackDeliveryMediaState(videoEnd: 14.6, audioEnd: 15.1),
+      rateApplicationGeneration: 6,
+      videoStreamEpoch: 2,
+      audioStreamEpoch: 3,
+      requestedRate: 1
+    )
+    #expect(repeated == nil)
+
+    let clearedObservation = continuity.invalidate()
+    let cleared = try #require(clearedObservation)
+    #expect(cleared.phase == .inactive)
+    #expect(continuity.isStarved == false)
+    #expect(continuity.invalidate() == nil)
+  }
+
   @Test func naturalProviderEndIsNotStarvation() {
     let run = playbackDeliveryRun()
     var continuity = PlaybackDeliveryContinuity()

@@ -46,6 +46,31 @@ import Testing
         #expect(stateMachine.state.stage == .starved)
     }
 
+    @Test("delivery lag starvation is visible until the timeline changes")
+    func deliveryLagStarvationClearsOnInactive() {
+        var stateMachine = activeLoadingStateMachine()
+        var starvation = deliveryContinuityObservation(.starved, incidentID: 9)
+        starvation.evidence?.detectionSource = .deliveryLag
+        starvation.evidence?.watchdogCause = nil
+
+        stateMachine.receive(
+            starvation,
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+        #expect(stateMachine.state.visibility == .loading)
+        #expect(stateMachine.state.stage == .starved)
+
+        stateMachine.receive(
+            PlaybackDeliveryContinuityObservation(phase: .inactive),
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+        #expect(stateMachine.state == .none)
+    }
+
     @Test("buffered reconnect and unmatched recovery remain invisible")
     func bufferedReconnectRemainsInvisible() {
         var stateMachine = activeLoadingStateMachine()

@@ -10,6 +10,7 @@ public enum PlaybackDeliveryContinuityPhase: String, Codable, Sendable, Equatabl
 public enum PlaybackDeliveryContinuityDetectionSource: String, Codable, Sendable, Equatable {
     case blockedLanes
     case hostWatchdog
+    case deliveryLag
 }
 
 public struct PlaybackDeliveryContinuityEvidence: Codable, Sendable, Equatable {
@@ -89,9 +90,13 @@ struct PlaybackDeliveryContinuity: Sendable {
     }
 
     private var phase = Phase.inactive
+    private var lagStarvation: PlaybackDeliveryContinuityEvidence?
+    private var nextLagIncidentID: UInt64 = 0
 
     var isStarved: Bool {
-        if case .starved = phase { true } else { false }
+        if lagStarvation != nil { return true }
+        if case .starved = phase { return true }
+        return false
     }
 
     var currentRun: PlaybackTimelineProgressRun? {
@@ -110,11 +115,47 @@ struct PlaybackDeliveryContinuity: Sendable {
     }
 
     mutating func invalidate() -> PlaybackDeliveryContinuityObservation? {
-        let wasStarved = if case .starved = phase { true } else { false }
+        let wasStarved = isStarved
         phase = .inactive
+        lagStarvation = nil
         return wasStarved
             ? PlaybackDeliveryContinuityObservation(phase: .inactive)
             : nil
+    }
+
+    mutating func observeDeliveryLag(
+        frozenMediaTime: CMTime,
+        mediaState: PlaybackDeliveryContinuityMediaState,
+        rateApplicationGeneration: UInt64,
+        videoStreamEpoch: UInt64,
+        audioStreamEpoch: UInt64,
+        requestedRate: Float
+    ) -> PlaybackDeliveryContinuityObservation? {
+        guard lagStarvation == nil, frozenMediaTime.isNumeric else { return nil }
+        let activeRequiredLanes = mediaState.requiredLanes.subtracting(
+            mediaState.providerEndedLanes
+        )
+        var exhaustedEnds: [PlaybackDeliveryLane: CMTime] = [:]
+        for lane in activeRequiredLanes {
+            guard let presentationEnd = mediaState.presentationEndByLane[lane],
+                  presentationEnd.isNumeric else { continue }
+            exhaustedEnds[lane] = presentationEnd
+        }
+        nextLagIncidentID &+= 1
+        let evidence = PlaybackDeliveryContinuityEvidence(
+            incidentID: nextLagIncidentID,
+            detectionSource: .deliveryLag,
+            watchdogCause: nil,
+            requiredLanes: activeRequiredLanes.map(\.rawValue).sorted(),
+            rateApplicationGeneration: rateApplicationGeneration,
+            videoStreamEpoch: videoStreamEpoch,
+            audioStreamEpoch: audioStreamEpoch,
+            requestedRate: requestedRate,
+            frozenMediaTimeSeconds: frozenMediaTime.seconds,
+            exhaustedPresentationEndSeconds: Self.secondsByLane(exhaustedEnds)
+        )
+        lagStarvation = evidence
+        return PlaybackDeliveryContinuityObservation(phase: .starved, evidence: evidence)
     }
 
     mutating func observeIncident(
