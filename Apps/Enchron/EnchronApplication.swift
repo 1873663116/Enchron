@@ -14,8 +14,7 @@ typealias StorageCredential = MediaSource.StorageCredential
 
 enum EffectiveMediaFormatPresentationResolution: Equatable {
     case unchanged
-    case switchToPortal
-    case returnToWindow
+    case present(PlaybackPresentation)
 }
 
 enum EffectiveMediaFormatPresentationResolver {
@@ -23,15 +22,11 @@ enum EffectiveMediaFormatPresentationResolver {
         _ interpretation: EffectiveMediaFormatInterpretation,
         from presentation: PlaybackPresentation
     ) -> EffectiveMediaFormatPresentationResolution {
-        guard presentation.usesMainWindow else {
+        let family: PresentationContentFamily = interpretation.isPanoramic ? .panoramic : .flat
+        guard presentation.contentFamily != family else {
             return .unchanged
         }
-
-        if interpretation.isPanoramic {
-            return presentation == .window ? .switchToPortal : .unchanged
-        }
-
-        return presentation == .portal ? .returnToWindow : .unchanged
+        return .present(family.mainWindowPresentation)
     }
 }
 
@@ -334,15 +329,9 @@ final class EnchronApplication {
                             playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
                         }
                     }
-                case .switchToPortal:
+                case .present(let target):
                     _ = try playbackSessionModel.requestPlaybackPresentation(
-                        .portal,
-                        mediaSessionID: playbackRuntime.activeSessionID,
-                        wasPlaying: playbackRuntime.productLifecycle == .playing
-                    )
-                case .returnToWindow:
-                    _ = try playbackSessionModel.requestPlaybackPresentation(
-                        .window,
+                        target,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
                     )

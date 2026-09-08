@@ -55,11 +55,11 @@ public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
             .inPlace
         case (true, false, true):
             .enterImmersive
-        case (true, true, false):
+        case (true, true, false), (false, true, false):
             .exitImmersive
         case (false, false, false):
             .projectionSwap
-        case (false, _, _):
+        case (false, _, true):
             .illegal
         }
     }
@@ -474,7 +474,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
             )
         } else if target == .panorama {
             targetEnvironment = .none
-        } else if presented == .docked, target == .window {
+        } else if presented == .docked, target.usesMainWindow {
             targetEnvironment = environmentBeforeDockedPresentation ?? .none
         } else if presented == .panorama, target.usesMainWindow {
             targetEnvironment = environmentBeforePanoramaPresentation ?? .none
@@ -505,7 +505,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
            transition.targetPresentation == .docked {
             environmentBeforeDockedPresentation = transition.previousEnvironment
         } else if transition.previousPresentation == .docked,
-                  transition.targetPresentation == .window {
+                  transition.targetPresentation.usesMainWindow {
             environmentBeforeDockedPresentation = nil
         }
         if transition.previousPresentation.usesMainWindow,

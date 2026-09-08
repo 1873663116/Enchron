@@ -73,14 +73,13 @@ class TheEdgesThePlanNamed(unittest.TestCase):
     def test_flat_content_lands_in_window(self) -> None:
         self.assertEqual(lands_in_main_window("flat"), "window")
 
-    def test_the_diagonals_are_illegal(self) -> None:
-        for source, target in (
-            ("window", "panorama"),
-            ("panorama", "window"),
-            ("portal", "docked"),
-            ("docked", "portal"),
-        ):
+    def test_entering_a_space_of_another_family_is_illegal(self) -> None:
+        for source, target in (("window", "panorama"), ("portal", "docked")):
             self.assertEqual(edge(source, target), "illegal", f"{source} to {target}")
+
+    def test_leaving_a_space_may_cross_families(self) -> None:
+        for source, target in (("panorama", "window"), ("docked", "portal")):
+            self.assertEqual(edge(source, target), "exit-immersive", f"{source} to {target}")
 
     def test_the_three_legal_kinds(self) -> None:
         self.assertEqual(edge("window", "docked"), "enter-immersive")

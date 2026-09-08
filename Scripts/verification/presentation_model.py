@@ -52,6 +52,8 @@ def edge(source: str, target: str) -> str:
     leaving = uses_immersive_space(source)
     arriving = uses_immersive_space(target)
     if not same_family:
+        if leaving and not arriving:
+            return "exit-immersive"
         return "projection-swap" if not leaving and not arriving else "illegal"
     if leaving == arriving:
         return "in-place"

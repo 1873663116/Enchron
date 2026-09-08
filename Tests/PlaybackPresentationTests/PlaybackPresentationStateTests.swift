@@ -1371,20 +1371,20 @@ struct PlaybackPresentationStateTests {
     }
 
     @Test(
-        "Effective Media Format resolves only within the main-window column",
+        "Effective Media Format resolves to the main-window cell of its content family",
         arguments: [
             (
                 true,
                 PlaybackPresentation.window,
-                EffectiveMediaFormatPresentationResolution.switchToPortal
+                EffectiveMediaFormatPresentationResolution.present(.portal)
             ),
             (true, .portal, .unchanged),
-            (true, .docked, .unchanged),
+            (true, .docked, .present(.portal)),
             (true, .panorama, .unchanged),
             (false, .window, .unchanged),
-            (false, .portal, .returnToWindow),
+            (false, .portal, .present(.window)),
             (false, .docked, .unchanged),
-            (false, .panorama, .unchanged)
+            (false, .panorama, .present(.window))
         ]
     )
     func effectiveMediaFormatPresentationResolution(
@@ -3245,8 +3245,8 @@ struct PlaybackPresentationStateTests {
             .init(
                 source: .docked,
                 target: .portal,
-                effect: nil,
-                error: .illegalEdge(source: .docked, target: .portal)
+                effect: .exitImmersivePlayback(.panoramic, keepsEnvironmentOpen: false),
+                error: nil
             ),
             .init(
                 source: .docked,
@@ -3276,8 +3276,8 @@ struct PlaybackPresentationStateTests {
             .init(
                 source: .panorama,
                 target: .window,
-                effect: nil,
-                error: .illegalEdge(source: .panorama, target: .window)
+                effect: .exitImmersivePlayback(.flat, keepsEnvironmentOpen: false),
+                error: nil
             ),
             .init(
                 source: .panorama,
