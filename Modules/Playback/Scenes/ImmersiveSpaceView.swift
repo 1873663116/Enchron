@@ -1159,6 +1159,16 @@ public struct ImmersiveSpaceView: View {
             presentation: presentation,
             videoComponentRevision: videoComponentRevision
         )
+        if appModel.presentationTransition == nil,
+           let departingEntity = playbackVideoEntityStore.departingEntity,
+           departingEntity !== videoEntity {
+            content.remove(departingEntity)
+            playbackVideoEntityStore.releaseDepartingEntity()
+            appModel.recordSurfaceInputProbe(
+                "rendererOwnership.departingReleased scope=immersive"
+                    + " presentation=\(presentation.rawValue)"
+            )
+        }
         let entity = videoEntity
         let entityIsInCurrentHost = content.entities.contains { root in
             PlaybackRealityViewTopologyWritePolicy.entity(entity, isHostedUnder: root)
