@@ -855,6 +855,19 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [RendererLeadBudget.currentFixedFramesOverride.map(String.init) ?? "auto"]
             )
+        case "setSourceReadDelay":
+            let milliseconds = request.args["ms"].flatMap(Int.init)
+            MediaByteStreamServer.setDebugSourceReadDelay(milliseconds: milliseconds)
+            SurfaceInputProbes.record(
+                "testcmd setSourceReadDelay ms=\(milliseconds.map(String.init) ?? "none")",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [MediaByteStreamServer.debugSourceReadDelayMilliseconds().map(String.init) ?? "none"]
+            )
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit

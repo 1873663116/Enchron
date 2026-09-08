@@ -1015,6 +1015,22 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         #endif
     }
 
+    #if DEBUG
+        private static let debugSourceReadDelayLock = NSLock()
+        nonisolated(unsafe) private static var debugSourceReadDelayStorage: Int?
+
+        public static func setDebugSourceReadDelay(milliseconds: Int?) {
+            debugSourceReadDelayLock.withLock { debugSourceReadDelayStorage = milliseconds }
+            MediaSourceDebugTrace.event(
+                "bytestream.readDelay ms=\(milliseconds.map(String.init) ?? "none")"
+            )
+        }
+
+        public static func debugSourceReadDelayMilliseconds() -> Int? {
+            debugSourceReadDelayLock.withLock { debugSourceReadDelayStorage }
+        }
+    #endif
+
     fileprivate func unregister(token: String) {
         _ = lock.withLock { registrations.removeValue(forKey: token) }
         let live = lock.withLock { (registrations.count, transferTasks.count, connections.count) }
@@ -1338,6 +1354,11 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
         let result: MediaByteRangeRead
         do {
+            #if DEBUG
+                if let delay = Self.debugSourceReadDelayMilliseconds() {
+                    try await Task.sleep(for: .milliseconds(delay))
+                }
+            #endif
             result = try await registration.source.read(in: range)
         } catch {
             if let failure = MediaSourceReadFailure(classifying: error) {
