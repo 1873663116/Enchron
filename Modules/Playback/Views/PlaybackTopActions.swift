@@ -646,9 +646,11 @@ public struct PlaybackTopActions: View {
         thumbnailName: String
     ) -> some View {
         let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.element,
+            cornerRadius: DesignTokens.Radius.card,
             style: .continuous
         )
+        let isSelected = state.selectedDockEnvironment == environment
+            && state.selectedEffect == effect
 
         return Button {
             onReachabilityAction(
@@ -684,19 +686,15 @@ public struct PlaybackTopActions: View {
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .background {
-                if state.selectedDockEnvironment == environment,
-                   state.selectedEffect == effect {
-                    RoundedRectangle(
-                        cornerRadius: DesignTokens.Radius.element,
-                        style: .continuous
-                    )
-                    .fill(DesignTokens.Surface.selected)
-                }
-            }
             .contentShape(.interaction, shape)
         }
         .buttonStyle(.plain)
+        .background {
+            if isSelected {
+                shape.fill(DesignTokens.Surface.selected)
+            }
+        }
+        .clipShape(shape)
         .contentShape(.interaction, shape)
         .enchronHoverContentShape(shape)
         .enchronHoverEffect(.automatic)
@@ -710,10 +708,7 @@ public struct PlaybackTopActions: View {
             effect.map { "PlayerUI-DockMenu-\($0.rawValue)" }
                 ?? "PlayerUI-DockMenu-skybox"
         )
-        .accessibilityAddTraits(
-            state.selectedDockEnvironment == environment
-                && state.selectedEffect == effect ? .isSelected : []
-        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func toggle(_ menu: PlaybackTopSecondaryMenu) {
