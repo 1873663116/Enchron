@@ -177,7 +177,7 @@
       "scope": "component-default",
       "sources": [
         {
-          "line": 243,
+          "line": 247,
           "path": "Modules/Playback/Views/PlaybackTimeline.swift"
         }
       ],
@@ -190,7 +190,7 @@
       "scope": "component-default",
       "sources": [
         {
-          "line": 113,
+          "line": 117,
           "path": "Modules/Playback/Views/PlaybackTimeline.swift"
         }
       ],
@@ -2548,7 +2548,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1378,
+          "line": 1890,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2561,7 +2561,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1388,
+          "line": 1900,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2587,7 +2587,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1383,
+          "line": 1895,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2600,7 +2600,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1371,
+          "line": 1883,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2613,7 +2613,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1410,
+          "line": 1922,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2626,7 +2626,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 224,
+          "line": 228,
           "path": "Modules/Playback/Views/PlaybackTimeline.swift"
         }
       ],
@@ -2652,7 +2652,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1629,
+          "line": 1576,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2665,7 +2665,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1719,
+          "line": 1666,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2678,7 +2678,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1733,
+          "line": 1680,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2691,7 +2691,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 1955,
+          "line": 1966,
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
