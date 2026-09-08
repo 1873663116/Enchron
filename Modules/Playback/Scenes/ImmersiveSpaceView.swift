@@ -1,4 +1,5 @@
 import AVFoundation
+import DesignSystem
 import OSLog
 import PlaybackCore
 import RealityKit
@@ -751,10 +752,12 @@ public struct ImmersiveSpaceView: View {
             installRealityViewHostMarker(into: content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
+            installStallIndicator(from: attachments)
         } update: { content, attachments in
             installRealityViewHostMarker(into: content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
+            installStallIndicator(from: attachments)
         } attachments: {
             Attachment(
                 id: ImmersivePlaybackControlsAttachmentController.attachmentID
@@ -762,6 +765,16 @@ public struct ImmersiveSpaceView: View {
                 ImmersivePlaybackControlsAttachmentView(
                     presentation: requestedPresentation
                 )
+            }
+            Attachment(id: ImmersivePlaybackStallIndicatorPlacement.attachmentID) {
+                if stallIndicatorIsVisible {
+                    LoadingSpinner(sourceReadBytesPerSecond: {
+                        playbackRuntime.outputObservation().sourceReadBytesPerSecond
+                    })
+                    .accessibilityIdentifier("PlayerUI-immersive-loading-spinner")
+                    .accessibilityLabel("Loading")
+                    .allowsHitTesting(false)
+                }
             }
         }
         .realityScripting()
@@ -834,6 +847,41 @@ public struct ImmersiveSpaceView: View {
             return
         }
         content.add(realityViewHostMarker)
+    }
+
+    private var stallIndicatorIsVisible: Bool {
+        ImmersivePlaybackStallIndicatorPlacement.isVisible(
+            loadingStage: playbackRuntime.loadingState.stage,
+            presentation: requestedPresentation,
+            transitionIsActive: appModel.presentationTransition != nil
+        )
+    }
+
+    private func installStallIndicator(from attachments: RealityViewAttachments) {
+        guard let entity = attachments.entity(
+            for: ImmersivePlaybackStallIndicatorPlacement.attachmentID
+        ) else {
+            return
+        }
+        entity.name = "EnchronImmersivePlaybackStallIndicator"
+        let presentation = requestedPresentation
+        let visible = stallIndicatorIsVisible
+        if visible {
+            let parent = subtitleParent(for: presentation)
+            if entity.parent !== parent {
+                parent.addChild(entity)
+            }
+            entity.position = ImmersivePlaybackStallIndicatorPlacement.position(for: presentation)
+        }
+        let previous = entity.isEnabled
+        entity.isEnabled = visible
+        if previous != visible {
+            appModel.recordSurfaceInputProbe(
+                "entityEnablementWrite writer=ImmersiveSpaceView.installStallIndicator"
+                    + " entity=\(ObjectIdentifier(entity)) name=\(entity.name)"
+                    + " value=\(visible) activeAfterWrite=\(entity.isActive)"
+            )
+        }
     }
 
     private func installControlsAttachment(
@@ -2429,5 +2477,26 @@ private enum EnvironmentSceneEffectError: LocalizedError {
 
     var errorDescription: String? {
         "The environment resource does not contain its skybox entity."
+    }
+}
+
+enum ImmersivePlaybackStallIndicatorPlacement {
+    static let attachmentID = "immersivePlaybackStallIndicator"
+    static let dockedLift: Float = PlaybackSubtitlePlacement.planeLift + 0.01
+
+    static func isVisible(
+        loadingStage: PlaybackLoadingStage?,
+        presentation: PlaybackPresentation,
+        transitionIsActive: Bool
+    ) -> Bool {
+        loadingStage == .starved
+            && presentation.usesImmersiveSpace
+            && transitionIsActive == false
+    }
+
+    static func position(for presentation: PlaybackPresentation) -> SIMD3<Float> {
+        presentation == .panorama
+            ? [0, 0, -PlaybackSubtitlePlacement.panoramaScreenDistance]
+            : [0, 0, dockedLift]
     }
 }
