@@ -78,6 +78,8 @@ extension SampleBufferPlaybackSession {
                 "framesInFlight": String(framesInFlightAtTeardown)
             ]
         )
+        diagnostics.lastSeekFlushMilliseconds = Self.milliseconds(from: teardownStarted, to: rendererFlushed)
+        diagnostics.lastSeekFramesInFlight = framesInFlightAtTeardown
         resetDecoderBootstrap()
         audioRendererSink.flush()
         resetEndState(requiresAudio: hasAudio)
@@ -257,6 +259,10 @@ extension SampleBufferPlaybackSession {
                             )
                         ]
                     )
+                    diagnostics.lastSeekTotalMilliseconds = Self.milliseconds(
+                        from: teardownStarted,
+                        to: ContinuousClock.now
+                    )
                     completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
                     finishActiveOperation(.completed)
                     if preservedRate == 0 {
@@ -339,6 +345,10 @@ extension SampleBufferPlaybackSession {
                         to: ContinuousClock.now
                     )
                 ]
+            )
+            diagnostics.lastSeekTotalMilliseconds = Self.milliseconds(
+                from: teardownStarted,
+                to: ContinuousClock.now
             )
             completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
             finishActiveOperation(.completed)

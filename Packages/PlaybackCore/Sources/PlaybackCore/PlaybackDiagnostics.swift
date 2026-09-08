@@ -122,6 +122,9 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var videoEnqueueLeadLastSeconds: Double?
     public var videoEnqueueGapMaxSeconds: Double?
     public var lateVideoEnqueueCount: UInt64 = 0
+    public var lastSeekFlushMilliseconds: String?
+    public var lastSeekTotalMilliseconds: String?
+    public var lastSeekFramesInFlight: Int?
     public var demuxBuffer: PlaybackDemuxBufferDiagnostics?
 
     public init() {}

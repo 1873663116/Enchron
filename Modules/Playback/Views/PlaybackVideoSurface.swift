@@ -922,7 +922,10 @@ public struct PlaybackVideoSurface: View {
             "enqueueLeadMin=\(diagnostics.videoEnqueueLeadMinSeconds.map { String($0) } ?? "none")",
             "enqueueLeadLast=\(diagnostics.videoEnqueueLeadLastSeconds.map { String($0) } ?? "none")",
             "enqueueGapMax=\(diagnostics.videoEnqueueGapMaxSeconds.map { String($0) } ?? "none")",
-            "lateEnqueues=\(diagnostics.lateVideoEnqueueCount)"
+            "lateEnqueues=\(diagnostics.lateVideoEnqueueCount)",
+            "seekFlushMs=\(diagnostics.lastSeekFlushMilliseconds ?? "none")",
+            "seekTotalMs=\(diagnostics.lastSeekTotalMilliseconds ?? "none")",
+            "seekFramesInFlight=\(diagnostics.lastSeekFramesInFlight.map(String.init) ?? "none")"
         ] + ProcessMemoryFootprint.probeFields + [
             "codec=\(diagnostics.codecName)",
             "fps=\(diagnostics.nominalFrameRate)",
